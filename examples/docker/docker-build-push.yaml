@@ -45,7 +45,7 @@ format: dirigent/v1
 kind: pipeline
 code: docker-build-push
 name: Build an image and push it
-description: Build an image from a scratch context and push every tag to the registry a docker connection names.
+description: Build an image from a context in the work directory and push every tag to the registry a docker connection names.
 
 tags: [docker, execute]
 
@@ -79,9 +79,10 @@ steps:
       image: alpine:3
       pull: true
       network: none
-      # The build below names the same directory, scratch-relative.
+      # A target with no URI scheme lands in the run's work directory on this worker, which
+      # is where the build below reads its context from; a URI would send the file to storage.
       outputs:
-        Dockerfile: "${run.scratch}/context/Dockerfile"
+        Dockerfile: "context/Dockerfile"
       command: |
         cat > /dirigent/outputs/Dockerfile <<'DOCKERFILE'
         FROM alpine:3

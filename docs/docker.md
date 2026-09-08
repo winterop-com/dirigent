@@ -67,10 +67,10 @@ mode that starts containers. It keeps `/var/lib/docker` on a named volume, so an
 once survives a restart.
 
 **One constraint the sidecar imposes:** a bind mount is resolved on the **daemon's** filesystem,
-not the worker's. `docker.run` mounts `inputs` and `outputs` from the run's scratch space under
-the artifact root, and hands the daemon those paths, so the sidecar mounts the same `artifacts`
-volume at the same `/var/lib/dirigent/artifacts`. Point a worker at a daemon that cannot see that
-path and every step with `inputs` or `outputs` mounts an empty directory.
+not the worker's. `docker.run` mounts `inputs` and `outputs` from the run's work directory, and
+hands the daemon those paths, so the sidecar mounts the same `work` volume at the same
+`/var/lib/dirigent/work`. Point a worker at a daemon that cannot see that path and every step
+with `inputs` or `outputs` mounts an empty directory.
 
 Mounting the host's `/var/run/docker.sock` into a containerized worker is the **discouraged
 fallback**: it works, but it grants that container root on the host. See
@@ -135,6 +135,12 @@ artifact root is. Within it:
   `compose/<step>[/<item>]/attempt-<n>`, so two compose steps of one run, and two items of one
   fan-out, never write over each other's document;
 - a build context is a relative directory, with its Dockerfile relative to that.
+
+`docker.run`'s `outputs` puts a file in either place. Each entry maps a name the container
+wrote in its output mount to a target: a target carrying a URI scheme is copied to storage,
+where it outlives the run, and a target without one is a path relative to the work directory,
+which is how one step produces the compose file or the build context the next step opens.
+`inputs` is always storage: a URI read into the read-only mount.
 
 On the compose stack the daemon mounts that directory at the same path the worker sees it at,
 because a bind is resolved on the daemon's filesystem rather than the worker's. It is local to

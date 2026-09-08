@@ -241,7 +241,7 @@ Contributed by `builtin`. Not idempotent. **Runs code on the worker**, so the in
 | `env` | `object of string` |  |  | Variables set explicitly for this container. |
 | `env_allowlist` | `string[]` |  |  | Worker environment variables this container is allowed to inherit. |
 | `inputs` | `object of string` |  |  | Files to stage into the read-only input mount, as `name inside the mount -> storage URI`. |
-| `outputs` | `object of string` |  |  | Files the container writes to the output mount, as `name inside the mount -> storage URI`. |
+| `outputs` | `object of string` |  |  | Files the container writes to the output mount, as `name inside the mount -> target`. |
 | `inputs_path` | `string` |  | `"/dirigent/inputs"` | Where the staged inputs appear inside the container. |
 | `outputs_path` | `string` |  | `"/dirigent/outputs"` | Where the container is expected to write its declared outputs. |
 | `network` | `string` |  | `"none"` | The daemon's network mode. It defaults to `none`: an image the pipeline named should not reach the worker's network, or anything the worker can reach, unless the step says so. |
@@ -270,7 +270,7 @@ Contributed by `builtin`. Not idempotent. **Runs code on the worker**, so the in
 | `stderr_truncated` | `boolean` | yes |  | Whether `stderr` above is short of the stream, which is an independent question. |
 | `container_id` | `string` | yes |  | -- |
 | `image` | `string` | yes |  | -- |
-| `outputs` | `object of string` |  |  | Where each declared output was written, by the name the config gave it. |
+| `outputs` | `object of string` |  |  | Where each declared output was written, by the name the config gave it: the storage URI, or the path relative to the run's work directory it landed at. |
 
 ### `filter.jq`
 
