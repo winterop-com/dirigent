@@ -20,7 +20,7 @@ stack and a failed drive step leave behind, which in both cases is nothing.
 | [docker-ticker.yaml](docker-ticker.yaml) | The live log: a container talking while it works, each probe appending what arrived since the last one. |
 | [docker-compose-stack.yaml](docker-compose-stack.yaml) | A whole stack: `docker.compose.up` brings it up, a `docker.run` step joins its network, and `docker.compose.down` with `rule: all_done` tears it down on any outcome. |
 | [docker-compose-database.yaml](docker-compose-database.yaml) | A database driven for real: `wait: true` turns a healthcheck into a gate, a `psql` container writes and reads rows, and the volumes go with the teardown. |
-| [docker-compose-file.yaml](docker-compose-file.yaml) | The other compose form: a file an earlier step wrote into the run's scratch space, named by its scratch-relative path. |
+| [docker-compose-file.yaml](docker-compose-file.yaml) | The other compose form: a file an earlier step wrote into the run's work directory, named by its path relative to it. |
 | [docker-compose-profiles-env.yaml](docker-compose-profiles-env.yaml) | Parameters reaching the stack: a variable compose interpolates, and a profile that decides whether the optional service exists. |
 | [docker-build-run.yaml](docker-build-run.yaml) | An image built on the worker and run by tag, because a built image lives only in the store of the daemon that built it. |
 | [docker-build-push.yaml](docker-build-push.yaml) | Pushing what was built: a `docker` connection holding a registry credential, and the tags and digests that come back. |
