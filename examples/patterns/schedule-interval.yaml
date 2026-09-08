@@ -1,0 +1,109 @@
+# An interval: a cadence, not a calendar, and what happens when the scheduler was away.
+#
+# Write "every 1h" as an interval and "at 05:00 Oslo" as a cron, and neither has to fake the
+# other. An interval is right when what you want is freshness -- a poll, a rolling refresh, a
+# cache warm -- and nobody downstream cares which minute of the hour it lands on. A cron is
+# right when the firing is a calendar moment somebody expects.
+#
+# A duration is the same length in every zone, so an interval never consults a calendar: it
+# does not skip a day, it does not double one, and daylight saving is not a thing it can
+# notice. The timezone field is still there because a schedule carries one, and an interval
+# schedule simply does not read it.
+#
+# THE MISFIRE POLICY IS WHAT KEEPS AN HOURLY SCHEDULE FROM BECOMING A STORM. A firing late by
+# less than the grace (scheduler_misfire_grace, five minutes by default) is ordinary: the
+# clock advances from the slot it owed, so the cadence stays anchored where it was rather than
+# drifting by the length of a tick or by how long a run took. A firing late by MORE than the
+# grace is a misfire: it fires exactly once, and the next firing is computed from now,
+# abandoning every slot that was missed. So a scheduler down over a weekend wakes up and runs
+# this once, not sixty times. Backfilling the gap is a separate, deliberate act -- dg backfill
+# -- and not something a restart does to you.
+#
+# Hop by hop:
+#
+#   refresh  builds the rolling window the cadence implies, from a parameter rather than from
+#            the clock, so the same document runs identically ad hoc.
+#   report   reads it back and reports the coverage.
+#
+# EXPECT THIS RUN TO SUCCEED in about a second. Locally there is no scheduler, so the two
+# schedules below are declarations that travel with the document and nothing more.
+#
+# To change it: concurrency: skip is on this pipeline on purpose and belongs with the cadence.
+# Two firings of a rolling refresh are not worth having at once, and a refresh that takes
+# longer than its interval would otherwise stack runs until something gives.
+#
+#   dg run --local examples/patterns/schedule-interval.yaml
+#   dg apply examples/patterns/schedule-interval.yaml
+#   dg schedule list schedule-interval
+
+format: dirigent/v1
+kind: pipeline
+code: schedule-interval
+name: A rolling cadence
+description: |
+  An interval is a cadence rather than a calendar moment: a duration is the same length in
+  every zone, so nothing here consults a clock face.
+
+  A firing missed by more than the misfire grace fires **once** and re-anchors from now, so
+  a scheduler that was away for a weekend does not wake up and run sixty times.
+
+tags: [patterns, transform, schedule]
+
+# The cadence and the concurrency policy belong together: a refresh that runs longer than its
+# interval must not stack a second run on the first. concurrency-skip.yaml is what that
+# policy does in detail.
+concurrency: skip
+
+requires:
+  blocks:
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    window_hours:
+      type: integer
+      description: How much history each refresh re-reads; each schedule pins its own.
+      default: 24
+      minimum: 1
+      maximum: 168
+    environment:
+      type: string
+      enum: [staging, production]
+      default: staging
+
+steps:
+  refresh:
+    block: transform.jq
+    config:
+      input:
+        hours: "${params.window_hours}"
+        environment: "${params.environment}"
+      program: |
+        {environment, hours, buckets: [range(0; .hours; 6)]}
+
+  report:
+    block: transform.jq
+    depends_on: [refresh]
+    config:
+      input: "${steps.refresh.output.value}"
+      program: |
+        {environment, refreshed_hours: .hours, batches: (.buckets | length)}
+
+triggers:
+  schedules:
+    - code: hourly
+      name: Hourly refresh
+      # A humane duration, not a number of seconds. 90m and 1h30m are the same schedule.
+      interval: 1h
+      params:
+        window_hours: 24
+        environment: staging
+
+    - code: six-hourly-deep
+      # The same pipeline at a different cadence over a wider window is a second schedule,
+      # not a second pipeline.
+      interval: 6h
+      params:
+        window_hours: 168
+        environment: production

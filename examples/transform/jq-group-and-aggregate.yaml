@@ -1,0 +1,70 @@
+# The analytics reshape: a flat list in, one row per group out, and a total beside them.
+#
+# group_by is the whole of it. jq sorts the list by the key and hands back a list of lists,
+# one per distinct key, so an aggregate is `map(.rainfall_mm) | add` over each of those
+# lists and the group's key is `.[0].region`. The groups come out in sorted key order --
+# east, north, west -- because group_by sorts before it groups.
+#
+# The total is computed from the original list rather than by adding the group totals up.
+# Both are correct here; only one stays correct when the groups are filtered.
+#
+# The program contains no ${...} reference, so jq compiles it when the document is applied
+# and a typo is an issue at steps.by_region.config rather than a run that fails tonight. A
+# config that carries a reference cannot be compiled early, which is why the data is the
+# input and never spliced into the program.
+#
+# The readings are written inline so the example needs no network. In a real pipeline this
+# is input_uri, pointing at the body an upstream http.request already put in storage.
+#
+# What it prints, and the arithmetic to check it against:
+#
+#   east   2 stations, 12 + 8           = 20mm, mean 10
+#   north  3 stations, 30 + 10 + 5      = 45mm, mean 15
+#   west   1 station,  7                =  7mm, mean 7
+#   total  6 stations, 20 + 45 + 7      = 72mm, mean 12
+#
+#   dg run --local examples/transform/jq-group-and-aggregate.yaml
+
+format: dirigent/v1
+kind: pipeline
+code: jq-group-and-aggregate
+name: Group and aggregate with jq
+description: Group a flat list of readings by region, aggregate each group, and total them.
+
+tags: [transform]
+
+requires:
+  blocks:
+    - transform.jq
+
+steps:
+  by_region:
+    block: transform.jq
+    config:
+      input:
+        - { station: st-1, region: east, rainfall_mm: 12 }
+        - { station: st-2, region: east, rainfall_mm: 8 }
+        - { station: st-3, region: north, rainfall_mm: 30 }
+        - { station: st-4, region: north, rainfall_mm: 10 }
+        - { station: st-5, region: north, rainfall_mm: 5 }
+        - { station: st-6, region: west, rainfall_mm: 7 }
+      # One output, so the step's value is that one object.
+      program: |
+        . as $readings
+        | {
+            regions: [
+              $readings
+              | group_by(.region)[]
+              | {
+                  region: .[0].region,
+                  stations: length,
+                  total_mm: (map(.rainfall_mm) | add),
+                  mean_mm: (map(.rainfall_mm) | add / length)
+                }
+            ],
+            total: {
+              stations: ($readings | length),
+              total_mm: ($readings | map(.rainfall_mm) | add),
+              mean_mm: ($readings | map(.rainfall_mm) | add / length)
+            }
+          }

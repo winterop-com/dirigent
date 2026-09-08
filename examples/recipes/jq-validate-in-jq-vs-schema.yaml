@@ -1,0 +1,124 @@
+# Two ways to check data, in one document, so the difference is visible rather than argued.
+#
+# In:  a batch of rows, four good and two bad -- one missing a field, one with a level that
+#      is a string.
+# Out: {accepted, rejected, counts} from the jq check, and the accepted rows again from a
+#      validate.schema gate that could not have passed the bad ones.
+#
+# The two checks answer different questions, and a pipeline usually wants both:
+#
+#   jq              sorts a batch. It looks at each row, keeps the ones it likes, and reports
+#                   the rest with a reason -- so a bad row costs one line in a report rather
+#                   than a failed run. It is a program, so nothing outside this document
+#                   knows what it enforced.
+#   validate.schema is a gate. The shape is declarative, named, and reusable, and a value
+#                   that does not fit fails the run at the boundary rather than travelling
+#                   on. Nothing downstream has to trust that a jq program upstream was
+#                   thorough: the gate's output is the proof, which is why the last step
+#                   here reads ${steps.gate.output.value} and not the sorter's accepted list.
+#
+# So: jq decides which rows to keep, the schema decides what a kept row is allowed to be.
+# Running the gate on rows a jq program already sorted is not redundant -- it is the check
+# that the sorter and the schema still agree, and the day they stop the run says so.
+#
+# The rejected rows keep their reason and their index, because "6 rows in, 4 rows out" is
+# not a report anybody can act on.
+#
+# To change it: -p min_level=2 tightens what the sorter accepts. The schema is unchanged,
+# and the gate still passes, because a tighter sorter cannot produce a row the schema
+# refuses -- which is exactly the relationship the two checks should have.
+#
+# The schema is carried in the document, so no server stores this one: it runs with
+# `dg run --local`, and on an instance the same shape is created once with `dg schema create`.
+#
+#   dg run --local examples/recipes/jq-validate-in-jq-vs-schema.yaml
+#   dg run --local examples/recipes/jq-validate-in-jq-vs-schema.yaml -p min_level=2
+
+format: dirigent/v1
+kind: pipeline
+code: jq-validate-in-jq-vs-schema
+name: Checking in jq versus checking with a schema
+description: Sort a batch into accepted and rejected rows with jq, then hold the accepted ones to a carried schema at a gate.
+
+tags: [recipes, transform, validate, jq]
+
+requires:
+  blocks:
+    - value.const
+    - transform.jq
+    - validate.schema
+
+schemas:
+  recipe-org-unit-list:
+    type: array
+    items:
+      type: object
+      required: [id, name, level]
+      additionalProperties: false
+      properties:
+        id: { type: string, minLength: 1 }
+        name: { type: string, minLength: 1 }
+        level: { type: integer, minimum: 1 }
+
+params:
+  type: object
+  properties:
+    min_level:
+      type: integer
+      minimum: 1
+      default: 1
+      description: The lowest level the jq sorter accepts.
+
+steps:
+  batch:
+    block: value.const
+    config:
+      value:
+        - { id: ou-1, name: Sierra Leone, level: 1 }
+        - { id: ou-2, name: Bo, level: 2 }
+        # No level at all.
+        - { id: ou-3, name: Kenema }
+        - { id: ou-4, name: Bombali, level: 2 }
+        # A level that arrived as a string, which is what a csv source always produces.
+        - { id: ou-5, name: Kailahun, level: "3" }
+        - { id: ou-6, name: Moyamba, level: 3 }
+
+  sorted:
+    block: transform.jq
+    depends_on: [batch]
+    config:
+      input:
+        rows: ${steps.batch.output.value}
+        min_level: ${params.min_level}
+      program: |
+        . as {$rows, $min_level}
+        | [range($rows | length) as $i
+           | $rows[$i]
+           | {row: ., index: $i,
+              problem: (if (.level | type) != "number" then "level is \(.level | type)"
+                        elif .level < $min_level then "level below \($min_level)"
+                        else null end)}] as $checked
+        | {accepted: [$checked[] | select(.problem == null) | .row],
+           rejected: [$checked[] | select(.problem != null) | {index, id: .row.id, problem}],
+           counts: {seen: ($rows | length),
+                    accepted: [$checked[] | select(.problem == null)] | length,
+                    rejected: [$checked[] | select(.problem != null)] | length}}
+
+  gate:
+    block: validate.schema
+    depends_on: [sorted]
+    config:
+      # The whole accepted list is checked at once, so one bad row fails the batch rather
+      # than half a batch reaching the sink.
+      input: ${steps.sorted.output.value.accepted}
+      schema: recipe-org-unit-list
+
+  load:
+    block: transform.jq
+    depends_on: [gate]
+    config:
+      # Read from the gate, never from the sorter: this reference is what proves in the
+      # document that nothing unchecked got this far.
+      input: ${steps.gate.output.value}
+      program: |
+        {loaded: length, ids: map(.id)}

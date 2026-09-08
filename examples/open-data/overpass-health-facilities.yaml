@@ -1,0 +1,150 @@
+# Every hospital and clinic OpenStreetMap knows about inside a box, as csv and as parquet.
+#
+# Overpass is a query engine over live OSM data, keyless and public. Its query language is its
+# own -- `[out:json];(node[...](bbox);way[...](bbox););out center;` -- and it answers
+# {"version": ..., "elements": [...]}. An element is a node, which carries lat and lon itself,
+# or a way, which is a shape and carries a computed `center` instead because `out center` asked
+# for one. Everything else about a facility lives in `tags`, a free-form map: `name`, `amenity`,
+# `healthcare`, `operator`, whatever a mapper typed.
+#
+# On the request: Overpass takes the query either as a POST body or as a `data` query parameter,
+# and this pipeline uses the parameter. `http.request` sends its `body` as JSON, which is right
+# for an API and wrong for a server that wants a bare query string -- a JSON-quoted query is a
+# parse error at Overpass, not a query. The `data` parameter is the same query, correctly
+# escaped by the client.
+#
+# What happens, hop by hop:
+#
+#   fetch     one GET, holding the answer inline. The box below is a city, which is a few
+#             hundred elements; a country-sized box belongs in save_to instead.
+#   rows      the flattening. Nodes and ways are reconciled to one lat/lon pair, and the four
+#             tags worth having become columns; an element with no name still becomes a row,
+#             because an unnamed clinic is a fact about the map rather than a broken record.
+#   as_text   tojson, so the two codecs below can each take text.
+#   csv       for a person: opens in anything, loses the types.
+#   parquet   for a pipeline: keeps the types, and is what any later analysis wants to read.
+#             The same rows are written twice on purpose; that is the point of having both
+#             codecs, and neither one re-fetches anything.
+#
+# Overpass is a shared public instance with a per-IP quota, and it answers a slow query with a
+# 504 rather than queueing it. The retry below is not decoration: it is how this pipeline
+# behaves on an ordinary busy afternoon. Heavy or scheduled use belongs on your own instance.
+#
+# To make it yours: move the four bbox edges, and change amenities to whatever OSM calls the
+# thing you are mapping -- `pharmacy`, `doctors`, `school`. The regex in the query is what
+# makes the list a list.
+#
+#   dg run --local examples/open-data/overpass-health-facilities.yaml
+#   dg run --local examples/open-data/overpass-health-facilities.yaml \
+#     -p south=27.65 -p west=85.25 -p north=27.78 -p east=85.40 -p amenities='pharmacy|doctors'
+
+format: dirigent/v1
+kind: pipeline
+code: overpass-health-facilities
+name: Health facilities from OpenStreetMap
+description: |
+  Hospitals and clinics inside a bounding box, read from the **Overpass API**, flattened into
+  rows and written twice: csv for a person and parquet for the next pipeline.
+
+tags: [open-data, http, storage, transform, csv, parquet]
+
+requires:
+  blocks:
+    - http.request
+    - transform.jq
+    - convert.std
+    - convert.arrow
+
+params:
+  type: object
+  additionalProperties: false
+  properties:
+    south:
+      type: number
+      default: -14.05
+    west:
+      type: number
+      default: 33.70
+    north:
+      type: number
+      default: -13.90
+    east:
+      type: number
+      default: 33.90
+      description: The four edges of the box; the default is Lilongwe, Malawi.
+    amenities:
+      type: string
+      default: hospital|clinic
+      description: An Overpass regex alternation of amenity values.
+
+steps:
+  fetch:
+    block: http.request
+    # A public instance under load answers 504 in seconds rather than queueing the query, so
+    # the wait between tries is long enough for the queue in front of it to drain.
+    retry:
+      max_attempts: 3
+      backoff: 30s
+      multiplier: 2.0
+    config:
+      url: https://overpass-api.de/api/interpreter
+      query:
+        # The [timeout:60] inside the query is Overpass's own budget for running it; the
+        # timeout below is how long this step waits for the whole exchange. The inner
+        # one has to be the smaller of the two, or the server is still working when the
+        # client has given up.
+        data: |
+          [out:json][timeout:60];
+          (
+            node["amenity"~"^(${params.amenities})$"](${params.south},${params.west},${params.north},${params.east});
+            way["amenity"~"^(${params.amenities})$"](${params.south},${params.west},${params.north},${params.east});
+          );
+          out center;
+      timeout: 2m
+
+  rows:
+    block: transform.jq
+    depends_on: [fetch]
+    config:
+      input: ${steps.fetch.output.json_body}
+      # A way has no coordinates of its own; `out center` gives it a centroid, and `// ` is
+      # what reconciles the two shapes into one pair of columns.
+      program: |
+        [.elements[]
+         | {
+             osm_kind: .type,
+             osm_id: .id,
+             name: (.tags.name // null),
+             amenity: (.tags.amenity // null),
+             healthcare: (.tags.healthcare // null),
+             operator: (.tags.operator // null),
+             latitude: (.lat // .center.lat),
+             longitude: (.lon // .center.lon)
+           }]
+        | sort_by(.name // "")
+
+  as_text:
+    block: transform.jq
+    depends_on: [rows]
+    config:
+      input: ${steps.rows.output.value}
+      program: tojson
+
+  csv:
+    block: convert.std
+    depends_on: [as_text]
+    config:
+      input: ${steps.as_text.output.value}
+      from: json
+      to: csv
+      save_to: ${run.scratch}/facilities.csv
+
+  parquet:
+    block: convert.arrow
+    depends_on: [as_text]
+    config:
+      input: ${steps.as_text.output.value}
+      from: json
+      to: parquet
+      # Parquet is bytes, so save_to is not optional here the way it is for a text codec.
+      save_to: ${run.scratch}/facilities.parquet

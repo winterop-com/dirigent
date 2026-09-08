@@ -1,0 +1,20 @@
+[project]
+name = "dirigent-client"
+version = "0.9.0"
+description = "The dirigent API contract: typed wire schemas and an async Python client."
+readme = "README.md"
+requires-python = ">=3.13"
+license = "LicenseRef-Proprietary"
+license-files = ["LICENSE"]
+dependencies = [
+    "dirigent-common",
+    "httpx2>=2.12.0",
+    "pydantic>=2.13.5",
+    "pyyaml>=6.0.3",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.0,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.uv.sources]

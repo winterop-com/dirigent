@@ -1,0 +1,74 @@
+# Total a numeric column per group, and keep the grand total beside the groups.
+#
+# In:  a flat list of sales rows -- {region, product, units, revenue}.
+# Out: {as_of, groups: [{region, rows, units, revenue, mean_revenue}], total: {...}}.
+#
+# group_by sorts by the key and buckets, so every bucket is a list and the group's key is
+# read back off any element of it -- .[0].region. Everything after that is ordinary list
+# arithmetic: add over a mapped column, length for the count, and a division that is safe
+# because group_by never produces an empty bucket.
+#
+# The grand total is computed from the rows rather than from the groups, because summing
+# already-rounded group totals is how a report stops adding up.
+#
+# To change it: -p group_by=product buckets the same rows the other way. The program reads
+# the key with .[$key], jq's dynamic field access, which is what lets the column be a
+# parameter instead of a second program.
+#
+#   dg run --local examples/recipes/jq-group-by-and-sum.yaml
+#   dg run --local examples/recipes/jq-group-by-and-sum.yaml -p group_by=product
+
+format: dirigent/v1
+kind: pipeline
+code: jq-group-by-and-sum
+name: Group and sum with jq
+description: Bucket flat rows by one column, total two numeric columns per bucket, and keep a grand total beside them.
+
+tags: [recipes, transform, jq]
+
+requires:
+  blocks:
+    - value.const
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    group_by:
+      type: string
+      default: region
+      description: The column the rows are bucketed by.
+
+steps:
+  rows:
+    block: value.const
+    config:
+      value:
+        - { region: east, product: pump, units: 3, revenue: 300 }
+        - { region: east, product: valve, units: 10, revenue: 250 }
+        - { region: west, product: pump, units: 1, revenue: 100 }
+        - { region: west, product: valve, units: 4, revenue: 100 }
+        - { region: north, product: pump, units: 2, revenue: 200 }
+
+  totals:
+    block: transform.jq
+    depends_on: [rows]
+    config:
+      # The key travels as data beside the rows rather than spliced into the program text:
+      # a program carrying a ${...} cannot be compiled when the document is applied.
+      input:
+        key: ${params.group_by}
+        rows: ${steps.rows.output.value}
+      program: |
+        . as {$key, $rows}
+        | {as_of: "2026-01-01",
+           groups: ($rows
+             | group_by(.[$key])
+             | map({group: .[0][$key],
+                    rows: length,
+                    units: (map(.units) | add),
+                    revenue: (map(.revenue) | add),
+                    mean_revenue: ((map(.revenue) | add) / length)})),
+           total: {rows: ($rows | length),
+                   units: ($rows | map(.units) | add),
+                   revenue: ($rows | map(.revenue) | add)}}

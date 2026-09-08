@@ -1,0 +1,352 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: check
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Sync the workspace
+        run: uv sync --all-packages --locked
+
+      - name: Gate
+        run: make gate
+
+      - name: Documentation
+        run: make docs-build
+
+  postgres:
+    name: concurrency lane
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Sync the workspace
+        run: uv sync --all-packages --locked
+
+      # SQLite cannot cover the claim query's FOR UPDATE SKIP LOCKED behaviour, the
+      # scheduler's advisory-lock leadership and no-double-fire, migrations on both
+      # dialects, or canonical export through jsonb, which does not preserve key order.
+      - name: Concurrency lane
+        run: make test-postgres
+
+  storage:
+    name: s3 lane
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Sync the workspace
+        run: uv sync --all-packages --locked
+
+      # Streaming, the multipart write and its abort, and paginated listing need a real S3
+      # API, which no fake covers.
+      - name: S3 lane
+        run: make test-s3
+
+  queues:
+    name: queues lane
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Sync the workspace
+        run: uv sync --all-packages --locked
+
+      # An assignment, a seek, a group's commit and a requeued nack are the client library's
+      # half of the contract, and no fake covers them.
+      - name: Start the brokers
+        run: make queues-up
+
+      - name: Queue lane
+        run: make test-queues
+
+      - name: Stop the brokers
+        if: always()
+        run: make queues-down
+
+  containers:
+    name: docker lane
+    runs-on: ubuntu-24.04
+    # docker.run needs a daemon socket, which not every runner or fork's CI has, so this
+    # lane may fail without blocking a merge.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Sync the workspace
+        run: uv sync --all-packages --locked
+
+      - name: Pull the images the lane runs
+        run: docker pull alpine:3
+
+      - name: Docker lane
+        run: make test-docker
+
+  browser:
+    name: browser lane
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Sync the workspace
+        run: uv sync --all-packages --locked
+
+      - name: Install bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Build the bundle
+        run: make ui
+
+      - name: Install the browser
+        run: cd packages/dirigent-server/frontend && bunx playwright install --with-deps chromium
+
+      # The suite drives a real `dg dev` serving the bundle it just built: the seam vitest
+      # cannot reach is the app answering its own asset requests behind the SPA fallback.
+      # This lane exists because that seam broke on main twice with nothing to catch it.
+      - name: Browser lane
+        run: make ui-e2e
+
+  compose:
+    name: compose
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build the image
+        run: docker build -t dirigent:local -f infra/Dockerfile .
+
+      - name: Start the stack
+        run: |
+          cp .env.example .env
+          python -c "from secrets import token_bytes; import base64; print('DIRIGENT_SECRET_KEY=' + base64.urlsafe_b64encode(token_bytes(32)).decode())" >> .env
+          echo "DIRIGENT_BOOTSTRAP_ADMIN_PASSWORD=ci-admin-password" >> .env
+          echo "DIRIGENT_ENABLED_UNSAFE_BLOCKS=docker.run,docker.build,docker.compose.up,docker.compose.down" >> .env
+          docker compose --project-directory . \
+            -f infra/compose.yaml -f infra/compose.brokers.yaml -f infra/compose.sql.yaml \
+            up -d --wait --wait-timeout 300
+
+      - name: Prove it answers
+        run: |
+          COMPOSE="docker compose --project-directory . -f infra/compose.yaml"
+          $COMPOSE exec -T server dg health server
+          $COMPOSE exec -T worker dg health worker
+          $COMPOSE ps
+
+      # The worker drives the dind sidecar, never the runner's daemon: a socket mounted into
+      # the worker would make this pass without proving anything.
+      - name: Prove no host socket is mounted
+        run: |
+          COMPOSE="docker compose --project-directory . -f infra/compose.yaml"
+          for service in server worker migrate docker; do
+            mounts=$(docker inspect --format '{{range .Mounts}}{{.Source}} {{end}}' "$($COMPOSE ps -aq $service)")
+            echo "$service: $mounts"
+            case "$mounts" in *docker.sock*) exit 1 ;; esac
+          done
+          $COMPOSE exec -T worker docker version --format '{{.Server.Version}}'
+
+      # The server applies examples/ at boot, so the document is already stored; this starts
+      # a run of it and waits for the whole compose lifecycle to settle.
+      - name: Run the compose example against the sidecar
+        run: |
+          API=http://localhost:${DIRIGENT_PORT:-3333}/api/v1
+          curl -sSf -c jar.txt -X POST "$API/auth/login" \
+            -H 'content-type: application/json' \
+            -d '{"username":"admin","password":"ci-admin-password"}' >/dev/null
+          for code in docker-hello docker-compose-stack docker-compose-database \
+                      docker-compose-file docker-compose-profiles-env docker-build-run; do
+            id=$(curl -sSf -b jar.txt -X POST "$API/pipelines/$code/\$run" \
+              -H 'content-type: application/json' -d '{}' | jq -r .run_id)
+            for _ in $(seq 1 120); do
+              status=$(curl -sSf -b jar.txt "$API/runs/$id" | jq -r .run.status)
+              case "$status" in
+                succeeded) break ;;
+                failed|cancelled|completed_with_errors)
+                  curl -sSf -b jar.txt "$API/runs/$id/\$report" | jq .
+                  exit 1 ;;
+              esac
+              sleep 5
+            done
+            echo "$code: $status"
+            [ "$status" = succeeded ]
+          done
+
+      # The git examples carry their own git connections, which an applying instance refuses
+      # to store, so they run with dg run --local inside the worker -- the container that has
+      # git, openssh-client, the docker CLI and DOCKER_HOST pointing at the sidecar.
+      - name: Run the checkout examples on the stack
+        run: |
+          COMPOSE="docker compose --project-directory . -f infra/compose.yaml"
+          UNSAFE=docker.run,docker.build,docker.compose.up,docker.compose.down
+          for file in git-checkout-public git-checkout-build git-checkout-compose; do
+            $COMPOSE exec -T worker \
+              dg run --local "/etc/dirigent/pipelines/git/$file.yaml" --enable-unsafe "$UNSAFE"
+            echo "$file: succeeded"
+          done
+
+      # The two runnable sql examples carry their own sql connections for the same reason, and
+      # each builds its SQLite database in the run's own scratch space, so they need no
+      # database, no network and no allowlist.
+      - name: Run the sql examples on the stack
+        run: |
+          COMPOSE="docker compose --project-directory . -f infra/compose.yaml"
+          for file in sql-sqlite-roundtrip sql-query-to-storage; do
+            $COMPOSE exec -T worker dg run --local "/etc/dirigent/pipelines/sql/$file.yaml"
+            echo "$file: succeeded"
+          done
+
+      # The three examples the overlays exist for. Each names its connection rather than
+      # carrying one, so the local run is handed a connections file addressing the services by
+      # name -- which is what the overlays' headers tell a person to create on an instance.
+      - name: Run the queue and warehouse examples on the overlays
+        run: |
+          COMPOSE="docker compose --project-directory . -f infra/compose.yaml -f infra/compose.brokers.yaml -f infra/compose.sql.yaml"
+          set -a && . ./.env && set +a
+          cat > stack-connections.yaml <<YAML
+          connections:
+            warehouse-read:
+              kind: sql
+              config:
+                url: postgresql+asyncpg://reader@warehouse:5432/warehouse
+                password: $WAREHOUSE_READER_PASSWORD
+                read_only: true
+            orders-topic:
+              kind: kafka
+              config:
+                bootstrap_servers: ["redpanda:9092"]
+            shop-queue:
+              kind: rabbitmq
+              config:
+                url: amqp://$RABBITMQ_USER@rabbitmq:5672/
+                password: $RABBITMQ_PASSWORD
+          YAML
+          docker cp stack-connections.yaml "$($COMPOSE ps -q worker)":/tmp/stack-connections.yaml
+
+          # The window the document binds as a parameter; the seeded rows are all inside it.
+          $COMPOSE exec -T worker dg run --local \
+            /etc/dirigent/pipelines/sql/sql-postgres-readonly.yaml \
+            --connections /tmp/stack-connections.yaml \
+            --window 2000-01-01T00:00:00Z..2100-01-01T00:00:00Z
+          echo "sql-postgres-readonly: succeeded"
+
+          # A queue holds what is on it, so the message is published before the run starts.
+          $COMPOSE exec -T rabbitmq \
+            rabbitmqadmin -u "$RABBITMQ_USER" -p "$RABBITMQ_PASSWORD" declare queue name=shop-orders durable=true
+          $COMPOSE exec -T rabbitmq \
+            rabbitmqadmin -u "$RABBITMQ_USER" -p "$RABBITMQ_PASSWORD" publish routing_key=shop-orders payload='{"order": 1}'
+          $COMPOSE exec -T worker dg run --local \
+            /etc/dirigent/pipelines/queues/rabbitmq-consume-ack-on-success.yaml \
+            --connections /tmp/stack-connections.yaml
+          echo "rabbitmq-consume-ack-on-success: succeeded"
+
+          # The Kafka document reads from `latest`, so the message has to arrive after the run
+          # started; the first poke writes down the end it seeked to, so any poke after that
+          # one reads it.
+          $COMPOSE exec -T redpanda rpk topic create orders
+          ( sleep 20; echo '{"order": 2}' | $COMPOSE exec -T redpanda rpk topic produce orders --format '%v\n' ) &
+          $COMPOSE exec -T worker dg run --local \
+            /etc/dirigent/pipelines/queues/kafka-consume-then-transform.yaml \
+            --connections /tmp/stack-connections.yaml
+          echo "kafka-consume-then-transform: succeeded"
+
+          # The produce document needs nothing put on the topic: it publishes what it reads
+          # back, from `earliest`, in one run.
+          $COMPOSE exec -T worker dg run --local \
+            /etc/dirigent/pipelines/queues/kafka-produce-then-consume.yaml \
+            --connections /tmp/stack-connections.yaml
+          echo "kafka-produce-then-consume: succeeded"
+
+      # The two examples that fail on purpose. A failed run is the expected outcome; what the
+      # lane is really asserting is the line after it, that the sidecar holds no compose
+      # project once a broken bring-up and a failed drive step are done with it.
+      - name: Run the failing examples and prove nothing is orphaned
+        run: |
+          API=http://localhost:${DIRIGENT_PORT:-3333}/api/v1
+          COMPOSE="docker compose --project-directory . -f infra/compose.yaml"
+          curl -sSf -c jar.txt -X POST "$API/auth/login" \
+            -H 'content-type: application/json' \
+            -d '{"username":"admin","password":"ci-admin-password"}' >/dev/null
+          for code in docker-compose-failing-up docker-run-failing-teardown; do
+            id=$(curl -sSf -b jar.txt -X POST "$API/pipelines/$code/\$run" \
+              -H 'content-type: application/json' -d '{}' | jq -r .run_id)
+            for _ in $(seq 1 120); do
+              status=$(curl -sSf -b jar.txt "$API/runs/$id" | jq -r .run.status)
+              case "$status" in
+                failed) break ;;
+                succeeded|cancelled|completed_with_errors)
+                  curl -sSf -b jar.txt "$API/runs/$id/\$report" | jq .
+                  exit 1 ;;
+              esac
+              sleep 5
+            done
+            echo "$code: $status"
+            [ "$status" = failed ]
+          done
+          left=$($COMPOSE exec -T worker docker ps -aq --filter label=com.docker.compose.project)
+          echo "compose containers left on the sidecar: ${left:-none}"
+          [ -z "$left" ]
+
+      - name: Stop the stack
+        if: always()
+        run: |
+          docker compose --project-directory . \
+            -f infra/compose.yaml -f infra/compose.brokers.yaml -f infra/compose.sql.yaml \
+            down -v

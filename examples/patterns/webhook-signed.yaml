@@ -1,0 +1,144 @@
+# A signed outbound delivery, and where the secret on each side of it lives.
+#
+# webhook.post is the sending half of the webhook story; webhook-mapping-nested-payload.yaml
+# is the receiving half. sign_with names the connection whose hmac_secret signs the body, and
+# the block presents the result as X-Dirigent-Signature -- computed exactly the way dirigent's
+# own /hooks/{token} verifies one, so a dirigent instance can be the receiver on the other end
+# with nothing in between.
+#
+# THREE THINGS ARE WORTH BEING PRECISE ABOUT:
+#
+#   * The signature covers THE BYTES THAT GO ON THE WIRE. The block serialises the body
+#     itself and signs those bytes, because letting an HTTP client re-encode a body after
+#     signing produces a signature that verifies nowhere.
+#   * sign_with is separate from connection ON PURPOSE. A POST to an absolute URL can still be
+#     signed with a secret this instance holds, and signing is something the document says out
+#     loud rather than something that happens invisibly because a connection had a field set.
+#   * A secret is never in a document. It is on a connection, sealed at rest and redacted in
+#     every API response, and a document names the connection. What this file carries is a
+#     connection for a --local run to create, which is the one case where carrying one is
+#     right -- a server refuses a document that embeds a credential, because applying it would
+#     store the secret in every version of the pipeline.
+#
+# THE INBOUND DIRECTION IS AN INSTANCE SETTING, NOT A DOCUMENT ONE. A webhook a document
+# declares carries only its code and its payload mapping; whether deliveries to it must be
+# signed, and with what secret, is set where the token is minted:
+#
+#   dg webhook create <pipeline> <code> --hmac-secret "$SECRET" --map day='$.date'
+#
+# An unsigned delivery to a webhook that requires a signature is answered 401 with "this
+# webhook requires a X-Dirigent-Signature header", and a wrong one is answered 401 too, after
+# a constant-time comparison.
+#
+# Hop by hop:
+#
+#   build     assembles the notification body. Signing a value a step computed is the ordinary
+#             case; the signature is over whatever the body serialises to.
+#   notify    POSTs it signed. Postman Echo takes any body and answers with what it received,
+#             so its answer shows the header that was presented.
+#   unsigned  the same POST with no sign_with, for comparison: output.signed is false.
+#   compare   reads both back and puts the two signed flags side by side.
+#
+# EXPECT THIS RUN TO SUCCEED in about two seconds, with notify's signed true and unsigned's
+# signed false.
+#
+#   dg run --local examples/patterns/webhook-signed.yaml
+
+format: dirigent/v1
+kind: pipeline
+code: webhook-signed
+name: A signed webhook delivery
+description: |
+  `webhook.post` with `sign_with` presents `X-Dirigent-Signature` over the exact bytes it
+  sends, computed the way dirigent's own inbound `/hooks/{token}` verifies one.
+
+  The secret lives on a connection, never in the document. Requiring a signature on an
+  **inbound** webhook is an instance setting made when the token is minted, not something
+  `dirigent/v1` can say.
+
+tags: [patterns, transform, webhook, credential]
+
+requires:
+  blocks:
+    - webhook.post
+    - transform.jq
+    - value.const
+
+# Carried, because a --local run has no instance to hold a connection. Against a real
+# instance this is a connection created once, and the document names it by code:
+#   dg connection create http ops-receiver --set base_url=https://postman-echo.com \
+#     --set hmac_secret=...
+connections:
+  ops-receiver:
+    kind: http
+    config:
+      base_url: https://postman-echo.com
+      # A SecretStr: sealed on the way in, redacted on the way out, and never readable back
+      # from the API. This one is a demonstration value and protects nothing.
+      hmac_secret: a shared secret between two dirigent instances
+      timeout: 30s
+
+params:
+  type: object
+  properties:
+    dataset:
+      type: string
+      description: What the notification says finished.
+      default: cases
+    rows:
+      type: integer
+      description: How many rows it says were loaded.
+      default: 4120
+      minimum: 0
+
+steps:
+  build:
+    block: value.const
+    config:
+      value:
+        event: dataset.loaded
+        dataset: "${params.dataset}"
+        rows: "${params.rows}"
+
+  notify:
+    block: webhook.post
+    depends_on: [build]
+    config:
+      # Where it goes: the connection's base URL plus this path.
+      connection: ops-receiver
+      path: /post
+      # What signs it. The same connection here, but it need not be: a POST to one place can
+      # be signed with a secret agreed with somebody else.
+      sign_with: ops-receiver
+      body: "${steps.build.output.value}"
+      headers:
+        # Routing metadata the receiver wants. Headers are outside the signature, which
+        # covers the body's bytes only, so nothing security-bearing belongs up here.
+        x-event-kind: dataset.loaded
+
+  unsigned:
+    block: webhook.post
+    depends_on: [build]
+    # No sign_with, which is the default. The pair exists so the signed flag has something to
+    # be compared against.
+    config:
+      connection: ops-receiver
+      path: /post
+      body: "${steps.build.output.value}"
+
+  compare:
+    block: transform.jq
+    depends_on: [notify, unsigned]
+    config:
+      input:
+        signed: "${steps.notify.output.signed}"
+        unsigned: "${steps.unsigned.output.signed}"
+        # The receiver echoes the headers it was sent, so the signature the block presented is
+        # readable here. A real receiver verifies it and says nothing about it.
+        presented: "${steps.notify.output.json_body.headers}"
+      program: |
+        {
+          signed,
+          unsigned,
+          signature_header: (.presented | keys | map(select(ascii_downcase == "x-dirigent-signature")) | first)
+        }

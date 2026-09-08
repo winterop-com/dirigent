@@ -1,0 +1,59 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+.python-version.local
+
+# Tooling caches
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+.hypothesis/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# Docs
+site/
+
+# Frontend: the dependency tree, the built bundle, and what the browser suite writes.
+# A committed bundle is a second copy of the same bytes, going stale between rebuilds.
+node_modules/
+packages/dirigent-server/frontend/dist/
+packages/dirigent-server/frontend/e2e/.state/
+packages/dirigent-server/frontend/test-results/
+packages/dirigent-server/frontend/playwright-report/
+# The automated browser and its harness write into whatever directory is current.
+test-results/
+/*.png
+
+# The built UI bundle: the wheel ships it, git does not
+packages/dirigent-server/src/dirigent_server/static/*
+!packages/dirigent-server/src/dirigent_server/static/.gitkeep
+
+# Local state
+.dirigent/state/
+.env
+.env.*
+!.env.example
+reports/
+
+# Editors and OS
+.DS_Store
+.idea/
+.vscode/
+
+# Claude Code runtime state: a lock names a session and a pid, so it is one machine's
+# and never the repository's. Settings meant to be shared are committed by name.
+.claude/*.lock
+.claude/settings.local.json
+
+.playwright-mcp/
+.claude/worktrees/
+packages/dirigent-server/frontend/shots/

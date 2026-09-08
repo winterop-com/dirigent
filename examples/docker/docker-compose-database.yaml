@@ -1,0 +1,124 @@
+# A database stack brought up, driven with real SQL, and torn down whatever happened.
+#
+# REQUIRES A DOCKER DAEMON the worker can reach, named by DOCKER_HOST (a dind sidecar over
+# tcp+TLS, or the local socket in dev). docs/docker.md is the family's home.
+#
+# Every block here declares local_execution, so the engine refuses them unless the instance
+# allowlists their ids:
+#   dg run --local examples/docker/docker-compose-database.yaml \
+#     --enable-unsafe docker.compose.up,docker.compose.down,docker.run
+#   export DIRIGENT_ENABLED_UNSAFE_BLOCKS='["docker.compose.up","docker.compose.down","docker.run"]'
+#
+# Three hops, and what each one hands on:
+#   stack     one postgres service, brought up detached and left running for the rest of the
+#             run. Output: every service's container with its state and health, the networks
+#             they sit on, and default_network.
+#   query     a psql container joined to that network, which creates a table, inserts two
+#             rows and selects them back. Output: the exit code and the stdout those selects
+#             printed, which is the step's result a downstream step would read.
+#   teardown  the same project down again, volumes included.
+#
+# WAIT IS WHAT TURNS A HEALTHCHECK INTO A GATE. Postgres accepts connections some seconds
+# after its container starts, and a compose file's healthcheck is only an opinion the daemon
+# records unless something waits on it. wait: true holds the up step open until every service
+# is running and healthy, so the query step meets a database that is ready rather than
+# racing it and failing on connection refused. Without it the stack step returns the moment
+# compose has started the containers.
+#
+# THE NETWORK NAME COMES FROM THE UP STEP. Compose puts the project on a network of its own
+# and the up step reports it as default_network; the query step names that as its network
+# mode, which is what lets it resolve the service by the name the compose file gave it -- db.
+#
+# THE TEARDOWN RUNS ON ANY OUTCOME. rule: all_done means the down step runs whether the query
+# passed or failed, so a database is never left running past the run that started it. Both
+# compose steps default their project name from the run id, so the down addresses exactly the
+# project the up created with nothing wired between them.
+#
+# TO MAKE IT YOURS: put your own schema and queries in the psql argv, or swap postgres for
+# whatever your pipeline actually talks to; the shape -- up with wait, drive, down with
+# all_done -- does not change.
+
+format: dirigent/v1
+kind: pipeline
+code: docker-compose-database
+name: A database stack, queried and torn down
+description: Bring PostgreSQL up behind its healthcheck, run SQL against it, and remove it with its volumes.
+
+tags: [docker, execute]
+
+requires:
+  blocks:
+    - docker.compose.up
+    - docker.compose.down
+    - docker.run
+
+steps:
+  stack:
+    block: docker.compose.up
+    deadline: 10m
+    config:
+      # Hold the step open until pg_isready succeeds, and give up after two minutes rather
+      # than sitting on the step's whole deadline if the image never comes up at all.
+      wait: true
+      wait_timeout: 2m
+      pull: always
+      content: |
+        services:
+          db:
+            image: postgres:17-alpine
+            environment:
+              POSTGRES_USER: dirigent
+              POSTGRES_PASSWORD: dirigent
+              POSTGRES_DB: dirigent
+            healthcheck:
+              test: ["CMD-SHELL", "pg_isready -U dirigent -d dirigent"]
+              interval: 2s
+              timeout: 2s
+              retries: 15
+
+  query:
+    block: docker.run
+    depends_on: [stack]
+    deadline: 5m
+    config:
+      # The postgres image ships psql, so the client needs no image of its own; its
+      # entrypoint execs any command that is not the server itself.
+      image: postgres:17-alpine
+      pull: true
+      # Joining the project's network is what makes "db" a hostname here.
+      network: "${steps.stack.output.default_network}"
+      env:
+        PGPASSWORD: dirigent
+      # argv, not command: no shell is involved, so each statement is one argument however it
+      # is quoted. -A -t strips psql's alignment and headers, leaving rows a later step can
+      # read; ON_ERROR_STOP makes the first failing statement the container's exit code.
+      argv:
+        - psql
+        - -h
+        - db
+        - -U
+        - dirigent
+        - -d
+        - dirigent
+        - -v
+        - ON_ERROR_STOP=1
+        - -A
+        - -t
+        - -c
+        - "create table reading (station text primary key, celsius numeric)"
+        - -c
+        - "insert into reading values ('bergen', 7.1), ('oslo', 4.5)"
+        - -c
+        - "select station, celsius from reading order by station"
+      memory: 256mb
+      pids_limit: 128
+
+  teardown:
+    block: docker.compose.down
+    depends_on: [query]
+    # all_done runs the teardown on success or failure, so the stack outlives neither.
+    rule: all_done
+    deadline: 5m
+    config:
+      # The database's data volume goes with it: a run's stack leaves nothing on the worker.
+      down_volumes: true

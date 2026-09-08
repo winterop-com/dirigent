@@ -1,0 +1,147 @@
+# Form submissions out of KoboToolbox and into a csv, with the one credential on this shelf.
+#
+# NEEDS A TOKEN. Everything else here is public and keyless; Kobo is not, and it should not be:
+# the submissions are somebody's household survey. The API token is per-account, printed at
+# <server>/token/?format=json once you are logged in, and it is sent as `Authorization: Token
+# <token>`. There is no anonymous mode to fall back to, so this document is the one example on
+# the shelf that cannot run against a stranger's server.
+#
+# Where the token belongs. It is a parameter here so the document reads as one piece, and a
+# parameter is *not* a secret store: it is recorded with the run and visible to anyone who can
+# read it. On an instance, create an http connection holding the token and give the step
+# `connection:` instead of `url:` and `headers:` --
+#
+#   dg connection create http kobo \
+#     --set base_url=https://kf.kobotoolbox.org \
+#     --set 'headers.Authorization=Token <your token>'
+#
+# -- and the credential is encrypted at rest, redacted in every API response, and rotated in
+# one place instead of in every run's parameters.
+#
+# The API: GET /api/v2/assets/{uid}/data/?format=json answers {"count": N, "next": ..., "results":
+# [...]}, one object per submission. Kobo's own fields are underscore-prefixed -- `_id`,
+# `_uuid`, `_submission_time`, `_geolocation` -- and everything else is a question, named by its
+# XLSForm column name, with a group's questions namespaced as `group/question`.
+#
+# What happens, hop by hop:
+#
+#   submissions  one GET. `limit` is Kobo's page size; a form with more submissions than that
+#             answers a `next` url, and reading past the first page means following it -- which
+#             this document deliberately does not do, because a paging loop is not a step.
+#   rows      the flattening. The Kobo metadata worth keeping becomes stable columns, and the
+#             questions named in `columns` become the rest. Naming the columns is what keeps a
+#             csv rectangular: submissions collected before a question was added simply do not
+#             have that key, and a codec cannot invent a header from a row that lacks it.
+#   as_text   tojson, because the codec takes text.
+#   report    json to csv in storage, named after the asset so several forms can share a
+#             prefix.
+#
+# To make it yours: set server if you self-host, asset_uid to the form's uid (it is in the URL
+# of the form's page), and columns to the questions you actually report on.
+#
+#   dg run --local examples/open-data/kobo-submissions-to-csv.yaml \
+#     -p asset_uid=aBcDeFgHiJkLmNoPqRsTuV -p token=<your token> \
+#     -p columns='["respondent_age","district"]'
+
+format: dirigent/v1
+kind: pipeline
+code: kobo-submissions-to-csv
+name: Kobo submissions to csv
+description: |
+  Submissions for one **KoboToolbox** form, flattened to named columns and written as csv.
+
+  The only document on this shelf that needs a credential: Kobo has no anonymous read, and the
+  token belongs in a connection on any instance you keep this on.
+
+tags: [open-data, http, storage, transform, credential, csv]
+
+requires:
+  blocks:
+    - http.request
+    - transform.jq
+    - convert.std
+
+params:
+  type: object
+  required: [asset_uid, token]
+  additionalProperties: false
+  properties:
+    server:
+      type: string
+      default: https://kf.kobotoolbox.org
+      description: The Kobo server; kf.kobotoolbox.org is the global one, and self-hosting is common.
+    asset_uid:
+      type: string
+      description: The form's uid, from its page URL.
+    token:
+      type: string
+      description: |
+        A Kobo API token, required: there is no public read. Given as a parameter only so this
+        document stands alone; on an instance it belongs in a connection.
+    columns:
+      type: array
+      default: []
+      items:
+        type: string
+      description: Question names to include as columns; empty means the keys of the first submission.
+    limit:
+      type: integer
+      default: 200
+      description: Kobo's page size; this document reads one page and does not follow `next`.
+
+steps:
+  submissions:
+    block: http.request
+    config:
+      url: ${params.server}/api/v2/assets/${params.asset_uid}/data/
+      headers:
+        # Kobo's scheme is the literal word Token, not Bearer.
+        Authorization: Token ${params.token}
+      query:
+        format: json
+        limit: ${params.limit}
+      # A survey with photos and long text answers is not small.
+      max_response: 64mb
+
+  rows:
+    block: transform.jq
+    depends_on: [submissions]
+    config:
+      input:
+        payload: ${steps.submissions.output.json_body}
+        columns: ${params.columns}
+      # The underscore-prefixed keys are Kobo's own and are renamed here; the questions are
+      # taken by name so every row has the same shape, which is what a csv requires. A
+      # submission missing one of them gets a null rather than a shorter row.
+      program: |
+        . as {$payload, $columns}
+        | ($payload.results // []) as $rows
+        | (if ($columns | length) > 0
+           then $columns
+           else ($rows[0] // {} | keys | map(select(startswith("_") | not)))
+           end) as $questions
+        | [$rows[]
+           | . as $row
+           | {
+               submission_id: ._id,
+               uuid: ._uuid,
+               submitted_at: ._submission_time,
+               submitted_by: (._submitted_by // null)
+             }
+             + (reduce $questions[] as $q ({}; .[$q] = ($row[$q] // null)))]
+
+  as_text:
+    block: transform.jq
+    depends_on: [rows]
+    config:
+      input: ${steps.rows.output.value}
+      program: tojson
+
+  report:
+    block: convert.std
+    depends_on: [as_text]
+    config:
+      input: ${steps.as_text.output.value}
+      from: json
+      to: csv
+      save_to: ${run.scratch}/kobo/${params.asset_uid}.csv

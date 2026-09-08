@@ -1,0 +1,102 @@
+# on_timeout: skip -- the wait that ran out and did not make the run red.
+#
+# WHICH CLOCK on_timeout GOVERNS IS THE WHOLE POINT OF THIS FILE. It governs an expired
+# DEADLINE, which is how long a step may keep waiting. It has nothing to say about an expired
+# `timeout`, which bounds one block call and always fails the step as a transient failure --
+# timeout-fails-the-step.yaml is that one, and there is no spelling of it that skips.
+#
+# So this is the pair to read together. The same waiting step, one word apart:
+#
+#   on_timeout: fail   (the default)  the deadline passing is a broken pipeline.
+#                                     deadline-on-a-sensor.yaml.
+#   on_timeout: skip                  the deadline passing is a quiet day. This file.
+#
+# skip is the right answer whenever "it never showed up" is an ordinary outcome: no export
+# was published today, no drop landed, the upstream had nothing to say. Failing there trains
+# people to ignore red runs, which is worse than the day with no data.
+#
+# Hop by hop:
+#
+#   upstream_ready  http.ready is a sensor: each poke is one cheap GET, "not yet" is the
+#                   expected answer, and the run parks between pokes rather than holding a
+#                   worker. It pokes /status/503, which never answers 2xx, so it never becomes
+#                   ready and the six-second deadline expires.
+#   ingest          the default all_success edge, and a skipped prerequisite does not satisfy
+#                   it, so the skip carries down the branch.
+#   close_out       all_done, so the run still reports what it did with the day.
+#
+# EXPECT THIS RUN TO SUCCEED, in about six seconds, with upstream_ready and ingest both
+# skipped and close_out green. A run that did nothing is not a run that went wrong.
+#
+# To change it: -p status=200 makes the endpoint ready on the first poke and the whole branch
+# runs. Drop the on_timeout line and the identical run fails instead.
+#
+#   dg run --local examples/patterns/timeout-skips-the-step.yaml                 # succeeds, having skipped
+#   dg run --local examples/patterns/timeout-skips-the-step.yaml -p status=200   # succeeds, having worked
+
+format: dirigent/v1
+kind: pipeline
+code: timeout-skips-the-step
+name: A wait that skips instead of failing
+description: |
+  `on_timeout: skip` turns an expired **deadline** into a skipped step rather than a failed
+  one, and the skip carries down the branch through the default `all_success` edges.
+
+  It governs the deadline only: an expired `timeout` always fails. As written the sensor
+  never sees a ready endpoint, everything below it skips, and the run reports `succeeded`.
+
+tags: [patterns, http, sensor, timeout]
+
+requires:
+  blocks:
+    - http.ready
+    - http.request
+    - value.const
+
+params:
+  type: object
+  properties:
+    status:
+      type: integer
+      description: What the readiness endpoint answers; 503 is never ready, 200 is ready at once.
+      default: 503
+      enum: [200, 503]
+
+steps:
+  upstream_ready:
+    block: http.ready
+    # Two seconds between pokes, so three of them fit inside the deadline and the parking
+    # between them is visible in the log. A real readiness check on an hourly export uses
+    # minutes here, because each poke costs a scheduled row and nothing else.
+    poll: 2s
+    # Short so the example finishes while you watch it. This is the clock on_timeout is about.
+    deadline: 6s
+    # The one line this file is about.
+    on_timeout: skip
+    config:
+      # A sensor has no method: it looks, and looking is a GET. Readiness means a 2xx unless
+      # expect_status says otherwise, so a 503 is "not yet" rather than an error -- a sensor
+      # observing an unready service has observed correctly.
+      url: "https://postman-echo.com/status/${params.status}"
+
+  ingest:
+    block: http.request
+    depends_on: [upstream_ready]
+    # No rule written, so all_success, which a skipped prerequisite does not satisfy. That
+    # propagation is what makes on_timeout: skip a branch-level decision rather than a
+    # step-level one.
+    config:
+      url: https://postman-echo.com/post
+      method: POST
+      body:
+        ingested_after_status: "${steps.upstream_ready.output.status}"
+
+  close_out:
+    block: value.const
+    depends_on: [ingest]
+    # all_done, so the run has an outcome either way: a skipped day is a fact worth recording,
+    # not an absence.
+    rule: all_done
+    config:
+      value:
+        note: nothing to ingest is a normal day

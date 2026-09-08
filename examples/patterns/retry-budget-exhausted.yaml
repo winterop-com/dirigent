@@ -1,0 +1,92 @@
+# A budget spent in full on a failure that was never going to go away.
+#
+# A retry budget is a bet that the failure was luck. Nothing in the engine knows whether it
+# was: the block classifies the error, the engine spends the budget, and a hopeless step is
+# retried exactly as diligently as a flaky one. That is worth seeing once, because it is what
+# decides where max_attempts belongs.
+#
+# Hop by hop:
+#
+#   reconcile  /status/500 every time. Three attempts, a second apart, three identical
+#              failures, and the third one settles the step as failed.
+#   audit      one_failed, so it runs and records that the budget was spent rather than that
+#              one call was unlucky. It is the only step in this file that succeeds.
+#   settle     the default all_success edge on reconcile, so it is skipped.
+#
+# EXPECT THIS RUN TO FAIL, after three attempts and about three seconds. Each attempt has its
+# own row, its own timestamp and its own error, and dg runs show lays them out.
+#
+# The lesson to take from it: a step whose failures are deterministic wants max_attempts: 1,
+# because a budget spent on certainty is just latency. A step whose failures are a network
+# having a moment wants a budget. Nothing can tell the two apart for you.
+#
+# To change it: -p max_attempts is not a thing, and cannot be -- only config is interpolated,
+# so a retry budget is part of the pipeline's shape rather than something a caller talks the
+# engine into at run time. Edit the number below. -p status=200 makes the first attempt land.
+#
+#   dg run --local examples/patterns/retry-budget-exhausted.yaml                 # fails after 3 attempts
+#   dg run --local examples/patterns/retry-budget-exhausted.yaml -p status=200   # succeeds on the first
+
+format: dirigent/v1
+kind: pipeline
+code: retry-budget-exhausted
+name: A budget spent in full
+description: |
+  Three attempts against an endpoint that answers 500 every time, then a failed step.
+
+  A retry budget is a bet that the failure was luck, and nothing knows when it is not: a
+  deterministic failure is retried exactly as diligently as a flaky one, which is why a
+  step that always fails the same way wants `max_attempts: 1`.
+
+tags: [patterns, http, failure, retry]
+
+requires:
+  blocks:
+    - http.request
+    - value.const
+
+params:
+  type: object
+  properties:
+    status:
+      type: integer
+      description: The status the ledger endpoint answers with; 500 spends the budget, 200 does not.
+      default: 500
+      enum: [200, 500]
+
+steps:
+  reconcile:
+    block: http.request
+    retry:
+      # Three attempts, a second apart, which is short enough to watch and long enough that
+      # the three rows are plainly three separate tries.
+      max_attempts: 3
+      backoff: 1s
+      max_backoff: 4s
+      multiplier: 2.0
+      jitter: 0.0
+    config:
+      url: "https://postman-echo.com/status/${params.status}"
+      method: GET
+
+  audit:
+    block: http.request
+    depends_on: [reconcile]
+    # The handler edge, so this file also shows what a spent budget looks like from
+    # downstream: an ordinary failure, indistinguishable from a step that failed once.
+    rule: one_failed
+    config:
+      url: https://postman-echo.com/post
+      method: POST
+      body:
+        text: reconcile exhausted its retry budget
+        run: "${run.id}"
+
+  settle:
+    block: value.const
+    depends_on: [reconcile]
+    # Skipped, and there is deliberately no continue_on_failure anywhere in this file: a run
+    # that could not reconcile has nothing to settle.
+    config:
+      value:
+        settled: true

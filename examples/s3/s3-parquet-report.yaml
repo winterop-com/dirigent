@@ -1,0 +1,72 @@
+# A parquet dataset delivered to a bucket, with its types along for the ride.
+#
+# NEEDS AN S3-COMPATIBLE ENDPOINT, set up exactly as s3-round-trip.yaml documents: the same
+# rustfs container, the same artifacts connection, the same DIRIGENT_STORAGE_CONNECTIONS.
+#
+# This is examples/transform/parquet-round-trip.yaml with a real destination. Parquet is
+# the format a downstream analysis actually wants -- columnar, typed, compact -- and
+# convert.arrow writes it straight to s3://, so what lands in the bucket is a dataset a
+# reader opens with pandas or duckdb, not a csv that lost its numbers on the way out.
+# convert.arrow ships in the dirigent-parquet pack; installing it puts the block in the
+# catalog.
+#
+#      dg apply examples/s3/s3-parquet-report.yaml
+#      dg run s3-parquet-report -p day=2026-01-01 --watch
+#
+# The dataset is at s3://<bucket>/datasets/<day>.parquet when the run settles.
+
+format: dirigent/v1
+kind: pipeline
+code: s3-parquet-report
+name: A parquet dataset in a bucket
+description: Write typed records as a parquet object in S3, where an analysis can read them.
+
+tags: [s3, storage, transform]
+
+requires:
+  blocks:
+    - value.const
+    - transform.jq
+    - convert.arrow
+  connections:
+    - artifacts
+  storage:
+    - s3
+
+params:
+  type: object
+  required: [day]
+  additionalProperties: false
+  properties:
+    day:
+      type: string
+      format: date
+      description: The day the dataset covers, and the object it is named as.
+    bucket:
+      type: string
+      default: dirigent-archive
+      description: The bucket the dataset is delivered into.
+
+steps:
+  readings:
+    block: value.const
+    config:
+      value:
+        - { station: st-1, region: east, celsius: 4.5, active: true }
+        - { station: st-3, region: west, celsius: 1.2, active: true }
+        - { station: st-4, region: north, celsius: -3.4, active: false }
+  rows:
+    block: transform.jq
+    depends_on: [readings]
+    config:
+      input: ${steps.readings.output.value}
+      # tojson because a codec takes text; the records leave flat, as parquet columns need.
+      program: tojson
+  dataset:
+    block: convert.arrow
+    depends_on: [rows]
+    config:
+      input: "${steps.rows.output.value}"
+      from: json
+      to: parquet
+      save_to: s3://${params.bucket}/datasets/${params.day}.parquet

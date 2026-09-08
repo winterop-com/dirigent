@@ -1,0 +1,21 @@
+[project]
+name = "dirigent-{name}"
+version = "0.1.0"
+description = "A dirigent block pack."
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = ["dirigent-common", "dirigent-plugin", "pydantic>=2"]
+
+[project.entry-points."dirigent.plugins.v1"]
+{name} = "dirigent_{name}:plugin"
+
+[dependency-groups]
+dev = ["dirigent-testing", "pytest>=8", "pytest-asyncio>=0.24"]
+
+[build-system]
+requires = ["uv_build>=0.12.0,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

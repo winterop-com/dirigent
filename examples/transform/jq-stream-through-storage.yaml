@@ -1,0 +1,90 @@
+# The large-payload path: a result written to storage, and the next step reading it from
+# there instead of carrying it between the two.
+#
+# Every transform takes save_to, and every transform takes input_uri, so a chain of them
+# can pass values through storage rather than through step outputs. That is the whole
+# mechanism here: generate writes its list to the run's scratch space, cold reads it back
+# with input_uri and writes its own smaller result the same way, and summary reads that.
+#
+# When to reach for a URI over an inline value:
+#
+#   - An output above inline_artifact_max (16KB by default) is spilled to an artifact
+#     anyway, so a large inline value costs an artifact write and an artifact read without
+#     ever saying so in the document. save_to says so, and names the file.
+#   - input_uri streams: max_input (32MB by default) bounds what is read into memory, and
+#     an input above it is refused rather than truncated.
+#   - The step's output changes shape with save_to. Without it the output carries value;
+#     with it the output carries output_uri and output_bytes, and nothing else. That is
+#     what a downstream step references, which is why every step below reads
+#     ${steps.<name>.output.output_uri}.
+#
+# The list is built in jq from range, so the example needs no network and no fixture file.
+# In a real pipeline generate is an http.request that already wrote its body to storage,
+# and the chain starts at ${steps.fetch.output.body_uri}.
+#
+# What it prints, and the arithmetic to check it against: celsius is (i % 40) - 10, so ten
+# of every forty stations are below zero, and 2000 stations give 500 cold ones. The coldest
+# is st-0 at -10, and the three regions all appear among them.
+#
+#   dg run --local examples/transform/jq-stream-through-storage.yaml
+#   dg run --local examples/transform/jq-stream-through-storage.yaml -p stations=200
+
+format: dirigent/v1
+kind: pipeline
+code: jq-stream-through-storage
+name: Stream through storage with jq
+description: Write a generated list to storage, read it back by URI, and pass the result on the same way.
+
+tags: [transform, storage]
+
+requires:
+  blocks:
+    - transform.jq
+
+params:
+  type: object
+  additionalProperties: false
+  properties:
+    stations:
+      type: integer
+      minimum: 1
+      maximum: 100000
+      default: 2000
+      description: How many station readings to generate.
+
+steps:
+  generate:
+    block: transform.jq
+    config:
+      input:
+        count: ${params.stations}
+      # About 100KB at the default count, which is well past the 16KB an output inlines.
+      program: |
+        [range(.count) as $i
+         | {station: "st-\($i)",
+            region: ["east", "west", "north"][$i % 3],
+            celsius: ($i % 40) - 10}]
+      save_to: ${run.scratch}/readings.json
+
+  cold:
+    block: transform.jq
+    depends_on: [generate]
+    config:
+      # The list is never held by this document: it is streamed out of storage, reshaped,
+      # and streamed back, and only the URI crosses the edge between the two steps.
+      input_uri: ${steps.generate.output.output_uri}
+      program: |
+        [.[] | select(.celsius < 0) | {station, region, celsius}]
+      save_to: ${run.scratch}/cold.json
+
+  summary:
+    block: transform.jq
+    depends_on: [cold]
+    config:
+      input_uri: ${steps.cold.output.output_uri}
+      # No save_to, because a handful of fields is not worth a file: this output is small,
+      # so it inlines, and it is the run's readable answer.
+      program: |
+        {cold_stations: length,
+         coldest: (min_by(.celsius) | .station),
+         regions: (map(.region) | unique)}

@@ -1,0 +1,220 @@
+# Yesterday's disaster alerts, with the ones you already saw taken out.
+#
+# GDACS -- the Global Disaster Alert and Coordination System, run by the JRC and OCHA -- is
+# keyless and anonymous: no account, no token, no registered application. One GET answers
+# GeoJSON, {"features": [{"properties": {...}}]}, and everything an event has is under
+# `properties`.
+#
+# The window does not make the query non-overlapping. GDACS filters on the event's own active
+# range, so a cyclone that opened last week and has not closed comes back in today's answer and
+# in tomorrow's, and an event that is revised keeps its `eventid` while `datemodified` moves.
+# Both are the same problem: the query cannot tell you what is new. The fix is a list of what
+# yesterday's run saw, and the honest consequence is visible in the graph: yesterday's file is
+# read behind a sensor, so on the very first day there is nothing to compare against, `seen`
+# skips, and everything behind it skips too. Day one posts nothing and ends succeeded; day two
+# posts what day one did not have. There is no state block, so a marker file is the state, and a
+# skipped read is how a pipeline says "there was no marker".
+#
+# What happens, hop by hop:
+#
+#   dates     the window turned into the two dates -- the ones the query filters between, and
+#             the ones the files below are named by. GDACS wants a plain day here, not the
+#             instant a window edge carries. It settles the prefix the lists are kept under
+#             as well, since the default one is only known once the run has started.
+#   fetch     one GET. The two list filters are semicolon-joined in a single parameter, which is
+#             this API's own convention rather than a general one.
+#   today     the events flattened to rows, carried as a value because the comparison needs them
+#             as data.
+#   record    this day's list, written before anything is compared, so tomorrow's run has
+#             something to read even if the post below fails.
+#   seen      yesterday's list, if there is one. Five seconds, then skip: an absent file is the
+#             expected answer on day one and after any gap in the schedule.
+#   previous  yesterday's ids, read back from that file.
+#   fresh     the difference. The comparison is over ids alone, because a revised event keeps
+#             its id and moves its date.
+#   notify    what is actually new, posted. Postman Echo by default so the shape of the post is
+#             visible without a receiver; point it at yours.
+#
+# To make it yours: narrow `eventlist` and `alertlevel` to what you act on, and give `store` a
+# prefix that outlives one run. The default is `${run.scratch}`, which is deleted with the run,
+# so under it every day is day one.
+#
+# Rehearsing both days from the CLI takes one directory holding the instance, and a `store`
+# under that directory's artifact root so the second run finds what the first wrote:
+#
+#   dg run --local --root /tmp/dirigent-gdacs examples/open-data/gdacs-disaster-updates.yaml \
+#     -p store=file:///tmp/dirigent-gdacs/artifacts/gdacs --window 2026-09-05..2026-09-06
+#   dg run --local --root /tmp/dirigent-gdacs examples/open-data/gdacs-disaster-updates.yaml \
+#     -p store=file:///tmp/dirigent-gdacs/artifacts/gdacs --window 2026-09-06..2026-09-07
+#
+# Day one skips at `seen` and posts nothing; day two posts the difference.
+
+format: dirigent/v1
+kind: pipeline
+code: gdacs-disaster-updates
+name: GDACS disaster updates
+description: |
+  Disaster events active inside the run's window, read from the **GDACS** event list,
+  deduplicated against the previous day's list and posted onward.
+
+  Keyless and anonymous: nothing to register, nothing to hold.
+
+tags: [open-data, http, sensor, storage, transform, webhook, schedule]
+
+requires:
+  blocks:
+    - transform.jq
+    - http.request
+    - storage.exists
+    - webhook.post
+
+params:
+  type: object
+  additionalProperties: false
+  properties:
+    eventlist:
+      type: string
+      default: EQ;TC;FL
+      description: >-
+        Event types, semicolon-separated as GDACS reads them: EQ earthquake, TC tropical
+        cyclone, FL flood, VO volcano, DR drought, WF wildfire.
+    alertlevel:
+      type: string
+      default: Green;Orange;Red
+      description: Alert levels, semicolon-separated. Orange;Red is the pair worth waking for.
+    store:
+      type: string
+      default: ""
+      description: >-
+        A prefix the daily lists are written under, such as
+        file:///var/lib/dirigent/gdacs. Empty keeps them in the run's own scratch, where
+        tomorrow's run cannot read them.
+    webhook_url:
+      type: string
+      default: https://postman-echo.com/post
+      description: Where the digest goes.
+
+steps:
+  dates:
+    block: transform.jq
+    config:
+      input:
+        start: ${run.window.start}
+        end: ${run.window.end}
+        store: ${params.store}
+        scratch: ${run.scratch}
+      # The two days the query filters between, and the two file names. Yesterday is the day
+      # before the window opened, which is the file the previous firing wrote. The prefix is
+      # settled here too: a reference resolves once, so a default that names another one has
+      # to be worked out in a step rather than written in the parameter.
+      program: |
+        def as_date: .[0:19] + "Z" | fromdateiso8601;
+        {
+          day: .start[0:10],
+          from_date: .start[0:10],
+          to_date: .end[0:10],
+          previous_day: (.start | as_date | . - 86400 | strftime("%Y-%m-%d")),
+          store: (if .store == "" then .scratch + "/gdacs" else .store end)
+        }
+
+  fetch:
+    block: http.request
+    depends_on: [dates]
+    config:
+      url: https://www.gdacs.org/gdacsapi/api/events/geteventlist/SEARCH
+      query:
+        # Both filters are lists written into one parameter, joined with semicolons. This is
+        # GDACS's own convention, not a general one.
+        eventlist: ${params.eventlist}
+        alertlevel: ${params.alertlevel}
+        # A plain day at each edge. The filter is an overlap against the event's own from/to
+        # range, so an event still running when the window opened is included.
+        fromDate: ${steps.dates.output.value.from_date}
+        toDate: ${steps.dates.output.value.to_date}
+        # The API's own page ceiling. A single day worldwide is far short of it; a longer
+        # window is not, and would need pageNumber walked.
+        pageSize: 100
+
+  today:
+    block: transform.jq
+    depends_on: [fetch]
+    config:
+      input: ${steps.fetch.output.json_body}
+      # GeoJSON, so the event is under properties. The id is the type and the number together:
+      # GDACS's own detail URL takes both, and the number alone is a sequence per event type.
+      # Carried as a value rather than saved, because the comparison below needs it as data.
+      program: |
+        [.features[]
+         | .properties as $p
+         | {
+             id: "\($p.eventtype)-\($p.eventid)",
+             title: $p.name,
+             url: $p.url.report,
+             event_type: $p.eventtype,
+             alert_level: $p.alertlevel,
+             country: $p.country,
+             from_date: $p.fromdate,
+             modified_at: $p.datemodified
+           }]
+
+  record:
+    block: transform.jq
+    depends_on: [today]
+    config:
+      input: ${steps.today.output.value}
+      program: .
+      # Written before anything is compared, so tomorrow's run has a list to read even if the
+      # post below fails. The day names the file, which is what makes "yesterday" a path.
+      save_to: ${steps.dates.output.value.store}/${steps.dates.output.value.day}.json
+
+  seen:
+    block: storage.exists
+    depends_on: [record]
+    poll: 1s
+    deadline: 5s
+    # No file for yesterday means no previous run, or a gap in the schedule. Both are quiet
+    # days rather than failures, and everything downstream skips with this step.
+    on_timeout: skip
+    config:
+      uri: ${steps.dates.output.value.store}/${steps.dates.output.value.previous_day}.json
+
+  previous:
+    block: transform.jq
+    depends_on: [seen]
+    config:
+      input_uri: ${steps.dates.output.value.store}/${steps.dates.output.value.previous_day}.json
+      # Only the ids: the comparison is about identity, and yesterday's alert levels are
+      # yesterday's problem.
+      program: |
+        [.[].id]
+
+  fresh:
+    block: transform.jq
+    depends_on: [previous]
+    config:
+      input:
+        today: ${steps.today.output.value}
+        seen: ${steps.previous.output.value}
+      # A revised event keeps its id and moves its datemodified, so identity is the only safe
+      # key. An escalation from Green to Red is therefore not news here; a new eventid is.
+      program: |
+        . as {$today, $seen}
+        | [$today[] | select(.id as $id | $seen | index($id) | not)]
+
+  notify:
+    block: webhook.post
+    depends_on: [fresh]
+    config:
+      url: ${params.webhook_url}
+      body:
+        kind: gdacs-updates
+        day: ${steps.dates.output.value.day}
+        events: ${steps.fresh.output.value}
+
+triggers:
+  schedules:
+    - code: daily
+      name: Every morning, for the day that closed
+      description: Reads the previous day, which is the window this firing carries.
+      cron: "0 7 * * *"
+      timezone: UTC

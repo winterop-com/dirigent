@@ -1,0 +1,124 @@
+# storage.exists: waiting for an object, with a glob, a size floor, and a drop that arrives.
+#
+# deadline-on-a-sensor.yaml is this sensor missing its deadline. This one is the sensor doing
+# its job: something writes the object while the run is going, the sensor sees it, and the
+# pipeline carries on. Everything below is offline apart from one echo call, and the drop is
+# written by the run itself so there is nothing to arrange.
+#
+# THE TWO CONFIG FIELDS, and both earn their place:
+#
+#   uri       may contain a GLOB in its final segments. Waiting for
+#             drops/2026-01-01/*.json is how a pipeline waits for "whatever the producer
+#             called it today" instead of demanding a name nobody agreed to. The sensor's
+#             output says which object actually matched, which is why every step downstream
+#             reads ${steps.<sensor>.output.uri} rather than rebuilding the pattern.
+#   min_size  ignores an object until it is at least this large. A producer uploading a large
+#             file makes the key visible before the bytes are all there, so without a floor
+#             the sensor fires on a half-written object and the load reads a truncated file.
+#             This is the single most common way a drop-watching pipeline goes wrong.
+#
+# The output carries uri, size and modified_at -- what landed, how big it is, and when it was
+# last written -- which is everything a downstream step needs to decide whether to trust it.
+#
+# Hop by hop:
+#
+#   producer  writes the drop, by saving an HTTP response straight to a URI under this run's
+#             scratch. It stands in for the upstream system that would normally do this.
+#   dropped   the sensor. It matches on a glob, insists on a minimum size, and fires as soon
+#             as the object is there.
+#   archive   copies what landed to its resting place, reading the sensor's answer rather than
+#             the pattern.
+#   receipt   reports what was seen: the object, its size, and when it was written.
+#
+# WHERE A URI MAY POINT. ${run.scratch} is this run's own directory under the instance's
+# artifact root, and file:// URIs are refused outside that root -- a stored pipeline cannot be
+# turned into an arbitrary-file read. A real drop is an s3:// URI, or a path under that root;
+# never an absolute path typed into a document.
+#
+# EXPECT THIS RUN TO SUCCEED in about two seconds, with the sensor firing on its first poke.
+#
+# To change it: raise -p min_size and the object is never big enough, so the sensor misses its
+# deadline and the run fails -- which is the same shape deadline-on-a-sensor.yaml shows
+# deliberately.
+#
+#   dg run --local examples/patterns/sensor-storage-exists.yaml
+#   dg run --local examples/patterns/sensor-storage-exists.yaml -p min_size=10mb   # fails at the deadline
+
+format: dirigent/v1
+kind: pipeline
+code: sensor-storage-exists
+name: Waiting for a drop
+description: |
+  `storage.exists` waits for an object at a URI, which may end in a **glob**, and ignores it
+  until it is at least `min_size` -- the guard against opening a file a producer is still
+  uploading.
+
+  Its output says which object matched, how big it is and when it was written, so downstream
+  reads the answer rather than rebuilding the pattern.
+
+tags: [patterns, http, sensor, storage, transform]
+
+requires:
+  blocks:
+    - http.request
+    - storage.exists
+    - storage.copy
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    day:
+      type: string
+      format: date
+      description: The day the drop belongs to; it is a directory in the URI.
+      default: "2026-01-01"
+    min_size:
+      type: string
+      description: The floor the object has to clear. A humane size, so 1kb and 10mb both read as sizes.
+      default: 100b
+
+steps:
+  producer:
+    block: http.request
+    # Stands in for the upstream system. save_to is what makes this a producer rather than a
+    # reader: the response is streamed to a URI instead of being held as a value.
+    config:
+      url: https://postman-echo.com/get
+      query:
+        day: "${params.day}"
+      save_to: "${run.scratch}/drops/${params.day}/export-0001.json"
+
+  dropped:
+    block: storage.exists
+    depends_on: [producer]
+    poll: 1s
+    deadline: 15s
+    config:
+      # A glob in the final segment: the producer names the file, and the pipeline does not
+      # have to know what it will be called.
+      uri: "${run.scratch}/drops/${params.day}/*.json"
+      # A configured size is humane and carries no _bytes suffix: the type says the unit.
+      min_size: "${params.min_size}"
+
+  archive:
+    block: storage.copy
+    depends_on: [dropped]
+    config:
+      # The sensor's answer, not the pattern. A glob may have matched anything; only the
+      # sensor knows what it actually matched.
+      source: "${steps.dropped.output.uri}"
+      target: "${run.scratch}/archive/${params.day}.json"
+
+  receipt:
+    block: transform.jq
+    depends_on: [archive]
+    config:
+      input:
+        landed: "${steps.dropped.output.uri}"
+        size: "${steps.dropped.output.size}"
+        modified_at: "${steps.dropped.output.modified_at}"
+        archived: "${steps.archive.output.target}"
+        copied_bytes: "${steps.archive.output.bytes_copied}"
+      program: |
+        {landed, size, modified_at, archived, copied_bytes}

@@ -1,0 +1,146 @@
+# One WHO indicator, several countries, one parquet file each, and a manifest over the batch.
+#
+# The WHO Global Health Observatory serves its whole indicator catalogue as OData, keyless:
+# /api/<INDICATOR_CODE> answers {"@odata.context": ..., "value": [ ... ]}, one object per
+# observation, each carrying the country in SpatialDim, the year in TimeDim, the disaggregation
+# in Dim1, and the number in NumericValue. The envelope is OData's; the rows inside it are what
+# anyone actually wants.
+#
+# What this shows, beyond the fetch: how a fan-out pairs its items across four steps. `for_each`
+# is expanded when the run is created, so it can read params, run and item -- and never another
+# step's output. That means item three of the parquet step cannot ask the fetch step what its
+# item three produced. The pairing travels through storage instead: every step writes to a path
+# that has ${item} in it, and the next one reads the same path back. The country code is the
+# join key, and it is in the file name.
+#
+# What happens, hop by hop:
+#
+#   fetch     one GET per country, each writing its OData envelope to its own object. items:
+#             continue means a country the indicator has no data for, or one the endpoint is
+#             slow for, does not take the rest of the batch down with it -- and its absence
+#             from the step's output list is what the manifest below counts.
+#   rows      the envelope opened: `.value` mapped into flat rows, written per country. Read
+#             from storage, written to storage, so nothing large is ever carried in an output.
+#   parquet   convert.arrow, json to parquet, one file per country. Parquet is bytes, so it
+#             travels by uri in both directions and never inline.
+#   manifest  the fan-in. A fan-out step's output is the list of its items' outputs in item
+#             order, and a failed item is absent from it, so counting that list against the
+#             requested country list is how the run reports what it actually wrote.
+#
+# To make it yours: change indicator to any code from https://ghoapi.azureedge.net/api/Indicator
+# and countries to the ISO3 codes you report on. Point the save_to prefixes at s3:// on an
+# instance with an object store, and the manifest becomes a dataset index other pipelines read.
+#
+#   dg run --local examples/open-data/who-gho-indicators-to-parquet.yaml
+#   dg run --local examples/open-data/who-gho-indicators-to-parquet.yaml \
+#     -p indicator=WHOSIS_000015 -p countries='["NPL","BGD"]'
+
+format: dirigent/v1
+kind: pipeline
+code: who-gho-indicators-to-parquet
+name: WHO GHO indicator to parquet
+description: |
+  One **GHO** indicator fetched per country, flattened out of its OData envelope and written
+  as one parquet file each, with a manifest counting what landed.
+
+  The fan-out's per-item pairing is carried by storage paths, because `for_each` cannot read
+  an upstream step's output.
+
+tags: [open-data, http, storage, transform, fan-out, parquet]
+
+requires:
+  blocks:
+    - http.request
+    - transform.jq
+    - convert.arrow
+
+params:
+  type: object
+  additionalProperties: false
+  properties:
+    indicator:
+      type: string
+      default: WHOSIS_000001
+      description: A GHO indicator code; the default is life expectancy at birth.
+    countries:
+      type: array
+      default: [MWI, NPL, ETH]
+      items:
+        type: string
+        description: ISO3 country code, as GHO writes it in SpatialDim.
+
+steps:
+  fetch:
+    block: http.request
+    for_each: ${params.countries}
+    # A country with no data for this indicator answers an empty value list rather than an
+    # error, so what this policy really tolerates is the endpoint being slow or briefly down.
+    items: continue
+    # The GHO endpoint sits behind a CDN that occasionally takes seconds to answer a cold
+    # indicator; one retry costs nothing and saves the batch.
+    retry:
+      max_attempts: 3
+      backoff: 5s
+    config:
+      url: https://ghoapi.azureedge.net/api/${params.indicator}
+      query:
+        # OData's filter language, not a URL convention: the quotes around the code are part
+        # of the expression and the server parses them.
+        $filter: SpatialDim eq '${item}'
+      timeout: 1m
+      # The envelope goes straight to storage: it is the raw answer, kept as it arrived, and
+      # nothing downstream needs it in an output.
+      save_to: ${run.scratch}/gho/${params.indicator}/${item}.json
+
+  rows:
+    block: transform.jq
+    depends_on: [fetch]
+    for_each: ${params.countries}
+    items: continue
+    config:
+      # The same path the fetch item wrote. This is the join: item three reads item three's
+      # object because they compute the same name from the same ${item}.
+      input_uri: ${run.scratch}/gho/${params.indicator}/${item}.json
+      # NumericValue rather than Value: Value is the display string, "48.0 [46.7-49.6]", and
+      # a column that has to be parsed before it can be added up is not a number.
+      program: |
+        [.value[]
+         | {country: .SpatialDim,
+            year: .TimeDim,
+            dimension: .Dim1,
+            value: .NumericValue,
+            low: .Low,
+            high: .High}]
+        | sort_by(.year, .dimension)
+      save_to: ${run.scratch}/rows/${params.indicator}/${item}.json
+
+  parquet:
+    block: convert.arrow
+    depends_on: [rows]
+    for_each: ${params.countries}
+    items: continue
+    config:
+      input_uri: ${run.scratch}/rows/${params.indicator}/${item}.json
+      from: json
+      to: parquet
+      save_to: ${run.scratch}/parquet/${params.indicator}/${item}.parquet
+
+  manifest:
+    block: transform.jq
+    depends_on: [parquet]
+    config:
+      input:
+        indicator: ${params.indicator}
+        requested: ${params.countries}
+        written: ${steps.parquet.output}
+      # `written` is shorter than `requested` exactly when an item failed, which is the only
+      # place in the run where that difference is visible as data rather than as a status.
+      program: |
+        {
+          indicator,
+          requested: (.requested | length),
+          written: (.written | length),
+          bytes: ([.written[].output_bytes] | add // 0),
+          files: [.written[].output_uri]
+        }
+      save_to: ${run.scratch}/parquet/${params.indicator}/manifest.json

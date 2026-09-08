@@ -1,0 +1,36 @@
+[project]
+name = "dirigent-blocks"
+version = "0.9.0"
+description = "Built-in generic operators and sensors for dirigent."
+readme = "README.md"
+requires-python = ">=3.13"
+license = "LicenseRef-Proprietary"
+license-files = ["LICENSE"]
+dependencies = [
+    "aio-pika>=9.5.7",
+    "aiokafka>=0.12.0",
+    "aiosmtplib>=5.1.2",
+    "dirigent-common",
+    "dirigent-plugin",
+    "httpx2>=2.12.0",
+    "jq>=1.8",
+    "jsonschema>=4.26.0",
+    "pyyaml>=6.0.3",
+    "sqlalchemy[asyncio]>=2.0.52",
+    "structlog>=25.5.0",
+]
+
+[project.optional-dependencies]
+# DuckDB is a 45MB engine binary, which is more than every other driver the family speaks to
+# put together; a worker that never runs a duckdb url should not carry it.
+duckdb = ["duckdb>=1.4.0", "duckdb-engine>=0.17.0"]
+
+[project.entry-points."dirigent.plugins.v1"]
+builtin = "dirigent_blocks:plugin"
+
+[build-system]
+requires = ["uv_build>=0.12.0,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.uv.sources]
+dirigent-plugin = { workspace = true }

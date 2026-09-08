@@ -1,0 +1,25 @@
+{
+  "$id": "dhis2-data-elements",
+  "title": "DHIS2 data elements",
+  "description": "The shape a GET /api/dataElements.json?fields=id,name,valueType,domainType returns: items whose valueType and domainType are drawn from the DHIS2 enumerations, caught here before a downstream step reads a value that moved.",
+  "type": "object",
+  "required": ["dataElements"],
+  "properties": {
+    "dataElements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "valueType", "domainType"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9]{10}$" },
+          "name": { "type": "string" },
+          "valueType": {
+            "type": "string",
+            "enum": ["NUMBER", "INTEGER", "TEXT", "LONG_TEXT", "BOOLEAN", "DATE", "DATETIME", "PERCENTAGE"]
+          },
+          "domainType": { "type": "string", "enum": ["AGGREGATE", "TRACKER"] }
+        }
+      }
+    }
+  }
+}

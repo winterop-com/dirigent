@@ -1,0 +1,100 @@
+# A result too big to carry: the rows stream to storage as NDJSON instead of into the output.
+#
+# NEEDS NOTHING: no network, no daemon, no server, no allowlist. The database is a SQLite file
+# in the run's own scratch space and so is the file the rows land in.
+#   dg run --local examples/sql/sql-query-to-storage.yaml
+# docs/sql.md is the family's home.
+#
+# Three hops, and what each one hands on:
+#   build     creates the table and inserts three rows. Output: the row counts.
+#   extract   selects them with save_to set, so nothing is carried inline. Output: the URI the
+#             NDJSON was written to and how many rows went there.
+#   summarise a constant step reading that URI and count, which is what a downstream step has
+#             to work with when the rows are a file rather than a value.
+#
+# WHEN TO INLINE AND WHEN TO SAVE. A sql.query with no save_to carries its rows in the step's
+# output, where a transform maps them, a validate.schema checks them and a reference names
+# them. That is the right answer while the next step reads the rows as a VALUE -- a few
+# hundred of them, a lookup, a batch to post somewhere. Past that it stops being right: an
+# output is stored with the run and read back whole, so a hundred thousand rows in one is a
+# hundred thousand rows in the database and in every read of that run. max_rows is where the
+# block draws that line, and it fails the step rather than truncating, because half an answer
+# is not a smaller answer.
+#
+# save_to is the other side of the line: the rows stream to storage a batch at a time and are
+# never held whole, so the bound is the bucket rather than the worker's memory. The output
+# then carries saved_to and row_count and no rows at all, and the next step reads the FILE.
+# That is what an export, a load into another system, or a convert.arrow to parquet wants.
+#
+# THE FORMAT IS NDJSON. One JSON object per line, keyed by column name -- the same shape the
+# inline rows have, one per line instead of in a list. It streams, it appends, and every
+# transform block in dirigent already reads it.
+#
+# max_rows IS IGNORED HERE, and the low value below says so out loud: three rows go to the
+# file even though max_rows is 1, because max_rows bounds what may be carried inline and
+# nothing is being carried.
+#
+# TO MAKE IT YOURS: point save_to at a bucket rather than scratch if the file should outlive
+# the run, and follow this with the step that actually consumes it -- convert.arrow to
+# parquet, storage.copy to a landing bucket, or a transform that folds it down to a summary
+# small enough to inline.
+
+format: dirigent/v1
+kind: pipeline
+code: sql-query-to-storage
+name: Stream a query result to storage
+description: Read a table with sql.query and stream its rows to a storage URI as NDJSON instead of carrying them inline.
+
+tags: [sql, storage]
+
+requires:
+  blocks:
+    - sql.execute
+    - sql.query
+    - value.const
+
+connections:
+  scratch-db:
+    kind: sql
+    config:
+      # Relative, so the database lands in this run's scratch space and needs nothing on the
+      # host. The same connection as the roundtrip example, for the same reason.
+      url: sqlite+aiosqlite:///demo.db
+
+steps:
+  build:
+    block: sql.execute
+    config:
+      connection: scratch-db
+      statements:
+        - CREATE TABLE reading (id INTEGER PRIMARY KEY, site TEXT NOT NULL, value REAL NOT NULL)
+        - INSERT INTO reading (id, site, value) VALUES (1, :north, 2.5), (2, :south, 4.0), (3, :north, 3.5)
+      params:
+        north: north
+        south: south
+
+  extract:
+    block: sql.query
+    depends_on: [build]
+    config:
+      connection: scratch-db
+      sql: SELECT id, site, value FROM reading ORDER BY id
+      # A file inside the run's scratch space, so it is cleaned up with the run. A bucket URI
+      # here is what makes the result outlive it.
+      save_to: "${run.scratch}/reading.ndjson"
+      # Deliberately lower than the number of rows: with save_to set it bounds nothing, and
+      # this is the cheapest way to show that.
+      max_rows: 1
+
+  summarise:
+    block: value.const
+    depends_on: [extract]
+    config:
+      value:
+        # The URI is the handle every downstream step uses: convert.arrow reads it as
+        # input_uri, storage.copy as its source, a sensor waits for it to appear.
+        uri: "${steps.extract.output.saved_to}"
+        # The count comes back either way, which is what lets a step assert on the size of a
+        # result it never held.
+        row_count: "${steps.extract.output.row_count}"
+        columns: "${steps.extract.output.columns}"

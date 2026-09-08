@@ -1,0 +1,144 @@
+# SQL over files: DuckDB reads a parquet artifact and writes a csv one.
+#
+# NEEDS NOTHING BUT THE ENGINE: no network, no daemon, no server, no allowlist. It does need
+# duckdb on the worker, which is the dirigent-blocks[duckdb] extra, and convert.arrow, which
+# is the dirigent-parquet pack.
+#   dg run --local examples/sql/duckdb-parquet-to-report.yaml --keep
+# docs/sql.md is the family's home.
+#
+# RUNS WHEREVER THE ARTIFACTS LIVE. ${run.scratch} is a local directory under `dg dev` and a
+# bucket on the compose stack, and this document does not care: a file:// artifact becomes a
+# path duckdb opens, and an s3:// one is opened by duckdb's httpfs extension on the credentials
+# the s3 scheme is configured from. The image ships that extension; a bare install does
+# `python -c "import duckdb; duckdb.connect().execute('INSTALL httpfs')"` once.
+#
+# Five hops, and what each one hands on:
+#   readings    three records as a constant, standing in for whatever produced them.
+#   as_text     tojson, because a codec takes text. Output: one JSON string.
+#   store       convert.arrow writes the parquet artifact. Output: the uri it landed at.
+#   summarise   sql.query reads that parquet FILE and groups it. Output: the rows, inline.
+#   report      sql.execute writes the answer out again as a csv artifact.
+#
+# THE ENGINE IS THE CONNECTION'S URL, AND NOTHING ELSE CHANGES. These are the same two blocks
+# the sqlite and postgres examples use, with the same fields and the same rules. A url naming
+# duckdb picks the engine that reads files; a url naming postgres picks the one that reads a
+# server. That is the whole of what "an engine of the family" means.
+#
+# WHY :memory: IS THE RIGHT DATABASE HERE. Nothing is stored in duckdb: the data lives in the
+# parquet file, and duckdb is the thing that reads it. An in-memory database is then a query
+# engine with no state of its own, opened and dropped inside each step. Name a duckdb file
+# instead when a pipeline wants tables that outlive one step.
+#
+# A FILE IS NAMED BY A BOUND PARAMETER, NEVER BY TEXT IN THE STATEMENT. read_parquet(:source)
+# takes the file the same way a WHERE clause takes a value, so the family's one rule holds
+# here too: ${...} resolves into params and never into the sql. The value is a storage URI,
+# and on a duckdb connection a file:// URI inside the run's own directories arrives as the path
+# duckdb opens, while an s3:// one is handed over whole for httpfs to open. A file:// URI
+# outside the run is refused; gs:// and azure:// still ask to be copied in first.
+#
+# BOTH DIRECTIONS. The read is read_parquet in summarise; the write is COPY ... TO :target in
+# report, which is how a query's answer becomes an artifact a later step, or a person,
+# collects. csv here because the report is meant to be read; write (FORMAT parquet) instead
+# and the output is a typed file the next pipeline reads back with read_parquet.
+#
+# WHY THE WRITE IS sql.execute AND NOT sql.query. COPY returns no rows -- it returns a count
+# -- and sql.query exists to hand rows on. sql.execute is the block that writes, which is also
+# why the connection it names is not read_only.
+#
+# TO MAKE IT YOURS: point store's save_to at a bucket, replace the constant with the step that
+# actually produces your rows, and grow the statement. Aggregation, joins across two parquet
+# files, a window function -- it is one query engine over files, so the answer to "how do I
+# join these" is a JOIN.
+
+format: dirigent/v1
+kind: pipeline
+code: duckdb-parquet-to-report
+name: Query a parquet file with DuckDB
+description: Write a parquet artifact, group it with DuckDB over the file itself, and copy the answer out as csv.
+
+tags: [sql, storage, transform, parquet]
+
+requires:
+  blocks:
+    - value.const
+    - transform.jq
+    - convert.arrow
+    - sql.query
+    - sql.execute
+
+connections:
+  analysis:
+    kind: sql
+    config:
+      # No file: the tables this pipeline reads are the parquet files it names, so the
+      # database itself is empty and lives only as long as the step that opens it.
+      url: "duckdb:///:memory:"
+
+steps:
+  readings:
+    block: value.const
+    config:
+      value:
+        - { station: st-1, region: east, celsius: 4.5 }
+        - { station: st-2, region: east, celsius: 6.1 }
+        - { station: st-3, region: west, celsius: 1.2 }
+        - { station: st-4, region: north, celsius: -3.4 }
+
+  as_text:
+    block: transform.jq
+    depends_on: [readings]
+    config:
+      input: ${steps.readings.output.value}
+      # tojson because a codec takes text: the records leave here as one JSON string.
+      program: tojson
+
+  store:
+    block: convert.arrow
+    depends_on: [as_text]
+    config:
+      input: "${steps.as_text.output.value}"
+      from: json
+      to: parquet
+      # Parquet is bytes, so it always travels by uri. This one is the file the two SQL
+      # steps below read.
+      save_to: ${run.scratch}/readings.parquet
+
+  summarise:
+    block: sql.query
+    depends_on: [store]
+    config:
+      connection: analysis
+      sql: >
+        SELECT region, COUNT(*) AS stations, ROUND(AVG(celsius), 2) AS mean_celsius
+        FROM read_parquet(:source)
+        WHERE celsius >= :floor
+        GROUP BY region
+        ORDER BY region
+      params:
+        # The artifact the previous step wrote, as a uri. The block resolves it to the path
+        # duckdb opens, because this is a duckdb connection.
+        source: "${steps.store.output.output_uri}"
+        # An ordinary bound value beside the file, to show they are the same mechanism.
+        floor: -10
+      max_rows: 100
+
+  report:
+    block: sql.execute
+    depends_on: [store]
+    config:
+      connection: analysis
+      statements:
+        # One statement, reading the parquet and writing the csv, because nothing is kept
+        # between two steps of an in-memory database.
+        - >
+          COPY (
+            SELECT region, COUNT(*) AS stations, ROUND(AVG(celsius), 2) AS mean_celsius
+            FROM read_parquet(:source)
+            GROUP BY region
+            ORDER BY region
+          ) TO :target (FORMAT csv, HEADER)
+      params:
+        source: "${steps.store.output.output_uri}"
+        # The write side of the same rule: the target is a uri too, and the csv lands in the
+        # run's scratch space where storage.copy or a person can pick it up.
+        target: "${run.scratch}/regions.csv"

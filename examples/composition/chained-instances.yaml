@@ -1,0 +1,97 @@
+# Handing work to another dirigent instance, signed the way that instance verifies it.
+#
+# pipeline.run composes pipelines on one instance. This is the other shape: two instances,
+# each with its own database, schedules, and operators, where one hands the next a payload
+# and stops caring. The receiving side is an ordinary inbound webhook -- `dg webhook create`
+# on that instance -- whose token is the whole credential and whose params_from_payload maps
+# the body onto its own parameter schema.
+#
+# What webhook.post adds over http.request with method: POST is the signature, and that is
+# the only reason to reach for it. It renders the JSON body itself and computes an HMAC over
+# exactly those bytes, sent as X-Dirigent-Signature, in the format dirigent's own
+# /hooks/{token} intake verifies. Posting a body nobody signs is http.request's job.
+#
+# The secret is the connection's hmac_secret, named by sign_with. The receiving webhook is
+# declared with the same one:
+#   dg webhook create downstream-pipeline handoff --hmac-secret "$SHARED_SECRET"
+#
+# The secret lives on the connection, never in this file: a document names a credential, it
+# does not carry one.
+#
+# The receiver here is Postman Echo, which reflects whatever it is posted, so this runs
+# against no instance at all and the reflected body shows what went on the wire, signature
+# header included:
+#   dg run --local examples/composition/chained-instances.yaml \
+#     --connections examples/connections.yaml -p day=2026-01-01
+#
+# Against a real peer the only change is the connection: base_url becomes that instance's
+# URL, path becomes /hooks/<the token it minted>, and sign_with names the same connection.
+
+format: dirigent/v1
+kind: pipeline
+code: chained-instances
+name: One instance triggers another
+description: Produce a result, then hand it to another dirigent instance as a signed webhook.
+
+tags: [composition, http, webhook]
+
+requires:
+  blocks:
+    - http.request
+    - webhook.post
+  connections:
+    - postman-echo
+
+params:
+  type: object
+  required: [day]
+  additionalProperties: false
+  properties:
+    day:
+      type: string
+      format: date
+      description: The day whose result is handed downstream.
+
+steps:
+  produce:
+    block: http.request
+    config:
+      connection: postman-echo
+      path: /post
+      method: POST
+      body:
+        day: "${params.day}"
+        rows: 4200
+
+  hand_off:
+    block: webhook.post
+    depends_on: [produce]
+    retry:
+      max_attempts: 3
+      backoff: 5s
+    config:
+      connection: postman-echo
+      path: /post
+      # The receiving instance verifies the signature against the same secret, so a handoff
+      # cannot be forged by anything that merely knows the URL.
+      sign_with: postman-echo
+      # A receiver that queues the work answers 202, which is a success here even though the
+      # work has not happened yet: the handoff is what this step is responsible for.
+      success_status: [200, 201, 202]
+      headers:
+        X-Dirigent-Source: chained-instances
+      body:
+        day: "${params.day}"
+        upstream_run: "${run.id}"
+        rows: "${steps.produce.output.json_body.json.rows}"
+
+  confirm:
+    block: http.request
+    depends_on: [hand_off]
+    config:
+      connection: postman-echo
+      path: /post
+      method: POST
+      body:
+        handed_off_with_status: "${steps.hand_off.output.status}"
+        signed: "${steps.hand_off.output.signed}"

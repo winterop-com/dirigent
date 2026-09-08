@@ -1,0 +1,107 @@
+# format: the keyword that says what kind of string a string is, and here actually asserts.
+#
+# In:  one record of strings -- a date, a timestamp, an email, a uri, a uuid, a hex digest,
+#      and one string carrying a format no pack on this instance contributes.
+# Out: the record, through a gate that checked every one of them.
+#
+# In JSON Schema, format is an annotation by default: a validator only asserts it when it is
+# handed a format checker, and plenty are not. Dirigent's engine always hands its validator
+# one, so a format written here is enforced rather than decorative. That is the difference
+# worth knowing before writing a schema for this engine and reusing it somewhere else.
+#
+# The standard formats are all available -- date, date-time, time, email, uri, hostname,
+# ipv4, ipv6, regex, and the rest -- and dirigent registers the ones its own data speaks:
+# ulid, uuid4, uuid7, md5, sha1, sha256, sha512, base64.
+#
+# A format only ever narrows a string. A value of the wrong type is caught by `type`, and
+# format speaks only once the value is already a string, so `{type: integer, format: date}`
+# asserts nothing about anything.
+#
+# The last field is the interesting one. dhis2-uid is a format the dirigent-dhis2 pack
+# contributes; on an instance with that pack installed it asserts, and on one without it the
+# keyword is a passing annotation and the value is simply unchecked. That is what keeps a
+# schema portable: the same file asserts more on an instance that knows more, and refuses
+# nothing it cannot check. This recipe runs green either way, and on an instance with the
+# pack a bad UID there would fail it.
+#
+# To change it: -p email=not-an-address, -p when=last%20Tuesday, or -p digest=abc all fail
+# the gate, each naming the field and the format it did not satisfy.
+#
+# The schema is carried in the document, so no server stores this one: it runs with
+# `dg run --local`, and on an instance the same shape is created once with `dg schema create`.
+#
+#   dg run --local examples/recipes/schema-formats.yaml
+#   dg run --local examples/recipes/schema-formats.yaml -p email=not-an-address
+
+format: dirigent/v1
+kind: pipeline
+code: schema-formats
+name: Formats that actually assert
+description: Hold a record of strings to date, date-time, email, uri, uuid4 and digest formats, and show what a pack-contributed format does.
+
+tags: [recipes, validate]
+
+requires:
+  blocks:
+    - value.const
+    - validate.schema
+
+schemas:
+  recipe-formatted-record:
+    type: object
+    required: [day, when, email, endpoint, request_id, digest, org_unit]
+    additionalProperties: false
+    properties:
+      day: { type: string, format: date }
+      when: { type: string, format: date-time }
+      email: { type: string, format: email }
+      endpoint: { type: string, format: uri }
+      request_id: { type: string, format: uuid4 }
+      digest: { type: string, format: sha256 }
+      # Contributed by dirigent-dhis2. Where that pack is installed this asserts; where it
+      # is not, the value passes unchecked and the schema stays portable.
+      org_unit: { type: string, format: dhis2-uid }
+
+params:
+  type: object
+  properties:
+    day:
+      type: string
+      default: "2026-01-01"
+      description: Held to format date; "last Tuesday" is refused.
+    when:
+      type: string
+      default: "2026-01-01T06:00:00Z"
+      description: Held to format date-time, which wants a zone as well as a time.
+    email:
+      type: string
+      default: ops@example.org
+      description: Held to format email.
+    endpoint:
+      type: string
+      default: https://postman-echo.com/get
+      description: Held to format uri.
+    digest:
+      type: string
+      default: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+      description: Held to format sha256, which is exactly 64 hex characters.
+
+steps:
+  record:
+    block: value.const
+    config:
+      value:
+        day: "${params.day}"
+        when: "${params.when}"
+        email: "${params.email}"
+        endpoint: "${params.endpoint}"
+        request_id: f47ac10b-58cc-4372-a567-0e02b2c3d479
+        digest: "${params.digest}"
+        org_unit: O6uvpzGd5pu
+
+  gate:
+    block: validate.schema
+    depends_on: [record]
+    config:
+      input: ${steps.record.output.value}
+      schema: recipe-formatted-record

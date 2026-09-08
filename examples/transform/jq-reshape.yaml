@@ -1,0 +1,91 @@
+# Reshaping data between two steps, with no subprocess and no allowlist entry.
+#
+# transform.jq runs a jq program over one whole value. The program is compiled when the
+# document is applied, so a syntax error is an issue at steps.<name>.config beside every
+# other one the document has, rather than a run that fails at three in the morning. jq opens
+# no file and no socket, so the engine executes nothing on the worker: unlike every example
+# that reaches for shell.run to do this, this one needs no --enable-unsafe and no network.
+#
+# The shape is the one a reshape usually has. reshape pulls the active readings out of a
+# payload and flattens them; per_region is mapped over the regions and reads that list once
+# per element; summary reads the whole fan-out back as one value. Note where the per-item
+# value goes: the item is data in config.input, not text spliced into the program, so the
+# program stays a program and the data stays data.
+#
+# A jq program is a stream of outputs, and the step's output follows it: one output is the
+# value, several are the list of them, and none at all is refused, because a step has to
+# produce something for the next one to read.
+#
+# The input is written inline so the example needs no network. In a real pipeline it is
+# input_uri, pointing at the body an upstream http.request already put in storage, and
+# save_to streams a large result back to storage instead of carrying it in the output.
+#
+#   dg run --local examples/transform/jq-reshape.yaml
+#   dg run --local examples/transform/jq-reshape.yaml -p regions='["east"]'
+
+format: dirigent/v1
+kind: pipeline
+code: jq-reshape
+name: Reshape with jq
+description: Reshape a reading payload with jq, then map the result over one region each.
+
+tags: [transform]
+
+requires:
+  blocks:
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    regions:
+      type: array
+      default: [east, west, north]
+      items:
+        type: string
+
+steps:
+  reshape:
+    block: transform.jq
+    config:
+      input:
+        generated_at: "2026-01-01T06:00:00Z"
+        readings:
+          - { station: st-1, region: east, status: active, celsius: 4 }
+          - { station: st-2, region: east, status: retired, celsius: null }
+          - { station: st-3, region: west, status: active, celsius: 1.2 }
+          - { station: st-4, region: north, status: active, celsius: -3.4 }
+          # A second active east reading, so mean_celsius is (4 + 8) / 2 = 6, an average
+          # of two rather than a passthrough of one.
+          - { station: st-5, region: east, status: active, celsius: 8 }
+      # One output, so the step's output value is that one array.
+      program: |
+        [.readings[] | select(.status == "active") | {station, region, celsius}]
+
+  per_region:
+    block: transform.jq
+    depends_on: [reshape]
+    # for_each is expanded when the run is created, so it reads params and not a step's
+    # output. The reshaped list is read in config, where an output reference belongs.
+    for_each: "${params.regions}"
+    config:
+      input:
+        region: "${item}"
+        rows: "${steps.reshape.output.value}"
+      program: |
+        . as {$region, $rows}
+        | {region: $region,
+           stations: [$rows[] | select(.region == $region) | .station],
+           mean_celsius: ([$rows[] | select(.region == $region) | .celsius]
+             | if length > 0 then add / length else null end)}
+
+  summary:
+    block: transform.jq
+    depends_on: [per_region]
+    config:
+      # A fan-out step's output is the list of its items' outputs, in item order, and a
+      # transform's output is an object carrying value, so the list is unwrapped once here.
+      input: "${steps.per_region.output}"
+      program: |
+        [.[] | .value | select(.stations | length > 0)]
+        | {regions_with_data: length, stations: (map(.stations) | flatten | sort)}

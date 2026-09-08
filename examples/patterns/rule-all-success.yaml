@@ -1,0 +1,79 @@
+# The default edge condition, and what it does when a prerequisite fails.
+#
+# Every depends_on edge carries a rule, and a step that does not write one gets all_success:
+# run me once every prerequisite has SUCCEEDED. That is the edge nine steps in ten want, and
+# it is the reason a failure stops a branch without anybody writing a conditional.
+#
+# Hop by hop:
+#
+#   load       http.request against /status/${params.status}. 500 by default, so it fails.
+#   transform  reads load's output over an all_success edge that is not written down. The
+#              prerequisite failed, so this is SKIPPED -- not failed, not run, skipped.
+#   publish    reads transform, and a skip propagates: an all_success edge is not satisfied by
+#              a skipped prerequisite either, so the whole branch below the failure goes out.
+#
+# EXPECT THIS RUN TO FAIL. load settles failed, transform and publish settle skipped, and the
+# run reports failed. That is the demonstration; pass -p status=200 and the same three steps
+# all succeed with nothing else changed.
+#
+# To change it: the other three rules are rule-all-done.yaml, rule-one-failed.yaml and
+# rule-always.yaml, each the same shape with one word replaced.
+#
+#   dg run --local examples/patterns/rule-all-success.yaml                 # fails, by design
+#   dg run --local examples/patterns/rule-all-success.yaml -p status=200   # succeeds
+
+format: dirigent/v1
+kind: pipeline
+code: rule-all-success
+name: The all_success edge
+description: |
+  The default trigger rule: a step runs once every prerequisite **succeeded**.
+
+  As written the load fails, so the two steps below it are `skipped` and the run reports
+  `failed`. Pass `-p status=200` for the green path.
+
+tags: [patterns, http, transform, graph, rules]
+
+requires:
+  blocks:
+    - http.request
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    status:
+      type: integer
+      description: The status the load endpoint is asked to answer with; 500 fails, 200 does not.
+      default: 500
+      enum: [200, 500]
+
+steps:
+  load:
+    block: http.request
+    # No retry policy at all, so max_attempts is 1: this step settles on its first answer,
+    # because what is being shown is the edge below it and not a retry budget.
+    config:
+      url: "https://postman-echo.com/status/${params.status}"
+      method: GET
+
+  transform:
+    block: transform.jq
+    depends_on: [load]
+    # The rule is deliberately left unwritten. Omitting it is what makes this file about the
+    # default rather than about a setting somebody chose.
+    config:
+      input: "${steps.load.output.status}"
+      program: |
+        {loaded_with: .}
+
+  publish:
+    block: http.request
+    depends_on: [transform]
+    # Skipped for a second reason: its prerequisite was skipped rather than failed, and
+    # all_success is satisfied by neither.
+    config:
+      url: https://postman-echo.com/post
+      method: POST
+      body:
+        published: "${steps.transform.output.value.loaded_with}"

@@ -1,0 +1,83 @@
+# The brokers examples/queues/ runs against, on the stack's own network.
+# `make docker-run-queues` includes it.
+#
+# `infra/compose.queues.yaml` is the test lane's own fixture, published on the host for pytest
+# and `dg` running outside a container; this file is the stack's, published to the stack.
+#
+# Create the two connections once, by service name -- the address the server and worker
+# containers resolve, not the one your shell does:
+#
+#   dg connection create kafka orders-topic --set bootstrap_servers='["redpanda:9092"]'
+#   dg connection create rabbitmq shop-queue \
+#     --set url=amqp://dirigent@rabbitmq:5672/ --set password=$RABBITMQ_PASSWORD
+#
+# Neither block declares a topic or a queue, so create `orders` and `shop-orders` before a
+# document waits on them:
+#
+#   docker compose ... exec redpanda rpk topic create orders
+#   docker compose ... exec rabbitmq \
+#     rabbitmqadmin -u dirigent -p dirigent declare queue name=shop-orders durable=true
+#
+# Neither broker is protected, and neither is reachable from the host. This is a stack on a
+# developer's machine or a CI runner, never something to expose.
+
+name: dirigent
+
+services:
+  # Redpanda speaks the Kafka protocol and needs no ZooKeeper, so one container is a cluster.
+  redpanda:
+    image: ${DIRIGENT_KAFKA_IMAGE:-redpandadata/redpanda:v24.2.18}
+    restart: unless-stopped
+    command:
+      - redpanda
+      - start
+      - --mode=dev-container
+      - --smp=1
+      - --node-id=0
+      - --check=false
+      - --kafka-addr=PLAINTEXT://0.0.0.0:9092
+      # A client is told where to go by the broker's own advertised address: it bootstraps on
+      # one address and then reconnects to whatever the cluster names. That name has to
+      # resolve where the client is, which here is inside the compose network.
+      - --advertise-kafka-addr=PLAINTEXT://redpanda:9092
+      # A topic a producer invented is a typo that reads as a working pipeline, so a document
+      # naming a topic nobody created is refused instead.
+      - --set
+      - redpanda.auto_create_topics_enabled=false
+    volumes:
+      - redpanda:/var/lib/redpanda/data
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -q 'Healthy:.*true'"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  rabbitmq:
+    image: ${DIRIGENT_RABBITMQ_IMAGE:-rabbitmq:3-management-alpine}
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-dirigent}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-dirigent}
+    volumes:
+      - rabbitmq:/var/lib/rabbitmq
+    ports:
+      # Bound to loopback, and the only port this overlay publishes: the management UI is how
+      # a person declares a queue and watches it drain. The AMQP port stays inside the network.
+      - "127.0.0.1:${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  # Only the keys that differ from compose.yaml: compose merges the rest.
+  worker:
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+volumes:
+  redpanda:
+  rabbitmq:

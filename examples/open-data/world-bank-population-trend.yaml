@@ -1,0 +1,163 @@
+# Sixty years of population for one country, with year-on-year growth worked out on the way past.
+#
+# The World Bank's indicator API is keyless and answers a two-element array: the first element
+# is the paging envelope, {page, pages, per_page, total, lastupdated}, and the second is the list
+# of observations, newest year first. Nothing is nested inside anything else, so `.[0]` and
+# `.[1]` are the whole access pattern -- and reading a page count out of `.[0]` is what makes
+# paging visible rather than assumed.
+#
+# On paging: dirigent's format has no loop, so "keep fetching until the pages run out" is not a
+# step. The honest single-hop version is the one below: ask for a page large enough to hold the
+# whole series, then check the envelope and refuse the run if the answer says there was more.
+# A truncated series that looks complete is the failure worth spending a step on.
+#
+# What happens, hop by hop:
+#
+#   fetch     one GET. per_page is a parameter because it is the thing you raise when the
+#             series is longer than the default guess.
+#   whole     the paging check. jq's error() fails the step, so a series that did not fit
+#             stops here instead of reaching the gate looking well-formed.
+#   trend     the arithmetic. The API answers newest-first, so the series is reversed into
+#             chronological order and each row is paired with the one before it. A missing
+#             year, or the first year, has no growth to report, and gets null rather than
+#             zero: zero would mean the population did not change.
+#   gate      validate.schema against the shape written below. The gate passes the value
+#             through, so the report reads the gate rather than the trend, and the document
+#             itself records that nothing reached the csv without being checked.
+#   report    json to csv, streamed to storage.
+#
+# To make it yours: change country to any ISO3 code and indicator to any World Bank series code
+# -- SP.DYN.LE00.IN for life expectancy, NY.GDP.PCAP.CD for GDP per head -- and widen the
+# schema's population bounds if the indicator you pick is not a count of people.
+#
+#   dg run --local examples/open-data/world-bank-population-trend.yaml
+#   dg run --local examples/open-data/world-bank-population-trend.yaml -p country=NPL -p per_page=40
+
+format: dirigent/v1
+kind: pipeline
+code: world-bank-population-trend
+name: World Bank population trend
+description: |
+  One country's population series from the **World Bank indicator API**, with year-on-year
+  growth computed in jq, checked against a carried schema and written as csv.
+
+  A server refuses a document that carries a schema, so this one is for a `--local` or
+  standalone run; on an instance, the same shape is created once with `dg schema create`.
+
+tags: [open-data, http, storage, transform, validate, csv]
+
+requires:
+  blocks:
+    - http.request
+    - transform.jq
+    - validate.schema
+    - convert.std
+
+# Carried in the document so the gate needs nothing handed to it. The bounds are not
+# decoration: a year outside them, or a negative population, means the API moved under us.
+schemas:
+  population-trend-row:
+    type: array
+    minItems: 1
+    items:
+      type: object
+      required: [country, iso3, year, population, growth_pct]
+      additionalProperties: false
+      properties:
+        country: { type: string }
+        iso3: { type: string, minLength: 3, maxLength: 3 }
+        year: { type: integer, minimum: 1960, maximum: 2100 }
+        population: { type: [integer, "null"], minimum: 0 }
+        growth_pct: { type: [number, "null"] }
+
+params:
+  type: object
+  additionalProperties: false
+  properties:
+    country:
+      type: string
+      default: MWI
+      description: ISO3 country code, as it appears in the request path.
+    indicator:
+      type: string
+      default: SP.POP.TOTL
+      description: A World Bank series code; the default is total population.
+    per_page:
+      type: integer
+      default: 100
+      minimum: 1
+      description: Raise this when the paging check refuses a series longer than one page.
+
+steps:
+  fetch:
+    block: http.request
+    config:
+      url: https://api.worldbank.org/v2/country/${params.country}/indicator/${params.indicator}
+      query:
+        # Without format=json the API answers XML, which is its own default and nobody's
+        # convenience.
+        format: json
+        per_page: ${params.per_page}
+        page: 1
+
+  whole:
+    block: transform.jq
+    depends_on: [fetch]
+    config:
+      input: ${steps.fetch.output.json_body}
+      # The envelope, checked and then dropped: everything below works on the observations.
+      program: |
+        .[0] as $meta
+        | if $meta.pages > 1
+          then error("the series has \($meta.pages) pages of \($meta.per_page); raise per_page to at least \($meta.total)")
+          else .[1]
+          end
+
+  trend:
+    block: transform.jq
+    depends_on: [whole]
+    config:
+      input: ${steps.whole.output.value}
+      # Chronological order first, because "the year before" is meaningless in the order the
+      # API answers in. The window is a pair, so index 0 has no predecessor and no growth.
+      program: |
+        [.[] | {country: .country.value,
+                iso3: .countryiso3code,
+                year: (.date | tonumber),
+                population: .value}]
+        | sort_by(.year)
+        | . as $series
+        | [range($series | length) as $i
+           | $series[$i]
+           | . + {growth_pct:
+                    (if $i == 0 then null
+                     else ($series[$i - 1].population) as $before
+                       | if $before == null or .population == null or $before == 0 then null
+                         else ((.population - $before) / $before * 1000 | round / 10)
+                         end
+                     end)}]
+
+  gate:
+    block: validate.schema
+    depends_on: [trend]
+    config:
+      input: ${steps.trend.output.value}
+      schema: population-trend-row
+
+  as_text:
+    block: transform.jq
+    depends_on: [gate]
+    config:
+      # Reading the gate rather than the trend is what proves, in the document, that only a
+      # checked value reaches the csv. tojson because a codec takes text, not a value.
+      input: ${steps.gate.output.value}
+      program: tojson
+
+  report:
+    block: convert.std
+    depends_on: [as_text]
+    config:
+      input: ${steps.as_text.output.value}
+      from: json
+      to: csv
+      save_to: ${run.scratch}/${params.country}-${params.indicator}.csv

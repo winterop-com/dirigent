@@ -1,0 +1,56 @@
+# Check a payload's shape before anything downstream trusts it -- schema carried in the document.
+#
+# validate.schema states the shape a value must have and passes it through when it fits, so the
+# step after the gate reads the gate's output, not the raw value, and the graph records that
+# everything past this point received the right shape. The schema lives in the document's own
+# top-level schemas: section and the gate names it by code. A server refuses a document that
+# carries a schema, the way it refuses one that carries a connection, so this form is for a
+# standalone or --local run; the paired the-shape-is-wrong.yaml holds the same shape on the
+# instance instead.
+#
+#   dg run --local examples/validate/expects-a-shape.yaml
+
+format: dirigent/v1
+kind: pipeline
+code: expects-a-shape
+name: Expects a shape
+description: Validate a payload against a schema the document carries, then read the value the gate passed through.
+
+tags: [validate, transform]
+
+requires:
+  blocks:
+    - value.const
+    - validate.schema
+    - transform.jq
+
+schemas:
+  ou-record:
+    type: object
+    required: [id, name, level]
+    additionalProperties: false
+    properties:
+      id: { type: string }
+      name: { type: string }
+      level: { type: integer }
+
+steps:
+  payload:
+    block: value.const
+    config:
+      value:
+        id: OU_12345
+        name: Western Area
+        level: 2
+  check:
+    block: validate.schema
+    depends_on: [payload]
+    config:
+      input: ${steps.payload.output.value}
+      schema: ou-record
+  use_it:
+    block: transform.jq
+    depends_on: [check]
+    config:
+      input: ${steps.check.output.value}
+      program: "{unit: .id, tier: .level}"

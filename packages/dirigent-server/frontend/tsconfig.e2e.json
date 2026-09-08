@@ -1,0 +1,26 @@
+{
+    "compilerOptions": {
+        "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.e2e.tsbuildinfo",
+        "target": "es2023",
+        "lib": ["ES2023", "DOM"],
+        "types": ["node"],
+        "skipLibCheck": true,
+
+        /* The browser suite runs in node under playwright's own runner rather than through
+           vite, so it resolves the way node does. Same strictness as the app: a spec that
+           stops compiling is a spec that stopped describing the UI. */
+        "module": "nodenext",
+        "moduleResolution": "nodenext",
+        "allowImportingTsExtensions": true,
+        "verbatimModuleSyntax": true,
+        "moduleDetection": "force",
+        "noEmit": true,
+
+        "strict": true,
+        "noUnusedLocals": true,
+        "noUnusedParameters": true,
+        "erasableSyntaxOnly": true,
+        "noFallthroughCasesInSwitch": true
+    },
+    "include": ["playwright.config.ts", "e2e"]
+}

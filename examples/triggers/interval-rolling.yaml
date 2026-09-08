@@ -1,0 +1,88 @@
+# A rolling cadence: every hour from whenever it was declared, not at any particular time.
+#
+# The schedule fires only on an instance this document has been applied to. The same
+# document runs ad hoc anywhere, with nothing on the allowlist and no network:
+#
+#   dg run --local examples/triggers/interval-rolling.yaml
+#   dg apply examples/triggers/interval-rolling.yaml   # against an instance
+#   dg schedule list interval-rolling
+#
+# An interval beats a cron when what you want is a cadence -- freshness, a poll, a rolling
+# window -- and nobody cares which minute of the hour it lands on. A cron beats an interval
+# when the firing is a calendar moment someone downstream expects: the nightly load, the
+# Monday report, the close of the month. Write "every 1h" as an interval and "at 05:00 Oslo"
+# as a cron, and neither has to fake the other.
+
+format: dirigent/v1
+kind: pipeline
+code: interval-rolling
+name: A rolling interval
+description: A pipeline on a rolling hourly interval, refreshing a window rather than hitting a calendar moment.
+
+# Two firings of a rolling refresh are not worth having at once: if one is still going when
+# the next hour comes round, skip that firing rather than stack a second run on it.
+
+tags: [triggers, transform, schedule]
+
+concurrency: skip
+
+requires:
+  blocks:
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    window_hours:
+      type: integer
+      default: 24
+      minimum: 1
+      maximum: 168
+    environment:
+      type: string
+      enum: [staging, production]
+      default: staging
+
+steps:
+  window:
+    block: transform.jq
+    config:
+      input:
+        hours: "${params.window_hours}"
+        environment: "${params.environment}"
+      program: |
+        {environment, hours, buckets: [range(0; .hours; 6)]}
+
+  refresh:
+    block: transform.jq
+    depends_on: [window]
+    config:
+      input: "${steps.window.output.value}"
+      program: |
+        {environment, refreshed_hours: .hours, batches: (.buckets | length)}
+
+triggers:
+  schedules:
+    - code: hourly-refresh
+      interval: 1h
+      # A duration is the same length in every zone, so an interval never consults the
+      # calendar and the zone here is read by nothing. It is the cron and at clocks that
+      # need one.
+      timezone: UTC
+      params:
+        window_hours: 24
+        environment: staging
+
+    # The misfire policy is what keeps an hourly schedule from becoming a catchup storm.
+    # A firing late by less than the grace (scheduler_misfire_grace, five minutes by
+    # default) is ordinary: the clock advances from the slot it owed, so the cadence stays
+    # anchored where it was rather than drifting by the length of the tick or by how long a
+    # run took. A firing late by more than the grace is a misfire: it fires exactly once and
+    # the next firing is computed from now, abandoning every slot that was missed. A
+    # scheduler down over a weekend therefore wakes up and runs this once, not sixty times.
+    - code: six-hourly-production
+      interval: 6h
+      timezone: UTC
+      params:
+        window_hours: 168
+        environment: production

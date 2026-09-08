@@ -1,0 +1,131 @@
+# What a bad run request is answered with, and how early the answer comes.
+#
+# Parameter validation is not a step. It happens when the RUN IS CREATED: defaults are filled
+# in, the schema is checked against the resolved object, and a request that does not satisfy
+# it is refused before a run row exists. So a bad request produces no run at all -- nothing to
+# find in dg runs list, nothing half-executed, no side effect anywhere. The error names the
+# location and says what was wrong with it:
+#
+#   parameter attempts is invalid: 99 is greater than the maximum of 10
+#   parameter tenant is invalid: '' should be non-empty
+#   parameter tenant is invalid: 'Nordic' does not match '^[a-z][a-z0-9-]*$'
+#
+# Each guard is worth having on purpose:
+#
+#   minimum/maximum    catches the fat-fingered order of magnitude.
+#   minLength/pattern  catches the value of the right type and the wrong shape.
+#   required           catches the parameter nobody can guess a default for.
+#   additionalProperties: false catches the TYPO, which is the one people forget. Without it,
+#                      regoins=[east] is accepted in silence, regions keeps its default, and
+#                      the run does the wrong work with a clean bill of health. The CLI
+#                      catches an unknown -p by name before it sends anything, naming what
+#                      the pipeline does declare; this keyword is what catches the same typo
+#                      arriving from the API, from a schedule's pinned params, or from a
+#                      webhook's mapped payload.
+#
+# WHAT IS NOT CHECKED HERE: format. A format keyword asserts only where the validator is given
+# a checker for it, and parameter validation is not given one -- so day below is documentation
+# and the UI's date picker, and -p day=2026-13-40 starts a run. A value that genuinely has to
+# be a date is gated with validate.schema, which IS handed the instance's format checker;
+# params-every-type.yaml carries that gate. A pattern is the other answer, and a pattern does
+# assert here.
+#
+# Defaults are filled in BEFORE validation, so a parameter with a default is optional and one
+# without a default and inside required is mandatory. There is no third state.
+#
+# Hop by hop:
+#
+#   plan     builds the load plan out of the validated parameters. If it runs at all, every
+#            value it reads has already satisfied the schema -- which is why no step in this
+#            file checks anything.
+#   receipt  posts the plan on, standing in for the work.
+#
+# EXPECT THIS RUN TO SUCCEED with the defaults, in about a second. The demonstration is the
+# runs that never start:
+#
+#   dg run --local examples/patterns/params-validation-refuses.yaml
+#   dg run --local examples/patterns/params-validation-refuses.yaml -p tenant=Nordic    # refused, pattern
+#   dg run --local examples/patterns/params-validation-refuses.yaml -p attempts=99      # refused
+#   dg run --local examples/patterns/params-validation-refuses.yaml -p regoins='["east"]'  # refused
+#   dg run --local examples/patterns/params-validation-refuses.yaml -p tenant=          # refused, minLength
+#
+# The same schema refuses the same values whoever is asking: the CLI, the API, a schedule's
+# pinned params, and a webhook's mapped payload all land in one validate call. That is what
+# makes a webhook safe to expose -- a caller cannot reach a parameter the mapping does not
+# name, and cannot get a value past the schema even for one it does.
+
+format: dirigent/v1
+kind: pipeline
+code: params-validation-refuses
+name: A run request that is refused
+description: |
+  Parameters are validated when the run is **created**, so a bad request produces no run at
+  all: nothing to find in `dg runs list`, and no side effect anywhere.
+
+  `format`, bounds, `required` and `additionalProperties: false` are four different guards.
+  The last one catches the typo, which is the one people forget.
+
+tags: [patterns, http, transform, params]
+
+requires:
+  blocks:
+    - transform.jq
+    - http.request
+
+params:
+  type: object
+  # The parameter nobody can guess for you. Everything else has a default, so this is the
+  # only one a run must supply -- and there is a default here too, so the example runs bare.
+  required: [tenant]
+  # The typo guard. Turning this off is how a run does the wrong work and reports success.
+  additionalProperties: false
+  properties:
+    tenant:
+      type: string
+      description: Whose data this run loads.
+      default: nordic
+      minLength: 1
+      maxLength: 32
+      pattern: "^[a-z][a-z0-9-]*$"
+    day:
+      type: string
+      description: The day being loaded. The format here documents and renders; it does not check.
+      default: "2026-01-01"
+      format: date
+    attempts:
+      type: integer
+      description: How many times the loader tries; bounded so a slip cannot mean ninety-nine.
+      default: 3
+      minimum: 1
+      maximum: 10
+    regions:
+      type: array
+      description: The regions to load. Misspell the name and the run is refused, not defaulted.
+      default: [east, west]
+      minItems: 1
+      items:
+        type: string
+
+steps:
+  plan:
+    block: transform.jq
+    # Nothing here re-checks anything. A step downstream of validation is entitled to assume
+    # the schema held, and a document that validates its own parameters again is a document
+    # whose schema was not doing its job.
+    config:
+      input:
+        tenant: "${params.tenant}"
+        day: "${params.day}"
+        attempts: "${params.attempts}"
+        regions: "${params.regions}"
+      program: |
+        {tenant, day, attempts, regions, work: ((.regions | length) * .attempts)}
+
+  receipt:
+    block: http.request
+    depends_on: [plan]
+    config:
+      url: https://postman-echo.com/post
+      method: POST
+      body:
+        plan: "${steps.plan.output.value}"

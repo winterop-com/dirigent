@@ -1,0 +1,92 @@
+# concurrency: replace -- the newest trigger wins, and the run in flight is cancelled.
+#
+# WHAT A SECOND TRIGGER DOES HERE: every run currently in flight is CANCELLED, with the reason
+# "replaced by a newer run", and the new run starts. Cancellation is not a suggestion -- what
+# has not started is stopped, and an attempt holding a remote handle has its remote told, so a
+# job submitted to something else is not left running behind a cancelled run.
+#
+# This is the "only the latest matters" policy, and it is the one to be most careful with,
+# because it is the only one that destroys work already done. It fits a preview build, a
+# dashboard refresh triggered by every commit, a re-render of a view where an older answer has
+# no value the moment a newer request exists. It does not fit anything that writes: a load
+# cancelled halfway is a load somebody has to reason about.
+#
+# THE ORDER OF OPERATIONS MATTERS AND IS WORTH KNOWING. A fan-out is expanded BEFORE the
+# policy decides anything, so a document whose expansion would be refused is refused before
+# any cancelling happens -- a refusal after the cancel would leave the old run dead and the
+# new one non-existent.
+#
+# A cancelled run frees the slot exactly as a finished one does, and it settles as cancelled,
+# which is neither succeeded nor failed. It stays in the run list with its attempts and logs:
+# replaced is a thing to be able to see, not a thing to erase.
+#
+# Hop by hop:
+#
+#   render   a sleep standing in for a build whose older answer stops mattering the instant a
+#            newer request arrives.
+#   publish  swaps the freshly rendered output in. It only ever runs for the newest request,
+#            which is the property this policy buys.
+#
+# EXPECT THIS RUN TO SUCCEED in about five seconds. A single local run has nothing to replace,
+# so the policy is exercised against a server -- watch the first run settle as cancelled:
+#
+#   dg run --local examples/patterns/concurrency-replace.yaml
+#   dg apply examples/patterns/concurrency-replace.yaml
+#   dg run concurrency-replace -p revision=abc123 &
+#   dg run concurrency-replace -p revision=def456   # the first is cancelled, this one starts
+#   dg runs list concurrency-replace                # one cancelled, one succeeded
+
+format: dirigent/v1
+kind: pipeline
+code: concurrency-replace
+name: The newest trigger wins
+description: |
+  `concurrency: replace` cancels every run in flight, telling any remote about the attempts
+  that had one, and starts the new run.
+
+  The only policy that destroys work already done. Right for a preview render whose older
+  answer is worthless; wrong for anything that writes.
+
+tags: [patterns, sensor, transform, concurrency]
+
+# The one line this file is about.
+concurrency: replace
+
+requires:
+  blocks:
+    - time.sleep
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    revision:
+      type: string
+      description: Which revision is being rendered; only the newest one matters.
+      default: abc123
+      minLength: 1
+      maxLength: 64
+    seconds:
+      type: integer
+      description: How long the render takes; long enough to replace it by hand.
+      default: 4
+      minimum: 1
+      maximum: 120
+
+steps:
+  render:
+    block: time.sleep
+    poll: 1s
+    config:
+      for: "${params.seconds}s"
+
+  publish:
+    block: transform.jq
+    depends_on: [render]
+    # Nothing above this step writes anywhere, which is what makes cancelling it safe. A
+    # pipeline whose first step wrote to a real system would want queue and not this.
+    config:
+      input:
+        revision: "${params.revision}"
+      program: |
+        {published: .revision, superseded_anything_older: true}

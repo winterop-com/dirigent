@@ -1,0 +1,100 @@
+# Redirects are not followed unless a step says so, and both answers are useful.
+#
+# In:  a redirect status and a target, as parameters.
+# Out: the same call made twice -- once returning the 3xx itself, once following it to the
+#      end -- so the difference is one output rather than an argument.
+#
+# follow_redirects defaults to false, and the default is the interesting choice. A redirect
+# is information: it says the resource moved, or that a load balancer wants a different
+# host, or that an unauthenticated call is being sent to a login page. Following it
+# silently turns "your URL is wrong" into a 200 that a pipeline treats as data, and the
+# classic version of that is a 302 to an HTML sign-in page parsed as an empty result.
+#
+# So the block returns the 3xx as the answer, with its Location header, and a step that
+# genuinely wants the destination asks for it:
+#
+#   follow_redirects: false   status is 302 and the body is the redirect's own. Location
+#                             says where it points, which is a thing a pipeline can report
+#                             or refuse.
+#   follow_redirects: true    the client follows, and status is the destination's. Nothing
+#                             says a redirect happened, so this is the setting for an API
+#                             that is known to redirect as part of its normal working.
+#
+# A 3xx is not a 2xx, so the un-followed call needs the status listed as success or the
+# step fails -- which is success_status doing exactly what http-success-status-list.yaml
+# describes, on the one status that most deserves it.
+#
+# To change it: -p status=301 makes it a permanent move, which is the one worth reporting
+# rather than following, since the URL in the document is now wrong.
+#
+#   dg run --local examples/recipes/http-follow-redirects.yaml
+#   dg run --local examples/recipes/http-follow-redirects.yaml -p status=301
+
+format: dirigent/v1
+kind: pipeline
+code: http-follow-redirects
+name: Following a redirect, or not
+description: Make the same redirecting call twice, with and without follow_redirects, and compare the status and the Location header.
+
+tags: [recipes, http, transform]
+
+requires:
+  blocks:
+    - http.request
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    status:
+      type: integer
+      default: 302
+      description: The redirect status the endpoint answers with.
+    target:
+      type: string
+      default: https://postman-echo.com/get
+      description: Where the redirect points.
+
+steps:
+  unfollowed:
+    block: http.request
+    config:
+      url: https://postman-echo.com/redirect-to
+      method: GET
+      query:
+        url: ${params.target}
+        status_code: ${params.status}
+      # The default, written out because this document is about it.
+      follow_redirects: false
+      # A 3xx is not a 2xx, so the status the call is asking for has to be listed.
+      success_status: [301, 302, 307, 308]
+      timeout: 20s
+
+  followed:
+    block: http.request
+    config:
+      url: https://postman-echo.com/redirect-to
+      method: GET
+      query:
+        url: ${params.target}
+        status_code: ${params.status}
+      follow_redirects: true
+      timeout: 20s
+
+  compare:
+    block: transform.jq
+    depends_on: [unfollowed, followed]
+    config:
+      input:
+        unfollowed_status: ${steps.unfollowed.output.status}
+        unfollowed_headers: ${steps.unfollowed.output.headers}
+        followed_status: ${steps.followed.output.status}
+        followed_body: ${steps.followed.output.json_body}
+      program: |
+        {unfollowed: {status: .unfollowed_status,
+                      # Where it pointed: the thing a pipeline can report or refuse.
+                      location: .unfollowed_headers.location},
+         followed: {status: .followed_status,
+                    # The destination answered, and nothing in the response says a redirect
+                    # happened on the way.
+                    url: .followed_body.url}}

@@ -1,0 +1,120 @@
+# One pipeline, three answers to "how urgently", each overriding the one before it.
+#
+# Every run carries a priority -- low, normal, or high -- and the claim takes a higher one
+# first. It is one word, and it LAYERS the way parameters already do:
+#
+#   the document       priority: low          what this pipeline is by default
+#   a trigger          priority: normal       what a schedule or webhook fires it at
+#   an ad hoc run      --priority high        what a person asks for, once
+#
+# The specific one wins, and the answer is PINNED ON THE RUN when it is created. Editing this
+# document tomorrow does not reorder a run that started today, which is the same promise the
+# pinned pipeline version makes about everything else a run executes.
+#
+# WHAT THE THREE WORDS ARE FOR, in the case this document is drawn from -- a bulk reload that
+# takes hours and matters to nobody in particular:
+#
+#   low       its default. It is enormous, it is not urgent, and it should be behind
+#             whatever a person is waiting on. That is what low means: last.
+#   normal    what the nightly schedule fires it at, because a nightly run that never
+#             finishes is a nightly run that failed. Ordinary, not deferred.
+#   high      what an incident asks for by hand. The reload is now the thing being waited
+#             on, so it goes ahead of everything queued.
+#
+# THE CLAIM'S ORDER IS PRIORITY, THEN FAIRNESS, THEN DUE TIME. Fairness is round-robin
+# between runs: the claim ranks each run's due attempts within that run and takes one from
+# each in turn, so this document's fan-out over four regions interleaves with a two-step run
+# queued beside it rather than holding every worker slot until it drains. Priority sorts
+# ahead of that, so a high run's attempts still come first.
+#
+# WHAT PRIORITY CANNOT DO: it never takes a slot that is already busy. An attempt that is
+# running is never cancelled to make room for an urgent one, because that means killing work
+# with side effects nobody can take back. A high run is claimed first the moment a slot frees
+# -- so with every slot held by a long step, it still waits for one to finish.
+#
+# Hop by hop:
+#
+#   plan       turns the parameters into the regions this reload covers.
+#   reload     a fan-out, one item per region -- the many small units that make a run worth
+#              being fair about in the first place.
+#   receipt    joins them back and reports what was covered.
+#
+# EXPECT THIS RUN TO SUCCEED in about a second, with no network. A local run is alone in a
+# throwaway instance, so --priority is refused there: there is nothing to be ahead of.
+#
+#   dg run --local examples/patterns/priority-layered.yaml
+#   dg apply examples/patterns/priority-layered.yaml
+#   dg run priority-layered                     # low: the document's own
+#   dg run priority-layered --priority high     # the incident case
+#   dg runs list                                # ! marks high, a muted low marks low
+
+format: dirigent/v1
+kind: pipeline
+code: priority-layered
+name: Low by default, high by hand
+description: |
+  `priority` is one word -- `low`, `normal` or `high` -- and it layers: the document declares
+  the default, a schedule or webhook overrides it for what it triggers, and `dg run
+  --priority` overrides it once more. The resolved word is pinned on the run at creation.
+
+  The claim orders by priority, then round-robin fairness between runs, then due time.
+  Nothing is preempted: an attempt already running is never cancelled for an urgent one.
+
+tags: [patterns, transform, priority, schedule]
+
+# Low, because a bulk reload should be behind whatever somebody is waiting on.
+priority: low
+
+requires:
+  blocks:
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    regions:
+      type: array
+      description: The regions this reload covers; one fan-out item each.
+      items:
+        type: string
+      default: [nordics, nepal, sahel, andes]
+
+steps:
+  plan:
+    block: transform.jq
+    config:
+      input:
+        regions: "${params.regions}"
+      program: |
+        {regions, total: (.regions | length)}
+
+  reload:
+    block: transform.jq
+    depends_on: [plan]
+    # A fan-out is where fairness earns its keep: four items here, four hundred in the real
+    # thing, and every one of them is a unit the claim interleaves with other runs' work.
+    for_each: "${params.regions}"
+    config:
+      input:
+        region: "${item}"
+      program: |
+        {region, rows: 1200}
+
+  receipt:
+    block: transform.jq
+    depends_on: [reload]
+    config:
+      input: "${steps.reload.output}"
+      program: |
+        {regions: length, rows: (map(.value.rows) | add)}
+
+triggers:
+  schedules:
+    - code: nightly-reload
+      name: Nightly, at ordinary urgency
+      description: A nightly run that never finishes is a nightly run that failed.
+      cron: "0 2 * * *"
+      timezone: UTC
+      # The schedule overrides the document's low for what IT fires, and nothing else. An
+      # ad hoc run of the same pipeline is still low unless it says otherwise.
+      priority: normal

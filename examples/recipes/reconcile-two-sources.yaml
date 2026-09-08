@@ -1,0 +1,159 @@
+# Two systems that should agree, and a run that says exactly how they do not.
+#
+# In:  the same day's totals from a source of record and from a warehouse, each with rows
+#      the other does not have.
+# Out: {matched, only_in_source, only_in_target, differing, totals} and a run that fails
+#      when the disagreement is bigger than the tolerance.
+#
+# A reconciliation has exactly four buckets, and a report that does not name all four is not
+# a reconciliation:
+#
+#   in both, equal        the boring bucket, and the one worth counting so the others have a
+#                         denominator.
+#   in both, different    the interesting bucket. Each row carries both values and their
+#                         difference, because "17 rows differ" cannot be investigated.
+#   only in the source    something that has not arrived yet, or a load that dropped it.
+#   only in the target    something deleted upstream, or loaded twice under a changed key.
+#
+# The comparison is by key, so both sides are indexed first with INDEX and the key set is
+# the union of the two -- not the source's keys, which would make anything extra in the
+# target invisible.
+#
+# Floating point is the trap in the equality test. Two systems that both computed 0.1 + 0.2
+# do not agree on it, so the comparison is a tolerance rather than ==, and the tolerance is
+# a parameter because what counts as equal is a property of the data and not of the code.
+#
+# The verdict is the last decision: a difference that is within tolerance is not a
+# difference, a small number of differing rows is a warning somebody reads, and past the
+# threshold the run fails so that a schedule stops rather than reporting quietly for a week.
+#
+# To change it: -p max_differing=5 lets this run pass with its three differing rows; the
+# default of 2 is below that, so the default run fails on purpose.
+#
+#   dg run --local examples/recipes/reconcile-two-sources.yaml                  # fails, on purpose
+#   dg run --local examples/recipes/reconcile-two-sources.yaml -p max_differing=5
+
+format: dirigent/v1
+kind: pipeline
+code: reconcile-two-sources
+name: Reconcile two sources
+description: Compare two systems' totals by key with a tolerance, report the four buckets, and fail when too many rows disagree.
+
+tags: [recipes, transform]
+
+requires:
+  blocks:
+    - value.const
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    day:
+      type: string
+      format: date
+      default: "2026-01-01"
+      description: The day both sides are reporting on.
+    tolerance:
+      type: number
+      minimum: 0
+      default: 0.01
+      description: How far two values may differ and still count as equal.
+    max_differing:
+      type: integer
+      minimum: 0
+      default: 2
+      description: How many differing rows are tolerated before the run fails.
+
+steps:
+  source:
+    block: value.const
+    config:
+      value:
+        - { key: east/pump, total: 300.0 }
+        - { key: east/valve, total: 250.0 }
+        - { key: west/pump, total: 100.0 }
+        - { key: west/valve, total: 100.0 }
+        # In the source and not in the warehouse: not loaded yet, or dropped.
+        - { key: north/pump, total: 200.0 }
+        - { key: south/pump, total: 42.5 }
+
+  target:
+    block: value.const
+    config:
+      value:
+        - { key: east/pump, total: 300.0 }
+        # Differs by more than the tolerance.
+        - { key: east/valve, total: 247.5 }
+        # Differs by less: floating-point noise, not a disagreement.
+        - { key: west/pump, total: 100.000000001 }
+        - { key: west/valve, total: 90.0 }
+        - { key: south/pump, total: 41.0 }
+        # In the warehouse and not in the source: deleted upstream, or loaded twice.
+        - { key: east/gasket, total: 12.0 }
+
+  compare:
+    block: transform.jq
+    depends_on: [source, target]
+    config:
+      input:
+        source: ${steps.source.output.value}
+        target: ${steps.target.output.value}
+        tolerance: ${params.tolerance}
+        day: ${params.day}
+      program: |
+        . as {$source, $target, $tolerance, $day}
+        | ($source | INDEX(.key)) as $left
+        | ($target | INDEX(.key)) as $right
+        # The union of both key sets: the source's keys alone would hide anything extra in
+        # the target.
+        | (([$source[].key] + [$target[].key]) | unique) as $keys
+        | [$keys[]
+           | . as $key
+           | {key: $key,
+              source: ($left[$key].total // null),
+              target: ($right[$key].total // null)}
+           | . + {bucket: (if .source == null then "only_in_target"
+                           elif .target == null then "only_in_source"
+                           # A tolerance, not ==: two systems that both computed the same
+                           # sum in floating point do not agree on its last bits.
+                           elif ((.source - .target) | fabs) <= $tolerance then "matched"
+                           else "differing" end),
+                  difference: (if .source == null or .target == null then null
+                               else ((.source - .target) * 1000 | round / 1000) end)}]
+          as $rows
+        | {day: $day,
+           tolerance: $tolerance,
+           matched: [$rows[] | select(.bucket == "matched") | .key],
+           only_in_source: [$rows[] | select(.bucket == "only_in_source") | .key],
+           only_in_target: [$rows[] | select(.bucket == "only_in_target") | .key],
+           # Both values and the difference, because a count of differing rows cannot be
+           # investigated by anybody.
+           differing: [$rows[] | select(.bucket == "differing")
+                       | {key, source, target, difference}],
+           totals: {source: ([$source[].total] | add),
+                    target: ([$target[].total] | add),
+                    keys: ($keys | length)}}
+
+  verdict:
+    block: transform.jq
+    depends_on: [compare]
+    config:
+      input:
+        report: ${steps.compare.output.value}
+        max_differing: ${params.max_differing}
+      program: |
+        . as {$report, $max_differing}
+        | ($report.differing | length) as $differing
+        # Past the threshold the run fails, so a schedule stops instead of reporting a
+        # widening gap quietly every morning.
+        | if $differing > $max_differing
+          then error("\($differing) rows differ beyond the tolerance, and \($max_differing) "
+                     + "is the limit: \([$report.differing[].key] | join(", "))")
+          else {day: $report.day,
+                differing: $differing,
+                matched: ($report.matched | length),
+                only_in_source: $report.only_in_source,
+                only_in_target: $report.only_in_target,
+                gap: (($report.totals.source - $report.totals.target) * 100 | round / 100)}
+          end

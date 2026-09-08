@@ -1,0 +1,117 @@
+# The four rules the csv codec keeps about headers, and the two headers it refuses.
+#
+# In:  a csv whose rows are ragged, and a list of records whose keys are not all the same.
+# Out: {read, written, header} -- the ragged csv read into records, and records written back
+#      out as a csv whose header covers every key any of them has.
+#
+# Reading, two rules:
+#
+#   The header names the columns, and every cell is a string. A row with fewer cells than
+#   the header names gets an empty string in the missing ones rather than a missing key, so
+#   every record has the same shape.
+#   A row with MORE cells than the header names is refused, naming the row: cells with no
+#   column are data nobody can address, and dropping them silently is worse than stopping.
+#
+# Writing, two rules:
+#
+#   The header is the union of the keys the rows have, in first-seen order across the
+#   records. A key only the third record carries is still a column, and the records without
+#   it get an empty cell -- a header taken from the first record alone would silently drop
+#   data. Within one record the order is whatever the value carries by the time it reaches
+#   the codec, which is not always the order it was typed in; a report whose header is part
+#   of its contract builds its objects field by field in a jq step, which keeps that order.
+#   A nested value has no csv spelling, so it is refused naming the row and the key. Flatten
+#   first: jq-nested-to-flat.yaml is that step.
+#
+# Two headers are refused outright when reading, and both refusals are worth provoking once:
+#
+#   station,station,celsius   ->  the csv header repeats a column name: 'station' at columns
+#                                 1, 2; a record key names one column, so rename them before
+#                                 converting
+#   station,,celsius          ->  the csv header has no name at column 2, and a record key
+#                                 names its column; name it before converting
+#
+# Both are refusals rather than repairs because a repair has to invent a name -- station_2,
+# column_2 -- and every reader downstream then depends on an invention this codec made up.
+#
+# To see either one, run with -p header='station,station,celsius'; that run fails on purpose
+# with the message above.
+#
+#   dg run --local examples/recipes/csv-header-rules.yaml
+#   dg run --local examples/recipes/csv-header-rules.yaml -p header=station,station,celsius
+#   dg run --local examples/recipes/csv-header-rules.yaml -p header=station,,celsius
+
+format: dirigent/v1
+kind: pipeline
+code: csv-header-rules
+name: CSV header rules
+description: How the csv codec reads a ragged file and writes a union header, and the two headers it refuses to read at all.
+
+tags: [recipes, transform]
+
+requires:
+  blocks:
+    - value.const
+    - transform.jq
+    - convert.std
+
+params:
+  type: object
+  properties:
+    header:
+      type: string
+      default: station,date,celsius
+      description: The header row the reading half is given; a repeated or empty name is refused.
+
+steps:
+  ragged:
+    block: transform.jq
+    config:
+      input: ${params.header}
+      # The rows are short on purpose: st-2 has no celsius cell at all.
+      program: |
+        . + "\nst-1,2026-01-01,4.5\nst-2,2026-01-01\nst-3,2026-01-01,7\n"
+
+  read:
+    block: convert.std
+    depends_on: [ragged]
+    config:
+      input: ${steps.ragged.output.value}
+      from: csv
+      to: json
+
+  uneven:
+    block: value.const
+    config:
+      value:
+        - { station: st-1, celsius: 4.5 }
+        # A key the first record does not have: it is still a column.
+        - { station: st-2, celsius: -1, battery: 96 }
+        - { station: st-3, note: replaced sensor }
+
+  as_text:
+    block: transform.jq
+    depends_on: [uneven]
+    config:
+      input: ${steps.uneven.output.value}
+      program: tojson
+
+  write:
+    block: convert.std
+    depends_on: [as_text]
+    config:
+      input: ${steps.as_text.output.value}
+      from: json
+      to: csv
+
+  report:
+    block: transform.jq
+    depends_on: [read, write]
+    config:
+      input:
+        read: ${steps.read.output.text}
+        written: ${steps.write.output.text}
+      program: |
+        {read: (.read | fromjson),
+         written: .written,
+         header: (.written | split("\n")[0] | split(","))}

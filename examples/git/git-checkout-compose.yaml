@@ -1,0 +1,137 @@
+# A stack brought up from a compose file that lives in someone else's repository.
+#
+# The compose file is not in this document and was not written into scratch by an earlier
+# step: it is a file in a public repository, and the checkout is what puts it somewhere the
+# compose CLI can open.
+#
+# REQUIRES A DOCKER DAEMON the worker can reach, named by DOCKER_HOST (a dind sidecar over
+# tcp+TLS, or the local socket in dev), and network from the worker to github.com. The three
+# docker blocks declare local_execution, so the engine refuses them unless the instance
+# allowlists their ids -- git.checkout is ordinary and needs no allowlisting:
+#   dg run --local examples/git/git-checkout-compose.yaml \
+#     --enable-unsafe docker.compose.up,docker.compose.down,docker.run
+#   export DIRIGENT_ENABLED_UNSAFE_BLOCKS='["docker.compose.up","docker.compose.down","docker.run"]'
+#
+# Four hops, and what each one hands on:
+#   source    the repository, shallow, into ${run.scratch}/source/. Output: the commit and the
+#             scratch-relative target the compose step names a file inside.
+#   stack     compose brought up from that file, detached, and left running for the rest of
+#             the run. Output: the services, the networks, and default_network.
+#   probe     a container on the stack's network, asking the service for a page.
+#   teardown  the same project down again, volumes included, on any outcome.
+#
+# THE PATH IS SCRATCH-RELATIVE ALL THE WAY THROUGH. docker.compose.up names a file inside the
+# run's scratch space, never an absolute path and never one that climbs out, and the checkout
+# landed the whole repository at "source". So the compose file is "source/<directory>/
+# compose.yaml" -- the repository's own layout, prefixed by where the checkout put it. The CLI
+# is always run with --project-directory set to the scratch root, so a compose file with
+# relative paths of its own resolves them against the run's space rather than its own
+# directory: a stack of pre-built images, like this one, is what that suits.
+#
+# PIN THE REF FOR ANYTHING REAL. This one tracks the repository's default branch, which is
+# honest for an example and wrong for a pipeline you rely on: somebody else's commit would
+# change what your stack is. A ref: naming a tag or a full commit sha is how a checkout stops
+# being a moving target, and the commit output is what to record when it is not.
+#
+# THE LIFECYCLE IS THE DOCKER FAMILY'S, UNCHANGED. up brings the stack up and it persists, a
+# step drives it, and a down with rule: all_done tears it down whether the drive step passed
+# or failed. Both compose steps default their project name from the run id, so the down
+# addresses exactly the project the up created with nothing wired between them.
+#
+# TO MAKE IT YOURS: point the connection at the repository whose stack you actually run, name
+# its compose file under compose_path, and replace the probe with something that proves your
+# services are up -- a request that must return 200, a query that must return rows.
+
+format: dirigent/v1
+kind: pipeline
+code: git-checkout-compose
+name: A stack from a repository's compose file
+description: Check a repository out, bring up the compose file it ships, probe it, and tear it down.
+
+tags: [git, execute]
+
+requires:
+  blocks:
+    - git.checkout
+    - docker.compose.up
+    - docker.compose.down
+    - docker.run
+
+connections:
+  awesome-compose:
+    kind: git
+    config:
+      # Docker's own collection of sample stacks. It is public, so no credential is sealed
+      # here; a private repository would carry a token or a deploy key on this connection and
+      # the steps below would not change at all.
+      url: https://github.com/docker/awesome-compose.git
+
+params:
+  type: object
+  additionalProperties: false
+  properties:
+    compose_path:
+      type: string
+      default: source/wordpress-mysql/compose.yaml
+      description: The compose file to bring up, as a path under the run's scratch space.
+
+steps:
+  source:
+    block: git.checkout
+    deadline: 10m
+    config:
+      connection: awesome-compose
+      target: source
+      # One commit and none of its history: this pipeline reads two files out of the tree and
+      # has no use for the years of log behind them.
+      depth: 1
+
+  stack:
+    block: docker.compose.up
+    depends_on: [source]
+    deadline: 15m
+    config:
+      # A file, not content: this is the form for a compose document something else produced,
+      # and a checkout is the most direct producer there is.
+      file: "${params.compose_path}"
+      # The stack's services declare no healthcheck, so --wait can only wait for their
+      # containers to be running; the probe below is what waits for the application itself.
+      wait: true
+      wait_timeout: 5m
+      pull: always
+
+  probe:
+    block: docker.run
+    depends_on: [stack]
+    deadline: 10m
+    config:
+      image: alpine:3
+      pull: true
+      # The network the up step reported: joining it resolves the service by the name the
+      # compose file gave it.
+      network: "${steps.stack.output.default_network}"
+      # The web service answers seconds after its container is running, and only once the
+      # database behind it does, so the probe retries rather than racing it. This is what a
+      # stack without a healthcheck costs the step that drives it.
+      command: |
+        for _ in $(seq 1 90); do
+          wget -q --spider http://wordpress/ && exit 0
+          sleep 2
+        done
+        echo "the service never answered" >&2
+        exit 1
+      memory: 64mb
+      pids_limit: 64
+
+  teardown:
+    block: docker.compose.down
+    depends_on: [probe]
+    # all_done runs the teardown on success or failure, so the stack never outlives the run.
+    rule: all_done
+    deadline: 10m
+    config:
+      # The same file the up step used, passed back from its output: a teardown resolves the
+      # project by label alone in most cases, and needs -f in the ones where it cannot.
+      file: "${steps.stack.output.compose_file}"
+      # The stack's named volumes go with it, so a run leaves nothing on the worker.
+      down_volumes: true

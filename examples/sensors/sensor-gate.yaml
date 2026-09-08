@@ -1,0 +1,65 @@
+# A sensor gating the rest of the pipeline, and what happens when it never fires.
+#
+# storage.exists is a sensor: it observes the world and changes nothing. Each poke is a
+# durable, scheduled poll, so waiting hours costs hours of rows, not hours of a held worker.
+#
+# poll, deadline, and on_timeout are step-level engine semantics, uniform across every
+# block, never buried in the block's own config. on_timeout: skip is the load-bearing
+# choice here: no drop today is not a failure, it is a day with nothing to load, so the
+# sensor skips and the default all_success edges skip the rest of the branch with it.
+#
+# The deadline is short so the skip is watchable. Nothing ever writes the drop, so after ten
+# seconds the sensor skips, the branch behind it skips, and the run succeeds with nothing
+# done:
+#   dg run --local examples/sensors/sensor-gate.yaml -p day=2026-01-01 --enable-unsafe shell.run
+#
+# Note where the drop is looked for. file:// is rooted at the instance's artifact root and
+# refuses to address anything outside it, so a stored pipeline cannot turn a copy step into
+# an arbitrary-file read. Pointing this at a real drop means an s3:// URI, or a path under
+# that root -- never an absolute path from the document.
+#
+# confirm uses shell.run, which executes code on the worker and needs the allowlist:
+#   export DIRIGENT_ENABLED_UNSAFE_BLOCKS='["shell.run"]'
+
+format: dirigent/v1
+kind: pipeline
+code: sensor-gate
+name: A sensor gates the run
+description: Wait for today's drop to land, then load it; skip the day if it never does.
+
+tags: [sensor, execute, storage]
+
+params:
+  type: object
+  required: [day]
+  properties:
+    day:
+      type: string
+      format: date
+
+steps:
+  wait_for_drop:
+    block: storage.exists
+    # Each poke is a scheduled row, not a held worker, so the poll interval is chosen for
+    # how soon the drop matters rather than for what it costs to wait.
+    poll: 2s
+    deadline: 10s
+    # No drop today is a day with nothing to load, not a failure. The skip carries down the
+    # branch through the default all_success edges, and the run still succeeds.
+    on_timeout: skip
+    config:
+      uri: "${run.scratch}/drops/${params.day}.parquet"
+      min_size: 1
+
+  load:
+    block: storage.copy
+    depends_on: [wait_for_drop]
+    config:
+      source: "${steps.wait_for_drop.output.uri}"
+      target: "${run.scratch}/loaded/${params.day}.parquet"
+
+  confirm:
+    block: shell.run
+    depends_on: [load]
+    config:
+      argv: [echo, "loaded ${steps.wait_for_drop.output.size} bytes for ${params.day}"]

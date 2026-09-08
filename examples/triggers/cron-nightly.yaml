@@ -1,0 +1,79 @@
+# A calendar moment: five in the morning, Oslo time, every day.
+#
+# The schedule fires only on an instance this document has been applied to. The same
+# document runs ad hoc anywhere, with nothing on the allowlist and no network:
+#
+#   dg run --local examples/triggers/cron-nightly.yaml -p day=2026-01-01
+#   dg apply examples/triggers/cron-nightly.yaml       # against an instance
+#   dg schedule list cron-nightly
+#
+# The pipeline is deliberately trivial -- one jq program shaping a small report -- because
+# what this file teaches is the clock above it, not the work below it.
+
+format: dirigent/v1
+kind: pipeline
+code: cron-nightly
+name: Nightly load
+description: |
+  One pipeline on a nightly cron schedule, in its own timezone, with pinned parameters.
+
+  What this file teaches is the **clock**, not the work below it. The zone belongs
+  to the schedule rather than to whichever host runs the scheduler, so `0 5 * * *`
+  in `Europe/Oslo` stays five in the morning across a daylight-saving boundary.
+
+tags: [triggers, transform, schedule]
+
+requires:
+  blocks:
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    day:
+      type: string
+      format: date
+      description: The day being loaded, which the schedule pins for every firing.
+      default: "2026-01-01"
+    environment:
+      type: string
+      enum: [staging, production]
+      default: staging
+
+steps:
+  plan:
+    block: transform.jq
+    config:
+      input:
+        day: "${params.day}"
+        environment: "${params.environment}"
+      program: |
+        {day, environment, datasets: ["cases", "climate"]}
+
+  report:
+    block: transform.jq
+    depends_on: [plan]
+    config:
+      input: "${steps.plan.output.value}"
+      program: |
+        {loaded: .day, environment: .environment, datasets: (.datasets | length)}
+
+triggers:
+  schedules:
+    - code: nightly
+      # A trigger carries the same pair: a code that addresses it, and an optional
+      # name and description that only ever read.
+      name: Nightly, Oslo time
+      description: Fires the day's load once the upstream extract has settled.
+      cron: "0 5 * * *"
+      # The zone belongs to the schedule, not to the host the scheduler happens to run on.
+      # This is five in the morning in Oslo all year, so it stays five in the morning across
+      # a daylight-saving boundary rather than sliding to four or six.
+      timezone: Europe/Oslo
+      # Parameters pinned here override the pipeline's defaults for this schedule's firings
+      # only: environment defaults to staging above, and every nightly firing is production.
+      # A second schedule on the same pipeline pins its own, which is why nightly against
+      # production and hourly against staging is two schedules and not two pipelines.
+      params:
+        day: "2026-01-01"
+        environment: production

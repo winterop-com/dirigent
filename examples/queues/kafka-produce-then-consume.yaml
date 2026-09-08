@@ -1,0 +1,124 @@
+# A run that puts records on a Kafka topic and then reads its own batch back off it.
+#
+# NEEDS A BROKER, and a topic to write to:
+#   docker compose -f infra/compose.queues.yaml up -d --wait
+#   docker exec -it dirigent-queues-redpanda-1 rpk topic create orders
+#   dg connection create kafka orders-topic --set bootstrap_servers='["127.0.0.1:9092"]'
+#   dg run examples/queues/kafka-produce-then-consume.yaml
+# Nothing else has to produce for this one: it publishes what it later reads, so the whole
+# round trip is in the document.
+#
+# ON THE COMPOSE STACK the broker is the infra/compose.brokers.yaml overlay
+# (`make docker-run-queues`), where the connection names it `redpanda:9092` rather than
+# `127.0.0.1:9092` -- a container resolves the service, not the host. Create the topic on that
+# stack with `docker compose ... exec redpanda rpk topic create orders`.
+# docs/queues.md is the family's home.
+#
+# Three hops, and what each one hands on:
+#   publish    kafka.produce, three records onto the topic. Output: produced, the topic, the
+#              last offset per partition, duration_ms and sent_bytes.
+#   wait       kafka.consume, reading the topic from the beginning, so it takes what the step
+#              before it just wrote.
+#   summarise  a jq transform over that batch, so the messages end as ordinary step output.
+#
+# THE CONNECTION IS NAMED, NOT CARRIED. requires.connections says the instance must already
+# hold `orders-topic`, and the document is refused at apply if it does not. Bootstrap servers,
+# a security setting and a sealed password belong to an environment, not to a pipeline.
+#
+# TWO SHAPES OF RECORD. An element of `records` is read as an envelope when it is an object
+# carrying `value` and nothing besides `key`, `value` and `headers`; every other element is
+# itself the value. So a list of documents from an earlier step publishes unchanged, and a
+# record that needs a key or a header says so in an envelope. An object that means to be a
+# value and would read as an envelope is written `{"value": {...}}`.
+#
+# WHERE THE KEY COMES FROM. `key: region` takes each record's key from that field of its
+# value, which is what puts every record of one region on one partition and keeps them in
+# order relative to each other. A record whose envelope names its own `key` keeps that one, and
+# a record with no such field fails the step rather than being published unkeyed.
+#
+# ACKS AND WHAT IDEMPOTENCE ACTUALLY BUYS. `acks: all` is the default and the only setting the
+# idempotent producer runs under: the broker recognises a record the client itself retried and
+# writes it once, so a connection that stumbles inside this step does not double-publish. A
+# RETRY OF THE STEP is a different matter -- it opens a new producer session, and all three
+# records go again. This example does not retry the publish, which is the simplest way to mean
+# it; a pipeline that must not publish twice either does the same or lets a compacted topic or
+# the reader settle the duplicates.
+#
+# WHY start: earliest HERE. The consume sensor's usual setting is `latest`, because a pipeline
+# started by a message wants what arrives next. This one reads a batch its own earlier step
+# wrote, which is already on the topic by the time the sensor pokes, so it starts at the oldest
+# record instead. On a topic something else is also writing to, that would replay the lot.
+#
+# TO MAKE IT YOURS: point the connection at your own cluster, change the topic, and replace the
+# inline `records` with `records_from`, a storage URI of NDJSON -- an export written by an
+# earlier step is then streamed to the broker a line at a time rather than held in memory.
+
+format: dirigent/v1
+kind: pipeline
+code: kafka-produce-then-consume
+name: Publish to a Kafka topic, then consume the batch
+description: Publish records to a Kafka topic and read the same batch back off it.
+
+tags: [queues, kafka, sensor, transform]
+
+requires:
+  blocks:
+    - kafka.produce
+    - kafka.consume
+    - transform.jq
+  connections:
+    - orders-topic
+
+steps:
+  publish:
+    block: kafka.produce
+    config:
+      connection: orders-topic
+      topic: orders
+      # Each record's key is this field of its value, so one region's records share a
+      # partition and keep their order.
+      key: region
+      records:
+        # A bare element is the value.
+        - {order: 1, region: north, total: 240}
+        - {order: 2, region: south, total: 95}
+        # An envelope, because this record carries headers as well as a value.
+        - value: {order: 3, region: north, total: 610}
+          headers:
+            source: till-4
+      # The default, and the only setting the idempotent producer runs under.
+      acks: all
+      # The whole publish, from the first send to the last acknowledgement.
+      timeout: 30s
+
+  wait:
+    block: kafka.consume
+    depends_on: [publish]
+    poll: 5s
+    deadline: 5m
+    config:
+      connection: orders-topic
+      topic: orders
+      # The batch the step before this one wrote is already on the topic, so this poke reads
+      # the whole topic rather than waiting for what arrives next.
+      start: earliest
+      min_messages: 3
+      max_messages: 50
+      poll_timeout: 5s
+      # The keys were written as text, so they are read back as text; base64 is the default,
+      # because a key is often not text at all.
+      key_format: text
+      value_format: json
+
+  summarise:
+    block: transform.jq
+    depends_on: [wait]
+    config:
+      input: "${steps.wait.output.messages}"
+      program: >-
+        {
+          count: length,
+          keys: (map(.key) | unique),
+          total: (map(.value.total) | add),
+          headers: (map(.headers) | map(select(length > 0)))
+        }

@@ -1,0 +1,133 @@
+# Pipeline parameters reaching into a compose stack: an interpolated variable, and a profile.
+#
+# REQUIRES A DOCKER DAEMON the worker can reach, named by DOCKER_HOST (a dind sidecar over
+# tcp+TLS, or the local socket in dev). docs/docker.md is the family's home.
+#
+# Every block here declares local_execution, so the engine refuses them unless the instance
+# allowlists their ids:
+#   dg run --local examples/docker/docker-compose-profiles-env.yaml \
+#     --enable-unsafe docker.compose.up,docker.compose.down,docker.run
+#   export DIRIGENT_ENABLED_UNSAFE_BLOCKS='["docker.compose.up","docker.compose.down","docker.run"]'
+#
+# Three hops, and what each one hands on:
+#   stack     a two-service stack where one service is optional. Output: the containers the
+#             project actually has, so the profile's effect is visible in the record.
+#   present   a container on the stack's network, fetching the greeting the first service is
+#             serving and asking whether the optional one is there at all. Output: its stdout,
+#             which is the parameter's value followed by a verdict on the profile.
+#   teardown  the same project down again, on any outcome.
+#
+# TWO WAYS A PARAMETER REACHES COMPOSE, and they are not the same mechanism:
+#   env       variables set for the compose CLI process itself, which compose interpolates
+#             into the file it reads. ${params.greeting} is resolved by the engine before the
+#             block sees the config, so the value is a plain string by the time compose runs.
+#   profiles  the --profile flags the CLI is given. A service that declares profiles is left
+#             out of every command that does not activate one of them, so this is how a
+#             pipeline turns an optional service on and off without two compose files.
+#
+# WRITE $${GREETING} FOR COMPOSE, ${...} FOR THE ENGINE. Every ${...} in a document is a
+# reference the engine resolves, and it fails the attempt on a name it does not know, so a
+# variable compose is meant to interpolate is written with the escape: $${GREETING} reaches
+# compose as the literal ${GREETING}, and the engine never looks the name up.
+#
+# project_name is set explicitly here to show the field. It defaults to a name derived from
+# the run id -- shared by the up, the steps that drive it and the down, and unique between
+# runs -- so an explicit one has to keep both those promises itself, which is what ${run.id}
+# does. A fixed string would collide with the next run of the same pipeline.
+#
+# TO MAKE IT YOURS: the parameter names are the only thing specific to this file. Pass
+# -p profile=none to see the same stack come up without its optional service.
+
+format: dirigent/v1
+kind: pipeline
+code: docker-compose-profiles-env
+name: Parameters into a compose stack
+description: A compose stack whose greeting comes from a parameter and whose optional service comes from a profile.
+
+tags: [docker, execute]
+
+requires:
+  blocks:
+    - docker.compose.up
+    - docker.compose.down
+    - docker.run
+
+params:
+  type: object
+  additionalProperties: false
+  properties:
+    greeting:
+      type: string
+      default: hello from a parameter
+      description: Interpolated into the compose file as $${GREETING} and served by the greeter.
+    profile:
+      type: string
+      default: extras
+      description: The compose profile to activate; anything but "extras" leaves the reporter out.
+
+steps:
+  stack:
+    block: docker.compose.up
+    deadline: 10m
+    config:
+      wait: true
+      wait_timeout: 2m
+      pull: always
+      project_name: "dirigent-profiles-${run.id}"
+      # A whole reference resolves to the value itself, so this is a one-element list of the
+      # parameter's string rather than a list containing a template.
+      profiles: ["${params.profile}"]
+      # Set for the CLI process, which is where compose reads interpolation from.
+      env:
+        GREETING: "${params.greeting}"
+      content: |
+        services:
+          greeter:
+            image: nginx:alpine
+            # Compose substitutes GREETING out of the env above before docker sees this, so
+            # the file the daemon runs carries the parameter's value, not the variable. The
+            # greeting is written where nginx serves from, which is how a later step reads it.
+            command:
+              - sh
+              - -c
+              - echo $${GREETING} > /usr/share/nginx/html/index.html && exec nginx -g 'daemon off;'
+            healthcheck:
+              test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null 2>&1 || exit 1"]
+              interval: 2s
+              timeout: 2s
+              retries: 5
+          reporter:
+            # Declared under a profile, so this service exists only when that profile is
+            # activated. The greeter, declaring none, is always part of the project.
+            profiles: [extras]
+            image: alpine:3
+            command: ["sleep", "600"]
+
+  present:
+    block: docker.run
+    depends_on: [stack]
+    deadline: 5m
+    config:
+      image: alpine:3
+      pull: true
+      network: "${steps.stack.output.default_network}"
+      # The first line proves what compose interpolated; the second proves what the profile
+      # selected, because a name that does not resolve on the project's network is a service
+      # the profile left out.
+      argv:
+        - sh
+        - -c
+        - 'wget -qO- http://greeter/; nslookup reporter >/dev/null 2>&1 && echo "reporter is up" || echo "reporter was left out"'
+      memory: 64mb
+      pids_limit: 64
+
+  teardown:
+    block: docker.compose.down
+    depends_on: [present]
+    rule: all_done
+    deadline: 5m
+    config:
+      # The project name is not defaulted here, so the teardown has to name the same one the
+      # up step built.
+      project_name: "dirigent-profiles-${run.id}"
+      down_volumes: true

@@ -1,0 +1,103 @@
+# strict: what a child that ended completed_with_errors does to the step that called it.
+#
+# completed_with_errors is a third run status, not a shade of failed: it means every step that
+# had to run ran, and at least one tolerated failure happened along the way. Whether that is
+# acceptable is a judgement the CALLER makes, not the child, because the same child called
+# from two places can be load-bearing in one and best-effort in the other. strict is where
+# that judgement is written down.
+#
+#   strict: false  (the default)  a child that ended completed_with_errors SUCCEEDS this step.
+#   strict: true                  it FAILS this step, exactly as a failed child would.
+#
+# A child that ended failed fails the step either way. strict only ever decides the middle
+# case.
+#
+# Both calls below ask the child for the same deliberate tolerated failure, so the child ends
+# completed_with_errors twice and the only difference is the flag.
+#
+# Hop by hop:
+#
+#   lenient  strict: false against a child that ends completed_with_errors. The step SUCCEEDS,
+#            and its output carries the child's real status -- so "succeeded" here is the
+#            step's outcome, not a claim about the child.
+#   strict   strict: true against the same thing. The step FAILS.
+#   verdict  all_done, so the run has an outcome to report whichever way the pair went. It
+#            reads only the lenient step's output: the strict one failed, so it has none.
+#
+# EXPECT THIS RUN TO FAIL, in about five seconds, with lenient succeeded, strict failed and
+# verdict succeeded. The failure is the demonstration.
+#
+# To change it: -p status=200 makes the child end cleanly and both calls go green, which is
+# the point -- strict costs nothing on a healthy child and is the difference between noticing
+# and not noticing on an unhealthy one.
+#
+#   dg run --local examples/patterns/pipeline-run-strict.yaml \
+#     --also-apply examples/patterns/pipeline-run-child.yaml                  # fails, by design
+#   dg run --local examples/patterns/pipeline-run-strict.yaml \
+#     --also-apply examples/patterns/pipeline-run-child.yaml -p status=200    # succeeds
+
+format: dirigent/v1
+kind: pipeline
+code: pipeline-run-strict
+name: Strict about a child's errors
+description: |
+  `completed_with_errors` is a third status, and whether it is acceptable is the caller's
+  judgement: `strict: false` (the default) passes it, `strict: true` fails the step on it.
+
+  A child that ended `failed` fails the step either way. As written the strict call fails
+  and the run reports `failed`.
+
+tags: [patterns, pipeline, transform, composition, failure]
+
+requires:
+  blocks:
+    - pipeline.run
+    - transform.jq
+  pipelines:
+    - pipeline-run-child
+
+params:
+  type: object
+  properties:
+    status:
+      type: integer
+      description: What the child's tolerated call is answered with; 500 makes it completed_with_errors.
+      default: 500
+      enum: [200, 500]
+
+steps:
+  lenient:
+    block: pipeline.run
+    poll: 1s
+    config:
+      pipeline: pipeline-run-child
+      params:
+        region: east
+        status: "${params.status}"
+      # The default, written out so the pair reads as two positions rather than one setting.
+      strict: false
+
+  strict:
+    block: pipeline.run
+    poll: 1s
+    config:
+      pipeline: pipeline-run-child
+      params:
+        region: west
+        status: "${params.status}"
+      # The one line this file is about.
+      strict: true
+
+  verdict:
+    block: transform.jq
+    depends_on: [lenient, strict]
+    # all_done, because the interesting run is the one where the strict call failed, and
+    # something still has to say what the pair amounted to.
+    rule: all_done
+    config:
+      input:
+        # Only the lenient step is read. The strict one failed, so it has no stored output,
+        # and a reference to it would settle this attempt as rejected.
+        child_status: "${steps.lenient.output.status}"
+      program: |
+        {child_status, note: "the same child status, two different step outcomes"}

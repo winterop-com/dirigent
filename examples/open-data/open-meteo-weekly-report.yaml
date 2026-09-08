@@ -1,0 +1,134 @@
+# A week of weather for one point, from a public archive, ending as a csv in storage.
+#
+# Open-Meteo's archive API serves reanalysed historical weather for any coordinate, with no
+# key, no account and no quota worth worrying about. It answers columnar: one `daily.time`
+# array of dates and one array per variable, aligned by index. That shape is convenient for a
+# chart and wrong for everything else, so the first thing this pipeline does is turn it into
+# rows.
+#
+# What happens, hop by hop:
+#
+#   covered   the run's window, an interval of instants, turned into the two dates the API
+#             asks for. The window is half-open -- start included, end excluded -- and
+#             Open-Meteo's end_date is inclusive, so the end is pulled back one day here
+#             rather than being quietly off by one in the output.
+#   fetch     one GET. The response is the columnar payload above, held inline: a week of
+#             three variables is a few kilobytes, so nothing needs to go to storage yet.
+#   rows      the transposition. `daily.time` indexes everything, so walking its indices and
+#             reading each variable at the same offset is the whole job.
+#   report    the codec, json to csv, streamed straight to storage. convert.std takes text,
+#             which is why the step above ends in tojson.
+#
+# The archive lags real weather by about five days, so a schedule that reads the week that
+# just closed is reading a week the archive already has. That is why the cadence below fires
+# on Monday for the week before, and why the ad hoc window in the run line is in the past.
+#
+# To make it yours: point latitude and longitude at your site, name the variables you care
+# about in `daily`, and change the schedule's timezone to the one your week is counted in.
+# For many points, this is the pipeline a fan-out calls once per site.
+#
+#   dg run --local examples/open-data/open-meteo-weekly-report.yaml --window 2026-08-17..2026-08-24
+#   dg run --local examples/open-data/open-meteo-weekly-report.yaml --window 2026-08-17..2026-08-24 \
+#     -p latitude=-1.29 -p longitude=36.82
+
+format: dirigent/v1
+kind: pipeline
+code: open-meteo-weekly-report
+name: Weekly weather report
+description: |
+  A week of daily temperature and precipitation for one coordinate, read from the
+  **Open-Meteo archive API**, transposed from columns to rows and written as csv.
+
+  The week is the run's window, so the same document serves the Monday schedule and a
+  backfill of any week the archive holds.
+
+tags: [open-data, http, storage, transform, csv, schedule]
+
+requires:
+  blocks:
+    - transform.jq
+    - http.request
+    - convert.std
+
+params:
+  type: object
+  additionalProperties: false
+  properties:
+    latitude:
+      type: number
+      default: -13.98
+      description: Degrees north; the default is Lilongwe, Malawi.
+    longitude:
+      type: number
+      default: 33.79
+      description: Degrees east.
+    daily:
+      type: string
+      default: temperature_2m_max,temperature_2m_min,precipitation_sum
+      description: The archive's daily variables, comma-separated, as the API names them.
+
+steps:
+  covered:
+    block: transform.jq
+    config:
+      input:
+        start: ${run.window.start}
+        end: ${run.window.end}
+      # fromdateiso8601 wants a Z, and a window edge carries a numeric offset, so the string
+      # is cut to seconds and given one. The subtraction is the half-open-to-inclusive fix.
+      program: |
+        def as_date: .[0:19] + "Z" | fromdateiso8601;
+        {
+          start_date: .start[0:10],
+          end_date: (.end | as_date | . - 86400 | strftime("%Y-%m-%d"))
+        }
+
+  fetch:
+    block: http.request
+    depends_on: [covered]
+    config:
+      url: https://archive-api.open-meteo.com/v1/archive
+      query:
+        latitude: ${params.latitude}
+        longitude: ${params.longitude}
+        start_date: ${steps.covered.output.value.start_date}
+        end_date: ${steps.covered.output.value.end_date}
+        daily: ${params.daily}
+        # UTC rather than the station's local zone, so a row's date means the same thing here
+        # as it does in every other pipeline on this shelf.
+        timezone: UTC
+
+  rows:
+    block: transform.jq
+    depends_on: [fetch]
+    config:
+      input: ${steps.fetch.output.json_body}
+      # The arrays under daily are parallel, so the index is the join key. reduce over the
+      # keys rather than naming the variables keeps this program correct when the `daily`
+      # parameter asks for a different set.
+      program: |
+        . as $body
+        | ($body.daily | keys_unsorted - ["time"]) as $vars
+        | [range($body.daily.time | length) as $i
+           | reduce $vars[] as $var
+               ({date: $body.daily.time[$i]}; .[$var] = $body.daily[$var][$i])]
+        | tojson
+
+  report:
+    block: convert.std
+    depends_on: [rows]
+    config:
+      input: ${steps.rows.output.value}
+      from: json
+      to: csv
+      # The window start names the file, so a backfill of ten weeks writes ten objects and
+      # overwrites none of them.
+      save_to: ${run.scratch}/weather/${run.window.start}.csv
+
+triggers:
+  schedules:
+    - code: weekly
+      name: Monday morning, for the week before
+      description: Fires once the archive has settled on the week that just closed.
+      cron: "0 6 * * 1"
+      timezone: UTC

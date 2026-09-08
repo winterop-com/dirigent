@@ -1,0 +1,124 @@
+# Starting an existing project: check the repository out, build its Dockerfile, run the image.
+#
+# This is the answer to "I have a project on GitHub, how do I get it into a pipeline". Nothing
+# is copied by hand and no Dockerfile is written into the document: the repository's own build
+# is what runs.
+#
+# REQUIRES A DOCKER DAEMON the worker can reach, named by DOCKER_HOST (a dind sidecar over
+# tcp+TLS, or the local socket in dev), and network from the worker to github.com.
+# docker.build and docker.run declare local_execution, so the engine refuses them unless the
+# instance allowlists their ids -- git.checkout is ordinary and needs no allowlisting:
+#   dg run --local examples/git/git-checkout-build.yaml --enable-unsafe docker.run,docker.build
+#   export DIRIGENT_ENABLED_UNSAFE_BLOCKS='["docker.run","docker.build"]'
+#
+# Three hops, and what each one hands on:
+#   source  the repository, shallow, into ${run.scratch}/source/. Output: the commit, and the
+#           scratch-relative path the build step names next.
+#   build   buildx builds that directory with the repository's own Dockerfile and loads the
+#           image into the worker's daemon store. Output: the image id, its size and its tags.
+#   smoke   the built image, run once, proving the project starts.
+#
+# THE CHECKOUT IS WHAT MAKES THE BUILD POSSIBLE. docker.build takes a context DIRECTORY on the
+# worker's filesystem and has no inline form, so before this block existed a pipeline had to
+# put every file there itself, one storage.copy at a time. A checkout puts a whole repository
+# there in one step, and the build names it by the same scratch-relative path the checkout
+# reported.
+#
+# THE TAG IS THE CONTRACT. Nothing is pushed anywhere, so the image exists only in the store of
+# the daemon that built it, under the tag the build gave it. Both steps read that name from one
+# parameter, and both must land on the same docker-capable worker: an image built on worker A
+# is invisible to worker B, which is what requires.workers below routes around.
+#
+# WHY THE RUN STEP OVERRIDES THE COMMAND. The image's own CMD starts an HTTP server and never
+# returns, and a step has to end. So the smoke step starts the project's server, asks it for a
+# page, and exits with whether it answered -- which is what "it builds and it runs" means for
+# a service. Running a stack that stays up for the rest of a run is the compose example's job.
+#
+# TO MAKE IT YOURS: point the connection at your own repository, pin a ref: to a tag or a
+# commit rather than tracking a branch, and replace the smoke step with your project's own
+# check -- its test suite, its migration, its one-shot job.
+
+format: dirigent/v1
+kind: pipeline
+code: git-checkout-build
+name: Build a checked-out project
+description: Check a public repository out, build the Dockerfile it ships, and run the image once.
+
+tags: [git, execute]
+
+requires:
+  blocks:
+    - git.checkout
+    - docker.build
+    - docker.run
+  workers:
+    - docker
+
+connections:
+  helloworld-demo-node:
+    kind: git
+    config:
+      # Docker's own sample project: a Node server with no dependencies and a Dockerfile at
+      # the repository root, which is the shape docker.build expects by default.
+      url: https://github.com/dockersamples/helloworld-demo-node.git
+
+params:
+  type: object
+  additionalProperties: false
+  properties:
+    image_tag:
+      type: string
+      default: dirigent-helloworld:local
+      description: The tag the build gives the image, and the only name the smoke step has for it.
+
+steps:
+  source:
+    block: git.checkout
+    deadline: 5m
+    config:
+      connection: helloworld-demo-node
+      # Named rather than defaulted, so the build step below can say "source" out loud instead
+      # of depending on what this step happens to be called.
+      target: source
+      depth: 1
+
+  build:
+    block: docker.build
+    depends_on: [source]
+    deadline: 15m
+    config:
+      # The checkout's directory, scratch-relative. The Dockerfile path is relative to it, and
+      # "Dockerfile" is already the default; it is written out here because the whole point is
+      # that this is the repository's file and not one this pipeline invented.
+      context: source
+      dockerfile: Dockerfile
+      tags: ["${params.image_tag}"]
+      # The Dockerfile's npm ci runs inside the build, so the build needs the network the
+      # daemon has; nothing else about it is dirigent's business.
+      pull: true
+
+  smoke:
+    block: docker.run
+    depends_on: [build]
+    deadline: 5m
+    config:
+      image: "${params.image_tag}"
+      # pull stays off, and must: the image was never pushed, so a pull would look for this
+      # tag in a registry and fail on a name the daemon already holds locally.
+      pull: false
+      # none, not bridge: the server and the request that proves it are both in this
+      # container, so the loopback interface is the whole network this step needs.
+      network: none
+      # The shell form, because this is a small script rather than one command: start the
+      # project's server in the background, then ask it for a page until it answers. Ten
+      # tries at a second apart is generous for a process that binds a port and nothing else.
+      command: |
+        node app.js &
+        for _ in 1 2 3 4 5 6 7 8 9 10; do
+          wget -qO- http://127.0.0.1:8080/ && exit 0
+          sleep 1
+        done
+        echo "the server never answered" >&2
+        exit 1
+      memory: 256mb
+      pids_limit: 128

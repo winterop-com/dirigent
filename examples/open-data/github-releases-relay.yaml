@@ -1,0 +1,207 @@
+# New releases of a repository, relayed onward, with the rate limit treated as a fact of life.
+#
+# GitHub's REST API serves public repositories without a token: GET /repos/{owner}/{repo}/releases
+# answers a list, newest first, each release carrying `tag_name`, `name`, `published_at`,
+# `prerelease`, `draft` and `html_url`. Unauthenticated calls are limited to 60 requests per hour
+# per IP, and that is the whole budget -- shared with everything else on that address. A schedule
+# firing every ten minutes spends 6 of them; one firing hourly spends 1, which is the right
+# cadence for something that publishes a release a month. A token raises the limit to 5000, and
+# is the only reason to give this pipeline a connection.
+#
+# The floor is a parameter here, and the marker is written but not read. `since` says what has
+# already been relayed, the last step records the newest stamp this run saw, and pointing the
+# next firing's `since` at that marker is the read half of the pattern -- the same sensor-plus-
+# transform shape any marker read has. Splitting it this way keeps the two halves legible: this
+# document is about what "new" means and what a rate limit costs, not about state.
+#
+# What happens, hop by hop:
+#
+#   releases  one GET, with the API version pinned by the Accept header. GitHub asks every
+#             client for a User-Agent and refuses requests without one.
+#   candidates  the releases flattened, each row carrying the floor and the two exclusions it
+#             will be judged by. A jq program never has values spliced into its text, so
+#             anything a filter compares against has to arrive as data on the row.
+#   fresh     filter.jq: published after the floor, not a draft, and not a prerelease unless
+#             the run asked for them. Three comparisons, each between two fields of the row.
+#   digest    the rows a person would read, with the carried limits dropped again.
+#   written   json to ndjson, because an empty list has to encode as an empty file for the
+#             gate below to see the difference.
+#   matched   the gate: nothing new is a skip, not a failure, and the relay skips with it.
+#   relay     the digest, posted. Postman Echo by default so this runs for real.
+#   marker    the newest stamp seen, plus what the rate limit had left, written under
+#             rule: all_done so a quiet run still records where it got to. GitHub reports the
+#             remaining budget in a response header, which is worth keeping beside the stamp:
+#             when the relay goes quiet, that number says whether it is the repo or the quota.
+#
+# To make it yours: set repo, move `since` forward to when you started caring, and point
+# webhook_url at your receiver. For a private repository or a heavier cadence, put a token in
+# a connection and give the step `connection:` instead of `url:`.
+#
+#   dg run --local examples/open-data/github-releases-relay.yaml
+#   dg run --local examples/open-data/github-releases-relay.yaml -p repo=jqlang/jq -p since=2030-01-01T00:00:00Z
+
+format: dirigent/v1
+kind: pipeline
+code: github-releases-relay
+name: GitHub releases relay
+description: |
+  Releases of a public repository published since a floor, read from **GitHub's REST API**
+  without a token, and relayed onward -- only when there are any.
+
+  Unauthenticated calls share a budget of 60 requests an hour per IP, which is what decides
+  the cadence a schedule can have.
+
+tags: [open-data, http, sensor, storage, transform, webhook, filter, relay]
+
+requires:
+  blocks:
+    - http.request
+    - transform.jq
+    - filter.jq
+    - map.jq
+    - convert.std
+    - storage.exists
+    - webhook.post
+
+params:
+  type: object
+  additionalProperties: false
+  properties:
+    repo:
+      type: string
+      default: jqlang/jq
+      description: owner/name of a public repository.
+    since:
+      type: string
+      default: "2020-01-01T00:00:00Z"
+      description: Only releases published after this instant are relayed.
+    include_prereleases:
+      type: boolean
+      default: false
+    per_page:
+      type: integer
+      default: 30
+      maximum: 100
+      description: One page is one request against a 60-per-hour budget; ask for enough.
+    webhook_url:
+      type: string
+      default: https://postman-echo.com/post
+
+steps:
+  releases:
+    block: http.request
+    config:
+      url: https://api.github.com/repos/${params.repo}/releases
+      headers:
+        # Pinning the API version here is what stops a future default from reshaping the
+        # payload under a pipeline that has been running for a year.
+        Accept: application/vnd.github+json
+        X-GitHub-Api-Version: "2022-11-28"
+        User-Agent: dirigent-example
+      query:
+        per_page: ${params.per_page}
+
+  candidates:
+    block: transform.jq
+    depends_on: [releases]
+    config:
+      input:
+        releases: ${steps.releases.output.json_body}
+        since: ${params.since}
+        include_prereleases: ${params.include_prereleases}
+      # A draft has no published_at at all, so the null is replaced with a stamp that loses
+      # every comparison rather than being compared as null.
+      program: |
+        . as {$since, $include_prereleases}
+        | [.releases[]
+           | {
+               tag: .tag_name,
+               title: (.name // .tag_name),
+               published_at: (.published_at // "0000-01-01T00:00:00Z"),
+               draft: .draft,
+               prerelease: .prerelease,
+               url: .html_url,
+               since: $since,
+               include_prereleases: $include_prereleases
+             }]
+
+  fresh:
+    block: filter.jq
+    depends_on: [candidates]
+    config:
+      input: ${steps.candidates.output.value}
+      # ISO 8601 stamps in the same zone compare correctly as strings, which is the one thing
+      # that format is designed to make true.
+      program: |
+        .published_at > .since
+        and (.draft | not)
+        and (.include_prereleases or (.prerelease | not))
+
+  digest:
+    block: map.jq
+    depends_on: [fresh]
+    config:
+      input: ${steps.fresh.output.value}
+      program: |
+        del(.since, .include_prereleases)
+
+  as_text:
+    block: transform.jq
+    depends_on: [digest]
+    config:
+      input: ${steps.digest.output.value}
+      program: |
+        sort_by(.published_at) | tojson
+
+  written:
+    block: convert.std
+    depends_on: [as_text]
+    config:
+      input: ${steps.as_text.output.value}
+      from: json
+      to: ndjson
+      save_to: ${run.scratch}/fresh.ndjson
+
+  matched:
+    block: storage.exists
+    depends_on: [written]
+    poll: 1s
+    deadline: 3s
+    on_timeout: skip
+    config:
+      uri: ${run.scratch}/fresh.ndjson
+      min_size: 1b
+
+  relay:
+    block: webhook.post
+    depends_on: [matched]
+    config:
+      url: ${params.webhook_url}
+      body:
+        kind: github-releases
+        repo: ${params.repo}
+        since: ${params.since}
+        releases: ${steps.digest.output.value}
+
+  marker:
+    block: transform.jq
+    depends_on: [matched]
+    # all_done: a run that relayed nothing still saw the repository, and still knows what the
+    # budget had left.
+    rule: all_done
+    config:
+      input:
+        repo: ${params.repo}
+        releases: ${steps.digest.output.value}
+        # Header names arrive lower-cased, which is what HTTP/2 makes of them.
+        rate_limit_remaining: ${steps.releases.output.headers.x-ratelimit-remaining}
+      # The newest stamp seen, which is what the next run's `since` should be. `max` over an
+      # empty list is null, so a quiet run reports null rather than inventing a floor.
+      program: |
+        {
+          repo,
+          rate_limit_remaining,
+          relayed: (.releases | length),
+          newest_published_at: ([.releases[].published_at] | max)
+        }
+      save_to: ${run.scratch}/markers/releases.json

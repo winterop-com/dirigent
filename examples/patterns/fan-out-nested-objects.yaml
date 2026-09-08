@@ -1,0 +1,107 @@
+# An item that is an object, and the fields of it a step reaches into.
+#
+# An element of a for_each list is any JSON value, and once it is an object the item stops
+# being a label and becomes a small record. ${item.code} reaches a field, ${item.limits.max_ms}
+# reaches a nested one, and ${item} on its own is still the whole object -- so one element can
+# carry everything one item's work needs instead of forcing three parallel lists that have to
+# stay in the same order.
+#
+# The reference rule that makes this work: a reference that is the ENTIRE value resolves to
+# the typed value, so "${item.limits.max_ms}" is the integer 2000 downstream and not the text
+# "2000". A reference inside a larger string interpolates as text instead, which is why the
+# URL below reads as a URL and the threshold reads as a number.
+#
+# A missing field is not an empty string. ${item.nickname} on an element that has no nickname
+# raises, and the engine settles that attempt as rejected rather than quietly proceeding with
+# nothing -- so every element in the list must carry every field the step names. Give the
+# optional ones a default in the list itself.
+#
+# Hop by hop:
+#
+#   probe    one item per feed. Each item posts its own code and its own latency budget, so
+#            the three items do genuinely different work from one step definition. Postman
+#            Echo answers with what it was sent, which is how each item's element comes back
+#            attached to that item's output.
+#   verdict  a join over the batch, comparing each feed's measured round trip against the
+#            budget that travelled with it.
+#
+# EXPECT THIS RUN TO SUCCEED in about two seconds, with three feeds and a verdict each. The
+# items run side by side, so the run costs one round trip rather than three.
+#
+# To change it: add a feed to the list, or lower a budget below the real round trip and watch
+# that feed's verdict flip to slow. The budget lives on the element rather than in params
+# because it belongs to one feed and not to the run.
+#
+#   dg run --local examples/patterns/fan-out-nested-objects.yaml
+
+format: dirigent/v1
+kind: pipeline
+code: fan-out-nested-objects
+name: Items that are objects
+description: |
+  A `for_each` element is any JSON value. Once it is an object, `${item.code}` reaches a
+  field and `${item.limits.max_ms}` a nested one, so one element carries everything one item's
+  work needs.
+
+  A whole reference resolves to the typed value; a missing field is a rejected attempt, not
+  an empty string.
+
+tags: [patterns, http, transform, fan-out, references]
+
+requires:
+  blocks:
+    - http.request
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    tolerance_ms:
+      type: integer
+      description: Slack added to every feed's own threshold before the verdict is taken.
+      default: 500
+      minimum: 0
+      maximum: 5000
+
+steps:
+  probe:
+    block: http.request
+    # Three records, not three parallel lists. Nothing has to stay in step with anything.
+    for_each:
+      - {code: cases, path: post, limits: {max_ms: 2000}}
+      - {code: climate, path: post, limits: {max_ms: 2500}}
+      - {code: population, path: post, limits: {max_ms: 400}}
+    config:
+      # Interpolated into a larger string, so the field is rendered as text inside the URL.
+      url: "https://postman-echo.com/${item.path}"
+      method: POST
+      body:
+        feed: "${item.code}"
+        # The nested field, carried in the request so it comes back in the echo. That is how a
+        # per-item value reaches the join: the join sees outputs, not elements, so anything an
+        # element knows has to be inside an item's output to survive the fan-in. A whole
+        # reference stays typed, so this arrives as the integer it was written as.
+        max_ms: "${item.limits.max_ms}"
+
+  verdict:
+    block: transform.jq
+    depends_on: [probe]
+    config:
+      input:
+        measured: "${steps.probe.output}"
+        tolerance_ms: "${params.tolerance_ms}"
+      # json is the typed echo of the body that was posted, so max_ms is still a number here
+      # and needs no tonumber. A query string would have come back as text.
+      program: |
+        .tolerance_ms as $tolerance
+        | {
+            feeds: [
+              .measured[]
+              | {
+                  feed: .json_body.json.feed,
+                  duration_ms,
+                  budget_ms: (.json_body.json.max_ms + $tolerance)
+                }
+              | .verdict = (if .duration_ms <= .budget_ms then "within budget" else "slow" end)
+            ]
+          }

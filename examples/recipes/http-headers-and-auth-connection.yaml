@@ -1,0 +1,110 @@
+# Credentials live on a connection, not in the document. Here is what that looks like.
+#
+# In:  nothing but parameters.
+# Out: {authenticated: true} from an endpoint that refuses an unauthenticated caller with a
+#      401, proving the connection's credentials were applied.
+#
+# A document is portable precisely because it names a credential rather than carrying one.
+# On a server the connection is created once and the document says only its code:
+#
+#   dg connection create http postman-echo \
+#     --set base_url=https://postman-echo.com \
+#     --set basic_username=postman --set basic_password=password
+#
+# basic_password is a SecretStr: sealed on the way in, encrypted at rest, and redacted in
+# every API response -- an applied connection reports which fields are set, never what they
+# are set to.
+#
+# This document carries its connection inline instead, which is the exception rather than
+# the pattern, and it is labelled below with why: the credentials are Postman's own public
+# demo pair, so the recipe runs standalone with nothing to hand it. Real credentials never
+# go in a file that lives in git. The instance will not store a document that carries a
+# connection, either, which is the format making that hard to get wrong.
+#
+# What the connection contributes, once named:
+#
+#   base_url          the step gives a path, and the connection decides which host it is
+#                     resolved against. Staging to production is a connection edit and no
+#                     document change.
+#   basic_username    the Authorization header, built by the block. Nothing in the document
+#   basic_password    ever spells out `Basic ...`, and no secret reaches a header map.
+#   timeout           the default deadline for every call on this connection, which a step
+#                     may override for one call.
+#
+# headers is for what the receiver wants that is not a credential: a routing key, an API
+# version, a correlation id. A token in there is a token in the document, which is the
+# mistake this whole surface exists to prevent.
+#
+# To change it: -p path=/get calls an endpoint that takes no credentials at all and echoes
+# the headers it saw, including the Authorization the connection added.
+#
+#   dg run --local examples/recipes/http-headers-and-auth-connection.yaml
+#   dg run --local examples/recipes/http-headers-and-auth-connection.yaml -p path=/get
+
+format: dirigent/v1
+kind: pipeline
+code: http-headers-and-auth-connection
+name: Auth on a connection, headers in the step
+description: Call a basic-auth endpoint through a connection that holds the credentials, with the step contributing only non-secret headers.
+
+tags: [recipes, http, transform]
+
+requires:
+  blocks:
+    - http.request
+    - transform.jq
+
+# Carried inline so this recipe runs standalone. The pair is Postman's own public demo
+# credential, documented at https://postman-echo.com; a real one is created on the instance
+# and named by code, and an instance refuses to store a document that carries a connection
+# at all.
+connections:
+  echo-basic:
+    kind: http
+    config:
+      base_url: https://postman-echo.com
+      basic_username: postman
+      basic_password: password
+      timeout: 30s
+      # What dg connection check calls to answer green or red.
+      health_path: /get
+
+params:
+  type: object
+  properties:
+    path:
+      type: string
+      default: /basic-auth
+      description: The path resolved against the connection's base URL.
+    correlation_id:
+      type: string
+      default: recipes-0001
+      description: A non-secret header the receiver wants, sent by the step.
+
+steps:
+  call:
+    block: http.request
+    config:
+      # A code, resolved by the instance. The host, the credentials and the default timeout
+      # all come from it.
+      connection: echo-basic
+      path: ${params.path}
+      method: GET
+      headers:
+        # Not a credential: a routing and tracing header, which is what this map is for.
+        x-correlation-id: ${params.correlation_id}
+        accept: application/json
+
+  result:
+    block: transform.jq
+    depends_on: [call]
+    config:
+      input:
+        status: ${steps.call.output.status}
+        body: ${steps.call.output.json_body}
+      program: |
+        # /basic-auth answers {"authenticated": true}; /get echoes the request instead, and
+        # its .headers shows the Authorization header the connection contributed.
+        {status,
+         authenticated: (.body.authenticated // null),
+         saw_authorization: ((.body.headers.authorization // null) != null)}

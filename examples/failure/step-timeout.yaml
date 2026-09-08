@@ -1,0 +1,96 @@
+# A step that fails on time rather than on work, and the three clocks that could have done it.
+#
+# The step below asks for thirty seconds of sleep against a two-second budget. It is designed
+# to lose. The run fails in about two seconds, and the interesting part is which of the three
+# available clocks stopped it, because they are not interchangeable:
+#
+#   timeout   (a step field)  How long ONE block call may take before the engine abandons it.
+#                             This is the one that fires here.
+#   deadline  (a step field)  How long a step may keep WAITING on a sensor or a remote job.
+#                             A sensor's individual pokes are fast; what needs bounding is
+#                             the waiting between them. sensor-gate.yaml is that example.
+#   timeout   (block config)  The block's own limit on its own work -- here, when
+#                             shell.run kills the child process it started.
+#
+# The two on this step are set deliberately far apart. shell.run would let the process run for
+# 300 seconds by default, and the engine gives up after two, so the engine is what fails the
+# step. Widen the step's `timeout` past thirty and the sleep finishes and the step goes green;
+# narrow the block's own `timeout` below two and the block kills its own child first and
+# reports that instead. Same red step, different reason, and the error class in the attempt says which.
+#
+# A timeout is classified as a transient failure, which means a retry budget would spend
+# itself on it: three attempts against a sleep that is always too long is six seconds of
+# waiting and three identical failures. There is no retry here for exactly that reason -- a
+# deadline that cannot be met is not a flake.
+#
+# on_timeout decides what a timeout means. The default is fail, which is what this shows;
+# on_timeout: skip is the other answer, and it is what sensor-gate.yaml uses to let a run
+# carry on past a drop that never landed.
+#
+# This one uses shell.run, which executes code on the worker and is refused unless the
+# instance allowlists it: export DIRIGENT_ENABLED_UNSAFE_BLOCKS='["shell.run"]', or pass
+# --enable-unsafe shell.run to a local run.
+#
+#   dg run --local examples/failure/step-timeout.yaml --enable-unsafe shell.run          # fails, in ~2s
+#   dg run --local examples/failure/step-timeout.yaml --enable-unsafe shell.run -p seconds=1  # succeeds
+
+format: dirigent/v1
+kind: pipeline
+code: step-timeout
+name: Step timeout
+description: |
+  A sleep that is asked to take thirty seconds, given two.
+
+  The run fails in about two seconds. It fails **on time, not on work**: the command was
+  healthy and would have finished, and the engine abandoned it anyway because the step
+  declared how long it was allowed to take.
+
+  Three clocks could stop a step, and they answer different questions:
+
+  | Field | Where it lives | What it bounds |
+  | --- | --- | --- |
+  | `timeout` | the step | one block call |
+  | `deadline` | the step | how long a sensor may keep waiting |
+  | `timeout` | the block's config | the block's own work |
+
+tags: [failure, execute, retry]
+
+requires:
+  blocks:
+    - shell.run
+
+params:
+  type: object
+  properties:
+    seconds:
+      type: integer
+      description: How long the command sleeps. Anything above the two-second budget loses.
+      default: 30
+      minimum: 0
+      maximum: 300
+
+steps:
+  start:
+    block: shell.run
+    config:
+      argv: [echo, "starting work that will not be allowed to finish"]
+
+  slow_work:
+    block: shell.run
+    depends_on: [start]
+    # The budget. The command below wants thirty seconds; it gets two, and the engine takes
+    # the attempt away from it.
+    timeout: 2s
+    config:
+      # 300 seconds is this block's own default, left as it is so the engine's clock is
+      # plainly the shorter one and plainly the one that fires.
+      timeout: 5m
+      command: "echo 'sleeping ${params.seconds}s'; sleep ${params.seconds}; echo 'never printed'"
+
+  # Skipped when the sleep is cut short, because the default all_success edge is not
+  # satisfied by a step the engine abandoned.
+  after:
+    block: shell.run
+    depends_on: [slow_work]
+    config:
+      argv: [echo, "only reached when the work fits in its budget"]

@@ -1,0 +1,19 @@
+[project]
+name = "dirigent-common"
+version = "0.9.0"
+description = "Value types and shared schemas every dirigent package may depend on."
+readme = "README.md"
+requires-python = ">=3.13"
+license = "LicenseRef-Proprietary"
+license-files = ["LICENSE"]
+dependencies = [
+    "httpx2>=2.12.0",
+    # nongpl: the format-nongpl extra pulls permissively-licensed format validators, not the
+    # GPL rfc3987 the plain format extra carries -- safe while the project's own licence is undecided.
+    "jsonschema[format-nongpl]>=4.23.0",
+    "pydantic>=2.13.5",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.0,<0.13.0"]
+build-backend = "uv_build"

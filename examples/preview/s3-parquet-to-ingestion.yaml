@@ -1,0 +1,83 @@
+# NEEDS THE dirigent-storage-s3 PACKAGE, which registers the s3:// scheme, and an
+# S3-compatible endpoint set up as examples/s3/s3-round-trip.yaml documents.
+#
+# This is the blueprint's worked example, and the thing it demonstrates is that a storage
+# backend is not a step. Nothing here says "connect to S3": s3:// is a registered scheme,
+# and every block that takes a URI can address it, including the sensor that waits for the
+# object to appear. Swapping the drop from s3:// to gs:// is a one-word edit in one line.
+#
+# The parquet never becomes a step output. body_from hands http.request the URI instead of
+# the bytes, and the block streams the object from storage onto the wire a chunk at a time,
+# so a drop of any size is a POST rather than a dead worker. What travels between the steps
+# is the address of the file, which is what makes the fan-out below cheap: each region sends
+# the same object, and nothing is copied to do it.
+
+format: dirigent/v1
+kind: pipeline
+code: s3-parquet-to-ingestion
+name: Parquet from S3 to an ingestion endpoint
+description: Wait for the daily parquet drop, push it per region straight from storage, alert on failure.
+
+tags: [preview, http, sensor, storage]
+
+concurrency: skip
+
+requires:
+  blocks:
+    - storage.exists
+    - http.request
+  connections:
+    - modelling-api
+    - ops-webhook
+  storage:
+    - s3
+
+params:
+  type: object
+  required: [day]
+  properties:
+    day:
+      type: string
+      format: date
+    regions:
+      type: array
+      default: [east, west]
+      items:
+        type: string
+
+steps:
+  wait_for_drop:
+    block: storage.exists
+    poll: 5m
+    deadline: 6h
+    on_timeout: skip
+    config:
+      uri: "s3://drops/climate/${params.day}.parquet"
+
+  push:
+    block: http.request
+    depends_on: [wait_for_drop]
+    for_each: "${params.regions}"
+    items: continue
+    retry:
+      max_attempts: 5
+      backoff: 30s
+    config:
+      connection: modelling-api
+      path: "/v1/ingest/${item}"
+      method: POST
+      # The object the sensor found, streamed from storage rather than inlined. S3 stores a
+      # content type per object, but a drop written by somebody else's job rarely carries a
+      # useful one, so this says what the bytes are.
+      body_from: "${steps.wait_for_drop.output.uri}"
+      content_type: application/vnd.apache.parquet
+
+  notify_failure:
+    block: http.request
+    depends_on: [push]
+    rule: one_failed
+    config:
+      connection: ops-webhook
+      method: POST
+      body:
+        text: "s3-parquet-to-ingestion failed for ${params.day}"

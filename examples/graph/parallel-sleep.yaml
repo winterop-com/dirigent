@@ -1,0 +1,55 @@
+# Fan-out and fan-in with no fan-out syntax at all: four plain steps, drawn by their edges.
+#
+# The three sleeps declare no depends_on, so they are all roots, and every root is claimable
+# the moment the run is created. Nothing serialises them but worker concurrency: what bounds
+# this run is how many block calls a worker carries at a time, not the shape of the DAG. Run
+# serially the waits would take nine seconds, and this run takes about five. Time it -- the
+# example proves its own claim.
+#
+# report depends on all three, and the default trigger rule is all_success, so it waits for
+# every one of them and reads each one's output. That is the join: no barrier step, no
+# gather syntax, just an edge from each sleep.
+#
+# time.sleep is a sensor, so none of those seconds occupy a worker: each poke reads the clock
+# and returns, and the wait is a parked row the engine wakes later. The same shape with
+# shell.run and sleep would hold a worker slot for the whole wait.
+#
+# The asymmetry is worth seeing: the sleeps need no allowlist, and report does, because
+# shell.run executes code on the worker and is refused unless the instance allows it.
+#
+#   time dg run --local examples/graph/parallel-sleep.yaml --enable-unsafe shell.run
+
+format: dirigent/v1
+kind: pipeline
+code: parallel-sleep
+name: Sleeps in parallel
+description: Three independent waits that run at once, and one step that waits for all of them.
+
+tags: [graph, execute, sensor]
+
+steps:
+  # None of the three sleeps depends on another, so they are claimable at once and the run
+  # takes as long as the longest rather than as long as the sum.
+  slow:
+    block: time.sleep
+    config:
+      for: 5s
+
+  medium:
+    block: time.sleep
+    config:
+      for: 3s
+
+  quick:
+    block: time.sleep
+    config:
+      for: 1s
+
+  report:
+    block: shell.run
+    depends_on: [slow, medium, quick]
+    config:
+      argv:
+        - echo
+        - "3 steps completed slow=${steps.slow.output.waited_ms}ms
+          medium=${steps.medium.output.waited_ms}ms quick=${steps.quick.output.waited_ms}ms"

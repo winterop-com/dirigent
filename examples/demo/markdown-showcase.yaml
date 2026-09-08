@@ -1,0 +1,117 @@
+# A description that exercises every markdown construct the UI claims to render.
+#
+# A pipeline's description is long-form and markdown-capable, and it is the body of the
+# pipeline's screen. Most examples use one paragraph of it. This one uses all of it, so that
+# a renderer change has something to fail against: headings, both kinds of list, nested
+# items, a task list, inline code, a fenced block with a language, a fenced block without
+# one, a table with alignment, a blockquote, a horizontal rule, emphasis, a link, and a long
+# paragraph that has to wrap.
+#
+# It is a real pipeline rather than a stub, because a document that cannot run has no
+# business in examples/ -- the two steps below reshape a small payload and need no network
+# and no allowlist entry. The description is the exhibit; the steps are what make it legal.
+#
+# The rendering rule the corpus follows: a screen's title is the name if there is one and
+# the code otherwise, the code is always on screen in mono and never drawn twice, and the
+# description is the body. So this document carries all three, and the body is what to look
+# at.
+#
+#   dg run --local examples/demo/markdown-showcase.yaml
+#   dg pipelines show markdown-showcase          # the description, rendered
+
+format: dirigent/v1
+kind: pipeline
+code: markdown-showcase
+name: Markdown showcase
+description: |
+  A pipeline whose **description** is the point. Everything below is one markdown document,
+  rendered as the body of this pipeline's screen.
+
+  ## Headings, and what they are for
+
+  A description long enough to need sections should have them. This is an `h2`; the format
+  puts no ceiling on depth, and a renderer is expected to keep the hierarchy visible.
+
+  ### A third level
+
+  Which exists mainly so the scale between levels can be judged.
+
+  ## Lists
+
+  Unordered, with a nested level:
+
+  - Extract, from a source that may or may not be awake
+  - Reshape, which is where most of the work actually is
+    - `transform.jq` for one whole value
+    - `map.jq` for one element at a time
+    - `filter.jq` when the answer is a shorter list
+  - Load, and then say so
+
+  Ordered, because order sometimes matters:
+
+  1. Apply the document
+  2. Run it once by hand
+  3. Only then give it a clock
+
+  ## Code
+
+  Inline code such as `dg run markdown-showcase --watch` sits inside a sentence. A fenced
+  block with a language gets highlighted:
+
+  ```bash
+  dg apply examples/demo/markdown-showcase.yaml
+  dg run markdown-showcase --watch
+  ```
+
+  And one without a language does not, which is the correct treatment for output:
+
+  ```
+  {"kind": "run", "status": "succeeded", "duration_ms": 412}
+  ```
+
+  ## A table
+
+  | Block | Reads | Writes | Needs the allowlist |
+  | --- | :---: | ---: | --- |
+  | `transform.jq` | one value | one value | no |
+  | `http.request` | a URL | an inline body or storage | no |
+  | `shell.run` | a command | stdout and stderr | **yes** |
+  | `storage.copy` | a URI | a URI | no |
+
+  ## A quote, and a rule
+
+  > A run is a row, not a process. It survives every restart, and it is queryable long
+  > after the machine that executed it is gone.
+
+  ---
+
+  ## Emphasis, links, and wrapping
+
+  Text can be *emphasised*, **strong**, or ***both at once***, and it can carry a link to
+  [the transforms page](../docs/transforms.md). This last paragraph is deliberately long so
+  that soft wrapping has something to do with it: a description is written as prose in a
+  file where the lines are hard-wrapped at a sensible width for reading in an editor, and
+  it must arrive on screen as one flowing paragraph rather than as a column of short lines,
+  because the editor's line breaks are an accident of the file and not a fact about the
+  text.
+
+tags: [demo, transform]
+
+requires:
+  blocks:
+    - transform.jq
+
+steps:
+  collect:
+    block: transform.jq
+    config:
+      input:
+        constructs: [headings, lists, code, table, quote, rule, emphasis]
+      program: "{counted: (.constructs | length), constructs: .constructs}"
+
+  summarise:
+    block: transform.jq
+    depends_on: [collect]
+    config:
+      input: "${steps.collect.output.value}"
+      program: "{note: \"\\(.counted) markdown constructs, all of them in the description\"}"

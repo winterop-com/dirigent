@@ -1,0 +1,88 @@
+# items: continue -- one bad element, and the other nine carrying on without it.
+#
+# This is fan-out-fail-fast.yaml with one word replaced, and the pair is worth running back to
+# back. continue says the elements are independent: a region that refused is a region that
+# refused, not a reason to abandon the other three.
+#
+# Four consequences, and they are easy to blur into one:
+#
+#   1. The failed item settles as failed. Its attempt is red and its error is stored.
+#   2. The other items run to completion regardless of when the failure happened.
+#   3. The STEP counts as succeeded, so an ordinary all_success edge below it fires.
+#   4. The run reports completed_with_errors -- a third status, not a shade of failed.
+#
+# And the sharp edge, which is rule 3's real cost: the step's output is the list of its items'
+# outputs, and a failed item is ABSENT from it. Not null, absent. So the list is shorter than
+# the input, index 0 is the first item that worked rather than the first one asked for, and a
+# downstream step that counts rows is counting the ones that survived. Read the whole list;
+# be careful with indices.
+#
+# If EVERY item fails the step itself failed, and a downstream step forced to run anyway with
+# rule: all_done is refused rather than handed an empty list.
+#
+# Hop by hop:
+#
+#   push       one item per status. Item two answers 500 and fails; items one and three
+#              answer 200 and do not.
+#   surviving  runs once over the whole batch, and counts what is actually there. Two, not
+#              three, and the document says so out loud rather than assuming three.
+#
+# EXPECT THIS RUN TO END completed_with_errors, with two succeeded items, one failed item, a
+# succeeded step, and a surviving.count of 2.
+#
+# To change it: -p statuses='[500,500,500]' makes every item fail, which fails the step, which
+# skips the join. That is the boundary between this file and fan-out-fail-fast.yaml.
+#
+#   dg run --local examples/patterns/fan-out-continue.yaml                              # completed_with_errors
+#   dg run --local examples/patterns/fan-out-continue.yaml -p statuses='[500,500,500]'  # failed
+
+format: dirigent/v1
+kind: pipeline
+code: fan-out-continue
+name: A batch that tolerates one bad item
+description: |
+  `items: continue` lets the surviving elements finish. The failed item stays red, the step
+  counts as succeeded, and the run reports `completed_with_errors`.
+
+  A failed item is **absent** from the step's output list rather than null, so the batch a
+  downstream step reads can be shorter than the one that was asked for.
+
+tags: [patterns, http, transform, failure, fan-out]
+
+requires:
+  blocks:
+    - http.request
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    statuses:
+      type: array
+      description: One item per element; each item asks the endpoint for that status.
+      default: [200, 500, 200]
+      minItems: 1
+      maxItems: 16
+      items:
+        type: integer
+        enum: [200, 404, 500]
+
+steps:
+  push:
+    block: http.request
+    for_each: "${params.statuses}"
+    # The one word this file is about.
+    items: continue
+    config:
+      url: "https://postman-echo.com/status/${item}"
+      method: GET
+
+  surviving:
+    block: transform.jq
+    depends_on: [push]
+    config:
+      input: "${steps.push.output}"
+      # length rather than a hard-coded three: under continue the batch is whatever survived,
+      # and a program that assumes otherwise reports a number nobody can trust.
+      program: |
+        {statuses: [.[].status], count: length}

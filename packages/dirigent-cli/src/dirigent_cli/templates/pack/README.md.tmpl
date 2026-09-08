@@ -1,0 +1,23 @@
+# dirigent-{name}
+
+A dirigent block pack. It contributes `{name}.hello`; replace that operator with the
+blocks this pack is for.
+
+The dirigent packages are not on an index yet, so point uv at a checkout before syncing:
+
+```toml
+[tool.uv.sources]
+dirigent-common = {{ path = "../dirigent/packages/dirigent-common", editable = true }}
+dirigent-plugin = {{ path = "../dirigent/packages/dirigent-plugin", editable = true }}
+dirigent-testing = {{ path = "../dirigent/packages/dirigent-testing", editable = true }}
+```
+
+Then:
+
+```bash
+uv sync
+uv run pytest
+```
+
+An instance discovers the pack by installing it: the entry point in `pyproject.toml` is
+the whole registration.

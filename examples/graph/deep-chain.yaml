@@ -1,0 +1,119 @@
+# Graph height: ten steps in a single file, where every one waits for the one before it.
+#
+# This document exists to be looked at rather than to compute anything. Height is the length
+# of a DAG's longest path, and it is the one dimension no amount of hardware shortens: each
+# step here reads the step above it, so the tenth cannot start until the ninth has settled.
+# Ten workers finish this run no faster than one does.
+#
+# wide-fan.yaml is the same idea turned ninety degrees -- ten steps that are all claimable at
+# once. Run both and watch the graph: this one draws a column, that one draws a row. Between
+# them they are the two numbers worth knowing about a pipeline's shape, because height is
+# what sets the floor on a run's duration and width is what sets the demand on the workers.
+#
+# The value threaded down the chain is a running total, so each step's output visibly depends
+# on its predecessor's rather than merely coming after it in the drawing. transform.jq opens
+# no socket and runs nothing on the worker, so the whole column needs no allowlist entry and
+# no network.
+#
+#   dg run --local examples/graph/deep-chain.yaml
+#   dg run --local examples/graph/deep-chain.yaml -p start=100
+
+format: dirigent/v1
+kind: pipeline
+code: deep-chain
+name: Deep chain
+description: |
+  Ten steps in one line, each reading the one above it.
+
+  The longest path through a DAG is its **height**, and it is the floor under the run's
+  duration: no number of workers makes a chain shorter. Its opposite is
+  `wide-fan`, where all ten steps are claimable at once.
+
+tags: [graph, transform]
+
+requires:
+  blocks:
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    start:
+      type: integer
+      description: What the first link adds to.
+      default: 0
+
+steps:
+  # The first link is the only one with no depends_on, so it is the only root: the run has
+  # exactly one claimable step at the moment it is created, and never more than one after.
+  link_1:
+    block: transform.jq
+    config:
+      input:
+        total: "${params.start}"
+      program: "{total: (.total + 1), depth: 1}"
+
+  link_2:
+    block: transform.jq
+    depends_on: [link_1]
+    config:
+      input: "${steps.link_1.output.value}"
+      program: "{total: (.total + 2), depth: 2}"
+
+  link_3:
+    block: transform.jq
+    depends_on: [link_2]
+    config:
+      input: "${steps.link_2.output.value}"
+      program: "{total: (.total + 3), depth: 3}"
+
+  link_4:
+    block: transform.jq
+    depends_on: [link_3]
+    config:
+      input: "${steps.link_3.output.value}"
+      program: "{total: (.total + 4), depth: 4}"
+
+  link_5:
+    block: transform.jq
+    depends_on: [link_4]
+    config:
+      input: "${steps.link_4.output.value}"
+      program: "{total: (.total + 5), depth: 5}"
+
+  link_6:
+    block: transform.jq
+    depends_on: [link_5]
+    config:
+      input: "${steps.link_5.output.value}"
+      program: "{total: (.total + 6), depth: 6}"
+
+  link_7:
+    block: transform.jq
+    depends_on: [link_6]
+    config:
+      input: "${steps.link_6.output.value}"
+      program: "{total: (.total + 7), depth: 7}"
+
+  link_8:
+    block: transform.jq
+    depends_on: [link_7]
+    config:
+      input: "${steps.link_7.output.value}"
+      program: "{total: (.total + 8), depth: 8}"
+
+  link_9:
+    block: transform.jq
+    depends_on: [link_8]
+    config:
+      input: "${steps.link_8.output.value}"
+      program: "{total: (.total + 9), depth: 9}"
+
+  # The last link reports the height it sits at alongside the total, so the run's output says
+  # what the drawing says.
+  link_10:
+    block: transform.jq
+    depends_on: [link_9]
+    config:
+      input: "${steps.link_9.output.value}"
+      program: "{total: (.total + 10), depth: 10, note: \"55 added over ten dependent steps\"}"

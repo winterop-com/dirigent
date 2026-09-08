@@ -1,0 +1,53 @@
+# Running a container as a step, and what that costs in trust.
+#
+# REQUIRES A DOCKER SOCKET: a Docker daemon the worker can reach, at /var/run/docker.sock
+# or wherever DOCKER_HOST points. Without one the document still validates and applies; it
+# fails at the step, saying the daemon could not be reached.
+#
+# docker.run declares local_execution, so the engine refuses it unless the instance
+# allowlists the id. Reaching the Docker socket is reaching root on the host:
+#   dg run --local examples/docker/docker-hello.yaml --enable-unsafe docker.run
+#   export DIRIGENT_ENABLED_UNSAFE_BLOCKS='["docker.run"]'   # for the instance
+#
+# The block is asynchronous: execute creates the container and starts it detached, and the
+# engine probes it. A container that runs for an hour costs one parked row, not an hour of
+# a worker, and the deadline stays on the step.
+#
+# network: none is the default: an image a document named does not reach the worker's
+# network unless the step says so. pull: true fetches the image first, so this runs on a
+# machine that has never seen alpine.
+
+format: dirigent/v1
+kind: pipeline
+code: docker-hello
+name: Hello from a container
+description: Run a command in a container, with no network and the image pulled first.
+
+tags: [docker, execute]
+
+requires:
+  blocks:
+    - docker.run
+
+params:
+  type: object
+  additionalProperties: false
+  properties:
+    message:
+      type: string
+      default: hello from a container
+      description: What the container echoes.
+
+steps:
+  greet:
+    block: docker.run
+    deadline: 5m
+    config:
+      image: alpine:3
+      pull: true
+      # A container that needs nothing from the network is given none, and the memory and
+      # process caps bound what a runaway image can take from the worker it landed on.
+      network: none
+      argv: [echo, "${params.message}"]
+      memory: 64mb
+      pids_limit: 64

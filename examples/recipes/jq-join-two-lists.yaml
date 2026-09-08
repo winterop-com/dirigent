@@ -1,0 +1,77 @@
+# Join two lists on a key, keeping the rows that match nothing.
+#
+# In:  a list of stations (the dimension) and a list of readings (the facts).
+# Out: {joined: [...], unmatched: [...]} -- every reading enriched, and the ones whose
+#      station is in no dimension row listed separately rather than silently dropped.
+#
+# A jq program has exactly one input, so a join composes its two sides into one object in
+# the step's config and destructures them apart again in the program. INDEX builds the
+# lookup table in one pass -- an object keyed by station id -- which turns the join from a
+# scan per reading into a lookup per reading.
+#
+# Both halves of the result come out of that one index: $by_id[.station] is null for a
+# reading nothing matched, so // supplies the default on the joined side and select collects
+# exactly those rows on the unmatched side. An inner join alone would report four readings
+# where five arrived, and never say which one went missing.
+#
+# To change it: index the other side to change the join's direction -- indexing the readings
+# and iterating the stations answers "which stations reported at all".
+#
+#   dg run --local examples/recipes/jq-join-two-lists.yaml
+#   dg run --local examples/recipes/jq-join-two-lists.yaml -p default_name=none
+
+format: dirigent/v1
+kind: pipeline
+code: jq-join-two-lists
+name: Join two lists with INDEX
+description: Join readings to their station dimension with INDEX, keeping the unmatched rows in a list of their own.
+
+tags: [recipes, transform, jq]
+
+requires:
+  blocks:
+    - value.const
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    default_name:
+      type: string
+      default: unknown station
+      description: The name a reading gets when its station is in no dimension row.
+
+steps:
+  stations:
+    block: value.const
+    config:
+      value:
+        - { id: st-1, name: Harbour, region: east }
+        - { id: st-2, name: Ridge, region: west }
+        - { id: st-3, name: Delta, region: east }
+
+  readings:
+    block: value.const
+    config:
+      value:
+        - { station: st-1, celsius: 4 }
+        - { station: st-2, celsius: -1 }
+        - { station: st-3, celsius: 7 }
+        # No st-9 in the dimension: this is the row the recipe exists for.
+        - { station: st-9, celsius: 2 }
+
+  join:
+    block: transform.jq
+    depends_on: [stations, readings]
+    config:
+      input:
+        stations: ${steps.stations.output.value}
+        readings: ${steps.readings.output.value}
+        fallback: ${params.default_name}
+      program: |
+        . as {$stations, $readings, $fallback}
+        | ($stations | INDEX(.id)) as $by_id
+        | {joined: [$readings[]
+             | . + {name: ($by_id[.station].name // $fallback),
+                    region: ($by_id[.station].region // null)}],
+           unmatched: [$readings[] | select($by_id[.station] == null) | .station]}

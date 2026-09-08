@@ -1,0 +1,48 @@
+# Verify DHIS2 system info against the dhis2-system-info instance schema.
+#
+# The other metadata checks validate an array of records; this one validates the object
+# /api/system/info returns directly, to show a schema does not need a list to gate on. The
+# dhis2-system-info schema the instance holds pins the version the pipeline is talking to and
+# the server's clock, so a demo that moved to a shape without them is caught before anything
+# branches on the version string.
+#
+#   dg run --local --schema examples/schemas/dhis2-system-info.json \
+#     examples/validate/dhis2-system-info-shape.yaml
+
+format: dirigent/v1
+kind: pipeline
+code: dhis2-system-info-shape
+name: System info, shape-checked
+description: Read DHIS2 system information and validate the version and server date are present and typed.
+
+tags: [validate, http]
+
+requires:
+  blocks:
+    - http.request
+    - validate.schema
+  schemas:
+    - dhis2-system-info
+
+connections:
+  dhis2-demo:
+    kind: http
+    config:
+      base_url: https://play.im.dhis2.org/stable-2-43-1
+      basic_username: admin
+      basic_password: district
+      timeout: 1m
+
+steps:
+  fetch:
+    block: http.request
+    config:
+      connection: dhis2-demo
+      path: /api/system/info
+      method: GET
+  check:
+    block: validate.schema
+    depends_on: [fetch]
+    config:
+      input: ${steps.fetch.output.json_body}
+      schema: dhis2-system-info

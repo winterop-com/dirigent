@@ -1,0 +1,86 @@
+# The same gate, written the other way: the shape lives on the instance and the document
+# names it.
+#
+# In:  one org-unit record.
+# Out: that record, passed through a gate that names ou-record -- a schema the instance
+#      holds, not one this file carries.
+#
+# A schema is a resource in its own right, applied like a connection rather than as part of
+# a pipeline:
+#
+#   dg schema create examples/schemas/ou-record.json
+#   dg schema list
+#
+# and its identity comes out of its own keywords: $id becomes the code every reference uses,
+# title its name, description its body. So the code in the gate below is the $id in that
+# file and nothing else.
+#
+# Referenced is the right choice as soon as a second pipeline holds the same picture of the
+# same payload. One shape, one place to change it, and every pipeline that names it is
+# refused the moment they stop agreeing. It costs a dependency: requires.schemas is where
+# the document says so, and an instance that does not hold ou-record refuses this document
+# at apply, naming what to create first, rather than failing at three in the morning.
+#
+# A --local run starts on an empty throwaway instance, so the schema is handed to it the way
+# connections are:
+#
+#   dg run --local --schema examples/schemas/ou-record.json \
+#     examples/recipes/schema-referenced.yaml
+#
+# Without --schema that run is refused before anything executes, which is the preflight
+# doing its job.
+#
+# To change it: -p level=zero sends a string where the schema wants an integer, and that run
+# fails at the gate naming the instance path and the keyword.
+#
+#   dg run --local --schema examples/schemas/ou-record.json examples/recipes/schema-referenced.yaml
+#   dg run --local --schema examples/schemas/ou-record.json examples/recipes/schema-referenced.yaml -p level=zero
+
+format: dirigent/v1
+kind: pipeline
+code: schema-referenced
+name: A schema the instance holds
+description: Validate a record against ou-record, a schema applied to the instance on its own, and declare the dependency in requires.
+
+tags: [recipes, transform, validate]
+
+requires:
+  blocks:
+    - value.const
+    - transform.jq
+    - validate.schema
+  # The preflight that refuses this document on an instance holding no such schema.
+  schemas:
+    - ou-record
+
+params:
+  type: object
+  properties:
+    level:
+      default: 2
+      description: The record's level; anything but an integer is refused at the gate.
+
+steps:
+  record:
+    block: value.const
+    config:
+      value:
+        id: O6uvpzGd5pu
+        name: Bo
+        level: "${params.level}"
+
+  gate:
+    block: validate.schema
+    depends_on: [record]
+    config:
+      input: ${steps.record.output.value}
+      # A code, never a shape: this one names the schema stored under $id ou-record.
+      schema: ou-record
+
+  describe:
+    block: transform.jq
+    depends_on: [gate]
+    config:
+      input: ${steps.gate.output.value}
+      program: |
+        {checked_id: .id, at_level: .level}

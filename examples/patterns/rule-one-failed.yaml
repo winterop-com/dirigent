@@ -1,0 +1,86 @@
+# one_failed: the handler branch, drawn in the DAG instead of coded inside a block.
+#
+# one_failed fires when AT LEAST ONE prerequisite failed, and skips when none did. That is
+# what makes a step an error handler: it sits on the page next to the step it handles, so the
+# failure path is reviewable in a pull request rather than buried in an except clause.
+#
+# Hop by hop:
+#
+#   load      /status/${params.status}, 500 by default, so it fails.
+#   alert     one_failed on the load. It runs, and it is the only place the failure is
+#             described in words a human reads.
+#   carry_on  all_success on the load, the default. It is skipped, because the two branches
+#             are exclusive by construction: whichever way the load settles, exactly one of
+#             the pair runs and the other skips.
+#
+# EXPECT THIS RUN TO FAIL. The handler running is not a repair: the load is still red and
+# untolerated, so the run reports failed with the alert delivered. Pass -p status=200 and the
+# mirror image happens -- carry_on runs, alert skips, and the run succeeds.
+#
+# One sharp edge worth knowing before reaching for this: a step marked
+# continue_on_failure: true shows its dependents a success, so a one_failed handler hung below
+# a tolerated step never fires. Tolerating a failure and handling one are opposite
+# instructions.
+#
+#   dg run --local examples/patterns/rule-one-failed.yaml                 # fails; the alert branch runs
+#   dg run --local examples/patterns/rule-one-failed.yaml -p status=200   # succeeds; the alert skips
+
+format: dirigent/v1
+kind: pipeline
+code: rule-one-failed
+name: The one_failed edge
+description: |
+  `rule: one_failed` runs a step only when a prerequisite **failed**, and skips it when none
+  did. It is how an error-handling branch is drawn in the DAG.
+
+  As written the load fails, the alert branch runs, the success branch is skipped, and the
+  run reports `failed`.
+
+tags: [patterns, http, graph, rules]
+
+requires:
+  blocks:
+    - http.request
+
+params:
+  type: object
+  properties:
+    status:
+      type: integer
+      description: The status the load endpoint is asked to answer with; 500 fails, 200 does not.
+      default: 500
+      enum: [200, 500]
+
+steps:
+  load:
+    block: http.request
+    config:
+      url: "https://postman-echo.com/status/${params.status}"
+      method: GET
+
+  alert:
+    block: http.request
+    depends_on: [load]
+    # The whole file in one word. This step is unreachable on the happy path, and the graph
+    # says so without anything having to read a status code.
+    rule: one_failed
+    config:
+      url: https://postman-echo.com/post
+      method: POST
+      body:
+        text: the nightly load failed
+        # ${run.id} is what an operator pastes into dg runs show, so an alert carrying it is
+        # an alert somebody can act on.
+        run: "${run.id}"
+
+  carry_on:
+    block: http.request
+    depends_on: [load]
+    # The default rule, written out this once so the pair reads as a fork rather than as one
+    # step with an option on it.
+    rule: all_success
+    config:
+      url: https://postman-echo.com/post
+      method: POST
+      body:
+        text: the nightly load landed

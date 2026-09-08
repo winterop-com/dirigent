@@ -1,0 +1,6 @@
+
+shots/
+shots-src/.state/
+
+# The MCP browser writes its session snapshots here; never repository content.
+.playwright-mcp/

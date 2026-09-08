@@ -1,0 +1,132 @@
+# A signed webhook: what gets signed, with what, and what the receiver checks.
+#
+# In:  a small event built inline.
+# Out: the echo service's view of the delivery, including the X-Dirigent-Signature header,
+#      and the step's own `signed: true`.
+#
+# webhook.post serialises the body itself and signs the bytes that go on the wire. That
+# order is the entire security property: if the body were handed to an HTTP client that
+# re-encoded it -- a different key order, different spacing -- the signature would cover
+# bytes the receiver never sees, and every delivery would fail verification for a reason
+# nobody could find.
+#
+# The signature is HMAC-SHA256 over the raw body, hex, in X-Dirigent-Signature. A receiver
+# verifies by computing the same HMAC over the body exactly as it arrived -- before parsing,
+# never after re-serialising -- and comparing in constant time. Dirigent's own inbound
+# webhook trigger does precisely that, so an instance can hand work to another instance with
+# nothing shared but the secret.
+#
+# sign_with names a connection, not a secret. The secret is that connection's hmac_secret, a
+# SecretStr sealed at rest and redacted in every response, and a connection without one
+# fails the step saying so rather than sending an unsigned POST that looks signed.
+#
+# The connection is carried inline here, labelled, so the recipe runs standalone -- the
+# secret below is a demo string in a public file and protects nothing. On an instance it is
+# created once and the document names its code.
+#
+# A signature is not a substitute for TLS, and it is not a replay defence. It says the body
+# came from someone holding the secret; it says nothing about when. A receiver that cares
+# about replay checks a timestamp or an id it has seen before, which is why the body carries
+# both.
+#
+# The same body is delivered twice, once with sign_with and once without, through the same
+# connection: signing is the step's decision, and the output shows what the second delivery
+# is missing.
+#
+# To change it: point the connection's base_url at a receiver you own and give it the same
+# hmac_secret; nothing in the steps changes.
+#
+#   dg run --local examples/recipes/webhook-post-hmac.yaml
+#   dg run --local examples/recipes/webhook-post-hmac.yaml -p day=2026-02-01
+
+format: dirigent/v1
+kind: pipeline
+code: webhook-post-hmac
+name: A signed webhook delivery
+description: POST an event with an HMAC-SHA256 signature over the exact bytes sent, using a secret that lives on a connection.
+
+tags: [recipes, transform, webhook]
+
+requires:
+  blocks:
+    - transform.jq
+    - webhook.post
+
+# Carried so the recipe runs standalone. hmac_secret is a SecretStr; this one is a demo
+# string in a public file and protects nothing.
+connections:
+  echo-webhook:
+    kind: http
+    config:
+      base_url: https://postman-echo.com
+      hmac_secret: a shared secret between two dirigent instances
+      timeout: 30s
+      health_path: /get
+
+params:
+  type: object
+  properties:
+    day:
+      type: string
+      format: date
+      default: "2026-01-01"
+      description: The day the event reports on.
+
+steps:
+  event:
+    block: transform.jq
+    config:
+      input:
+        day: ${params.day}
+      program: |
+        {kind: "import.finished",
+         day: .day,
+         # A receiver that cares about replay needs an identity and a time; a signature
+         # gives it neither.
+         event_id: "import-\(.day)",
+         at: "\(.day)T06:15:00Z",
+         rows: 1440}
+
+  deliver:
+    block: webhook.post
+    depends_on: [event]
+    config:
+      connection: echo-webhook
+      path: /post
+      body: ${steps.event.output.value}
+      # The connection whose hmac_secret signs the bytes. Unset means an unsigned POST.
+      sign_with: echo-webhook
+      headers:
+        x-event-kind: import.finished
+
+  deliver_unsigned:
+    block: webhook.post
+    depends_on: [event]
+    config:
+      connection: echo-webhook
+      path: /post
+      body: ${steps.event.output.value}
+      # No sign_with, and the same connection: signing is the step's decision, not the
+      # connection's.
+      headers:
+        x-event-kind: import.finished
+
+  receipt:
+    block: transform.jq
+    depends_on: [deliver, deliver_unsigned]
+    config:
+      input:
+        status: ${steps.deliver.output.status}
+        signed: ${steps.deliver.output.signed}
+        echoed: ${steps.deliver.output.json_body}
+        unsigned_signed: ${steps.deliver_unsigned.output.signed}
+        unsigned_echoed: ${steps.deliver_unsigned.output.json_body}
+      program: |
+        {status, signed,
+         # The echo service shows what arrived: the signature header, and the body it
+         # parsed out of the exact bytes that were signed.
+         signature: (.echoed.headers["x-dirigent-signature"] // null),
+         delivered_event: .echoed.json.event_id,
+         content_type: .echoed.headers["content-type"],
+         unsigned: {signed: .unsigned_signed,
+                    signature: (.unsigned_echoed.headers["x-dirigent-signature"] // null)}}

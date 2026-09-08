@@ -1,0 +1,49 @@
+# A container that talks while it works, for watching the log stream live.
+#
+# The block is asynchronous: execute starts the container detached and the engine probes it
+# on a clock. Every probe reads what the container printed since the last one and appends it
+# to the run's log, so the run's screen and `dg logs` both move while the container runs --
+# a hundred ticks over three and a half minutes, arriving a couple at a time.
+#
+# REQUIRES A DOCKER SOCKET, like every docker.run step: without a reachable daemon the
+# document applies and the step fails saying so. The id is unsafe and must be allowlisted:
+#   dg run --local examples/docker/docker-ticker.yaml --enable-unsafe docker.run
+#   export DIRIGENT_ENABLED_UNSAFE_BLOCKS='["docker.run"]'   # for the instance
+
+format: dirigent/v1
+kind: pipeline
+code: docker-ticker
+name: Docker ticker
+description: A container printing a line every two seconds, streamed into the run as it goes.
+
+tags: [docker, execute]
+
+requires:
+  blocks:
+    - docker.run
+
+params:
+  type: object
+  additionalProperties: false
+  properties:
+    ticks:
+      type: integer
+      default: 100
+      minimum: 1
+      maximum: 1000
+      description: How many lines the container prints, two seconds apart.
+
+steps:
+  tick:
+    block: docker.run
+    deadline: 40m
+    config:
+      image: alpine:3
+      pull: true
+      network: none
+      argv:
+        - sh
+        - -c
+        - 'i=1; while [ "$i" -le "${params.ticks}" ]; do echo "tick $i of ${params.ticks}"; i=$((i+1)); sleep 2; done'
+      memory: 64mb
+      pids_limit: 64

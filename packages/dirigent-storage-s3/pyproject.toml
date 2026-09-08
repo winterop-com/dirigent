@@ -1,0 +1,24 @@
+[project]
+name = "dirigent-storage-s3"
+version = "0.9.0"
+description = "The s3:// storage backend for dirigent, compatible with any S3 API."
+readme = "README.md"
+requires-python = ">=3.13"
+license = "LicenseRef-Proprietary"
+license-files = ["LICENSE"]
+dependencies = [
+    "aioboto3>=15.5.0",
+    "dirigent-common",
+    "dirigent-plugin",
+    "pydantic>=2.13.5",
+]
+
+[project.entry-points."dirigent.plugins.v1"]
+storage-s3 = "dirigent_storage_s3:plugin"
+
+[build-system]
+requires = ["uv_build>=0.12.0,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.uv.sources]
+dirigent-plugin = { workspace = true }

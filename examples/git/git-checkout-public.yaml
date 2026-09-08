@@ -1,0 +1,81 @@
+# A public repository checked out into the run's scratch space, and the commit it landed on.
+#
+# NEEDS NETWORK from the worker to github.com, and nothing else: git.checkout is an ordinary
+# block, so no id has to be allowlisted and no daemon has to be reachable.
+#   dg run --local examples/git/git-checkout-public.yaml
+# docs/git.md is the family's home.
+#
+# Two hops, and what each one hands on:
+#   checkout  the repository, shallow, at its default branch, in ${run.scratch}/checkout/.
+#             Output: commit, ref, target and remote.
+#   report    a constant step that reads those three fields, which is all it takes to prove
+#             they are references any downstream step can name.
+#
+# THE CONNECTION HOLDS THE REMOTE, THE DOCUMENT HOLDS THE REF. A checkout step never writes a
+# URL: it names a git connection, and the connection is what carries the remote and, when the
+# repository is private, the sealed token or deploy key that reaches it. Moving a pipeline
+# from a fork to the real repository is then an edit to one connection and to no pipeline.
+# This one is carried in the document because a --local run has no instance to hold it; on a
+# server it would be created once, with `dg connection create git ...`, and the document would
+# name it and stop there. Public repositories need no credential at all, which is why there is
+# none here.
+#
+# WHERE IT LANDS. target is a path inside the run's scratch space -- never absolute, never
+# climbing out -- and left unset it is the step's own name, so this checkout is at
+# ${run.scratch}/checkout/. That relative path is the whole point of the block: a downstream
+# docker.build names it as a context, a docker.compose.up names a file inside it, and a
+# transform names its files, none of them knowing where the run's scratch space actually is.
+#
+# SHALLOW BY DEFAULT. depth is 1 unless a document says otherwise, which fetches the one
+# commit the ref points at and none of its history. That is what a build wants and it is a
+# fraction of the bytes. Set depth: 0 for the whole history, which is what a step that reads
+# the log or runs `git describe` needs.
+#
+# TO MAKE IT YOURS: point the connection at your own repository, add a ref: if the default
+# branch is not what you want, and replace the report step with whatever actually reads the
+# checkout.
+
+format: dirigent/v1
+kind: pipeline
+code: git-checkout-public
+name: Check a public repository out
+description: Clone a public repository at its default branch into the run's scratch space and report the commit.
+
+tags: [git]
+
+requires:
+  blocks:
+    - git.checkout
+    - value.const
+
+connections:
+  octocat-hello-world:
+    kind: git
+    config:
+      # GitHub's own smallest repository: one README and two commits. Nothing is sealed here
+      # because nothing needs to be -- a public remote takes no credential.
+      url: https://github.com/octocat/Hello-World.git
+
+steps:
+  checkout:
+    block: git.checkout
+    deadline: 5m
+    config:
+      connection: octocat-hello-world
+      # No ref, so the remote's own default branch is what lands, and the output reports which
+      # one that turned out to be.
+      depth: 1
+
+  report:
+    block: value.const
+    depends_on: [checkout]
+    config:
+      # The commit is the only exact name for what was checked out: a branch moves, a tag can
+      # be moved, and a sha cannot. A step that records what a pipeline built records this.
+      value:
+        commit: "${steps.checkout.output.commit}"
+        ref: "${steps.checkout.output.ref}"
+        # The remote as the output reports it, which is the URL with any credential stripped.
+        remote: "${steps.checkout.output.remote}"
+        # Scratch-relative, which is the form every downstream block wants.
+        target: "${steps.checkout.output.target}"

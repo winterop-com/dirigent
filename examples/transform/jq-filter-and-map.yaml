@@ -1,0 +1,69 @@
+# The two constrained verbs, and what they buy over doing everything in one program.
+#
+# filter.jq and map.jq run a jq program once per element of a list. Neither can do what the
+# other does: a filter's program answers true or false and the frame keeps the element it
+# was given, so a filtered list is a subset with nothing modified, and a map's program
+# returns one replacement per element, so a mapped list is exactly as long as its input.
+# Written as one transform.jq program the same work is one line -- and nothing but reading
+# it tells you whether it dropped rows, added rows, or edited them in place.
+#
+# The steps read: keep the active readings, convert each one to fahrenheit, then summarise.
+# The third step is a transform because it genuinely is one: it changes the shape of the
+# whole value rather than working element by element, and that is the verb that says so.
+#
+# The per-element contracts are strict on purpose. A map program emitting nothing, or two
+# things, for one element is refused rather than quietly changing the length, and a filter
+# program answering 0 or "" is refused rather than read as false: jq's truthiness is not
+# applied, so a program meaning "has readings" writes .count > 0.
+#
+# The input is written inline so the example needs no network. In a real pipeline it is
+# input_uri, pointing at the body an upstream http.request already put in storage.
+#
+#   dg run --local examples/transform/jq-filter-and-map.yaml
+
+format: dirigent/v1
+kind: pipeline
+code: jq-filter-and-map
+name: Filter and map with jq
+description: Keep the active readings with filter.jq, convert each with map.jq, and summarise them.
+
+tags: [transform]
+
+requires:
+  blocks:
+    - filter.jq
+    - map.jq
+    - transform.jq
+
+steps:
+  active:
+    block: filter.jq
+    config:
+      input:
+        - { station: st-1, region: east, status: active, celsius: 4.5 }
+        - { station: st-2, region: east, status: retired, celsius: 11.0 }
+        - { station: st-3, region: west, status: active, celsius: 1.2 }
+        - { station: st-4, region: north, status: active, celsius: -3.4 }
+      # The answer is the verdict and nothing else: the elements that come out are the ones
+      # that went in, unmodified, because the frame keeps them rather than the program.
+      program: |
+        .status == "active"
+
+  fahrenheit:
+    block: map.jq
+    depends_on: [active]
+    config:
+      input: "${steps.active.output.value}"
+      # One output per element, so this list is as long as the one above it.
+      program: |
+        {station, region, fahrenheit: (.celsius * 9 / 5 + 32 | round)}
+
+  summary:
+    block: transform.jq
+    depends_on: [fahrenheit]
+    config:
+      # A whole-value reshape rather than an element-wise one, which is why it is the third
+      # verb and not one of the other two.
+      input: "${steps.fahrenheit.output.value}"
+      program: |
+        {stations: length, regions: (map(.region) | unique), warmest: (max_by(.fahrenheit) | .station)}

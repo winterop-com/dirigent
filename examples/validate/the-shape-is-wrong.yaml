@@ -1,0 +1,46 @@
+# A payload that does not fit, so the run fails at the gate, on purpose.
+#
+# This is the teaching failure: the payload is missing a required field, so validate.schema
+# rejects it and names the path -- `at $: 'level' is a required property` -- and the run ends
+# failed at the gate rather than three steps later where a reader tripped over the gap. It
+# references the ou-record schema the instance holds -- the same shape expects-a-shape.yaml
+# carries -- so requires.schemas names it and an instance without it refuses the document.
+#
+#   dg run --local --schema examples/schemas/ou-record.json \
+#     examples/validate/the-shape-is-wrong.yaml
+
+format: dirigent/v1
+kind: pipeline
+code: the-shape-is-wrong
+name: The shape is wrong
+description: A payload missing a required field, refused at the gate with the path that is wrong.
+
+tags: [validate, transform, failure]
+
+requires:
+  blocks:
+    - value.const
+    - validate.schema
+    - transform.jq
+  schemas:
+    - ou-record
+
+steps:
+  payload:
+    block: value.const
+    config:
+      value:
+        id: OU_12345
+        name: Western Area
+  check:
+    block: validate.schema
+    depends_on: [payload]
+    config:
+      input: ${steps.payload.output.value}
+      schema: ou-record
+  use_it:
+    block: transform.jq
+    depends_on: [check]
+    config:
+      input: ${steps.check.output.value}
+      program: "{unit: .id, tier: .level}"

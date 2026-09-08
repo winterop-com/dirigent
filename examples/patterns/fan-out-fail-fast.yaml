@@ -1,0 +1,80 @@
+# items: fail_fast -- the default item policy, and what one bad element costs the batch.
+#
+# A fan-out has its own failure question, separate from every other one in the engine: when
+# one of N items fails, is that a bad element or a bad batch? fail_fast is the default answer
+# and it says bad batch. The step fails, and it fails as a whole -- the successful items do
+# not leave a partial result behind for anything downstream to read.
+#
+# That is the right default. A fan-out is usually N slices of one job, and half a job silently
+# succeeding is worse than a red run: it is a load somebody believes happened.
+#
+# The list below is statuses rather than regions, because the element is what decides whether
+# the item fails, and making that the visible content of the item is the shortest way to show
+# it. The second element is a 500.
+#
+# Hop by hop:
+#
+#   push     one item per status, each calling /status/<item>. Items one and three answer 200;
+#            item two answers 500 and fails. Under fail_fast that is the end of the step.
+#   receipt  the default all_success edge on a failed step, so it is skipped.
+#
+# EXPECT THIS RUN TO FAIL. Look at the item grid rather than the step: some items are
+# succeeded, one is failed, and depending on timing a sibling may not have run at all. The
+# step is failed regardless, which is the policy.
+#
+# To change it: fan-out-continue.yaml is this file with one word replaced, and it is worth
+# running both back to back. -p statuses='[200,200,200]' makes this one green.
+#
+#   dg run --local examples/patterns/fan-out-fail-fast.yaml                          # fails, by design
+#   dg run --local examples/patterns/fan-out-fail-fast.yaml -p statuses='[200,200]'  # succeeds
+
+format: dirigent/v1
+kind: pipeline
+code: fan-out-fail-fast
+name: One bad item sinks the batch
+description: |
+  `items: fail_fast` is the default: one failed element fails the whole fan-out step, and
+  nothing downstream reads a partial batch.
+
+  The right default, because a fan-out is usually N slices of one job, and half a job
+  silently succeeding is worse than a red run.
+
+tags: [patterns, http, failure, fan-out]
+
+requires:
+  blocks:
+    - http.request
+
+params:
+  type: object
+  properties:
+    statuses:
+      type: array
+      description: One item per element; each item asks the endpoint for that status.
+      default: [200, 500, 200]
+      minItems: 1
+      maxItems: 16
+      items:
+        type: integer
+        enum: [200, 404, 500]
+
+steps:
+  push:
+    block: http.request
+    for_each: "${params.statuses}"
+    # items is deliberately not written. Omitting it is what makes this file about the
+    # default rather than about a setting somebody chose.
+    config:
+      url: "https://postman-echo.com/status/${item}"
+      method: GET
+
+  receipt:
+    block: http.request
+    depends_on: [push]
+    # Skipped. Under fail_fast there is no half-batch to hand on, so the edge behaves exactly
+    # as it would below any other failed step.
+    config:
+      url: https://postman-echo.com/post
+      method: POST
+      body:
+        pushed: "${steps.push.output}"

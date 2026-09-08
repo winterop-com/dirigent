@@ -1,0 +1,102 @@
+# poll: what the cadence buys, and what it costs, measured on the same wait twice.
+#
+# poll is how often a sensor looks. It is not how long the wait is, and it is not accuracy for
+# free: a sensor learns nothing between pokes, so the answer arrives up to one whole poll
+# interval late. Coarse polling is cheap and blunt; fine polling is precise and chatty. That
+# is the entire trade, and this file measures it rather than asserting it.
+#
+# Two time.sleep sensors, both asked for exactly the same wait, differing only in cadence.
+# time.sleep reports waited_ms, which is the configured duration plus however much of a poll
+# interval it had to sit through after the wait was already over -- so the overshoot is
+# readable in the output instead of having to be timed by hand.
+#
+# NOTE WHERE THE CADENCE IS WRITTEN. poll, deadline, timeout and retry are step fields, and
+# the reference language reaches config and for_each only. So the two cadences below are
+# literals: a run's shape is not something a caller talks the engine into at run time. Only
+# the wait itself, which is block config, takes a parameter.
+#
+# Hop by hop:
+#
+#   fine     poll: 1s over the wait. It pokes once a second, and waited_ms lands close to the
+#            configured duration.
+#   coarse   poll: 4s over the same wait. The wait being over is not noticed until the next
+#            poke, so waited_ms lands up to four seconds higher.
+#   compare  reads both and subtracts. The difference is what the coarse cadence cost in
+#            latency, and it is bounded by the poll interval, which is the rule of thumb.
+#
+# The two sensors have no edge between them, so they wait side by side and the run takes about
+# as long as the slower one rather than the sum. Width in a DAG is not a keyword: it is what
+# two steps that do not name each other already are.
+#
+# EXPECT THIS RUN TO SUCCEED, in about eight to nine seconds, with a coarse_cost_ms of
+# somewhere between zero and four seconds depending on where the wait fell between pokes.
+#
+# To change it: -p wait=20 makes the run longer without changing the gap, because the
+# overshoot depends on the cadence and not on the length of the wait -- which is exactly the
+# thing worth internalising before choosing a poll interval for a twelve-hour sensor.
+#
+#   dg run --local examples/patterns/poll-cadence.yaml
+#   dg run --local examples/patterns/poll-cadence.yaml -p wait=20
+
+format: dirigent/v1
+kind: pipeline
+code: poll-cadence
+name: What a poll interval costs
+description: |
+  The same wait polled every second and every four seconds, with the difference in
+  `waited_ms` reported.
+
+  A sensor learns nothing between pokes, so its answer is late by up to one poll interval.
+  Cheap and blunt, or precise and chatty -- measured here rather than asserted.
+
+tags: [patterns, sensor, transform, timeout]
+
+requires:
+  blocks:
+    - time.sleep
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    wait:
+      type: integer
+      description: How many seconds both sensors are asked to wait for.
+      default: 6
+      minimum: 1
+      maximum: 60
+
+steps:
+  fine:
+    block: time.sleep
+    # A literal, because a step field is not interpolated. One second is a chatty cadence for
+    # anything real; it is here so the tight end of the trade is visible.
+    poll: 1s
+    config:
+      # Config is interpolated, and a configured duration is written humanely rather than as
+      # a bare number of seconds, so the parameter goes inside a string that ends in s.
+      for: "${params.wait}s"
+
+  coarse:
+    block: time.sleep
+    # The same wait, looked at a quarter as often. Nothing else differs, which is what makes
+    # the two outputs comparable.
+    poll: 4s
+    config:
+      for: "${params.wait}s"
+
+  compare:
+    block: transform.jq
+    depends_on: [fine, coarse]
+    # A join: no rule written, so all_success, and it waits for both sensors.
+    config:
+      input:
+        fine_ms: "${steps.fine.output.waited_ms}"
+        coarse_ms: "${steps.coarse.output.waited_ms}"
+      program: |
+        {
+          fine_ms,
+          coarse_ms,
+          coarse_cost_ms: (.coarse_ms - .fine_ms),
+          rule_of_thumb: "a sensor's answer is late by up to one poll interval"
+        }

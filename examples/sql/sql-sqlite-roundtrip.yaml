@@ -1,0 +1,114 @@
+# A database built, written and read back inside one run, with every value bound.
+#
+# NEEDS NOTHING: no network, no daemon, no server, no allowlist. The database is a SQLite file
+# in the run's own scratch space, and both sql blocks are ordinary.
+#   dg run --local examples/sql/sql-sqlite-roundtrip.yaml
+# docs/sql.md is the family's home.
+#
+# Three hops, and what each one hands on:
+#   build   creates the table and inserts two rows, all in one transaction. Output: how many
+#           rows each statement touched.
+#   read    selects those rows back with a bound parameter. Output: the rows, their count and
+#           the column names.
+#   report  a constant step that reads the rows, proving they are an ordinary reference any
+#           downstream step can name.
+#
+# THE CONNECTION HOLDS THE DATABASE, THE DOCUMENT HOLDS THE STATEMENTS. A step never writes a
+# URL: it names a sql connection, and the connection is what carries the database and the
+# sealed password that opens it. Moving a pipeline from staging to production is then an edit
+# to one connection and to no pipeline. This one is carried in the document because a --local
+# run has no instance to hold it; on a server it would be created once with
+# `dg connection create sql ...` and the document would name it and stop there.
+#
+# WHY THE URL IS RELATIVE. A sqlite database written with a relative path is resolved against
+# the run's scratch space, so this run builds its database, uses it, and leaves it with
+# everything else the run wrote. That is what makes this example runnable anywhere with no
+# setup at all; a real pipeline names a database that already exists.
+#
+# BINDING IS THE POINT. Not one value is written into the SQL text. Every one is a named
+# parameter -- :site, :value -- and the parameters travel to the database beside the statement,
+# so a value that reads as SQL is compared as a string and matches nothing. ${...} resolves
+# into params, never into sql, and that is the whole rule.
+#
+# ONE TRANSACTION. sql.execute takes a list, and the list is one transaction: the CREATE and
+# both INSERTs commit together or not at all. A DDL statement reports -1 because SQLite does
+# not say how many rows a CREATE touched, which is what -1 means everywhere in row_counts.
+#
+# TO MAKE IT YOURS: point the connection at a real database, drop the build step, and keep the
+# read step -- reading a table with bound parameters is what most pipelines actually want.
+
+format: dirigent/v1
+kind: pipeline
+code: sql-sqlite-roundtrip
+name: Write a table and read it back
+description: Create a SQLite database in the run's scratch space, insert rows with bound parameters, and read them back.
+
+tags: [sql]
+
+requires:
+  blocks:
+    - sql.execute
+    - sql.query
+    - value.const
+
+connections:
+  scratch-db:
+    kind: sql
+    config:
+      # Relative, so it lands in this run's scratch space and needs nothing on the host. The
+      # driver is written out because these blocks speak to a database over an async one, and
+      # a url without one is refused when the connection is written.
+      url: sqlite+aiosqlite:///demo.db
+
+params:
+  type: object
+  additionalProperties: false
+  properties:
+    site:
+      type: string
+      default: north
+      description: The site the read step asks for, bound as a parameter rather than spliced into the SQL.
+
+steps:
+  build:
+    block: sql.execute
+    config:
+      connection: scratch-db
+      statements:
+        - CREATE TABLE reading (id INTEGER PRIMARY KEY, site TEXT NOT NULL, value REAL NOT NULL)
+        # Both inserts share one params map, which is why they name different columns of it
+        # rather than repeating a value.
+        - INSERT INTO reading (id, site, value) VALUES (1, :north, :north_value)
+        - INSERT INTO reading (id, site, value) VALUES (2, :south, :south_value)
+      params:
+        north: north
+        north_value: 2.5
+        south: south
+        south_value: 4.0
+
+  read:
+    block: sql.query
+    depends_on: [build]
+    config:
+      connection: scratch-db
+      # One statement. A document that needs two writes two steps, or uses sql.execute.
+      sql: SELECT id, site, value FROM reading WHERE site = :site ORDER BY id
+      params:
+        # The pipeline parameter reaches the database as a bound value and never as text in
+        # the statement above, which is what makes it safe to let somebody else set it.
+        site: "${params.site}"
+      # Two rows fit comfortably; a query that could return more than this fails the step
+      # rather than truncating, and save_to is the answer when it should.
+      max_rows: 10
+
+  report:
+    block: value.const
+    depends_on: [read]
+    config:
+      value:
+        # A list of objects keyed by column name, which is the shape every downstream step
+        # sees: a transform maps it, a validate.schema checks it, an http.request posts it.
+        rows: "${steps.read.output.rows}"
+        # The count is there whether the rows were carried inline or saved to storage.
+        row_count: "${steps.read.output.row_count}"
+        columns: "${steps.read.output.columns}"

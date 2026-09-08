@@ -1,0 +1,80 @@
+# When a non-2xx is the right answer: success_status, and what it does not mean.
+#
+# In:  a status code, as a parameter, defaulting to 418.
+# Out: that status treated as success, with the run green and the body available to the
+#      steps below.
+#
+# By default any 2xx is success and everything else fails the step. success_status replaces
+# that list for one step: writing [200, 418] says exactly those two are success, and 200
+# alone no longer passes unless it is in the list. It is a replacement, not an addition,
+# which is the field's one sharp edge.
+#
+# It is worth using where an API genuinely answers a non-2xx for an outcome that is not an
+# error:
+#
+#   404 on a delete or a lookup, where "it is not there" is the state being asked about.
+#   409 on a create, where "it already exists" is the state being asked about.
+#   204 for an accepted write with nothing to return.
+#
+# It is not a way to silence a failure. A step that lists 500 as success has not made the
+# server healthy; it has removed the run's only way of saying otherwise. The rule of thumb
+# is that a listed status must be one the steps below can act on, and the branch below here
+# does exactly that: it reads the status and reports what it means.
+#
+# https://postman-echo.com/status/<code> answers with the code it is given, which is what
+# makes this runnable without arranging a real 409.
+#
+# To change it: -p status=404 with -p expected=404 is the "not there" case; -p status=500
+# with the default expectations fails the run, which is the check that this recipe is not
+# just swallowing everything.
+#
+#   dg run --local examples/recipes/http-success-status-list.yaml
+#   dg run --local examples/recipes/http-success-status-list.yaml -p status=200
+#   dg run --local examples/recipes/http-success-status-list.yaml -p status=500   # fails, on purpose
+
+format: dirigent/v1
+kind: pipeline
+code: http-success-status-list
+name: Statuses that count as success
+description: Accept a specific non-2xx as success for one call with success_status, and branch on what the status actually meant.
+
+tags: [recipes, http, transform]
+
+requires:
+  blocks:
+    - http.request
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    status:
+      type: integer
+      default: 418
+      description: The status the endpoint is asked to answer with.
+
+steps:
+  call:
+    block: http.request
+    config:
+      url: https://postman-echo.com/status/${params.status}
+      method: GET
+      # Replaces the default, so 200 is listed explicitly: leaving it out would fail a call
+      # that succeeded ordinarily.
+      success_status: [200, 404, 418]
+      timeout: 20s
+
+  interpret:
+    block: transform.jq
+    depends_on: [call]
+    config:
+      input:
+        status: ${steps.call.output.status}
+      program: |
+        # A listed status has to be one the steps below can act on; that is what makes
+        # listing it different from ignoring a failure.
+        {status,
+         outcome: (if .status == 200 then "present"
+                   elif .status == 404 then "absent, which is an answer"
+                   else "answered, and unusual" end),
+         acted_on: (.status != 200)}

@@ -1,0 +1,102 @@
+# jitter: why two steps that failed in the same instant must not retry in the same instant.
+#
+# jitter is a fraction of the computed delay, spread randomly either side of it. 0.5 on a 2s
+# backoff means the actual wait lands somewhere in 1s..3s, drawn fresh for every attempt of
+# every item.
+#
+# It exists for one failure mode. A dependency having a bad minute fails everything pointed at
+# it at once; without jitter every one of those steps waits exactly the same computed delay
+# and hits it again in the same instant, which is the thundering herd that keeps a recovering
+# service down. Jitter smears the second wave across a window, and the third across a wider
+# one.
+#
+# Hop by hop:
+#
+#   herd     fans out over four shards, each one calling /status/500 and each one retrying
+#            three times with a jittered 2s backoff. items: continue lets every shard spend
+#            its own budget rather than the first failure cancelling the rest, so all four
+#            item grids are there to compare -- and their retry timestamps are visibly not
+#            aligned.
+#   tolerated: the shard failures are expected, so continue_on_failure keeps the run moving
+#            to the step that reports on it.
+#   settle   all_done, because there is no outcome under which the run should end without
+#            saying so.
+#
+# EXPECT THIS RUN TO END completed_with_errors, in roughly ten to twenty seconds -- the
+# variance IS the demonstration. Four shards fail after three attempts each, settle succeeds,
+# and the run reports completed_with_errors rather than failed because the failure is
+# tolerated.
+#
+# To change it: set jitter to 0.0 and run it again; the four shards' second attempts line up
+# to the same instant. -p status=200 makes every shard green on its first attempt.
+#
+#   dg run --local examples/patterns/retry-with-jitter.yaml                 # completed_with_errors
+#   dg run --local examples/patterns/retry-with-jitter.yaml -p status=200   # succeeds at once
+
+format: dirigent/v1
+kind: pipeline
+code: retry-with-jitter
+name: Jittered retries
+description: |
+  `jitter` spreads each computed backoff randomly, so four items that failed together do not
+  retry together and rebuild the herd that took the dependency down.
+
+  As written four shards each spend a three-attempt budget against a 500 and the run reports
+  `completed_with_errors`.
+
+tags: [patterns, http, failure, retry]
+
+requires:
+  blocks:
+    - http.request
+    - value.const
+
+params:
+  type: object
+  properties:
+    status:
+      type: integer
+      description: The status every shard's endpoint answers with; 500 is retried, 200 is not.
+      default: 500
+      enum: [200, 500]
+    shards:
+      type: array
+      description: The shards the herd fans out over; more of them makes the spread easier to see.
+      default: [alpha, beta, gamma, delta]
+      items:
+        type: string
+
+steps:
+  herd:
+    block: http.request
+    for_each: "${params.shards}"
+    # One bad shard is not a reason to stop the other three from spending their budgets, and
+    # the point here is to have four retry timelines to compare.
+    items: continue
+    # The four items are expected to fail. Tolerating them is what lets the run reach settle
+    # and report, instead of ending on the fan-out.
+    continue_on_failure: true
+    retry:
+      max_attempts: 3
+      backoff: 2s
+      multiplier: 2.0
+      max_backoff: 8s
+      # Half the computed delay, either side of it: a 2s wait becomes 1s..3s and a 4s wait
+      # becomes 2s..6s, redrawn per item. Set this to 0.0 and watch the four line up.
+      jitter: 0.5
+    config:
+      url: "https://postman-echo.com/status/${params.status}"
+      method: GET
+      headers:
+        # The shard is in the request, so a log line says which item made which call.
+        x-shard: "${item}"
+
+  settle:
+    block: value.const
+    depends_on: [herd]
+    # all_done rather than the default, because the interesting run is the one where the
+    # shards failed and something still has to close the book on it.
+    rule: all_done
+    config:
+      value:
+        note: every shard retried on its own clock

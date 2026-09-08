@@ -1,0 +1,70 @@
+# Bringing a compose stack up, driving it, and tearing it down even on failure.
+#
+# REQUIRES A DOCKER DAEMON the worker can reach, named by DOCKER_HOST (a dind sidecar over
+# tcp+TLS, or the local socket in dev). docs/docker.md is the family's home; docs/operations.md
+# says what mounting the host socket grants.
+#
+# docker.compose.up and docker.compose.down declare local_execution, so the engine refuses
+# them unless the instance allowlists their ids:
+#   dg run --local examples/docker/docker-compose-stack.yaml \
+#     --enable-unsafe docker.compose.up,docker.compose.down,docker.run
+#   export DIRIGENT_ENABLED_UNSAFE_BLOCKS='["docker.compose.up","docker.compose.down","docker.run"]'
+#
+# The lifecycle is the point: up brings the stack up detached and it PERSISTS, so the drive
+# step reaches it; down runs with rule: all_done, so the stack is torn down whether the drive
+# step passed or failed. Both default their project name from the run id, so down finds the
+# stack up created with no wiring.
+
+format: dirigent/v1
+kind: pipeline
+code: docker-compose-stack
+name: A compose stack, driven and torn down
+description: Bring a two-service stack up, reach it from a container, and tear it down on any outcome.
+
+tags: [docker, execute]
+
+requires:
+  blocks:
+    - docker.compose.up
+    - docker.compose.down
+    - docker.run
+
+steps:
+  stack:
+    block: docker.compose.up
+    deadline: 5m
+    config:
+      # wait: true holds the step open until every service is healthy, so the drive step
+      # never races the stack coming up. pull: always fetches the images on a fresh worker.
+      wait: true
+      pull: always
+      content: |
+        services:
+          api:
+            image: nginx:alpine
+            healthcheck:
+              test: ["CMD-SHELL", "wget -qO- http://localhost/ >/dev/null 2>&1 || exit 1"]
+              interval: 2s
+              timeout: 2s
+              retries: 5
+
+  drive:
+    block: docker.run
+    depends_on: [stack]
+    deadline: 2m
+    config:
+      image: alpine:3
+      pull: true
+      # The network the up step reported: joining it is how this container resolves and
+      # reaches the "api" service by name.
+      network: "${steps.stack.output.default_network}"
+      command: wget -qO- http://api/
+
+  teardown:
+    block: docker.compose.down
+    depends_on: [drive]
+    # all_done runs the teardown on success or failure, so a stack is never left running.
+    rule: all_done
+    deadline: 2m
+    config:
+      down_volumes: true

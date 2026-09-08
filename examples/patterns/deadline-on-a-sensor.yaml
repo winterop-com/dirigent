@@ -1,0 +1,106 @@
+# deadline: how long a step may keep waiting, and what it costs to wait that long.
+#
+# A sensor does not hold a worker. Each poke is one short, read-only observation -- here, one
+# head request against a URI -- and between pokes the attempt is a parked row with a wake-up
+# time on it. So waiting twelve hours costs a few hundred rows, not twelve hours of a worker,
+# and the deadline can honestly be as long as the business answer requires.
+#
+# The three fields that shape a wait, and none of them lives in the block's config:
+#
+#   poll       how often to look. Cost per hour of waiting.
+#   deadline   how long to keep looking. When to give up.
+#   on_timeout what giving up MEANS: fail (the default, this file) or skip
+#              (timeout-skips-the-step.yaml).
+#
+# This one takes the default, because a drop that has not landed by its deadline is a real
+# problem here: somebody promised a file and did not send it, and the run being red is how
+# that is noticed.
+#
+# Hop by hop:
+#
+#   wait_for_drop  storage.exists pokes a path under this run's own scratch space every two
+#                  seconds. Nothing ever writes there, so it never appears, and after eight
+#                  seconds the deadline expires and the step fails.
+#   load           the default all_success edge, so it is skipped.
+#   page_someone   one_failed, so it runs: the absence is reported rather than merely logged.
+#
+# EXPECT THIS RUN TO FAIL, in about eight seconds, with wait_for_drop failed, load skipped and
+# page_someone green. The attempt's error class is rejected, not transient: an expired
+# deadline is not something another attempt could fix, so a retry budget on this step would
+# buy nothing. An expired `timeout` is classified the other way, and
+# timeout-fails-the-step.yaml says why that matters.
+#
+# Note where the drop is looked for. ${run.scratch} is this run's own directory under the
+# instance's artifact root, and file:// URIs are refused outside that root -- so a stored
+# pipeline can never be turned into an arbitrary-file read. A real drop is an s3:// URI or a
+# path under that root, never an absolute path typed into the document.
+#
+# To change it: on_timeout: skip turns this exact run green, which is the same document
+# saying "no drop today is fine". min_size is the other guard worth knowing -- a producer
+# uploading a large object makes the key visible before the bytes are all there, and a floor
+# stops the load reading a half-written file.
+#
+#   dg run --local examples/patterns/deadline-on-a-sensor.yaml   # fails in ~8s, by design
+
+format: dirigent/v1
+kind: pipeline
+code: deadline-on-a-sensor
+name: A deadline on a wait
+description: |
+  `poll`, `deadline` and `on_timeout` are step-level engine semantics, uniform across every
+  sensor and never buried in a block's config.
+
+  A parked sensor costs rows, not workers. As written the drop never lands, the deadline
+  expires with the default `on_timeout: fail`, and the run reports `failed`.
+
+tags: [patterns, http, sensor, storage, timeout]
+
+requires:
+  blocks:
+    - storage.exists
+    - storage.copy
+    - http.request
+
+params:
+  type: object
+  properties:
+    day:
+      type: string
+      format: date
+      description: The day whose drop is expected; it is part of the object's name.
+      default: "2026-01-01"
+
+steps:
+  wait_for_drop:
+    block: storage.exists
+    # Chosen for how soon the drop matters, not for what it costs to look: each poke is one
+    # head request and one row. A daily drop is polled in minutes, not seconds.
+    poll: 2s
+    # Short enough to watch. A real one is the hour by which somebody promised the file.
+    deadline: 8s
+    # on_timeout is left unwritten, so it is fail: a promised file that never arrived is a
+    # problem somebody has to hear about.
+    config:
+      uri: "${run.scratch}/drops/${params.day}.parquet"
+      # A floor, so a key that exists but is still being written is not treated as a landing.
+      min_size: 1kb
+
+  load:
+    block: storage.copy
+    depends_on: [wait_for_drop]
+    config:
+      # Reading the sensor's own output rather than rebuilding the URI: the sensor may have
+      # matched a glob, and its answer is which object actually landed.
+      source: "${steps.wait_for_drop.output.uri}"
+      target: "${run.scratch}/loaded/${params.day}.parquet"
+
+  page_someone:
+    block: http.request
+    depends_on: [wait_for_drop]
+    rule: one_failed
+    config:
+      url: https://postman-echo.com/post
+      method: POST
+      body:
+        text: the drop did not land inside its deadline
+        day: "${params.day}"

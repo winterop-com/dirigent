@@ -1,0 +1,57 @@
+# The brokers the queue lane runs against, and the ones examples/queues/ is written for.
+#
+#   docker compose -f infra/compose.queues.yaml up -d
+#   make test-queues
+#   docker compose -f infra/compose.queues.yaml down -v
+#
+# Ports are fixed rather than mapped at random, because a Kafka client is told where to go by
+# the broker's own advertised address: it bootstraps on one address and then reconnects to
+# whatever the cluster names, so the port inside the container and the port outside it have to
+# be the same number.
+#
+# Neither broker is protected. This stack is a test fixture on a developer's machine or a CI
+# runner, never something to expose.
+
+name: dirigent-queues
+
+services:
+  # Redpanda speaks the Kafka protocol and needs no ZooKeeper, so one container is a cluster.
+  redpanda:
+    image: ${DIRIGENT_KAFKA_IMAGE:-redpandadata/redpanda:v24.2.18}
+    restart: unless-stopped
+    command:
+      - redpanda
+      - start
+      - --mode=dev-container
+      - --smp=1
+      - --node-id=0
+      - --check=false
+      - --kafka-addr=PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr=PLAINTEXT://127.0.0.1:${KAFKA_PORT:-9092}
+      # A topic a producer invented is a typo that reads as a working pipeline, so a document
+      # naming a topic nobody created is refused instead.
+      - --set
+      - redpanda.auto_create_topics_enabled=false
+    ports:
+      - "${KAFKA_PORT:-9092}:9092"
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -q 'Healthy:.*true'"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  rabbitmq:
+    image: ${DIRIGENT_RABBITMQ_IMAGE:-rabbitmq:3-management-alpine}
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-dirigent}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-dirigent}
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      # The management UI, which is how a person watches a queue drain.
+      - "${RABBITMQ_UI_PORT:-15672}:15672"
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
+      interval: 2s
+      timeout: 5s
+      retries: 30

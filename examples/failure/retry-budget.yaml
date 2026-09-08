@@ -1,0 +1,82 @@
+# A budget of three attempts, spent in full on a failure nobody can explain.
+#
+# retries.yaml shows a retry against a service that answers 503, where the block itself calls
+# the failure transient. This is the other half of the rule, and the one that surprises
+# people: a failure the engine cannot classify is retried too.
+#
+# There are exactly three classes, and only one of them ends a step immediately:
+#
+#   transient  network, a 5xx, a timeout          retried while the budget lasts
+#   rejected   validation, auth, a 4xx            never retried, however much budget is left
+#   unknown    anything else                      retried while the budget lasts
+#
+# A command that exits non-zero is unknown. shell.run cannot know whether exit 1 meant a
+# corrupt input file or a database that was briefly away, so it declines to guess, and the
+# engine spends the budget rather than assuming the worst. That is what makes max_attempts
+# worth writing on a step whose failures are ordinary program failures rather than HTTP.
+#
+# The consequence is visible here and worth sitting with: this step is hopeless, and it is
+# retried anyway, three times, over roughly three seconds. Nothing knows it is hopeless.
+# A retry budget is a bet that the failure was luck, and the bet is paid whether or not it
+# was -- which is why a step that fails deterministically wants max_attempts: 1, and why
+# step-timeout.yaml has no retry at all.
+#
+# The delay is data rather than a sleep. Each failure writes the next attempt's available_at
+# into the future and the worker moves on, so nothing holds a worker slot for the backoff.
+# Watch the attempts on the step: there are three, a second or so apart, each with its own
+# stderr, and the third one settles the step as failed and the run with it.
+#
+# This one uses shell.run, which executes code on the worker and is refused unless the
+# instance allowlists it: export DIRIGENT_ENABLED_UNSAFE_BLOCKS='["shell.run"]', or pass
+# --enable-unsafe shell.run to a local run.
+#
+# Only config is interpolated, so max_attempts below is a literal: a retry budget is part of
+# the pipeline's shape, not something a caller talks the engine into at run time.
+#
+#   dg run --local examples/failure/retry-budget.yaml --enable-unsafe shell.run   # fails after 3 attempts
+
+format: dirigent/v1
+kind: pipeline
+code: retry-budget
+name: Retry budget
+description: |
+  A local command that always exits 1, given three attempts to prove it.
+
+  A non-zero exit is classified `unknown`, and **unknown is retried**: only `rejected`
+  ends a step on its first failure. The budget is spent in full, about a second apart,
+  and then the step fails.
+
+  A retry budget is a bet that the failure was luck. This one loses that bet three times,
+  which is what makes it worth reading.
+
+tags: [failure, execute, retry]
+
+requires:
+  blocks:
+    - shell.run
+
+steps:
+  reconcile:
+    block: shell.run
+    retry:
+      # The budget counts the first try, so 3 here means one attempt and two retries.
+      max_attempts: 3
+      # A second between attempts, doubling, so the whole thing settles in about three
+      # seconds instead of the thirty the default backoff would take.
+      backoff: 1s
+      max_backoff: 4s
+      multiplier: 2.0
+      jitter: 0.1
+    config:
+      # Deterministic: there is no exit code where this succeeds, and the engine has no way
+      # to know that. It prints which attempt it is on, so the three are told apart in logs.
+      command: "echo 'reconcile failed: ledger is short 3 rows' >&2; exit 1"
+
+  # Never reached. The default all_success edge is not satisfied by a step that spent its
+  # budget and failed, and there is no continue_on_failure here to tolerate it -- that is
+  # optional-step.yaml, where the failure is allowed and the branch carries on.
+  settle:
+    block: shell.run
+    depends_on: [reconcile]
+    config:
+      argv: [echo, "only reached if a retry ever worked"]

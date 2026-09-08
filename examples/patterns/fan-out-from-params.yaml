@@ -1,0 +1,84 @@
+# A fan-out whose width comes from the run's parameters.
+#
+# for_each: "${params.regions}" is the form to reach for when the caller decides how much work
+# there is: a backfill over the months somebody names, a load over the regions this tenant
+# has, a re-index of the datasets that moved. The pipeline is one document; the run is three
+# items today and eleven tomorrow.
+#
+# The parameter schema is what keeps that honest. regions below is declared as an array of
+# strings with a minimum length, so a run started with a bare string, an empty list, or a
+# number is refused at the door with the reason -- before a run exists, before an item grid
+# is built, before anything is called. A fan-out over an unvalidated parameter is how a
+# pipeline ends up making one request per character of a string.
+#
+# Expansion happens when the run is CREATED, so the item grid is complete and visible from the
+# start, and the reference may read params, run and item but never an upstream step's output.
+#
+# Hop by hop:
+#
+#   fetch    http.request once per region, with the region in the query string so each item's
+#            call is distinguishable in the log. Postman Echo answers with what it was sent,
+#            so each item's output carries its own region back.
+#   tally    one attempt over the whole list, pulling each item's echoed region out again.
+#
+# EXPECT THIS RUN TO SUCCEED with four items, in a couple of seconds.
+#
+# To change it: pass your own list. A JSON array on the command line is the way a list-typed
+# parameter is written, and dotted keys address nested leaves rather than array indices --
+# writing into a list by index is refused, because a dotted path cannot say how long the array
+# is meant to be.
+#
+#   dg run --local examples/patterns/fan-out-from-params.yaml
+#   dg run --local examples/patterns/fan-out-from-params.yaml -p regions='["east","west"]'
+
+format: dirigent/v1
+kind: pipeline
+code: fan-out-from-params
+name: A fan-out sized by its parameters
+description: |
+  `for_each: "${params.regions}"` lets the caller decide how wide the run is, while the
+  parameter schema keeps that from meaning anything at all.
+
+  Expansion happens when the run is created, so the item grid is complete before the first
+  attempt runs.
+
+tags: [patterns, http, transform, fan-out, params]
+
+requires:
+  blocks:
+    - http.request
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    regions:
+      type: array
+      description: The regions this run loads; one run item per element.
+      default: [east, west, north, south]
+      # The guard that matters. Without items and minItems, -p regions=east would be a
+      # string, and a fan-out over a string is a fan-out over nothing good.
+      minItems: 1
+      maxItems: 32
+      items:
+        type: string
+        minLength: 1
+
+steps:
+  fetch:
+    block: http.request
+    for_each: "${params.regions}"
+    config:
+      url: https://postman-echo.com/get
+      query:
+        # Each item sends its own region, so the log line for one item names the work that
+        # item did rather than the work the step did.
+        region: "${item}"
+
+  tally:
+    block: transform.jq
+    depends_on: [fetch]
+    config:
+      input: "${steps.fetch.output}"
+      program: |
+        {loaded: [.[].json_body.args.region], count: length}

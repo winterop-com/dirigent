@@ -1,0 +1,89 @@
+# A step that prints far more than fits anywhere, to see what the terminal and the UI do.
+#
+# Most examples print one line. Real steps print thousands, and a log viewer that is only
+# ever tested against "hello from dirigent" is not tested. This one emits a few hundred lines
+# of plausible batch output on purpose, so there is something to scroll, search, and wrap.
+#
+# It is also the example that shows what shell.run does with a stream it cannot carry inline.
+# The block returns nine output fields for the two streams, and they answer different
+# questions:
+#
+#   stdout            the HEAD of the stream, cut at the instance's inline capture size
+#   stdout_bytes      how much the command printed altogether, cut or not
+#   stdout_truncated  whether the field above is short of the stream
+#   stdout_uri        where the WHOLE of it was written, never truncated
+#
+# So a downstream step that needs the full output reads stdout_uri and never stdout: the
+# inline copy is a convenience for looking at, and it is the one that lies about length. The
+# same four exist for stderr, which is captured separately -- a run that prints progress to
+# stderr and results to stdout keeps them apart, and this one does exactly that.
+#
+# Lower the instance's inline capture size and the same run starts reporting truncated: true
+# with an unchanged stdout_bytes, which is the pair worth watching.
+#
+# This one uses shell.run, which executes code on the worker and is refused unless the
+# instance allowlists it: export DIRIGENT_ENABLED_UNSAFE_BLOCKS='["shell.run"]', or pass
+# --enable-unsafe shell.run to a local run.
+#
+#   dg run --local examples/execute/long-log.yaml --enable-unsafe shell.run
+#   dg run --local examples/execute/long-log.yaml --enable-unsafe shell.run -p lines=2000
+
+format: dirigent/v1
+kind: pipeline
+code: long-log
+name: Long log
+description: |
+  A step that prints a few hundred lines, so a log viewer has something to do.
+
+  The point is the difference between the four `stdout_*` fields: `stdout` is the **head**
+  of the stream, `stdout_bytes` is its true length, `stdout_truncated` says whether those
+  two disagree, and `stdout_uri` is where the whole of it was written.
+
+  A downstream step that needs all of it reads the URI. The inline copy is for looking at.
+
+tags: [execute]
+
+requires:
+  blocks:
+    - shell.run
+
+params:
+  type: object
+  properties:
+    lines:
+      type: integer
+      description: How many rows the batch pretends to process.
+      default: 400
+      minimum: 1
+      maximum: 100000
+
+steps:
+  process_batch:
+    block: shell.run
+    config:
+      # Progress goes to stderr and results go to stdout, because the two streams are
+      # captured separately and this is what makes that visible rather than merely true.
+      command: |
+        echo "batch starting: ${params.lines} rows" >&2
+        i=1
+        while [ "$i" -le "${params.lines}" ]; do
+          printf 'row %05d  station=st-%03d  celsius=%d.%d  status=accepted\n' \
+            "$i" "$((i % 250))" "$((i % 40 - 10))" "$((i % 10))"
+          if [ "$((i % 100))" -eq 0 ]; then
+            echo "progress: $i rows" >&2
+          fi
+          i=$((i + 1))
+        done
+        echo "batch finished" >&2
+
+  # Reads the measurements rather than the text, which is the honest way to depend on a
+  # stream that may have been cut. stdout_bytes is the whole length even when stdout is not.
+  report_volume:
+    block: shell.run
+    depends_on: [process_batch]
+    config:
+      argv:
+        - echo
+        - "wrote ${steps.process_batch.output.stdout_bytes} bytes to stdout
+          (truncated inline: ${steps.process_batch.output.stdout_truncated}),
+          whole stream at ${steps.process_batch.output.stdout_uri}"

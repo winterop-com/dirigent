@@ -1,0 +1,86 @@
+# The interval a firing covers, rather than the moment it happened at.
+#
+# A schedule answers "when does this start". A window answers "what does this run cover",
+# which is the question a data pipeline actually has: the nightly load at 05:00 is meant to
+# read yesterday, not this instant. Every schedule-fired run carries the interval that just
+# closed -- ${run.window.start} up to but not including ${run.window.end} -- and a step reads
+# it the way it reads a parameter.
+#
+# THE WINDOW IS A PROPERTY OF THE RUN, NOT OF THIS DOCUMENT. Nothing below declares it: the
+# cadence above computes it. So an ad hoc run has to be given one, and a run that carries no
+# window refuses the reference rather than resolving it to an empty string and quietly asking
+# the upstream system for everything it has:
+#
+#   dg run --local examples/triggers/cron-windowed.yaml --window 2026-06-01..2026-06-02
+#   dg apply examples/triggers/cron-windowed.yaml       # against an instance
+#   dg backfill cron-windowed --schedule nightly \
+#       --from 2026-06-01T05:00:00Z --to 2026-06-08T05:00:00Z --dry-run
+#
+# The window derived from a cron cadence is wall-clock, not a fixed 24 hours: in Europe/Oslo
+# the spring-forward night is 23 hours long and the fall-back night is 25, and the pair of
+# instants below says so honestly rather than rounding it away.
+
+format: dirigent/v1
+kind: pipeline
+code: cron-windowed
+name: Windowed daily load
+description: |
+  A nightly schedule whose runs read the **interval that just closed** rather than
+  the instant they started at.
+
+  `${run.window.start}` and `${run.window.end}` are ISO 8601 instants, half-open:
+  the start is included and the end is not, so two consecutive firings tile the
+  timeline without overlapping or leaving a gap.
+
+tags: [triggers, transform, schedule]
+
+requires:
+  blocks:
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    dataset:
+      type: string
+      description: Which dataset the load reads, which the schedule pins for every firing.
+      default: cases
+
+steps:
+  # The query a real extractor would be handed. Half-open is the whole point of writing both
+  # ends: `>= from` and `< to` never double-counts a row that lands exactly on a boundary.
+  query:
+    block: transform.jq
+    config:
+      input:
+        dataset: "${params.dataset}"
+        from: "${run.window.start}"
+        to: "${run.window.end}"
+      program: |
+        {
+          dataset,
+          from,
+          to,
+          predicate: "observed_at >= \(.from) and observed_at < \(.to)"
+        }
+
+  receipt:
+    block: transform.jq
+    depends_on: [query]
+    config:
+      input: "${steps.query.output.value}"
+      program: |
+        {loaded: .dataset, covering: "\(.from)..\(.to)"}
+
+triggers:
+  schedules:
+    - code: nightly
+      name: Nightly, Oslo time
+      description: Reads the day that closed at five this morning.
+      cron: "0 5 * * *"
+      # The zone belongs to the schedule, so the window it derives is a day of Oslo's clock
+      # and not a fixed number of hours. This is what makes the daylight-saving nights come
+      # out right without anything in the steps below knowing that daylight saving exists.
+      timezone: Europe/Oslo
+      params:
+        dataset: cases

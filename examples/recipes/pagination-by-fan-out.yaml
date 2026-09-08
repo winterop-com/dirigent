@@ -1,0 +1,115 @@
+# Fetching several pages at once, with the page numbers as a literal list.
+#
+# In:  a list of page numbers, as a parameter.
+# Out: one HTTP call per page, each with its own status and retry budget, and a fan-in step
+#      that stitches the pages back into one list.
+#
+# for_each is expanded when the run is created, so it reads params.*, item and run.* -- and
+# never another step's output. That is the constraint this recipe is built around, and it
+# cuts both ways:
+#
+#   What you get. The item grid exists from the moment the run is visible, so a person
+#   watching sees six pages and their statuses rather than a step that might turn into six
+#   later. Items run concurrently, each with its own status, error and retry budget, so one
+#   slow page does not serialise the rest and one failed page is recorded against itself.
+#   What you give up. A fan-out whose cardinality depends on what an earlier call returned
+#   is not expressible: this is why the pages are a literal list. When the count really is
+#   unknown, either the first call reports it and a second pipeline is run with it as a
+#   parameter, or the pipeline walks the cursor one call at a time and gives up the
+#   concurrency.
+#
+# items decides what one bad page means. Under the default, fail_fast, any failed item fails
+# the step. Under continue, the step succeeds as long as one item did, the failures are
+# recorded against their own items, and the run reports completed_with_errors -- which is
+# the setting for a report that is worth producing from five pages out of six, and the wrong
+# setting for a load that must be whole.
+#
+# The fan-in reads ${steps.pages.output} -- the list of the items' outputs, in item order --
+# rather than .output.value, which is a field of one item's output and not of the list. Only
+# items that succeeded contribute.
+#
+# https://postman-echo.com/get echoes the query it was given, so each item's response
+# carries its own page number and the stitching is visibly per-page.
+#
+# To change it: -p pages='[1,2]' fetches fewer; -p page_size=10 changes what each call asks
+# for. In a real pipeline the pages usually come from an earlier run's count.
+#
+#   dg run --local examples/recipes/pagination-by-fan-out.yaml
+#   dg run --local examples/recipes/pagination-by-fan-out.yaml -p pages='[1,2]'
+
+format: dirigent/v1
+kind: pipeline
+code: pagination-by-fan-out
+name: Pagination as a fan-out
+description: Fetch a literal list of pages concurrently with for_each, each item its own attempt, then stitch the pages into one list.
+
+tags: [recipes, http, transform, graph]
+
+requires:
+  blocks:
+    - http.request
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    pages:
+      type: array
+      default: [1, 2, 3, 4]
+      items:
+        type: integer
+        minimum: 1
+      description: The page numbers to fetch; one item, and one call, per element.
+    page_size:
+      type: integer
+      minimum: 1
+      default: 25
+      description: What each call asks for.
+    day:
+      type: string
+      format: date
+      default: "2026-01-01"
+      description: The day every page is fetched for.
+
+steps:
+  pages:
+    block: http.request
+    for_each: ${params.pages}
+    # fail_fast: a partial read is not a page of results, it is a gap. A report that is
+    # worth producing from most of its pages says items: continue instead.
+    items: fail_fast
+    # Each item gets this budget of its own, so one flaky page is retried and the rest are
+    # untouched.
+    retry:
+      max_attempts: 3
+      backoff: 1s
+    config:
+      url: https://postman-echo.com/get
+      method: GET
+      query:
+        page: ${item}
+        page_size: ${params.page_size}
+        day: ${params.day}
+      timeout: 20s
+
+  stitch:
+    block: transform.jq
+    depends_on: [pages]
+    config:
+      # The fan-out's output is the list of its items' outputs, in item order.
+      input: ${steps.pages.output}
+      program: |
+        . as $items
+        | [$items[]
+           | {page: (.json_body.args.page | tonumber),
+              status: .status,
+              duration_ms: .duration_ms,
+              url: .json_body.url}] as $fetched
+        | {pages: ($fetched | length),
+           # In item order, which is the order the pages were asked for and not the order
+           # they came back in.
+           page_numbers: [$fetched[].page],
+           ordered: ([$fetched[].page] == ([$fetched[].page] | sort)),
+           slowest_ms: ([$fetched[].duration_ms] | max),
+           total_ms: ([$fetched[].duration_ms] | add),
+           fetched: $fetched}

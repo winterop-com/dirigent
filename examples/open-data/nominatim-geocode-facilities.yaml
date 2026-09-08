@@ -1,0 +1,168 @@
+# A short list of facility names turned into coordinates, one request per second, as asked.
+#
+# Nominatim is OpenStreetMap's geocoder, public and keyless: GET /search?q=...&format=jsonv2
+# answers a list of candidates, best first, each with `lat` and `lon` as strings, a
+# `display_name`, a `category`/`type` pair saying what kind of thing it matched, and an
+# `importance` score. An empty list is the honest answer for a name it cannot place.
+#
+# The usage policy is the design constraint here, not the API. The public instance allows one
+# request per second from one client and asks for a User-Agent that identifies the application.
+# A fan-out would send every name at once, which is the polite way to get blocked, so the
+# lookups are written out as a chain with a `time.sleep` between them: the rate limit is in the
+# shape of the graph, where it is visible, rather than in a comment nobody enforces. Three names
+# is what a chain is good for; a list of three hundred belongs on your own Nominatim, and then
+# it is a fan-out.
+#
+# What happens, hop by hop:
+#
+#   facilities  the input, written into the document with value.const. It is a list of objects
+#             rather than strings, so a name a person recognises and the query string sent to
+#             the geocoder can differ -- which they always end up doing.
+#   lookup_*  one search each, indexed out of that list. A geocoder cannot promise a match, so
+#             each of these tolerates failure: continue_on_failure means a name that cannot be
+#             resolved leaves a row with no coordinates instead of ending the run.
+#   pause_*   one second, which is the whole point of the chain.
+#   table     the join. Each result is read back, the first candidate taken, and the strings
+#             Nominatim returns for lat and lon turned into numbers -- a coordinate that has
+#             to be parsed before it can be compared is not a coordinate.
+#
+# To make it yours: replace the value.const list, and set user_agent to something that says who
+# you are. Any name that resolves ambiguously is worth sending with more context in `query`:
+# Nominatim reads "Central Hospital, Lilongwe, Malawi" far better than "Central Hospital".
+#
+#   dg run --local examples/open-data/nominatim-geocode-facilities.yaml
+
+format: dirigent/v1
+kind: pipeline
+code: nominatim-geocode-facilities
+name: Geocode facilities with Nominatim
+description: |
+  A handful of facility names geocoded through **Nominatim**, one request per second, joined
+  into one table of coordinates.
+
+  The rate limit is expressed as the shape of the graph: a chain with a `time.sleep` between
+  the lookups, not a fan-out.
+
+tags: [open-data, http, sensor, transform, geocode]
+
+requires:
+  blocks:
+    - value.const
+    - http.request
+    - time.sleep
+    - transform.jq
+
+params:
+  type: object
+  additionalProperties: false
+  properties:
+    user_agent:
+      type: string
+      default: dirigent-example/1.0 (https://github.com/winterop-com/dirigent)
+      description: Required by the usage policy; identify the application and how to reach you.
+    country_codes:
+      type: string
+      default: mw
+      description: ISO 3166-1 alpha-2 codes, comma-separated, that the search is confined to.
+
+steps:
+  facilities:
+    block: value.const
+    config:
+      # The list the run works from. `name` is what the output is keyed by and `query` is what
+      # is asked, because the name a register holds is rarely the string a geocoder wants.
+      value:
+        - name: Kamuzu Central Hospital
+          query: Kamuzu Central Hospital, Lilongwe, Malawi
+        - name: Queen Elizabeth Central Hospital
+          query: Queen Elizabeth Central Hospital, Blantyre, Malawi
+        - name: Mzuzu Central Hospital
+          query: Mzuzu Central Hospital, Mzuzu, Malawi
+
+  lookup_1:
+    block: http.request
+    depends_on: [facilities]
+    # A name the geocoder cannot place is a fact about the name, not a broken pipeline; the
+    # chain carries on and the table below records the gap.
+    continue_on_failure: true
+    config:
+      url: https://nominatim.openstreetmap.org/search
+      headers:
+        User-Agent: ${params.user_agent}
+      query:
+        q: ${steps.facilities.output.value.0.query}
+        # jsonv2 rather than json: it is the current shape, and it names the match's category
+        # and type, which is how you tell a hospital from a bus stop called after one.
+        format: jsonv2
+        limit: 1
+        countrycodes: ${params.country_codes}
+
+  pause_1:
+    block: time.sleep
+    depends_on: [lookup_1]
+    # The policy is one request per second from one client, so the wait sits between the
+    # requests and not beside them.
+    config:
+      for: 1s
+
+  lookup_2:
+    block: http.request
+    depends_on: [pause_1]
+    continue_on_failure: true
+    config:
+      url: https://nominatim.openstreetmap.org/search
+      headers:
+        User-Agent: ${params.user_agent}
+      query:
+        q: ${steps.facilities.output.value.1.query}
+        format: jsonv2
+        limit: 1
+        countrycodes: ${params.country_codes}
+
+  pause_2:
+    block: time.sleep
+    depends_on: [lookup_2]
+    config:
+      for: 1s
+
+  lookup_3:
+    block: http.request
+    depends_on: [pause_2]
+    continue_on_failure: true
+    config:
+      url: https://nominatim.openstreetmap.org/search
+      headers:
+        User-Agent: ${params.user_agent}
+      query:
+        q: ${steps.facilities.output.value.2.query}
+        format: jsonv2
+        limit: 1
+        countrycodes: ${params.country_codes}
+
+  table:
+    block: transform.jq
+    depends_on: [lookup_3]
+    config:
+      input:
+        facilities: ${steps.facilities.output.value}
+        answers:
+          - ${steps.lookup_1.output.json_body}
+          - ${steps.lookup_2.output.json_body}
+          - ${steps.lookup_3.output.json_body}
+      # lat and lon arrive as strings; tonumber here is what stops every later consumer from
+      # guessing. A name with no candidate keeps its row, with nulls where the coordinate
+      # would be, so the gap is countable.
+      program: |
+        [range(.facilities | length) as $i
+         | .facilities[$i] as $facility
+         | (.answers[$i][0] // null) as $hit
+         | {
+             name: $facility.name,
+             query: $facility.query,
+             matched: ($hit != null),
+             display_name: ($hit.display_name // null),
+             category: ($hit.category // null),
+             kind: ($hit.type // null),
+             latitude: (if $hit then ($hit.lat | tonumber) else null end),
+             longitude: (if $hit then ($hit.lon | tonumber) else null end)
+           }]

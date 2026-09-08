@@ -1,0 +1,21 @@
+"""Tests for the {name} pack's wiring and its first operator."""
+
+from dirigent_{name} import plugin
+from dirigent_{name}.{name} import HelloOperator, HelloOutput
+from dirigent_plugin import PROJECT_NAME, contribute, markers
+from dirigent_testing import FakeContext, call_block
+from pluginkit import PluginManager
+
+
+def test_the_pack_registers_through_a_plugin_manager() -> None:
+    manager = PluginManager(PROJECT_NAME)
+    manager.add_extension_points(markers)
+    manager.register(plugin, name="{name}")
+    collected = [contribution.block_ids() for contribution in manager.caller(contribute)()]
+    assert collected == [["{name}.hello"]]
+
+
+async def test_hello_says_hello(block_ctx: FakeContext) -> None:
+    output = await call_block(HelloOperator(), {{"greeting": "greetings"}}, block_ctx)
+    assert isinstance(output, HelloOutput)
+    assert output.message == "greetings from {name}"

@@ -1,0 +1,79 @@
+# for_each as a literal list: the smallest fan-out there is.
+#
+# for_each takes one of two things: a reference to a list, or a list written out in the
+# document. This file is the second, which is the right form when the elements are part of the
+# pipeline's shape rather than part of a run's input -- the three environments you deploy to,
+# the four quarters, the fixed set of feeds. Nobody should have to pass those in to get an
+# ordinary run.
+#
+# What a fan-out actually is: one step definition, N run items, one attempt each, all of them
+# claimable at once. The item grid exists from the moment the run is visible, because
+# for_each is expanded when the run is CREATED. That has a consequence worth knowing before
+# you reach for it: for_each may read params, run and item, but never another step's output,
+# because the cardinality has to be known before anything executes. A fan-out over a list
+# fetched at run time is not expressible, and that is deliberate rather than missing.
+#
+# Hop by hop:
+#
+#   greet    transform.jq, once per name in the literal list. ${item} is the element, and
+#            here that is a plain string.
+#   collect  runs ONCE, not once per item, because it has no for_each of its own. It reads
+#            ${steps.greet.output}, which is the list of the items' outputs in item order.
+#
+# EXPECT THIS RUN TO SUCCEED in about a second. Nothing here touches the network or runs code
+# on the worker, so it needs no allowlist and no connection.
+#
+# To change it: fan-out-from-params.yaml is the same shape with the list supplied by the
+# caller, and fan-out-nested-objects.yaml is the same shape with objects as elements.
+#
+#   dg run --local examples/patterns/fan-out-literal-list.yaml
+
+format: dirigent/v1
+kind: pipeline
+code: fan-out-literal-list
+name: A fan-out over a literal list
+description: |
+  `for_each` written as a list in the document: one step definition, one run item per
+  element, all claimable at once.
+
+  A literal list is the right form when the elements are part of the pipeline's shape
+  rather than part of a run's input.
+
+tags: [patterns, transform, fan-out, graph]
+
+requires:
+  blocks:
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    greeting:
+      type: string
+      description: The word each item is greeted with; it is the same for every item.
+      default: hei
+
+steps:
+  greet:
+    block: transform.jq
+    # Written out here rather than referenced, because these three are what this pipeline is
+    # about. A list that changes per run belongs in params instead.
+    for_each: [oslo, bergen, tromso]
+    config:
+      input:
+        # ${item} is this run item's element. It is only in scope inside a step that fans
+        # out; anywhere else it is an unknown reference and the attempt is rejected.
+        city: "${item}"
+        greeting: "${params.greeting}"
+      program: |
+        {city, line: "\(.greeting), \(.city)"}
+
+  collect:
+    block: transform.jq
+    depends_on: [greet]
+    # One attempt, not three. A step joins a fan-out simply by having no for_each of its own.
+    config:
+      # The list of the items' outputs, in item order.
+      input: "${steps.greet.output}"
+      program: |
+        {lines: [.[].value.line], cities: length}

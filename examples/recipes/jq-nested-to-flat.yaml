@@ -1,0 +1,89 @@
+# Flatten deeply nested records into flat ones a csv or a parquet writer will accept.
+#
+# In:  records with nested objects and a list -- {id, site: {name, coords: {lat, lon}},
+#      tags: [...]}.
+# Out: flat records whose keys are the joined paths -- site.name, site.coords.lat, tags.
+#
+# Every row-oriented sink here refuses a nested value rather than writing it as text:
+# convert.std says so naming the row and the key, and convert.arrow says the same about a
+# parquet column. Flattening is therefore not a nicety before a csv, it is the step that
+# makes the csv possible at all.
+#
+# paths is the whole recipe. It emits the path to every leaf of a value, as an array of
+# keys, and getpath reads the value at one -- so join(".") is the single place that decides
+# what a flattened key looks like, and changing the separator is changing that one string.
+#
+# The predicate handed to paths is where a boolean column goes missing. paths(f) keeps a
+# path when f answers a truthy value, and for a cell holding false the tidy-looking
+# paths(scalars) answers false -- so the row silently loses the column. Writing the
+# predicate as a type comparison keeps it, and st-2's active: false in the output is the
+# proof.
+#
+# Lists are the case worth deciding rather than defaulting. paths walks into them too, which
+# would give tags.0 and tags.1 -- columns that move whenever an element is inserted. So the
+# list-valued fields are pulled out first and joined into one cell, by the step that knows
+# what the separator should be, and everything left flattens by path.
+#
+# To change it: -p separator=__ changes the joined key, which some warehouse loaders prefer
+# to a dot they would otherwise have to quote.
+#
+#   dg run --local examples/recipes/jq-nested-to-flat.yaml
+#   dg run --local examples/recipes/jq-nested-to-flat.yaml -p separator=__
+
+format: dirigent/v1
+kind: pipeline
+code: jq-nested-to-flat
+name: Flatten nested records
+description: Flatten nested records into joined-path keys, with list fields collapsed into one cell rather than indexed columns.
+
+tags: [recipes, transform, jq]
+
+requires:
+  blocks:
+    - value.const
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    separator:
+      type: string
+      default: "."
+      description: What joins the path segments of a flattened key.
+
+steps:
+  nested:
+    block: value.const
+    config:
+      value:
+        - id: st-1
+          site: { name: Harbour, coords: { lat: 59.91, lon: 10.75 } }
+          tags: [coastal, tidal]
+          active: true
+        - id: st-2
+          site: { name: Ridge, coords: { lat: 60.39, lon: 5.32 } }
+          tags: [alpine]
+          active: false
+
+  flat:
+    block: transform.jq
+    depends_on: [nested]
+    config:
+      input:
+        rows: ${steps.nested.output.value}
+        separator: ${params.separator}
+      program: |
+        . as {$rows, $separator}
+        | [$rows[]
+           # The list-valued fields are collapsed before the walk, so a new element never
+           # adds a column.
+           | (to_entries | map(select(.value | type == "array"))
+              | map({key: .key, value: (.value | join(","))}) | from_entries) as $lists
+           | (to_entries | map(select(.value | type != "array")) | from_entries) as $rest
+           # paths(f) keeps a path when f answers a truthy value, so paths(scalars) drops
+           # every leaf that is itself false. The predicate is written as a comparison so a
+           # false cell survives the flattening.
+           | ([$rest | paths(type | . != "object" and . != "array") as $p
+               | {key: ($p | join($separator)), value: getpath($p)}]
+              | from_entries)
+             + $lists]

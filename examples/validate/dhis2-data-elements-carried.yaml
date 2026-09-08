@@ -1,0 +1,65 @@
+# Verify DHIS2 data-element metadata against a schema carried in the document.
+#
+# The fields= projection asks for id, name, valueType and domainType, and the carried schema
+# pins the id to the DHIS2 UID pattern and valueType and domainType to the enums DHIS2 uses --
+# so a value outside the known set, not just a missing field, is caught at the boundary. The
+# shape travels in the document's own top-level schemas: section, so the whole thing runs on
+# its own with no schema to hand it. The paired dhis2-data-elements-named.yaml runs the very
+# same check against a schema the instance holds: only the schema's location differs.
+#
+#   dg run --local examples/validate/dhis2-data-elements-carried.yaml
+
+format: dirigent/v1
+kind: pipeline
+code: dhis2-data-elements-carried
+name: Data elements, checked against a carried schema
+description: Fetch DHIS2 data elements with a fields projection, and validate their types against a carried schema.
+
+tags: [validate, http]
+
+requires:
+  blocks:
+    - http.request
+    - validate.schema
+
+connections:
+  dhis2-demo:
+    kind: http
+    config:
+      base_url: https://play.im.dhis2.org/stable-2-43-1
+      basic_username: admin
+      basic_password: district
+      timeout: 1m
+
+schemas:
+  dhis2-data-elements:
+    type: object
+    required: [dataElements]
+    properties:
+      dataElements:
+        type: array
+        items:
+          type: object
+          required: [id, name, valueType, domainType]
+          properties:
+            id: { type: string, pattern: "^[A-Za-z][A-Za-z0-9]{10}$" }
+            name: { type: string }
+            domainType: { enum: [AGGREGATE, TRACKER] }
+            valueType: { enum: [NUMBER, INTEGER, TEXT, LONG_TEXT, BOOLEAN, DATE, DATETIME, PERCENTAGE] }
+
+steps:
+  fetch:
+    block: http.request
+    config:
+      connection: dhis2-demo
+      path: /api/dataElements.json
+      method: GET
+      query:
+        fields: id,name,valueType,domainType
+        paging: false
+  check:
+    block: validate.schema
+    depends_on: [fetch]
+    config:
+      input: ${steps.fetch.output.json_body}
+      schema: dhis2-data-elements

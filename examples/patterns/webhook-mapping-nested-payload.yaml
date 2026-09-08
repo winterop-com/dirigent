@@ -1,0 +1,125 @@
+# An inbound webhook, and the strict mapping that is the whole of its interface.
+#
+# A webhook declares one thing: which JSONPath in the delivered payload becomes which
+# parameter. That mapping is the entire attack surface, and it is strict in both directions:
+#
+#   * Anything the payload carries that is not named here is IGNORED. A caller who adds a
+#     field, or fifty, changes nothing about the run.
+#   * A parameter the mapping does not name cannot be reached at all, whatever is POSTed. So
+#     environment below is unreachable from outside and keeps its default -- which is how a
+#     webhook is exposed without letting the internet choose which environment to write to.
+#   * What is mapped is validated against params like any other run's parameters. A payload
+#     with a batch_size of 10000000 is refused by the schema, not by a step.
+#
+# The paths are JSONPath into the delivered body, so a nested payload needs no unwrapping step:
+# $.published.date reaches two levels down, and $.source.system.name three. Reshaping the
+# payload inside the pipeline would be doing at run time what the mapping already does at
+# intake, one layer later and with worse errors.
+#
+# WHAT STAYS ON THE INSTANCE. The token is minted server-side and shown exactly once. It is
+# not in this file, it will not be in an export, and there is nowhere in dirigent/v1 to write
+# one. The same is true of whether the endpoint is enabled and of the delivery history: those
+# are facts about one instance, so an apply never touches them.
+#
+# Hop by hop:
+#
+#   ingest   shapes the mapped parameters into the record a loader would be handed.
+#   receipt  reads it back, standing in for the work.
+#
+# EXPECT THIS RUN TO SUCCEED in about a second, on the pipeline's defaults -- the webhook
+# accepts deliveries only on an instance the document has been applied to.
+#
+#   dg run --local examples/patterns/webhook-mapping-nested-payload.yaml
+#   dg apply examples/patterns/webhook-mapping-nested-payload.yaml
+#   dg webhook list webhook-mapping-nested-payload
+#   dg webhook rotate-token webhook-mapping-nested-payload upstream-publish   # shows a token once
+#   curl -X POST "$DG_URL/hooks/$TOKEN" -H 'content-type: application/json' -d '{
+#     "published": {"date": "2026-01-01", "dataset": {"code": "cases"}},
+#     "source": {"system": {"name": "warehouse"}},
+#     "counts": {"rows": 4120},
+#     "anything_else": "ignored"
+#   }'
+#   dg webhook deliveries webhook-mapping-nested-payload upstream-publish
+
+format: dirigent/v1
+kind: pipeline
+code: webhook-mapping-nested-payload
+name: A webhook mapped from a nested payload
+description: |
+  `params_from_payload` maps JSONPaths in the delivered body onto parameters, and that
+  mapping is the whole interface: unmapped fields are ignored, unmapped parameters are
+  unreachable, and what is mapped is validated like any other run's parameters.
+
+  The token, the enabled flag and the delivery history stay on the instance; none of them
+  belongs in git.
+
+tags: [patterns, transform, webhook]
+
+requires:
+  blocks:
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    day:
+      type: string
+      format: date
+      description: The day the upstream published; mapped from the payload.
+      default: "2026-01-01"
+    dataset:
+      type: string
+      description: Which dataset was published; mapped from two levels down.
+      default: cases
+      enum: [cases, climate, population]
+    source:
+      type: string
+      description: Which upstream system published it; mapped from three levels down.
+      default: warehouse
+      minLength: 1
+      maxLength: 64
+    rows:
+      type: integer
+      description: How many rows the upstream says it published; bounded, so a delivery cannot claim anything.
+      default: 0
+      minimum: 0
+      maximum: 10000000
+    environment:
+      type: string
+      description: Deliberately absent from the mapping, so no delivery can choose it.
+      default: staging
+      enum: [staging, production]
+
+steps:
+  ingest:
+    block: transform.jq
+    config:
+      input:
+        day: "${params.day}"
+        dataset: "${params.dataset}"
+        source: "${params.source}"
+        rows: "${params.rows}"
+        environment: "${params.environment}"
+      program: |
+        {day, dataset, source, rows, environment}
+
+  receipt:
+    block: transform.jq
+    depends_on: [ingest]
+    config:
+      input: "${steps.ingest.output.value}"
+      program: |
+        {ingested: "\(.dataset) for \(.day) from \(.source)", rows, environment}
+
+triggers:
+  webhooks:
+    - code: upstream-publish
+      name: Upstream publish notification
+      description: Fired by the warehouse when a dataset finishes publishing.
+      params_from_payload:
+        # One line per parameter, each a JSONPath into the delivered body. Depth costs
+        # nothing; a field the mapping does not name is not reachable at any depth.
+        day: "$.published.date"
+        dataset: "$.published.dataset.code"
+        source: "$.source.system.name"
+        rows: "$.counts.rows"

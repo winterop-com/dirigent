@@ -1,0 +1,105 @@
+# POST a file that lives in storage, without ever holding it in a step output.
+#
+# In:  a table of readings generated inline and written to the run's scratch space.
+# Out: the echo service's view of the upload -- the size it received and the content type it
+#      was told -- beside the size the block reported sending.
+#
+# body_from is the sending half of save_to. Where save_to streams a response into storage,
+# body_from streams an object out of it and onto the wire, a chunk at a time, so a file
+# larger than the worker's memory is an upload rather than a dead worker. What travels
+# between the two steps below is the URI, not the bytes.
+#
+# Three things follow from that, and they are the reason this is a different field rather
+# than `body` pointed at a file:
+#
+#   the size      storage knows how big the object is, so the request carries a real
+#                 Content-Length and the receiver can refuse it before reading a byte.
+#   the type      a file on disk carries no content type, so content_type says what the
+#                 bytes are. An object store that records one answers for itself, and then
+#                 this line can go.
+#   the count     the step's output carries sent_bytes, which is what actually went out --
+#                 counted on the way past, not read off the file a second time.
+#
+# body_from is a body like body, text and form, and the block takes exactly one: naming two
+# is refused when the document is applied rather than at the call.
+#
+# A missing object is a rejected step, not a retried one. The file the upstream step was
+# supposed to write is not there, and calling again cannot make it appear -- which is why
+# the URI is spelled ${steps.build.output.output_uri} rather than typed twice.
+#
+# To change it: point the write at s3://<bucket>/... and the upload follows it, because the
+# scheme is the only thing that changes.
+#
+#   dg run --local examples/recipes/http-post-file-from-storage.yaml
+#   dg run --local examples/recipes/http-post-file-from-storage.yaml -p stations=500
+
+format: dirigent/v1
+kind: pipeline
+code: http-post-file-from-storage
+name: POST a file straight from storage
+description: Write a file into the run's scratch space, then stream it to an endpoint with body_from instead of inlining it as a body.
+
+tags: [recipes, http, storage, transform]
+
+requires:
+  blocks:
+    - transform.jq
+    - http.request
+
+params:
+  type: object
+  properties:
+    day:
+      type: string
+      format: date
+      default: "2026-01-01"
+      description: The day the uploaded file is named for.
+    stations:
+      type: integer
+      minimum: 1
+      default: 40
+      description: How many rows the file holds, which is what makes it big enough to matter.
+
+steps:
+  build:
+    block: transform.jq
+    config:
+      input:
+        count: ${params.stations}
+        day: ${params.day}
+      program: |
+        . as {$count, $day}
+        | {day: $day,
+           readings: [range($count)
+                      | {station: "st-\(.)", celsius: (. % 17) - 5}]}
+      # The file, not a value: this step's output carries output_uri and output_bytes.
+      save_to: ${run.scratch}/readings-${params.day}.json
+
+  upload:
+    block: http.request
+    depends_on: [build]
+    config:
+      url: https://postman-echo.com/post
+      method: POST
+      # The object is streamed from here onto the wire. Nothing reads it into the step.
+      body_from: ${steps.build.output.output_uri}
+      # A file on disk carries no content type, so the document says what the bytes are.
+      content_type: application/json
+      timeout: 30s
+
+  receipt:
+    block: transform.jq
+    depends_on: [build, upload]
+    config:
+      input:
+        written: ${steps.build.output.output_bytes}
+        sent: ${steps.upload.output.sent_bytes}
+        echoed: ${steps.upload.output.json_body}
+      program: |
+        {written, sent,
+         # What the receiver was told the body was, and how much of it arrived.
+         content_type: .echoed.headers["content-type"],
+         received: (.echoed.headers["content-length"] | tonumber),
+         rows: (.echoed.json.readings | length),
+         # The file, the request and the receiver all agree on one number.
+         intact: (.written == .sent and .sent == (.echoed.headers["content-length"] | tonumber))}

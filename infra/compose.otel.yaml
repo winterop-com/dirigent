@@ -1,0 +1,88 @@
+# Telemetry: a collector, Prometheus for metrics, Tempo for traces, Grafana to look at both.
+#
+#   docker compose --env-file .env --project-directory . \
+#     -f infra/compose.yaml -f infra/compose.otel.yaml up --build -d --wait
+#
+# Then open http://127.0.0.1:3300 and pick the "Dirigent" dashboard. Nothing scrapes
+# dirigent: every process pushes OTLP to the collector, which is the only thing Prometheus
+# scrapes.
+#
+# Tear it down with the same file list and `down -v`.
+
+name: dirigent
+
+services:
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.149.0@sha256:0fba96233274f6d665ac8831ad99dfe6479a9a20459f6e2719c0d20945773b46
+    restart: unless-stopped
+    command: ["--config=/etc/otel/collector.yaml"]
+    volumes:
+      - ./infra/otel/collector.yaml:/etc/otel/collector.yaml:ro
+    depends_on:
+      tempo:
+        condition: service_started
+
+  prometheus:
+    image: prom/prometheus:v3.10.0@sha256:4a61322ac1103a0e3aea2a61ef1718422a48fa046441f299d71e660a3bc71ae9
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yaml
+      - --storage.tsdb.path=/prometheus
+    volumes:
+      - ./infra/otel/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
+      - prometheus:/prometheus
+
+  tempo:
+    image: grafana/tempo:2.10.1@sha256:9371af1b75b4e057eb77f22dc4dd4d9176cd6985e29f181527be6723b7f29c41
+    restart: unless-stopped
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    # The image runs as an unprivileged user that does not own a fresh named volume.
+    user: root
+    volumes:
+      - ./infra/otel/tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo:/var/tempo
+
+  grafana:
+    image: grafana/grafana:12.4.1@sha256:e932bd6ed0e026595b08483cd0141e5103e1ab7ff8604839ff899b8dc54cabcb
+    restart: unless-stopped
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+    volumes:
+      - ./infra/otel/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/otel/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana:/var/lib/grafana
+    ports:
+      # 3333 is the server and 3334 the docs, so Grafana takes 3300.
+      - "127.0.0.1:${GRAFANA_PORT:-3300}:3000"
+    depends_on:
+      prometheus:
+        condition: service_started
+      tempo:
+        condition: service_started
+
+  # Only the keys that differ from compose.yaml: compose merges the rest.
+  server:
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_METRICS_EXPORTER: otlp
+      OTEL_METRIC_EXPORT_INTERVAL: "15000"
+    depends_on:
+      otel-collector:
+        condition: service_started
+
+  worker:
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_METRICS_EXPORTER: otlp
+      OTEL_METRIC_EXPORT_INTERVAL: "15000"
+    depends_on:
+      otel-collector:
+        condition: service_started
+
+volumes:
+  prometheus:
+  tempo:
+  grafana:

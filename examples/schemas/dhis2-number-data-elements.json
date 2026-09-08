@@ -1,0 +1,21 @@
+{
+  "$id": "dhis2-number-data-elements",
+  "title": "DHIS2 NUMBER data elements",
+  "description": "The shape a GET /api/dataElements.json?fields=id,name,valueType&filter=valueType:eq:NUMBER returns: a dataElements array whose every item is NUMBER-valued, so an element of any other type is caught here rather than read downstream as if it were a number.",
+  "type": "object",
+  "required": ["dataElements"],
+  "properties": {
+    "dataElements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "valueType"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9]{10}$" },
+          "name": { "type": "string" },
+          "valueType": { "type": "string", "enum": ["NUMBER"] }
+        }
+      }
+    }
+  }
+}

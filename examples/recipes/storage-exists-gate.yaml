@@ -1,0 +1,108 @@
+# Wait for an object before reading it, and set the floor that stops a half-written file
+# being read.
+#
+# In:  a file this pipeline writes itself, so the sensor has something to find.
+# Out: the file's URI, size and modification time from the sensor, and a summary read from
+#      it afterwards.
+#
+# storage.exists is a sensor, not an operator. It observes and changes nothing, each poke is
+# one cheap head request, and "not yet" is the expected answer rather than a failure. While
+# it waits, the run holds no worker: it parks and is poked again on the schedule the step
+# sets.
+#
+# The three knobs are step-level engine semantics, uniform across every sensor and never
+# inside a block's config:
+#
+#   poll        how often to look. Seconds here because the file is already there; minutes
+#               is the honest setting for a drop somebody else produces.
+#   deadline    how long to keep looking before giving up. A sensor without one waits 24h.
+#   on_timeout  what a deadline means. `skip` says nobody dropped a file inside the window,
+#               which is a quiet day rather than a broken pipeline, and the steps below skip
+#               with it. `fail` says the drop was promised, and its absence is an incident.
+#
+# min_size is the one that saves a real pipeline. A producer uploading a large object makes
+# the key visible before the bytes are all there, so a sensor without a floor hands a
+# truncated file to the reader below it. The floor is set to what the smallest legitimate
+# file could be, never to what a typical one is.
+#
+# The uri may glob in its final segments, so `${run.scratch}/drops/*.json` waits for
+# whichever file arrives; the sensor's output names the one it actually found, which is why
+# the reader below reads ${steps.dropped.output.uri} and not the pattern.
+#
+# To change it: point uri at a drop somebody else writes and raise the deadline; with
+# on_timeout: skip that run ends green having done nothing, which is what a quiet day
+# should look like.
+#
+#   dg run --local examples/recipes/storage-exists-gate.yaml
+#   dg run --local examples/recipes/storage-exists-gate.yaml -p min_size=1mb   # skips: no file is that big
+
+format: dirigent/v1
+kind: pipeline
+code: storage-exists-gate
+name: Wait for an object, then read it
+description: Park on a storage.exists sensor with a size floor and a deadline, then read whatever file the sensor reports it found.
+
+tags: [recipes, sensor, storage, transform]
+
+requires:
+  blocks:
+    - transform.jq
+    - storage.exists
+
+params:
+  type: object
+  properties:
+    day:
+      type: string
+      format: date
+      default: "2026-01-01"
+      description: The day the drop is named for.
+    min_size:
+      type: string
+      default: 32b
+      description: The floor that stops a half-written object being read. 1mb makes this run skip.
+
+steps:
+  produce:
+    block: transform.jq
+    config:
+      input:
+        day: ${params.day}
+      program: |
+        {day: .day, readings: [range(8) | {station: "st-\(.)", celsius: (. - 3)}]}
+      save_to: ${run.scratch}/drops/${params.day}.json
+
+  dropped:
+    block: storage.exists
+    depends_on: [produce]
+    poll: 2s
+    deadline: 30s
+    # A missing drop is a quiet day: the run ends green with this and everything below it
+    # skipped, rather than raising an incident nobody can act on.
+    on_timeout: skip
+    config:
+      # A glob, so whichever file lands that day is found; the sensor reports which.
+      uri: ${run.scratch}/drops/*.json
+      min_size: ${params.min_size}
+
+  read:
+    block: transform.jq
+    depends_on: [dropped]
+    config:
+      # The file the sensor found, not the pattern it was given.
+      input_uri: ${steps.dropped.output.uri}
+      program: |
+        {day, rows: (.readings | length),
+         warmest: (.readings | max_by(.celsius) | .station)}
+
+  receipt:
+    block: transform.jq
+    depends_on: [dropped, read]
+    config:
+      input:
+        uri: ${steps.dropped.output.uri}
+        size: ${steps.dropped.output.size}
+        modified_at: ${steps.dropped.output.modified_at}
+        summary: ${steps.read.output.value}
+      program: |
+        {found: .uri, size_bytes: .size, modified_at, summary}

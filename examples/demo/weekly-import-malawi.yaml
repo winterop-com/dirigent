@@ -1,0 +1,54 @@
+# The other half of the shared-name pair; weekly-import-nepal.yaml carries the explanation.
+#
+# Both documents declare `name: Weekly import`. Applying both leaves an instance holding two
+# pipelines with the same title and different codes, which is exactly the situation the
+# naming rules allow and the screens are drawn to survive.
+#
+# Kept as a separate file because a dirigent document holds exactly one pipeline. That is
+# also why composition is two files, and why a schedule example carries its own pipeline.
+#
+#   dg apply examples/demo/weekly-import-malawi.yaml
+#   dg run weekly-import-malawi -p week=2026-W02
+
+format: dirigent/v1
+kind: pipeline
+code: weekly-import-malawi
+# The same title as weekly-import-nepal.yaml, on purpose.
+name: Weekly import
+description: |
+  The Malawi half of a deliberately ambiguous pair.
+
+  Same display name as `weekly-import-nepal`, different `code`. The listing shows one title
+  twice and two codes once each, which is how a person tells them apart and how every
+  reference already did.
+
+tags: [demo, transform]
+
+requires:
+  blocks:
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    week:
+      type: string
+      description: The ISO week being imported.
+      default: 2026-W01
+
+steps:
+  read_manifest:
+    block: transform.jq
+    config:
+      input:
+        country: malawi
+        week: "${params.week}"
+        districts: [balaka, chikwawa, dedza, karonga, mzimba, salima, zomba]
+      program: "{country, week, districts: (.districts | length)}"
+
+  summarise:
+    block: transform.jq
+    depends_on: [read_manifest]
+    config:
+      input: "${steps.read_manifest.output.value}"
+      program: "{note: \"\\(.country) \\(.week): \\(.districts) districts imported\"}"

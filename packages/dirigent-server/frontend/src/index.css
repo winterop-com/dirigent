@@ -1,0 +1,1446 @@
+/* Tailwind v4 is CSS-first: there is no tailwind.config.js in this project and there must
+   not be one. Everything the design system has is declared here -- the theme tokens under
+   `@theme inline`, the palettes as custom properties, and the one custom variant the shadcn
+   primitives compile against.
+
+   Order matters. `tailwindcss` first so the layers exist; `tw-animate-css` and
+   `shadcn/tailwind.css` next because the base-nova primitives reference their utilities; the
+   font faces last, because they add no utilities and only need to be present before paint. */
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+@import '@xyflow/react/dist/style.css';
+@import '@fontsource-variable/ibm-plex-sans';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/500.css';
+@import '@fontsource/ibm-plex-mono/600.css';
+
+/* next-themes is mounted with attribute="class", so the dark palette hangs off a `.dark`
+   ancestor rather than a media query. That is what lets the toggle win over the system
+   preference in both directions. */
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+    --font-heading: var(--font-sans);
+    /* IBM Plex: mono carries ids, cursors, block ids, cron expressions and durations -- the
+       strings read character by character rather than skimmed. */
+    --font-sans: 'IBM Plex Sans Variable', 'IBM Plex Sans', system-ui, sans-serif;
+    --font-mono: 'IBM Plex Mono', 'SF Mono', Menlo, Consolas, monospace;
+
+    /* THREE TYPE SIZES, AND ONLY THREE. 12px for chips, badges, counts and metadata; 14px
+       for any sentence; 16px for a page heading. `scripts/check_ui_classes.py` fails the
+       gate on a fourth, whether it is written `text-[13px]` or `text-lg`. */
+    --text-xs: 0.75rem;
+    --text-xs--line-height: 1.125rem;
+    --text-sm: 0.875rem;
+    --text-sm--line-height: 1.25rem;
+    --text-base: 1rem;
+    --text-base--line-height: 1.5rem;
+
+    /* THE SHELL'S TWO STRIPS, AND EVERY COLUMN WEARS THE SAME ONE. The rail, the content and
+       the right panel each draw their own top row and the rail and the content each draw
+       their own foot, so the border between the strip and the work is one unbroken rule
+       across the width of the app only if all of them are exactly this tall. A column that
+       sized its strip to what happens to be in it is a step in the edge of the window. */
+    --spacing-shell-top: 46px;
+    --spacing-shell-foot: 46px;
+
+    /* The radius ladder, stated rather than derived: 4 for a chip, 6 for a control and a
+       card, 8 for a panel. */
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 6px;
+    --radius-xl: 6px;
+    --radius-2xl: 6px;
+    --radius-3xl: 8px;
+    --radius-4xl: 8px;
+
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-primary-ink: var(--primary-ink);
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-destructive: var(--destructive);
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-field: var(--field);
+    --color-ring: var(--ring);
+    --color-chart-1: var(--chart-1);
+    --color-chart-2: var(--chart-2);
+    --color-chart-3: var(--chart-3);
+    --color-chart-4: var(--chart-4);
+    --color-chart-5: var(--chart-5);
+    --color-sidebar: var(--sidebar);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-ring: var(--sidebar-ring);
+
+    /* The fifth rung of the surface ladder: a line that has to separate two panels rather
+       than merely divide rows inside one. */
+    --color-border-strong: var(--border-strong);
+    /* Text quieter than muted: a timestamp beside a name, a hint under a field. */
+    --color-faint: var(--faint);
+
+    /* THE SEMANTIC SET: what a state means, before any component decides how to draw it.
+       Four words, each an alias of a status below, so a chip is this palette's green rather
+       than a green imported into it. */
+    --color-good: var(--good);
+    --color-critical: var(--critical);
+    --color-warning: var(--warning);
+    --color-info: var(--info);
+    /* And the ink each is legible in on its own 14% fill, which is the status ink of the
+       state it aliases. Text at the alias itself is a hue at chip strength, not at reading
+       strength. */
+    --color-good-ink: var(--status-succeeded-ink);
+    --color-critical-ink: var(--status-failed-ink);
+    --color-warning-ink: var(--status-completed-with-errors-ink);
+    --color-info-ink: var(--status-running-ink);
+
+    /* THE RUN AND ATTEMPT STATE MACHINES, AS COLOURS. The names are `RunStatus` and
+       `AttemptStatus` from dirigent_client.enums, so a status string off the wire indexes a
+       token without a translation table. Each has an `-ink` twin: the token itself fills a
+       chip at 14% alpha, and the ink is what is legible on top of that fill. */
+    --color-status-succeeded: var(--status-succeeded);
+    --color-status-succeeded-ink: var(--status-succeeded-ink);
+    --color-status-failed: var(--status-failed);
+    --color-status-failed-ink: var(--status-failed-ink);
+    --color-status-running: var(--status-running);
+    --color-status-running-ink: var(--status-running-ink);
+    --color-status-waiting: var(--status-waiting);
+    --color-status-waiting-ink: var(--status-waiting-ink);
+    --color-status-queued: var(--status-queued);
+    --color-status-queued-ink: var(--status-queued-ink);
+    --color-status-pending: var(--status-pending);
+    --color-status-pending-ink: var(--status-pending-ink);
+    --color-status-completed-with-errors: var(--status-completed-with-errors);
+    --color-status-completed-with-errors-ink: var(--status-completed-with-errors-ink);
+    --color-status-cancelled: var(--status-cancelled);
+    --color-status-cancelled-ink: var(--status-cancelled-ink);
+    --color-status-skipped: var(--status-skipped);
+    --color-status-skipped-ink: var(--status-skipped-ink);
+
+    /* THE TERMINAL'S GROUND AND THE INK THAT READS ON IT. One set, spent in both palettes,
+       for the reason the block declaring them gives. */
+    --color-terminal: var(--terminal);
+    --color-terminal-foreground: var(--terminal-foreground);
+    --color-terminal-muted: var(--terminal-muted);
+    --color-terminal-faint: var(--terminal-faint);
+    --color-terminal-warning: var(--terminal-warning);
+    --color-terminal-critical: var(--terminal-critical);
+    --color-terminal-accent: var(--terminal-accent);
+    --color-terminal-node: var(--terminal-node);
+    --color-terminal-node-edge: var(--terminal-node-edge);
+    --color-terminal-graph-edge: var(--terminal-graph-edge);
+    --color-terminal-graph-faint: var(--terminal-graph-faint);
+
+    /* KIND FAMILIES: one hue per family of kind, for a chip that names what a thing is
+       rather than how it is going. Six hues, all far from the identity amber at hue 80, so
+       a kind chip can never be mistaken for something the app is offering to do. Each has an
+       `-ink` twin and is filled by `.kind-chip` the way a status is by `.status-chip`. */
+    --color-kind-green: var(--kind-green);
+    --color-kind-green-ink: var(--kind-green-ink);
+    --color-kind-jade: var(--kind-jade);
+    --color-kind-jade-ink: var(--kind-jade-ink);
+    --color-kind-teal: var(--kind-teal);
+    --color-kind-teal-ink: var(--kind-teal-ink);
+    --color-kind-blue: var(--kind-blue);
+    --color-kind-blue-ink: var(--kind-blue-ink);
+    --color-kind-violet: var(--kind-violet);
+    --color-kind-violet-ink: var(--kind-violet-ink);
+    --color-kind-pink: var(--kind-pink);
+    --color-kind-pink-ink: var(--kind-pink-ink);
+}
+
+/* ---------------------------------------------------------------------------
+   THE LIGHT GROUND.
+
+   Same hues as the dark one, with the lightness ladder inverted. The surfaces run
+   near-white page, white card, and the borders sit at 0.90 and 0.85 -- close enough to
+   read as one family with the dark palette, which is the point of sharing hue 255.
+   --------------------------------------------------------------------------- */
+:root,
+[data-palette='dirigent'] {
+    --background: oklch(0.985 0.002 255);
+    --foreground: oklch(0.18 0.012 255);
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.18 0.012 255);
+    --popover: oklch(1 0 0);
+    --popover-foreground: oklch(0.18 0.012 255);
+
+    /* THE IDENTITY COLOUR IS AMBER, AND IT IS SPENT ON ACTION AND NOTHING ELSE: a primary
+       button, the active rail entry, a focus ring. It sits on `--primary` because that is
+       the token every shadcn primitive already reaches for; `--accent` stays what shadcn
+       means by it, which is the wash under a pointer.
+
+       IT IS DARKER HERE THAN IN THE DARK PALETTE, AND CARRIES LIGHT INK. The same bright
+       amber that reads as the brand against a near-black ground reads as mustard against a
+       near-white one: the ladder is inverted here, so the fill goes down where the dark
+       palette put it up, and the ink goes to the page colour where the dark palette put it
+       to the ground. Same hue, same chroma family, the roles swapped. */
+    --primary: oklch(0.57 0.125 80);
+    --primary-foreground: oklch(0.985 0.002 255);
+    /* The amber as ink rather than as a fill. The fill is a ground with light ink on it, so on
+       this palette's own ground it stops short of 4.5:1 as text; this is the same hue taken
+       down until it holds. In a dark mode the accent already is an ink and this is it. */
+    --primary-ink: oklch(0.52 0.13 80);
+
+    --secondary: oklch(0.955 0.004 255);
+    --secondary-foreground: oklch(0.22 0.012 255);
+    /* THE HOVER WASH, AND IT HAS TO BE SEEN. `--muted` is what every ghost and outline
+       control fills with under a pointer, and on a near-white ground a fill two percent
+       below the page is a hover nobody can tell happened. It sits a rung under
+       `--secondary` so that hovering a control and filling one read as different things. */
+    --muted: oklch(0.925 0.005 255);
+    --muted-foreground: oklch(0.48 0.015 255);
+    --faint: oklch(0.58 0.015 255);
+    --accent: oklch(0.94 0.02 80);
+    --accent-foreground: oklch(0.34 0.09 80);
+    --destructive: oklch(0.55 0.19 25);
+    --border: oklch(0.9 0.005 255);
+    --border-strong: oklch(0.85 0.008 255);
+    --input: oklch(0.87 0.008 255);
+    --field: oklch(1 0 0);
+    --ring: oklch(0.57 0.125 80);
+
+    --chart-1: oklch(0.57 0.125 80);
+    --chart-2: oklch(0.6 0.13 230);
+    --chart-3: oklch(0.62 0.12 160);
+    --chart-4: oklch(0.6 0.14 305);
+    --chart-5: oklch(0.58 0.14 25);
+
+    --sidebar: oklch(0.965 0.003 255);
+    --sidebar-foreground: oklch(0.18 0.012 255);
+    --sidebar-primary: oklch(0.57 0.125 80);
+    --sidebar-primary-foreground: oklch(0.985 0.002 255);
+    --sidebar-accent: oklch(0.94 0.02 80);
+    --sidebar-accent-foreground: oklch(0.34 0.09 80);
+    --sidebar-border: oklch(0.9 0.005 255);
+    --sidebar-ring: oklch(0.57 0.125 80);
+
+    --status-succeeded: oklch(0.58 0.13 160);
+    --status-succeeded-ink: oklch(0.44 0.12 160);
+    --status-failed: oklch(0.55 0.19 25);
+    --status-failed-ink: oklch(0.45 0.18 25);
+    --status-running: oklch(0.56 0.14 230);
+    --status-running-ink: oklch(0.44 0.14 230);
+    --status-waiting: oklch(0.6 0.11 195);
+    --status-waiting-ink: oklch(0.44 0.1 195);
+    --status-queued: oklch(0.55 0.11 255);
+    --status-queued-ink: oklch(0.43 0.1 255);
+    --status-pending: oklch(0.58 0.015 255);
+    --status-pending-ink: oklch(0.45 0.015 255);
+    --status-completed-with-errors: oklch(0.66 0.13 75);
+    --status-completed-with-errors-ink: oklch(0.48 0.12 75);
+    --status-cancelled: oklch(0.55 0.13 305);
+    --status-cancelled-ink: oklch(0.44 0.12 305);
+    --status-skipped: oklch(0.58 0.015 255);
+    --status-skipped-ink: oklch(0.45 0.015 255);
+
+    /* A delivery is a machine of its own, and its two states borrow the hues of the run states
+       they mean: in flight is running, arrived is succeeded. Named through the base pair rather
+       than written out, so a palette that moves those moves these with them. */
+    --status-sending: var(--status-running);
+    --status-sending-ink: var(--status-running-ink);
+    --status-sent: var(--status-succeeded);
+    --status-sent-ink: var(--status-succeeded-ink);
+
+    --kind-green: oklch(0.55 0.11 125);
+    --kind-green-ink: oklch(0.43 0.1 125);
+    --kind-jade: oklch(0.55 0.11 165);
+    --kind-jade-ink: oklch(0.43 0.1 165);
+    --kind-teal: oklch(0.55 0.11 200);
+    --kind-teal-ink: oklch(0.43 0.1 200);
+    --kind-blue: oklch(0.55 0.11 265);
+    --kind-blue-ink: oklch(0.43 0.1 265);
+    --kind-violet: oklch(0.55 0.11 305);
+    --kind-violet-ink: oklch(0.43 0.1 305);
+    --kind-pink: oklch(0.55 0.11 340);
+    --kind-pink-ink: oklch(0.43 0.1 340);
+
+    --good: var(--status-succeeded);
+    --critical: var(--status-failed);
+    --warning: var(--status-completed-with-errors);
+    --info: var(--status-running);
+
+    /* AN EDGE ON A GRAPH, WHICH IS NOT A BORDER. A line between two panels is read against the
+       surfaces either side of it; an edge is read across a ground of dots, and the rung that
+       divides two panels is quieter out there than the dots it crosses. One rung further from
+       the ground than `--border-strong`, and no further: an edge is the shape, not the news. */
+    --graph-edge: oklch(0.75 0.01 255);
+}
+
+/* ---------------------------------------------------------------------------
+   A TERMINAL, WHICH IS DARK IN BOTH PALETTES.
+
+   THE ONE PLACE IN THIS APP WHERE A TOKEN IS NOT INVERTED. Everywhere else the light palette
+   is the dark one turned over; a console is not, the same way a code block on a light page is
+   not. What a terminal is is a dark ground with mono ink on it, and inverting it would make the
+   run terminal read as another card rather than as the thing it is. The six inks are defined
+   once, here, and the `.dark` block below leaves them alone -- which is what keeps a level's
+   ink legible on the only kind of ground it is ever painted on.
+
+   The ground alone has two depths. On the light palette it is graphite: dark enough for the
+   inks, not the black that a light page turns into a hole. On the dark palette the `.dark`
+   block takes it a rung below its own `--background`, so the drawer reads as deeper than the
+   app around it. `--terminal-accent` is the identity amber at the dark palette's lightness,
+   spent on the one thing in a line that is a control: the step prefix that opens that step.
+   --------------------------------------------------------------------------- */
+:root {
+    --terminal: oklch(0.24 0.012 255);
+    --terminal-foreground: oklch(0.93 0.008 255);
+    --terminal-muted: oklch(0.72 0.015 255);
+    --terminal-faint: oklch(0.56 0.02 255);
+    --terminal-warning: oklch(0.82 0.14 75);
+    --terminal-critical: oklch(0.72 0.17 25);
+    --terminal-accent: oklch(0.82 0.13 80);
+
+    /* The login pane's graph: a node's fill one rung above the pane's ground, its edge one
+       above that, the unlit links one above that again, and the arcs behind everything barely
+       off the ground. These follow the ground rather than the ink set: the ground has two
+       depths, so the four have two values as well. The `.dark` block sets the darker set. */
+    --terminal-node: oklch(0.29 0.013 255);
+    --terminal-node-edge: oklch(0.36 0.015 255);
+    --terminal-graph-edge: oklch(0.42 0.015 255);
+    --terminal-graph-faint: oklch(0.29 0.013 255);
+}
+
+/* ---------------------------------------------------------------------------
+   THE DARK GROUND, WHICH IS THE ONE THIS APP WAS DESIGNED IN.
+
+   SIX RUNGS, AND EACH ONE HAS TO BE SEEN. The page ground sits under the rail, the rail
+   under the card, the card under a filled control, and then two lines: the ordinary border
+   that divides rows inside a panel, and the strong one that separates panels. A rung that
+   drifts back toward its neighbour makes the whole shell read as one flat sheet.
+
+   Every surface holds hue 255 at chroma <= 0.017, so a long list reads as a surface rather
+   than as a coloured panel, and the amber has the only chroma anywhere near it.
+   --------------------------------------------------------------------------- */
+.dark,
+.dark [data-palette='dirigent'] {
+    --terminal: oklch(0.105 0.012 255);
+    --terminal-node: oklch(0.16 0.012 255);
+    --terminal-node-edge: oklch(0.24 0.014 255);
+    --terminal-graph-edge: oklch(0.31 0.016 255);
+    --terminal-graph-faint: oklch(0.155 0.012 255);
+    --background: oklch(0.145 0.012 255);
+    --foreground: oklch(0.95 0.01 255);
+    --card: oklch(0.195 0.015 255);
+    --card-foreground: oklch(0.95 0.01 255);
+    --popover: oklch(0.195 0.015 255);
+    --popover-foreground: oklch(0.95 0.01 255);
+
+    --primary: oklch(0.8 0.13 80);
+    --primary-foreground: oklch(0.16 0.01 255);
+    --primary-ink: var(--primary);
+
+    --secondary: oklch(0.235 0.017 255);
+    --secondary-foreground: oklch(0.95 0.01 255);
+    --muted: oklch(0.235 0.017 255);
+    --muted-foreground: oklch(0.62 0.02 255);
+    --faint: oklch(0.55 0.02 255);
+    --accent: oklch(0.28 0.03 80);
+    --accent-foreground: oklch(0.86 0.11 80);
+    --destructive: oklch(0.65 0.19 25);
+    --border: oklch(0.3 0.015 255);
+    --border-strong: oklch(0.34 0.018 255);
+    --input: oklch(0.36 0.02 255);
+    --field: oklch(0.125 0.012 255);
+    --ring: oklch(0.8 0.13 80);
+
+    --chart-1: oklch(0.8 0.13 80);
+    --chart-2: oklch(0.68 0.15 230);
+    --chart-3: oklch(0.72 0.14 160);
+    --chart-4: oklch(0.68 0.14 305);
+    --chart-5: oklch(0.65 0.19 25);
+
+    --sidebar: oklch(0.168 0.014 255);
+    --sidebar-foreground: oklch(0.95 0.01 255);
+    --sidebar-primary: oklch(0.8 0.13 80);
+    --sidebar-primary-foreground: oklch(0.16 0.01 255);
+    --sidebar-accent: oklch(0.245 0.017 255);
+    --sidebar-accent-foreground: oklch(0.95 0.01 255);
+    --sidebar-border: oklch(0.3 0.015 255);
+    --sidebar-ring: oklch(0.8 0.13 80);
+
+    --status-succeeded: oklch(0.72 0.14 160);
+    --status-succeeded-ink: oklch(0.8 0.13 160);
+    --status-failed: oklch(0.65 0.19 25);
+    --status-failed-ink: oklch(0.75 0.17 25);
+    --status-running: oklch(0.68 0.15 230);
+    --status-running-ink: oklch(0.78 0.13 230);
+    --status-waiting: oklch(0.72 0.12 195);
+    --status-waiting-ink: oklch(0.8 0.11 195);
+    --status-queued: oklch(0.66 0.12 255);
+    --status-queued-ink: oklch(0.76 0.11 255);
+    --status-pending: oklch(0.55 0.02 255);
+    --status-pending-ink: oklch(0.7 0.02 255);
+    --status-completed-with-errors: oklch(0.78 0.14 75);
+    --status-completed-with-errors-ink: oklch(0.85 0.13 75);
+    --status-cancelled: oklch(0.68 0.14 305);
+    --status-cancelled-ink: oklch(0.78 0.13 305);
+    --status-skipped: oklch(0.55 0.02 255);
+    --status-skipped-ink: oklch(0.7 0.02 255);
+
+    --kind-green: oklch(0.68 0.12 125);
+    --kind-green-ink: oklch(0.78 0.11 125);
+    --kind-jade: oklch(0.68 0.12 165);
+    --kind-jade-ink: oklch(0.78 0.11 165);
+    --kind-teal: oklch(0.68 0.12 200);
+    --kind-teal-ink: oklch(0.78 0.11 200);
+    --kind-blue: oklch(0.68 0.12 265);
+    --kind-blue-ink: oklch(0.78 0.11 265);
+    --kind-violet: oklch(0.68 0.12 305);
+    --kind-violet-ink: oklch(0.78 0.11 305);
+    --kind-pink: oklch(0.68 0.12 340);
+    --kind-pink-ink: oklch(0.78 0.11 340);
+
+    --good: var(--status-succeeded);
+    --critical: var(--status-failed);
+    --warning: var(--status-completed-with-errors);
+    --info: var(--status-running);
+
+    --graph-edge: oklch(0.48 0.02 255);
+}
+
+/* ---------------------------------------------------------------------------
+   THE PALETTES BESIDE THE DEFAULT.
+
+   A palette is two blocks and one row: the light half on `html[data-theme='<name>']`, the dark
+   half on `html.dark[data-theme='<name>']`, and a row in `PALETTES` in lib/theme.ts carrying the
+   name and its label. Nothing else in the app learns a palette exists.
+
+   EACH HALF ALSO ANSWERS TO `[data-palette='<name>']`, so an element inside the app can be
+   painted in a palette the document is not wearing. That is what the Theme pane's swatch cards
+   are: a strip per token inside a scoped element, so a card shows the palette's real colours in
+   the appearance in force and stays right when a token moves. The base palette carries the same
+   pair on `:root` and `.dark`, or the tokens the document is wearing would inherit into its card.
+
+   THESE SELECTORS OUTRANK `.dark`, so a token the base sets in both `:root` and `.dark` has to be
+   set in both halves here. A token set in the light half alone is a light value leaking into the
+   dark mode. A token neither half names falls through to the base, which is how a palette that
+   only moves its surfaces keeps every status and kind hue as the base drew it.
+
+   `--good`, `--critical`, `--warning` and `--info` are never named here: each is a `var()` of a
+   status token, so it already resolves to whatever this palette's statuses are.
+
+   THE AMBER IS THE IDENTITY HUE IN ALL THREE. Hue 80 on `--primary`, `--ring`, `--sidebar-primary`
+   and `--terminal-accent`, and the run statuses keep their hues too. A palette moves the amber's
+   lightness where its ground needs it, and nothing else.
+   --------------------------------------------------------------------------- */
+
+/* ---------------------------------------------------------------------------
+   PAPER, LIGHT.
+
+   The same app on paper: the surfaces carry hue 85 and the ink hue 60, so a page reads warm
+   rather than blue-grey. The ladder is the base one moved, not a new one -- ground under rail
+   under card, the filled control a rung below the ground, the two lines below that, in the same
+   order and about the same steps -- because every component was drawn against those rungs.
+   --------------------------------------------------------------------------- */
+html[data-theme='paper'],
+[data-palette='paper'] {
+    --background: oklch(0.97 0.012 85);
+    --foreground: oklch(0.2 0.02 60);
+    --card: oklch(0.99 0.008 85);
+    --card-foreground: oklch(0.2 0.02 60);
+    --popover: oklch(0.99 0.008 85);
+    --popover-foreground: oklch(0.2 0.02 60);
+
+    /* A rung darker than the base amber: the ground it sits on is a rung darker too, and the
+       primary has to stay the darkest thing on the page that is not ink. */
+    --primary: oklch(0.55 0.13 80);
+    --primary-foreground: oklch(0.98 0.01 85);
+    --primary-ink: oklch(0.5 0.13 80);
+
+    --secondary: oklch(0.94 0.014 85);
+    --secondary-foreground: oklch(0.24 0.02 60);
+    --muted: oklch(0.915 0.016 85);
+    --muted-foreground: oklch(0.46 0.025 60);
+    --faint: oklch(0.57 0.025 60);
+    --accent: oklch(0.93 0.035 80);
+    --accent-foreground: oklch(0.34 0.09 80);
+    --destructive: oklch(0.55 0.19 25);
+    --border: oklch(0.885 0.016 80);
+    --border-strong: oklch(0.835 0.02 80);
+    --input: oklch(0.855 0.02 80);
+    --field: oklch(0.99 0.008 85);
+    --ring: oklch(0.55 0.13 80);
+
+    --chart-1: oklch(0.55 0.13 80);
+    --chart-2: oklch(0.6 0.13 230);
+    --chart-3: oklch(0.62 0.12 160);
+    --chart-4: oklch(0.6 0.14 305);
+    --chart-5: oklch(0.58 0.14 25);
+
+    --sidebar: oklch(0.95 0.013 85);
+    --sidebar-foreground: oklch(0.2 0.02 60);
+    --sidebar-primary: oklch(0.55 0.13 80);
+    --sidebar-primary-foreground: oklch(0.98 0.01 85);
+    --sidebar-accent: oklch(0.93 0.035 80);
+    --sidebar-accent-foreground: oklch(0.34 0.09 80);
+    --sidebar-border: oklch(0.885 0.016 80);
+    --sidebar-ring: oklch(0.55 0.13 80);
+
+    /* The two neutral states are the only statuses this palette moves: they are drawn in the
+       surface hue rather than in a hue of their own, so they follow it. Every other status and
+       every kind family is a signal hue read against a ground this palette barely moved, and
+       falls through to the base. */
+    --status-pending: oklch(0.57 0.025 60);
+    --status-pending-ink: oklch(0.45 0.025 60);
+    --status-skipped: oklch(0.57 0.025 60);
+    --status-skipped-ink: oklch(0.45 0.025 60);
+
+    --graph-edge: oklch(0.74 0.018 80);
+
+    /* The console stays a console: a graphite ground, warm-shifted to this palette's hue rather
+       than inverted. The six inks are this palette's for both modes, the way the base sets them
+       once; only the ground and the graph's four have a value per mode. */
+    --terminal: oklch(0.245 0.014 70);
+    --terminal-foreground: oklch(0.93 0.012 80);
+    --terminal-muted: oklch(0.72 0.018 80);
+    --terminal-faint: oklch(0.56 0.02 80);
+    --terminal-warning: oklch(0.82 0.14 75);
+    --terminal-critical: oklch(0.72 0.17 25);
+    --terminal-accent: oklch(0.82 0.13 80);
+    --terminal-node: oklch(0.295 0.015 70);
+    --terminal-node-edge: oklch(0.365 0.017 70);
+    --terminal-graph-edge: oklch(0.425 0.017 70);
+    --terminal-graph-faint: oklch(0.295 0.015 70);
+}
+
+/* ---------------------------------------------------------------------------
+   PAPER, DARK.
+
+   Warm near-black with warm ink, and the base dark ladder held: ground, rail, card, filled
+   control, then the two lines. The field sits below the ground here as it does in the base,
+   because a control on a dark ground is a well rather than a tile.
+   --------------------------------------------------------------------------- */
+html.dark[data-theme='paper'],
+.dark [data-palette='paper'] {
+    --background: oklch(0.16 0.012 70);
+    --foreground: oklch(0.95 0.012 85);
+    --card: oklch(0.21 0.015 70);
+    --card-foreground: oklch(0.95 0.012 85);
+    --popover: oklch(0.21 0.015 70);
+    --popover-foreground: oklch(0.95 0.012 85);
+
+    --primary: oklch(0.8 0.13 80);
+    --primary-foreground: oklch(0.17 0.015 70);
+    --primary-ink: var(--primary);
+
+    --secondary: oklch(0.25 0.017 70);
+    --secondary-foreground: oklch(0.95 0.012 85);
+    --muted: oklch(0.25 0.017 70);
+    --muted-foreground: oklch(0.63 0.022 80);
+    --faint: oklch(0.56 0.022 80);
+    --accent: oklch(0.29 0.035 80);
+    --accent-foreground: oklch(0.86 0.11 80);
+    --destructive: oklch(0.65 0.19 25);
+    --border: oklch(0.315 0.016 70);
+    --border-strong: oklch(0.355 0.018 70);
+    --input: oklch(0.375 0.02 70);
+    --field: oklch(0.14 0.012 70);
+    --ring: oklch(0.8 0.13 80);
+
+    --chart-1: oklch(0.8 0.13 80);
+    --chart-2: oklch(0.68 0.15 230);
+    --chart-3: oklch(0.72 0.14 160);
+    --chart-4: oklch(0.68 0.14 305);
+    --chart-5: oklch(0.65 0.19 25);
+
+    --sidebar: oklch(0.183 0.014 70);
+    --sidebar-foreground: oklch(0.95 0.012 85);
+    --sidebar-primary: oklch(0.8 0.13 80);
+    --sidebar-primary-foreground: oklch(0.17 0.015 70);
+    --sidebar-accent: oklch(0.26 0.017 70);
+    --sidebar-accent-foreground: oklch(0.95 0.012 85);
+    --sidebar-border: oklch(0.315 0.016 70);
+    --sidebar-ring: oklch(0.8 0.13 80);
+
+    --status-pending: oklch(0.56 0.022 80);
+    --status-pending-ink: oklch(0.7 0.022 80);
+    --status-skipped: oklch(0.56 0.022 80);
+    --status-skipped-ink: oklch(0.7 0.022 80);
+
+    --graph-edge: oklch(0.49 0.022 80);
+
+    --terminal: oklch(0.115 0.012 70);
+    --terminal-node: oklch(0.17 0.013 70);
+    --terminal-node-edge: oklch(0.25 0.015 70);
+    --terminal-graph-edge: oklch(0.32 0.016 70);
+    --terminal-graph-faint: oklch(0.165 0.013 70);
+}
+
+/* ---------------------------------------------------------------------------
+   CONTRAST, LIGHT.
+
+   White ground, black ink, and every line and every ink pushed until it holds 4.5:1 against the
+   ground it is read on -- 3:1 for the ring and for a border that only has to be seen. Chroma is
+   zero on every surface, so the amber and the status hues are the only colour left.
+
+   THE PAGE AND THE CARD ARE THE SAME WHITE, which is the one place a palette here does not keep
+   the base ladder: a card is told apart by its edge rather than by its fill, and that edge is two
+   rungs darker than the base's. The rail and the filled controls keep their rungs, so a control
+   still reads as a control.
+   --------------------------------------------------------------------------- */
+html[data-theme='contrast'],
+[data-palette='contrast'] {
+    --background: oklch(1 0 0);
+    --foreground: oklch(0 0 0);
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0 0 0);
+    --popover: oklch(1 0 0);
+    --popover-foreground: oklch(0 0 0);
+
+    /* The amber dark enough to carry white text and to hold 3:1 as a ring on white. */
+    --primary: oklch(0.5 0.14 80);
+    --primary-foreground: oklch(1 0 0);
+    --primary-ink: oklch(0.44 0.14 80);
+
+    --secondary: oklch(0.93 0 0);
+    --secondary-foreground: oklch(0 0 0);
+    --muted: oklch(0.88 0 0);
+    --muted-foreground: oklch(0.35 0 0);
+    --faint: oklch(0.4 0 0);
+    --accent: oklch(0.9 0.05 80);
+    --accent-foreground: oklch(0.28 0.09 80);
+    --destructive: oklch(0.48 0.2 25);
+    /* Every line holds 3:1 against the white it is read on, which is two rungs darker than the
+       base's and what makes a card's edge do the work its fill no longer does. */
+    --border: oklch(0.62 0 0);
+    --border-strong: oklch(0.48 0 0);
+    --input: oklch(0.45 0 0);
+    --field: oklch(1 0 0);
+    --ring: oklch(0.5 0.14 80);
+
+    --chart-1: oklch(0.5 0.14 80);
+    --chart-2: oklch(0.5 0.15 230);
+    --chart-3: oklch(0.5 0.13 160);
+    --chart-4: oklch(0.48 0.16 305);
+    --chart-5: oklch(0.5 0.16 25);
+
+    --sidebar: oklch(0.955 0 0);
+    --sidebar-foreground: oklch(0 0 0);
+    --sidebar-primary: oklch(0.5 0.14 80);
+    --sidebar-primary-foreground: oklch(1 0 0);
+    --sidebar-accent: oklch(0.9 0.05 80);
+    --sidebar-accent-foreground: oklch(0.28 0.09 80);
+    --sidebar-border: oklch(0.62 0 0);
+    --sidebar-ring: oklch(0.5 0.14 80);
+
+    /* Every status keeps its hue and takes the lightness 4.5:1 on white costs: the token fills
+       the chip at 14% and edges it, the ink is what is read on that fill. */
+    --status-succeeded: oklch(0.5 0.15 160);
+    --status-succeeded-ink: oklch(0.4 0.13 160);
+    --status-failed: oklch(0.48 0.2 25);
+    --status-failed-ink: oklch(0.4 0.18 25);
+    --status-running: oklch(0.48 0.17 230);
+    --status-running-ink: oklch(0.4 0.15 230);
+    --status-waiting: oklch(0.5 0.12 195);
+    --status-waiting-ink: oklch(0.4 0.11 195);
+    --status-queued: oklch(0.48 0.13 255);
+    --status-queued-ink: oklch(0.4 0.12 255);
+    --status-pending: oklch(0.42 0 0);
+    --status-pending-ink: oklch(0.32 0 0);
+    --status-completed-with-errors: oklch(0.55 0.14 75);
+    --status-completed-with-errors-ink: oklch(0.42 0.13 75);
+    --status-cancelled: oklch(0.48 0.15 305);
+    --status-cancelled-ink: oklch(0.4 0.14 305);
+    --status-skipped: oklch(0.42 0 0);
+    --status-skipped-ink: oklch(0.32 0 0);
+
+    --kind-green: oklch(0.48 0.13 125);
+    --kind-green-ink: oklch(0.38 0.12 125);
+    --kind-jade: oklch(0.48 0.13 165);
+    --kind-jade-ink: oklch(0.38 0.12 165);
+    --kind-teal: oklch(0.48 0.13 200);
+    --kind-teal-ink: oklch(0.38 0.12 200);
+    --kind-blue: oklch(0.48 0.13 265);
+    --kind-blue-ink: oklch(0.38 0.12 265);
+    --kind-violet: oklch(0.48 0.13 305);
+    --kind-violet-ink: oklch(0.38 0.12 305);
+    --kind-pink: oklch(0.48 0.13 340);
+    --kind-pink-ink: oklch(0.38 0.12 340);
+
+    --graph-edge: oklch(0.5 0 0);
+
+    /* The console is the one surface that does not invert, here as everywhere: a near-black
+       ground, white ink, and the six inks set once for both modes. */
+    --terminal: oklch(0.12 0 0);
+    --terminal-foreground: oklch(1 0 0);
+    --terminal-muted: oklch(0.82 0 0);
+    --terminal-faint: oklch(0.68 0 0);
+    --terminal-warning: oklch(0.85 0.15 75);
+    --terminal-critical: oklch(0.75 0.18 25);
+    --terminal-accent: oklch(0.85 0.14 80);
+    --terminal-node: oklch(0.2 0 0);
+    --terminal-node-edge: oklch(0.36 0 0);
+    --terminal-graph-edge: oklch(0.48 0 0);
+    --terminal-graph-faint: oklch(0.22 0 0);
+}
+
+/* ---------------------------------------------------------------------------
+   CONTRAST, DARK.
+
+   Black ground, white ink, the lines lightened until they are seen, and the amber lifted until it
+   carries text on black. The ground is as deep as a ground goes, so the console cannot sit under
+   it: the terminal is the same black and is held apart by `--border-strong` instead.
+   --------------------------------------------------------------------------- */
+html.dark[data-theme='contrast'],
+.dark [data-palette='contrast'] {
+    --background: oklch(0 0 0);
+    --foreground: oklch(1 0 0);
+    --card: oklch(0.14 0 0);
+    --card-foreground: oklch(1 0 0);
+    --popover: oklch(0.14 0 0);
+    --popover-foreground: oklch(1 0 0);
+
+    --primary: oklch(0.85 0.14 80);
+    --primary-foreground: oklch(0 0 0);
+    --primary-ink: var(--primary);
+
+    --secondary: oklch(0.22 0 0);
+    --secondary-foreground: oklch(1 0 0);
+    --muted: oklch(0.22 0 0);
+    --muted-foreground: oklch(0.78 0 0);
+    --faint: oklch(0.68 0 0);
+    --accent: oklch(0.3 0.05 80);
+    --accent-foreground: oklch(0.88 0.12 80);
+    --destructive: oklch(0.7 0.19 25);
+    /* The same 3:1, the other way up. These lines carry the seams a pure black ground cannot:
+       the rail against the page, the console against the graph, a field against the card. */
+    --border: oklch(0.5 0 0);
+    --border-strong: oklch(0.62 0 0);
+    --input: oklch(0.72 0 0);
+    --field: oklch(0 0 0);
+    --ring: oklch(0.85 0.14 80);
+
+    --chart-1: oklch(0.85 0.14 80);
+    --chart-2: oklch(0.75 0.16 230);
+    --chart-3: oklch(0.8 0.15 160);
+    --chart-4: oklch(0.75 0.16 305);
+    --chart-5: oklch(0.7 0.19 25);
+
+    --sidebar: oklch(0.13 0 0);
+    --sidebar-foreground: oklch(1 0 0);
+    --sidebar-primary: oklch(0.85 0.14 80);
+    --sidebar-primary-foreground: oklch(0 0 0);
+    --sidebar-accent: oklch(0.24 0 0);
+    --sidebar-accent-foreground: oklch(1 0 0);
+    --sidebar-border: oklch(0.5 0 0);
+    --sidebar-ring: oklch(0.85 0.14 80);
+
+    --status-succeeded: oklch(0.78 0.15 160);
+    --status-succeeded-ink: oklch(0.85 0.14 160);
+    --status-failed: oklch(0.7 0.2 25);
+    --status-failed-ink: oklch(0.8 0.17 25);
+    --status-running: oklch(0.75 0.15 230);
+    --status-running-ink: oklch(0.83 0.13 230);
+    --status-waiting: oklch(0.8 0.12 195);
+    --status-waiting-ink: oklch(0.88 0.11 195);
+    --status-queued: oklch(0.72 0.13 255);
+    --status-queued-ink: oklch(0.82 0.12 255);
+    --status-pending: oklch(0.68 0 0);
+    --status-pending-ink: oklch(0.85 0 0);
+    --status-completed-with-errors: oklch(0.85 0.15 75);
+    --status-completed-with-errors-ink: oklch(0.9 0.14 75);
+    --status-cancelled: oklch(0.75 0.15 305);
+    --status-cancelled-ink: oklch(0.85 0.13 305);
+    --status-skipped: oklch(0.68 0 0);
+    --status-skipped-ink: oklch(0.85 0 0);
+
+    --kind-green: oklch(0.76 0.13 125);
+    --kind-green-ink: oklch(0.85 0.12 125);
+    --kind-jade: oklch(0.76 0.13 165);
+    --kind-jade-ink: oklch(0.85 0.12 165);
+    --kind-teal: oklch(0.76 0.13 200);
+    --kind-teal-ink: oklch(0.85 0.12 200);
+    --kind-blue: oklch(0.76 0.13 265);
+    --kind-blue-ink: oklch(0.85 0.12 265);
+    --kind-violet: oklch(0.76 0.13 305);
+    --kind-violet-ink: oklch(0.85 0.12 305);
+    --kind-pink: oklch(0.76 0.13 340);
+    --kind-pink-ink: oklch(0.85 0.12 340);
+
+    --graph-edge: oklch(0.6 0 0);
+
+    --terminal: oklch(0 0 0);
+    --terminal-node: oklch(0.13 0 0);
+    --terminal-node-edge: oklch(0.3 0 0);
+    --terminal-graph-edge: oklch(0.44 0 0);
+    --terminal-graph-faint: oklch(0.17 0 0);
+}
+
+@layer base {
+    * {
+        @apply border-border outline-ring/50;
+    }
+    html {
+        @apply font-sans;
+    }
+    body {
+        @apply bg-background text-foreground text-sm;
+    }
+}
+
+/* ---------------------------------------------------------------------------
+   THE ONE SIZE OUTSIDE THE SCALE, AND IT HAS A NAME.
+
+   The scale is three sizes because prose, labels and controls need three. A stat tile's
+   number is not any of those -- it is the thing the row of tiles exists to show, read from
+   across a desk rather than at a screen's reading distance. So it is a fourth size with a
+   name and exactly one place it may be spent, rather than a fourth size arriving as
+   `text-[28px]` wherever somebody wanted a big number. `scripts/check_ui_classes.py` knows
+   this class by name and nothing else, which is what keeps it an exception rather than a way
+   out.
+
+   Mono, because a number read at a glance is read digit by digit.
+   --------------------------------------------------------------------------- */
+.text-stat {
+    font-family: var(--font-mono);
+    font-size: 1.75rem;
+    line-height: 2.25rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+}
+
+/* ---------------------------------------------------------------------------
+   THE WORDMARK, WHICH IS THE SECOND NAMED SIZE OUTSIDE THE SCALE.
+
+   The login brand pane draws the product's name beside its tile at the size a mark is drawn
+   at rather than the size a heading is read at. It is set once here so it can be counted:
+   `scripts/check_ui_classes.py` knows this class by name and the login pane is the only
+   place it may be spent.
+
+   Tracked in tighter than the scale's headings, because a word this large opens up.
+
+   An `@utility` rather than a plain class, because the pane reaches this size only once there
+   is a pane wide enough to hold it, and a variant is only written for a utility Tailwind knows.
+   --------------------------------------------------------------------------- */
+@utility text-wordmark {
+    font-size: 3rem;
+    line-height: 1;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+}
+
+/* ---------------------------------------------------------------------------
+   THE SIGN-IN HEADING, WHICH IS THE THIRD NAMED SIZE OUTSIDE THE SCALE.
+
+   The login screen is the one screen a person meets before the product's own facts are on it,
+   so it greets rather than states, and a greeting is set larger than a page heading.
+   `scripts/check_ui_classes.py` knows this class by name and the login form is the only place
+   it may be spent.
+   --------------------------------------------------------------------------- */
+@utility text-display {
+    font-size: 2.25rem;
+    line-height: 1.1;
+}
+
+/* ---------------------------------------------------------------------------
+   A STATUS CHIP.
+
+   One fill rule for every state, so a run's status reads the same in a table row, in a
+   heading, and in the run graph: the state's own hue at 14% alpha, its ink on top, and a
+   hairline of the same hue to hold the shape against a card that is nearly as dark.
+
+   `skipped` is the exception and the exception is the point -- a skipped step did not
+   happen, so it is drawn in neutral with a dashed edge rather than being given a colour it
+   has not earned.
+   --------------------------------------------------------------------------- */
+.status-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid color-mix(in oklab, var(--chip) 30%, transparent);
+    background-color: color-mix(in oklab, var(--chip) 14%, transparent);
+    color: var(--chip-ink);
+    padding: 0.0625rem 0.375rem;
+    font-size: var(--text-xs);
+    line-height: var(--text-xs--line-height);
+    white-space: nowrap;
+}
+.status-chip[data-status='skipped'] {
+    border-style: dashed;
+    background-color: transparent;
+}
+
+/* ---------------------------------------------------------------------------
+   A KIND CHIP.
+
+   What a thing is, rather than how it is going: a block kind, a connection kind, the clock a
+   schedule fires on. Same fill rule as a status -- the family's hue at 14% alpha, its ink on
+   top, a hairline of the same hue -- and a separate class because the two must never index
+   each other's tokens. `--chip` and `--chip-ink` are set on the element by `lib/kinds`.
+   --------------------------------------------------------------------------- */
+.kind-chip {
+    display: inline-flex;
+    align-items: center;
+    border-radius: var(--radius-sm);
+    border: 1px solid color-mix(in oklab, var(--chip) 30%, transparent);
+    background-color: color-mix(in oklab, var(--chip) 14%, transparent);
+    color: var(--chip-ink);
+    padding: 0.0625rem 0.375rem;
+    font-size: var(--text-xs);
+    line-height: var(--text-xs--line-height);
+    white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------------------
+   A RESIZE HANDLE.
+
+   The panel edges are dragged, and a drag edge that lights up in border gray reads as a
+   second scrollbar beside the real one. The identity tint says "control", and saying it
+   once here keeps the right panel's edge and the rail's edge from drifting apart.
+   --------------------------------------------------------------------------- */
+.resize-handle {
+    position: relative;
+    background-color: transparent;
+    transition: background-color 150ms ease-out;
+}
+/* The strip is 6px; pointer hits count 4px beyond it on both sides. */
+.resize-handle::before {
+    content: '';
+    position: absolute;
+    inset: 0 -4px;
+}
+/* A resting grip mark, so the edge says it can be held before anyone hovers it. */
+.resize-handle::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 3px;
+    height: 36px;
+    border-radius: 2px;
+    transform: translate(-50%, -50%);
+    background-color: var(--border-strong);
+    transition:
+        background-color 150ms ease-out,
+        height 150ms ease-out;
+}
+.resize-handle:hover::after,
+.resize-handle:focus-visible::after,
+.resize-handle[data-dragging='true']::after {
+    background-color: var(--primary);
+    height: 56px;
+}
+.resize-handle:hover,
+.resize-handle:focus-visible {
+    background-color: color-mix(in oklab, var(--primary) 35%, transparent);
+    outline: none;
+}
+.resize-handle[data-dragging='true'] {
+    background-color: color-mix(in oklab, var(--primary) 55%, transparent);
+}
+
+/* The same handle turned on its side, for an edge dragged up and down rather than across: the
+   run terminal's top edge. The orientation is the one the separator already states, so nothing
+   carries a second attribute saying it twice. */
+.resize-handle[aria-orientation='horizontal']::before {
+    inset: -4px 0;
+}
+.resize-handle[aria-orientation='horizontal']::after {
+    width: 36px;
+    height: 3px;
+}
+.resize-handle[aria-orientation='horizontal']:hover::after,
+.resize-handle[aria-orientation='horizontal']:focus-visible::after,
+.resize-handle[aria-orientation='horizontal'][data-dragging='true']::after {
+    width: 56px;
+    height: 3px;
+}
+
+/* ---------------------------------------------------------------------------
+   A ROW THE POINTER IS OVER.
+
+   A list of rows is read by running down it, and a row that lights as the pointer crosses it
+   is what says where the eye is -- whether or not the row can be opened. So the wash is on
+   every row-shaped thing in the app, and the cursor is left alone: a pointer finger over a row
+   that does nothing is a promise the row cannot keep.
+
+   It is deliberately weaker than anything that means chosen. A selected row is `--accent` or
+   the identity tint; this is one rung of the surface ladder, and no more.
+   --------------------------------------------------------------------------- */
+.row-hover {
+    /* The wash covers the whole row, edge to edge across whatever holds it, the way a menu
+       item's does. A pill hugging the text says the text is the target; the row is. */
+    transition: background-color 120ms ease-out;
+}
+.row-hover:hover {
+    background-color: color-mix(in oklab, var(--muted) 60%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .row-hover {
+        transition: none;
+    }
+}
+
+/* ---------------------------------------------------------------------------
+   A MENU THAT MARKS A CHOICE.
+
+   The mark sits in a reserved gutter on the left, in the same column on every row, so the
+   labels line up whether or not one of them is chosen and the eye runs down one edge. That is
+   the anatomy every menu of this kind has, and the one people already know.
+   --------------------------------------------------------------------------- */
+[data-slot='dropdown-menu-radio-item'],
+[data-slot='dropdown-menu-checkbox-item'] {
+    padding-left: 1.75rem;
+    padding-right: 0.5rem;
+    padding-block: 0.3125rem;
+}
+[data-slot='dropdown-menu-radio-item-indicator'],
+[data-slot='dropdown-menu-checkbox-item-indicator'] {
+    right: auto;
+    left: 0.5rem;
+}
+
+/* ---------------------------------------------------------------------------
+   AN ACTION THAT TAKES SOMETHING AWAY.
+
+   Revoking a token, deactivating an account, cancelling a run: the button sits quiet like any
+   other until the pointer is on it, and then it says what the click costs. The neutral hover
+   wash would make it merely reachable; this one makes it legible as the thing it is.
+
+   It rides on top of whichever variant the button already has rather than being a variant of
+   its own, because the generated primitives are never hand-edited and a second set of them
+   would be two answers to one question.
+   --------------------------------------------------------------------------- */
+.destructive-action:hover:not(:disabled) {
+    background-color: color-mix(in oklab, var(--critical) 14%, transparent);
+    border-color: color-mix(in oklab, var(--critical) 35%, transparent);
+    color: var(--critical-ink);
+}
+.destructive-action:focus-visible {
+    border-color: color-mix(in oklab, var(--critical) 55%, transparent);
+    --tw-ring-color: color-mix(in oklab, var(--critical) 25%, transparent);
+}
+
+/* ---------------------------------------------------------------------------
+   THE COMMAND PALETTE.
+
+   The generated `components/ui/command` files are pristine, so what this app wants of them is
+   said here against their slots: a search row that is a row rather than a boxed input, shelf
+   headings that read as headings, and a selected row that wears the identity colour on its
+   left edge -- because choosing is an action, and that is the one colour this app spends on
+   one.
+   --------------------------------------------------------------------------- */
+.dg-palette [data-slot='command-input-wrapper'] {
+    padding: 0;
+    border-bottom: 1px solid var(--border);
+}
+.dg-palette [data-slot='command-input-wrapper'] > * {
+    height: 3.5rem;
+    border: 0;
+    border-radius: 0;
+    background-color: transparent;
+    box-shadow: none;
+    padding-inline: 0.875rem;
+    gap: 0.625rem;
+}
+.dg-palette [cmdk-group-heading] {
+    padding: 0.75rem 0.5rem 0.375rem;
+    font-size: var(--text-xs);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--faint);
+}
+.dg-palette [data-slot='command-item'] {
+    position: relative;
+}
+.dg-palette [data-slot='command-item'][data-selected='true'] {
+    background-color: color-mix(in oklab, var(--accent) 70%, transparent);
+}
+.dg-palette [data-slot='command-item'][data-selected='true']::before {
+    content: '';
+    position: absolute;
+    inset-block: 0.25rem;
+    inset-inline-start: 0;
+    width: 3px;
+    border-radius: 2px;
+    background-color: var(--primary);
+}
+
+/* An identifier is a machine's string -- a run uuid, a block id, a cursor -- read character
+   by character rather than skimmed, so it is set in the mono face and never in the prose
+   one. A hint is prose and stays sans; the two must not look alike. */
+.identifier {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--faint);
+    word-break: break-all;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .resize-handle {
+        transition: none;
+    }
+}
+
+/* ---------------------------------------------------------------------------
+   A GRAPH.
+
+   React Flow ships its own palette, and this app has one. Everything the library paints --
+   the dotted ground, the edges, the handles, the controls -- is re-pointed at the tokens
+   above, so a graph is the same six surfaces and the same status hues as the table beside
+   it. Nothing below writes a colour; every value is a token.
+
+   A handle is where React Flow routes an edge to, and an edge cannot be drawn without one,
+   so both canvases place two on every box. Only the editor's are ports: `.dg-port` is the
+   dot that can be seen and dragged from, and a run's graph wears none of it.
+   --------------------------------------------------------------------------- */
+.react-flow.dg-graph {
+    --xy-background-color: var(--background);
+    --xy-background-pattern-dots-color: var(--border-strong);
+    --xy-edge-stroke: var(--graph-edge);
+    --xy-edge-stroke-selected: var(--primary);
+    --xy-edge-stroke-width: 1.5;
+    --xy-connectionline-stroke: var(--primary);
+    --xy-handle-background-color: transparent;
+    --xy-handle-border-color: transparent;
+    --xy-attribution-background-color: transparent;
+    --xy-controls-button-background-color: var(--card);
+    --xy-controls-button-background-color-hover: var(--accent);
+    --xy-controls-button-color: var(--foreground);
+    --xy-controls-button-color-hover: var(--accent-foreground);
+    --xy-controls-button-border-color: var(--border);
+    --xy-selection-background-color: color-mix(in oklab, var(--primary) 10%, transparent);
+    --xy-selection-border: 1px dashed var(--primary);
+}
+/* The zoom controls carry this app's own icons, which are drawn as strokes; the library's
+   button rule fills whatever svg is inside one. */
+.react-flow.dg-graph .react-flow__controls-button svg {
+    fill: none;
+    stroke: currentColor;
+}
+.react-flow.dg-graph .react-flow__handle {
+    visibility: hidden;
+    pointer-events: none;
+}
+.react-flow.dg-graph .react-flow__attribution a {
+    color: var(--faint);
+}
+
+/* A PORT: where an edge is drawn from, on the one canvas that draws them.
+
+   It is quiet until it is wanted -- a hairline dot on the card's own surface -- and takes the
+   identity colour under the pointer and for as long as a connection is being dragged anywhere
+   on the canvas, because the question then is where it can be dropped. */
+.react-flow.dg-graph .react-flow__handle.dg-port {
+    visibility: visible;
+    pointer-events: all;
+    width: 9px;
+    height: 9px;
+    border: 1px solid var(--border-strong);
+    background-color: var(--card);
+    transition:
+        background-color 120ms ease-out,
+        border-color 120ms ease-out,
+        box-shadow 120ms ease-out;
+}
+.step-node:hover .dg-port,
+.react-flow.dg-connecting .dg-port {
+    border-color: var(--primary);
+    background-color: color-mix(in oklab, var(--primary) 45%, var(--card));
+}
+.react-flow.dg-graph .react-flow__handle.dg-port:hover,
+.react-flow.dg-graph .react-flow__handle.dg-port.connectingto {
+    border-color: var(--primary);
+    background-color: var(--primary);
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--primary) 22%, transparent);
+}
+
+/* The line under the pointer while a connection is being drawn: the identity colour, dashed,
+   because it is a proposal rather than an edge the document has. */
+.react-flow.dg-graph .react-flow__connectionline .react-flow__connection-path {
+    stroke-width: 2;
+    stroke-dasharray: 5 4;
+}
+
+/* An edge on a canvas that edits is a thing that can be chosen and deleted, so it answers the
+   pointer. On a run's graph it is a line, and lines do not. */
+.react-flow.dg-editable .react-flow__edge {
+    cursor: pointer;
+}
+.react-flow.dg-editable .react-flow__edge:hover .react-flow__edge-path {
+    stroke: var(--muted-foreground);
+}
+.react-flow.dg-graph .react-flow__edge.selected .react-flow__edge-path {
+    stroke-width: 2.5;
+}
+
+/* AN EDGE ON A RUN'S GRAPH CARRIES THE STATE ITS SOURCE SETTLED IN, AND WHISPERS IT. The hue is
+   mixed well toward the resting stroke, because what an edge says is which way the run went and
+   what a node says is what happened: a graph of succeeded steps has to read as a shape rather
+   than as a green diagram. `lib/run-detail` decides which class an edge wears; a document has no
+   state, so the editor's edges wear none of them. */
+.react-flow.dg-graph .react-flow__edge.dg-edge-good .react-flow__edge-path {
+    stroke: color-mix(in oklab, var(--good) 35%, var(--graph-edge));
+}
+.react-flow.dg-graph .react-flow__edge.dg-edge-warning .react-flow__edge-path {
+    stroke: color-mix(in oklab, var(--warning) 35%, var(--graph-edge));
+}
+.react-flow.dg-graph .react-flow__edge.dg-edge-critical .react-flow__edge-path {
+    stroke: color-mix(in oklab, var(--critical) 35%, var(--graph-edge));
+}
+/* Into a step that did not happen: dashed, the same mark its own box wears. It is independent of
+   the tint, so an edge from a succeeded step into a skipped one carries both. */
+.react-flow.dg-graph .react-flow__edge.dg-edge-skipped .react-flow__edge-path {
+    stroke-dasharray: 5 4;
+}
+
+/* AN EDGE MOVES WHILE DATA IS TRAVELLING IT, AND NOTHING ELSE ON THE GRAPH MOVES AT ALL. The
+   stroke is the identity colour, because motion here is the app acting rather than a state; a
+   node keeps the state hue it already has. `lib/run-detail` decides which class an edge wears,
+   and these rules follow the tints above so a moving edge is amber over whatever it carries. */
+.react-flow.dg-graph .react-flow__edge.dg-edge-flowing .react-flow__edge-path,
+.react-flow.dg-graph .react-flow__edge.dg-edge-lit .react-flow__edge-path {
+    stroke: color-mix(in oklab, var(--primary) 75%, var(--graph-edge));
+    stroke-width: 2;
+}
+.react-flow.dg-graph .react-flow__edge.dg-edge-flowing .react-flow__edge-path {
+    stroke-dasharray: 6 5;
+    animation: dg-edge-flow 700ms linear infinite;
+}
+@keyframes dg-edge-flow {
+    to {
+        stroke-dashoffset: -11;
+    }
+}
+/* One handover, brighter and thicker, fading back into whatever the edge rests as -- which is
+   the keyframes naming no end state, so the end is the stroke the rules above already give it. */
+.react-flow.dg-graph .react-flow__edge.dg-edge-handover .react-flow__edge-path {
+    animation: dg-edge-handover 600ms ease-out 1;
+}
+@keyframes dg-edge-handover {
+    from {
+        stroke: var(--primary);
+        stroke-width: 3;
+    }
+}
+
+/* ---------------------------------------------------------------------------
+   ONE STEP, AS A BOX ON THE GRAPH.
+
+   The state is on the left edge as a bar in the state's own hue, which is the same rule the
+   attempt rows in the panel are drawn with, so a failed step reads the same in both places.
+
+   SELECTION IS NEUTRAL, AND IT IS THE ONE THING ON THIS BOX THAT IS NOT ALLOWED A HUE. A ring in
+   the identity colour sits next to the green of a succeeded step and the red of a failed one and
+   argues with both -- three colours on one box, only one of which is about the run. So the ring
+   is drawn in the ink family: a halo of the foreground, which is a step out of every surface in
+   either palette and is confusable with no state.
+
+   `--chip` is set on the element from the status token, exactly as `.status-chip` takes it.
+   --------------------------------------------------------------------------- */
+.step-node {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    overflow: hidden;
+    box-sizing: border-box;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--chip);
+    background-color: var(--card);
+    color: var(--card-foreground);
+    padding: 0.5rem 0.625rem;
+    text-align: left;
+    transition:
+        box-shadow 120ms ease-out,
+        border-color 120ms ease-out;
+}
+.step-node:hover {
+    border-color: var(--border-strong);
+    border-left-color: var(--chip);
+}
+.step-node[data-selected='true'] {
+    border-color: var(--border-strong);
+    border-left-color: var(--chip);
+    box-shadow: 0 0 0 2px color-mix(in oklab, var(--foreground) 35%, transparent);
+}
+.step-node:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+}
+.step-node[data-outcome='skipped'] {
+    border-style: dashed;
+}
+/* The document's box has two lines and nothing under them, so its foot does not keep the room a
+   run's box keeps for a duration and a strip of elements. `TIGHT_PADDING` in lib/dag-layout is
+   the same four pixels, because elk is told the height the box is drawn at. */
+.step-node[data-document='true'] {
+    padding-bottom: 0.25rem;
+}
+
+/* A box with ports does not clip them: half a dot is not a dot. */
+.step-node[data-editable='true'] {
+    overflow: visible;
+}
+
+/* A dot carrying a state, for a fan-out element too small to wear a whole chip. */
+.status-dot {
+    display: inline-block;
+    width: 0.5rem;
+    height: 0.5rem;
+    flex: none;
+    border-radius: 9999px;
+    background-color: var(--chip);
+}
+
+/* Lowercase text carries its weight below the line box's center, so an exactly centered dot
+   reads high; one pixel down puts it on the optical center. */
+.status-chip > .status-dot {
+    position: relative;
+    top: 1px;
+}
+
+/* A run that is still going, said once rather than by every chip on the screen animating. */
+.status-chip[data-live='true'] .status-dot {
+    animation: status-pulse 1.6s ease-in-out infinite;
+}
+@keyframes status-pulse {
+    0%,
+    100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.35;
+    }
+}
+
+/* A left bar in a state's hue: an attempt row in the panel, and the item rows under it. */
+.status-rail {
+    border-left: 2px solid var(--chip);
+    padding-left: 0.625rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .status-chip[data-live='true'] .status-dot {
+        animation: none;
+    }
+    .step-node,
+    .react-flow.dg-graph .react-flow__handle.dg-port {
+        transition: none;
+    }
+    .react-flow.dg-graph .react-flow__edge.dg-edge-flowing .react-flow__edge-path,
+    .react-flow.dg-graph .react-flow__edge.dg-edge-handover .react-flow__edge-path {
+        animation: none;
+    }
+}
+
+/* ---------------------------------------------------------------------------
+   THE LIST'S SCROLLBAR STARTS BELOW ITS STICKY HEADER.
+
+   The scroll container includes the header row, so the native track would run
+   through it; the track margin insets it to the rows it actually scrolls. The
+   thumb takes the strong border tone so it reads on the card ground.
+   --------------------------------------------------------------------------- */
+.list-scroll::-webkit-scrollbar {
+    width: 10px;
+}
+.list-scroll::-webkit-scrollbar-track {
+    background: transparent;
+    margin-block-start: 37px;
+}
+.list-scroll::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: 999px;
+}
+
+
+/* ---------------------------------------------------------------------------
+   A DIALOG IS A SHEET BELOW THE BREAKPOINT.
+
+   A centred card with a margin either side is a card on a phone with no room to be one, so
+   below `md` the dialog takes the whole viewport: the header at the top, the body scrolling,
+   the footer pinned to the foot.
+
+   Said here against the generated dialog's own slots, because those files are pristine.
+   --------------------------------------------------------------------------- */
+@media (max-width: 767px) {
+    [data-slot='dialog-content'] {
+        inset: 0;
+        width: 100%;
+        max-width: none;
+        height: 100dvh;
+        max-height: 100dvh;
+        /* The utilities centre it by writing their own custom properties into `translate`,
+           so this is where the centring is undone. */
+        --tw-translate-x: 0;
+        --tw-translate-y: 0;
+        transform: none;
+        border-radius: 0;
+        display: flex;
+        flex-direction: column;
+        overflow-y: auto;
+        padding-bottom: 0;
+    }
+    /* Pinned by sticking to the foot of the scroll it sits at the end of, so a dialog of any
+       number of children keeps its verbs on screen without the parts above it being counted.
+
+       A pinned footer is a surface rather than a wash: the body scrolls under it, and the
+       generated ground is half transparent, which would leave a field reading through the
+       verbs. And the verbs stand in one row, because a sheet's last two rows are the whole of
+       what a phone has left and each button is already a finger tall. */
+    [data-slot='dialog-content'] > [data-slot='dialog-footer'] {
+        position: sticky;
+        bottom: 0;
+        z-index: 1;
+        margin-top: auto;
+        margin-bottom: 0;
+        border-radius: 0;
+        background-color: var(--popover);
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        align-items: center;
+    }
+}
+
+/* ---------------------------------------------------------------------------
+   WHAT A FINGER LANDS ON IS 40px TALL.
+
+   A 28px control is a comfortable pointer target and a miss for a thumb, so below the
+   breakpoint every control the design system draws grows to the size a finger needs -- said
+   once here, against the generated primitives' slots, so no screen sizes a button for a phone
+   itself.
+   --------------------------------------------------------------------------- */
+@media (max-width: 767px) {
+    [data-slot='button'],
+    [data-slot='tabs-trigger'],
+    [data-slot='select-trigger'],
+    [data-slot='input'],
+    [data-slot='dropdown-menu-item'],
+    [data-slot='dropdown-menu-radio-item'],
+    [data-slot='dropdown-menu-checkbox-item'],
+    [data-slot='command-item'],
+    [data-slot='combobox-item'] {
+        min-height: 2.5rem;
+    }
+    /* A square control stays square: a 40px tall icon button 28px wide is a target on one
+       axis only. */
+    [data-slot='button'] {
+        min-inline-size: 2.5rem;
+    }
+}

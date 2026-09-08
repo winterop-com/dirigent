@@ -1,0 +1,142 @@
+# Tell somebody what a run did, in a body they can act on rather than a sentence.
+#
+# In:  a batch of load results, some of them failures.
+# Out: a notification POSTed to a receiver, and its answer -- with the summary built as
+#      structure and the human sentence derived from it, not the other way round.
+#
+# A notification body is an interface, so this recipe builds one rather than formatting a
+# message:
+#
+#   Counts before prose. rows, loaded, rejected and a boolean the receiver can route on.
+#   The identifiers to act with: the run id, the pipeline's day, and the rejected keys --
+#   not "3 records failed", which nobody can look up.
+#   A `text` field derived from the numbers, for a chat client that renders one line. It is
+#   built last, from the same object, so it can never disagree with the counts beside it.
+#   A severity the receiver can route on, decided here where the meaning of the numbers is
+#   known, rather than by a rule written in the receiver's config.
+#
+# webhook.post is the block for this rather than http.request, because a notification is a
+# delivery: it takes sign_with when the receiver verifies signatures, it caps the response
+# it reads at 1mb because nobody wants a receiver's HTML error page in a step output, and
+# success_status is how a receiver that answers 202 is accommodated.
+#
+# The delivery is a step in the DAG like any other, so a rule decides when it runs. This one
+# is `all_done`, so the notification is sent whether the batch succeeded or not -- a
+# notifier that only fires on success is one that goes quiet exactly when it matters.
+#
+# To change it: -p failures=0 sends the green version, and severity, text and routing all
+# follow from the numbers without another branch in the document.
+#
+#   dg run --local examples/recipes/webhook-post-summary.yaml
+#   dg run --local examples/recipes/webhook-post-summary.yaml -p failures=0
+
+format: dirigent/v1
+kind: pipeline
+code: webhook-post-summary
+name: A run summary as a webhook
+description: Build a notification body of counts and identifiers, derive its human line from those counts, and deliver it on all_done.
+
+tags: [recipes, transform, webhook]
+
+requires:
+  blocks:
+    - transform.jq
+    - webhook.post
+
+connections:
+  echo-webhook:
+    kind: http
+    config:
+      base_url: https://postman-echo.com
+      timeout: 30s
+      health_path: /get
+
+params:
+  type: object
+  properties:
+    day:
+      type: string
+      format: date
+      default: "2026-01-01"
+      description: The day the load reports on.
+    rows:
+      type: integer
+      minimum: 1
+      default: 12
+      description: How many records the load handled.
+    failures:
+      type: integer
+      minimum: 0
+      default: 3
+      description: How many of them were rejected; 0 sends the green version.
+
+steps:
+  results:
+    block: transform.jq
+    config:
+      input:
+        rows: ${params.rows}
+        failures: ${params.failures}
+        day: ${params.day}
+      program: |
+        . as {$rows, $failures, $day}
+        | [range($rows)
+           | {key: "\($day)/rec-\(.)",
+              status: (if . < $failures then "rejected" else "loaded" end),
+              reason: (if . < $failures then "period is outside the data set" else null end)}]
+
+  summary:
+    block: transform.jq
+    depends_on: [results]
+    config:
+      input:
+        rows: ${steps.results.output.value}
+        day: ${params.day}
+        run: ${run.id}
+      program: |
+        . as {$rows, $day, $run}
+        | {kind: "load.finished",
+           day: $day,
+           run: $run,
+           rows: ($rows | length),
+           loaded: ([$rows[] | select(.status == "loaded")] | length),
+           rejected: ([$rows[] | select(.status == "rejected")] | length),
+           # The keys, so the receiver can look them up; not a count of them, which nobody
+           # can act on.
+           rejected_keys: [$rows[] | select(.status == "rejected") | .key]}
+        | . + {clean: (.rejected == 0),
+               severity: (if .rejected == 0 then "info"
+                          elif .rejected < (.rows / 2) then "warning"
+                          else "error" end)}
+        # The sentence is derived from the counts, last, so it cannot contradict them.
+        | . + {text: "\(.day): \(.loaded)/\(.rows) loaded, \(.rejected) rejected"}
+
+  notify:
+    block: webhook.post
+    depends_on: [summary]
+    # Sent whether the work above passed or failed: a notifier that only fires on success
+    # goes quiet exactly when somebody needs it.
+    rule: all_done
+    config:
+      connection: echo-webhook
+      path: /post
+      body: ${steps.summary.output.value}
+      headers:
+        # Routing the receiver can dispatch on without parsing the body.
+        x-severity: ${steps.summary.output.value.severity}
+      # A receiver that queues rather than processes answers 202; both count as delivered.
+      success_status: [200, 202, 204]
+
+  delivered:
+    block: transform.jq
+    depends_on: [notify]
+    config:
+      input:
+        status: ${steps.notify.output.status}
+        signed: ${steps.notify.output.signed}
+        echoed: ${steps.notify.output.json_body}
+      program: |
+        {status, signed,
+         severity: .echoed.headers["x-severity"],
+         text: .echoed.json.text,
+         rejected_keys: .echoed.json.rejected_keys}

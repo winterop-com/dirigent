@@ -1,0 +1,86 @@
+# Fan out, then reduce: N items in, one aggregate out, and no keyword for either.
+#
+# The join is not a construct. A step joins a fan-out by depending on it and NOT declaring a
+# for_each of its own -- that is the whole mechanism, and it is why nothing here says "join"
+# or "reduce". One step definition, one attempt, and the batch arrives as a list.
+#
+# Three facts about what the join sees:
+#
+#   1. ${steps.measure.output} is a JSON array of the items' outputs, in item order.
+#   2. It is a value like any other, so a jq program reduces it the way jq reduces anything.
+#   3. Under items: continue a failed item is absent from that array, so the join must compute
+#      from what is there rather than from what was asked for. add/length below is right
+#      whatever survived; dividing by a hard-coded four would not be.
+#
+# Hop by hop:
+#
+#   measure  a literal list of station readings, fanned out. Each item scales one reading and
+#            emits a small object. This stands in for a fetch, and it needs no network, so the
+#            aggregation is what you watch rather than the HTTP.
+#   summary  the join. One attempt, the whole array, count and min and max and mean out of it.
+#
+# EXPECT THIS RUN TO SUCCEED in about a second, with a summary over four stations.
+#
+# To change it: add a station to the literal list and nothing else needs editing -- the join is
+# already written for whatever arrives. fan-in.yaml on the graph/ shelf is the same shape
+# shipping the raw batch onward instead of reducing it.
+#
+#   dg run --local examples/patterns/fan-out-then-join.yaml
+#   dg run --local examples/patterns/fan-out-then-join.yaml -p scale=2
+
+format: dirigent/v1
+kind: pipeline
+code: fan-out-then-join
+name: Fan out, then reduce
+description: |
+  A step joins a fan-out by depending on it and having no `for_each` of its own: one attempt,
+  and the batch arrives as a JSON array of the items' outputs.
+
+  The aggregate is computed from what is in that array, never from the width that was asked
+  for.
+
+tags: [patterns, transform, fan-out, graph]
+
+requires:
+  blocks:
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    scale:
+      type: number
+      description: A factor every reading is multiplied by before the summary reduces them.
+      default: 1.0
+      minimum: 0.1
+      maximum: 10.0
+
+steps:
+  measure:
+    block: transform.jq
+    # Objects rather than strings, so one item carries a whole reading. ${item.station} and
+    # ${item.celsius} reach into it; fan-out-nested-objects.yaml is that on its own.
+    for_each:
+      - {station: fornebu, celsius: 4.5}
+      - {station: blindern, celsius: 3.1}
+      - {station: gardermoen, celsius: -1.2}
+      - {station: tryvann, celsius: -4.8}
+    config:
+      input:
+        station: "${item.station}"
+        # A whole reference resolves to the typed value, so this is a number downstream and
+        # not the text of one. That is what lets the program below multiply it.
+        celsius: "${item.celsius}"
+        scale: "${params.scale}"
+      program: |
+        {station, celsius: (.celsius * .scale)}
+
+  summary:
+    block: transform.jq
+    depends_on: [measure]
+    # No for_each: this is the join, and one attempt sees all four items.
+    config:
+      input: "${steps.measure.output}"
+      program: |
+        [.[].value.celsius] |
+        {stations: length, min: min, max: max, mean: (add / length)}

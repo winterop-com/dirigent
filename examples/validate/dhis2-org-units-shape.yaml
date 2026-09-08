@@ -1,0 +1,52 @@
+# Verify DHIS2 organisation-unit metadata against the dhis2-org-units instance schema.
+#
+# A metadata read is a contract with a system you do not control: the fields= projection asks
+# for exactly id, displayName and level, and the gate validates the response against the
+# dhis2-org-units schema the instance holds. If DHIS2 renames a field or changes a type, the
+# run fails HERE naming the path, not later where a reader reads a field that moved. requires
+# names the schema, so an instance without it refuses the document.
+#
+#   dg run --local --schema examples/schemas/dhis2-org-units.json \
+#     examples/validate/dhis2-org-units-shape.yaml
+
+format: dirigent/v1
+kind: pipeline
+code: dhis2-org-units-shape
+name: Org units, shape-checked
+description: Fetch DHIS2 organisation units with a fields projection, and validate the response shape.
+
+tags: [validate, http]
+
+requires:
+  blocks:
+    - http.request
+    - validate.schema
+  schemas:
+    - dhis2-org-units
+
+connections:
+  dhis2-demo:
+    kind: http
+    config:
+      base_url: https://play.im.dhis2.org/stable-2-43-1
+      basic_username: admin
+      basic_password: district
+      timeout: 1m
+
+steps:
+  fetch:
+    block: http.request
+    config:
+      connection: dhis2-demo
+      path: /api/organisationUnits.json
+      method: GET
+      query:
+        fields: id,displayName,level
+        paging: false
+        order: displayName:asc
+  check:
+    block: validate.schema
+    depends_on: [fetch]
+    config:
+      input: ${steps.fetch.output.json_body}
+      schema: dhis2-org-units

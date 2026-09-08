@@ -1,0 +1,166 @@
+# Every ${...} form the reference language allows, each used once, in one document.
+#
+# THERE ARE FOUR NAMESPACES AND NOTHING ELSE. No expressions, no arithmetic, no conditionals,
+# no functions, no defaults, no coalescing. A reference names a value or it does not resolve.
+#
+#   params.<name>                a run parameter
+#   params.<name>.<path>         a leaf inside an object parameter
+#   params.<name>.<index>        an element of an array parameter
+#   steps.<key>.output           a step's whole output
+#   steps.<key>.output.<field>   one field of it
+#   steps.<key>.output.<index>   one element of a fan-out step's output list
+#   item                         this run item's element, inside a step that fans out
+#   item.<path>                  a field of it, when the element is an object
+#   run.id                       this run's uuid
+#   run.scratch                  this run's own directory under the artifact root
+#   run.window.start             the start of the interval this run covers
+#   run.window.end               the end of it, exclusive
+#
+# TWO RULES ABOUT WHAT A REFERENCE BECOMES:
+#
+#   A reference that is the WHOLE value resolves to the typed value. "${params.count}" is the
+#   integer 4 downstream, "${params.window}" is an object, "${steps.x.output}" is an array.
+#   A reference INSIDE a larger string interpolates as text: "day-${params.day}" is a string,
+#   null renders as empty, and a boolean renders as true or false.
+#
+# AND ONE ABOUT WHAT DOES NOT RESOLVE. An unknown reference is not an empty string: it raises,
+# and the engine settles that attempt as rejected, naming what was actually available. That
+# applies to a misspelled parameter, a step that produced no output, a field that is not
+# there, ${item} outside a fan-out, and ${run.window.start} on a run that carries no window.
+#
+# WHERE REFERENCES ARE RESOLVED: in a step's config, and in for_each. Nowhere else. poll,
+# deadline, timeout, retry, rule and concurrency are the pipeline's shape, and a caller does
+# not get to talk the engine into a different one at run time.
+#
+# One more rule this document cannot show without the allowlist: in a config field a block
+# marked as a shell string -- shell.run's `command` -- every substituted value is shell-quoted,
+# so a parameter that arrived in a webhook payload becomes exactly one word and the
+# metacharacters the author typed keep their meaning.
+#
+# THIS FILE NEEDS A WINDOW. run.window.* is a property of the run, so an ad hoc run has to be
+# given one; without it this document is refused at the first step, naming the reference. That
+# refusal is the demonstration too:
+#
+#   dg run --local examples/patterns/references-cheat-sheet.yaml --window 2026-06-01..2026-06-02
+#   dg run --local examples/patterns/references-cheat-sheet.yaml   # refused: this run carries no window
+
+format: dirigent/v1
+kind: pipeline
+code: references-cheat-sheet
+name: The whole reference language
+description: |
+  Four namespaces -- `params`, `steps`, `item`, `run` -- and no expressions, conditionals or
+  functions anywhere.
+
+  A whole reference resolves to the typed value; one inside a larger string interpolates as
+  text; an unknown one is rejected rather than resolved to empty. Needs `--window`.
+
+tags: [patterns, transform, fan-out, references]
+
+requires:
+  blocks:
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    day:
+      type: string
+      format: date
+      default: "2026-06-01"
+    count:
+      type: integer
+      description: An integer, so the typed-value rule has something to be visible on.
+      default: 4
+      minimum: 1
+    regions:
+      type: array
+      description: An array, indexed once below and fanned out over once.
+      default: [east, west, north]
+      minItems: 1
+      items:
+        type: string
+    window:
+      type: object
+      description: An object parameter, so a nested leaf has somewhere to be.
+      default: {days: 7, align: midnight}
+      properties:
+        days: {type: integer}
+        align: {type: string}
+
+steps:
+  namespaces:
+    block: transform.jq
+    config:
+      input:
+        # params, three ways: whole, a nested leaf, and an element by index.
+        day: "${params.day}"
+        align: "${params.window.align}"
+        first_region: "${params.regions.0}"
+        # An integer stays an integer, because the reference is the entire value.
+        typed_count: "${params.count}"
+        # The same reference inside a larger string is text, and reads as text downstream.
+        interpolated: "loading ${params.count} regions for ${params.day}"
+        # run: the two values every run has.
+        run_id: "${run.id}"
+        scratch: "${run.scratch}"
+        # run.window: only on a run that carries one. Half-open, so start is included and
+        # end is not.
+        window_start: "${run.window.start}"
+        window_end: "${run.window.end}"
+      program: |
+        .
+
+  per_region:
+    block: transform.jq
+    # for_each is the one place outside config where references resolve.
+    for_each: "${params.regions}"
+    depends_on: [namespaces]
+    config:
+      input:
+        # item: this run item's element. Outside a fan-out this reference does not resolve.
+        region: "${item}"
+        # A step's whole output, and one field of it, from inside a fan-out.
+        day: "${steps.namespaces.output.value.day}"
+      program: |
+        {region, day}
+
+  per_feed:
+    block: transform.jq
+    # A literal list of objects, so item.<path> has somewhere to reach.
+    for_each:
+      - {code: cases, weight: 2}
+      - {code: climate, weight: 1}
+    depends_on: [namespaces]
+    config:
+      input:
+        # item.<path>: a field of an element that is an object. A field the element does not
+        # carry raises here rather than resolving to an empty string.
+        feed: "${item.code}"
+        weight: "${item.weight}"
+        # ${item} on its own is still the whole element.
+        element: "${item}"
+      program: |
+        {feed, weight, element}
+
+  collect:
+    block: transform.jq
+    depends_on: [per_region, per_feed, namespaces]
+    config:
+      input:
+        # A fan-out step's whole output: a JSON array of the items' outputs, in item order.
+        every_item: "${steps.per_region.output}"
+        # One element of it, by index. Under items: continue a failed item is absent from the
+        # list, so index 0 is the first item that WORKED rather than the first one asked for.
+        first_item: "${steps.per_region.output.0.value.region}"
+        feeds: "${steps.per_feed.output}"
+        # A whole step output, unindexed, so the object arrives intact.
+        namespaces: "${steps.namespaces.output.value}"
+      program: |
+        {
+          regions: [.every_item[].value.region],
+          feeds: [.feeds[].value.feed],
+          first_item,
+          covered: "\(.namespaces.window_start)..\(.namespaces.window_end)",
+          typed_count_is_a_number: (.namespaces.typed_count | type)
+        }

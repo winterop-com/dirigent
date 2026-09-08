@@ -1,0 +1,94 @@
+# A drive step that fails, and the teardown that runs anyway.
+#
+# THIS PIPELINE FAILS ON PURPOSE. It is here to show what the run looks like afterwards, so
+# the expected outcome is a failed run with a succeeded teardown in it and an empty daemon.
+#
+# REQUIRES A DOCKER DAEMON the worker can reach, named by DOCKER_HOST (a dind sidecar over
+# tcp+TLS, or the local socket in dev). docs/docker.md is the family's home.
+#
+# Every block here declares local_execution, so the engine refuses them unless the instance
+# allowlists their ids:
+#   dg run --local examples/docker/docker-run-failing-teardown.yaml \
+#     --enable-unsafe docker.compose.up,docker.compose.down,docker.run
+#   export DIRIGENT_ENABLED_UNSAFE_BLOCKS='["docker.compose.up","docker.compose.down","docker.run"]'
+#
+# Three hops:
+#   stack     one nginx service, up and healthy, persisting for the rest of the run.
+#   drive     a container that reaches the service, prints what it got, and then exits 1.
+#             The container's non-zero exit is the step's failure, and its stderr is what the
+#             failure message quotes.
+#   teardown  the same project down again, under rule: all_done.
+#
+# WHAT THE RUN'S STEP LIST READS LIKE AFTERWARDS: stack succeeded, drive failed, teardown
+# succeeded, run failed. A teardown is not an apology for a failure and does not hide one --
+# the run's status is failed because a step of it failed, whatever ran after. That is the
+# whole reason down is its own step rather than something up does at the end of itself:
+# all_done is an ordinary engine rule, evaluated the same way every other rule is, so no
+# "finally" primitive is needed and no block has to guess when a stack is finished with.
+#
+# WHAT THE DAEMON HOLDS AFTERWARDS: nothing of this run.
+#   docker ps -a --filter label=com.docker.compose.project
+# lists nothing from it, because the teardown ran. Take rule: all_done off the down step and
+# the same run leaves nginx running until somebody notices.
+#
+# TO MAKE IT YOURS: the drive step is standing in for whatever real work a stack is brought up
+# for -- a migration, a test suite, a load. Give it your command; keep the shape.
+
+format: dirigent/v1
+kind: pipeline
+code: docker-run-failing-teardown
+name: A failing drive step over a stack
+description: A container that reaches the stack and then exits 1, with the teardown running on any outcome.
+
+tags: [docker, execute]
+
+requires:
+  blocks:
+    - docker.compose.up
+    - docker.compose.down
+    - docker.run
+
+steps:
+  stack:
+    block: docker.compose.up
+    deadline: 10m
+    config:
+      wait: true
+      wait_timeout: 2m
+      pull: always
+      content: |
+        services:
+          api:
+            image: nginx:alpine
+            healthcheck:
+              test: ["CMD-SHELL", "wget -qO- http://localhost/ >/dev/null 2>&1 || exit 1"]
+              interval: 2s
+              timeout: 2s
+              retries: 5
+
+  drive:
+    block: docker.run
+    depends_on: [stack]
+    deadline: 5m
+    config:
+      image: alpine:3
+      pull: true
+      network: "${steps.stack.output.default_network}"
+      # The work succeeds and the step still fails: the exit code is the whole verdict, and
+      # the last line on stderr is what the step's failure message quotes back.
+      argv:
+        - sh
+        - -c
+        - 'wget -qO- http://api/ >/dev/null && echo "the service answered"; echo "and now failing on purpose" >&2; exit 1'
+      memory: 64mb
+      pids_limit: 64
+
+  teardown:
+    block: docker.compose.down
+    depends_on: [drive]
+    # Without this the teardown would be skipped the moment drive failed, and the stack would
+    # outlive the run.
+    rule: all_done
+    deadline: 5m
+    config:
+      down_volumes: true

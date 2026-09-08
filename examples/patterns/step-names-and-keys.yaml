@@ -1,0 +1,99 @@
+# The map key is the identity; name is a title nothing may ever reference.
+#
+# Every addressable thing in dirigent carries the same quartet, and each field has exactly one
+# job:
+#
+#   id           the uuid a machine holds. Never written in a document.
+#   code         the addressable key: constrained, unique, and what appears in a URL, in a
+#                document, and in every reference. A step's map key IS its code.
+#   name         an optional human title. Free-form, with no identity semantics at all --
+#                nothing may ever be referenced by it, and two things may share one.
+#   description  long-form and markdown-capable; the body a screen renders. A STEP carries no
+#                description -- only name and its key -- because a step's explanation is the
+#                comment above it, which travels in the document a person reads.
+#
+# So a step is referenced by its map key and by nothing else: ${steps.load_batch.output.status}
+# names load_batch, and renaming the STEP NAME below to anything at all leaves every reference
+# in this document working. Renaming the KEY breaks them, and breaks them at apply time, which
+# is the trade -- an identifier that is checkable is an identifier that cannot quietly drift.
+#
+# Two steps in this file deliberately share a name. That is legal, because a name identifies
+# nothing; the keys tell them apart. A screen shows the name where there is one and the key
+# otherwise, with the key always on the page in mono and never drawn twice.
+#
+# The same quartet, in the same shape, everywhere: the pipeline's code is its filename here
+# (the corpus test insists on it), a schedule's code addresses it, a webhook's code addresses
+# it, and a connection's code is what a document names instead of carrying a credential.
+#
+# Hop by hop:
+#
+#   load_batch   a key in snake_case, and a name that reads like a sentence.
+#   verify_rows  depends on the KEY above, not on its name, and reads its output the same way.
+#   publish      carries the same name as verify_rows, which nothing anywhere minds.
+#
+# EXPECT THIS RUN TO SUCCEED in about a second, with no network and no allowlist.
+#
+# To change it: edit any name below and re-run -- everything still works. Edit a key and the
+# document stops validating, with the dangling reference named.
+#
+#   dg run --local examples/patterns/step-names-and-keys.yaml
+
+format: dirigent/v1
+kind: pipeline
+code: step-names-and-keys
+name: Keys address, names describe
+description: |
+  A step's map **key** is its code: the only thing anything references, and what
+  `${steps.<key>.output...}` names.
+
+  `name` is a free-form title with no identity semantics -- two steps may share one, and
+  renaming it breaks nothing.
+
+tags: [patterns, transform, conventions, references]
+
+requires:
+  blocks:
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    batch:
+      type: string
+      description: Which batch this run covers.
+      default: 2026-01-01-cases
+
+steps:
+  load_batch:
+    # A title, for a person reading a run. Change it freely: nothing in this document, in the
+    # API, or in a URL refers to it.
+    name: Load the nightly batch
+    block: transform.jq
+    config:
+      input:
+        batch: "${params.batch}"
+      program: |
+        {batch, rows: 4120}
+
+  verify_rows:
+    name: Check the batch
+    block: transform.jq
+    # The key, never the name. A dependency on "Load the nightly batch" is not expressible,
+    # which is the point.
+    depends_on: [load_batch]
+    config:
+      # Same rule in a reference: steps.<key>.output.<field>.
+      input: "${steps.load_batch.output.value}"
+      program: |
+        {batch, rows, verified: (.rows > 0)}
+
+  publish:
+    # Deliberately the same name as the step above. Two rows may share a name because a name
+    # identifies nothing; publish and verify_rows are still two different steps.
+    name: Check the batch
+    block: transform.jq
+    depends_on: [verify_rows]
+    config:
+      input: "${steps.verify_rows.output.value}"
+      program: |
+        {published: .batch, rows}

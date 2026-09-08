@@ -1,0 +1,75 @@
+# Two pipelines, one display name, and only the code telling them apart.
+#
+# This document and weekly-import-malawi.yaml both carry `name: Weekly import`. That is legal,
+# it is not a mistake, and an instance holding both is behaving correctly.
+#
+# The four fields every addressable thing carries each have exactly one job:
+#
+#   id           the uuid a machine holds
+#   code         the addressable key: constrained, unique, and what a URL, a reference and
+#                `dg run` all carry
+#   name         an optional human title, free-form, with NO identity semantics at all --
+#                nothing may ever be referenced by it, and two rows may share one
+#   description  the long-form body
+#
+# The temptation this pair exists to head off is treating a name as a key: looking a pipeline
+# up by it, keying a dictionary on it, or assuming a listing's titles are distinct. Names are
+# for reading. `dg run weekly-import-nepal` names a pipeline; "Weekly import" names two, and
+# an instance asked to run that has no way to choose.
+#
+# So the UI's rule pays for itself here. A screen shows the name as the title AND the code in
+# mono beside it, always, never drawn twice -- which is what makes two identically titled
+# rows in a listing tellable apart at a glance instead of a support question. Apply both and
+# look at the pipelines list.
+#
+# Nothing here reaches the network or runs code on the worker.
+#
+#   dg apply examples/demo/weekly-import-nepal.yaml
+#   dg apply examples/demo/weekly-import-malawi.yaml
+#   dg pipelines list                             # two rows, one title, two codes
+
+format: dirigent/v1
+kind: pipeline
+code: weekly-import-nepal
+# Shared, deliberately, with weekly-import-malawi.yaml. The code above is what differs, and
+# the code is the only thing that was ever identity.
+name: Weekly import
+description: |
+  The Nepal half of a deliberately ambiguous pair.
+
+  This pipeline and `weekly-import-malawi` share the display name **Weekly import**. Only
+  the `code` is identity: `name` is free-form, carries no uniqueness, and nothing may be
+  referenced by it.
+
+  Two rows may share a title. Neither may share a code.
+
+tags: [demo, transform]
+
+requires:
+  blocks:
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    week:
+      type: string
+      description: The ISO week being imported.
+      default: 2026-W01
+
+steps:
+  read_manifest:
+    block: transform.jq
+    config:
+      input:
+        country: nepal
+        week: "${params.week}"
+        districts: [bagmati, gandaki, karnali, koshi, lumbini, madhesh, sudurpashchim]
+      program: "{country, week, districts: (.districts | length)}"
+
+  summarise:
+    block: transform.jq
+    depends_on: [read_manifest]
+    config:
+      input: "${steps.read_manifest.output.value}"
+      program: "{note: \"\\(.country) \\(.week): \\(.districts) districts imported\"}"

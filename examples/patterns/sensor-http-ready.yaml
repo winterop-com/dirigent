@@ -1,0 +1,121 @@
+# http.ready: waiting for a service to say it is up, without holding anything while you wait.
+#
+# A sensor observes and changes nothing. Each poke here is one short GET, "not yet" is the
+# EXPECTED answer rather than a failure, and between pokes the attempt is a parked row with a
+# wake-up time -- so waiting an hour for a service to come up costs a handful of rows and no
+# worker at all. That is the difference between this and a step that loops.
+#
+# The block's own config answers "what counts as ready":
+#
+#   expect_status  the statuses that mean ready. Empty means any 2xx, which is the sensible
+#                  default; a service that answers 204 when warm and 503 when not needs
+#                  nothing here, and one that answers 418 on purpose needs it named.
+#   contains       an optional body matcher. Readiness ALSO requires this text in the body, so
+#                  a load balancer answering 200 from a page that says "starting" is not ready.
+#   max_response   how much of the body is read while looking for it.
+#
+# The step's fields answer "how long, how often, and what if not":
+#
+#   poll           the cadence. Its default is a minute, which is right for a real service.
+#   deadline       when to give up. Its default is a day.
+#   on_timeout     fail (the default) or skip.
+#
+# WHY A NON-2xx IS NOT AN ERROR HERE, which is the thing to internalise: an http.request
+# against a 503 fails the step, because a request that was answered 503 did not do its job. An
+# http.ready against the same 503 has done its job perfectly -- it observed that the service is
+# not ready yet. Same status, same URL, opposite meanings, because one is an operator and the
+# other is a sensor.
+#
+# Hop by hop:
+#
+#   api_up     pokes an endpoint that answers 200 immediately, so it is ready on the first
+#              poke and the run does not wait at all. It also matches on the body, which is the
+#              guard that separates "the port is open" from "the service is up".
+#   smoke_test the ordinary call that was waiting for it, and the reason the sensor is here.
+#   report     reads the sensor's own output: which status made it ready, how long the poke
+#              took, and whether the body matcher was in play.
+#
+# EXPECT THIS RUN TO SUCCEED in about two seconds, with matched true.
+#
+# To change it: -p path=/status/503 never becomes ready, and after the deadline the step fails
+# -- with on_timeout: skip it would skip instead, which is timeout-skips-the-step.yaml.
+#
+#   dg run --local examples/patterns/sensor-http-ready.yaml
+#   dg run --local examples/patterns/sensor-http-ready.yaml -p path=/status/503   # fails at the deadline
+
+format: dirigent/v1
+kind: pipeline
+code: sensor-http-ready
+name: Waiting for a service
+description: |
+  `http.ready` pokes an endpoint until it answers ready. A non-2xx is "not yet", not an
+  error -- the same status that would fail an `http.request`.
+
+  `expect_status` and `contains` say what ready means; `poll`, `deadline` and `on_timeout`
+  are step fields and say how long you are willing to wait for it.
+
+tags: [patterns, http, sensor, transform]
+
+requires:
+  blocks:
+    - http.ready
+    - http.request
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    path:
+      type: string
+      description: The readiness path; /get answers 200 at once, /status/503 never answers ready.
+      default: /get
+    dataset:
+      type: string
+      description: Echoed by the endpoint, so the body matcher below has something to match on.
+      default: cases
+
+steps:
+  api_up:
+    block: http.ready
+    # Two seconds so the example is watchable. A real readiness check on a service that takes
+    # minutes to warm up polls in minutes: each poke is a scheduled row, and the cost of
+    # waiting is rows, not time.
+    poll: 2s
+    # Short for the same reason. The block's own default is a day, which is the right order of
+    # magnitude for "wait until somebody starts it".
+    deadline: 20s
+    config:
+      # A sensor names a target and nothing else: there is no method and no query map here,
+      # because looking is a GET and anything a look needs goes in the URL.
+      url: "https://postman-echo.com${params.path}?dataset=${params.dataset}"
+      # 200 only, rather than any 2xx. Naming it is what stops a 204 with an empty body from
+      # counting as a service that is serving.
+      expect_status: [200]
+      # The body matcher, and the reason it is worth having: a proxy in front of a starting
+      # service answers 200 from its own error page, and only the body tells them apart.
+      contains: "${params.dataset}"
+      max_response: 64kb
+
+  smoke_test:
+    block: http.request
+    depends_on: [api_up]
+    # The work that was waiting. Ordinary all_success, so it never runs against a service the
+    # sensor could not confirm.
+    config:
+      url: https://postman-echo.com/post
+      method: POST
+      body:
+        dataset: "${params.dataset}"
+
+  report:
+    block: transform.jq
+    depends_on: [smoke_test]
+    config:
+      input:
+        ready_status: "${steps.api_up.output.status}"
+        poke_ms: "${steps.api_up.output.duration_ms}"
+        # True when a contains matcher was configured, so a reader can tell a body-checked
+        # readiness from a status-only one.
+        matched: "${steps.api_up.output.matched}"
+      program: |
+        {ready_status, poke_ms, matched}

@@ -1,0 +1,72 @@
+# A csv report delivered to a bucket, where the people who asked for it can fetch it.
+#
+# NEEDS AN S3-COMPATIBLE ENDPOINT, set up exactly as s3-round-trip.yaml documents: the same
+# rustfs container, the same artifacts connection, the same DIRIGENT_STORAGE_CONNECTIONS.
+#
+# This is examples/transform/csv-report.yaml with a real destination: the same records, the
+# same flattening, the same codec -- and save_to pointing at s3:// instead of the run's
+# scratch, so the file outlives the run and lands where a person or another system reads
+# it. Changing the destination was one word, which is the point of schemes.
+#
+#      dg apply examples/s3/s3-csv-report.yaml
+#      dg run s3-csv-report -p day=2026-01-01 --watch
+#
+# The report is at s3://<bucket>/reports/<day>.csv when the run settles.
+
+format: dirigent/v1
+kind: pipeline
+code: s3-csv-report
+name: A report delivered to a bucket
+description: Shape records into flat rows and write them as a csv object in S3.
+
+tags: [s3, storage, transform]
+
+requires:
+  blocks:
+    - value.const
+    - transform.jq
+    - convert.std
+  connections:
+    - artifacts
+  storage:
+    - s3
+
+params:
+  type: object
+  required: [day]
+  additionalProperties: false
+  properties:
+    day:
+      type: string
+      format: date
+      description: The day the report is about, and the object it is named as.
+    bucket:
+      type: string
+      default: dirigent-archive
+      description: The bucket the report is delivered into.
+
+steps:
+  readings:
+    block: value.const
+    config:
+      value:
+        - { station: st-1, region: east, celsius: 4.5, tags: [ok, new] }
+        - { station: st-3, region: west, celsius: 1.2, tags: [ok] }
+        - { station: st-4, region: north, celsius: -3.4, tags: [] }
+  rows:
+    block: transform.jq
+    depends_on: [readings]
+    config:
+      input: ${steps.readings.output.value}
+      # Flatten for the codec: the tag list becomes one joined cell, because only this
+      # program knows what the separator should mean. tojson because a codec takes text.
+      program: |
+        [.[] | {station, region, celsius, tags: (.tags | join(" "))}] | tojson
+  report:
+    block: convert.std
+    depends_on: [rows]
+    config:
+      input: "${steps.rows.output.value}"
+      from: json
+      to: csv
+      save_to: s3://${params.bucket}/reports/${params.day}.csv

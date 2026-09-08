@@ -1,0 +1,13 @@
+{
+  "$id": "ou-record",
+  "title": "Organisation unit record",
+  "description": "A single organisation-unit record: a string id, a name, and an integer level. The shape a payload is held to before a downstream step reads any of the three.",
+  "type": "object",
+  "required": ["id", "name", "level"],
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string" },
+    "name": { "type": "string" },
+    "level": { "type": "integer" }
+  }
+}

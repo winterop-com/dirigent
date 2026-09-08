@@ -1,0 +1,93 @@
+# Copy an object between prefixes, then prove it landed before anything reads it.
+#
+# NEEDS AN S3-COMPATIBLE ENDPOINT, set up exactly as s3-round-trip.yaml documents: the same
+# rustfs container, the same artifacts connection, the same DIRIGENT_STORAGE_CONNECTIONS.
+#
+# The shape is promote-then-consume: a copy from an incoming prefix to a published one,
+# storage.exists standing between the copy and the reader. The sensor is not decoration --
+# on eventually-consistent stores the object's arrival is a fact worth waiting on, and a
+# reader gated on it never sees the half-published state.
+#
+#      dg apply examples/s3/s3-copy-and-verify.yaml
+#      dg run s3-copy-and-verify -p day=2026-01-01 --watch
+#
+# The seed step exists so the example carries its own input: a real pipeline starts at
+# promote, with the incoming object written by whatever produced it.
+
+format: dirigent/v1
+kind: pipeline
+code: s3-copy-and-verify
+name: Copy and verify
+description: Promote an object to a published prefix, and prove it landed before reading it.
+
+tags: [s3, sensor, storage, transform]
+
+requires:
+  blocks:
+    - storage.copy
+    - storage.exists
+    - value.const
+    - transform.jq
+    - convert.std
+  connections:
+    - artifacts
+  storage:
+    - s3
+
+params:
+  type: object
+  required: [day]
+  additionalProperties: false
+  properties:
+    day:
+      type: string
+      format: date
+      description: The day whose object is promoted.
+    bucket:
+      type: string
+      default: dirigent-archive
+      description: The bucket both prefixes live in.
+
+steps:
+  payload:
+    block: value.const
+    config:
+      value:
+        - { station: st-1, day: "${params.day}", celsius: 4.5 }
+        - { station: st-3, day: "${params.day}", celsius: 1.2 }
+  as_text:
+    block: transform.jq
+    depends_on: [payload]
+    config:
+      input: ${steps.payload.output.value}
+      # tojson because a codec takes text.
+      program: tojson
+  seed:
+    # The example's own input: the incoming object a real producer would have written.
+    block: convert.std
+    depends_on: [as_text]
+    config:
+      input: "${steps.as_text.output.value}"
+      from: json
+      to: ndjson
+      save_to: s3://${params.bucket}/incoming/${params.day}.ndjson
+  promote:
+    block: storage.copy
+    depends_on: [seed]
+    config:
+      source: s3://${params.bucket}/incoming/${params.day}.ndjson
+      target: s3://${params.bucket}/published/${params.day}.ndjson
+  landed:
+    block: storage.exists
+    depends_on: [promote]
+    poll: 5s
+    deadline: 2m
+    config:
+      uri: s3://${params.bucket}/published/${params.day}.ndjson
+  read_back:
+    block: convert.std
+    depends_on: [landed]
+    config:
+      input_uri: s3://${params.bucket}/published/${params.day}.ndjson
+      from: ndjson
+      to: json

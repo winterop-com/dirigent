@@ -1,0 +1,109 @@
+# The three verbs in the order a pipeline usually needs them: keep, convert, summarise.
+#
+# In:  raw meter readings, some of them from a decommissioned meter or flagged suspect.
+# Out: {kept, converted, summary} -- and a summary computed by reduce over the converted
+#      rows.
+#
+# Each step is the verb whose promise matches what it is doing, and the promise is what the
+# document tells a reader without their having to read the program:
+#
+#   filter.jq     the output is a subset of the input and the elements are untouched. A
+#                 reader knows no value was edited here without reading the predicate.
+#   map.jq        the output has one element per input element, in order. A reader knows the
+#                 batch did not change size here without reading the program.
+#   transform.jq  anything else. Summarising changes the shape from a list to an object, so
+#                 it is the only one of the three that can do it.
+#
+# Written as one transform.jq the result would be identical and the document would say
+# nothing. The cost of the split is two more steps; the payoff is that each step's failure
+# names the element it happened on, and that a run's step list reads as what was done.
+#
+# reduce is the summariser here rather than three passes of add, because the accumulator
+# needs to see each row once to keep a count, a total and a maximum together. add over three
+# mapped lists is fine and reads well; reduce is what to reach for once the accumulator
+# holds more than one number.
+#
+# To change it: -p suspect_is_kept=true keeps the flagged rows, which moves both the count
+# and the mean and is the fastest way to see how much a quality rule is worth.
+#
+#   dg run --local examples/recipes/filter-then-map-then-reduce.yaml
+#   dg run --local examples/recipes/filter-then-map-then-reduce.yaml -p suspect_is_kept=true
+
+format: dirigent/v1
+kind: pipeline
+code: filter-then-map-then-reduce
+name: Filter, then map, then reduce
+description: Keep the usable readings, convert each one, and fold the result into a summary with reduce.
+
+tags: [recipes, transform, filter, map]
+
+requires:
+  blocks:
+    - value.const
+    - transform.jq
+    - map.jq
+    - filter.jq
+
+params:
+  type: object
+  properties:
+    suspect_is_kept:
+      type: boolean
+      default: false
+      description: Keep the readings flagged suspect instead of dropping them.
+
+steps:
+  readings:
+    block: value.const
+    config:
+      value:
+        - { meter: m-1, at: "2026-01-01T06:00:00Z", kwh: 12.5, state: live, suspect: false }
+        - { meter: m-2, at: "2026-01-01T06:00:00Z", kwh: 0.0, state: decommissioned, suspect: false }
+        - { meter: m-3, at: "2026-01-01T06:00:00Z", kwh: 9.25, state: live, suspect: true }
+        - { meter: m-4, at: "2026-01-01T06:00:00Z", kwh: 31.0, state: live, suspect: false }
+        - { meter: m-5, at: "2026-01-01T06:00:00Z", kwh: 4.75, state: live, suspect: false }
+
+  attach:
+    block: transform.jq
+    depends_on: [readings]
+    config:
+      input:
+        rows: ${steps.readings.output.value}
+        keep_suspect: ${params.suspect_is_kept}
+      program: |
+        . as {$rows, $keep_suspect}
+        | [$rows[] | . + {_keep_suspect: $keep_suspect}]
+
+  kept:
+    block: filter.jq
+    depends_on: [attach]
+    config:
+      input: ${steps.attach.output.value}
+      program: |
+        .state == "live" and (._keep_suspect or (.suspect | not))
+
+  converted:
+    block: map.jq
+    depends_on: [kept]
+    config:
+      input: ${steps.kept.output.value}
+      # A megajoule is 3.6 kWh, so this is the unit conversion a sink asked for; the map is
+      # where it belongs because it touches one row at a time and changes no row count.
+      program: |
+        {meter, at, megajoules: (.kwh * 3.6 | . * 100 | round / 100)}
+
+  summary:
+    block: transform.jq
+    depends_on: [converted]
+    config:
+      input: ${steps.converted.output.value}
+      program: |
+        . as $rows
+        | reduce $rows[] as $row
+            ({meters: 0, megajoules: 0, peak: null};
+             {meters: (.meters + 1),
+              megajoules: (.megajoules + $row.megajoules),
+              peak: (if .peak == null or $row.megajoules > .peak.megajoules
+                     then $row else .peak end)})
+        | . + {mean_megajoules: (if .meters == 0 then null
+                                 else (.megajoules / .meters * 100 | round / 100) end)}

@@ -1,0 +1,141 @@
+# What survives a round trip through parquet, and what a csv would have flattened instead.
+#
+# In:  one record carrying every JSON scalar -- a string, an integer, a float, a boolean, a
+#      null, a numeric string, and a column whose values are integers and floats together.
+# Out: {before, after, changed} plus the same record after a csv round trip, so the two
+#      formats can be compared column by column in one output.
+#
+# Parquet has a schema and csv does not, and that single difference is the whole recipe:
+#
+#   integer          survives as an int64.
+#   float            survives as a float64.
+#   boolean          survives as a boolean, not as "true".
+#   null             survives as a null, in a column that stays typed.
+#   numeric string   survives as a string. "007" comes back "007", where a csv reader is
+#                    left guessing and a spreadsheet would have eaten the leading zeros.
+#   mixed number     integers and floats unify to one float column, because JSON calls both
+#                    a number. The values still come back equal, since JSON has one number
+#                    spelling, so `changed.parquet` is empty -- the loss is in the column's
+#                    type, which a later reader sees and a jq comparison cannot.
+#
+# The csv leg is the control. Every cell in a csv is text on the way out and text on the way
+# back, so after it every value is a string and the booleans, the numbers and the nulls are
+# indistinguishable from the words that spell them.
+#
+# The comparison is computed rather than described: `changed` lists the fields whose value
+# is not identical after the round trip, so this recipe stays honest if the codec ever
+# changes under it.
+#
+# A column whose rows disagree in a way that cannot unify is refused by name at the write
+# rather than coerced. Adding {"code": 7} to one of the rows below is the fastest way to see
+# it: "column 'code' holds both integer and string values, and a parquet column carries one
+# type; reshape it before converting".
+#
+#   dg run --local examples/recipes/parquet-round-trip-types.yaml
+
+format: dirigent/v1
+kind: pipeline
+code: parquet-round-trip-types
+name: What survives a parquet round trip
+description: Write one record of every JSON scalar to parquet and read it back, against a csv round trip of the same record.
+
+tags: [recipes, storage, transform, parquet]
+
+requires:
+  blocks:
+    - value.const
+    - transform.jq
+    - convert.std
+    - convert.arrow
+
+params:
+  type: object
+  properties:
+    day:
+      type: string
+      format: date
+      default: "2026-01-01"
+      description: The day the written file is named for.
+
+steps:
+  rows:
+    block: value.const
+    config:
+      value:
+        - text: Harbour
+          whole: 1440
+          fractional: 4.5
+          flag: true
+          absent: null
+          code: "007"
+          mixed: 1
+        - text: Ridge
+          whole: 1200
+          fractional: -1.25
+          flag: false
+          absent: null
+          code: "042"
+          # The other value in this column is an integer, so the column unifies to float.
+          mixed: 2.5
+
+  as_text:
+    block: transform.jq
+    depends_on: [rows]
+    config:
+      input: ${steps.rows.output.value}
+      program: tojson
+
+  write_parquet:
+    block: convert.arrow
+    depends_on: [as_text]
+    config:
+      input: ${steps.as_text.output.value}
+      from: json
+      to: parquet
+      save_to: ${run.scratch}/types-${params.day}.parquet
+
+  read_parquet:
+    block: convert.arrow
+    depends_on: [write_parquet]
+    config:
+      input_uri: ${steps.write_parquet.output.output_uri}
+      from: parquet
+      to: json
+
+  as_csv:
+    block: convert.std
+    depends_on: [as_text]
+    config:
+      input: ${steps.as_text.output.value}
+      from: json
+      to: csv
+
+  read_csv:
+    block: convert.std
+    depends_on: [as_csv]
+    config:
+      input: ${steps.as_csv.output.text}
+      from: csv
+      to: json
+
+  compare:
+    block: transform.jq
+    depends_on: [rows, read_parquet, read_csv]
+    config:
+      input:
+        before: ${steps.rows.output.value}
+        after_parquet: ${steps.read_parquet.output.text}
+        after_csv: ${steps.read_csv.output.text}
+      program: |
+        def kinds: map_values(type);
+        . as {$before, $after_parquet, $after_csv}
+        | ($after_parquet | fromjson) as $parquet
+        | ($after_csv | fromjson) as $csv
+        | {before: $before[0], after_parquet: $parquet[0], after_csv: $csv[0],
+           kinds: {before: ($before[0] | kinds),
+                   after_parquet: ($parquet[0] | kinds),
+                   after_csv: ($csv[0] | kinds)},
+           changed: {parquet: [$before[0] | to_entries[]
+                               | select($parquet[0][.key] != .value) | .key],
+                     csv: [$before[0] | to_entries[]
+                           | select($csv[0][.key] != .value) | .key]}}

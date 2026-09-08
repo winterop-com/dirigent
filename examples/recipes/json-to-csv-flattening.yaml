@@ -1,0 +1,123 @@
+# Nested JSON into a csv somebody opens in a spreadsheet, with the nesting decided on.
+#
+# In:  an API-shaped payload: an envelope around a list of records, each with a nested
+#      object, a list, and a field the report should not carry.
+# Out: a csv in the run's scratch space, one row per record, and the same rows inline for
+#      the run's Output tab.
+#
+# A csv row is flat, so this is three decisions rather than a conversion:
+#
+#   The envelope.  The codec wants the array, not the object wrapping it, so the jq step
+#                  reaches into .results before anything else happens.
+#   The nesting.   A nested value has no csv spelling and convert.std refuses it naming the
+#                  row and the key. Every nested field is therefore pulled up into a column
+#                  with a name a person reading the header will understand -- site_name, not
+#                  site.name, because a dot in a header is a thing spreadsheets fight over.
+#   The lists.     tags is a list, so the report joins it with a separator it chooses. That
+#                  choice belongs here, in the step that knows the values contain no
+#                  semicolons, and not in a codec that would have to guess.
+#
+# Column order is the last decision, and it is the reason the projection is written out
+# field by field rather than generated: a report's header is part of its contract with
+# whoever reads it, and a program that emits whatever keys it finds changes that header the
+# day the source adds a field.
+#
+# The csv lands in storage with save_to rather than inline, because a file is the artifact
+# somebody wants at the end of a report run; the second, inline copy is what the run's
+# output shows without opening it.
+#
+# To change it: -p separator=, changes what joins a list cell -- and is the fastest way to
+# see why the default is a semicolon in a comma-separated file.
+#
+#   dg run --local examples/recipes/json-to-csv-flattening.yaml
+#   dg run --local examples/recipes/json-to-csv-flattening.yaml -p separator=,
+
+format: dirigent/v1
+kind: pipeline
+code: json-to-csv-flattening
+name: Nested JSON to a flat csv
+description: Reach into an envelope, flatten the nested fields into named columns, join the list cells, and write a csv artifact.
+
+tags: [recipes, storage, transform]
+
+requires:
+  blocks:
+    - value.const
+    - transform.jq
+    - convert.std
+
+params:
+  type: object
+  properties:
+    separator:
+      type: string
+      default: ";"
+      description: What joins the values of a list-valued field inside one cell.
+    day:
+      type: string
+      format: date
+      default: "2026-01-01"
+      description: The day the csv is named for.
+
+steps:
+  payload:
+    block: value.const
+    config:
+      value:
+        generated_at: "2026-01-01T06:00:00Z"
+        page: 1
+        results:
+          - id: st-1
+            site: { name: Harbour, region: east, coords: { lat: 59.91, lon: 10.75 } }
+            tags: [coastal, tidal]
+            readings: { count: 1440, mean_celsius: 4.5 }
+            internal_note: do not publish
+          - id: st-2
+            site: { name: Ridge, region: west, coords: { lat: 60.39, lon: 5.32 } }
+            tags: [alpine]
+            readings: { count: 1200, mean_celsius: -1.0 }
+            internal_note: recalibrated
+
+  rows:
+    block: transform.jq
+    depends_on: [payload]
+    config:
+      input:
+        payload: ${steps.payload.output.value}
+        separator: ${params.separator}
+      program: |
+        . as {$payload, $separator}
+        | [$payload.results[]
+           | {station: .id,
+              site_name: .site.name,
+              region: .site.region,
+              lat: .site.coords.lat,
+              lon: .site.coords.lon,
+              tags: (.tags | join($separator)),
+              readings: .readings.count,
+              mean_celsius: .readings.mean_celsius}]
+
+  as_text:
+    block: transform.jq
+    depends_on: [rows]
+    config:
+      input: ${steps.rows.output.value}
+      program: tojson
+
+  csv:
+    block: convert.std
+    depends_on: [as_text]
+    config:
+      input: ${steps.as_text.output.value}
+      from: json
+      to: csv
+      # The file is the point of a report run, so it goes to storage under a dated name.
+      save_to: ${run.scratch}/stations-${params.day}.csv
+
+  inline_copy:
+    block: convert.std
+    depends_on: [as_text]
+    config:
+      input: ${steps.as_text.output.value}
+      from: json
+      to: csv

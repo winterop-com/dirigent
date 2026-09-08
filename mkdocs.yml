@@ -1,0 +1,79 @@
+site_name: dirigent
+site_description: A generic pipeline orchestrator. Pipelines are data, built from pluggable blocks.
+site_url: https://winterop-com.github.io/dirigent/
+repo_url: https://github.com/winterop-com/dirigent
+edit_uri: ""
+
+theme:
+  name: material
+  logo: assets/logo.png
+  favicon: assets/logo.png
+  features:
+    - navigation.instant
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - toc.follow
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+nav:
+  - Start here:
+      - Home: index.md
+      - Getting started: getting-started.md
+      - Tutorial: tutorial.md
+      - Concepts: concepts.md
+  - Using it:
+      - A server: server.md
+      - Command line: cli.md
+      - Python: python.md
+      - JSON Schema: json-schema.md
+  - Blocks:
+      - Blocks: blocks.md
+      - Transforms: transforms.md
+      - jq: jq.md
+      - Docker: docker.md
+      - Git: git.md
+      - SQL: sql.md
+      - Queues: queues.md
+      - Plugins: plugins.md
+  - Running it:
+      - Operations: operations.md
+      - Settings: settings.md
+      - Security: security.md
+      - Telemetry: telemetry.md
+  - The project:
+      - Architecture: architecture.md
+      - Design: design.md
+      - Conventions: conventions.md
+      - UI conventions: ui-conventions.md
+      - Releases: releases.md
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/winterop-com/dirigent

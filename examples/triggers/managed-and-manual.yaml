@@ -1,0 +1,109 @@
+# What an apply materialises, and what it deliberately leaves alone.
+#
+# The triggers: section is the declaration, and only the declaration. Applying this creates
+# the schedules and the webhook if they are absent and brings them up to date if they are
+# not; it never touches whether a schedule is paused, when it last fired, or what the
+# webhook's token is. Those are facts about one instance, so they stay in it.
+#
+# A schedule the document declares is managed: the instance owns it on the document's
+# behalf, and an apply that stops mentioning it removes it. A schedule somebody created by
+# hand with dg schedule create is not managed, and an apply never touches it -- deleting
+# someone's schedule as a side effect of an unrelated edit is the kind of surprise that
+# makes people stop applying documents at all. Both kinds show up in dg schedule list, which
+# says which is which.
+#
+# The token is minted server-side and shown once. It is not in this file, it will not be in
+# an export, and there is nowhere in dirigent/v1 to write one.
+#
+# Try it against a running instance:
+#
+#   dg apply examples/triggers/managed-and-manual.yaml
+#   dg schedule list managed-and-manual
+#   dg schedule create managed-and-manual by-hand --cron '0 7 * * 1' -p day=2026-01-01
+#   dg schedule list managed-and-manual          # the hand-made one is not managed
+#   dg apply examples/triggers/managed-and-manual.yaml   # a no-op, and by-hand survives it
+#   dg webhook create managed-and-manual manual --map day='$.date'  # prints URL and token
+#   curl -X POST "$DG_URL/hooks/$TOKEN" -d '{"date": "2026-01-01"}'
+#   dg webhook deliveries managed-and-manual from-upstream
+#
+# The steps run jq and nothing else, so there is no allowlist entry to make first. Locally,
+# with no server at all:
+#
+#   dg run --local examples/triggers/managed-and-manual.yaml -p day=2026-01-01
+
+format: dirigent/v1
+kind: pipeline
+code: managed-and-manual
+name: Managed beside manual
+description: Two document-managed schedules and a webhook, and what an apply leaves untouched.
+
+tags: [triggers, transform, webhook, schedule]
+
+concurrency: skip
+
+requires:
+  blocks:
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    day:
+      type: string
+      format: date
+      description: The day being loaded, which the schedule pins and the webhook maps.
+      default: "2026-01-01"
+    environment:
+      type: string
+      enum: [staging, production]
+      default: staging
+
+steps:
+  load:
+    block: transform.jq
+    config:
+      input:
+        day: "${params.day}"
+        environment: "${params.environment}"
+      program: |
+        {loaded: .day, environment: .environment}
+
+  verify:
+    block: transform.jq
+    depends_on: [load]
+    config:
+      input: "${steps.load.output.value}"
+      program: |
+        {verified: .loaded, environment: .environment}
+    retry:
+      max_attempts: 3
+      backoff: 10s
+
+triggers:
+  schedules:
+    # Five in the morning, Oslo time, all year: the zone is on the schedule rather than on
+    # the process, so this stays five in the morning across a daylight-saving boundary.
+    - code: nightly
+      cron: "0 5 * * *"
+      timezone: Europe/Oslo
+      params:
+        day: "2026-01-01"
+        environment: production
+
+    # The same pipeline hitting staging on a rolling interval is a second schedule, not a
+    # second pipeline.
+    - code: staging-hourly
+      interval: 1h
+      timezone: UTC
+      params:
+        day: "2026-01-01"
+        environment: staging
+
+  webhooks:
+    # A strict payload-to-parameter mapping. Anything the payload carries that is not named
+    # here is ignored, and what is named is validated against params above like any other
+    # run's parameters -- so a caller cannot smuggle configuration in.
+    - code: from-upstream
+      params_from_payload:
+        day: "$.published.date"
+        environment: "$.target.environment"

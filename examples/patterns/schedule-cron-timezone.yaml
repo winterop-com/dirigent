@@ -1,0 +1,121 @@
+# A cron expression, and the zone that decides what it means.
+#
+# A cron field is five columns -- minute, hour, day of month, month, day of week -- and it
+# supports the whole ordinary vocabulary: * for every, a list (1,15), a range (1-5), a step
+# (*/15), and the two combined (0-23/2). The three schedules below use enough of it to read as
+# a reference.
+#
+# The zone is the load-bearing part, and it belongs to the SCHEDULE, not to the host the
+# scheduler happens to run on and not to the pipeline. That has one consequence worth stating
+# plainly: "0 5 * * *" in Europe/Oslo is five in the morning in Oslo all year, so it stays
+# five across a daylight-saving boundary rather than sliding to four or six. The same
+# expression in UTC never moves at all, and the difference between those two sentences is
+# exactly why the field exists.
+#
+# ONE PIPELINE, THREE CLOCKS. A schedule is not a second pipeline. The same document below is
+# fired at 05:00 Oslo for the nordics, at 05:00 Kathmandu for Nepal (a zone whose offset is not
+# a whole number of hours, which is a good reason never to hand-roll one), and on the first of
+# the month in UTC for the archive. Each pins its own parameters, which is what makes them
+# different runs of one thing rather than three copies of a document.
+#
+# The schedules exist only on an instance this document has been applied to. The pipeline
+# itself runs anywhere, and locally it takes the pipeline's defaults rather than any
+# schedule's pinned parameters.
+#
+# Hop by hop:
+#
+#   plan     turns the region and the day into the shape a loader would be handed.
+#   receipt  reads the plan back and reports what was covered.
+#
+# EXPECT THIS RUN TO SUCCEED in about a second, with no network and no allowlist.
+#
+# To change it: edit an expression and apply again -- an apply brings a managed schedule up to
+# date, and it never touches whether the schedule is paused, when it last fired, or the run
+# history. Those are facts about one instance, so they stay in it.
+#
+#   dg run --local examples/patterns/schedule-cron-timezone.yaml
+#   dg apply examples/patterns/schedule-cron-timezone.yaml
+#   dg schedule list schedule-cron-timezone
+
+format: dirigent/v1
+kind: pipeline
+code: schedule-cron-timezone
+name: Cron, in a named zone
+description: |
+  Five columns and the zone that decides what they mean. The timezone belongs to the
+  schedule, so `0 5 * * *` in `Europe/Oslo` is five in the morning in Oslo across a
+  daylight-saving boundary.
+
+  Three schedules on one pipeline, each pinning its own parameters: a schedule is not a
+  second pipeline.
+
+tags: [patterns, transform, schedule]
+
+requires:
+  blocks:
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    region:
+      type: string
+      description: Which region the load covers; each schedule pins its own.
+      default: nordics
+    day:
+      type: string
+      format: date
+      description: The day being loaded.
+      default: "2026-01-01"
+
+steps:
+  plan:
+    block: transform.jq
+    config:
+      input:
+        region: "${params.region}"
+        day: "${params.day}"
+      program: |
+        {region, day, datasets: ["cases", "climate"]}
+
+  receipt:
+    block: transform.jq
+    depends_on: [plan]
+    config:
+      input: "${steps.plan.output.value}"
+      program: |
+        {covered: .region, day: .day, datasets: (.datasets | length)}
+
+triggers:
+  schedules:
+    - code: nordics-nightly
+      # A trigger carries the same quartet as anything else addressable: code addresses it,
+      # name and description only ever read.
+      name: Nightly, Oslo time
+      description: Fires once the upstream extract has settled for the day.
+      cron: "0 5 * * *"
+      timezone: Europe/Oslo
+      # Pinned parameters override the pipeline's defaults for this schedule's firings only.
+      params:
+        region: nordics
+        day: "2026-01-01"
+
+    - code: nepal-nightly
+      # Asia/Kathmandu is UTC+05:45. A named zone is the only honest way to write that, and
+      # the reason a schedule never takes a fixed offset.
+      cron: "0 5 * * *"
+      timezone: Asia/Kathmandu
+      params:
+        region: nepal
+        day: "2026-01-01"
+
+    - code: monthly-archive
+      # Day-of-month and month columns, and a minute that is not zero so two schedules that
+      # would otherwise collide on the hour do not. Every fifteen minutes would be */15 in
+      # the first column; every second hour, 0-23/2 in the second.
+      cron: "20 3 1 * *"
+      # UTC for a job with no human waiting on it: nothing about an archive is local.
+      timezone: UTC
+      params:
+        region: all
+        day: "2026-01-01"

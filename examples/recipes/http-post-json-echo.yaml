@@ -1,0 +1,105 @@
+# POST a JSON body built from upstream work, and read the receipt.
+#
+# In:  a batch of readings built inline.
+# Out: the echo service's view of the POST -- the body it parsed and the headers it saw --
+#      alongside the status and the payload's own row count.
+#
+# body is a value, not a string. The block serialises it, sets the content type, and sends
+# it, so a payload assembled by a jq step upstream travels as structure the whole way and
+# nothing hand-builds JSON with string interpolation. That is what keeps a quote in a
+# station name from becoming a syntax error on somebody else's parser.
+#
+# https://postman-echo.com/post answers with what it received, so the .json field of the
+# response is this pipeline's own body coming back -- which is why the last step can compare
+# what was sent with what arrived and report them side by side.
+#
+# Two headers are worth knowing about. The block sets content-type itself, so a header map
+# is for what the receiver wants on top: a routing key, an idempotency key, an API version.
+# A secret does not go here -- it goes on a connection, which is the whole point of
+# http-headers-and-auth-connection.yaml.
+#
+# A POST is not idempotent, and the block declares itself so: the engine will spend a retry
+# budget on one, and it is on the author to know whether the receiver deduplicates. An
+# idempotency key in the headers is what makes that safe, and it belongs in the payload's
+# own identity rather than in a random value minted per attempt.
+#
+# To change it: -p batch=3 sends a bigger payload; the shape of the document does not move.
+#
+#   dg run --local examples/recipes/http-post-json-echo.yaml
+#   dg run --local examples/recipes/http-post-json-echo.yaml -p batch=3
+
+format: dirigent/v1
+kind: pipeline
+code: http-post-json-echo
+name: POST a JSON body
+description: Build a payload upstream, POST it as structure rather than as text, and read the receipt the endpoint answers with.
+
+tags: [recipes, http, transform]
+
+requires:
+  blocks:
+    - transform.jq
+    - http.request
+
+params:
+  type: object
+  properties:
+    batch:
+      type: integer
+      minimum: 1
+      default: 5
+      description: How many readings the payload carries.
+    day:
+      type: string
+      format: date
+      default: "2026-01-01"
+      description: The day the payload reports.
+
+steps:
+  payload:
+    block: transform.jq
+    config:
+      input:
+        batch: ${params.batch}
+        day: ${params.day}
+      program: |
+        . as {$batch, $day}
+        | {day: $day,
+           source: "dirigent recipes",
+           readings: [range($batch)
+                      | {station: "st-\(.)", celsius: (. * 2) - 4, note: "it's fine"}]}
+
+  publish:
+    block: http.request
+    depends_on: [payload]
+    config:
+      url: https://postman-echo.com/post
+      method: POST
+      # A value, serialised by the block. Nothing here builds JSON out of strings.
+      body: ${steps.payload.output.value}
+      headers:
+        # What the receiver asked for, on top of the content type the block sets itself.
+        x-batch-day: ${params.day}
+        # Derived from what is being sent rather than minted per attempt, so a retry of the
+        # same payload presents the same key.
+        idempotency-key: readings-${params.day}
+      timeout: 30s
+
+  receipt:
+    block: transform.jq
+    depends_on: [payload, publish]
+    config:
+      input:
+        sent: ${steps.payload.output.value}
+        status: ${steps.publish.output.status}
+        duration_ms: ${steps.publish.output.duration_ms}
+        echoed: ${steps.publish.output.json_body}
+      program: |
+        {status, duration_ms,
+         sent_rows: (.sent.readings | length),
+         # The echo service returns the parsed body under .json, so this is the payload
+         # having made the round trip.
+         received_rows: (.echoed.json.readings | length),
+         identical: (.echoed.json == .sent),
+         content_type: .echoed.headers["content-type"],
+         batch_day_header: .echoed.headers["x-batch-day"]}

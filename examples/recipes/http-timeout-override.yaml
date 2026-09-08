@@ -1,0 +1,104 @@
+# Three deadlines sit around one HTTP call. Know which one you are setting.
+#
+# In:  a delay in seconds, as a parameter, defaulting to 2.
+# Out: a slow call that completes inside its own timeout, and its measured duration.
+#
+# The three, from the inside out:
+#
+#   timeout on the step's config             how long this one call may take before the
+#                                            client gives up. It overrides the connection's
+#                                            timeout for this call and nothing else.
+#   timeout on the connection                the default for every call made through it,
+#                                            which is where a slow API's whole profile
+#                                            belongs rather than in each step.
+#   timeout on the step                      the engine's deadline on the attempt, which
+#                                            covers the block's entire execution, retries of
+#                                            an inner operation included. It is step-level
+#                                            engine semantics, uniform across every block,
+#                                            and it is what kills a step that hangs somewhere
+#                                            the HTTP client is not.
+#
+# The inner one is the one to reach for when a single endpoint is slow: a report that takes
+# forty seconds to build does not justify raising the deadline on every call to that host,
+# and a health check that should answer in one second is a step-level override in the other
+# direction.
+#
+# https://postman-echo.com/delay/<seconds> answers after the seconds it is given, so the
+# relationship is visible: with the default the call takes about 2s against a 10s budget and
+# the run is green. Setting -p delay=6 against -p timeout=3 fails the step instead, as a
+# timeout rather than as an error the server returned, which is a different failure class
+# and retried differently.
+#
+# The engine's own step timeout is set here too, comfortably above the call's, so that a
+# hang outside the HTTP client -- a name that never resolves, a socket that never closes --
+# still ends the attempt.
+#
+# To change it: -p delay=6 -p timeout=3 to see the failure, or -p delay=1 for a fast run.
+#
+#   dg run --local examples/recipes/http-timeout-override.yaml
+#   dg run --local examples/recipes/http-timeout-override.yaml -p delay=6 -p timeout=3   # fails, on purpose
+
+format: dirigent/v1
+kind: pipeline
+code: http-timeout-override
+name: A per-call timeout override
+description: Override a connection's timeout for one slow call, under an engine step deadline that covers the whole attempt.
+
+tags: [recipes, http, transform]
+
+requires:
+  blocks:
+    - http.request
+    - transform.jq
+
+connections:
+  echo-slow:
+    kind: http
+    config:
+      base_url: https://postman-echo.com
+      # The default for every call through this connection. Deliberately short, so the
+      # override below is doing real work.
+      timeout: 3s
+      health_path: /get
+
+params:
+  type: object
+  properties:
+    delay:
+      type: integer
+      minimum: 0
+      maximum: 10
+      default: 2
+      description: How many seconds the endpoint waits before answering.
+    timeout:
+      type: number
+      default: 10
+      description: This call's own deadline, overriding the connection's 3 seconds.
+
+steps:
+  slow:
+    block: http.request
+    # The engine's deadline on the whole attempt, well above the call's own, so a hang
+    # outside the HTTP client still ends the step.
+    timeout: 60s
+    config:
+      connection: echo-slow
+      path: /delay/${params.delay}
+      method: GET
+      # This call alone; every other call through echo-slow keeps the 3 second default.
+      timeout: ${params.timeout}
+
+  timing:
+    block: transform.jq
+    depends_on: [slow]
+    config:
+      input:
+        status: ${steps.slow.output.status}
+        duration_ms: ${steps.slow.output.duration_ms}
+        budget: ${params.timeout}
+      program: |
+        {status, duration_ms,
+         budget_ms: (.budget * 1000),
+         # A call that lands close to its budget is a call about to start failing
+         # intermittently, which is worth reporting before it does.
+         headroom_ms: ((.budget * 1000) - .duration_ms)}

@@ -1,0 +1,61 @@
+# Gating a step on the wall clock, in a timezone the document names out loud.
+#
+# A schedule says when a run starts. time.window says when a step may proceed, which is a
+# different question: "load whenever the export lands, but never touch the warehouse outside
+# the maintenance window" is a property of the step, not of the trigger.
+#
+# It is a sensor, so it inherits the whole waiting apparatus: poll, deadline, and on_timeout
+# are step-level engine semantics here exactly as they are for storage.exists. A closed
+# window parks until it opens rather than polling on the step's cadence, so waiting out a
+# Sunday costs a handful of pokes.
+#
+# The timezone defaults to UTC and should always be stated. Europe/Oslo below is read as
+# Oslo's clock, daylight saving included, no matter where the worker runs.
+#
+# The window here is wide open -- the whole day, every day -- so the example runs without
+# waiting. Narrow it to see the wait:
+#   dg run --local examples/sensors/time-window.yaml --enable-unsafe shell.run
+#
+# A real maintenance window is the commented shape below the open one:
+#   after: "01:00"
+#   before: "04:00"
+#   days: [sat, sun]
+#
+# Windows may cross midnight: after 22:00 before 04:00 is one night window, and when days is
+# set it names the day the window opens on, so [fri] runs Friday evening into Saturday.
+
+format: dirigent/v1
+kind: pipeline
+code: time-window
+name: Inside a time window
+description: Wait until the local clock is inside a window, then do the work it guards.
+
+tags: [sensor, execute, window]
+
+requires:
+  blocks:
+    - time.window
+    - shell.run
+
+steps:
+  maintenance_window:
+    block: time.window
+    poll: 5s
+    deadline: 1m
+    on_timeout: skip
+    config:
+      # Open all day so the example runs without waiting; a real window is narrow, and the
+      # commented shape in the header is what one looks like.
+      after: "00:00"
+      before: "23:59"
+      # Always state it. The default is UTC, and a window meant as local time silently
+      # becomes the wrong hours wherever the worker happens to run.
+      timezone: Europe/Oslo
+
+  reindex:
+    block: shell.run
+    depends_on: [maintenance_window]
+    config:
+      argv:
+        - echo
+        - "the window opened at ${steps.maintenance_window.output.entered_at} (${steps.maintenance_window.output.timezone})"

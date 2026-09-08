@@ -1,0 +1,80 @@
+# Fan-in: reading a whole fan-out back as one list, in one downstream step.
+#
+# fan-out.yaml maps a step over a list. This is the other half: what the step *after* it
+# sees. Three rules, and they are the whole of it:
+#
+#   1. A fan-out step's output is the list of its items' outputs, in item order.
+#      ${steps.fetch.output} is a JSON array here, not an object.
+#   2. The downstream step runs ONCE, not once per item. It has no for_each of its own, so
+#      it is one attempt that reads the whole batch.
+#   3. Only items that SUCCEEDED are in that list. Under items: continue a failed item is
+#      absent rather than null, so the list can be shorter than the input, and index 0 is
+#      the first item that worked rather than the first one asked for.
+#
+# The list can be indexed: ${steps.fetch.output.0.status} is the integer 200. Bear rule 3
+# in mind before using it -- with one failure upstream, index 0 is a different dataset than
+# it was yesterday. Reading the whole list is the honest form.
+#
+# Note the deliberate asymmetry with the CLI, where `-p regions.0=east` is refused. Reading
+# an existing structure by index is unambiguous: the value is there, and it is either a list
+# or it is not. Writing into one that may not exist is not: a dotted path cannot tell the
+# index 0 from an object key named "0", and cannot say how long the array should be.
+#
+# Two edges worth knowing. A fan-out that tolerated a failure still counts as succeeded, so
+# the default rule: all_success runs this step; the run ends completed_with_errors. But if
+# *every* item fails the step itself failed, and a downstream step forced to run anyway
+# with rule: all_done is refused -- there is no stored output to read, and the attempt
+# settles as rejected rather than silently receiving an empty list.
+#
+# One block, used twice, and it runs no code on the worker, so this one needs no allowlist:
+#
+#   dg run --local examples/graph/fan-in.yaml
+#   dg run --local examples/graph/fan-in.yaml -p datasets='["temperature","humidity"]'
+#
+# The latency point: four slow fetches cost four parked rows and nothing else. The engine
+# is not holding four workers for the duration; it is holding four rows in the database.
+
+format: dirigent/v1
+kind: pipeline
+code: fan-in
+name: Branches that join
+description: Fetch several datasets in parallel, then send the whole batch on in one call.
+
+tags: [graph, http]
+
+requires:
+  blocks:
+    - http.request
+
+params:
+  type: object
+  properties:
+    datasets:
+      type: array
+      default: [temperature, humidity, pressure, wind]
+      items:
+        type: string
+
+steps:
+  fetch:
+    block: http.request
+    for_each: "${params.datasets}"
+    items: continue
+    config:
+      url: https://postman-echo.com/get
+      method: GET
+      query:
+        dataset: "${item}"
+
+  report:
+    block: http.request
+    depends_on: [fetch]
+    config:
+      url: https://postman-echo.com/post
+      method: POST
+      body:
+        # A fan-out step's output is the list of its elements' outputs, in the order the
+        # elements were created, so one reference collects the whole fan and an index
+        # reaches one element of it.
+        collected: "${steps.fetch.output}"
+        first_status: "${steps.fetch.output.0.status}"

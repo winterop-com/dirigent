@@ -1,0 +1,52 @@
+# Connections for `dg run --local`, which has no instance to hold credentials.
+#
+# On a server these live encrypted in the database and are created once:
+#   dg connection create http postman-echo --set base_url=https://postman-echo.com
+#
+# A local run has no server, so it is given them here instead, and they are sealed with
+# an ephemeral key that is thrown away with the throwaway database:
+#   dg run --local examples/graph/linear.yaml --connections examples/connections.yaml
+#
+# The basic-auth credentials below are Postman's own public demo pair, documented at
+# https://postman-echo.com. basic_password is a SecretStr, so it is encrypted at rest and
+# redacted in every API response.
+#
+# hmac_secret is the shared secret webhook.post signs an outbound body with, and the one a
+# receiving instance declares its inbound webhook with. It is a SecretStr too.
+
+connections:
+  postman-echo:
+    kind: http
+    config:
+      # A document names the connection and a path; the base URL lives here, so moving an
+      # instance from staging to production edits the connection and no pipeline.
+      base_url: https://postman-echo.com
+      basic_username: postman
+      # Sealed on the way in and never read back out: an applied connection returns which
+      # fields are set, never what they are set to.
+      basic_password: password
+      hmac_secret: a shared secret between two dirigent instances
+      timeout: 30s
+      # What dg connection check calls. A connection with no health path can only be tested
+      # by a real run.
+      health_path: /get
+
+  # The Kafka cluster infra/compose.queues.yaml brings up: one Redpanda node, unprotected,
+  # on the port it advertises itself as. A cluster that authenticates writes security:
+  # sasl_ssl and a sealed password beside these; a plaintext one refuses a credential it
+  # would never send, so there is none here.
+  orders-topic:
+    kind: kafka
+    config:
+      bootstrap_servers:
+        - 127.0.0.1:9092
+
+  # The RabbitMQ broker from the same file. The password is a separate sealed field and never
+  # part of the url: a url is stored and shown whole, so a credential inside one would be
+  # readable by anyone who can list connections. This pair is the compose file's own demo
+  # credential and protects nothing.
+  shop-queue:
+    kind: rabbitmq
+    config:
+      url: amqp://dirigent@127.0.0.1:5672/
+      password: dirigent

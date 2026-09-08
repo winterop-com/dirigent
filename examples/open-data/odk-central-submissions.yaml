@@ -1,0 +1,144 @@
+# The same survey story against ODK Central, where the credential lives in a connection.
+#
+# NEEDS AN ODK CENTRAL SERVER AND AN ACCOUNT. Central serves nothing anonymously, so this
+# document names a connection the instance holds rather than carrying anything itself:
+#
+#   dg connection create http odk-central \
+#     --set base_url=https://central.example.org \
+#     --set basic_username=you@example.org \
+#     --set basic_password='<your password>'
+#
+# Central accepts HTTP Basic on the /v1 API, which is what makes a plain http connection enough
+# and why this document has no session step: the alternative is POST /v1/sessions to trade the
+# password for a bearer token, which is a second request and a token to keep alive for no gain
+# in a pipeline that runs once an hour.
+#
+# The API: every form exposes an OData feed at
+# /v1/projects/{id}/forms/{xmlFormId}.svc/Submissions, answering {"@odata.context": ...,
+# "value": [...]} -- one object per submission, questions at the top level, groups nested as
+# objects, and Central's own metadata under `__id` and `__system` (`submissionDate`,
+# `submitterId`, `reviewState`). Central will also hand you the whole form as csv at
+# /v1/projects/{id}/forms/{xmlFormId}/submissions.csv, and that is the better answer when a csv
+# is all you want; the feed is what you read when the pipeline has to filter, reshape, or check
+# the data before anything downstream sees it.
+#
+# What happens, hop by hop:
+#
+#   submissions  one GET through the connection. $top is OData's page size and $skip its
+#             offset; Central also honours $filter over __system/submissionDate, which is the
+#             natural place to put a run window on a scheduled load.
+#   rows      the flattening: Central's metadata renamed into stable columns, the named
+#             questions read with a path so a grouped question is reachable as "group/field",
+#             and every row given the same keys.
+#   as_text   tojson for the codec.
+#   report    csv in storage, named for the form.
+#
+# To make it yours: set project and form_id, list the questions you report on, and add a
+# $filter to the query once the form has more submissions than one page.
+#
+#   dg apply examples/open-data/odk-central-submissions.yaml
+#   dg run odk-central-submissions -p project=1 -p form_id=household-survey --watch
+
+format: dirigent/v1
+kind: pipeline
+code: odk-central-submissions
+name: ODK Central submissions
+description: |
+  Submissions for one **ODK Central** form, read from its OData feed through a connection that
+  holds the credential, flattened to named columns and written as csv.
+
+  Central serves nothing anonymously, so the credential is a connection the instance holds --
+  the same shape as the Kobo document, with the secret in the right place.
+
+tags: [open-data, http, storage, transform, credential, csv]
+
+requires:
+  blocks:
+    - http.request
+    - transform.jq
+    - convert.std
+  connections:
+    - odk-central
+
+params:
+  type: object
+  required: [project, form_id]
+  additionalProperties: false
+  properties:
+    project:
+      type: integer
+      description: The numeric project id, as it appears in Central's own URLs.
+    form_id:
+      type: string
+      description: The form's xmlFormId, which is the id inside the XLSForm and not its title.
+    columns:
+      type: array
+      default: []
+      items:
+        type: string
+      description: |
+        Question paths to include, slash-separated for a grouped question ("group/field");
+        empty means the top-level keys of the first submission.
+    top:
+      type: integer
+      default: 250
+      description: OData's page size; this document reads one page.
+
+steps:
+  submissions:
+    block: http.request
+    config:
+      # The base URL is the connection's, so moving from a staging Central to a production one
+      # edits the connection and no pipeline.
+      connection: odk-central
+      path: /v1/projects/${params.project}/forms/${params.form_id}.svc/Submissions
+      query:
+        # OData's own parameter names, dollar signs included.
+        $top: ${params.top}
+        # Without this the feed answers only the current version's fields, which silently
+        # drops answers collected under an earlier form version.
+        $expand: "*"
+      max_response: 64mb
+
+  rows:
+    block: transform.jq
+    depends_on: [submissions]
+    config:
+      input:
+        payload: ${steps.submissions.output.json_body}
+        columns: ${params.columns}
+      # getpath is what makes a grouped question reachable: "hh/members" is a path into a
+      # nested object, and splitting on "/" turns the column name into that path.
+      program: |
+        . as {$payload, $columns}
+        | ($payload.value // []) as $rows
+        | (if ($columns | length) > 0
+           then $columns
+           else ($rows[0] // {} | keys | map(select(startswith("__") | not)))
+           end) as $questions
+        | [$rows[]
+           | . as $row
+           | {
+               submission_id: .__id,
+               submitted_at: .__system.submissionDate,
+               submitter_id: .__system.submitterId,
+               review_state: .__system.reviewState
+             }
+             + (reduce $questions[] as $q
+                  ({}; .[$q] = ($row | getpath($q | split("/")) // null)))]
+
+  as_text:
+    block: transform.jq
+    depends_on: [rows]
+    config:
+      input: ${steps.rows.output.value}
+      program: tojson
+
+  report:
+    block: convert.std
+    depends_on: [as_text]
+    config:
+      input: ${steps.as_text.output.value}
+      from: json
+      to: csv
+      save_to: ${run.scratch}/odk/${params.form_id}.csv

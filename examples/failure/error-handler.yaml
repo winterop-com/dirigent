@@ -1,0 +1,89 @@
+# Error handling drawn in the DAG rather than coded inside a block.
+#
+# rule is the edge condition on a step's depends_on. Four values, and they are the whole
+# vocabulary for branching on an outcome:
+#
+#   all_success  (the default) every prerequisite succeeded
+#   one_failed   at least one prerequisite failed; skipped when none did
+#   all_done     every prerequisite settled, whatever it settled as
+#   always       runs once every prerequisite has settled, whatever the outcome -- the
+#                engine still waits for upstream to finish, it does not fire mid-flight
+#
+# one_failed is what makes a step an error-handler branch. all_done is where cleanup that
+# must happen either way belongs. Both are visible in the graph, which is the point: the
+# failure path is drawn in the DAG rather than coded inside a block.
+#
+# There is one other failure knob, and it is a different question. rule decides whether a
+# step runs; continue_on_failure decides whether a step that failed sinks the run. A step
+# marked continue_on_failure: true settles as failed, but its dependents are shown a success,
+# so their all_success edges fire and the branch carries on, while the run ends
+# completed_with_errors instead of failed. That is also why a one_failed handler below a
+# tolerated step never runs: the rules are shown no failure to handle. optional-step.yaml is
+# that flag on its own. Use it for the branch nobody should be paged about; use rule for the
+# branch that exists to handle the failure.
+# For a fan-out the equivalent is items: continue, which tolerates one bad element rather
+# than one bad step.
+#
+# As written the load fails, so the notify branch runs and the success branch is skipped.
+#
+# This one uses shell.run, which executes code on the worker and is refused unless the
+# instance allowlists it: export DIRIGENT_ENABLED_UNSAFE_BLOCKS='["shell.run"]', or pass
+# --enable-unsafe shell.run to a local run.
+#
+#   dg run --local examples/failure/error-handler.yaml
+#   dg run --local examples/failure/error-handler.yaml -p status=200   # the other branch
+
+format: dirigent/v1
+kind: pipeline
+code: error-handler
+name: Handle a failing step
+description: Load a batch, alert on failure, and always release the lock afterwards.
+
+tags: [failure, execute, http, graph]
+
+params:
+  type: object
+  properties:
+    status:
+      type: integer
+      description: The status the load endpoint is asked to return.
+      default: 500
+
+steps:
+  load_batch:
+    block: http.request
+    retry:
+      max_attempts: 2
+      backoff: 1s
+    config:
+      url: "https://postman-echo.com/status/${params.status}"
+      method: GET
+
+  notify_failure:
+    block: http.request
+    depends_on: [load_batch]
+    # one_failed is what makes this a handler: it runs only on the path where the load
+    # failed, and skips silently on the path where it did not.
+    rule: one_failed
+    config:
+      url: https://postman-echo.com/post
+      method: POST
+      body:
+        text: the nightly load failed
+
+  publish_success:
+    block: shell.run
+    depends_on: [load_batch]
+    rule: all_success
+    config:
+      argv: [echo, "load succeeded"]
+
+  release_lock:
+    block: http.request
+    depends_on: [notify_failure, publish_success]
+    # Exactly one of the two branches above runs and the other skips, so all_done is what
+    # releases the lock either way. all_success would wait for a step that never runs.
+    rule: all_done
+    config:
+      url: https://postman-echo.com/delete
+      method: DELETE

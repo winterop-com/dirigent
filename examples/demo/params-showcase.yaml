@@ -1,0 +1,92 @@
+# The parameter schema is plain JSON Schema, and it is load-bearing in three places.
+#
+# It validates every run's parameters, whoever started it: the CLI, the API, a schedule's
+# overrides, or a webhook's mapped payload. It is what the UI renders the run dialog from,
+# so an enum becomes a select and a date format becomes a date picker without any UI code
+# knowing this pipeline exists. And apply checks every ${params.x} in the document against
+# it, so a typo is caught when the document is applied rather than when it fires at 05:00.
+#
+# Defaults are filled in before validation, so a parameter with a default is optional.
+#
+# The CLI reads the schema before it sends anything, so a value is coerced to the type the
+# schema declares. Three ways to pass parameters, all ending in the same validated object:
+#
+#   dg run --local examples/demo/params-showcase.yaml -p day=2026-01-01 -p dataset=climate
+#
+#   # dotted keys address a nested leaf, and the declared type decides the coercion:
+#   #   batch_size is an integer, so -p batch_size=1000 sends 1000, not "1000"
+#   dg run --local examples/demo/params-showcase.yaml \
+#     -p day=2026-01-01 -p dataset=climate -p batch_size=1000 -p dry_run=true
+#
+#   # an array or an object is given whole, inline, in JSON or YAML:
+#   dg run --local examples/demo/params-showcase.yaml \
+#     -p day=2026-01-01 -p dataset=climate -p regions='[east, west, north]'
+#
+#   # or a whole payload from a file, with flags overriding it:
+#   dg run --local examples/demo/params-showcase.yaml -P params.yaml -p dataset=incidence
+#
+# Array indices are not addressable from a dotted key: -p regions.0=east and
+# -p regions[0]=east are both refused, because a dotted path cannot tell an index from an
+# object key named "0", and brackets are reserved in case element addressing is ever added.
+
+format: dirigent/v1
+kind: pipeline
+code: params-showcase
+name: Every parameter shape
+description: Everything a run form is built from, in one parameter schema.
+
+tags: [demo, http]
+
+params:
+  type: object
+  required: [day, dataset]
+  properties:
+    day:
+      type: string
+      description: The logical date this run covers.
+      format: date
+
+    dataset:
+      type: string
+      description: Which dataset to process.
+      enum: [climate, population, incidence]
+
+    regions:
+      type: array
+      description: Regions to process; every one becomes its own run item.
+      default: [east, west]
+      items:
+        type: string
+
+    batch_size:
+      type: integer
+      description: How many records to send per request.
+      default: 500
+      minimum: 1
+      maximum: 10000
+
+    dry_run:
+      type: boolean
+      description: Validate the payload without writing anything downstream.
+      default: false
+
+steps:
+  process:
+    block: http.request
+    # The fan-out is over a parameter, so how wide the run is is decided when it starts
+    # rather than when the document is written.
+    for_each: "${params.regions}"
+    items: continue
+    config:
+      url: https://postman-echo.com/post
+      method: POST
+      query:
+        day: "${params.day}"
+        dataset: "${params.dataset}"
+        region: "${item}"
+        batch_size: "${params.batch_size}"
+        dry_run: "${params.dry_run}"
+      body:
+        day: "${params.day}"
+        dataset: "${params.dataset}"
+        region: "${item}"

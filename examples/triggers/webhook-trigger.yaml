@@ -1,0 +1,75 @@
+# An inbound webhook travels with the document; operational state does not.
+#
+# A webhook declares a strict payload-to-parameter mapping. The instance mints the token
+# and holds it; the mapped parameters are validated against params like any other run's, so
+# a webhook cannot smuggle configuration in.
+#
+# What stays behind: what the token is, whether the endpoint is active, and the delivery
+# history. None of that belongs in git, so none of it is in this file.
+#
+# The other trigger kind is a clock, and it has a folder of its own: examples/triggers/
+# teaches cron, interval and one-time firings, and examples/triggers/managed-and-manual.yaml
+# carries both kinds on one pipeline.
+#
+# The webhook accepts deliveries only on an instance the document has been applied to. The
+# pipeline itself runs anywhere, with nothing on the allowlist and no network:
+#
+#   dg run --local examples/triggers/webhook-trigger.yaml -p day=2026-01-01
+#
+# Against an instance, where the endpoint exists:
+#
+#   dg apply examples/triggers/webhook-trigger.yaml
+#   dg webhook list webhook-trigger
+#   dg webhook rotate-token webhook-trigger upstream-publish   # shows a token exactly once
+#   curl -X POST "$DG_URL/hooks/$TOKEN" \
+#     -d '{"published": {"date": "2026-01-01"}, "target": {"environment": "staging"}}'
+#   dg webhook deliveries webhook-trigger upstream-publish
+
+format: dirigent/v1
+kind: pipeline
+code: webhook-trigger
+name: Started by a webhook
+description: One pipeline started by an inbound webhook that maps a payload onto its parameters.
+
+tags: [triggers, transform, webhook]
+
+requires:
+  blocks:
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    day:
+      type: string
+      format: date
+      default: "2026-01-01"
+    environment:
+      type: string
+      enum: [staging, production]
+      default: staging
+
+steps:
+  ingest:
+    block: transform.jq
+    config:
+      input:
+        day: "${params.day}"
+        environment: "${params.environment}"
+      program: |
+        {ingested: .day, environment: .environment}
+
+triggers:
+  webhooks:
+    # The mapping is the whole declaration: each parameter names a JSONPath into the
+    # payload. Anything the payload carries that is not named here is ignored, and what is
+    # named is validated against params above -- so a caller cannot reach a parameter the
+    # mapping does not mention, whatever it POSTs.
+    #
+    # Applying this refuses a mapping that could never fire: a path that does not parse
+    # (`$.published..date`), a name params does not declare, or a required parameter with no
+    # default that nothing maps. Both parameters here have defaults, so neither is required.
+    - code: upstream-publish
+      params_from_payload:
+        day: "$.published.date"
+        environment: "$.target.environment"

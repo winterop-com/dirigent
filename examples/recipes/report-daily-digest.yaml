@@ -1,0 +1,182 @@
+# A daily digest: fetch, aggregate, write a csv somebody opens, and post the summary.
+#
+# In:  a day, as a parameter. The readings are generated so the recipe runs anywhere; the
+#      one HTTP call is the delivery at the end.
+# Out: a csv artifact per region in the run's scratch space, a markdown-ish digest line, and
+#      a delivered notification whose body carries the numbers.
+#
+# This is the shape most reporting pipelines end up with, and the reason each piece is
+# separate:
+#
+#   window     the day's boundaries are computed once, from the parameter and not from the
+#              clock, so a rerun for last Tuesday reports last Tuesday. A pipeline that
+#              reads `now` cannot be rerun, and being rerunnable is most of what makes an
+#              incident survivable.
+#   readings   stands in for the source read. Replacing it with an http.request that writes
+#              to storage changes this step and nothing below it.
+#   aggregate  the numbers, computed once, in one place. Everything below reads them rather
+#              than recomputing, so the csv, the digest line and the notification can never
+#              disagree.
+#   csv        the artifact somebody actually opens, written to the run's scratch space with
+#              a dated name.
+#   digest     the human sentence, derived from the aggregate.
+#   notify     the delivery, on rule all_done so a failed report still says something.
+#
+# A digest has to say what it does not know. The empty_regions field is there because a
+# region that reported nothing looks exactly like a region that reported zero once the
+# averages are taken, and only the pipeline knows the difference.
+#
+# To change it: -p day=2026-02-03 reruns for another day; -p regions='["east"]' narrows it.
+#
+#   dg run --local examples/recipes/report-daily-digest.yaml
+#   dg run --local examples/recipes/report-daily-digest.yaml -p day=2026-02-03
+
+format: dirigent/v1
+kind: pipeline
+code: report-daily-digest
+name: A daily digest report
+description: Compute a day's numbers once, write them as a csv artifact, derive a digest line, and post the summary to a receiver.
+
+tags: [recipes, storage, transform, webhook]
+
+requires:
+  blocks:
+    - transform.jq
+    - convert.std
+    - webhook.post
+
+connections:
+  echo-webhook:
+    kind: http
+    config:
+      base_url: https://postman-echo.com
+      timeout: 30s
+      health_path: /get
+
+params:
+  type: object
+  properties:
+    day:
+      type: string
+      format: date
+      default: "2026-01-01"
+      description: The day being reported on; every date in the run comes from here.
+    regions:
+      type: array
+      default: [east, west, north]
+      items:
+        type: string
+      description: The regions the digest covers, including any that report nothing.
+
+steps:
+  window:
+    block: transform.jq
+    config:
+      input: ${params.day}
+      program: |
+        . as $day
+        | ($day + "T00:00:00Z" | fromdateiso8601) as $from
+        | {day: $day,
+           start: ($from | todate),
+           end: ($from + 86400 | todate),
+           iso_week: ($from | strftime("%G-W%V"))}
+
+  readings:
+    block: transform.jq
+    depends_on: [window]
+    config:
+      input: ${steps.window.output.value}
+      # Stands in for the source read: an http.request with save_to, and an input_uri here.
+      # north is absent on purpose, so the digest has something to not know.
+      program: |
+        . as {$day}
+        | [range(24) as $hour
+           | ["east", "west"] as $regions
+           | $regions[]
+           | {region: ., day: $day,
+              hour: $hour,
+              celsius: ((($hour * 3) % 19) - 6),
+              station: "\(.)-st-\($hour % 3)"}]
+
+  aggregate:
+    block: transform.jq
+    depends_on: [readings, window]
+    config:
+      input:
+        rows: ${steps.readings.output.value}
+        window: ${steps.window.output.value}
+        regions: ${params.regions}
+      program: |
+        . as {$rows, $window, $regions}
+        | ($rows | group_by(.region)
+           | map({region: .[0].region,
+                  readings: length,
+                  stations: ([.[].station] | unique | length),
+                  mean_celsius: ((map(.celsius) | add) / length * 10 | round / 10),
+                  min_celsius: (map(.celsius) | min),
+                  max_celsius: (map(.celsius) | max)})) as $per_region
+        | {day: $window.day,
+           iso_week: $window.iso_week,
+           regions: $per_region,
+           total_readings: ($rows | length),
+           # A region that reported nothing is not a region that reported zero, and only
+           # this pipeline knows which happened.
+           empty_regions: ($regions - [$per_region[].region])}
+
+  as_text:
+    block: transform.jq
+    depends_on: [aggregate]
+    config:
+      input: ${steps.aggregate.output.value}
+      program: .regions | tojson
+
+  csv:
+    block: convert.std
+    depends_on: [as_text]
+    config:
+      input: ${steps.as_text.output.value}
+      from: json
+      to: csv
+      save_to: ${run.scratch}/digest-${params.day}.csv
+
+  digest:
+    block: transform.jq
+    depends_on: [aggregate, csv]
+    config:
+      input:
+        summary: ${steps.aggregate.output.value}
+        file: ${steps.csv.output.output_uri}
+      program: |
+        .summary as $s
+        | {day: $s.day,
+           iso_week: $s.iso_week,
+           file: .file,
+           # Derived from the numbers, so it cannot disagree with them.
+           text: "\($s.day) (\($s.iso_week)): \($s.total_readings) readings across "
+                 + "\($s.regions | length) regions"
+                 + (if ($s.empty_regions | length) > 0
+                    then "; no data from \($s.empty_regions | join(", "))"
+                    else "" end),
+           lines: [$s.regions[]
+                   | "\(.region): \(.readings) readings, mean \(.mean_celsius)C "
+                     + "(\(.min_celsius) to \(.max_celsius))"]}
+
+  notify:
+    block: webhook.post
+    depends_on: [digest]
+    rule: all_done
+    config:
+      connection: echo-webhook
+      path: /post
+      body: ${steps.digest.output.value}
+      success_status: [200, 202, 204]
+
+  delivered:
+    block: transform.jq
+    depends_on: [notify]
+    config:
+      input:
+        status: ${steps.notify.output.status}
+        echoed: ${steps.notify.output.json_body}
+      program: |
+        {status, text: .echoed.json.text, lines: .echoed.json.lines, file: .echoed.json.file}

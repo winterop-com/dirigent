@@ -1,0 +1,85 @@
+# The top N rows by a measure, with ties and the long tail both accounted for.
+#
+# In:  a list of stations with an uptime percentage and a reading count.
+# Out: {top, tail_summary, ties} -- the leaders, one row summarising everything below them,
+#      and the rows that tie with the last leader.
+#
+# jq has no "top n" builtin, and does not need one: sort_by ascends, reverse descends, and a
+# slice takes the head. Writing it as sort_by(-.x) instead only works for numbers, and fails
+# quietly the day the measure becomes a string, so the reverse spelling is the one to learn.
+#
+# Two things a naive top-n gets wrong, and both are in the output:
+#
+#   Ties.     A cut at position N splits a tie arbitrarily. The ties list re-reads the input
+#             for every row whose measure equals the last leader's, so a run says when the
+#             cut was arbitrary instead of pretending it was not.
+#   The tail. Dropping the rest hides how much was dropped. One summary row -- how many, and
+#             what they add up to -- keeps the total honest and costs one more slice.
+#
+# The slice is bounded by the list rather than by N: .[0:$n] on a list shorter than N is the
+# whole list rather than an error, which is jq being forgiving in the one place a report
+# wants it to be.
+#
+# To change it: -p n=1 narrows it, -p measure=readings ranks by the other column.
+#
+#   dg run --local examples/recipes/jq-top-n.yaml
+#   dg run --local examples/recipes/jq-top-n.yaml -p n=1 -p measure=readings
+
+format: dirigent/v1
+kind: pipeline
+code: jq-top-n
+name: Top N with ties and a tail
+description: Rank rows by a measure and keep the leaders, the rows tied with the last of them, and a summary of everything below.
+
+tags: [recipes, transform, jq]
+
+requires:
+  blocks:
+    - value.const
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    n:
+      type: integer
+      minimum: 1
+      default: 3
+      description: How many leaders to keep.
+    measure:
+      type: string
+      default: uptime
+      description: The column the ranking reads.
+
+steps:
+  rows:
+    block: value.const
+    config:
+      value:
+        - { station: st-1, uptime: 99.4, readings: 1440 }
+        - { station: st-2, uptime: 87.0, readings: 1200 }
+        - { station: st-3, uptime: 99.9, readings: 1439 }
+        # A tie with st-2 on uptime, which is what the ties list exists to report.
+        - { station: st-4, uptime: 87.0, readings: 300 }
+        - { station: st-5, uptime: 62.5, readings: 900 }
+
+  ranked:
+    block: transform.jq
+    depends_on: [rows]
+    config:
+      input:
+        rows: ${steps.rows.output.value}
+        n: ${params.n}
+        measure: ${params.measure}
+      program: |
+        . as {$rows, $n, $measure}
+        | ($rows | sort_by(.[$measure]) | reverse) as $ordered
+        | ($ordered | .[0:$n]) as $top
+        | ($ordered | .[$n:]) as $rest
+        | {top: $top,
+           tail_summary: {rows: ($rest | length),
+                          readings: ($rest | map(.readings) | add // 0)},
+           ties: (if ($top | length) == 0 then []
+                  else ($top[-1][$measure]) as $cut
+                       | [$ordered[] | select(.[$measure] == $cut) | .station]
+                  end)}

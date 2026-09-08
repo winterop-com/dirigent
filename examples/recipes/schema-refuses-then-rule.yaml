@@ -1,0 +1,127 @@
+# A gate that refuses, and the two branches below it: the one that runs and the one that
+# does not.
+#
+# THIS RUN FAILS ON PURPOSE. It ends `failed`, with the gate failed, the load skipped, and
+# the alert succeeded. That is the outcome the recipe is here to show; nothing is broken.
+#
+# In:  a payload whose second record carries a level of 0, which the carried schema refuses.
+# Out: a failed run whose alert step has a summary of what went wrong, and a load step that
+#      never started.
+#
+# The edge into a step carries a rule, and the rule is what decides whether that step runs
+# once its dependencies have settled:
+#
+#   all_success   the default. Every dependency succeeded. The load below never starts.
+#   one_failed    at least one dependency failed. This is an error handler, and it is drawn
+#                 in the DAG rather than hidden inside a block's config.
+#   all_done      every dependency finished, whatever it finished as. This is the cleanup
+#                 edge: a step that must run whether the work passed or failed.
+#
+# A handler cannot read the output of the step that failed, because a failed step has no
+# stored output; there is nothing to reference. So the alert reads what it can -- the run's
+# own identity, and the payload as it was before the gate -- and says which pipeline and
+# which run to look at. Reaching for ${steps.gate.output.value} in a one_failed handler is
+# refused when the document is applied, which is the format catching the mistake early.
+#
+# The run's status is still `failed`, and that is deliberate: handling a failure is not the
+# same as not having had one. A step that is allowed to fail without failing the run says so
+# with `continue_on_failure`, which is a different recipe and a different intent.
+#
+# To change it: -p level=2 makes the payload fit the schema, and the same document runs
+# green with the load taken and the alert skipped -- the pair worth running back to back.
+#
+# The schema is carried in the document, so no server stores this one: it runs with
+# `dg run --local`, and on an instance the same shape is created once with `dg schema create`.
+#
+#   dg run --local examples/recipes/schema-refuses-then-rule.yaml            # fails, by design
+#   dg run --local examples/recipes/schema-refuses-then-rule.yaml -p level=2 # succeeds
+
+format: dirigent/v1
+kind: pipeline
+code: schema-refuses-then-rule
+name: A refused gate and what runs after it
+description: A validation that fails on purpose, an error branch on rule one_failed, a load that is skipped, and a cleanup on all_done.
+
+tags: [recipes, transform, validate, failure]
+
+requires:
+  blocks:
+    - value.const
+    - transform.jq
+    - validate.schema
+
+schemas:
+  recipe-levelled-units:
+    type: object
+    required: [organisationUnits]
+    properties:
+      organisationUnits:
+        type: array
+        minItems: 1
+        items:
+          type: object
+          required: [id, level]
+          properties:
+            id: { type: string, minLength: 1 }
+            level: { type: integer, minimum: 1 }
+
+params:
+  type: object
+  properties:
+    level:
+      type: integer
+      default: 0
+      description: The second unit's level. The default of 0 is what the schema refuses.
+
+steps:
+  payload:
+    block: value.const
+    config:
+      value:
+        organisationUnits:
+          - { id: ImspTQPwCqd, level: 1 }
+          - { id: O6uvpzGd5pu, level: "${params.level}" }
+
+  gate:
+    block: validate.schema
+    depends_on: [payload]
+    config:
+      input: ${steps.payload.output.value}
+      schema: recipe-levelled-units
+
+  load:
+    block: transform.jq
+    depends_on: [gate]
+    # The default rule, written out because this document is about rules. The gate failed,
+    # so this step is skipped and nothing it would have done happened.
+    rule: all_success
+    config:
+      input: ${steps.gate.output.value}
+      program: |
+        {loaded: (.organisationUnits | length)}
+
+  alert:
+    block: transform.jq
+    depends_on: [gate]
+    rule: one_failed
+    config:
+      # A failed step has no stored output, so the handler reads the run's own identity and
+      # the payload as it stood before the gate.
+      input:
+        run: ${run.id}
+        payload: ${steps.payload.output.value}
+      program: |
+        {alert: "org unit levels failed validation",
+         run: .run,
+         units: (.payload.organisationUnits | length),
+         suspect: [.payload.organisationUnits[] | select(.level < 1) | .id]}
+
+  close_out:
+    block: transform.jq
+    depends_on: [load, alert]
+    # Satisfied by a skip as much as by a success, so the run always finishes here.
+    rule: all_done
+    config:
+      input: ${run.id}
+      program: |
+        {closed_run: .}

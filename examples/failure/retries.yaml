@@ -1,0 +1,75 @@
+# Retry policy per step, and the difference between a retry and a tolerated failure.
+#
+# A retry is the attempt-level question: should we try this again? The delay is data, so no
+# worker sleeps through a backoff -- a new attempt row is written with available_at in the
+# future and picked up when it comes due. Whether a retry happens at all also depends on
+# the block's own error classification: a 5xx is transient and retried, a 4xx is rejected
+# and never is, however much budget is left.
+#
+# continue_on_failure is the step-level question: what does this failure mean downstream?
+# A tolerated failure reads as succeeded to its dependents, so the branch carries on, while
+# the run itself reports completed_with_errors rather than succeeded.
+#
+# As written, publish hits a deliberate 503 three times over six seconds and then gives up,
+# which is what makes the retry visible. Pass a different status to watch the publish
+# succeed -- the optional cache still times out, so the run still ends completed_with_errors:
+#
+# This one uses shell.run, which executes code on the worker and is refused unless the
+# instance allowlists it: export DIRIGENT_ENABLED_UNSAFE_BLOCKS='["shell.run"]', or pass
+# --enable-unsafe shell.run to a local run.
+#
+#   dg run --local examples/failure/retries.yaml              # completed_with_errors
+#   dg run --local examples/failure/retries.yaml -p status=200  # publish succeeds; completed_with_errors
+
+format: dirigent/v1
+kind: pipeline
+code: retries
+name: Retry behavior
+description: Publish to a service that refuses, then warm an optional cache that is slow.
+
+tags: [failure, execute, http, retry]
+
+params:
+  type: object
+  properties:
+    status:
+      type: integer
+      description: The status the publish endpoint is asked to return.
+      default: 503
+
+steps:
+  publish:
+    block: http.request
+    continue_on_failure: true
+    retry:
+      # 2s, then 4s, then give up: multiplier doubles the wait and max_backoff caps it, so a
+      # long budget cannot turn into a long sleep. jitter spreads the retries of a fan-out
+      # that all failed at once, instead of firing them again in the same instant.
+      max_attempts: 3
+      backoff: 2s
+      max_backoff: 10s
+      multiplier: 2.0
+      jitter: 0.2
+    config:
+      url: "https://postman-echo.com/status/${params.status}"
+      method: GET
+
+  warm_cache:
+    block: http.request
+    depends_on: [publish]
+    continue_on_failure: true
+    # The endpoint sleeps five seconds and the timeout is one, so this fails on time rather
+    # than on the service: an optional step is not allowed to hold the run open.
+    timeout: 1s
+    retry:
+      max_attempts: 2
+      backoff: 1s
+    config:
+      url: https://postman-echo.com/delay/5
+      method: GET
+
+  finish:
+    block: shell.run
+    depends_on: [warm_cache]
+    config:
+      argv: [echo, "published if it was accepted, cache warmed if it was willing"]

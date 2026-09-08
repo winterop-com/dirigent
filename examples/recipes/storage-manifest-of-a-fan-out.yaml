@@ -1,0 +1,99 @@
+# One file per item, then one manifest listing all of them.
+#
+# In:  a list of regions, as a parameter.
+# Out: one JSON file per region in the run's scratch space, and a manifest naming every file
+#      with its byte count and row count.
+#
+# A fan-out is `for_each` on a step: the run gets one item per element, each with its own
+# status, error, retry budget and output. Two things about it shape this recipe:
+#
+#   for_each is expanded when the run is created, so it reads params.*, item and run.* --
+#   never another step's output. That is why the regions are a parameter here and not the
+#   result of an upstream read: the item grid exists from the moment the run is visible.
+#   A fan-out step's output is the list of its items' outputs, in item order. So the step
+#   after the fan reads the whole batch at once, and it reads ${steps.<step>.output} --
+#   the list -- rather than ${steps.<step>.output.value}, which is a field of one item's
+#   output and not of the list.
+#
+# ${item} is the element, and it goes into the file name as well as into the data, which is
+# what keeps two items from writing the same key. Items run concurrently, so a shared target
+# would be a race with a winner nobody chose.
+#
+# The manifest is the point. A fan-out that writes twelve files and reports nothing leaves
+# "did region nine actually land" to somebody listing a bucket by hand; a manifest step
+# turns the run itself into the answer, and it costs one jq program over outputs the engine
+# already collected.
+#
+# items: continue is the other half of the same idea -- under it one bad region does not
+# fail the step, the failures are recorded against their own items, and the run reports
+# completed_with_errors. The manifest then lists what did land, which is exactly what a
+# partial run needs to say.
+#
+# To change it: -p regions='["east","west"]' fans two ways instead of four.
+#
+#   dg run --local examples/recipes/storage-manifest-of-a-fan-out.yaml
+#   dg run --local examples/recipes/storage-manifest-of-a-fan-out.yaml -p regions='["east"]'
+
+format: dirigent/v1
+kind: pipeline
+code: storage-manifest-of-a-fan-out
+name: A manifest of a fan-out
+description: Write one file per item with for_each, then read the whole fan back as one list and record every file in a manifest.
+
+tags: [recipes, storage, transform, graph]
+
+requires:
+  blocks:
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    regions:
+      type: array
+      default: [east, west, north, south]
+      items:
+        type: string
+      description: One item, and one file, per element.
+    day:
+      type: string
+      format: date
+      default: "2026-01-01"
+      description: The day the files are named for.
+
+steps:
+  per_region:
+    block: transform.jq
+    for_each: ${params.regions}
+    # items: continue would let one bad region be recorded against its own item instead of
+    # failing the step; the default, fail_fast, is right when a missing region is an outage.
+    items: fail_fast
+    config:
+      input:
+        region: ${item}
+        day: ${params.day}
+      program: |
+        . as {$region, $day}
+        | {region: $region, day: $day,
+           rows: [range(6) | {station: "\($region)-st-\(.)", celsius: (. * 3) - 4}]}
+      # The item is in the key, so two items never write the same file.
+      save_to: ${run.scratch}/regions/${params.day}/${item}.json
+
+  manifest:
+    block: transform.jq
+    depends_on: [per_region]
+    config:
+      # The fan-out's output is the list of its items' outputs, so this reads .output and
+      # not .output.value.
+      input:
+        items: ${steps.per_region.output}
+        day: ${params.day}
+      program: |
+        . as {$items, $day}
+        | {day: $day,
+           files: ($items | length),
+           total_bytes: ([$items[].output_bytes] | add),
+           # Every item wrote to storage, so each output carries a uri and a size rather
+           # than a value.
+           entries: [$items[] | {uri: .output_uri, bytes: .output_bytes}],
+           empty: [$items[] | select(.output_bytes == 0) | .output_uri]}

@@ -1,0 +1,140 @@
+# Naming a connection, and carrying one, in the same document -- and when each is right.
+#
+# A document is portable precisely because it names credentials rather than holding them. A
+# step says connection: postman-echo, and the base URL, the auth, the TLS settings and the
+# timeout live on the instance, encrypted at rest and redacted in every API response. Moving
+# from staging to production edits the connection and not one pipeline.
+#
+# THE TWO FORMS:
+#
+#   connection: <code>   the ordinary one. The instance holds it, requires.connections says so,
+#                        and an apply against an instance without it is refused up front with
+#                        the code to create.
+#   connections: {...}   carried in the document. For a document that has to run with no
+#                        instance to create a connection on first: a published example, a
+#                        reproduction, a --local run. A SERVER REFUSES a document that carries
+#                        one, because applying it would store the credential in every version
+#                        of the pipeline.
+#
+# Both appear below, which is why this document runs locally and would not apply to a server
+# as it stands. That is not a trick: it is the honest way to show the two side by side.
+#
+# WHAT A CONNECTION BUYS BEYOND SECRECY: the base URL. A step that names one writes a path and
+# not a URL, so the same document points at a test instance and a production instance by
+# naming a different connection -- there is no URL to edit. It also carries the timeout and
+# the health path, which is what dg connection check calls, so a connection can be tested
+# without running a pipeline.
+#
+# A LOCAL RUN HAS NO SERVER to hold the named one, so it is handed over:
+#
+#   dg run --local examples/patterns/connections-referenced-vs-carried.yaml \
+#     --connections examples/connections.yaml
+#
+# Without --connections the run is refused at the step that names it, because a connection
+# that is not there is not something to guess at.
+#
+# Hop by hop:
+#
+#   named    http.request through the named connection. It writes a PATH; the base URL comes
+#            from the connection, and so do the credentials.
+#   carried  the same call through the connection this document carries, so both forms are
+#            exercised in one run.
+#   absolute the third form, for completeness: an absolute url with no connection at all.
+#            Fine for a public endpoint, wrong the moment anything needs a credential --
+#            because there is nowhere in a document to put one.
+#   compare  reads all three back. They answer identically, which is the point: a connection
+#            changes where a credential lives, not what a step does.
+#
+# EXPECT THIS RUN TO SUCCEED in about three seconds, given --connections.
+
+format: dirigent/v1
+kind: pipeline
+code: connections-referenced-vs-carried
+name: A connection named, and one carried
+description: |
+  A step names a connection by code and the instance holds the credential, encrypted at rest
+  and redacted in every response. That is what makes a document portable.
+
+  A document may instead **carry** one, for a run with no instance to create it on -- and a
+  server refuses such a document, because applying it would store the secret in every
+  version.
+
+tags: [patterns, http, transform, credential]
+
+requires:
+  blocks:
+    - http.request
+    - transform.jq
+  # Named here, so an apply against an instance that does not hold it is refused with the
+  # code to create rather than failing at the step.
+  connections:
+    - postman-echo
+
+# Carried, for the case with no instance to name one on. The credentials below are Postman's
+# own public demo pair. basic_password is a SecretStr: sealed on the way in, and an applied
+# connection reports which fields are set and never what they are set to.
+connections:
+  echo-carried:
+    kind: http
+    config:
+      base_url: https://postman-echo.com
+      basic_username: postman
+      basic_password: password
+      timeout: 30s
+      # What dg connection check calls. A connection with no health path can only be tested
+      # by running a pipeline through it.
+      health_path: /get
+
+params:
+  type: object
+  properties:
+    dataset:
+      type: string
+      description: Echoed by all three calls, so the three answers are comparable.
+      default: cases
+
+steps:
+  named:
+    block: http.request
+    config:
+      # The code, not a URL. examples/connections.yaml is where a --local run gets it from.
+      connection: postman-echo
+      # A path, resolved against the connection's base URL. This is the line that does not
+      # change when the instance moves from staging to production.
+      path: /get
+      query:
+        dataset: "${params.dataset}"
+        via: named
+
+  carried:
+    block: http.request
+    config:
+      connection: echo-carried
+      path: /get
+      query:
+        dataset: "${params.dataset}"
+        via: carried
+
+  absolute:
+    block: http.request
+    config:
+      # No connection at all. Legitimate for a public endpoint with no credential and no
+      # environment to move between, and nothing more than that.
+      url: https://postman-echo.com/get
+      query:
+        dataset: "${params.dataset}"
+        via: absolute
+      # A per-call override of whatever timeout applies. On the two steps above the
+      # connection's own timeout would have applied instead.
+      timeout: 20s
+
+  compare:
+    block: transform.jq
+    depends_on: [named, carried, absolute]
+    config:
+      input:
+        named: "${steps.named.output.json_body.args.via}"
+        carried: "${steps.carried.output.json_body.args.via}"
+        absolute: "${steps.absolute.output.json_body.args.via}"
+      program: |
+        {named, carried, absolute, note: "three ways to say where; one thing done"}

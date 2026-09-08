@@ -1,0 +1,153 @@
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.uv.sources]
+dirigent-common = { workspace = true }
+dirigent-plugin = { workspace = true }
+dirigent-client = { workspace = true }
+dirigent-core = { workspace = true }
+dirigent-blocks = { workspace = true }
+dirigent-server = { workspace = true }
+dirigent-cli = { workspace = true }
+dirigent-parquet = { workspace = true }
+dirigent-storage-s3 = { workspace = true }
+dirigent-testing = { workspace = true }
+
+[tool.ruff]
+target-version = "py313"
+line-length = 120
+src = ["packages/*/src", "packages/*/tests"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "D", "SIM", "UP", "B", "TID"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["D103", "D100", "D101", "D102", "D104"]
+"**/alembic/versions/*" = ["D103", "E501"]
+
+# Structured types are Pydantic models, everywhere. A dataclass, a NamedTuple, or a
+# TypedDict crossing a module boundary loses validation, JSON Schema, and serialisation,
+# and the three shapes then disagree about what "a model" means in this codebase.
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"dataclasses.dataclass".msg = "Use pydantic.BaseModel (house rule)"
+"dataclasses.field".msg = "Use pydantic.Field"
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.isort]
+known-first-party = [
+    "dirigent_blocks",
+    "dirigent_cli",
+    "dirigent_client",
+    "dirigent_core",
+    "dirigent_parquet",
+    "dirigent_plugin",
+    "dirigent_server",
+    "dirigent_storage_s3",
+    "dirigent_testing",
+]
+
+[tool.ruff.format]
+quote-style = "double"
+docstring-code-format = true
+
+[tool.mypy]
+python_version = "3.13"
+disallow_untyped_defs = true
+warn_return_any = true
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+no_implicit_optional = true
+strict_equality = true
+plugins = ["pydantic.mypy"]
+# Every package has its own tests/conftest.py, which mypy sees as one duplicated top-level
+# module. pyright checks them in strict mode instead, so nothing goes unchecked.
+exclude = ["(^|/)conftest\\.py$"]
+mypy_path = [
+    "packages/dirigent-common/src",
+    "packages/dirigent-plugin/src",
+    "packages/dirigent-client/src",
+    "packages/dirigent-core/src",
+    "packages/dirigent-blocks/src",
+    "packages/dirigent-server/src",
+    "packages/dirigent-cli/src",
+    "packages/dirigent-parquet/src",
+    "packages/dirigent-storage-s3/src",
+    "packages/dirigent-testing/src",
+]
+
+[[tool.mypy.overrides]]
+module = ["aiokafka.*", "alembic.*", "aioboto3.*", "cronsim.*", "jq"]
+ignore_missing_imports = true
+
+
+[tool.pyright]
+pythonVersion = "3.13"
+typeCheckingMode = "strict"
+include = ["packages"]
+exclude = ["**/__pycache__", "**/.venv", "**/alembic/versions"]
+extraPaths = [
+    "packages/dirigent-common/src",
+    "packages/dirigent-plugin/src",
+    "packages/dirigent-client/src",
+    "packages/dirigent-core/src",
+    "packages/dirigent-blocks/src",
+    "packages/dirigent-server/src",
+    "packages/dirigent-cli/src",
+    "packages/dirigent-parquet/src",
+    "packages/dirigent-storage-s3/src",
+    "packages/dirigent-testing/src",
+]
+reportMissingTypeStubs = false
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["packages"]
+addopts = "-q --color=yes --strict-markers -m 'not postgres and not s3 and not docker and not queues and not load'"
+filterwarnings = ["error"]
+markers = [
+    "postgres: requires a real PostgreSQL server, started with testcontainers",
+    "e2e: drives the whole product the way a person would, through dg",
+    "s3: requires a real S3 API, started as an S3-compatible server with testcontainers",
+    "docker: requires a reachable Docker daemon socket",
+    "queues: requires the brokers in infra/compose.queues.yaml",
+    "load: measures the log path against a real PostgreSQL and prints load records; never part of the gate",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["packages"]
+omit = ["*/tests/*", "*/alembic/*"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "\\.\\.\\.",
+]
+
+[dependency-groups]
+dev = [
+    "coverage>=7.15.4",
+    "duckdb>=1.4.0",
+    "duckdb-engine>=0.17.0",
+    "httpx2>=2.12.0",
+    "mkdocs-material>=9.7.7",
+    "mypy>=2.3.1",
+    "types-jsonschema>=4.26.0",
+    "pyarrow-stubs>=20.0.0.20250928",
+    "pyright>=1.1.411",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.16.5",
+    "testcontainers[postgres]>=4.14.0",
+    "opentelemetry-sdk>=1.44.0",
+    "types-pyyaml>=6.0.12.20260815",
+    "aiosmtpd>=1.4.6",
+]

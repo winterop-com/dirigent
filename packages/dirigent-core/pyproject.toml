@@ -1,0 +1,37 @@
+[project]
+name = "dirigent-core"
+version = "0.9.0"
+description = "Dirigent engine core: schema, configuration, and plugin host."
+readme = "README.md"
+requires-python = ">=3.13"
+license = "LicenseRef-Proprietary"
+license-files = ["LICENSE"]
+dependencies = [
+    "aiosqlite>=0.22.1",
+    "alembic>=1.19.1",
+    "argon2-cffi>=25.1.0",
+    "asyncpg>=0.31.0",
+    "cronsim>=2.7",
+    "cryptography>=46.0.5",
+    "dirigent-client",
+    "dirigent-common",
+    "dirigent-plugin",
+    "jsonschema>=4.26.0",
+    "opentelemetry-api>=1.44.0",
+    "pydantic-settings>=2.15.0",
+    "pyyaml>=6.0.3",
+    "sqlalchemy[asyncio]>=2.0.52",
+    "structlog>=25.5.0",
+]
+
+[project.optional-dependencies]
+# Telemetry is exporterless by default; installing this extra is what turns it on.
+otlp = ["opentelemetry-exporter-otlp-proto-http>=1.44.0"]
+
+[build-system]
+requires = ["uv_build>=0.12.0,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.uv.sources]
+dirigent-client = { workspace = true }
+dirigent-plugin = { workspace = true }

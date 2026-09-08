@@ -1,0 +1,116 @@
+# Keep the rows a predicate answers true for, and nothing else about them changes.
+#
+# In:  a list of stations with a status, a battery level, and a last-seen timestamp.
+# Out: the subset that is reporting and healthy, elements untouched, in input order.
+#
+# filter.jq is select as a contract. The program answers one question about one element, and
+# the frame appends the element it was given rather than anything the program returned -- so
+# a filter cannot edit a row on the way past, however the program is written. Order is the
+# input's, and the output is always a subset.
+#
+# The rule that catches everybody: jq's truthiness is not applied here. A program that
+# answers 0, "" or null is a mistake surfaced rather than an element quietly dropped, and
+# the step fails saying so:
+#
+#   element 0: the program answered 4, and a filter answers true or false; jq's truthiness
+#   is not applied, so a program meaning 'has readings' writes '.count > 0'
+#
+# So a predicate is written as a comparison, always. The three below are the shapes most
+# predicates take: a set membership with IN, a numeric threshold, and a presence check that
+# distinguishes absent from null.
+#
+# The count step afterwards is the other half of filtering: a filter that reports nothing
+# leaves "how many did it drop" to somebody reading two artifacts side by side.
+#
+# To change it: -p min_battery=90 tightens the threshold; -p statuses='["active","standby"]'
+# widens the set the membership test reads.
+#
+#   dg run --local examples/recipes/filter-by-predicate.yaml
+#   dg run --local examples/recipes/filter-by-predicate.yaml -p min_battery=90
+
+format: dirigent/v1
+kind: pipeline
+code: filter-by-predicate
+name: Filter with a predicate
+description: Keep the elements a true-or-false program accepts, unmodified and in order, and report how many were dropped.
+
+tags: [recipes, transform, filter]
+
+requires:
+  blocks:
+    - value.const
+    - transform.jq
+    - filter.jq
+
+params:
+  type: object
+  properties:
+    min_battery:
+      type: integer
+      minimum: 0
+      default: 20
+      description: The battery percentage below which a station is not considered healthy.
+    statuses:
+      type: array
+      default: [active]
+      items:
+        type: string
+      description: The statuses that count as reporting.
+
+steps:
+  stations:
+    block: value.const
+    config:
+      value:
+        - { id: st-1, status: active, battery: 96, last_seen: "2026-01-01T06:00:00Z" }
+        - { id: st-2, status: retired, battery: 100, last_seen: "2025-11-02T06:00:00Z" }
+        - { id: st-3, status: active, battery: 11, last_seen: "2026-01-01T05:00:00Z" }
+        - { id: st-4, status: standby, battery: 80, last_seen: "2026-01-01T04:00:00Z" }
+        # No battery reading at all: absent is not the same as flat.
+        - { id: st-5, status: active, last_seen: "2026-01-01T06:00:00Z" }
+
+  attach:
+    block: transform.jq
+    depends_on: [stations]
+    config:
+      # The predicate's thresholds are data, so they travel with each element; a filter
+      # program sees one element and nothing else.
+      input:
+        rows: ${steps.stations.output.value}
+        min_battery: ${params.min_battery}
+        statuses: ${params.statuses}
+      program: |
+        . as {$rows, $min_battery, $statuses}
+        | [$rows[] | . + {_min_battery: $min_battery, _statuses: $statuses}]
+
+  healthy:
+    block: filter.jq
+    depends_on: [attach]
+    config:
+      input: ${steps.attach.output.value}
+      # Every clause is a comparison: IN answers a boolean, the threshold answers a boolean,
+      # and the presence check answers a boolean. Nothing here relies on truthiness.
+      #
+      # The element is named first because IN evaluates its argument against whatever was
+      # piped into it -- a bare .status | IN(._statuses[]) would look for _statuses on the
+      # status string and fail the element.
+      program: |
+        . as $row
+        | ($row.status | IN($row._statuses[]))
+        and ($row.battery != null)
+        and ($row.battery >= $row._min_battery)
+
+  report:
+    block: transform.jq
+    depends_on: [attach, healthy]
+    config:
+      input:
+        seen: ${steps.attach.output.value}
+        kept: ${steps.healthy.output.value}
+      program: |
+        {seen: (.seen | length),
+         kept: (.kept | length),
+         dropped: [(.seen | map(.id)) - (.kept | map(.id)) | .[]],
+         # The bookkeeping fields the predicate needed are removed here rather than in the
+         # filter, which is not allowed to modify what it keeps.
+         rows: [.kept[] | del(._min_battery, ._statuses)]}

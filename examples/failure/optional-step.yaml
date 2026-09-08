@@ -1,0 +1,82 @@
+# A step that is allowed to fail, and what that does to the run it is part of.
+#
+# continue_on_failure is one narrow claim: this step failing is not a reason to stop. The
+# engine holds it as "tolerated", and tolerated has three consequences worth separating,
+# because they are easy to blur into one:
+#
+#   1. The step itself still settles as FAILED. Its attempt is red, its error is stored, and
+#      its logs are there to read. Tolerating a failure never hides one.
+#   2. Its dependents see SUCCEEDED. An ordinary all_success edge below a tolerated failure
+#      fires, so the branch carries on -- which is the entire point of the flag.
+#   3. The run ends completed_with_errors, not succeeded. A run with a tolerated failure in
+#      it is not a clean run, and it does not get to claim it was.
+#
+# Consequence 2 has a sharp edge. Because dependents see SUCCEEDED, a rule: one_failed handler
+# hung below a tolerated step never fires: there is, as far as the rules are concerned, no
+# failure to handle. Tolerating a failure and handling one are opposite instructions, so a
+# step should not be asked for both.
+#
+# The failure here is local and instant -- a command that exits non-zero -- so the run settles
+# in about a second and needs no network. What it costs to fail is the point, not what fails.
+#
+# This one uses shell.run, which executes code on the worker and is refused unless the
+# instance allowlists it: export DIRIGENT_ENABLED_UNSAFE_BLOCKS='["shell.run"]', or pass
+# --enable-unsafe shell.run to a local run.
+#
+#   dg run --local examples/failure/optional-step.yaml --enable-unsafe shell.run   # completed_with_errors
+#   dg run --local examples/failure/optional-step.yaml --enable-unsafe shell.run -p exit_code=0  # succeeded
+
+format: dirigent/v1
+kind: pipeline
+code: optional-step
+name: Optional step
+description: |
+  Import a batch, push metrics on a best-effort basis, and publish either way.
+
+  `continue_on_failure: true` makes the metrics push **optional**: it settles as failed,
+  its dependents see it as succeeded and carry on, and the run reports
+  `completed_with_errors` rather than `succeeded`.
+
+  Nothing is hidden. The red attempt is still there to open.
+
+tags: [failure, execute]
+
+requires:
+  blocks:
+    - shell.run
+
+params:
+  type: object
+  properties:
+    exit_code:
+      type: integer
+      description: What the metrics push exits with; 0 makes the whole run green.
+      default: 3
+      minimum: 0
+      maximum: 125
+
+steps:
+  import_batch:
+    block: shell.run
+    config:
+      argv: [echo, "imported 412 rows"]
+
+  push_metrics:
+    block: shell.run
+    depends_on: [import_batch]
+    # The one flag this example is about. Nobody should be paged because a metrics endpoint
+    # was unhappy, and nobody should be told the run was clean either.
+    continue_on_failure: true
+    # No retry policy: one attempt, and the exit code is deterministic. retry-budget.yaml is
+    # where a failure is spent against a budget instead.
+    config:
+      command: "echo 'metrics endpoint refused' >&2; exit ${params.exit_code}"
+
+  publish:
+    block: shell.run
+    depends_on: [push_metrics]
+    # The default rule, left unwritten, is all_success -- and it fires, because a tolerated
+    # failure reads as succeeded to whatever depends on it. Without the flag above this step
+    # would be skipped and the run would be failed.
+    config:
+      argv: [echo, "published, with or without metrics"]

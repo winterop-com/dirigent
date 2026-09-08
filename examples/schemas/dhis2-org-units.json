@@ -1,0 +1,21 @@
+{
+  "$id": "dhis2-org-units",
+  "title": "DHIS2 organisation units",
+  "description": "The shape a GET /api/organisationUnits.json?fields=id,displayName,level&paging=false returns: an object with an organisationUnits array whose items carry a UID id, a display name, and an integer level.",
+  "type": "object",
+  "required": ["organisationUnits"],
+  "properties": {
+    "organisationUnits": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "displayName", "level"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9]{10}$" },
+          "displayName": { "type": "string" },
+          "level": { "type": "integer", "minimum": 1 }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,88 @@
+# The retry policy's five fields, and the sequence of delays they add up to.
+#
+# A retry is the attempt-level question -- should this be tried again? -- and the answer is
+# computed, not slept on: each failure writes the next attempt's available_at into the future
+# and the worker moves on, so a ten-minute backoff costs a row and not a worker slot.
+#
+# The delay before attempt n+1 is
+#
+#     min(backoff * multiplier^(n-1), max_backoff), spread by +/- jitter
+#
+# so the four fields below produce 1s, 2s, 4s: the first failure waits backoff, and each
+# later one multiplies, until max_backoff clamps the growth. jitter is 0 here on purpose, so
+# the sequence is exactly the arithmetic above and nothing else. retry-with-jitter.yaml is the
+# file where it is not.
+#
+# Hop by hop:
+#
+#   flaky_publish  /status/500 answers 500, which http.request classifies transient, which is
+#                  the class the budget is spent on. Four attempts, three delays, and it is
+#                  still 500 the fourth time.
+#   receipt        never runs: the default all_success edge is not satisfied by a step that
+#                  spent its budget.
+#
+# EXPECT THIS RUN TO FAIL, after four attempts and about seven seconds of waiting. Watch the
+# attempt rows rather than the wall clock: there are four of them, 1s, 2s and 4s apart.
+#
+# To change it: raise max_backoff and the fourth delay would have been 8s; lower it to 2s and
+# the sequence flattens to 1s, 2s, 2s. -p status=200 makes the first attempt the only one.
+#
+#   dg run --local examples/patterns/retry-exponential-backoff.yaml                 # fails after 4 attempts
+#   dg run --local examples/patterns/retry-exponential-backoff.yaml -p status=200   # succeeds on the first
+
+format: dirigent/v1
+kind: pipeline
+code: retry-exponential-backoff
+name: Exponential backoff
+description: |
+  The five retry fields and the delays they compute: `backoff`, `multiplier`, `max_backoff`,
+  `jitter`, and the `max_attempts` that counts the first try.
+
+  As written the endpoint answers 500 four times, 1s, 2s and 4s apart, and the run reports
+  `failed`.
+
+tags: [patterns, http, failure, retry]
+
+requires:
+  blocks:
+    - http.request
+
+params:
+  type: object
+  properties:
+    status:
+      type: integer
+      description: The status the publish endpoint is asked to answer with; 500 is retried, 200 is not.
+      default: 500
+      enum: [200, 500]
+
+steps:
+  flaky_publish:
+    block: http.request
+    retry:
+      # The budget counts the first try, so four here means one attempt and three retries.
+      max_attempts: 4
+      # The delay after the FIRST failure. Every later one grows from it.
+      backoff: 1s
+      # Doubling. 1.0 would make every delay the same length, which is a fixed-interval retry
+      # written in the same four fields.
+      multiplier: 2.0
+      # The ceiling the growth flattens against, so a long budget cannot become a long wait.
+      max_backoff: 30s
+      # Zero so the sequence is exactly 1s, 2s, 4s and the arithmetic is watchable. A step
+      # that fans out wants this above zero; see retry-with-jitter.yaml.
+      jitter: 0.0
+    config:
+      url: "https://postman-echo.com/status/${params.status}"
+      method: GET
+
+  receipt:
+    block: http.request
+    depends_on: [flaky_publish]
+    # Unreached as written. A spent budget is an ordinary failure, and the default
+    # all_success edge treats it as one.
+    config:
+      url: https://postman-echo.com/post
+      method: POST
+      body:
+        published_with: "${steps.flaky_publish.output.status}"

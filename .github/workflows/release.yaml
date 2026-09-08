@@ -1,0 +1,112 @@
+name: release
+
+# A `v*` tag publishes: every package to PyPI, and the image to GHCR.
+#
+# PyPI auth is trusted publishing, so no token is stored here: PyPI verifies the OIDC token
+# GitHub mints for this workflow file and environment.
+
+on:
+  push:
+    tags: ["v*"]
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build the distributions
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      # setup-uv stopped publishing major tags at v8, so pin the exact version.
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install
+
+      # Every package in the workspace carries the tag's version, so a mismatch is a bump
+      # that did not land and a release that would publish the previous one.
+      - name: Check the tag matches the version every package carries
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          for package in packages/*/pyproject.toml; do
+            version=$(sed -n 's/^version = "\(.*\)"/\1/p' "$package" | head -1)
+            if [ "$version" != "$tag" ]; then
+              echo "$package carries $version, tag says $tag"
+              exit 1
+            fi
+          done
+
+      # The server wheel ships the built UI bundle, so the bundle is built before the build.
+      - name: Install bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Build the bundle
+        run: make ui
+
+      - name: Build every wheel and sdist
+        run: uv build --all-packages
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+
+  pypi:
+    name: publish to PyPI
+    needs: build
+    runs-on: ubuntu-24.04
+    environment:
+      name: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
+
+      # No password: the action exchanges the runner's OIDC token with PyPI.
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  image:
+    name: publish the image
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # The version the image stamps into org.opencontainers.image.version, without the `v`.
+      - name: Read the version off the tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/Dockerfile
+          push: true
+          build-args: |
+            DIRIGENT_VERSION=${{ steps.version.outputs.version }}
+            DIRIGENT_REVISION=${{ github.sha }}
+          tags: |
+            ghcr.io/winterop-com/dirigent:${{ steps.version.outputs.version }}
+            ghcr.io/winterop-com/dirigent:latest

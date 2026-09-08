@@ -1,0 +1,89 @@
+# concurrency: queue -- a second trigger becomes a run that is created and held.
+#
+# WHAT A SECOND TRIGGER DOES HERE: the run IS created. It exists from the moment it is
+# triggered, with its parameters and its window frozen as they were at that instant, and it
+# simply does not advance -- no step is claimable while the slot is occupied. When the run
+# ahead of it settles, the oldest held run is released and starts.
+#
+# That is the difference from skip, and it is the difference between losing work and delaying
+# it. Use queue whenever a firing has work of its own that nothing later will redo: consuming
+# a queue, appending a day's rows, advancing a cursor, sending a batch. The cost is that a
+# backlog is real -- if the pipeline is consistently slower than its cadence, held runs
+# accumulate, and that is a fact to look at rather than something the policy hides.
+#
+# THE PARAMETERS ARE FROZEN AT TRIGGER TIME, NOT AT RELEASE TIME. A run held for an hour still
+# carries the parameters and the window it was created with, so an hourly increment released
+# late covers the hour it was for, not the hour it happened to start in. That is the whole
+# reason the run is created up front rather than the trigger being remembered.
+#
+# Everything about the ordering is FIFO: the oldest held run is the one released. A run
+# cancelled while held simply never occupied the slot, and releasing does not double up.
+#
+# Hop by hop:
+#
+#   claim_batch  a sleep standing in for the work a firing owns -- the batch nothing else will
+#                pick up if this run never happens.
+#   commit       records what the batch amounted to.
+#
+# EXPECT THIS RUN TO SUCCEED in about five seconds. A single local run has nothing to queue
+# behind, so the policy is exercised against a server:
+#
+#   dg run --local examples/patterns/concurrency-queue.yaml
+#   dg apply examples/patterns/concurrency-queue.yaml
+#   dg run concurrency-queue -p batch=1 &
+#   dg run concurrency-queue -p batch=2      # created, and held
+#   dg runs list concurrency-queue           # two runs; the second starts when the first settles
+
+format: dirigent/v1
+kind: pipeline
+code: concurrency-queue
+name: A second run that waits its turn
+description: |
+  `concurrency: queue` creates the second run and holds it: no step advances until the slot
+  is free, and then the oldest held run is released.
+
+  Its parameters and window are frozen at trigger time, so an increment released late still
+  covers the interval it was created for.
+
+tags: [patterns, sensor, transform, concurrency]
+
+# The one line this file is about.
+concurrency: queue
+
+requires:
+  blocks:
+    - time.sleep
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    batch:
+      type: integer
+      description: Which batch this firing owns; nothing else will pick it up.
+      default: 1
+      minimum: 1
+    seconds:
+      type: integer
+      description: How long the batch takes; long enough to queue a second run by hand.
+      default: 4
+      minimum: 1
+      maximum: 120
+
+steps:
+  claim_batch:
+    block: time.sleep
+    poll: 1s
+    config:
+      for: "${params.seconds}s"
+
+  commit:
+    block: transform.jq
+    depends_on: [claim_batch]
+    # An append rather than a rebuild, which is what makes queue the right policy: a firing
+    # that never ran is a batch nobody ever committed.
+    config:
+      input:
+        batch: "${params.batch}"
+      program: |
+        {committed: .batch, incremental: true}

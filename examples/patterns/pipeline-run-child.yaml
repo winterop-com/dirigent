@@ -1,0 +1,96 @@
+# The pipeline the four composition examples call, and an ordinary pipeline in every way.
+#
+# Nothing here says it is a child. It has its own code, its own parameter schema, its own run
+# history, and it can be run on its own, scheduled on its own, or called by four different
+# parents. Being callable is not something a document opts into.
+#
+# ITS PARAMETER SCHEMA IS THE INTERFACE. A parent writes these parameters out explicitly
+# rather than forwarding whatever it was run with, and they are validated against the schema
+# below when the parent's step executes -- not when the parent is applied. So a parent that
+# calls this with a region of 42 applies cleanly and fails at that step, which is why
+# additionalProperties: false and the bounds below are worth having.
+#
+# The status parameter exists for one of the parents. pipeline-run-strict.yaml needs a child
+# that settles completed_with_errors on purpose, and this is how: a tolerated failure, which
+# is a failed step whose dependents carry on and whose run is not clean.
+#
+# Hop by hop:
+#
+#   fetch     a tolerated call. Asked for 200 it succeeds and the run is green; asked for 500
+#             it settles failed and is tolerated, so the run ends completed_with_errors with
+#             the branch below it still running.
+#   summarise reads the parameters back into the small record a parent reads as this pipeline's
+#             answer. It runs either way, because a tolerated failure reads as a success to
+#             whatever depends on it.
+#
+# EXPECT THIS RUN TO SUCCEED on its defaults, in about a second:
+#
+#   dg run --local examples/patterns/pipeline-run-child.yaml -p region=east
+#   dg run --local examples/patterns/pipeline-run-child.yaml -p region=east -p status=500  # completed_with_errors
+#
+# Apply it before any of the parents; each of them names it in requires.pipelines, so a parent
+# applied to an instance without it is refused up front with the code to apply first.
+
+format: dirigent/v1
+kind: pipeline
+code: pipeline-run-child
+name: The called pipeline
+description: |
+  An ordinary pipeline that four composition examples call. Nothing about it declares that
+  it is a child; its parameter schema is the whole interface.
+
+  `-p status=500` makes it settle `completed_with_errors` on purpose, which is what
+  `pipeline-run-strict.yaml` needs something to do.
+
+tags: [patterns, http, transform, composition]
+
+requires:
+  blocks:
+    - http.request
+    - transform.jq
+
+params:
+  type: object
+  required: [region]
+  # A closed door, so a parent that misspells a parameter fails at the step with the reason
+  # rather than running with a default nobody chose.
+  additionalProperties: false
+  properties:
+    region:
+      type: string
+      description: Which region this run loads.
+      minLength: 1
+      maxLength: 32
+      pattern: "^[a-z][a-z0-9-]*$"
+    day:
+      type: string
+      format: date
+      description: The day being loaded.
+      default: "2026-01-01"
+    status:
+      type: integer
+      description: What the tolerated call is answered with; 500 settles this run completed_with_errors.
+      default: 200
+      enum: [200, 500]
+
+steps:
+  fetch:
+    block: http.request
+    # Tolerated: it settles failed, its dependents are shown a success, and the run reports
+    # completed_with_errors rather than failed. That third status is what strict is about.
+    continue_on_failure: true
+    config:
+      # A conditional written as data: the parameter picks the status, because the reference
+      # language has no branching construct and does not want one.
+      url: "https://postman-echo.com/status/${params.status}"
+      method: GET
+
+  summarise:
+    block: transform.jq
+    depends_on: [fetch]
+    config:
+      input:
+        region: "${params.region}"
+        day: "${params.day}"
+      program: |
+        {loaded: .region, day: .day}

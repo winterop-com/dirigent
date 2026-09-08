@@ -1,0 +1,78 @@
+# The third clock: one firing, at one instant, and then never again.
+#
+# The schedule fires only on an instance this document has been applied to. The same
+# document runs ad hoc anywhere, with nothing on the allowlist and no network:
+#
+#   dg run --local examples/triggers/at-one-time.yaml -p from=2025-01-01 -p to=2025-12-31
+#   dg apply examples/triggers/at-one-time.yaml        # against an instance
+#   dg schedule list at-one-time
+#
+# This is the backfill and the launch: a job that has to happen once, at a moment agreed
+# with somebody, and that nobody should have to be awake for. Declaring it in the document
+# makes the moment reviewable in a pull request rather than typed into a terminal at night.
+
+format: dirigent/v1
+kind: pipeline
+code: at-one-time
+name: A single agreed instant
+description: A one-time schedule firing a bounded backfill at a single agreed instant.
+
+tags: [triggers, transform, schedule]
+
+requires:
+  blocks:
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    from:
+      type: string
+      format: date
+      description: First day of the backfill window, inclusive.
+      default: "2026-01-01"
+    to:
+      type: string
+      format: date
+      description: Last day of the backfill window, inclusive.
+      default: "2026-01-07"
+    environment:
+      type: string
+      enum: [staging, production]
+      default: staging
+
+steps:
+  window:
+    block: transform.jq
+    config:
+      input:
+        from: "${params.from}"
+        to: "${params.to}"
+        environment: "${params.environment}"
+      program: |
+        {environment, from, to, months: [range(1; 13)]}
+
+  backfill:
+    block: transform.jq
+    depends_on: [window]
+    config:
+      input: "${steps.window.output.value}"
+      program: |
+        {environment, backfilled: "\(.from)..\(.to)", batches: (.months | length)}
+
+triggers:
+  schedules:
+    - code: launch-backfill
+      # A moment written without an offset is anchored in the zone this schedule declares,
+      # not in UTC and not in the host's local time: this is half past four in the morning
+      # in Oslo. Write the offset yourself -- 2027-01-06T03:30:00+00:00 -- and it is taken
+      # as given and the zone below is not consulted.
+      at: 2027-01-06 04:30:00
+      timezone: Europe/Oslo
+      # Once the instant has gone by there is no next firing, so the schedule pauses itself
+      # rather than being deleted: its parameters and its firing history stay readable with
+      # dg schedule firings at-one-time launch-backfill.
+      params:
+        from: "2025-01-01"
+        to: "2025-12-31"
+        environment: production

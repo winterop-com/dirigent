@@ -1,0 +1,98 @@
+# Enriching one dataset from another: two upstream steps, one join, and no reference in
+# any of the three programs.
+#
+# The pattern is the third step's config. Two outputs are composed into a single inline
+# input, keyed by what they are:
+#
+#   input:
+#     stations: ${steps.stations.output.value}
+#     readings: ${steps.readings.output.value}
+#
+# so the program destructures .stations and .readings and never mentions a step. That keeps
+# the references in typed config, where the engine resolves them, and keeps the program a
+# constant string that jq compiles when the document is applied. A program with a ${...}
+# spliced into it could only be compiled on the worker, on the first run.
+#
+# INDEX(.id) turns the stations list into an object keyed by id, which is the lookup table:
+# one pass to build it, then constant-time reads, instead of scanning the list per reading.
+#
+# st-9 has no station record, and the join keeps its row with a null name rather than
+# dropping it -- an outer join, not an inner one. `// null` is what says so. jq already
+# yields null for a missing key, so the operator changes no output; it is written because a
+# reader should see the decision in the program rather than infer it from jq's semantics.
+# A pipeline that wants unmatched readings gone writes `select(...)` and means it.
+#
+# The two upstream programs are projections over inline parameter defaults, so the example
+# needs no network. In a real pipeline they are two http.request steps against two systems,
+# and this is the step that puts the two answers together.
+#
+# What it prints: three readings, st-1 and st-3 carrying a station_name and a region, st-9
+# carrying null for both.
+#
+#   dg run --local examples/transform/jq-join-two-sources.yaml
+
+format: dirigent/v1
+kind: pipeline
+code: jq-join-two-sources
+name: Join two sources with jq
+description: Enrich a list of readings with the station records they refer to, keeping unmatched rows.
+
+tags: [transform, graph]
+
+requires:
+  blocks:
+    - transform.jq
+
+params:
+  type: object
+  additionalProperties: false
+  properties:
+    stations:
+      type: array
+      description: The station records to enrich from.
+      items:
+        type: object
+      default:
+        - { id: st-1, name: Bo Central, region: east }
+        - { id: st-2, name: Kenema North, region: east }
+        - { id: st-3, name: Makeni West, region: west }
+    readings:
+      type: array
+      description: The readings to enrich, one of which names an unknown station.
+      items:
+        type: object
+      default:
+        - { station: st-1, celsius: 4.5 }
+        - { station: st-3, celsius: 1.2 }
+        - { station: st-9, celsius: -2.0 }
+
+steps:
+  stations:
+    block: transform.jq
+    config:
+      input: ${params.stations}
+      # A projection, standing in for whatever the station system actually returns.
+      program: |
+        [.[] | {id, name, region}]
+
+  readings:
+    block: transform.jq
+    config:
+      input: ${params.readings}
+      program: |
+        [.[] | {station, celsius}]
+
+  join:
+    block: transform.jq
+    depends_on: [stations, readings]
+    config:
+      # The two outputs, composed into one value under names the program knows.
+      input:
+        stations: ${steps.stations.output.value}
+        readings: ${steps.readings.output.value}
+      program: |
+        . as {$stations, $readings}
+        | ($stations | INDEX(.id)) as $by_id
+        | [$readings[]
+           | . + {station_name: ($by_id[.station].name // null),
+                  region: ($by_id[.station].region // null)}]

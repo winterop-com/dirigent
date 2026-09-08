@@ -1,0 +1,22 @@
+[project]
+name = "dirigent-server"
+version = "0.9.0"
+description = "Dirigent FastAPI server: the REST API, its authentication, and the health probes."
+readme = "README.md"
+requires-python = ">=3.13"
+license = "LicenseRef-Proprietary"
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
+dependencies = [
+    "dirigent-client",
+    "dirigent-common",
+    "dirigent-core",
+    "fastapi>=0.141.1",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.0,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.uv.sources]
+dirigent-client = { workspace = true }
+dirigent-core = { workspace = true }

@@ -1,0 +1,91 @@
+# Stream a response body straight to storage, and never hold it as a step output.
+#
+# In:  a query the echo service reflects back, sized by a parameter.
+# Out: the body as a file in the run's scratch space, and a small summary parsed from that
+#      file by the next step.
+#
+# save_to changes what an http.request step produces. Without it the body arrives as
+# json_body or text, held in the step's output and bounded by max_response -- 32mb by
+# default, and a body past that fails the step rather than arriving half-read. With it the
+# body is streamed to the URI as it arrives, and the output carries body_uri and body_bytes
+# instead.
+#
+# That is the shape a real download wants for three reasons: the bytes are never all in
+# memory at once, the file is exactly what the server sent rather than a re-serialisation of
+# something parsed, and the step below reads it from storage on its own schedule.
+#
+# The write is atomic. The bytes are staged beside the target and renamed on close, so the
+# object becomes visible only once it is whole -- which is what makes a storage.exists
+# sensor on the other side a safe gate rather than a race.
+#
+# The parse afterwards is an ordinary transform reading input_uri, and it is where a
+# pipeline decides how much of a large body it actually needs: this one keeps four fields.
+#
+# To change it: point save_to at s3://<bucket>/incoming/... and the same step becomes a
+# download into an object store, because the scheme is the only thing that changes.
+#
+#   dg run --local examples/recipes/http-save-body-to-storage.yaml
+#   dg run --local examples/recipes/http-save-body-to-storage.yaml -p day=2026-02-01
+
+format: dirigent/v1
+kind: pipeline
+code: http-save-body-to-storage
+name: A response body streamed to storage
+description: Stream an HTTP response body to a storage URI with save_to, then read the file back and keep only a summary.
+
+tags: [recipes, http, storage, transform]
+
+requires:
+  blocks:
+    - http.request
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    day:
+      type: string
+      format: date
+      default: "2026-01-01"
+      description: The day the downloaded file is named for.
+    station:
+      type: string
+      default: st-1
+      description: A query value, echoed back inside the downloaded body.
+
+steps:
+  download:
+    block: http.request
+    config:
+      url: https://postman-echo.com/get
+      method: GET
+      query:
+        station: ${params.station}
+        day: ${params.day}
+      # The body never becomes a step output: it is streamed to this URI as it arrives.
+      save_to: ${run.scratch}/incoming/${params.day}.json
+      timeout: 30s
+
+  parse:
+    block: transform.jq
+    depends_on: [download]
+    config:
+      # The file the download reported writing, read back from storage.
+      input_uri: ${steps.download.output.body_uri}
+      max_input: 8mb
+      program: |
+        {url, station: .args.station, day: .args.day, host: .headers.host}
+
+  receipt:
+    block: transform.jq
+    depends_on: [download, parse]
+    config:
+      input:
+        uri: ${steps.download.output.body_uri}
+        bytes: ${steps.download.output.body_bytes}
+        status: ${steps.download.output.status}
+        summary: ${steps.parse.output.value}
+      program: |
+        {status, uri, body_bytes: .bytes, summary,
+         # With save_to there is no inline body at all, which is the whole point.
+         empty: (.bytes == 0)}

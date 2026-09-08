@@ -1,0 +1,78 @@
+# Reduce a list with repeated keys to one row per key, and say which row won.
+#
+# In:  readings where the same station reports several times, out of order, some of them
+#      corrections of an earlier one.
+# Out: {first_seen, last_seen, latest, duplicates} -- three different answers to "dedupe",
+#      side by side, plus the keys that had more than one row.
+#
+# Dedupe is never one operation, because "the duplicate" is not a property of the data; it
+# is a decision about which row to keep:
+#
+#   unique_by(.station)          keeps the smallest row by the whole key order, which for a
+#                                sorted-by-nothing input is arbitrary and only safe when the
+#                                duplicates are genuinely identical.
+#   group_by then .[0] / .[-1]   keeps the first or last row of each bucket in input order,
+#                                which is the answer when arrival order carries meaning.
+#   group_by then max_by(.at)    keeps the newest row by a timestamp the data carries, which
+#                                is the only one of the three that survives a reorder.
+#
+# The last is almost always the right one for corrections, and this recipe reports the other
+# two beside it so the difference is visible in the output rather than argued about.
+#
+# duplicates is computed before anything is thrown away: a dedupe that reports nothing is a
+# dedupe nobody can audit.
+#
+# To change it: -p key=region dedupes on a different column; the timestamp column stays .at.
+#
+#   dg run --local examples/recipes/jq-dedupe-by-key.yaml
+#   dg run --local examples/recipes/jq-dedupe-by-key.yaml -p key=region
+
+format: dirigent/v1
+kind: pipeline
+code: jq-dedupe-by-key
+name: Dedupe by key, three ways
+description: Collapse repeated rows to one per key by first seen, last seen, and newest timestamp, and list the keys that repeated.
+
+tags: [recipes, transform, jq]
+
+requires:
+  blocks:
+    - value.const
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    key:
+      type: string
+      default: station
+      description: The column a row is deduplicated on.
+
+steps:
+  rows:
+    block: value.const
+    config:
+      value:
+        - { station: st-1, region: east, at: "2026-01-01T06:00:00Z", celsius: 4 }
+        - { station: st-2, region: west, at: "2026-01-01T06:00:00Z", celsius: -1 }
+        # A correction: same station, later timestamp, arriving before the row it corrects.
+        - { station: st-1, region: east, at: "2026-01-01T09:00:00Z", celsius: 5 }
+        - { station: st-1, region: east, at: "2026-01-01T07:00:00Z", celsius: 40 }
+        - { station: st-3, region: east, at: "2026-01-01T06:00:00Z", celsius: 7 }
+
+  deduped:
+    block: transform.jq
+    depends_on: [rows]
+    config:
+      input:
+        key: ${params.key}
+        rows: ${steps.rows.output.value}
+      program: |
+        . as {$key, $rows}
+        | ($rows | group_by(.[$key])) as $buckets
+        | {first_seen: [$buckets[] | .[0]],
+           last_seen: [$buckets[] | .[-1]],
+           # max_by reads the timestamp the row carries, so a late arrival cannot win by
+           # arriving late and an early correction cannot lose by arriving early.
+           latest: [$buckets[] | max_by(.at)],
+           duplicates: [$buckets[] | select(length > 1) | {key: .[0][$key], rows: length}]}

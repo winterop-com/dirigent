@@ -1,0 +1,30 @@
+# The smallest thing dirigent can run: one step, one block, no parameters.
+#
+# value.const emits its configured value and touches nothing, so this runs on a fresh
+# instance with nothing on the unsafe allowlist:
+#
+#   dg apply examples/hello-world.yaml
+#   dg run hello-world --watch
+
+format: dirigent/v1
+kind: pipeline
+code: hello-world
+# The code above is the identity: it is what a URL, a reference and `dg run` carry.
+# The name below is display only -- free-form, and nothing ever references by it.
+name: Hello, world
+description: |
+  Emit a greeting, and nothing else.
+
+  This is the **smallest** document the format admits: one step, one block, no
+  parameters. A description is markdown, so the UI renders it as prose:
+
+  - `value.const` emits its config as its output, with nothing granted
+  - everything else here is a default
+
+tags: [demo]
+
+steps:
+  greet:
+    block: value.const
+    config:
+      value: "hello from dirigent"

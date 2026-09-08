@@ -1,0 +1,129 @@
+# The country code table every integration ends up needing, built from Wikidata rather than typed.
+#
+# Wikidata's SPARQL endpoint is public and keyless. It answers SPARQL over the whole of
+# Wikidata, and with `Accept: application/sparql-results+json` the answer is the W3C results
+# shape: {"head": {"vars": [...]}, "results": {"bindings": [...]}}, where every binding is a
+# map from variable name to {"type": ..., "value": ...} -- and every value is a *string*, even
+# the numeric ones. Unwrapping that envelope is most of the work below.
+#
+# The query asks for sovereign states with an ISO 3166-1 alpha-3 code, plus the alpha-2 and
+# numeric codes and the English label. The result is the reference table other pipelines join
+# against: WHO GHO speaks alpha-3, DHIS2 org units often carry alpha-2, and national statistics
+# offices publish the numeric code.
+#
+# On manners: the endpoint asks every client for a descriptive User-Agent that says who is
+# calling and how to reach them, and it will refuse an anonymous one under load. That header is
+# not optional politeness, it is the terms of use. A query heavier than this one belongs behind
+# a longer timeout, or in the Query Service's own bulk export.
+#
+# What happens, hop by hop:
+#
+#   fetch     one GET with the query in the `query` parameter and the answer negotiated to
+#             JSON by the Accept header.
+#   table     the unwrapping: `.results.bindings` mapped to flat rows, each `.value` pulled
+#             out of its little envelope, the numeric code turned into an actual number, and
+#             the Wikidata entity URI cut down to its Q-id. Written to storage as json,
+#             because a reference table is a thing other runs read rather than a value this
+#             run carries onward.
+#   summary   the same file read back through input_uri, counted. A step with save_to hands
+#             on no value, so this is what the run reports -- and it is the read another
+#             pipeline would do against the same path.
+#
+# To make it yours: change the query. Swapping wd:Q3624078 for wd:Q6256 widens it from
+# sovereign states to countries, and adding `?item wdt:P1082 ?population` gives every row a
+# population without another request. The two save_to paths are the run's own scratch, which is
+# deleted with the run; on an instance, writing to s3:// or to a stable prefix is what makes the
+# table outlive the run that built it. A reference is not a parameter with a default, because a
+# parameter default is literal text: ${run.scratch} means nothing until a step resolves it.
+#
+#   dg run --local examples/open-data/wikidata-country-reference.yaml
+
+format: dirigent/v1
+kind: pipeline
+code: wikidata-country-reference
+name: Country code reference from Wikidata
+description: |
+  ISO 3166-1 alpha-2, alpha-3 and numeric codes for every sovereign state, read from
+  **Wikidata** over SPARQL and saved as a json reference table other pipelines read.
+
+tags: [open-data, http, storage, transform, sparql]
+
+requires:
+  blocks:
+    - http.request
+    - transform.jq
+
+params:
+  type: object
+  additionalProperties: false
+  properties:
+    language:
+      type: string
+      default: en
+      description: The label language, as the Wikidata label service names it.
+    user_agent:
+      type: string
+      default: dirigent-example/1.0 (https://github.com/winterop-com/dirigent)
+      description: Required by the endpoint's terms of use; say who you are and how to be reached.
+
+steps:
+  fetch:
+    block: http.request
+    # The endpoint queues queries behind a shared budget and answers 429 when it is busy, so
+    # the wait between tries is longer than the query itself takes.
+    retry:
+      max_attempts: 3
+      backoff: 20s
+    config:
+      url: https://query.wikidata.org/sparql
+      headers:
+        # Without this the answer is XML, which is the endpoint's default.
+        Accept: application/sparql-results+json
+        User-Agent: ${params.user_agent}
+      query:
+        query: |
+          SELECT ?item ?itemLabel ?iso2 ?iso3 ?isoNumeric WHERE {
+            ?item wdt:P31 wd:Q3624078 .
+            ?item wdt:P298 ?iso3 .
+            OPTIONAL { ?item wdt:P297 ?iso2 }
+            OPTIONAL { ?item wdt:P299 ?isoNumeric }
+            SERVICE wikibase:label { bd:serviceParam wikibase:language "${params.language}". }
+          }
+          ORDER BY ?iso3
+      # A cold query against a busy endpoint can take most of a minute.
+      timeout: 90s
+
+  table:
+    block: transform.jq
+    depends_on: [fetch]
+    config:
+      input: ${steps.fetch.output.json_body}
+      # Every binding is {type, value} and every value is a string, so the numeric code is
+      # converted here rather than being carried as "454" for the rest of its life. An
+      # OPTIONAL that matched nothing has no binding at all, which is why each read is
+      # guarded rather than defaulted after the fact.
+      program: |
+        [.results.bindings[]
+         | {
+             wikidata_id: (.item.value | sub("^.*/"; "")),
+             name: .itemLabel.value,
+             iso2: (if .iso2 then .iso2.value else null end),
+             iso3: .iso3.value,
+             iso_numeric: (if .isoNumeric then (.isoNumeric.value | tonumber) else null end)
+           }]
+        | unique_by(.iso3)
+      save_to: ${run.scratch}/countries.json
+
+  summary:
+    block: transform.jq
+    depends_on: [table]
+    config:
+      # The read another pipeline would do: the table by its path, not by this run's outputs.
+      input_uri: ${run.scratch}/countries.json
+      program: |
+        {
+          countries: length,
+          with_iso2: ([.[] | select(.iso2 != null)] | length),
+          with_numeric: ([.[] | select(.iso_numeric != null)] | length),
+          sample: (sort_by(.iso3) | .[0:3])
+        }

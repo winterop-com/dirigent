@@ -1,0 +1,88 @@
+# Clean the strings a spreadsheet exported: whitespace, case, punctuation, and codes.
+#
+# In:  rows whose name, code and email arrived with padding, mixed case, doubled inner
+#      spaces, and a code carrying a suffix nobody wanted.
+# Out: the same rows cleaned, plus a `changed` list naming the fields each row's cleaning
+#      actually touched.
+#
+# Every verb here is one jq builtin doing one thing, and the order matters: trim before
+# comparing, collapse inner whitespace before splitting, and lowercase an email but never a
+# name. A single gsub doing all of it at once is the version nobody can debug six months
+# later.
+#
+#   sub("^\\s+"; "") / sub("\\s+$"; "")   trim, anchored at each end. jq has no trim verb,
+#                                         and ltrimstr only removes a literal prefix.
+#   gsub("\\s+"; " ")                     collapse a run of inner whitespace to one space.
+#   ascii_downcase                        case-fold. It is ASCII-only by name and by
+#                                         behaviour, so it leaves accented letters alone
+#                                         rather than mangling them.
+#   capture("(?<code>[A-Z]+-[0-9]+)")     pull a code out of a longer string by naming the
+#                                         part wanted; the named group becomes a field.
+#   test(...)                             ask a yes-or-no question about a string without
+#                                         changing it.
+#
+# The `changed` list is what makes cleaning reviewable: it is computed by comparing each
+# field before and after, so a run says which rows it had to touch rather than leaving that
+# to a diff nobody takes.
+#
+# To change it: -p title_case=true also capitalises each word of a name, which is the kind
+# of rule that is right for a report and wrong for a key.
+#
+#   dg run --local examples/recipes/jq-string-cleaning.yaml
+#   dg run --local examples/recipes/jq-string-cleaning.yaml -p title_case=true
+
+format: dirigent/v1
+kind: pipeline
+code: jq-string-cleaning
+name: Clean strings with jq
+description: Trim, collapse, case-fold and extract the strings a spreadsheet export brings in, and report which fields changed.
+
+tags: [recipes, transform, jq]
+
+requires:
+  blocks:
+    - value.const
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    title_case:
+      type: boolean
+      default: false
+      description: Capitalise each word of a cleaned name.
+
+steps:
+  rows:
+    block: value.const
+    config:
+      value:
+        - { name: "  harbour   station ", code: "ST-1 (retired)", email: "Ops@Example.ORG " }
+        - { name: "RIDGE station", code: "site ST-2", email: "ridge@example.org" }
+        - { name: "delta station", code: "ST-3", email: "  DELTA@EXAMPLE.ORG" }
+
+  cleaned:
+    block: transform.jq
+    depends_on: [rows]
+    config:
+      input:
+        rows: ${steps.rows.output.value}
+        title_case: ${params.title_case}
+      program: |
+        def trim: sub("^\\s+"; "") | sub("\\s+$"; "");
+        def squeeze: gsub("\\s+"; " ");
+        def titled: split(" ") | map(if length > 0
+                                     then (.[0:1] | ascii_upcase) + (.[1:] | ascii_downcase)
+                                     else . end) | join(" ");
+        . as {$rows, $title_case}
+        | [$rows[]
+           | . as $before
+           | {name: (.name | trim | squeeze | if $title_case then titled else . end),
+              # The code is whatever looks like a code inside the cell; a row with none
+              # keeps a null rather than the raw cell, so the failure is visible downstream.
+              code: (.code | trim | (capture("(?<code>[A-Z]+-[0-9]+)").code // null)),
+              email: (.email | trim | ascii_downcase),
+              looks_like_email: (.email | trim | test("^[^@\\s]+@[^@\\s]+\\.[a-zA-Z]{2,}$"))}
+           | . as $after
+           | $after + {changed: [$before | to_entries[]
+                                 | select($after[.key] != .value) | .key]}]

@@ -1,0 +1,184 @@
+# Watching one HDX dataset for a new version, with a file in storage standing in for state.
+#
+# The Humanitarian Data Exchange runs CKAN, whose API is keyless for public datasets:
+# /api/3/action/package_show?id=<slug> answers {"success": true, "result": {...}}, and the
+# result carries `metadata_modified` -- an ISO timestamp that moves whenever anything about the
+# dataset changes -- plus a `resources` list, one entry per downloadable file with its own
+# `download_url` and `last_modified`.
+#
+# THE PATTERN THIS TEACHES IS THE MARKER. There is no state block: nothing in dirigent
+# remembers, between runs, what a previous run saw. What there is, is storage, and a marker is
+# just a small object written at a stable path holding what the last run observed. A sensor
+# looks for it, a transform reads it, the comparison decides, and the last step overwrites it.
+# The whole state machine is four steps and one file, and it works the same against s3:// as
+# against a local artifact root.
+#
+# Two consequences worth reading before copying this:
+#
+#   - The marker below is written under ${run.scratch}, which is deleted with the run, so every
+#     `--local` run is a first sighting: the sensor skips, the comparison skips with it, and the
+#     run ends succeeded having only written a marker. That is the honest first-run behaviour,
+#     and it is what the graph shows. On an instance, write the marker at a stable location --
+#     s3://your-bucket/markers/... -- and the second run is the one that compares.
+#   - The marker path is written out in three steps rather than kept in a parameter, because a
+#     parameter default is literal text: ${run.scratch} in a default is those characters and
+#     not a reference to anything.
+#
+# What happens, hop by hop:
+#
+#   dataset   one GET of the package. CKAN answers success/result even for an error, so the
+#             step's own 2xx check is not the whole story; the transform below reads .result
+#             and would fail loudly on anything else.
+#   current   what this run saw: the id, the stamp, and the resource list, reduced to what a
+#             consumer actually needs.
+#   seen      is there a marker? Five seconds is not a wait for the world, it is a lookup with
+#             a deadline; an absent marker skips this step and everything reading it.
+#   previous  the marker read back, which is the only place the previous stamp exists.
+#   moved     the comparison. Equal stamps produce an empty list, a moved stamp produces the
+#             resource urls: the decision is data, not a status.
+#   written   that list as ndjson, so an empty decision is an empty file.
+#   changed   the gate. One byte separates "the dataset moved" from "nothing happened", and
+#             a skip here skips the copy behind it while the run stays green.
+#   publish   storage.copy, promoting the url list to a path a downstream pipeline watches.
+#             Copying rather than rewriting keeps the published object byte-identical to what
+#             the decision produced.
+#   remember  the new marker, written under rule: all_done so it is updated whether the
+#             dataset moved, did not move, or was seen for the first time. Writing it last is
+#             what makes a failed run repeatable: the marker only advances on a run that got
+#             all the way here.
+#
+# To make it yours: change dataset_id to any HDX slug, and give the marker a stable home.
+# The same shape watches any CKAN instance -- data.gov, the EU portal, a national one -- since
+# package_show and metadata_modified are CKAN's, not HDX's.
+#
+#   dg run --local examples/open-data/hdx-dataset-watch.yaml
+#   dg run --local examples/open-data/hdx-dataset-watch.yaml -p dataset_id=malawi-healthsites
+
+format: dirigent/v1
+kind: pipeline
+code: hdx-dataset-watch
+name: HDX dataset watch
+description: |
+  Poll one **HDX** (CKAN) dataset for a new `metadata_modified`, comparing against a marker
+  object in storage, and publish the resource url list when it moves.
+
+  There is no state block: the marker file *is* the state, and a sensor looking for it is how
+  a run asks whether there was a previous one.
+
+tags: [open-data, http, sensor, storage, transform]
+
+requires:
+  blocks:
+    - http.request
+    - transform.jq
+    - convert.std
+    - storage.exists
+    - storage.copy
+
+params:
+  type: object
+  additionalProperties: false
+  properties:
+    dataset_id:
+      type: string
+      default: malawi-healthsites
+      description: An HDX dataset slug, as it appears in its page URL.
+
+steps:
+  dataset:
+    block: http.request
+    config:
+      url: https://data.humdata.org/api/3/action/package_show
+      query:
+        id: ${params.dataset_id}
+      # A package with many resources and a long description is still small, but not tiny.
+      max_response: 8mb
+
+  current:
+    block: transform.jq
+    depends_on: [dataset]
+    config:
+      input: ${steps.dataset.output.json_body}
+      # download_url rather than url: CKAN carries both, and for an uploaded file the plain
+      # url can be the landing page rather than the bytes.
+      program: |
+        .result
+        | {
+            id: .name,
+            title: .title,
+            metadata_modified: .metadata_modified,
+            resources: [.resources[]
+              | {name, format, last_modified, url: (.download_url // .url)}]
+          }
+
+  seen:
+    block: storage.exists
+    depends_on: [current]
+    poll: 1s
+    deadline: 5s
+    # No marker means no previous run to compare against. That is not a failure and not a
+    # reason to publish everything; it is a first sighting, and the branch below skips.
+    on_timeout: skip
+    config:
+      uri: ${run.scratch}/markers/${params.dataset_id}.json
+
+  previous:
+    block: transform.jq
+    depends_on: [seen]
+    config:
+      input_uri: ${run.scratch}/markers/${params.dataset_id}.json
+      program: |
+        {metadata_modified}
+
+  moved:
+    block: transform.jq
+    depends_on: [previous]
+    config:
+      input:
+        current: ${steps.current.output.value}
+        previous: ${steps.previous.output.value}
+      # An empty list is a decision, not an absence: it says the stamps matched.
+      program: |
+        if .current.metadata_modified == .previous.metadata_modified
+        then []
+        else [.current.resources[].url]
+        end
+        | tojson
+
+  written:
+    block: convert.std
+    depends_on: [moved]
+    config:
+      input: ${steps.moved.output.value}
+      from: json
+      to: ndjson
+      save_to: ${run.scratch}/moved/${params.dataset_id}.ndjson
+
+  changed:
+    block: storage.exists
+    depends_on: [written]
+    poll: 1s
+    deadline: 3s
+    on_timeout: skip
+    config:
+      uri: ${run.scratch}/moved/${params.dataset_id}.ndjson
+      min_size: 1b
+
+  publish:
+    block: storage.copy
+    depends_on: [changed]
+    config:
+      source: ${run.scratch}/moved/${params.dataset_id}.ndjson
+      target: ${run.scratch}/published/${params.dataset_id}-resources.ndjson
+
+  remember:
+    block: transform.jq
+    depends_on: [changed]
+    # all_done, because the marker has to advance on every outcome above it: a first sighting
+    # that skipped the comparison, a run where nothing moved, and a run that published.
+    rule: all_done
+    config:
+      input: ${steps.current.output.value}
+      program: |
+        {id, metadata_modified, resources: (.resources | length)}
+      save_to: ${run.scratch}/markers/${params.dataset_id}.json

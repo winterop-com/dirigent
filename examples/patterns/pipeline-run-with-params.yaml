@@ -1,0 +1,123 @@
+# Passing parameters to a child, and the two things the engine checks about them and when.
+#
+# A parent writes the child's parameters out. It does not forward its own, and there is no
+# syntax for "pass everything through" -- because the child's schema is the contract, and a
+# parent that forwarded whatever it was run with would break the moment either side grew a
+# parameter.
+#
+# WHEN THE CHECKING HAPPENS, in two stages:
+#
+#   at apply    requires.pipelines is checked, so a parent naming a child the instance does
+#               not hold is refused with the code to apply first.
+#   at execute  the params map below is validated against the CHILD's schema, by the child, as
+#               the step runs. So a wrong parameter is a failed step with the schema's own
+#               message, not a refused apply -- the parent has no way to know at apply time
+#               what a ${params.x} will resolve to.
+#
+# max_depth is the other guard, and it counts the chain reaching this run rather than the
+# calls this document makes. The default is 5, so a parent calling a child that calls a child
+# is fine and a cycle is not: a pipeline that eventually calls itself fails at the depth limit
+# instead of filling the instance with runs.
+#
+# A FAN-OUT OF pipeline.run IS THE USEFUL SHAPE. One item per region, each starting its own
+# child run with its own parameters, all of them parked rows rather than held workers. That is
+# how a parent runs eleven children in parallel without eleven of anything.
+#
+# Hop by hop:
+#
+#   plan       builds the list of regions to load, so the fan-out's width is one value the
+#              rest of the document reads.
+#   load       one child run per region, waited on, each with its own parameters. Note the
+#              day is the same for all of them and the region is not: an element carries what
+#              differs, and params carries what does not.
+#   summarise  the join. It reads the batch of child outcomes -- codes, run ids and statuses,
+#              which is everything a parent gets back from a child.
+#
+# EXPECT THIS RUN TO SUCCEED in about five seconds, with three child runs and three statuses
+# of succeeded.
+#
+# To change it: -p regions='["east"]' runs one child; a region that does not match the child's
+# pattern fails that item at execute time with the child's own message, which is the two-stage
+# checking above made visible.
+#
+#   dg run --local examples/patterns/pipeline-run-with-params.yaml \
+#     --also-apply examples/patterns/pipeline-run-child.yaml
+#   dg run --local examples/patterns/pipeline-run-with-params.yaml \
+#     --also-apply examples/patterns/pipeline-run-child.yaml -p regions='["east","west"]'
+
+format: dirigent/v1
+kind: pipeline
+code: pipeline-run-with-params
+name: Children, one per region
+description: |
+  A parent writes its child's parameters out explicitly; they are validated against the
+  **child's** schema when the step executes, not when the parent is applied.
+
+  A fan-out of `pipeline.run` is how one parent runs many children in parallel, each a
+  parked row rather than a held worker.
+
+tags: [patterns, pipeline, transform, composition, fan-out]
+
+requires:
+  blocks:
+    - pipeline.run
+    - transform.jq
+  pipelines:
+    - pipeline-run-child
+
+params:
+  type: object
+  properties:
+    regions:
+      type: array
+      description: One child run per element.
+      default: [east, west, north]
+      minItems: 1
+      maxItems: 16
+      items:
+        type: string
+        # The same pattern the child declares. Duplicating it here is what turns a child-side
+        # failure at execute time into a parent-side refusal before the run exists.
+        pattern: "^[a-z][a-z0-9-]*$"
+    day:
+      type: string
+      format: date
+      description: The day every child loads; the same for all of them.
+      default: "2026-01-01"
+
+steps:
+  plan:
+    block: transform.jq
+    config:
+      input: "${params.regions}"
+      program: |
+        {regions: ., count: length}
+
+  load:
+    block: pipeline.run
+    depends_on: [plan]
+    # The fan-out reads params, not the plan step's output: cardinality is fixed when the run
+    # is created, so a for_each may never name an upstream step.
+    for_each: "${params.regions}"
+    # One region refusing is not a reason to abandon the others; the join below counts what
+    # actually landed.
+    items: continue
+    poll: 1s
+    config:
+      pipeline: pipeline-run-child
+      params:
+        # What differs per child comes from the element.
+        region: "${item}"
+        # What is the same for every child comes from the parent's parameters.
+        day: "${params.day}"
+
+  summarise:
+    block: transform.jq
+    depends_on: [load]
+    config:
+      input: "${steps.load.output}"
+      program: |
+        {
+          children: [.[] | {pipeline, run_id, status}],
+          started: length
+        }

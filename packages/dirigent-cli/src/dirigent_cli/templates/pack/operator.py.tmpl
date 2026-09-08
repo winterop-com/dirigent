@@ -1,0 +1,34 @@
+"""``{name}.hello``: the pack's first operator, here to be replaced."""
+
+from typing import ClassVar
+
+from pydantic import BaseModel
+
+from dirigent_common import BlockModel
+from dirigent_plugin import Operator, OperatorSpec, StepContext
+
+
+class HelloConfig(BlockModel):
+    """What the step takes."""
+
+    greeting: str = "hello"
+    """The word the step leads with."""
+
+
+class HelloOutput(BlockModel):
+    """What the step hands downstream."""
+
+    message: str
+    """The composed greeting."""
+
+
+class HelloOperator(Operator[HelloConfig, HelloOutput]):
+    """Composes a greeting, which is the smallest thing an operator can do."""
+
+    spec = OperatorSpec(id="{name}.hello", summary="Say hello.", idempotent=True)
+    config_model: ClassVar[type[BaseModel]] = HelloConfig
+    output_model: ClassVar[type[BaseModel]] = HelloOutput
+
+    async def execute(self, config: HelloConfig, ctx: StepContext) -> HelloOutput:
+        """Compose and return, in one call."""
+        return HelloOutput(message=f"{{config.greeting}} from {name}")

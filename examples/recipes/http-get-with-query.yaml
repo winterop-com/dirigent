@@ -1,0 +1,97 @@
+# A GET with query parameters, and what to do with the answer.
+#
+# In:  a station code and a day, as parameters.
+# Out: the echo service's view of the request -- the query it received -- reshaped into a
+#      small record, plus the status and how long the call took.
+#
+# https://postman-echo.com/get answers with the request it was given, so a recipe about
+# building a request can show what actually arrived on the wire without standing anything
+# up. Against a real API the only lines that change are url or connection, and the path.
+#
+# The query is a map, not a string, and that is the whole point of the field: the block
+# encodes each value once, correctly, so a station code with a space or an ampersand in it
+# cannot break out of its parameter. A path with ?a=1&b=2 hand-written into it is where
+# injection and double-encoding both come from.
+#
+# Values may be strings, numbers or booleans -- paging=false goes over the wire as the text
+# `false`, because that is what a query string is -- and a reference resolves before the
+# encoding happens, so ${params.day} is a value and never a fragment of URL.
+#
+# The response arrives three ways and only one of them is usually right:
+#
+#   json_body   the parsed body, when the answer is JSON. This is what a reshape reads.
+#   text        the raw body, for a format nothing parsed.
+#   body_uri    where the body was streamed, when save_to asked for it. See
+#               http-save-body-to-storage.yaml.
+#
+# duration_ms is on every response, so a pipeline can report what a call cost without
+# timing it itself.
+#
+# To change it: -p station=st-9, or point url at your own endpoint and keep the rest.
+#
+#   dg run --local examples/recipes/http-get-with-query.yaml
+#   dg run --local examples/recipes/http-get-with-query.yaml -p station=st-9 -p day=2026-02-01
+
+format: dirigent/v1
+kind: pipeline
+code: http-get-with-query
+name: A GET with query parameters
+description: Build a GET whose query is a map rather than a hand-written string, and reshape the JSON body it answers with.
+
+tags: [recipes, http, transform]
+
+requires:
+  blocks:
+    - http.request
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    station:
+      type: string
+      default: st-1
+      description: The station the request asks about.
+    day:
+      type: string
+      format: date
+      default: "2026-01-01"
+      description: The day the request asks about.
+    page_size:
+      type: integer
+      minimum: 1
+      default: 50
+      description: A numeric query value, sent as its digits.
+
+steps:
+  fetch:
+    block: http.request
+    config:
+      # An absolute url, for the case where no connection is configured. A pipeline that
+      # runs against an instance names a connection instead, so moving from staging to
+      # production edits the connection and no document.
+      url: https://postman-echo.com/get
+      method: GET
+      query:
+        station: ${params.station}
+        day: ${params.day}
+        page_size: ${params.page_size}
+        # A boolean goes on the wire as the word, because a query string has no types.
+        paging: false
+      timeout: 20s
+
+  received:
+    block: transform.jq
+    depends_on: [fetch]
+    config:
+      input:
+        status: ${steps.fetch.output.status}
+        duration_ms: ${steps.fetch.output.duration_ms}
+        # The parsed body. The echo service puts what it received under .args.
+        body: ${steps.fetch.output.json_body}
+      program: |
+        {status, duration_ms,
+         url: .body.url,
+         # Every query value arrives back as text, because that is what a query string is.
+         query: .body.args,
+         page_size_is_text: (.body.args.page_size | type)}

@@ -1,0 +1,235 @@
+name: dirigent
+
+x-dirigent: &dirigent
+  build:
+    context: .
+    dockerfile: infra/Dockerfile
+    args:
+      DIRIGENT_VERSION: ${DIRIGENT_VERSION:-local}
+      DIRIGENT_REVISION: ${DIRIGENT_REVISION:-unknown}
+  image: dirigent:local
+  restart: unless-stopped
+  environment: &dirigent-env
+    DIRIGENT_DATABASE_URL: ${DIRIGENT_DATABASE_URL:-postgresql+asyncpg://${POSTGRES_USER:-dirigent}:${POSTGRES_PASSWORD:-dirigent}@postgres:5432/${POSTGRES_DB:-dirigent}}
+    DIRIGENT_CONFIG_FILE: /etc/dirigent/dirigent.yaml
+    DIRIGENT_SECRET_KEY: ${DIRIGENT_SECRET_KEY:?set DIRIGENT_SECRET_KEY in .env; see .env.example}
+    DIRIGENT_ENVIRONMENT: ${DIRIGENT_ENVIRONMENT:-prod}
+    DIRIGENT_LOG_LEVEL: ${DIRIGENT_LOG_LEVEL:-INFO}
+    DIRIGENT_LOG_FORMAT: json
+    # Every worker must reach the same artifacts, so the stack keeps them in the bucket
+    # rather than on a filesystem one host happens to share. `migrate` puts the connection
+    # this resolves through in place before anything runs.
+    DIRIGENT_ARTIFACT_ROOT: s3://${S3_BUCKET:-dirigent}/artifacts
+    DIRIGENT_STORAGE_CONNECTIONS: s3=${S3_CONNECTION:-artifacts}
+    # What a tool opens through the filesystem -- a checkout, a build context, a compose
+    # file, a bind mount -- rather than through storage. The daemon mounts it at the same
+    # path, so a bind docker.run hands over means the same directory on both sides.
+    DIRIGENT_WORK_ROOT: /var/lib/dirigent/work
+    DIRIGENT_ENABLED_UNSAFE_BLOCKS: ${DIRIGENT_ENABLED_UNSAFE_BLOCKS:-}
+    # Pool plus overflow must stay above DIRIGENT_WORKER_CONCURRENCY, which the instance
+    # enforces at start-up.
+    DIRIGENT_DATABASE_POOL_SIZE: ${DIRIGENT_DATABASE_POOL_SIZE:-12}
+    DIRIGENT_DATABASE_MAX_OVERFLOW: ${DIRIGENT_DATABASE_MAX_OVERFLOW:-4}
+    # The alert context is built by whichever worker settles the run, so this belongs on
+    # every service. Set on the server alone, every alert links to nowhere.
+    DIRIGENT_ALERT_BASE_URL: ${DIRIGENT_ALERT_BASE_URL:-http://localhost:3333}
+    # Engine spans and metrics are recorded on the worker, so these belong on every service.
+    OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+    OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-dirigent}
+  volumes:
+    - ./dirigent.yaml:/etc/dirigent/dirigent.yaml:ro
+  depends_on:
+    postgres:
+      condition: service_healthy
+    migrate:
+      condition: service_completed_successfully
+    s3-bucket:
+      condition: service_completed_successfully
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-dirigent}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dirigent}
+      POSTGRES_DB: ${POSTGRES_DB:-dirigent}
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    healthcheck:
+      # -d and -U are both given: without them pg_isready answers about the wrong database
+      # and reports ready while the one dirigent uses is still being created on first start.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dirigent} -d ${POSTGRES_DB:-dirigent}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    ports:
+      # Bound to loopback: the stack reaches postgres over the compose network, and the
+      # mapping exists only so a person on the host can inspect the database.
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+
+  # A one-shot service rather than a step in the server's start-up, so scaling the server
+  # out does not race N processes against the same schema.
+  #
+  # It also ensures the connection the artifact root resolves through. That is a row, and a
+  # container has no API token, so `dg connection ensure` writes it process-side and seals its
+  # secret half with the instance key, exactly as the API would. Re-running the stack brings
+  # the row to whatever the environment now says.
+  migrate:
+    <<: *dirigent
+    restart: "no"
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        dg db upgrade
+        dg connection ensure s3 "$$S3_CONNECTION" \
+          --name "Artifact storage" \
+          --description "The bucket every worker on this stack reads and writes artifacts in." \
+          --set endpoint_url="http://s3:9000" \
+          --set bucket="$$S3_BUCKET" \
+          --set access_key_id="$$S3_ACCESS_KEY" \
+          --set secret_access_key="$$S3_SECRET_KEY" \
+          --set path_style=true
+    environment:
+      <<: *dirigent-env
+      # The credentials reach the command as environment, never as a file or an image layer.
+      S3_CONNECTION: ${S3_CONNECTION:-artifacts}
+      S3_BUCKET: ${S3_BUCKET:-dirigent}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-dirigent}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-dirigent}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Artifact storage. The endpoint the connection names is the one containers resolve, not
+  # the one a shell on the host does: `localhost` inside a container is the container.
+  s3:
+    image: ${DIRIGENT_S3_IMAGE:-rustfs/rustfs:1.0.0-rc.4}
+    restart: unless-stopped
+    environment:
+      RUSTFS_ACCESS_KEY: ${S3_ACCESS_KEY:-dirigent}
+      RUSTFS_SECRET_KEY: ${S3_SECRET_KEY:-dirigent}
+    volumes:
+      - s3:/data
+    ports:
+      - "${S3_PORT:-9010}:9000"
+    healthcheck:
+      # An unauthenticated request answers 403 rather than 200, and that is a serving
+      # endpoint answering: -f would call it a failure, so only the connection is asserted.
+      test: ["CMD-SHELL", "curl -s -o /dev/null http://127.0.0.1:9000/"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+
+  # The bucket has to exist before a run writes to it, and nothing else creates it.
+  s3-bucket:
+    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+    depends_on:
+      s3:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        mc alias set fs http://s3:9000 "$$S3_ACCESS_KEY" "$$S3_SECRET_KEY"
+        mc mb --ignore-existing "fs/$$S3_BUCKET"
+    environment:
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-dirigent}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-dirigent}
+      S3_BUCKET: ${S3_BUCKET:-dirigent}
+
+  server:
+    <<: *dirigent
+    command: ["server"]
+    environment:
+      <<: *dirigent-env
+      DIRIGENT_BOOTSTRAP_ADMIN_PASSWORD: ${DIRIGENT_BOOTSTRAP_ADMIN_PASSWORD:-}
+      DIRIGENT_SCHEDULER_ENABLED: ${DIRIGENT_SCHEDULER_ENABLED:-true}
+      # The example corpus seeds at boot: what an instance will not store -- a document
+      # carrying its own connections -- is refused in the boot log, and the rest lands.
+      # Point APPLY_DIR at your own directory to deploy from git instead.
+      DIRIGENT_APPLY_DIR: ${DIRIGENT_APPLY_DIR:-/etc/dirigent/pipelines}
+      DIRIGENT_APPLY_PRUNE: ${DIRIGENT_APPLY_PRUNE:-false}
+    # A list under the anchor is replaced, not merged, so the shared mount is respelled here.
+    volumes:
+      - ./dirigent.yaml:/etc/dirigent/dirigent.yaml:ro
+      - ./examples:/etc/dirigent/pipelines:ro
+    ports:
+      - "${DIRIGENT_PORT:-3333}:3333"
+    healthcheck:
+      test: ["CMD", "dg", "health", "server"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  # The daemon the `docker.*` blocks drive. It is the worker's own, so a pipeline's
+  # containers are never the host's, and no host socket is mounted anywhere in this stack.
+  docker:
+    image: docker:28-dind@sha256:2a232a42256f70d78e3cc5d2b5d6b3276710a0de0596c145f627ecfae90282ac
+    restart: unless-stopped
+    # docker-in-docker needs the full capability set to run its own daemon; there is no
+    # unprivileged mode that starts containers.
+    privileged: true
+    environment:
+      # The entrypoint generates the CA, the server certificate and the client certificate
+      # under this directory and serves tcp://0.0.0.0:2376 with TLS required.
+      DOCKER_TLS_CERTDIR: /certs
+    volumes:
+      - docker-certs:/certs/client
+      - docker-data:/var/lib/docker
+      # A bind mount is resolved on the daemon's filesystem, not the worker's, so a path
+      # docker.run hands over must mean the same directory here as it does in the worker.
+      - work:/var/lib/dirigent/work
+    healthcheck:
+      test: ["CMD-SHELL", "docker -H unix:///var/run/docker.sock version >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+  worker:
+    <<: *dirigent
+    command: ["worker"]
+    environment:
+      <<: *dirigent-env
+      DIRIGENT_WORKER_CONCURRENCY: ${DIRIGENT_WORKER_CONCURRENCY:-8}
+      # This worker reaches a daemon, so it claims work from a document declaring
+      # `requires.workers: [docker]`.
+      DIRIGENT_WORKER_TAGS: docker
+      # The sidecar daemon, read the same way by the API blocks and by the docker CLI the
+      # compose and build blocks shell out to. Only the worker gets these.
+      DOCKER_HOST: tcp://docker:2376
+      DOCKER_TLS_VERIFY: "1"
+      DOCKER_CERT_PATH: /certs/client
+    volumes:
+      - ./dirigent.yaml:/etc/dirigent/dirigent.yaml:ro
+      - ./examples:/etc/dirigent/pipelines:ro
+      - docker-certs:/certs/client:ro
+      # The same volume the daemon mounts, at the same path.
+      - work:/var/lib/dirigent/work
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      s3-bucket:
+        condition: service_completed_successfully
+      docker:
+        condition: service_healthy
+    stop_grace_period: 60s
+    healthcheck:
+      test: ["CMD", "dg", "health", "worker"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  postgres:
+  s3:
+  # The worker's own working files. Not shared with the server: nothing it does opens one.
+  work:
+  docker-certs:
+  docker-data:

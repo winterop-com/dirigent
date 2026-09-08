@@ -1,0 +1,183 @@
+# A whole small ETL: a messy csv in, a checked parquet file out.
+#
+# In:  an inline csv with padded strings, mixed case, a typed-as-text numeric column, an
+#      empty cell, and a duplicate row.
+# Out: a parquet file in the run's scratch space, written only from rows that passed a
+#      schema gate, plus a report of what was dropped and why.
+#
+# The order of the six steps is the recipe, and every one of them is a different kind of
+# work that wants its own step:
+#
+#   parse      convert.std csv -> json. Every cell arrives as a string, because a csv has no
+#              types and a codec that guessed would be wrong on the column where 007 is a
+#              code.
+#   clean      the string work: trim, case-fold, and turn the text columns that are really
+#              numbers into numbers. This is where a csv's missing type information is
+#              supplied, by the document that knows what the columns mean.
+#   sort       the rows that cannot be loaded are separated from the ones that can, with a
+#              reason kept per row. Dropping them silently is what makes a load report "412
+#              rows" when 460 arrived.
+#   gate       validate.schema over the accepted rows. The clean step and the schema are two
+#              statements of the same expectation, and the gate is what makes them agree:
+#              anything the cleaner let through that the schema refuses fails the run here,
+#              at the boundary, rather than inside a parquet file somebody reads next month.
+#   write      convert.arrow json -> parquet, save_to. Types survive here, which is the
+#              reason for doing all of the above before writing rather than after.
+#   report     the run's own account of itself: counts, the rejected keys, and the file.
+#
+# Everything downstream of the gate reads ${steps.gate.output.value}, which is the input
+# unchanged. That reference is the document's proof that no unchecked row reached the file.
+#
+# To change it: -p min_celsius=-50 loosens the range the schema allows; -p strict=true makes
+# the sorter refuse a duplicate key instead of keeping the first, which fails the run rather
+# than quietly preferring one row over another.
+#
+# The schema is carried in the document, so no server stores this one: it runs with
+# `dg run --local`, and on an instance the same shape is created once with `dg schema create`.
+#
+#   dg run --local examples/recipes/etl-csv-clean-validate-parquet.yaml
+#   dg run --local examples/recipes/etl-csv-clean-validate-parquet.yaml -p strict=true   # fails, on purpose
+
+format: dirigent/v1
+kind: pipeline
+code: etl-csv-clean-validate-parquet
+name: CSV to checked parquet
+description: Parse a messy csv, clean and type it, sort out the unloadable rows, hold the rest to a schema, and write parquet.
+
+tags: [recipes, storage, transform, validate, parquet]
+
+requires:
+  blocks:
+    - convert.std
+    - convert.arrow
+    - transform.jq
+    - validate.schema
+
+schemas:
+  recipe-reading-rows:
+    type: array
+    minItems: 1
+    items:
+      type: object
+      required: [station, day, celsius, active]
+      additionalProperties: false
+      properties:
+        station: { type: string, pattern: "^st-[0-9]+$" }
+        day: { type: string, format: date }
+        celsius: { type: number, minimum: -90, maximum: 60 }
+        active: { type: boolean }
+
+params:
+  type: object
+  properties:
+    day:
+      type: string
+      format: date
+      default: "2026-01-01"
+      description: The day the file is named for.
+    strict:
+      type: boolean
+      default: false
+      description: Fail on a duplicate station instead of keeping the first row for it.
+
+steps:
+  parse:
+    block: convert.std
+    config:
+      # Inline so the recipe needs no network. In a real pipeline this is input_uri,
+      # pointing at a body http.request already put in storage.
+      input: |
+        station,day,celsius,active
+          ST-1 ,2026-01-01,4.5,TRUE
+        st-2,2026-01-01,-1,false
+        st-3,2026-01-01,,true
+        st-1,2026-01-01,4.5,true
+        st-4,2026-01-01,not-a-number,true
+      from: csv
+      to: json
+
+  clean:
+    block: transform.jq
+    depends_on: [parse]
+    config:
+      input:
+        text: ${steps.parse.output.text}
+        day: ${params.day}
+      program: |
+        def trim: sub("^\\s+"; "") | sub("\\s+$"; "");
+        . as {$text, $day}
+        | [$text
+           | fromjson[]
+           | {station: (.station | trim | ascii_downcase),
+              day: (if .day == "" then $day else .day end),
+              # An empty cell is not a measurement of zero, so it stays null and is sorted
+              # out below rather than invented here.
+              celsius: (if .celsius == "" then null
+                        else (try (.celsius | tonumber) catch null) end),
+              # A csv boolean is a word, and which word depends on who exported it.
+              active: ((.active | ascii_downcase) == "true")}]
+
+  sort:
+    block: transform.jq
+    depends_on: [clean]
+    config:
+      input:
+        rows: ${steps.clean.output.value}
+        strict: ${params.strict}
+      program: |
+        . as {$rows, $strict}
+        | [$rows | group_by(.station)[] | {station: .[0].station, count: length}]
+          as $by_station
+        | ([$by_station[] | select(.count > 1) | .station]) as $duplicated
+        | if $strict and ($duplicated | length) > 0
+          then error("duplicate stations: \($duplicated | join(", "))")
+          else . end
+        | {accepted: [$rows
+             | group_by(.station)[]
+             # First row wins for a duplicated key, which is a decision and not an accident.
+             | .[0]
+             | select(.celsius != null)],
+           rejected: [$rows[]
+             | select(.celsius == null)
+             | {station, reason: "celsius is absent or not a number"}],
+           duplicated: $duplicated}
+
+  gate:
+    block: validate.schema
+    depends_on: [sort]
+    config:
+      input: ${steps.sort.output.value.accepted}
+      schema: recipe-reading-rows
+
+  as_text:
+    block: transform.jq
+    depends_on: [gate]
+    config:
+      # From the gate, never from the sorter.
+      input: ${steps.gate.output.value}
+      program: tojson
+
+  write:
+    block: convert.arrow
+    depends_on: [as_text]
+    config:
+      input: ${steps.as_text.output.value}
+      from: json
+      to: parquet
+      save_to: ${run.scratch}/readings-${params.day}.parquet
+
+  report:
+    block: transform.jq
+    depends_on: [sort, gate, write]
+    config:
+      input:
+        sorted: ${steps.sort.output.value}
+        checked: ${steps.gate.output.value}
+        uri: ${steps.write.output.output_uri}
+        bytes: ${steps.write.output.output_bytes}
+      program: |
+        {file: .uri, file_bytes: .bytes,
+         written: (.checked | length),
+         rejected: (.sorted.rejected | length),
+         rejected_rows: .sorted.rejected,
+         duplicated_stations: .sorted.duplicated}

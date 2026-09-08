@@ -1,0 +1,110 @@
+# The one-time clock: a single instant, agreed in advance and reviewable in a pull request.
+#
+# `at:` is the third clock, and it is the cutover and the launch: the migration that happens
+# once, at a moment somebody agreed to, that nobody should have to be awake for. Writing it in
+# the document rather than typing it into a terminal at two in the morning is the entire
+# argument for the field.
+#
+# HOW THE MOMENT IS READ, which is the part that goes wrong silently:
+#
+#   at: 2027-03-28 02:30:00   with timezone: Europe/Oslo   is half past two in Oslo. A naive
+#                             moment is anchored in the zone the schedule declares -- not in
+#                             UTC, and not in whatever the host's local time happens to be.
+#   at: 2027-03-28T02:30:00+01:00   is taken as given, and the timezone field is not consulted
+#                             at all. Write the offset yourself when you mean an instant.
+#
+# Exactly one clock per schedule. cron, interval and at are mutually exclusive, and a schedule
+# that declares none or two is refused when the document is parsed rather than at the moment
+# it should have fired.
+#
+# AFTERWARDS. Once the instant has gone by there is no next firing, so the schedule pauses
+# itself rather than disappearing: its parameters and its firing history stay readable with
+# dg schedule firings, which is what you want on the morning after a cutover.
+#
+# Hop by hop:
+#
+#   plan      turns the agreed bounds into the batches a migration would run.
+#   migrate   reads the plan and reports what it covered.
+#
+# EXPECT THIS RUN TO SUCCEED in about a second. The schedule fires only on an instance this
+# document has been applied to; locally the pipeline runs on its defaults.
+#
+# To change it: the pinned params below are the cutover's real bounds, and the pipeline's
+# defaults are a smaller rehearsal -- which is the shape to copy. Rehearse with dg run, and
+# let the schedule carry the real thing.
+#
+#   dg run --local examples/patterns/schedule-at-once.yaml
+#   dg run --local examples/patterns/schedule-at-once.yaml -p from=2025-01-01 -p to=2025-12-31
+#   dg apply examples/patterns/schedule-at-once.yaml
+#   dg schedule firings schedule-at-once cutover
+
+format: dirigent/v1
+kind: pipeline
+code: schedule-at-once
+name: One agreed instant
+description: |
+  `at:` fires once, at a single instant, and then pauses itself so its parameters and firing
+  history stay readable.
+
+  A moment written without an offset is anchored in the zone the schedule declares. Written
+  with one, it is taken as given and the zone is not consulted.
+
+tags: [patterns, transform, schedule]
+
+requires:
+  blocks:
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    from:
+      type: string
+      format: date
+      description: First day of the migration window, inclusive.
+      default: "2026-01-01"
+    to:
+      type: string
+      format: date
+      description: Last day of the migration window, inclusive.
+      default: "2026-01-07"
+    environment:
+      type: string
+      enum: [staging, production]
+      default: staging
+
+steps:
+  plan:
+    block: transform.jq
+    config:
+      input:
+        from: "${params.from}"
+        to: "${params.to}"
+        environment: "${params.environment}"
+      program: |
+        {environment, from, to, batches: [range(1; 13)]}
+
+  migrate:
+    block: transform.jq
+    depends_on: [plan]
+    config:
+      input: "${steps.plan.output.value}"
+      program: |
+        {environment, migrated: "\(.from)..\(.to)", batches: (.batches | length)}
+
+triggers:
+  schedules:
+    - code: cutover
+      name: The agreed cutover
+      description: Runs the production migration once, at the moment operations agreed to.
+      # No offset, so this is half past four in the morning in Oslo, read through the zone
+      # below. It is also the night the clocks go forward, which is exactly the kind of date
+      # a naive moment plus a named zone gets right and a hand-computed UTC instant does not.
+      at: 2027-03-28 04:30:00
+      timezone: Europe/Oslo
+      # The real bounds live here, not in the pipeline's defaults: an ad hoc rehearsal should
+      # not accidentally be the cutover.
+      params:
+        from: "2025-01-01"
+        to: "2025-12-31"
+        environment: production

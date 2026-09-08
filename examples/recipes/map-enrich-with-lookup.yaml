@@ -1,0 +1,96 @@
+# Enrich every row from a lookup table, and see why the table cannot live in the map.
+#
+# In:  a list of readings, and a small dimension table of stations.
+# Out: one enriched row per reading, same length as the input, each carrying the station's
+#      name and region and a derived fahrenheit column.
+#
+# A map.jq program is handed one element and nothing else. There is no second input, no
+# --arg, and no way for the program to reach another step's output, so the lookup table has
+# to arrive attached to the elements. That attaching is a whole-value job, and it is the
+# transform.jq step above the map: it indexes the dimension once and merges the matched
+# fields into each row.
+#
+# Splicing the table into the program text with a ${...} would work exactly once, and would
+# cost the thing that makes a jq step cheap: a program with a reference in it cannot be
+# compiled when the document is applied, so a syntax error would wait for the run.
+#
+# What is left for map.jq is the per-element arithmetic, and there the verb is worth having.
+# The frame calls the program once per element and asserts the length afterwards, so this
+# step cannot drop a row or invent one, and a program that fails does it naming the element
+# by its 0-based index instead of failing the whole batch anonymously.
+#
+# To change it: -p require_match=true makes the enrichment refuse a reading whose station is
+# not in the dimension. That run fails on purpose, with "element 2: no station row for
+# st-9" -- the loud alternative to the null-filled row the default produces.
+#
+#   dg run --local examples/recipes/map-enrich-with-lookup.yaml
+#   dg run --local examples/recipes/map-enrich-with-lookup.yaml -p require_match=true
+
+format: dirigent/v1
+kind: pipeline
+code: map-enrich-with-lookup
+name: Enrich rows from a lookup table
+description: Merge a dimension table into every row with a whole-value step, then compute the per-row columns with map.jq.
+
+tags: [recipes, transform, map]
+
+requires:
+  blocks:
+    - value.const
+    - transform.jq
+    - map.jq
+
+params:
+  type: object
+  properties:
+    require_match:
+      type: boolean
+      default: false
+      description: Fail the element whose station is in no dimension row, rather than filling nulls.
+
+steps:
+  stations:
+    block: value.const
+    config:
+      value:
+        - { id: st-1, name: Harbour, region: east }
+        - { id: st-2, name: Ridge, region: west }
+
+  readings:
+    block: value.const
+    config:
+      value:
+        - { station: st-1, celsius: 4 }
+        - { station: st-2, celsius: -1 }
+        - { station: st-9, celsius: 21 }
+
+  attach:
+    block: transform.jq
+    depends_on: [stations, readings]
+    config:
+      input:
+        stations: ${steps.stations.output.value}
+        readings: ${steps.readings.output.value}
+        require_match: ${params.require_match}
+      program: |
+        . as {$stations, $readings, $require_match}
+        | ($stations | INDEX(.id)) as $by_id
+        | [$readings[]
+           | . + {name: ($by_id[.station].name // null),
+                  region: ($by_id[.station].region // null),
+                  require_match: $require_match}]
+
+  enrich:
+    block: map.jq
+    depends_on: [attach]
+    config:
+      input: ${steps.attach.output.value}
+      # error() fails the element, and the frame reports which index it was, so a run that
+      # refuses an unmatched reading still says which one.
+      program: |
+        if .require_match and .name == null
+        then error("no station row for \(.station)")
+        else {station, name, region,
+              celsius,
+              fahrenheit: (.celsius * 9 / 5 + 32 | round)}
+        end

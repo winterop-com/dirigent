@@ -1,0 +1,116 @@
+# A compose stack brought up from a FILE on the worker, not from content in the document.
+#
+# REQUIRES A DOCKER DAEMON the worker can reach, named by DOCKER_HOST (a dind sidecar over
+# tcp+TLS, or the local socket in dev). docs/docker.md is the family's home.
+#
+# Every block here declares local_execution, so the engine refuses them unless the instance
+# allowlists their ids:
+#   dg run --local examples/docker/docker-compose-file.yaml \
+#     --enable-unsafe docker.compose.up,docker.compose.down,docker.run
+#   export DIRIGENT_ENABLED_UNSAFE_BLOCKS='["docker.compose.up","docker.compose.down","docker.run"]'
+#
+# Four hops, and what each one hands on:
+#   write     a container writes a compose file into ${run.scratch}/stack/. Output: the URI
+#             each declared file landed at.
+#   stack     compose brought up from that path. Output: the services, the networks, and
+#             compose_file -- the path the CLI was actually given.
+#   probe     a container on the stack's network, fetching the service by name.
+#   teardown  the same project down again, on any outcome.
+#
+# WHERE FILES LIVE DURING A RUN. Every run has a scratch space -- ${run.scratch}, a prefix
+# under the instance's artifact root -- and the compose blocks want the worker's own
+# filesystem, so they refuse a scratch prefix that is not file://. A compose block names a
+# file inside that space and nowhere else: the path is always scratch-relative, never
+# absolute, and never climbs out. "stack/docker-compose.yaml" below is the same file the
+# write step addressed as ${run.scratch}/stack/docker-compose.yaml.
+#
+# THE TWO FORMS. docker.compose.up takes exactly one of content or file. Inline content keeps
+# a small stack in the document, and the block writes it into scratch for the CLI anyway;
+# file is the form for a document an earlier step produced -- generated here, but just as
+# often a storage.copy out of an object store, or a repository checkout. Either way the up
+# step reports compose_file, the scratch-relative path it used, so a later step needing the
+# same document -- a down that has to resolve the project by file rather than by label -- can
+# name it without knowing which form was used.
+#
+# TO MAKE IT YOURS: replace the write step with whatever actually produces your compose file,
+# and leave the rest alone. Note that a compose file with build: stanzas needs its build
+# contexts under scratch too; v1 targets stacks of pre-built images.
+
+format: dirigent/v1
+kind: pipeline
+code: docker-compose-file
+name: A stack from a compose file in scratch
+description: Write a compose file into the run's scratch space, bring the stack up from that path, and tear it down.
+
+tags: [docker, execute]
+
+requires:
+  blocks:
+    - docker.run
+    - docker.compose.up
+    - docker.compose.down
+
+steps:
+  write:
+    block: docker.run
+    deadline: 5m
+    config:
+      image: alpine:3
+      pull: true
+      network: none
+      # Whatever the container leaves in its output mount is copied to the URI named here
+      # once it exits, which is how the file gets into the run's scratch space at a path the
+      # compose step can name.
+      outputs:
+        docker-compose.yaml: "${run.scratch}/stack/docker-compose.yaml"
+      command: |
+        cat > /dirigent/outputs/docker-compose.yaml <<'COMPOSE'
+        services:
+          web:
+            image: nginx:alpine
+            healthcheck:
+              test: ["CMD-SHELL", "wget -qO- http://localhost/ >/dev/null 2>&1 || exit 1"]
+              interval: 2s
+              timeout: 2s
+              retries: 5
+        COMPOSE
+      memory: 64mb
+      pids_limit: 64
+
+  stack:
+    block: docker.compose.up
+    depends_on: [write]
+    deadline: 10m
+    config:
+      # Scratch-relative, matching what the write step produced. The CLI is always run with
+      # --project-directory set to the scratch root, so relative paths inside the compose
+      # file resolve against the run's space rather than against this file's directory.
+      file: stack/docker-compose.yaml
+      wait: true
+      wait_timeout: 2m
+      pull: always
+
+  probe:
+    block: docker.run
+    depends_on: [stack]
+    deadline: 5m
+    config:
+      image: alpine:3
+      pull: true
+      # The network the up step reported: joining it resolves "web" to the service.
+      network: "${steps.stack.output.default_network}"
+      argv: [wget, -qO-, "http://web/"]
+      memory: 64mb
+      pids_limit: 64
+
+  teardown:
+    block: docker.compose.down
+    depends_on: [probe]
+    rule: all_done
+    deadline: 5m
+    config:
+      # A project tears down by its label alone, so the file is optional here; passing back
+      # the path the up step reported is how a teardown that does need -f gets it, whichever
+      # form the up step was given.
+      file: "${steps.stack.output.compose_file}"
+      down_volumes: true

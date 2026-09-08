@@ -1,0 +1,83 @@
+# all_done: the edge for work that has to happen whichever way the branch went.
+#
+# all_done waits for every prerequisite to SETTLE and then runs, whatever they settled as --
+# succeeded, failed, or skipped. It is the cleanup edge: release the lock, drop the temp
+# table, tell the dashboard the window closed.
+#
+# Hop by hop:
+#
+#   acquire_lock  a stand-in for taking a lock, which is why something has to release it.
+#   load          /status/${params.status}, 500 by default, so it fails.
+#   release_lock  all_done on the load. It runs even though the load failed, and it would run
+#                 just as surely had the load succeeded or been skipped. Note what it does not
+#                 get: an all_done edge says nothing about whether upstream worked, so a step
+#                 behind one must never assume an upstream output exists.
+#
+# EXPECT THIS RUN TO FAIL. release_lock succeeds and the run still reports failed, because a
+# rule decides what runs and never what a failure means: the load is untolerated, so the run
+# is red however cleanly it was tidied up after.
+#
+# To change it: -p status=200 makes every step green. continue_on_failure on the load would
+# make the run completed_with_errors instead -- a different question, and the one
+# retry-budget-exhausted.yaml and the failure/ shelf are about.
+#
+#   dg run --local examples/patterns/rule-all-done.yaml                 # fails; the lock is still released
+#   dg run --local examples/patterns/rule-all-done.yaml -p status=200   # succeeds
+
+format: dirigent/v1
+kind: pipeline
+code: rule-all-done
+name: The all_done edge
+description: |
+  `rule: all_done` runs a step once every prerequisite has **settled**, whatever it settled
+  as. It is the cleanup edge.
+
+  As written the load fails, the lock is released anyway, and the run still reports
+  `failed`: a rule decides what runs, never what a failure means.
+
+tags: [patterns, http, graph, rules]
+
+requires:
+  blocks:
+    - http.request
+    - value.const
+
+params:
+  type: object
+  properties:
+    status:
+      type: integer
+      description: The status the load endpoint is asked to answer with; 500 fails, 200 does not.
+      default: 500
+      enum: [200, 500]
+
+steps:
+  acquire_lock:
+    block: value.const
+    # A local stand-in for taking a lock somewhere. It always succeeds, so the only thing
+    # that can vary below is the load, which keeps the example about the edge.
+    config:
+      value:
+        lock: nightly-load
+        holder: "${run.id}"
+
+  load:
+    block: http.request
+    depends_on: [acquire_lock]
+    config:
+      url: "https://postman-echo.com/status/${params.status}"
+      method: GET
+
+  release_lock:
+    block: http.request
+    depends_on: [load]
+    # The one line this file is about. all_success here would leak the lock on exactly the
+    # runs where leaking it hurts most.
+    rule: all_done
+    config:
+      url: https://postman-echo.com/post
+      method: POST
+      # Only the lock's own fields are read. Reading ${steps.load.output...} here would be the
+      # mistake an all_done edge invites: the step it names may have produced nothing at all.
+      body:
+        released: "${steps.acquire_lock.output.value.lock}"

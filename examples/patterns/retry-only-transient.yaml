@@ -1,0 +1,108 @@
+# Which failures are retried, and which are refused another attempt however much budget is left.
+#
+# The budget is not the whole story. Before the engine spends an attempt it asks the block
+# what kind of failure it was, and there are exactly three answers:
+#
+#   transient  a network error, a 5xx, a timeout       retried while the budget lasts
+#   rejected   a validation error, auth, a 4xx         never retried, whatever the budget says
+#   unknown    anything the block declines to classify  retried while the budget lasts
+#
+# Only rejected ends a step on its first failure. unknown is retried, which surprises people:
+# a block that cannot tell a corrupt input from a database that was briefly away declines to
+# guess, and the engine spends the budget rather than assuming the worst.
+#
+# http.request classifies by status: >= 500 is transient, 4xx is rejected. This file puts the
+# two side by side with the SAME retry policy on both, so the difference cannot be the policy.
+#
+# Hop by hop:
+#
+#   server_error  /status/500. Transient, so all three attempts are spent: 1s, then 2s.
+#   client_error  /status/404. Rejected, so one attempt and no more -- the identical
+#                 max_attempts: 3 below it buys nothing, because retrying a 404 is retrying a
+#                 correct answer.
+#   compare       all_done on both, so it runs whatever they did and gives the run something
+#                 to end on.
+#
+# EXPECT THIS RUN TO END completed_with_errors, in about four seconds. Read the attempt
+# counts: server_error has three, client_error has one. Both failures are tolerated, which is
+# why the run is completed_with_errors and not failed.
+#
+# To change it: -p bad_status=500 and the second step spends its budget too, proving the
+# policy was never the difference. -p bad_status=429 is the interesting middle case -- a rate
+# limit is a 4xx, so it is rejected and not retried, and a pipeline that wants to back off
+# from one has to say so with success_status or a sensor rather than with a retry budget.
+#
+#   dg run --local examples/patterns/retry-only-transient.yaml                     # completed_with_errors
+#   dg run --local examples/patterns/retry-only-transient.yaml -p bad_status=500   # both spend the budget
+
+format: dirigent/v1
+kind: pipeline
+code: retry-only-transient
+name: Transient retries, rejected does not
+description: |
+  The same three-attempt budget on two steps: a 500 spends all three, a 404 spends one.
+
+  The block classifies (`transient`, `rejected`, `unknown`) and the engine decides. Only
+  `rejected` is refused another attempt, however much budget is left.
+
+tags: [patterns, http, failure, retry]
+
+requires:
+  blocks:
+    - http.request
+    - value.const
+
+params:
+  type: object
+  properties:
+    good_status:
+      type: integer
+      description: The status the first call answers with; anything 5xx is classified transient.
+      default: 500
+      enum: [500, 502, 503]
+    bad_status:
+      type: integer
+      description: The status the second call answers with; anything 4xx is classified rejected.
+      default: 404
+      enum: [400, 401, 404, 429, 500]
+
+steps:
+  server_error:
+    block: http.request
+    continue_on_failure: true
+    retry:
+      max_attempts: 3
+      backoff: 1s
+      multiplier: 2.0
+      max_backoff: 4s
+      jitter: 0.0
+    config:
+      url: "https://postman-echo.com/status/${params.good_status}"
+      method: GET
+
+  client_error:
+    block: http.request
+    continue_on_failure: true
+    # Character for character the policy above. That is the point: the budget is identical
+    # and the number of attempts is not, because the classification differs.
+    retry:
+      max_attempts: 3
+      backoff: 1s
+      multiplier: 2.0
+      max_backoff: 4s
+      jitter: 0.0
+    config:
+      url: "https://postman-echo.com/status/${params.bad_status}"
+      method: GET
+
+  compare:
+    block: value.const
+    depends_on: [server_error, client_error]
+    # Both prerequisites are tolerated failures, so their dependents are shown a success and
+    # the default rule would fire. all_done is written anyway, because this step's job is to
+    # be reached whatever happened above it, and saying so is cheaper than remembering why.
+    rule: all_done
+    config:
+      value:
+        transient: three attempts
+        rejected: one attempt

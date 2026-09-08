@@ -1,0 +1,65 @@
+# Turn wide rows -- one column per measure -- into long rows, one record per measurement.
+#
+# In:  [{station, date, celsius, humidity, rainfall_mm}, ...], a column per measure.
+# Out: [{station, date, measure, value}, ...], one record per measure per row.
+#
+# Long is the shape almost every sink wants: a data value set, a tidy dataframe, a csv whose
+# header does not change when a new instrument is installed. The verb that gets there is
+# to_entries, which turns whatever is left of the object into {key, value} pairs once the
+# identifying columns have been removed with del. Naming the identifiers once, rather than
+# the measures, is what makes the program survive a new column.
+#
+# Dropping nulls is the decision worth seeing. A wide row carries a cell for a measure that
+# was never taken, and a long row for it would be a claim that a measurement of null
+# happened. select is where that claim is refused.
+#
+# To change it: -p keep_nulls=true emits a long row for every cell, which is what a sink
+# that distinguishes "not reported" from "not measured" wants.
+#
+#   dg run --local examples/recipes/jq-pivot-wide-to-long.yaml
+#   dg run --local examples/recipes/jq-pivot-wide-to-long.yaml -p keep_nulls=true
+
+format: dirigent/v1
+kind: pipeline
+code: jq-pivot-wide-to-long
+name: Pivot wide rows to long
+description: Melt a column-per-measure table into one record per measurement, dropping the cells that were never measured.
+
+tags: [recipes, transform, jq]
+
+requires:
+  blocks:
+    - value.const
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    keep_nulls:
+      type: boolean
+      default: false
+      description: Emit a long row for a measure that has no value, rather than dropping it.
+
+steps:
+  wide:
+    block: value.const
+    config:
+      value:
+        - { station: st-1, date: "2026-01-01", celsius: 4, humidity: 81, rainfall_mm: 0 }
+        - { station: st-2, date: "2026-01-01", celsius: -1, humidity: 74, rainfall_mm: null }
+        - { station: st-1, date: "2026-01-02", celsius: 6, humidity: null, rainfall_mm: 12 }
+
+  long:
+    block: transform.jq
+    depends_on: [wide]
+    config:
+      input:
+        rows: ${steps.wide.output.value}
+        keep_nulls: ${params.keep_nulls}
+      program: |
+        . as {$rows, $keep_nulls}
+        | [$rows[]
+           | . as $row
+           | (del(.station, .date) | to_entries[])
+           | select($keep_nulls or .value != null)
+           | {station: $row.station, date: $row.date, measure: .key, value: .value}]

@@ -1,0 +1,97 @@
+# concurrency: skip -- a second trigger while one run is going creates no run at all.
+#
+# The policy is on the PIPELINE, not on a step and not on a schedule, because the question it
+# answers is about the pipeline: may two runs of this be in flight at once? Four answers:
+#
+#   allow    (the default) start it; two runs of this can safely overlap.
+#   skip     do not start it; there is nothing to catch up on. THIS FILE.
+#   queue    hold it until the slot is free, then release the oldest held one.
+#   replace  cancel what is running and start this instead.
+#
+# WHAT A SECOND TRIGGER DOES HERE: no run is created. Not queued, not deferred, not started
+# and cancelled -- nothing exists. The trigger is recorded as skipped by the concurrency
+# policy and the clock moves on to its next slot. Nothing is retried later, because skip's
+# claim is that the missed firing had no work of its own: the run already going will refresh
+# whatever the skipped one would have.
+#
+# That claim is what makes skip the right policy for a REFRESH and the wrong one for an
+# INCREMENT. Rebuilding a rolling view, warming a cache, re-reading the last 24 hours: any of
+# those can lose a firing without losing data. Consuming a queue, appending yesterday's rows,
+# advancing a cursor: each of those loses work permanently, and wants queue instead.
+#
+# The decision is serialised. Two triggers arriving in the same instant on different processes
+# take a lock first, so exactly one of them wins the slot -- otherwise both would read
+# "nothing is running" and skip would skip nothing.
+#
+# Hop by hop:
+#
+#   slow_scan  a sleep long enough that a second trigger while it runs is easy to arrange by
+#              hand. This is what stands in for the work.
+#   refresh    rebuilds the view. Idempotent by construction, which is the property skip
+#              depends on.
+#
+# EXPECT THIS RUN TO SUCCEED in about six seconds. A single local run has nothing to overlap
+# with, so the policy is exercised against a server -- start one run, then start another while
+# it is going and watch the second not appear:
+#
+#   dg run --local examples/patterns/concurrency-skip.yaml
+#   dg apply examples/patterns/concurrency-skip.yaml
+#   dg run concurrency-skip &
+#   dg run concurrency-skip          # no run created; the policy skipped it
+#   dg runs list concurrency-skip    # one run, not two
+
+format: dirigent/v1
+kind: pipeline
+code: concurrency-skip
+name: A second run that never starts
+description: |
+  `concurrency: skip` creates no run at all when one is already in flight: not queued, not
+  deferred, nothing.
+
+  Right for a refresh, whose next firing subsumes the one that was skipped. Wrong for an
+  increment, which loses that work permanently -- use `queue` there.
+
+tags: [patterns, sensor, transform, concurrency]
+
+# The one line this file is about. It is a property of the pipeline, because "may two of
+# these overlap" is a question about the pipeline and not about any one trigger.
+concurrency: skip
+
+requires:
+  blocks:
+    - time.sleep
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    seconds:
+      type: integer
+      description: How long the scan takes; long enough to trigger a second run by hand.
+      default: 5
+      minimum: 1
+      maximum: 120
+    view:
+      type: string
+      description: Which materialised view the refresh rebuilds.
+      default: cases-rolling-24h
+
+steps:
+  slow_scan:
+    block: time.sleep
+    # A sensor, so the wait is a parked row rather than a held worker -- the slot is occupied
+    # by the RUN, not by a worker, which is why a long run can block a short one.
+    poll: 1s
+    config:
+      for: "${params.seconds}s"
+
+  refresh:
+    block: transform.jq
+    depends_on: [slow_scan]
+    # A full rebuild, not an append. That is the property skip rests on: a firing that never
+    # happened costs nothing, because the next one does all of the work again.
+    config:
+      input:
+        view: "${params.view}"
+      program: |
+        {rebuilt: .view, incremental: false}

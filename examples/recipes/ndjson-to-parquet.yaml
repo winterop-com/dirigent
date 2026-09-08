@@ -1,0 +1,113 @@
+# Records written as parquet, and read back to prove what landed.
+#
+# In:  a list of typed records, built inline.
+# Out: a parquet file in the run's scratch space, and the same records read back out of it.
+#
+# Parquet is bytes rather than text, so it always travels by URI: save_to is required when
+# parquet is the target, and input_uri is how the file is read again. A config that tried to
+# carry parquet inline is refused when the document is applied, not at the first run.
+#
+# The write path is ndjson to parquet, which is the shape a stream of records already has --
+# one record per line, no array to hold in memory. convert.arrow infers one type per column
+# from the records: boolean, int64, float64, or string. A column whose rows disagree is
+# refused naming the column rather than coerced, and integers and floats unify to a float
+# column because JSON calls both a number.
+#
+# The read back is not decoration. It is how a run says what actually landed rather than
+# what was intended: the file's own bytes are decoded, and the row count and the columns
+# come from the file, so a truncated or half-written object shows up here as a failure
+# instead of downstream tomorrow.
+#
+# convert.arrow ships in dirigent-parquet, on pyarrow, where convert.std deliberately stands
+# on the standard library alone. Installing that pack is what puts the block in the catalog,
+# and naming it in requires.blocks is what refuses this document on an instance without it.
+#
+# To change it: point save_to at s3://<bucket>/... and the same two steps write and read an
+# object store, because the scheme is the only thing that changes.
+#
+#   dg run --local examples/recipes/ndjson-to-parquet.yaml
+#   dg run --local examples/recipes/ndjson-to-parquet.yaml -p day=2026-02-01
+
+format: dirigent/v1
+kind: pipeline
+code: ndjson-to-parquet
+name: Records to parquet and back
+description: Write typed records as parquet into the run's scratch space, then read the file back to see what landed.
+
+tags: [recipes, storage, transform, parquet]
+
+requires:
+  blocks:
+    - value.const
+    - transform.jq
+    - convert.std
+    - convert.arrow
+
+params:
+  type: object
+  properties:
+    day:
+      type: string
+      format: date
+      default: "2026-01-01"
+      description: The day the written file is named for.
+
+steps:
+  rows:
+    block: value.const
+    config:
+      value:
+        - { station: st-1, celsius: 4.5, readings: 1440, active: true }
+        - { station: st-2, celsius: -1.0, readings: 1200, active: false }
+        - { station: st-3, celsius: 7.25, readings: 1439, active: true }
+
+  as_text:
+    block: transform.jq
+    depends_on: [rows]
+    config:
+      input: ${steps.rows.output.value}
+      # A codec takes text rather than a value, so the records leave here as one JSON
+      # document. This is the whole difference between a transform and a convert step.
+      program: tojson
+
+  as_ndjson:
+    block: convert.std
+    depends_on: [as_text]
+    config:
+      input: ${steps.as_text.output.value}
+      from: json
+      to: ndjson
+
+  write:
+    block: convert.arrow
+    depends_on: [as_ndjson]
+    config:
+      input: ${steps.as_ndjson.output.text}
+      from: ndjson
+      to: parquet
+      # Required: parquet has no inline spelling, so the target is a URI.
+      save_to: ${run.scratch}/readings-${params.day}.parquet
+
+  read_back:
+    block: convert.arrow
+    depends_on: [write]
+    config:
+      # The URI the write reported, rather than the same expression written twice: one place
+      # decides where the file went.
+      input_uri: ${steps.write.output.output_uri}
+      from: parquet
+      to: json
+
+  landed:
+    block: transform.jq
+    depends_on: [write, read_back]
+    config:
+      input:
+        bytes: ${steps.write.output.output_bytes}
+        uri: ${steps.write.output.output_uri}
+        text: ${steps.read_back.output.text}
+      program: |
+        {uri, file_bytes: .bytes,
+         rows: (.text | fromjson | length),
+         columns: (.text | fromjson | .[0] | keys),
+         records: (.text | fromjson)}

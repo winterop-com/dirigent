@@ -1,0 +1,112 @@
+# A shape written into the document itself, so the pipeline runs anywhere with nothing to
+# hand it.
+#
+# In:  a payload shaped like an API read -- an envelope around a list of org units.
+# Out: the same payload, passed through the gate unchanged, and a count taken from the
+#      gate's output rather than from the step before it.
+#
+# A validate.schema gate never writes a shape inline in its config: its schema field is a
+# code, and the code resolves either to a schema the instance holds or to one this document
+# carries in its top-level schemas: section. This recipe is the carried half; its pair,
+# schema-referenced.yaml, is the same check written the other way.
+#
+# Carried is the right choice when the shape belongs to this pipeline and nothing else, and
+# when the document has to run somewhere that holds nothing -- a --local run, a colleague's
+# checkout, a CI lane. The cost is that two documents carrying the same shape are two copies
+# that drift.
+#
+# What the shape says, and why each keyword is there:
+#
+#   required            presence, which is a different question from type. A field named in
+#                       properties but not required may be absent; one that is present is
+#                       still held to its type.
+#   additionalProperties: false
+#                       closes the door. JSON Schema is open by default, so an unexpected
+#                       field passes silently unless the schema says otherwise. Closed is
+#                       right for a payload this pipeline fully owns and wrong for one an
+#                       upstream is free to extend.
+#   minItems            an empty list is a shape that fits every item schema, so "there is
+#                       at least one" has to be said out loud.
+#   pattern, minimum    the value-level narrowing that turns a type check into a real gate.
+#
+# The gate is also a waypoint. Steps below it read ${steps.gate.output.value}, which is the
+# input unchanged, and that reference is the document's own proof that nothing bypassed the
+# check.
+#
+# To change it: -p level=0 makes the payload violate `minimum: 1`, and that run fails at the
+# gate with the failing instance path and keyword named.
+#
+# The schema is carried in the document, so no server stores this one: it runs with
+# `dg run --local`, and on an instance the same shape is created once with `dg schema create`.
+#
+#   dg run --local examples/recipes/schema-carried.yaml
+#   dg run --local examples/recipes/schema-carried.yaml -p level=0
+
+format: dirigent/v1
+kind: pipeline
+code: schema-carried
+name: A schema carried in the document
+description: Validate a payload against a shape the document carries, and read the gate's output downstream as proof of the check.
+
+tags: [recipes, transform, validate]
+
+requires:
+  blocks:
+    - value.const
+    - transform.jq
+    - validate.schema
+
+schemas:
+  recipe-org-units:
+    title: Organisation units read
+    description: The envelope an org-unit read answers with, and the fields a loader depends on.
+    type: object
+    required: [organisationUnits]
+    additionalProperties: false
+    properties:
+      organisationUnits:
+        type: array
+        minItems: 1
+        items:
+          type: object
+          required: [id, displayName, level]
+          additionalProperties: false
+          properties:
+            id: { type: string, pattern: "^[A-Za-z][A-Za-z0-9]{10}$" }
+            displayName: { type: string, minLength: 1 }
+            level: { type: integer, minimum: 1 }
+
+params:
+  type: object
+  properties:
+    level:
+      type: integer
+      default: 2
+      description: The level the second org unit reports; 0 makes the payload fail the gate.
+
+steps:
+  payload:
+    block: value.const
+    config:
+      value:
+        organisationUnits:
+          - { id: ImspTQPwCqd, displayName: Sierra Leone, level: 1 }
+          # The level is a parameter so the gate can be made to refuse without editing the
+          # document: value.const emits what it is given, references included.
+          - { id: O6uvpzGd5pu, displayName: Bo, level: "${params.level}" }
+
+  gate:
+    block: validate.schema
+    depends_on: [payload]
+    config:
+      input: ${steps.payload.output.value}
+      schema: recipe-org-units
+
+  count:
+    block: transform.jq
+    depends_on: [gate]
+    config:
+      input: ${steps.gate.output.value}
+      program: |
+        {units: (.organisationUnits | length),
+         levels: [.organisationUnits[].level] | unique}

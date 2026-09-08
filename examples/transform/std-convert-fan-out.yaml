@@ -1,0 +1,116 @@
+# A csv arriving as text, re-encoded once and then reshaped, with no subprocess and no
+# allowlist entry.
+#
+# convert.std is a codec, not a language: it has no program, only a from and a to, and the
+# pair is checked when the document is applied. It converts between json, ndjson and csv,
+# and everything a csv carries is text, so every cell it reads out is a string. That is the
+# first thing this document has to deal with: celsius arrives as "4.5", and the jq program
+# says tonumber where it wants a number. A codec that guessed would not be a codec.
+#
+# The shape is csv in, csv out. parse re-encodes the inline csv as json; active reshapes it
+# with jq; per_region is mapped over the regions; report reads the fan-out back and hands
+# convert.std the text of one json array, which comes out as a csv again.
+#
+# Two things about crossing between the two blocks. A convert step's output is text, so the
+# jq program that reads it starts with fromjson, and the jq program that feeds one ends with
+# tojson: text is what a codec takes and what it gives. And a csv cell holds one value, so
+# the stations of a region are joined into one before they are converted -- a nested value
+# is refused rather than silently stringified.
+#
+#   dg run --local examples/transform/std-convert-fan-out.yaml
+#   dg run --local examples/transform/std-convert-fan-out.yaml -p regions='["east"]'
+
+format: dirigent/v1
+kind: pipeline
+code: std-convert-fan-out
+name: Convert and fan out
+description: |
+  Re-encode an inline csv as json, reshape it with jq, and fan out over the regions.
+
+  Two blocks meet here, and text is the currency between them:
+
+  1. `convert.std` is a **codec** -- a `from` and a `to`, checked at apply
+  2. `transform.jq` is a **language** -- a program, over a value
+
+  A codec's output is text, so a jq program reading one starts with `fromjson`,
+  and one feeding it ends with `tojson`.
+
+tags: [transform, graph]
+
+requires:
+  blocks:
+    - convert.std
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    regions:
+      type: array
+      default: [east, west, north]
+      items:
+        type: string
+
+steps:
+  parse:
+    block: convert.std
+    config:
+      # Written inline so the example needs no network. In a real pipeline this is
+      # input_uri, pointing at the csv an upstream http.request already put in storage.
+      input: |
+        station,region,status,celsius
+        st-1,east,active,4.5
+        st-2,east,retired,
+        st-3,west,active,1.2
+        st-4,north,active,-3.4
+        st-5,north,active,-1.6
+      from: csv
+      to: json
+
+  active:
+    block: transform.jq
+    depends_on: [parse]
+    config:
+      # A convert step's output is text, so the program parses it before reshaping it, and
+      # says tonumber for the one column it wants as a number rather than a string.
+      input: "${steps.parse.output.text}"
+      program: |
+        fromjson
+        | [.[] | select(.status == "active") | {station, region, celsius: (.celsius | tonumber)}]
+
+  per_region:
+    block: transform.jq
+    depends_on: [active]
+    # for_each is expanded when the run is created, so it reads params and not a step's
+    # output: the regions cannot come out of the csv the run is about to parse.
+    for_each: "${params.regions}"
+    config:
+      input:
+        region: "${item}"
+        rows: "${steps.active.output.value}"
+      program: |
+        . as {$region, $rows}
+        | [$rows[] | select(.region == $region)] as $here
+        | {region: $region,
+           stations: ([$here[] | .station] | join(" ")),
+           mean_celsius: (if $here == [] then null else ([$here[] | .celsius] | add / length) end)}
+
+  report:
+    block: transform.jq
+    depends_on: [per_region]
+    config:
+      # A fan-out step's output is the list of its items' outputs, in item order, so the
+      # object carrying value is unwrapped once here. tojson because a codec takes text.
+      input: "${steps.per_region.output}"
+      program: |
+        [.[] | .value] | tojson
+
+  as_csv:
+    block: convert.std
+    depends_on: [report]
+    config:
+      # The header is the union of the keys the rows have, in first-seen order, and a null
+      # mean -- a region the csv had no active reading for -- is an empty cell.
+      input: "${steps.report.output.value}"
+      from: json
+      to: csv

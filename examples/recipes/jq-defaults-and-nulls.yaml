@@ -1,0 +1,91 @@
+# Absent, null, false, and empty string are four different things. Handle each on purpose.
+#
+# In:  rows where a field is missing entirely, present and null, present and false, and
+#      present and empty -- one row for each case.
+# Out: {naive, careful, report} -- the same defaulting written the wrong way and the right
+#      way, with a per-row report of which case each field actually was.
+#
+# // is the alternative operator, and it answers with its right side when the left is null
+# OR false. That second half is the trap: .enabled // true can never answer false, so a row
+# that switched a feature off comes back on. The naive object in the output is that bug,
+# left in on purpose so the careful one below has something to be different from.
+#
+# The three questions that are actually being asked are different questions, and jq spells
+# each of them:
+#
+#   has("enabled")        is the key present at all -- absent and null are distinguished.
+#   .enabled == null      is the value the null value, whether or not the key is there.
+#   (.count // 0)         is it null-or-false, which for a number is a fine default.
+#
+# For a boolean, the safe defaulting is `if has("x") and .x != null then .x else DEFAULT end`.
+# For a string, "" is a value and // will not replace it, so an empty-means-absent rule is
+# written out rather than assumed.
+#
+# tonumber on a string that is not a number is an error rather than a null, so it goes
+# through try/catch. That is the one place a reshape may decide, because the alternative --
+# a failed step -- reports a bad cell as an outage.
+#
+# To change it: -p strict_numbers=true makes an unparsable count null instead of zero, which
+# is what a load that must not invent a measurement wants.
+#
+#   dg run --local examples/recipes/jq-defaults-and-nulls.yaml
+#   dg run --local examples/recipes/jq-defaults-and-nulls.yaml -p strict_numbers=true
+
+format: dirigent/v1
+kind: pipeline
+code: jq-defaults-and-nulls
+name: Defaults, nulls, and the // trap
+description: Distinguish absent, null, false, and empty when defaulting fields, and show what the alternative operator gets wrong.
+
+tags: [recipes, transform, jq]
+
+requires:
+  blocks:
+    - value.const
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    strict_numbers:
+      type: boolean
+      default: false
+      description: Leave an unparsable count null rather than defaulting it to zero.
+
+steps:
+  rows:
+    block: value.const
+    config:
+      value:
+        - { id: a, enabled: true, count: "3", label: Harbour }
+        # enabled is absent: nothing was said about it.
+        - { id: b, count: "0", label: Ridge }
+        # enabled is null: something was said, and it said nothing.
+        - { id: c, enabled: null, count: null, label: "" }
+        # enabled is false: something was said, and it said no. This is the row // ruins.
+        - { id: d, enabled: false, count: "not a number", label: Delta }
+
+  defaults:
+    block: transform.jq
+    depends_on: [rows]
+    config:
+      input:
+        rows: ${steps.rows.output.value}
+        strict: ${params.strict_numbers}
+      program: |
+        . as {$rows, $strict}
+        | {naive: [$rows[] | {id, enabled: (.enabled // true)}],
+           careful: [$rows[]
+             | {id,
+                enabled: (if has("enabled") and .enabled != null then .enabled else true end),
+                count: (if .count == null then (if $strict then null else 0 end)
+                        else (try (.count | tonumber)
+                              catch (if $strict then null else 0 end)) end),
+                # An empty string is a value, so // never sees it; the rule is written out.
+                label: (if (.label // "") == "" then "unnamed" else .label end)}],
+           report: [$rows[]
+             | {id,
+                enabled_case: (if has("enabled") | not then "absent"
+                               elif .enabled == null then "null"
+                               elif .enabled == false then "false"
+                               else "true" end)}]}

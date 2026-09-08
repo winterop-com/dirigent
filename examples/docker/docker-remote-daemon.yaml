@@ -1,0 +1,92 @@
+# Naming the daemon: the same compose stack, run on a daemon a connection points at.
+#
+# The compose lifecycle example (docker-compose-stack.yaml) uses whatever daemon the worker's
+# own environment names. This one names it in the document instead, through a `docker`
+# connection the instance holds, and that connection carries the client TLS the daemon
+# demands.
+#
+# REQUIRES A DOCKER CONNECTION the instance already holds. Create it once, with the client
+# half of the daemon's certificates -- a dind sidecar writes them to DOCKER_TLS_CERTDIR/client:
+#   dg connection create docker build-daemon \
+#     --set host=tcp://docker:2376 \
+#     --set "tls_ca=$(cat /certs/client/ca.pem)" \
+#     --set "tls_cert=$(cat /certs/client/cert.pem)" \
+#     --set "tls_key=$(cat /certs/client/key.pem)"
+#
+# The three blocks declare local_execution, so the engine refuses them unless the instance
+# allowlists their ids:
+#   export DIRIGENT_ENABLED_UNSAFE_BLOCKS='["docker.compose.up","docker.compose.down","docker.run"]'
+#
+# EVERY STEP NAMES THE SAME CONNECTION, and that is the whole discipline here. A stack exists
+# only on the daemon that was told to create it, so an `up` on one daemon and a `down` on
+# another tear down nothing: the second daemon has no such project. The drive step is in it
+# too, because it joins a network the first daemon owns.
+#
+# tls_key is sealed: encrypted at rest, redacted in every API response, and reaching the CLI
+# only as a 0600 file under the run's scratch space that goes when the step leaves. A client
+# key for a docker daemon is a credential for root on whatever that daemon runs on.
+#
+# TO MAKE IT YOURS: point host at your own daemon. A daemon that needs no TLS -- an ssh://
+# host, or a unix socket on another path -- takes host alone and none of the three PEMs.
+
+format: dirigent/v1
+kind: pipeline
+code: docker-remote-daemon
+name: A compose stack on a named daemon
+description: Bring a stack up, drive it and tear it down on the daemon a docker connection names.
+
+tags: [docker, execute]
+
+requires:
+  blocks:
+    - docker.compose.up
+    - docker.compose.down
+    - docker.run
+  workers:
+    # The compose file and its build contexts are on the worker's own filesystem, so all three
+    # steps have to meet one docker-capable worker even though the daemon is named here.
+    - docker
+  connections:
+    # Named, not carried: the instance holds the connection and its sealed TLS key, and this
+    # document refuses to apply where it is absent rather than failing the first time it runs.
+    - build-daemon
+
+steps:
+  stack:
+    block: docker.compose.up
+    deadline: 5m
+    config:
+      connection: build-daemon
+      wait: true
+      pull: always
+      content: |
+        services:
+          api:
+            image: nginx:alpine
+            healthcheck:
+              test: ["CMD-SHELL", "wget -qO- http://localhost/ >/dev/null 2>&1 || exit 1"]
+              interval: 2s
+              timeout: 2s
+              retries: 5
+
+  drive:
+    block: docker.run
+    depends_on: [stack]
+    deadline: 2m
+    config:
+      connection: build-daemon
+      image: alpine:3
+      pull: true
+      # The network the up step reported, which exists on that daemon and nowhere else.
+      network: "${steps.stack.output.default_network}"
+      command: wget -qO- http://api/
+
+  teardown:
+    block: docker.compose.down
+    depends_on: [drive]
+    # all_done runs the teardown on success or failure, so a stack is never left running.
+    rule: all_done
+    deadline: 2m
+    config:
+      connection: build-daemon
+      down_volumes: true

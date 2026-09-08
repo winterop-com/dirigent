@@ -1,0 +1,58 @@
+# The requires preflight, and referencing a connection by name.
+#
+# Documents are portable because everything is referenced by name -- block ids, connection
+# names, other pipelines -- and never by id. That portability only works if applying a
+# document to an instance that is missing something says so once, with the whole list,
+# rather than one unknown-block error at a time.
+#
+# apply checks requires first: everything named here must exist on the target instance.
+#
+# The connection carries the credentials, and the document carries only its name. Create it
+# once on a server:
+#   dg connection create http postman-echo --set base_url=https://postman-echo.com
+#
+# Or hand it to a local run, which has no server to hold it:
+#   dg run --local examples/demo/requires.yaml --connections examples/connections.yaml
+
+format: dirigent/v1
+kind: pipeline
+code: requires
+name: Declared requirements
+description: Declare the blocks and connections this document cannot run without.
+
+tags: [demo, http, storage]
+
+requires:
+  blocks:
+    - http.request
+    - storage.copy
+  connections:
+    - postman-echo
+
+steps:
+  authenticate:
+    block: http.request
+    config:
+      # The connection holds the base URL and the credential, so the document names a path
+      # and never a secret. What is stored is which connection, not what is in it.
+      connection: postman-echo
+      path: /basic-auth
+      method: GET
+
+  publish:
+    block: http.request
+    depends_on: [authenticate]
+    config:
+      connection: postman-echo
+      path: /post
+      method: POST
+      body:
+        authenticated: "${steps.authenticate.output.status}"
+      save_to: "${run.scratch}/reports/receipt.json"
+
+  archive:
+    block: storage.copy
+    depends_on: [publish]
+    config:
+      source: "${steps.publish.output.body_uri}"
+      target: "${run.scratch}/archive/receipt.json"

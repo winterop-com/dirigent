@@ -1,0 +1,76 @@
+# Turn long rows -- one record per measurement -- back into one wide row per subject.
+#
+# In:  [{station, date, measure, value}, ...].
+# Out: [{station, date, celsius, humidity, rainfall_mm}, ...], one row per station and date,
+#      with an explicit null in every cell the long form had no record for.
+#
+# This is jq-pivot-wide-to-long.yaml run backwards, and it is the harder direction, because
+# widening has to decide three things the melt never had to:
+#
+#   - What identifies a row. The key is composite here, so group_by takes a list and jq
+#     compares those lists element by element.
+#   - What the full set of columns is. It is collected from the whole input before the
+#     grouping, not from each group, or the rows come out ragged and something downstream
+#     has to reconcile them.
+#   - What a missing cell means. A blank object of nulls is merged under each group, so
+#     every output row carries every column whether that subject reported it or not.
+#
+# from_entries is the inverse of the melt's to_entries. Two records for the same measure in
+# one group would quietly leave the last one standing; catching that is a validate.schema
+# gate's job, never a reshape's.
+#
+# To change it: -p absent=n/a fills unreported cells with a marker instead of null, which is
+# what a csv reader that cannot tell an empty cell from a missing one wants.
+#
+#   dg run --local examples/recipes/jq-long-to-wide.yaml
+#   dg run --local examples/recipes/jq-long-to-wide.yaml -p absent=n/a
+
+format: dirigent/v1
+kind: pipeline
+code: jq-long-to-wide
+name: Pivot long rows to wide
+description: Widen one-record-per-measurement rows into one row per subject, with an explicit fill in every unreported cell.
+
+tags: [recipes, transform, jq]
+
+requires:
+  blocks:
+    - value.const
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    absent:
+      type: [string, "null"]
+      default: null
+      description: What fills a cell the long form carried no record for.
+
+steps:
+  long:
+    block: value.const
+    config:
+      value:
+        - { station: st-1, date: "2026-01-01", measure: celsius, value: 4 }
+        - { station: st-1, date: "2026-01-01", measure: humidity, value: 81 }
+        - { station: st-1, date: "2026-01-01", measure: rainfall_mm, value: 0 }
+        - { station: st-2, date: "2026-01-01", measure: celsius, value: -1 }
+        # st-2 reported no humidity that day: the wide row still gets the column.
+        - { station: st-2, date: "2026-01-01", measure: rainfall_mm, value: 3 }
+        - { station: st-1, date: "2026-01-02", measure: celsius, value: 6 }
+
+  wide:
+    block: transform.jq
+    depends_on: [long]
+    config:
+      input:
+        rows: ${steps.long.output.value}
+        absent: ${params.absent}
+      program: |
+        . as {$rows, $absent}
+        | ([$rows[].measure] | unique) as $columns
+        | ($columns | map({key: ., value: $absent}) | from_entries) as $blank
+        | [$rows
+           | group_by([.station, .date])[]
+           | {station: .[0].station, date: .[0].date}
+             + ($blank + (map({key: .measure, value: .value}) | from_entries))]

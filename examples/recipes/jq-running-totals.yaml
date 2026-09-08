@@ -1,0 +1,82 @@
+# Running totals, deltas, and a moving average over an ordered series.
+#
+# In:  daily rainfall readings for one station, deliberately out of order in the input.
+# Out: the same days sorted, each carrying cumulative, delta and mean_window, plus the
+#      final total.
+#
+# reduce and foreach are the same machine with different exhausts. reduce threads an
+# accumulator through a stream and emits the final state once; foreach threads the same
+# accumulator and emits once per element, which is exactly what a running total is. Reaching
+# for reduce and rebuilding the list afterwards is the common way to write this twice.
+#
+# Sorting first is not decoration. A cumulative column over unsorted input is a column of
+# numbers that means nothing, and the input here arrives out of order so the sort has
+# something to do.
+#
+# The moving average is the one part foreach cannot do alone, because it looks backwards
+# more than one step. jq indexes a list, so the window is read by position: for element i,
+# the slice .[i-2:i+1] is the last three days, and a slice with a negative start would wrap
+# from the end -- hence the max with 0. The first two days therefore average one and two
+# days, which is a decision the recipe makes visible rather than emitting null.
+#
+# To change it: -p window=7 widens the moving average to a week.
+#
+#   dg run --local examples/recipes/jq-running-totals.yaml
+#   dg run --local examples/recipes/jq-running-totals.yaml -p window=7
+
+format: dirigent/v1
+kind: pipeline
+code: jq-running-totals
+name: Running totals and moving averages
+description: Sort a daily series, then add cumulative sums, day-on-day deltas, and a moving average over a configurable window.
+
+tags: [recipes, transform, jq]
+
+requires:
+  blocks:
+    - value.const
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    window:
+      type: integer
+      minimum: 1
+      default: 3
+      description: How many days the moving average covers, the current day included.
+
+steps:
+  rows:
+    block: value.const
+    config:
+      value:
+        - { date: "2026-01-03", rainfall_mm: 4 }
+        - { date: "2026-01-01", rainfall_mm: 0 }
+        - { date: "2026-01-05", rainfall_mm: 1 }
+        - { date: "2026-01-02", rainfall_mm: 12 }
+        - { date: "2026-01-04", rainfall_mm: 7 }
+
+  series:
+    block: transform.jq
+    depends_on: [rows]
+    config:
+      input:
+        rows: ${steps.rows.output.value}
+        window: ${params.window}
+      program: |
+        . as {$rows, $window}
+        # ISO dates sort as strings, so no date parsing is needed to order the series.
+        | ($rows | sort_by(.date)) as $ordered
+        | ($ordered | map(.rainfall_mm)) as $values
+        | {days: [foreach range($ordered | length) as $i (
+                    {total: 0, previous: null};
+                    {total: (.total + $values[$i]),
+                     previous: (if $i == 0 then null else $values[$i - 1] end)};
+                    $ordered[$i]
+                    + {cumulative: .total,
+                       delta: (if .previous == null then null
+                               else $values[$i] - .previous end),
+                       mean_window: (($values[([$i - $window + 1, 0] | max):$i + 1])
+                                     | add / length)})],
+           total: ($values | add)}

@@ -1,0 +1,99 @@
+# pipeline.run with wait: false -- start the child, hand back its run id, and move on.
+#
+# wait: false finishes the parent's step THE MOMENT THE CHILD RUN EXISTS. The step's output
+# carries the child's code and its run id, and a status of "started" -- which is not a claim
+# about how the child ended, because at that instant nothing knows.
+#
+# So this is a fork, not a call, and the consequences are worth being blunt about:
+#
+#   * The child's outcome never reaches this run. A child that fails leaves the parent green.
+#   * Nothing downstream of the step may assume the child's work happened. An edge below a
+#     fire-and-forget step orders itself against the child's CREATION and nothing else.
+#   * The run id in the output is the whole handoff. It is what an operator pastes into
+#     dg runs show, and what a notification carries, so that the fork is findable later.
+#
+# Use it for the branch nobody is waiting on: a notification, a cache warm, a downstream job
+# with its own alerting. Use wait: true whenever "and then" is part of the sentence.
+#
+# A third status is possible here and worth knowing about: skipped. If the child's own
+# concurrency policy refuses the run -- concurrency: skip on the child, with one already
+# going -- no child run is created, run_id is null, and the step reports skipped rather than
+# failing. A parent that assumes a run id is always there will read a null.
+#
+# Hop by hop:
+#
+#   waited     the child, called the ordinary way, so this file has one of each to compare.
+#   forked     the child again, not waited on. It finishes in milliseconds.
+#   handoff    reads both outputs side by side: one status is the child's real outcome, the
+#              other is "started".
+#
+# EXPECT THIS RUN TO SUCCEED in about three seconds, with waited's status succeeded and
+# forked's status started. In a --local run the throwaway instance goes away when the parent
+# settles, so a forked child may not get to finish -- which is the honest shape of the thing:
+# nobody is waiting for it.
+#
+#   dg run --local examples/patterns/pipeline-run-fire-and-forget.yaml \
+#     --also-apply examples/patterns/pipeline-run-child.yaml
+
+format: dirigent/v1
+kind: pipeline
+code: pipeline-run-fire-and-forget
+name: A parent that does not wait
+description: |
+  `wait: false` finishes the step as soon as the child run exists, reporting `started` and
+  the child's run id.
+
+  A fork, not a call: the child's outcome never reaches this run, and nothing downstream may
+  assume the child's work happened.
+
+tags: [patterns, pipeline, transform, composition]
+
+requires:
+  blocks:
+    - pipeline.run
+    - transform.jq
+  pipelines:
+    - pipeline-run-child
+
+params:
+  type: object
+  properties:
+    day:
+      type: string
+      format: date
+      default: "2026-01-01"
+
+steps:
+  waited:
+    block: pipeline.run
+    poll: 1s
+    config:
+      pipeline: pipeline-run-child
+      params:
+        region: east
+        day: "${params.day}"
+
+  forked:
+    block: pipeline.run
+    # No poll, because there is nothing to probe: the step is over as soon as the run row
+    # exists. A cadence here would be configuration that never fires.
+    config:
+      pipeline: pipeline-run-child
+      params:
+        region: west
+        day: "${params.day}"
+      # The one line this file is about.
+      wait: false
+
+  handoff:
+    block: transform.jq
+    depends_on: [waited, forked]
+    config:
+      input:
+        waited_status: "${steps.waited.output.status}"
+        forked_status: "${steps.forked.output.status}"
+        # The handoff. Without this in an output somewhere, a forked child is a run nobody
+        # can find on purpose.
+        forked_run: "${steps.forked.output.run_id}"
+      program: |
+        {waited_status, forked_status, forked_run, note: "started is not an outcome"}

@@ -1,0 +1,105 @@
+# Building an image on the worker, then running it, and why both steps must meet one daemon.
+#
+# REQUIRES A DOCKER DAEMON the worker can reach, named by DOCKER_HOST (a dind sidecar over
+# tcp+TLS, or the local socket in dev). docs/docker.md is the family's home.
+#
+# docker.run and docker.build both declare local_execution, so the engine refuses them unless
+# the instance allowlists their ids:
+#   dg run --local examples/docker/docker-build-run.yaml --enable-unsafe docker.run,docker.build
+#   export DIRIGENT_ENABLED_UNSAFE_BLOCKS='["docker.run","docker.build"]'
+#
+# Three hops, and what each one hands on:
+#   dockerfile  a container writes a Dockerfile into ${run.scratch}/context/. docker.build
+#               takes a context DIRECTORY on the worker's filesystem and has no inline form,
+#               so getting the context there is the pipeline's job.
+#   build       buildx builds that directory and loads the result into the worker's own daemon
+#               store. The output carries the image id, its size in bytes, and its tags.
+#   greet       docker.run runs the image by tag with no CMD of its own, so the image's own
+#               CMD is what runs. The output carries its stdout, exit code and container id.
+#
+# THE TAG IS THE CONTRACT. Nothing is pushed here, so the image exists only in the store of the
+# daemon that built it, under the tags the build gave it. That name is all the run step has,
+# which is why both steps read it from one parameter. docker-build-push.yaml is the other half:
+# a docker connection with a registry credential, and an image that leaves the worker.
+#
+# ONE DAEMON, THEREFORE ONE WORKER. An image built on worker A is invisible to worker B, so
+# give the docker-capable workers a `docker` tag (dg worker --tag docker) and declare
+# requires.workers: [docker] below, which is what keeps both steps on one of them.
+#
+# TO MAKE IT YOURS: replace the Dockerfile the first step writes with your own, or drop that
+# step and point the build at a context an upstream storage.copy put under scratch instead,
+# and give the image a tag of your own.
+
+format: dirigent/v1
+kind: pipeline
+code: docker-build-run
+name: Build an image, then run it
+description: Write a Dockerfile into the run's scratch space, build it with buildx, and run the tag.
+
+tags: [docker, execute]
+
+requires:
+  blocks:
+    - docker.run
+    - docker.build
+  workers:
+    - docker
+
+params:
+  type: object
+  additionalProperties: false
+  properties:
+    image_tag:
+      type: string
+      default: dirigent-greeter:local
+      description: The tag the build gives the image, and the only name the run step has for it.
+
+steps:
+  dockerfile:
+    block: docker.run
+    deadline: 5m
+    config:
+      image: alpine:3
+      pull: true
+      network: none
+      # Whatever the container leaves in its output mount is copied to the URI named here
+      # once it exits, so this is how a step puts a real file where a later step's tool can
+      # open it. The build below names the same directory, scratch-relative.
+      outputs:
+        Dockerfile: "${run.scratch}/context/Dockerfile"
+      command: |
+        cat > /dirigent/outputs/Dockerfile <<'DOCKERFILE'
+        FROM alpine:3
+        RUN echo "baked in at build time" > /greeting.txt
+        CMD ["cat", "/greeting.txt"]
+        DOCKERFILE
+      memory: 64mb
+      pids_limit: 64
+
+  build:
+    block: docker.build
+    depends_on: [dockerfile]
+    deadline: 10m
+    config:
+      # A directory inside the run's scratch space, never an absolute path: the same
+      # "context/" the step above wrote into, with the Dockerfile named relative to it.
+      context: context
+      dockerfile: Dockerfile
+      # The image is loaded into the worker's daemon store under this tag, and the id comes
+      # back from buildx's --iidfile rather than scraped out of the build log.
+      tags: ["${params.image_tag}"]
+      # Fetch a newer alpine:3 rather than building on whatever the daemon happens to hold.
+      pull: true
+
+  greet:
+    block: docker.run
+    depends_on: [build]
+    deadline: 5m
+    config:
+      image: "${params.image_tag}"
+      # pull stays off, and must: the image was never pushed, so a pull would go looking for
+      # this tag in a registry and fail with a name the daemon already has locally.
+      pull: false
+      network: none
+      memory: 64mb
+      pids_limit: 64

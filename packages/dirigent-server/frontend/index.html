@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+        <title>dirigent</title>
+        <meta name="description" content="Build and operate pipelines on a dirigent instance." />
+        <link rel="icon" type="image/png" href="/favicon-32.png" />
+        <!--
+          The palette, before the first paint.
+
+          There are two theme axes. next-themes writes the light/dark class itself, ahead of the
+          body, and this is the other one: the palette, written as `data-theme` off the same
+          storage key lib/theme.ts uses. Reading it in React would mean the attribute arrives one
+          frame after the document does, and every load would flash the default under whatever
+          was actually chosen.
+
+          THE NAMES ARE DUPLICATED FROM lib/theme.ts ON PURPOSE -- this runs before any module is
+          fetched, so it cannot import them. The test beside that module reads this file and
+          asserts the two lists agree, so a palette added in one place and not the other fails
+          the suite rather than silently falling back here.
+        -->
+        <script>
+            ;(function () {
+                var known = ['dirigent', 'paper', 'contrast']
+                var chosen = 'dirigent'
+                try {
+                    var stored = localStorage.getItem('dirigent.palette')
+                    if (known.indexOf(stored) !== -1) chosen = stored
+                } catch (denied) {
+                    // Storage denied. The default is already in `chosen`, and the app runs in it
+                    // for as long as this document is open.
+                }
+                document.documentElement.setAttribute('data-theme', chosen)
+            })()
+        </script>
+    </head>
+    <body>
+        <div id="root"></div>
+        <script type="module" src="/src/main.tsx"></script>
+    </body>
+</html>

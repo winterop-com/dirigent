@@ -1,0 +1,107 @@
+# pipeline.run with wait: true -- a parent step that is a parked row, not a held worker.
+#
+# wait is the default, and it is what makes composition useful: the parent's step finishes
+# when the CHILD finishes, so everything downstream of it genuinely runs after the child's
+# work. The child's final status becomes this step's outcome -- succeeded is succeeded, failed
+# is failed -- and the parent's step output carries the child's code, its run id and its
+# status.
+#
+# HOW IT WAITS MATTERS. pipeline.run is submit-then-probe: the child run is created, a handle
+# is stored, and the parent's attempt is parked with a wake-up time. So a parent waiting on a
+# three-hour child holds a row for three hours and a worker for none of it, and the parent
+# does not have to be running anywhere in particular for the child to progress.
+#
+# poll is the cadence of that probing, and it is a step field like any other. The block's own
+# default is five seconds; 1s below is so the example finishes while you watch it. A real
+# parent waiting on an hour-long child leaves it out.
+#
+# A dirigent document holds exactly one pipeline, so composition is two files, and the apply
+# order matters: the child has to exist before the parent applies at all. requires.pipelines
+# is what says so, and an apply against an instance without the child is refused up front with
+# the code to apply first -- rather than failing at the step, at five in the morning.
+#
+# Hop by hop:
+#
+#   load_east  runs the child for one region and waits. Its output is the child's identity and
+#              outcome, not the child's data: a child's outputs stay in the child's run.
+#   archive    reads that output back. It runs only because the child finished, which is the
+#              guarantee wait: true buys.
+#
+# EXPECT THIS RUN TO SUCCEED in about three seconds, with load_east reporting the child's
+# status as succeeded.
+#
+# Locally there is no instance to have applied the child to, so hand it over:
+#
+#   dg run --local examples/patterns/pipeline-run-wait.yaml \
+#     --also-apply examples/patterns/pipeline-run-child.yaml
+#
+# Against a server it is two applies and a run:
+#
+#   dg apply examples/patterns/pipeline-run-child.yaml
+#   dg apply examples/patterns/pipeline-run-wait.yaml
+#   dg run pipeline-run-wait --watch
+
+format: dirigent/v1
+kind: pipeline
+code: pipeline-run-wait
+name: A parent that waits
+description: |
+  `pipeline.run` with the default `wait: true` finishes when the child finishes, and the
+  child's status becomes the step's outcome.
+
+  It is submit-then-probe, so a parent waiting on a three-hour child holds a database row
+  and no worker at all.
+
+tags: [patterns, pipeline, transform, composition]
+
+requires:
+  blocks:
+    - pipeline.run
+    - transform.jq
+  # The child, by code. An apply against an instance that does not hold it is refused here
+  # rather than at the step.
+  pipelines:
+    - pipeline-run-child
+
+params:
+  type: object
+  properties:
+    region:
+      type: string
+      description: Which region the child is asked to load.
+      default: east
+      pattern: "^[a-z][a-z0-9-]*$"
+    day:
+      type: string
+      format: date
+      default: "2026-01-01"
+
+steps:
+  load_east:
+    block: pipeline.run
+    # Faster than the block's five-second default so the example settles while you watch. A
+    # real parent leaves this out: probing a long child every second buys nothing.
+    poll: 1s
+    config:
+      pipeline: pipeline-run-child
+      # Written out rather than forwarded. The child's schema is its interface, and a parent
+      # that passed its own parameters through would be coupled to whatever it was run with.
+      params:
+        region: "${params.region}"
+        day: "${params.day}"
+      # The default, written once so the pair with pipeline-run-fire-and-forget.yaml reads as
+      # a choice rather than as an omission.
+      wait: true
+
+  archive:
+    block: transform.jq
+    depends_on: [load_east]
+    config:
+      input:
+        # The child's identity and outcome. Its data is not here: a child's outputs belong to
+        # the child's run, and a parent that needs a value reads it from a store both can see.
+        pipeline: "${steps.load_east.output.pipeline}"
+        run_id: "${steps.load_east.output.run_id}"
+        status: "${steps.load_east.output.status}"
+      program: |
+        {archived: .pipeline, child_run: .run_id, ended_as: .status}

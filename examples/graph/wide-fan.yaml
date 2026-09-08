@@ -1,0 +1,147 @@
+# Graph width: one start, eight branches that are all claimable at once, and one join.
+#
+# This is deep-chain.yaml turned ninety degrees. There the ten steps drew a column and the
+# run could not go faster than one worker; here the eight branches draw a row, every one of
+# them depends only on the split, and the run goes exactly as fast as the workers allow.
+#
+# Width is not a keyword. Nothing here declares parallelism: the eight branches are parallel
+# because none of them names another in depends_on, and that is the whole mechanism. The
+# engine claims every step whose prerequisites have settled, so all eight become claimable in
+# the same instant the split settles. What actually bounds them is worker concurrency -- the
+# number of block calls a worker carries at a time -- which is an instance setting and not
+# something a document gets a say in.
+#
+# collect is the join. It names all eight, and the default rule is all_success, so it waits
+# for every one of them before it runs once. That is the same shape parallel-sleep.yaml draws
+# with three sensors; the difference is that this one has a common start above the fan, which
+# makes it a proper diamond rather than eight roots.
+#
+# Nothing here reaches the network or runs code on the worker, so it needs no allowlist.
+#
+#   dg run --local examples/graph/wide-fan.yaml
+#   dg run --local examples/graph/wide-fan.yaml -p factor=10
+
+format: dirigent/v1
+kind: pipeline
+code: wide-fan
+name: Wide fan
+description: |
+  One step splits, eight run at once, one joins them back.
+
+  A DAG's **width** is how many steps are claimable at the same moment, and it is what a
+  run demands of the workers. Its opposite is `deep-chain`, where the same ten steps stand
+  in a single line and no worker count helps.
+
+  Nothing declares the parallelism. The eight branches are parallel because none of them
+  names another.
+
+tags: [graph, transform]
+
+requires:
+  blocks:
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    factor:
+      type: integer
+      description: What each branch multiplies its own region weight by.
+      default: 2
+
+steps:
+  # The single root. Everything below reads it, so nothing is claimable until it settles --
+  # which is what makes the eight start together rather than trickling.
+  split:
+    block: transform.jq
+    config:
+      input:
+        factor: "${params.factor}"
+      program: "{factor: .factor, regions: 8}"
+
+  # Eight separate steps rather than one for_each, because this example is about the shape of
+  # the graph. fan-out.yaml is the same parallelism expressed as one step over a list, and
+  # that is what a real pipeline over eight regions would use.
+  bagmati:
+    block: transform.jq
+    depends_on: [split]
+    config:
+      input: "${steps.split.output.value}"
+      program: "{region: \"bagmati\", weight: (.factor * 3)}"
+
+  gandaki:
+    block: transform.jq
+    depends_on: [split]
+    config:
+      input: "${steps.split.output.value}"
+      program: "{region: \"gandaki\", weight: (.factor * 5)}"
+
+  karnali:
+    block: transform.jq
+    depends_on: [split]
+    config:
+      input: "${steps.split.output.value}"
+      program: "{region: \"karnali\", weight: (.factor * 7)}"
+
+  koshi:
+    block: transform.jq
+    depends_on: [split]
+    config:
+      input: "${steps.split.output.value}"
+      program: "{region: \"koshi\", weight: (.factor * 11)}"
+
+  lumbini:
+    block: transform.jq
+    depends_on: [split]
+    config:
+      input: "${steps.split.output.value}"
+      program: "{region: \"lumbini\", weight: (.factor * 13)}"
+
+  madhesh:
+    block: transform.jq
+    depends_on: [split]
+    config:
+      input: "${steps.split.output.value}"
+      program: "{region: \"madhesh\", weight: (.factor * 17)}"
+
+  sudurpashchim:
+    block: transform.jq
+    depends_on: [split]
+    config:
+      input: "${steps.split.output.value}"
+      program: "{region: \"sudurpashchim\", weight: (.factor * 19)}"
+
+  national:
+    block: transform.jq
+    depends_on: [split]
+    config:
+      input: "${steps.split.output.value}"
+      program: "{region: \"national\", weight: (.factor * 23)}"
+
+  # The join. Eight edges in, one attempt, and every branch's output read by name. There is
+  # no gather syntax and no barrier step: the edges are the join.
+  collect:
+    block: transform.jq
+    depends_on:
+      - bagmati
+      - gandaki
+      - karnali
+      - koshi
+      - lumbini
+      - madhesh
+      - sudurpashchim
+      - national
+    config:
+      input:
+        - "${steps.bagmati.output.value}"
+        - "${steps.gandaki.output.value}"
+        - "${steps.karnali.output.value}"
+        - "${steps.koshi.output.value}"
+        - "${steps.lumbini.output.value}"
+        - "${steps.madhesh.output.value}"
+        - "${steps.sudurpashchim.output.value}"
+        - "${steps.national.output.value}"
+      program: |
+        {branches: length,
+         total_weight: (map(.weight) | add),
+         heaviest: (max_by(.weight) | .region)}

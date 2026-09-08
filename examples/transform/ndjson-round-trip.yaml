@@ -1,0 +1,45 @@
+# One record per line, which is what a consumer that streams wants.
+#
+# ndjson is the spelling for a sequence that is appended to or read without parsing the
+# whole: each line is one complete JSON record. This converts a JSON array into that form
+# and back, and the round trip is the point -- the three formats say the same thing, so
+# converting is re-spelling, never reshaping.
+#
+#   dg run --local examples/transform/ndjson-round-trip.yaml
+
+format: dirigent/v1
+kind: pipeline
+code: ndjson-round-trip
+name: One record per line
+description: Re-spell a JSON array as ndjson, and read it back.
+
+tags: [transform]
+
+steps:
+  records:
+    block: value.const
+    config:
+      value:
+        - { station: st-1, celsius: 4.5 }
+        - { station: st-3, celsius: 1.2 }
+  as_text:
+    block: transform.jq
+    depends_on: [records]
+    config:
+      input: ${steps.records.output.value}
+      # tojson because a codec takes text: the records leave here as one JSON string.
+      program: tojson
+  as_lines:
+    block: convert.std
+    depends_on: [as_text]
+    config:
+      input: "${steps.as_text.output.value}"
+      from: json
+      to: ndjson
+  back:
+    block: convert.std
+    depends_on: [as_lines]
+    config:
+      input: "${steps.as_lines.output.text}"
+      from: ndjson
+      to: json

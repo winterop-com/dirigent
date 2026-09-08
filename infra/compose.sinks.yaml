@@ -1,0 +1,77 @@
+# Somewhere for the email and webhook channels to land, on the stack's own network.
+# `make docker-run-sinks` includes it.
+#
+# Alerting is the one surface where "it is configured" and "it arrives" are different
+# questions, and nothing but a delivered message answers the second. These two services are
+# the far end of that: mail goes to Mailpit, which holds it and shows it, and a webhook POST
+# goes to a sink that answers 200 and prints what it received.
+#
+# Create the two connections once, by service name -- the address the server and worker
+# containers resolve, not the one your shell does:
+#
+#   dg connection create email ops-mail --name "Ops mailbox" \
+#     --set host=mailpit --set port=1025 --set security=none \
+#     --set from_address=dirigent@example.org \
+#     --set 'to=["oncall@example.org"]'
+#
+#   dg connection create webhook ops-webhook --name "Ops endpoint" \
+#     --set url=http://webhook-sink:8080/alerts
+#
+# Then prove each one end to end, which queues a real message a worker delivers:
+#
+#   dg alerts test email --connection ops-mail
+#   dg alerts test webhook --connection ops-webhook
+#
+# Read what arrived at http://127.0.0.1:8025 for the mail, or over Mailpit's own API:
+#
+#   curl -s http://127.0.0.1:8025/api/v1/messages | jq '.messages[0].Subject'
+#
+# The webhook sink keeps nothing, so what it got is in its log:
+#
+#   docker compose ... logs webhook-sink
+#
+# Neither service is protected, and neither authenticates anything. This is a stack on a
+# developer's machine or a CI runner, never something to expose.
+
+name: dirigent
+
+services:
+  # Mailpit accepts on 1025 and never relays: every message stops here, which is what makes
+  # it safe to point a real `to` address at.
+  mailpit:
+    image: ${DIRIGENT_MAILPIT_IMAGE:-axllent/mailpit:v1.21.8}
+    restart: unless-stopped
+    environment:
+      # Submission is unauthenticated and unencrypted, so the email connection sets
+      # `security=none` and names no username. A submission server on a laptop that demanded
+      # STARTTLS would only be testing the certificate.
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+    ports:
+      # The web UI and the JSON API, on loopback. The SMTP port stays inside the network:
+      # the stack submits to `mailpit:1025` by service name.
+      - "127.0.0.1:${MAILPIT_WEB_PORT:-8025}:8025"
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  # Answers 200 to anything and writes the request it got -- method, headers, body -- to its
+  # own stdout as JSON, so `docker compose logs` is the receipt.
+  webhook-sink:
+    image: ${DIRIGENT_WEBHOOK_SINK_IMAGE:-mendhak/http-https-echo:36}
+    restart: unless-stopped
+    environment:
+      HTTP_PORT: "8080"
+      # The echo answers with the request it was given; without this it also echoes the JWT
+      # and cookie headers back, which is noise in a log kept as evidence.
+      LOG_WITHOUT_NEWLINE: "true"
+    ports:
+      - "127.0.0.1:${WEBHOOK_SINK_PORT:-8099}:8080"
+
+  # Only the keys that differ from compose.yaml: compose merges the rest.
+  worker:
+    depends_on:
+      mailpit:
+        condition: service_healthy

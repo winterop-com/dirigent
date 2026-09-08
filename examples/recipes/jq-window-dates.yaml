@@ -1,0 +1,82 @@
+# Date arithmetic in jq: a window of days, ISO weeks, and the strptime trap.
+#
+# In:  a start date and a length in days, as parameters.
+# Out: {window: {start, end}, days: [...], weeks: [{iso_week, days, dates}], trap: {...}}.
+#
+# jq has no date type. It has epoch seconds and two conversions on either side of them, and
+# every date calculation here is arithmetic on those seconds:
+#
+#   "2026-01-05T00:00:00Z" | fromdateiso8601   -> 1767571200
+#   1767571200 | todate                        -> "2026-01-05T00:00:00Z"
+#
+# The trap has a name and it is strptime. strptime does not answer with a number: it answers
+# with jq's broken-down time, an array of eight fields, and arithmetic on that array is an
+# error rather than a wrong date. mktime turns it into seconds, and only then does strftime
+# have something to format. The trap object at the end of the output shows both spellings so
+# the difference is on screen: .broken_down is the array, .seconds is the number.
+#
+# A date-only string has no time and no zone, so "2026-01-05" is completed to midnight UTC
+# before it is parsed. Doing that explicitly is the difference between a window that means
+# the same thing on every worker and one that moves with the machine's timezone.
+#
+# ISO weeks come from %G and %V together, never from %Y and %V: the last days of December
+# belong to week 01 of the next ISO year, and %Y-%V would file them under the year that just
+# ended. The window below is chosen to cross a year boundary so that shows up in the output.
+#
+# Adding days as 86400 seconds is exact here because everything is UTC. It is not exact in a
+# zone with daylight saving, where a day is sometimes 23 or 25 hours; a pipeline that needs
+# local days does the arithmetic on dates rather than on seconds.
+#
+# To change it: -p start=2026-03-01 -p days=14 moves and widens the window.
+#
+#   dg run --local examples/recipes/jq-window-dates.yaml
+#   dg run --local examples/recipes/jq-window-dates.yaml -p start=2026-03-01 -p days=14
+
+format: dirigent/v1
+kind: pipeline
+code: jq-window-dates
+name: Date windows and ISO weeks in jq
+description: Build a window of days from a start date, bucket it into ISO weeks, and show why strptime alone is not a date.
+
+tags: [recipes, transform, jq]
+
+requires:
+  blocks:
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    start:
+      type: string
+      format: date
+      default: "2026-12-28"
+      description: The first day of the window, as YYYY-MM-DD.
+    days:
+      type: integer
+      minimum: 1
+      default: 10
+      description: How many days the window covers, the start day included.
+
+steps:
+  window:
+    block: transform.jq
+    config:
+      input:
+        start: ${params.start}
+        days: ${params.days}
+      program: |
+        . as {$start, $days}
+        # The date is completed to midnight UTC before parsing, so the window means the same
+        # thing wherever the worker runs.
+        | ($start + "T00:00:00Z" | fromdateiso8601) as $from
+        | [range($days) | $from + (. * 86400)] as $seconds
+        | {window: {start: ($from | todate),
+                    end: ($seconds[-1] | todate)},
+           days: [$seconds[] | strftime("%Y-%m-%d")],
+           weeks: ([$seconds[] | {iso_week: strftime("%G-W%V"), date: strftime("%Y-%m-%d")}]
+             | group_by(.iso_week)
+             | map({iso_week: .[0].iso_week, days: length, dates: map(.date)})),
+           trap: {broken_down: ($start | strptime("%Y-%m-%d")),
+                  seconds: ($start | strptime("%Y-%m-%d") | mktime),
+                  formatted: ($start | strptime("%Y-%m-%d") | mktime | strftime("%G-W%V"))}}

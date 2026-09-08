@@ -1,0 +1,92 @@
+# always: the widest edge there is, and the one thing it still waits for.
+#
+# always runs a step once every prerequisite has settled, whatever the outcome. It is the rule
+# for a final accounting step at the bottom of a graph that has skipped branches in it, where
+# all_success could never fire and all_done would be doing the same job with a narrower
+# promise.
+#
+# THE ENGINE STILL WAITS. always does not mean "run me immediately" and it does not mean "run
+# me alongside my prerequisites". Nothing in dirigent fires a step mid-flight; always is about
+# the outcome being ignored, never about the ordering being ignored.
+#
+# Hop by hop:
+#
+#   load        /status/${params.status}, 500 by default, so it fails.
+#   handler     one_failed on the load, so it runs on the failing path and skips on the green one.
+#   optimistic  all_success on the load, so it does the opposite.
+#   summary     always, on all three. One of handler and optimistic is skipped on every
+#               possible run, so this edge is the only one that fires either way.
+#
+# EXPECT THIS RUN TO FAIL. summary runs and succeeds; the load is failed and untolerated, so
+# the run is failed. Pass -p status=200 and summary runs just the same, off the other branch,
+# and the run succeeds.
+#
+#   dg run --local examples/patterns/rule-always.yaml                 # fails; summary runs anyway
+#   dg run --local examples/patterns/rule-always.yaml -p status=200   # succeeds
+
+format: dirigent/v1
+kind: pipeline
+code: rule-always
+name: The always edge
+description: |
+  `rule: always` runs a step once every prerequisite has settled, whatever they settled as
+  and however many of them were skipped.
+
+  It ignores the outcome, never the ordering: the engine still waits for upstream to
+  finish. As written the run reports `failed` with the summary delivered.
+
+tags: [patterns, http, graph, rules]
+
+requires:
+  blocks:
+    - http.request
+
+params:
+  type: object
+  properties:
+    status:
+      type: integer
+      description: The status the load endpoint is asked to answer with; 500 fails, 200 does not.
+      default: 500
+      enum: [200, 500]
+
+steps:
+  load:
+    block: http.request
+    config:
+      url: "https://postman-echo.com/status/${params.status}"
+      method: GET
+
+  handler:
+    block: http.request
+    depends_on: [load]
+    rule: one_failed
+    config:
+      url: https://postman-echo.com/post
+      method: POST
+      body:
+        text: handled
+
+  optimistic:
+    block: http.request
+    depends_on: [load]
+    config:
+      url: https://postman-echo.com/post
+      method: POST
+      body:
+        text: no handling needed
+
+  summary:
+    block: http.request
+    depends_on: [load, handler, optimistic]
+    # Three prerequisites, one of which is guaranteed to be skipped on every possible run.
+    # That is the shape always is for.
+    rule: always
+    config:
+      url: https://postman-echo.com/post
+      method: POST
+      body:
+        # Nothing upstream is referenced, because under this rule nothing upstream is
+        # promised. A summary that needs a value takes it from a step it can name safely.
+        run: "${run.id}"
+        text: the window is closed either way

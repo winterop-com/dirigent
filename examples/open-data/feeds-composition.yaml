@@ -1,0 +1,120 @@
+# Two of the feeds on this shelf, started by a third: refresh the reference, then read the data.
+#
+# `pipeline.run` starts another pipeline on the same instance and, by default, waits for it. So
+# this document is an orchestration layer over documents that each stand alone: the Wikidata
+# reference table and the WHO GHO extract know nothing about each other or about this file, and
+# each is still runnable, testable and schedulable on its own.
+#
+# WHAT CROSSES THE BOUNDARY, AND WHAT DOES NOT. Parameters go down: the parent hands each child
+# exactly the ones that child's own schema declares, validated against that schema when the step
+# executes rather than when this document is applied. What comes back up is a status and a run
+# id -- not the child's data. So the country list below is written here rather than read out of
+# the reference the first child just built: a child's rows reach a parent only through storage,
+# at a path both sides agree on, and under `--local` each run's scratch is its own. On an
+# instance, giving both children a shared prefix parameter is what turns "refresh the reference"
+# into something the next child can actually read.
+#
+# `requires.pipelines` names both children, so an instance that does not hold them refuses this
+# document at apply time with the list of what to apply first, instead of failing at the step at
+# six in the morning.
+#
+# What happens, hop by hop:
+#
+#   reference  the Wikidata country table, rebuilt. It takes no parameters: what it produces is
+#             the same for everybody, which is what makes it a reference.
+#   indicators  the GHO extract for one indicator over the country list, started after the
+#             reference finished. It fans out internally with items: continue, so a country the
+#             endpoint refuses leaves that child completed_with_errors -- and `strict` is left
+#             at its default here, so that outcome is reported rather than treated as failure.
+#             Setting strict: true is how a parent says a partial child is not good enough.
+#   briefing  the receipt: which children ran, under which run ids, and how each ended. A run
+#             id is what somebody opens to see what actually happened inside a child.
+#
+# To make it yours: add a child. A briefing is a list of pipeline.run steps and a transform that
+# reads their statuses, and adding a feed is one step plus one line in requires.
+#
+#   dg run --local examples/open-data/feeds-composition.yaml \
+#     --also-apply examples/open-data/wikidata-country-reference.yaml \
+#     --also-apply examples/open-data/who-gho-indicators-to-parquet.yaml
+#
+# Against an instance the children are applied first, and then the parent is just a pipeline:
+#
+#   dg apply examples/open-data/wikidata-country-reference.yaml
+#   dg apply examples/open-data/who-gho-indicators-to-parquet.yaml
+#   dg apply examples/open-data/feeds-composition.yaml
+#   dg run feeds-composition --watch
+
+format: dirigent/v1
+kind: pipeline
+code: feeds-composition
+name: Open data briefing
+description: |
+  One document that runs two others: the **Wikidata** country reference and the **WHO GHO**
+  indicator extract, then reports how each child ended.
+
+  Parameters go down, statuses come back up, and data crosses between pipelines through
+  storage rather than through a step output.
+
+tags: [open-data, pipeline, transform, briefing, composition]
+
+requires:
+  blocks:
+    - pipeline.run
+    - transform.jq
+  pipelines:
+    - wikidata-country-reference
+    - who-gho-indicators-to-parquet
+
+params:
+  type: object
+  additionalProperties: false
+  properties:
+    indicator:
+      type: string
+      default: WHOSIS_000001
+      description: Handed to the GHO extract as its own indicator parameter.
+    countries:
+      type: array
+      default: [MWI, NPL]
+      items:
+        type: string
+      description: The countries the extract fans out over.
+
+steps:
+  reference:
+    block: pipeline.run
+    config:
+      pipeline: wikidata-country-reference
+      # No params: the child's defaults are the whole answer, and a parent that repeats them
+      # here would be a second place to change them.
+
+  indicators:
+    block: pipeline.run
+    depends_on: [reference]
+    config:
+      pipeline: who-gho-indicators-to-parquet
+      # Only what the child's schema declares. A parameter it does not have is refused when
+      # this step executes, which is the same check a person typing -p would get.
+      params:
+        indicator: ${params.indicator}
+        countries: ${params.countries}
+
+  briefing:
+    block: transform.jq
+    depends_on: [indicators]
+    config:
+      input:
+        indicator: ${params.indicator}
+        reference: ${steps.reference.output}
+        indicators: ${steps.indicators.output}
+      # A child hands back three things and no data: which pipeline ran, which run it was, and
+      # how it ended.
+      program: |
+        {
+          indicator,
+          children: [
+            {feed: .reference.pipeline, run: .reference.run_id, status: .reference.status},
+            {feed: .indicators.pipeline, run: .indicators.run_id, status: .indicators.status}
+          ],
+          all_green: ([.reference.status, .indicators.status] | all(. == "succeeded"))
+        }

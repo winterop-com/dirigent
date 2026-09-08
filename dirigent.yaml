@@ -1,0 +1,6 @@
+# Dirigent's settings. Every setting: docs/operations.md.
+# Environment variables override these: DIRIGENT_LOG_LEVEL=DEBUG dg dev.
+
+log_format: json
+log_level: INFO
+worker_concurrency: 8

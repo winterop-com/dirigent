@@ -1,0 +1,94 @@
+# timeout: how long ONE block call may take, and what an expired one is classified as.
+#
+# Three different clocks can stop a step, and they answer three different questions:
+#
+#   timeout          (a step field)   how long one block call may take. This file.
+#   deadline         (a step field)   how long a step may keep WAITING on a sensor or a
+#                                     remote job. deadline-on-a-sensor.yaml.
+#   timeout          (block config)  the block's own limit on its own work, such as the
+#                                     HTTP client's socket timeout.
+#
+# The two on slow_read below are set deliberately far apart: the endpoint is asked to take ten
+# seconds, the HTTP client would allow thirty, and the engine allows two. So the engine is
+# plainly the clock that fires, and the attempt says so.
+#
+# An expired timeout is a TRANSIENT failure, which matters more than it looks: a retry budget
+# would be spent on it, three attempts against a call that is always too slow costing three
+# full timeouts of waiting. There is no retry policy here for exactly that reason -- a
+# deadline that cannot be met is not a flake. And note what on_timeout does NOT do: it governs
+# an expired deadline, never an expired timeout, so there is no spelling of this step that
+# skips instead of failing. timeout-skips-the-step.yaml is where that distinction lives.
+#
+# Hop by hop:
+#
+#   start      a local value, so the run has a step that plainly succeeded to compare against.
+#   slow_read  /delay/10 against a two-second budget. It loses, in about two seconds.
+#   parse      the default all_success edge, so it is skipped.
+#
+# EXPECT THIS RUN TO FAIL, in about two seconds, with slow_read failed and parse skipped.
+# It fails ON TIME, not on work: the endpoint was healthy and would have answered.
+#
+# To change it: -p seconds=1 finishes inside the budget and the run goes green. Widen the
+# step's timeout past ten and the same happens. Narrow the block's own timeout below two and
+# the HTTP client gives up first -- same red step, different reason, and the attempt's message
+# says which.
+#
+#   dg run --local examples/patterns/timeout-fails-the-step.yaml               # fails in ~2s
+#   dg run --local examples/patterns/timeout-fails-the-step.yaml -p seconds=1  # succeeds
+
+format: dirigent/v1
+kind: pipeline
+code: timeout-fails-the-step
+name: A step that runs out of time
+description: |
+  `timeout` bounds one block call. An expired one is a **transient** failure, so a retry
+  budget would be spent on it -- which is why this step has none.
+
+  As written a ten-second endpoint is given two seconds, the step fails in about two, and
+  the run reports `failed`.
+
+tags: [patterns, http, transform, failure, timeout]
+
+requires:
+  blocks:
+    - http.request
+    - value.const
+
+params:
+  type: object
+  properties:
+    seconds:
+      type: integer
+      description: How long the endpoint is asked to take. Anything above the two-second budget loses.
+      default: 10
+      minimum: 0
+      maximum: 30
+
+steps:
+  start:
+    block: value.const
+    config:
+      value:
+        note: everything above the failing step is ordinary
+
+  slow_read:
+    block: http.request
+    depends_on: [start]
+    # The budget the engine holds the call to. It is the shortest of the three clocks in this
+    # file, which is what makes it the one that fires.
+    timeout: 2s
+    config:
+      url: "https://postman-echo.com/delay/${params.seconds}"
+      method: GET
+      # The block's own clock, left generous so it is plainly not the one that stops this.
+      timeout: 30s
+
+  parse:
+    block: transform.jq
+    depends_on: [slow_read]
+    # Skipped. An abandoned attempt is a failure like any other as far as the edge is
+    # concerned; there is no separate "timed out" outcome for a rule to branch on.
+    config:
+      input: "${steps.slow_read.output.json_body}"
+      program: |
+        {delayed: .}

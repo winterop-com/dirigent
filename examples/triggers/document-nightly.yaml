@@ -1,0 +1,80 @@
+# Clocks for a pipeline defined somewhere else: the ops team's clock file.
+#
+# A kind: triggers document declares nothing but schedules and webhooks, and names the
+# pipeline they fire. The pipeline itself lives in managed-and-manual.yaml, owned by
+# whoever writes pipelines; this file is owned by whoever decides when they run. Two files,
+# two review cycles, one instance.
+#
+# Applying it does exactly what a pipeline document's triggers: section does, with one
+# difference: the rows it creates are owned by THIS document rather than by the pipeline's.
+# So an apply here creates, redeclares and retires its own schedules and its own webhook,
+# and never touches the two schedules and the webhook managed-and-manual.yaml declares, nor
+# anything an operator made by hand.
+#
+# It refuses three things, and says which at apply:
+#
+#   - a pipeline: that no instance holds, or that is deactivated. Apply the pipeline first;
+#     a directory apply does that for you, because pipelines go before triggers documents.
+#   - a schedule or webhook code the pipeline already carries under a different owner, and
+#     names the owner in the refusal.
+#   - pinned params: the pipeline's current parameter schema would reject, checked here at
+#     apply and again at every firing.
+#
+# Try it against a running instance, in this order:
+#
+#   dg apply examples/triggers/managed-and-manual.yaml   # the pipeline, first
+#   dg apply examples/triggers/document-nightly.yaml     # its clocks, second
+#   dg schedule list managed-and-manual                  # five now: two inline, three here
+#   dg trigger-document show document-nightly            # what this file owns
+#   dg trigger-document delete document-nightly          # its three go; the inline two stay
+#
+# There is nothing to run: this document has no steps. `dg run --local` on it refuses and
+# says to run the pipeline it names.
+
+format: dirigent/v1
+kind: triggers
+code: document-nightly
+name: Nightly batch clocks
+description: Schedules and a webhook for a pipeline another document defines.
+
+pipeline: managed-and-manual
+
+triggers:
+  schedules:
+    # Four in the morning Oslo time, an hour ahead of the pipeline's own nightly schedule:
+    # this is the operations copy that loads yesterday against production, and it is a
+    # separate code so both can exist without either owner editing the other's file.
+    - code: ops-nightly
+      cron: "0 4 * * *"
+      timezone: Europe/Oslo
+      params:
+        day: "2026-01-01"
+        environment: production
+
+    # Monday mornings only, for the weekly reconciliation the same pipeline serves. A cron
+    # expression says this in one line; an interval could not, because a week of hours
+    # drifts across daylight saving and Monday does not.
+    - code: ops-weekly
+      cron: "0 6 * * 1"
+      timezone: Europe/Oslo
+      params:
+        day: "2026-01-01"
+        environment: production
+
+    # A rolling smoke test against staging, on an interval rather than a calendar: nothing
+    # about it needs to land at a particular wall-clock time, and an interval keeps firing
+    # at a fixed spacing however the clocks move.
+    - code: ops-staging-smoke
+      interval: 6h
+      params:
+        day: "2026-01-01"
+        environment: staging
+
+  webhooks:
+    # The operations team's own endpoint, beside the pipeline's. Its token is minted by the
+    # instance and shown once, and deleting this document deletes the endpoint with it --
+    # which is the point of putting it here rather than in the pipeline's own file.
+    - code: ops-manual-kick
+      params_from_payload:
+        day: "$.run.date"
+        environment: "$.run.environment"

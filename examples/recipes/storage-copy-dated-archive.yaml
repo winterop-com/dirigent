@@ -1,0 +1,103 @@
+# Keep a dated copy of what a run produced, with the layout decided in the document.
+#
+# In:  a payload built inline and written as a file.
+# Out: that file, plus a copy at a dated archive key, and a manifest naming both with the
+#      byte count the copy reported.
+#
+# storage.copy moves bytes from one URI to another and knows nothing else. It is not an S3
+# block or a file block: the scheme in the URI decides the backend, so file:// to file://,
+# file:// to s3:// and s3:// to s3:// are all the same step, and adding an object store to
+# an instance changes no document.
+#
+# The archive key is where the thinking goes, because a key layout is a decision nobody
+# revisits once a year of files is written under it. This one is prefix/YYYY/MM/DD/name:
+#
+#   Date parts are separate segments, so a listing can be taken per year or per month
+#   without parsing names, and a lifecycle rule can expire a prefix.
+#   The date is the run's parameter and never the wall clock, so a rerun for last Tuesday
+#   writes last Tuesday's key rather than today's.
+#   The name is stable inside the dated prefix, so the newest file is always the one under
+#   the newest key rather than the one with the highest suffix.
+#
+# The copy reports bytes_copied, which is the cheapest possible integrity check: a manifest
+# carrying it lets a later run notice a zero-byte archive without opening it.
+#
+# To change it: -p archive_prefix=... points the same copy at another root, and -p
+# day=2026-02-03 writes into 2026/02/03 instead.
+#
+#   dg run --local examples/recipes/storage-copy-dated-archive.yaml
+#   dg run --local examples/recipes/storage-copy-dated-archive.yaml -p day=2026-02-03
+
+format: dirigent/v1
+kind: pipeline
+code: storage-copy-dated-archive
+name: A dated archive copy
+description: Write a file, copy it to a date-partitioned archive key, and record both URIs and the bytes copied in a manifest.
+
+tags: [recipes, storage, transform]
+
+requires:
+  blocks:
+    - transform.jq
+    - storage.copy
+
+params:
+  type: object
+  properties:
+    day:
+      type: string
+      format: date
+      default: "2026-01-01"
+      description: The day being archived; the archive key is built from it, not from now.
+    archive_prefix:
+      type: string
+      default: archive/readings
+      description: The root the dated key hangs under.
+
+steps:
+  build:
+    block: transform.jq
+    config:
+      input:
+        day: ${params.day}
+      program: |
+        {day: .day,
+         readings: [range(5) | {station: "st-\(.)", celsius: (. * 2) - 3}]}
+      save_to: ${run.scratch}/current/readings.json
+
+  key:
+    block: transform.jq
+    depends_on: [build]
+    config:
+      input:
+        day: ${params.day}
+        prefix: ${params.archive_prefix}
+      program: |
+        . as {$day, $prefix}
+        | ($day | split("-")) as [$year, $month, $date]
+        | {key: "\($prefix)/\($year)/\($month)/\($date)/readings.json",
+           year: $year, month: $month, date: $date}
+
+  archive:
+    block: storage.copy
+    depends_on: [build, key]
+    config:
+      source: ${steps.build.output.output_uri}
+      # The key comes from the step that built it, so the layout is written once.
+      target: ${run.scratch}/${steps.key.output.value.key}
+
+  manifest:
+    block: transform.jq
+    depends_on: [archive]
+    config:
+      input:
+        source: ${steps.archive.output.source}
+        target: ${steps.archive.output.target}
+        bytes: ${steps.archive.output.bytes_copied}
+        day: ${params.day}
+      program: |
+        {day, source, target,
+         archived_bytes: .bytes,
+         # A zero-byte archive is the failure a manifest is for: it is visible here without
+         # anybody opening the object.
+         empty: (.bytes == 0)}

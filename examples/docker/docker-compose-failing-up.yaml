@@ -1,0 +1,83 @@
+# A bring-up that fails, and the containers it does not leave behind.
+#
+# THIS PIPELINE FAILS ON PURPOSE. It is here to show what a broken stack looks like from the
+# outside, so the expected outcome is a failed run and an empty daemon.
+#
+# REQUIRES A DOCKER DAEMON the worker can reach, named by DOCKER_HOST (a dind sidecar over
+# tcp+TLS, or the local socket in dev). docs/docker.md is the family's home.
+#
+# docker.compose.up declares local_execution, so the engine refuses it unless the instance
+# allowlists its id:
+#   dg run --local examples/docker/docker-compose-failing-up.yaml --enable-unsafe docker.compose.up
+#   export DIRIGENT_ENABLED_UNSAFE_BLOCKS='["docker.compose.up"]'
+#
+# One hop. The stack has two services: "healthy" comes up and passes its check, and "broken"
+# comes up and never will -- its healthcheck is a command that exits non-zero, so after two
+# retries two seconds apart the daemon marks the container unhealthy. wait: true is waiting on
+# exactly that, so compose gives up and exits non-zero, and the step fails with what compose
+# said on stderr. wait_timeout: 30s is the backstop for a check that hangs rather than fails.
+#
+# WHAT A FAILED BRING-UP LEAVES BEHIND: nothing. This is the one case a block cleans up after
+# itself, because compose has already started containers by the time it decides the stack did
+# not come up. On a non-zero exit -- and equally on a timeout or a cancelled step -- the block
+# runs a down of the same project before it raises, so the half-built project goes with the
+# failure. cleanup: true is the default; it is written out below because it is the point of
+# the example. It never touches a bring-up that SUCCEEDED: that one persists for the run, and
+# a docker.compose.down step is what ends it.
+#
+# HOW TO READ THE FAILURE. The step's error is compose's own last words -- typically
+# "container <project>-broken-1 is unhealthy" -- and the run's step list shows the one step
+# failed with nothing after it. The whole of the CLI's two streams are artifacts of the
+# attempt, and the block logs whether the cleanup worked, so a stack that could not be torn
+# down says so rather than disappearing quietly. Afterwards:
+#   docker ps -a --filter label=com.docker.compose.project
+# lists nothing from this run.
+#
+# TO MAKE IT YOURS: this is the failure mode to reach for when a service of yours is slow
+# rather than broken. Raise retries and interval, or give the service a start_period, before
+# concluding that a stack cannot come up.
+
+format: dirigent/v1
+kind: pipeline
+code: docker-compose-failing-up
+name: A stack that will not come up
+description: A service whose healthcheck never passes, so the bring-up fails and cleans up after itself.
+
+tags: [docker, execute]
+
+requires:
+  blocks:
+    - docker.compose.up
+
+steps:
+  stack:
+    block: docker.compose.up
+    deadline: 5m
+    config:
+      wait: true
+      # Short on purpose: the example should fail in seconds, not sit out a default that was
+      # chosen for stacks meant to work.
+      wait_timeout: 30s
+      timeout: 2m
+      pull: always
+      # Tear the half-built project down before failing the step. This is the default, and
+      # it is what keeps a failed run from orphaning containers.
+      cleanup: true
+      content: |
+        services:
+          healthy:
+            image: alpine:3
+            command: ["sleep", "600"]
+            healthcheck:
+              test: ["CMD-SHELL", "exit 0"]
+              interval: 2s
+              timeout: 2s
+              retries: 2
+          broken:
+            image: alpine:3
+            command: ["sleep", "600"]
+            healthcheck:
+              test: ["CMD-SHELL", "exit 1"]
+              interval: 2s
+              timeout: 2s
+              retries: 2

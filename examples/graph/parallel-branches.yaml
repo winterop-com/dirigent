@@ -1,0 +1,57 @@
+# A diamond: one root, two independent branches, one join.
+#
+# Parallelism is implicit. Nothing declares that read_side and write_side run at the same
+# time; they simply have no edge between them, so both become claimable the moment their
+# shared prerequisite succeeds and whichever workers are free pick them up.
+#
+# The join uses the default rule, all_success, so summarise runs only if both branches
+# succeeded. Change it to all_done and it would run regardless.
+#
+# This one uses shell.run, which executes code on the worker and is refused unless the
+# instance allowlists it: export DIRIGENT_ENABLED_UNSAFE_BLOCKS='["shell.run"]', or pass
+# --enable-unsafe shell.run to a local run.
+#
+#   dg run --local examples/graph/parallel-branches.yaml
+
+format: dirigent/v1
+kind: pipeline
+code: parallel-branches
+name: Branches in parallel
+description: Call two endpoints in parallel and summarise both results.
+
+tags: [graph, execute, http]
+
+steps:
+  prepare:
+    block: shell.run
+    config:
+      argv: [echo, "starting both branches"]
+
+  read_side:
+    block: http.request
+    depends_on: [prepare]
+    config:
+      url: https://postman-echo.com/get
+      method: GET
+      query:
+        branch: read
+
+  write_side:
+    block: http.request
+    # Both branches depend on prepare and on nothing else, which is the whole of what makes
+    # them parallel: the engine runs whatever is claimable, and nothing here orders these two.
+    depends_on: [prepare]
+    config:
+      url: https://postman-echo.com/post
+      method: POST
+      body:
+        branch: write
+
+  summarise:
+    block: shell.run
+    depends_on: [read_side, write_side]
+    rule: all_success
+    config:
+      argv:
+        - echo
+        - "read ${steps.read_side.output.status}, write ${steps.write_side.output.status}"

@@ -1,0 +1,116 @@
+# Moving an artifact out to object storage and back, with no S3-specific block anywhere.
+#
+# NEEDS AN S3-COMPATIBLE ENDPOINT. dirigent-storage-s3 is installed and every block below
+# exists; what is missing is a credential and a server to point it at.
+#
+# ON THE COMPOSE STACK there is nothing to do: the stack runs an S3 server, keeps artifacts
+# in its bucket, and bootstraps the `artifacts` connection this document names. Apply and
+# run, passing the stack's own bucket:
+#
+#   dg run s3-round-trip -p day=2026-01-01 -p bucket=dirigent --watch
+#
+# The steps below are for `dg dev`, which has neither.
+#
+# A storage backend is not a step. There is no "upload to S3" block and no "download from
+# S3" block: s3:// is a registered URI scheme, so the ordinary storage.copy moves bytes
+# between file:// and s3:// in either direction, and the ordinary storage.exists waits on
+# an s3:// object. Changing where the archive lives is one word.
+#
+# 1. Start an S3-compatible server. Any implementation will do; this is the one dirigent's
+#    own storage lane runs against:
+#
+#      docker run -d --name dirigent-s3 -p 9000:9000 \
+#        -e RUSTFS_ACCESS_KEY=dirigent-test-key \
+#        -e RUSTFS_SECRET_KEY=dirigent-test-secret \
+#        rustfs/rustfs:1.0.0-rc.4
+#
+# 2. Create the connection, and tell the instance that it is what serves s3://. The first
+#    is the credential; the second is which of possibly several s3 connections the scheme
+#    is configured from:
+#
+#      dg connection create s3 artifacts \
+#        --set endpoint_url=http://127.0.0.1:9000 \
+#        --set access_key_id=dirigent-test-key \
+#        --set secret_access_key=dirigent-test-secret \
+#        --set path_style=true \
+#        --set bucket=dirigent-archive
+#
+#      export DIRIGENT_STORAGE_CONNECTIONS='{"s3": "artifacts"}'
+#
+# 3. Create the bucket the run addresses, then apply and run:
+#
+#      dg apply examples/s3/s3-round-trip.yaml
+#      dg run s3-round-trip -p day=2026-01-01 --watch
+#
+# The bucket always comes from the URI, never from the connection: the connection's own
+# bucket field is only what `dg connection check artifacts` probes.
+#
+# A real pipeline stops after the first copy. The download here makes the result checkable
+# without a second system to look at.
+
+format: dirigent/v1
+kind: pipeline
+code: s3-round-trip
+name: S3 round trip
+description: Move an artifact from local storage out to S3 and back, then confirm it landed.
+
+tags: [s3, http, sensor, storage]
+
+requires:
+  blocks:
+    - http.request
+    - storage.copy
+    - storage.exists
+  connections:
+    - artifacts
+  storage:
+    - s3
+
+params:
+  type: object
+  required: [day]
+  additionalProperties: false
+  properties:
+    day:
+      type: string
+      format: date
+      description: The day whose artifact is round-tripped.
+    bucket:
+      type: string
+      default: dirigent-archive
+      description: The bucket the artifact is archived into.
+
+steps:
+  produce:
+    block: http.request
+    config:
+      url: https://postman-echo.com/post
+      method: POST
+      body:
+        day: "${params.day}"
+      save_to: "${run.scratch}/local/${params.day}.json"
+
+  upload:
+    block: storage.copy
+    depends_on: [produce]
+    config:
+      source: "${steps.produce.output.body_uri}"
+      target: "s3://${params.bucket}/daily/${params.day}.json"
+
+  wait_for_object:
+    block: storage.exists
+    depends_on: [upload]
+    # S3 acknowledges a write before every reader can see it, so the upload settling is not
+    # the same as the object being there. This waits for the second thing.
+    poll: 2s
+    deadline: 1m
+    config:
+      uri: "s3://${params.bucket}/daily/${params.day}.json"
+      min_size: 1
+
+  download:
+    block: storage.copy
+    depends_on: [wait_for_object]
+    config:
+      source: "${steps.wait_for_object.output.uri}"
+      target: "${run.scratch}/roundtrip/${params.day}.json"

@@ -1,0 +1,119 @@
+# Turning one block family's logs up, without turning the whole run's logs up.
+#
+# A run keeps info and above by default. --log-level changes that FOR ONE RUN, and it is a
+# property of the run rather than of the document -- which is the right place for it: how
+# loudly a pipeline logs is an operational question asked while something is being
+# investigated, not a fact about the pipeline that belongs in git and in a review.
+#
+# THE FLAG TAKES TWO FORMS, and it repeats:
+#
+#   --log-level debug              every block. The blunt instrument.
+#   --log-level PATTERN=LEVEL      one family. The one worth learning.
+#
+# PATTERN is an fnmatch over the BLOCK ID, and the most specific match wins -- the longest
+# pattern, with an exact id beating any wildcard. So:
+#
+#   --log-level 'http.*=debug'                 both HTTP blocks, nothing else
+#   --log-level 'http.request=debug'           one block, even alongside a looser http.* rule
+#   --log-level debug --log-level 'transform.*=warning'
+#                                              everything loud, except the jq steps
+#
+# WHY IT IS PER-FAMILY AND NOT PER-STEP: a level is about a block's own chattiness, and the
+# same block is usually several steps. Turning http.* up is asking one implementation to
+# explain itself, which is what an investigation actually wants.
+#
+# This document exists to give the flag something to bite on: three block families, several
+# steps in each, all of them cheap. Run it once plain and once loud and compare the log lines
+# -- and note that the RECORDS are identical either way. Only the logs change; a run's outcome
+# never depends on how much it said about itself.
+#
+# Hop by hop:
+#
+#   fetch_one, fetch_two   two http.request steps, so an http.* pattern has more than one
+#                          thing to affect.
+#   shape, tally           two transform.jq steps, the family to turn DOWN when the HTTP is
+#                          what is being investigated.
+#   settle                 a value.const, a third family, so a wildcard has a boundary.
+#
+# EXPECT THIS RUN TO SUCCEED in about two seconds, whichever levels are set.
+#
+#   dg run --local examples/patterns/log-levels.yaml
+#   dg run --local examples/patterns/log-levels.yaml --log-level 'http.*=debug'
+#   dg run --local examples/patterns/log-levels.yaml --log-level debug --log-level 'transform.*=warning'
+#   dg run --local examples/patterns/log-levels.yaml --log-level 'http.*=debug' | dg format
+#
+# A schedule carries its own log levels too, which is how a nightly firing can be made
+# permanently loud without every ad hoc run being loud with it.
+
+format: dirigent/v1
+kind: pipeline
+code: log-levels
+name: One family, turned up
+description: |
+  `--log-level` is a **run** setting, not a document one: `debug` for everything, or
+  `PATTERN=LEVEL` for one block family, repeatable.
+
+  The pattern is an fnmatch over the block id and the most specific match wins. The records
+  a run emits are the same either way; only the log lines change.
+
+tags: [patterns, http, transform, observability]
+
+requires:
+  blocks:
+    - http.request
+    - transform.jq
+    - value.const
+
+params:
+  type: object
+  properties:
+    dataset:
+      type: string
+      description: Echoed by both calls, so a debug line names which step made which request.
+      default: cases
+
+steps:
+  fetch_one:
+    block: http.request
+    config:
+      url: https://postman-echo.com/get
+      query:
+        dataset: "${params.dataset}"
+        part: "1"
+
+  fetch_two:
+    block: http.request
+    # No edge to fetch_one, so the two run side by side and their log lines interleave --
+    # which is exactly when knowing that every line carries its step name starts to matter.
+    config:
+      url: https://postman-echo.com/get
+      query:
+        dataset: "${params.dataset}"
+        part: "2"
+
+  shape:
+    block: transform.jq
+    depends_on: [fetch_one, fetch_two]
+    config:
+      input:
+        one: "${steps.fetch_one.output.json_body.args}"
+        two: "${steps.fetch_two.output.json_body.args}"
+      program: |
+        {parts: [.one.part, .two.part], dataset: .one.dataset}
+
+  tally:
+    block: transform.jq
+    depends_on: [shape]
+    config:
+      input: "${steps.shape.output.value}"
+      program: |
+        {dataset, parts: (.parts | length)}
+
+  settle:
+    block: value.const
+    depends_on: [tally]
+    # A third family, so 'http.*' and 'transform.*' each have something they plainly do not
+    # cover.
+    config:
+      value:
+        note: the run's records do not change with its log level

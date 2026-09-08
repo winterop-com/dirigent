@@ -1,0 +1,109 @@
+# Building an image and pushing it, which is the one thing a tag alone cannot do.
+#
+# docker-build-run.yaml builds an image and runs it on the same worker, where the tag is the
+# whole contract and the image never leaves that daemon's store. This document is the other
+# half: the image is pushed, so a later run on another worker, another cluster or another
+# machine can pull it by name.
+#
+# IT CANNOT RUN WITHOUT A REGISTRY. There is no public registry that will take an anonymous
+# push, so this document does nothing at all until it has a real registry and a credential
+# for it. Create the connection once, with a token that may write packages:
+#   dg connection create docker ghcr \
+#     --set registry=ghcr.io \
+#     --set username=your-account \
+#     --set "password=$GITHUB_TOKEN"
+#
+# docker.build declares local_execution, so the engine refuses it unless the instance
+# allowlists its id:
+#   export DIRIGENT_ENABLED_UNSAFE_BLOCKS='["docker.run","docker.build"]'
+#
+# PUSHING NEEDS A CONNECTION AND SAYS SO. push: true with no connection is refused when the
+# document is applied, not when it first runs, and a connection carrying no username and
+# password is refused when the step starts. Neither is a build that silently produced a local
+# image nobody can reach.
+#
+# ONE DAEMON, THEREFORE ONE WORKER. The build and the step that wrote its context are on the
+# worker's own filesystem, so requires.workers keeps them on one docker-capable worker. The push
+# is what frees the image from that worker: once it is in the registry, anything can pull it.
+#
+# THE CREDENTIAL NEVER BECOMES AN ARGUMENT. The password is sealed on the connection, reaches
+# `docker login` on stdin, and lives in a DOCKER_CONFIG directory of its own under the run's
+# scratch space -- never the worker's own docker config. The step logs out and the directory
+# goes when it leaves, so nothing about the login survives the step, and the password is
+# scrubbed out of every log line and every failure message.
+#
+# THE TAG IS A REGISTRY ADDRESS NOW. A pushed tag is fully qualified: registry, owner, name.
+# The build's output says which tags reached the registry (pushed) and the digest the registry
+# gave each of them (digests), and a digest is the only exact name for what was pushed -- a
+# tag can be moved, a digest cannot.
+#
+# TO MAKE IT YOURS: point image_tag at your own registry and repository, replace the Dockerfile
+# the first step writes with your own, and add a second tag if you publish both a version and
+# a moving "latest".
+
+format: dirigent/v1
+kind: pipeline
+code: docker-build-push
+name: Build an image and push it
+description: Build an image from a scratch context and push every tag to the registry a docker connection names.
+
+tags: [docker, execute]
+
+requires:
+  blocks:
+    - docker.run
+    - docker.build
+  workers:
+    # An image built on worker A is invisible to worker B, so both steps have to meet one
+    # docker-capable worker: give those the tag (dg worker --tag docker) and name it here.
+    - docker
+  connections:
+    # Named, not carried: the instance holds the registry credential, and this document
+    # refuses to apply where it is absent rather than failing the first time it runs.
+    - ghcr
+
+params:
+  type: object
+  additionalProperties: false
+  properties:
+    image_tag:
+      type: string
+      default: ghcr.io/your-account/dirigent-greeter:1.0.0
+      description: The fully qualified tag the build gives the image and the push sends.
+
+steps:
+  dockerfile:
+    block: docker.run
+    deadline: 5m
+    config:
+      image: alpine:3
+      pull: true
+      network: none
+      # The build below names the same directory, scratch-relative.
+      outputs:
+        Dockerfile: "${run.scratch}/context/Dockerfile"
+      command: |
+        cat > /dirigent/outputs/Dockerfile <<'DOCKERFILE'
+        FROM alpine:3
+        RUN echo "baked in at build time" > /greeting.txt
+        CMD ["cat", "/greeting.txt"]
+        DOCKERFILE
+      memory: 64mb
+      pids_limit: 64
+
+  build:
+    block: docker.build
+    depends_on: [dockerfile]
+    deadline: 15m
+    config:
+      context: context
+      dockerfile: Dockerfile
+      # A pushed tag carries its registry, so this name is where the image ends up as much as
+      # what it is called.
+      tags: ["${params.image_tag}"]
+      pull: true
+      # The connection holds the registry, the username and the sealed password. It could hold
+      # a daemon too: one connection can name both, and the steps that build and the steps that
+      # run would then all name it.
+      connection: ghcr
+      push: true

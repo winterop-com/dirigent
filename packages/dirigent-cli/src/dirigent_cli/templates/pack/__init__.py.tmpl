@@ -1,0 +1,24 @@
+"""The {name} block pack."""
+
+from dirigent_{name}.{name} import HelloConfig, HelloOperator, HelloOutput
+from dirigent_plugin import Contribution, extension
+
+
+class {title}Pack:
+    """The plugin object the host discovers under the dirigent.plugins.v1 entry-point group."""
+
+    @extension
+    def contribute(self) -> Contribution:
+        """Contribute this pack's blocks."""
+        return Contribution(operators=[HelloOperator()])
+
+
+plugin = {title}Pack()
+
+__all__ = [
+    "HelloConfig",
+    "HelloOperator",
+    "HelloOutput",
+    "{title}Pack",
+    "plugin",
+]

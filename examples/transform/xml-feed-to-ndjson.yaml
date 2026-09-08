@@ -1,0 +1,88 @@
+# An XML feed read as records, one line each, and the mapping that makes it reversible.
+#
+# convert.std reads an element as an object: an attribute is a key prefixed with @, the text
+# of an element with no children is the bare string, a child element is a key of its tag, and
+# a tag that repeats is a list in document order. Nothing else fits in, so mixed content --
+# text sitting beside child elements -- is refused naming the element rather than flattened.
+#
+# xml to ndjson is the direction that scales: the root's children are the records, read with
+# iterparse and dropped as they are written, so a feed far larger than memory converts. It is
+# one-way, because an ndjson line carries no root element name to write a document under;
+# xml to json is the pair that round-trips, and this document runs both.
+#
+# Everything read out of an element is text, exactly as it is out of a csv: 4.5 is the three
+# characters until a jq program says tonumber.
+#
+#   dg run --local examples/transform/xml-feed-to-ndjson.yaml
+
+format: dirigent/v1
+kind: pipeline
+code: xml-feed-to-ndjson
+name: An XML feed as records
+description: |
+  Read an XML feed as one record per line, aggregate the records with jq, and read the
+  same document as one whole object to show the mapping that round-trips.
+
+  The mapping, in four rules:
+
+  1. an attribute is a key prefixed with `@`
+  2. an element's text is the value where it has no children
+  3. a child element is a key of its tag
+  4. a tag that repeats is a list, in document order
+
+tags: [transform]
+
+requires:
+  blocks:
+    - convert.std
+    - transform.jq
+
+steps:
+  readings:
+    block: convert.std
+    config:
+      # Written inline so the example needs no network. In a real pipeline this is
+      # input_uri, pointing at the feed an upstream http.request put in storage.
+      input: |
+        <?xml version="1.0" encoding="utf-8"?>
+        <feed source="stations">
+          <reading station="st-1"><region>east</region><celsius>4.5</celsius></reading>
+          <reading station="st-2"><region>east</region><celsius>-3.0</celsius></reading>
+          <reading station="st-3"><region>west</region><celsius>1.2</celsius></reading>
+        </feed>
+      from: xml
+      # The records are the root's children, so each <reading> becomes one line. The root's
+      # own attribute, source="stations", is not on any of them: it belongs to the document,
+      # and the json direction below is where it survives.
+      to: ndjson
+
+  mean_by_region:
+    block: transform.jq
+    depends_on: [readings]
+    config:
+      # A codec's output is text, and ndjson is one JSON value per line, so the program
+      # splits before it parses. tonumber for the one field it wants as a number.
+      input: "${steps.readings.output.text}"
+      program: |
+        split("\n")
+        | map(select(length > 0) | fromjson)
+        | group_by(.region)
+        | [.[] | {region: .[0].region,
+                  stations: [.[] | ."@station"],
+                  mean_celsius: ([.[] | .celsius | tonumber] | add / length)}]
+
+  whole_document:
+    block: convert.std
+    config:
+      # The same feed the other way: one object, keyed by the root element's tag, carrying
+      # the document's own @source and the repeated readings as a list. This is the pair
+      # that round-trips -- json to xml writes this object back out as the feed.
+      input: |
+        <?xml version="1.0" encoding="utf-8"?>
+        <feed source="stations">
+          <reading station="st-1"><region>east</region><celsius>4.5</celsius></reading>
+          <reading station="st-2"><region>east</region><celsius>-3.0</celsius></reading>
+          <reading station="st-3"><region>west</region><celsius>1.2</celsius></reading>
+        </feed>
+      from: xml
+      to: json

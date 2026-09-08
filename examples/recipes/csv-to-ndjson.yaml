@@ -1,0 +1,83 @@
+# A csv turned into ndjson, and the one thing the conversion will not do for you: types.
+#
+# In:  an inline csv with a header row -- station, date, celsius, active.
+# Out: ndjson, one JSON object per line, and beside it the same records with celsius as a
+#      number and active as a boolean.
+#
+# All three text formats convert.std knows say the same thing -- a sequence of records --
+# so a conversion is reading that sequence out of one spelling and writing it in another.
+# csv to ndjson is the one a line-oriented sink wants, because a consumer can read one line
+# at a time instead of holding the whole array.
+#
+# Every cell read out of a csv is a string. "4.5" comes back as the three characters, not as
+# a number, because a csv carries no types and a codec that guessed would be wrong on the
+# column where 007 is a code and 1-2 is a range. So the typing step is a jq program, in the
+# document that knows what the columns mean, and it is the second half of every csv read.
+#
+# Note where the text lives. A convert step's output is `text`, not `value` -- it is a
+# document in a format, not a JSON value -- so the typing step parses the lines rather than
+# indexing an object. ndjson is one JSON value per line, which is why the program splits on
+# newlines, drops the empty last one, and fromjson each.
+#
+# To change it: -p empty_is_null=true reads an empty cell as null rather than as the empty
+# string, which is the right rule for a numeric column and the wrong one for a text column.
+#
+#   dg run --local examples/recipes/csv-to-ndjson.yaml
+#   dg run --local examples/recipes/csv-to-ndjson.yaml -p empty_is_null=true
+
+format: dirigent/v1
+kind: pipeline
+code: csv-to-ndjson
+name: CSV to ndjson, with the typing that follows
+description: Re-spell a csv as one JSON object per line, then give the string cells the types the columns actually have.
+
+tags: [recipes, transform]
+
+requires:
+  blocks:
+    - convert.std
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    empty_is_null:
+      type: boolean
+      default: false
+      description: Read an empty cell as null rather than as an empty string.
+
+steps:
+  as_ndjson:
+    block: convert.std
+    config:
+      # Written inline so the recipe needs no network. In a real pipeline this is input_uri,
+      # pointing at the body an upstream http.request already put in storage.
+      input: |
+        station,date,celsius,active
+        st-1,2026-01-01,4.5,true
+        st-2,2026-01-01,-1,false
+        st-3,2026-01-01,,true
+      from: csv
+      to: ndjson
+
+  typed:
+    block: transform.jq
+    depends_on: [as_ndjson]
+    config:
+      input:
+        # A convert step carries text, so the parsing below is reading a document rather
+        # than walking a value.
+        lines: ${steps.as_ndjson.output.text}
+        empty_is_null: ${params.empty_is_null}
+      program: |
+        . as {$lines, $empty_is_null}
+        | [$lines
+           | split("\n")[]
+           | select(length > 0)
+           | fromjson
+           | {station,
+              date,
+              celsius: (if .celsius == ""
+                        then (if $empty_is_null then null else 0 end)
+                        else (.celsius | tonumber) end),
+              active: (.active == "true")}]

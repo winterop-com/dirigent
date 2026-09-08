@@ -1,0 +1,259 @@
+# Every JSON Schema type a parameter can be, and the formats that actually assert.
+#
+# demo/params-showcase.yaml is about how parameters are PASSED -- flags, files, dotted keys,
+# coercion. This one is about what they are DECLARED as: the six types, the keywords that
+# constrain each of them, and the formats a dirigent instance genuinely checks rather than
+# merely annotates.
+#
+# The schema is plain JSON Schema, draft 2020-12, and it is load-bearing in three places: it
+# validates every run's parameters whoever started them, the UI renders the run dialog from
+# it, and apply checks every ${params.x} in the document against it so a typo is caught at
+# apply time rather than at 05:00.
+#
+# ABOUT format, AND THIS IS THE PART THAT SURPRISES PEOPLE. A format keyword asserts only
+# where the validator is given a checker for it. Parameter validation is not given one, so
+# every format below is an ANNOTATION: it documents intent and it is what the UI builds a date
+# picker from, and -p day=2026-13-40 is accepted. Types and bounds and enums and patterns all
+# assert; formats do not.
+#
+# Where they do assert is validate.schema, which is handed the instance's format checker --
+# the standard formats from the library (date, date-time, time, duration, email, uri, uuid,
+# ipv4, hostname, regex, json-pointer), the ones dirigent adds (ulid, uuid4, uuid7, md5, sha1,
+# sha256, sha512, base64), and whatever a plugin pack contributes, which is how dhis2-uid
+# comes to be a format a pipeline can gate on. So a parameter that genuinely has to be a date
+# gets a gate, and this file has one: a pattern is the other answer, and it asserts in the
+# parameter schema itself.
+#
+# Every parameter below has a default, so the whole thing runs with no flags at all. That is
+# a property worth keeping in a corpus: an example nobody can run without reading the header
+# first is an example nobody runs.
+#
+# Hop by hop:
+#
+#   echo   one transform.jq step that pulls every parameter into one object, so the run's
+#          output is the resolved parameter set and the defaults are visible in it.
+#   gate   validate.schema against the schema this document carries, which is where the
+#          formats actually bite. With the defaults it passes and hands the value straight on.
+#   shape  proves the types survived: an integer is arithmetic, a boolean is a branch, and an
+#          array has a length. A parameter that arrived as text would fail here.
+#
+# EXPECT THIS RUN TO SUCCEED in about a second, with no network and no allowlist.
+#
+# To change it: -p day=2026-13-40 is ACCEPTED by the parameter schema and REFUSED by the gate,
+# which is the whole point of having both. params-validation-refuses.yaml is the other half:
+# what a request that fails the parameter schema itself is answered with.
+#
+#   dg run --local examples/patterns/params-every-type.yaml
+#   dg run --local examples/patterns/params-every-type.yaml -p day=2026-06-01 -p attempts=5
+#   dg run --local examples/patterns/params-every-type.yaml -p day=2026-13-40   # fails at the gate
+
+format: dirigent/v1
+kind: pipeline
+code: params-every-type
+name: Every parameter type
+description: |
+  The six JSON Schema types and the keywords that constrain each of them, with every
+  parameter carrying a default so the document runs bare.
+
+  A `format` in a parameter schema is an **annotation**: it documents intent and the UI
+  renders from it, and nothing checks it. Formats assert inside `validate.schema`, which is
+  handed the instance's checker -- so this document carries a schema and gates on it.
+
+tags: [patterns, transform, validate, params]
+
+# Carried in the document rather than named on an instance, so a --local run gates against
+# exactly the same shape a server would. A server refuses a document that carries a schema
+# this way for a pipeline it stores; a published example is where carrying one is right.
+schemas:
+  run-inputs:
+    type: object
+    required: [day, correlation_id, upload_id, expected_digest]
+    properties:
+      # The same four format keywords as in params below, in the one place they assert.
+      day: {type: string, format: date}
+      correlation_id: {type: string, format: uuid4}
+      upload_id: {type: string, format: ulid}
+      expected_digest: {type: string, format: sha256}
+
+requires:
+  blocks:
+    - transform.jq
+    - validate.schema
+
+params:
+  type: object
+  # Nothing is required, because everything has a default. required is for the parameter a
+  # run has no sensible value for -- the day being backfilled, the tenant being loaded.
+  additionalProperties: false
+  properties:
+    # A string, constrained by length and by pattern. The pattern is anchored, because an
+    # unanchored one matches anywhere in the value and refuses almost nothing.
+    dataset:
+      type: string
+      description: Which dataset this run covers.
+      default: climate
+      minLength: 1
+      maxLength: 64
+      pattern: "^[a-z][a-z0-9-]*$"
+
+    # An enum, which is a closed set rather than a type. The UI renders it as a select.
+    environment:
+      type: string
+      description: Where this run writes.
+      default: staging
+      enum: [staging, production]
+
+    # An integer with bounds, so a fat-fingered 1000 is refused rather than retried a
+    # thousand times.
+    attempts:
+      type: integer
+      description: How many times a downstream loader should try.
+      default: 3
+      minimum: 1
+      maximum: 10
+
+    # A number, which is any JSON number rather than a whole one. exclusiveMinimum is the
+    # keyword for a value that may approach zero and never reach it.
+    threshold:
+      type: number
+      description: The confidence a prediction has to clear.
+      default: 0.75
+      exclusiveMinimum: 0.0
+      maximum: 1.0
+
+    # A boolean, which the UI renders as a switch. Named for what true means, so nobody has
+    # to work out what a false "no_dry_run" would do.
+    dry_run:
+      type: boolean
+      description: When true nothing downstream writes.
+      default: true
+
+    # An array. items constrains every element, and the two bounds are what stop a fan-out
+    # over this from being either empty or enormous.
+    regions:
+      type: array
+      description: The regions this run covers.
+      default: [east, west]
+      minItems: 1
+      maxItems: 16
+      uniqueItems: true
+      items:
+        type: string
+        minLength: 1
+
+    # An object, with its own properties and its own closed door. A nested leaf is addressed
+    # from the CLI with a dotted key: -p window.days=30.
+    window:
+      type: object
+      description: The rolling window a load covers.
+      default: {days: 7, align: midnight}
+      additionalProperties: false
+      required: [days]
+      properties:
+        days:
+          type: integer
+          minimum: 1
+          maximum: 365
+        align:
+          type: string
+          enum: [midnight, hour]
+
+    # Formats, one line each. None of these asserts here; the gate below is what asserts.
+    day:
+      type: string
+      description: A calendar date, which the UI renders as a date picker.
+      default: "2026-01-01"
+      format: date
+
+    since:
+      type: string
+      description: An instant, offset included.
+      default: "2026-01-01T00:00:00+00:00"
+      format: date-time
+
+    cutoff:
+      type: string
+      description: A local time of day, with no date and no zone.
+      default: "23:30:00"
+      format: time
+
+    catalog_url:
+      type: string
+      description: Where the catalog is read from.
+      default: https://postman-echo.com/get
+      format: uri
+
+    owner_email:
+      type: string
+      description: Who to write to about this run.
+      default: data-team@example.org
+      format: email
+
+    correlation_id:
+      type: string
+      description: A UUID version 4 specifically; the plain uuid format would take any version.
+      default: 6f0b6e34-6c0e-4c2f-9a1e-2f43a1a0d0b7
+      format: uuid4
+
+    upload_id:
+      type: string
+      description: A Crockford base32 ULID, one of the formats dirigent contributes.
+      default: 01J8Z3M4N5P6Q7R8S9TVWXYZ01
+      format: ulid
+
+    expected_digest:
+      type: string
+      description: A sha256 hex digest, checked for length and alphabet rather than parsed.
+      default: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+      format: sha256
+
+steps:
+  echo:
+    block: transform.jq
+    config:
+      input:
+        dataset: "${params.dataset}"
+        environment: "${params.environment}"
+        attempts: "${params.attempts}"
+        threshold: "${params.threshold}"
+        dry_run: "${params.dry_run}"
+        regions: "${params.regions}"
+        # A whole reference to an object resolves to the object, so the nested shape survives
+        # intact rather than being flattened into text.
+        window: "${params.window}"
+        day: "${params.day}"
+        since: "${params.since}"
+        cutoff: "${params.cutoff}"
+        catalog_url: "${params.catalog_url}"
+        owner_email: "${params.owner_email}"
+        correlation_id: "${params.correlation_id}"
+        upload_id: "${params.upload_id}"
+        expected_digest: "${params.expected_digest}"
+      program: |
+        .
+
+  gate:
+    block: validate.schema
+    depends_on: [echo]
+    # Where the formats bite. The gate is also a waypoint: everything below reads the gate's
+    # output rather than the echo's, so the document itself shows that nothing past this point
+    # saw an unchecked value.
+    config:
+      input: "${steps.echo.output.value}"
+      schema: run-inputs
+
+  shape:
+    block: transform.jq
+    depends_on: [gate]
+    # The proof that types survived the trip. Arithmetic on a string, or a branch on the text
+    # "false", would fail here rather than quietly doing the wrong thing.
+    config:
+      input: "${steps.gate.output.value}"
+      program: |
+        {
+          budget: (.attempts * .window.days),
+          confident: (.threshold > 0.5),
+          writes: (if .dry_run then "nothing" else .environment end),
+          regions: (.regions | length),
+          nested_leaf: .window.align
+        }

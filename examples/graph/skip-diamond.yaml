@@ -1,0 +1,105 @@
+# The happy path, where the error handler is skipped and the run is green anyway.
+#
+# error-handler.yaml runs the failure path: the load fails, the one_failed branch fires. This
+# is the same diamond taking the other road, and it exists because a skipped step is the
+# outcome people misread most often.
+#
+# A skip is not a failure. It is not a step that did nothing, either, and it is not an error
+# suppressed. It is the engine reporting that an edge condition was evaluated and came out
+# false, which is an ordinary, correct, green thing for a run to contain. A run whose alert
+# branch was skipped is a run where nothing needed alerting about.
+#
+# Four steps, four outcomes worth reading off the graph as written:
+#
+#   verify          succeeds   the load is healthy
+#   raise_alarm     SKIPPED    rule: one_failed, and nothing failed, so the edge is false
+#   record_success  succeeds   rule: all_success, and the edge is true
+#   close_out       succeeds   rule: all_done, which is satisfied by a skip as much as by a
+#                              success -- this is why cleanup hangs off all_done and never
+#                              off all_success, which would wait on a step that never ran
+#
+# Flip it with the parameter and the same four steps swap two of those outcomes: raise_alarm
+# runs, record_success is skipped, close_out still runs. Same document, same edges, no
+# branching syntax anywhere -- only the outcome of one step changed.
+#
+# One caution the graph does not show. one_failed reads the outcome a dependent sees, and a
+# step marked continue_on_failure: true shows its dependents a success even when it failed.
+# So an error handler hung under a tolerated step never fires. Tolerating a failure and
+# handling one are opposite instructions; optional-step.yaml is the one that tolerates.
+#
+# This one uses shell.run, which executes code on the worker and is refused unless the
+# instance allowlists it: export DIRIGENT_ENABLED_UNSAFE_BLOCKS='["shell.run"]', or pass
+# --enable-unsafe shell.run to a local run.
+#
+#   dg run --local examples/graph/skip-diamond.yaml --enable-unsafe shell.run              # green, one skip
+#   dg run --local examples/graph/skip-diamond.yaml --enable-unsafe shell.run -p fail=true # the other road
+
+format: dirigent/v1
+kind: pipeline
+code: skip-diamond
+name: Skip diamond
+description: |
+  A load that works, an alarm that is therefore skipped, and a close-out that runs either way.
+
+  **A skip is not a failure.** It is an edge condition that evaluated false, and a run
+  full of them can be perfectly green.
+
+  | Step | Rule | On the happy path |
+  | --- | --- | --- |
+  | `verify` | -- | succeeds |
+  | `raise_alarm` | `one_failed` | skipped |
+  | `record_success` | `all_success` | succeeds |
+  | `close_out` | `all_done` | succeeds |
+
+  Pass `-p fail=true` and the middle two swap places. `close_out` does not move, which is
+  the whole reason cleanup hangs off `all_done`.
+
+tags: [graph, execute]
+
+requires:
+  blocks:
+    - shell.run
+
+params:
+  type: object
+  properties:
+    fail:
+      type: boolean
+      description: Make the verification fail, to take the branch this example does not.
+      default: false
+
+steps:
+  verify:
+    block: shell.run
+    config:
+      # Exits 0 unless asked otherwise, so the default run takes the road where the handler
+      # is skipped rather than the one error-handler.yaml already shows.
+      command: "if [ '${params.fail}' = 'true' ]; then echo 'checksum mismatch' >&2; exit 1; fi; echo 'verified 412 rows'"
+
+  raise_alarm:
+    block: shell.run
+    depends_on: [verify]
+    # Skipped on the happy path. Nothing failed, so there is nothing for a handler to handle,
+    # and the engine says so in the outcome rather than running it and having it decide.
+    rule: one_failed
+    config:
+      argv: [echo, "alarm raised: verification failed"]
+
+  record_success:
+    block: shell.run
+    depends_on: [verify]
+    # The default rule, written out here only because its opposite is directly above it.
+    rule: all_success
+    config:
+      argv: [echo, "recorded a clean verification"]
+
+  close_out:
+    block: shell.run
+    depends_on: [raise_alarm, record_success]
+    # Exactly one of the two above ran and the other was skipped, and all_done is satisfied by
+    # both -- a skip is settled. all_success here would itself be skipped: a skipped
+    # prerequisite can never satisfy it, so the skip would propagate down and this step would
+    # never run -- the mistake this step exists to not make.
+    rule: all_done
+    config:
+      argv: [echo, "closed out, whichever road was taken"]

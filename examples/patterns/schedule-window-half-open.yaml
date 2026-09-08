@@ -1,0 +1,105 @@
+# The interval a firing COVERS, and why both ends of it are written down.
+#
+# A schedule answers "when does this start". A window answers "what does this run cover", and
+# those are different questions: the nightly load at 05:00 is meant to read yesterday, not
+# this instant. Every schedule-fired run carries the interval that just closed, and a step
+# reads it exactly the way it reads a parameter: ${run.window.start} and ${run.window.end}.
+#
+# HALF-OPEN IS THE WHOLE POINT. start is included, end is excluded, so consecutive firings
+# tile the timeline with no overlap and no gap. A row observed exactly on a boundary belongs
+# to precisely one window. Writing the predicate out -- observed_at >= start and
+# observed_at < end -- is what makes that reviewable, and it is why both ends are in the query
+# rather than a single "day" the step has to interpret.
+#
+# THE WINDOW IS A PROPERTY OF THE RUN, NOT OF THIS DOCUMENT. Nothing below declares it; the
+# cadence computes it. So an ad hoc run has to be given one, and a run that carries no window
+# REFUSES the reference rather than resolving it to an empty string:
+#
+#   ${run.window.start} cannot be resolved: this run carries no window; a schedule-fired or
+#   backfilled run has one, and an ad hoc run only if it was started with one
+#
+# That refusal is a feature. Resolving to empty would silently widen the query to everything
+# the upstream system has, which is the failure nobody notices until the bill arrives.
+#
+# A window derived from a cron cadence is WALL-CLOCK, not a fixed number of hours. In
+# Europe/Oslo the spring-forward night is 23 hours long and the fall-back night is 25, and the
+# pair of instants says so honestly rather than rounding it away -- which is why the step
+# below computes its own duration from the two ends instead of assuming 86400 seconds.
+#
+# Hop by hop:
+#
+#   query    builds the extraction predicate from the two ends and the dataset.
+#   receipt  reads the predicate back and reports the coverage as one string.
+#
+# EXPECT A RUN WITH --window TO SUCCEED, and a run without one to FAIL at the first step with
+# the refusal quoted above. Both are worth doing once:
+#
+#   dg run --local examples/patterns/schedule-window-half-open.yaml --window 2026-06-01..2026-06-02
+#   dg run --local examples/patterns/schedule-window-half-open.yaml   # refused: no window
+#   dg apply examples/patterns/schedule-window-half-open.yaml
+#   dg backfill schedule-window-half-open --schedule nightly \
+#     --from 2026-06-01T05:00:00Z --to 2026-06-08T05:00:00Z --dry-run
+
+format: dirigent/v1
+kind: pipeline
+code: schedule-window-half-open
+name: The window a firing covers
+description: |
+  `${run.window.start}` and `${run.window.end}` are the interval a run covers: half-open, so
+  consecutive firings tile the timeline without overlapping or leaving a gap.
+
+  The window belongs to the run, not to this document. A run without one **refuses** the
+  reference rather than quietly widening the query to everything.
+
+tags: [patterns, transform, references, schedule]
+
+requires:
+  blocks:
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    dataset:
+      type: string
+      description: Which dataset the extraction reads; the schedule pins it for every firing.
+      default: cases
+
+steps:
+  query:
+    block: transform.jq
+    config:
+      input:
+        dataset: "${params.dataset}"
+        # Both ends, as ISO 8601 instants. A reference that is the whole value stays typed,
+        # and these are strings, so they arrive as strings.
+        from: "${run.window.start}"
+        to: "${run.window.end}"
+      program: |
+        {
+          dataset,
+          from,
+          to,
+          predicate: "observed_at >= \(.from) and observed_at < \(.to)"
+        }
+
+  receipt:
+    block: transform.jq
+    depends_on: [query]
+    config:
+      input: "${steps.query.output.value}"
+      program: |
+        {loaded: .dataset, covering: "\(.from)..\(.to)"}
+
+triggers:
+  schedules:
+    - code: nightly
+      name: Nightly, Oslo time
+      description: Reads the day that closed at five this morning.
+      cron: "0 5 * * *"
+      # The zone is what makes the derived window a day of Oslo's clock rather than a fixed
+      # number of hours, so the daylight-saving nights come out right without anything in the
+      # steps knowing that daylight saving exists.
+      timezone: Europe/Oslo
+      params:
+        dataset: cases
