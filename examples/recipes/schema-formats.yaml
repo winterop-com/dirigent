@@ -17,12 +17,12 @@
 # format speaks only once the value is already a string, so `{type: integer, format: date}`
 # asserts nothing about anything.
 #
-# The last field is the interesting one. dhis2-uid is a format the dirigent-dhis2 pack
+# The last field is the interesting one. acme-site-id is a format a plugin pack
 # contributes; on an instance with that pack installed it asserts, and on one without it the
 # keyword is a passing annotation and the value is simply unchecked. That is what keeps a
 # schema portable: the same file asserts more on an instance that knows more, and refuses
 # nothing it cannot check. This recipe runs green either way, and on an instance with the
-# pack a bad UID there would fail it.
+# pack a site id of the wrong shape there would fail it.
 #
 # To change it: -p email=not-an-address, -p when=last%20Tuesday, or -p digest=abc all fail
 # the gate, each naming the field and the format it did not satisfy.
@@ -49,7 +49,7 @@ requires:
 schemas:
   recipe-formatted-record:
     type: object
-    required: [day, when, email, endpoint, request_id, digest, org_unit]
+    required: [day, when, email, endpoint, request_id, digest, site]
     additionalProperties: false
     properties:
       day: { type: string, format: date }
@@ -58,9 +58,9 @@ schemas:
       endpoint: { type: string, format: uri }
       request_id: { type: string, format: uuid4 }
       digest: { type: string, format: sha256 }
-      # Contributed by dirigent-dhis2. Where that pack is installed this asserts; where it
+      # Contributed by a plugin pack. Where that pack is installed this asserts; where it
       # is not, the value passes unchecked and the schema stays portable.
-      org_unit: { type: string, format: dhis2-uid }
+      site: { type: string, format: acme-site-id }
 
 params:
   type: object
@@ -97,7 +97,7 @@ steps:
         endpoint: "${params.endpoint}"
         request_id: f47ac10b-58cc-4372-a567-0e02b2c3d479
         digest: "${params.digest}"
-        org_unit: O6uvpzGd5pu
+        site: NO-OSLO-01
 
   gate:
     block: validate.schema

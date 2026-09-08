@@ -63,7 +63,7 @@ async def test_a_format_asserts_not_merely_annotates(ctx: FakeContext) -> None:
 async def test_a_contributed_format_asserts_through_the_gate(ctx: FakeContext) -> None:
     """A format a pack contributes gates just as a base one does, once installed on the context.
 
-    ``even-digits`` stands in for a pack's own format such as ``dhis2-uid``: a value that
+    ``even-digits`` stands in for a pack's own format such as ``acme-site-id``: a value that
     fails the predicate is refused, one that passes comes through.
     """
     ctx.formats["even-digits"] = lambda value: isinstance(value, str) and len(value) % 2 == 0
@@ -83,19 +83,19 @@ async def test_a_contributed_format_asserts_through_the_gate(ctx: FakeContext) -
 async def test_an_uncontributed_format_only_annotates(ctx: FakeContext) -> None:
     """A format no pack contributes stays a passing annotation, so a schema is portable.
 
-    ``format: dhis2-uid`` on an instance without the dhis2 pack asserts nothing: the value is
-    valid, just unchecked, which is jsonschema's own behaviour for an unknown format.
+    ``format: acme-site-id`` on an instance without that pack asserts nothing: the value
+    is valid, just unchecked, which is jsonschema's own behaviour for an unknown format.
     """
-    ctx.schemas["dhis2-shape"] = {
+    ctx.schemas["site-shape"] = {
         "type": "object",
-        "required": ["ou"],
-        "properties": {"ou": {"type": "string", "format": "dhis2-uid"}},
+        "required": ["site"],
+        "properties": {"site": {"type": "string", "format": "acme-site-id"}},
     }
     output = await call_block(
-        ValidateSchemaOperator(), {"input": {"ou": "not a uid at all"}, "schema": "dhis2-shape"}, ctx
+        ValidateSchemaOperator(), {"input": {"site": "not a site id at all"}, "schema": "site-shape"}, ctx
     )
     assert isinstance(output, ValidateSchemaOutput)
-    assert output.value == {"ou": "not a uid at all"}
+    assert output.value == {"site": "not a site id at all"}
 
 
 async def test_a_nested_failure_names_the_deep_path(ctx: FakeContext) -> None:

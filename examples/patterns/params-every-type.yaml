@@ -19,8 +19,8 @@
 # Where they do assert is validate.schema, which is handed the instance's format checker --
 # the standard formats from the library (date, date-time, time, duration, email, uri, uuid,
 # ipv4, hostname, regex, json-pointer), the ones dirigent adds (ulid, uuid4, uuid7, md5, sha1,
-# sha256, sha512, base64), and whatever a plugin pack contributes, which is how dhis2-uid
-# comes to be a format a pipeline can gate on. So a parameter that genuinely has to be a date
+# sha256, sha512, base64), and whatever a plugin pack contributes, which is how a pack's
+# own format comes to be a format a pipeline can gate on. So a parameter that genuinely has to be a date
 # gets a gate, and this file has one: a pattern is the other answer, and it asserts in the
 # parameter schema itself.
 #

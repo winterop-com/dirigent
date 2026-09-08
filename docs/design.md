@@ -90,7 +90,7 @@ output: same class, no separate concept.
 
 **A sensor observes the world; it changes nothing.** `poke` is read-only, short (seconds,
 never sleeps), and callable an unlimited number of times. Its success value is the
-observation itself, passed downstream like any output. A poke that raises is an error
+order itself, passed downstream like any output. A poke that raises is an error
 (subject to the step's retry policy); returning `NotYet` is not an error and consumes no
 retry budget. `NotYet` may carry a `message` and a `progress` like a probe's result, and the
 engine keeps the latest of each on the waiting attempt and logs the message when it changes.
@@ -140,7 +140,7 @@ something, so the two kinds are named differently: **a sensor reads as a conditi
 (`storage.copy`, `http.request`, `shell.run`, `docker.run`, `webhook.post`). An adapter pack
 that ignores this makes every document that uses it harder to read, because a step's kind
 then has to be looked up in the catalog rather than read off the page. The prefix before the
-dot names the system or the surface (`http`, `storage`, `docker`, `dhis2`), and the segment
+dot names the system or the surface (`http`, `storage`, `docker`, `acme`), and the segment
 after it is the verb or the condition.
 
 **Stability rules.** Block ids are public API: stored pipelines reference them as strings, so
@@ -252,20 +252,20 @@ A plugin package assembles its blocks into one `Contribution` and exposes it thr
 `dirigent.plugins.v1` entry-point group:
 
 ```python
-class Dhis2Plugin:
+class AcmePlugin:
     @extension
     def contribute(self) -> Contribution:
         return Contribution(
             api_version=1,
-            connection_kinds=[Dhis2ConnectionKind()],
-            operators=[Dhis2ExportOperator(), Dhis2ImportOperator()],
+            connection_kinds=[AcmeConnectionKind()],
+            operators=[AcmeOrdersOperator(), AcmeSitesOperator()],
         )
 
 
-plugin = Dhis2Plugin()
+plugin = AcmePlugin()
 
 # [project.entry-points."dirigent.plugins.v1"]
-# dhis2 = "dirigent_dhis2:plugin"
+# acme = "dirigent_acme:plugin"
 ```
 
 ## 3. Stack and workspace
@@ -324,7 +324,7 @@ an inventory of what an instance can do:
 | `dirigent-block-*` | Operators and sensors that need no credential of their own | `dirigent-block-parquet` |
 | `dirigent-storage-*` | A storage backend, registering a URI scheme | `dirigent-storage-s3` |
 | `dirigent-notify-*` | A notifier channel | `dirigent-notify-slack` |
-| `dirigent-<system>` | An adapter pack: one connection kind plus the blocks for one external system | `dirigent-dhis2` |
+| `dirigent-<system>` | An adapter pack: one connection kind plus the blocks for one external system | `dirigent-acme` |
 | `dirigent-<format>` | A format pack: a codec whose dependency the standard library does not carry | `dirigent-parquet` |
 
 The two contract packages sit outside that scheme, because neither contributes anything to an
@@ -390,7 +390,7 @@ watching `dg dev` sees them.
 
 What a run's own log *keeps* is the run's decision, block by block. A block logs at a level
 through `ctx.log` and stays unaware of any policy; the run carries a map of block-id pattern
-to level (`{"*": "debug"}`, `{"dhis2.*": "debug"}`), the most specific matching pattern wins,
+to level (`{"*": "debug"}`, `{"acme.*": "debug"}`), the most specific matching pattern wins,
 and an entry below the kept level is dropped where it is recorded. A run that asks for
 nothing keeps info and up, so debug is something a run asks for -- `dg run NAME --log-level
 debug`, the same flag on `dg schedule create` for the pipeline that only misbehaves at 3am
@@ -783,7 +783,7 @@ kind: triggers
 code: nightly-batch          # this document's own addressable key, unique among these
 name: Nightly batch clocks   # optional
 description: ...             # optional, markdown
-pipeline: dhis2-nightly-export
+pipeline: nightly-export
 triggers:
   schedules: [...]           # exactly the ScheduleSpec a pipeline document declares
   webhooks: [...]            # exactly the WebhookSpec
@@ -1100,7 +1100,7 @@ code: daily-climate-load               # the addressable key: URLs, references, 
 name: Daily climate load               # optional, human, referenced by nothing
 description: |                         # optional, long-form, markdown
   Waits for the day's drop, then pushes it region by region.
-tags: [climate, dhis2]                 # optional; what this is for, in the corpus's own words
+tags: [climate, nightly]               # optional; what this is for, in the corpus's own words
 concurrency: skip                      # allow | skip | queue | replace
 priority: normal                       # low | normal | high; a trigger or a run may override it
 
@@ -1196,7 +1196,7 @@ mean anything, and `tags:` is how a document says which handful of them belong t
 agreed on. A tag is lowercase letters, digits and hyphens, at most 32 characters, unique within
 the list, and at most sixteen to a document; the document owns them, so applying replaces the
 whole list the way it replaces the name and the description, and nothing edits them anywhere
-else. `GET /pipelines?tag=climate&tag=dhis2` narrows to the pipelines wearing both, and the
+else. `GET /pipelines?tag=climate&tag=nightly` narrows to the pipelines wearing both, and the
 listing screen and `dg pipeline list --tag` are that query. They are labels and not identity:
 nothing is ever referenced by a tag, and two pipelines wearing the same one are not related by
 it beyond having been called the same thing.
@@ -1462,7 +1462,7 @@ then `DIRIGENT_LOG_LEVEL`, then quiet.
 
   JWTs have a place, and it is the federation boundary rather than the internal format. When
   OIDC/SSO lands, the shape is to validate a token an identity provider signed (realistically
-  Keycloak, in the DHIS2 world this project comes from), map its subject onto a local user,
+  Keycloak), map its subject onto a local user,
   and then issue dirigent's own opaque credential for everything afterwards. JWT as the
   format two systems agree on, never as the format dirigent authenticates itself with. The
   whole argument, with the token lifecycle around it, is on [the security page](security.md).

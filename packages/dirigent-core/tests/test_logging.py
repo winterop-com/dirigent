@@ -230,12 +230,12 @@ def test_the_full_buffer_warning_survives_any_keep() -> None:
 
 def test_kept_level_resolves_the_most_specific_pattern() -> None:
     """The longest matching pattern wins, with the bare star last of all."""
-    levels = {"*": "warning", "dhis2.*": "debug", "dhis2.analytics_run": "error"}
+    levels = {"*": "warning", "acme.*": "debug", "acme.orders": "error"}
     assert kept_level(None, "shell.run") is LogLevel.INFO
     assert kept_level({}, "shell.run") is LogLevel.INFO
     assert kept_level(levels, "shell.run") is LogLevel.WARNING
-    assert kept_level(levels, "dhis2.data_set_complete") is LogLevel.DEBUG
-    assert kept_level(levels, "dhis2.analytics_run") is LogLevel.ERROR
+    assert kept_level(levels, "acme.sites") is LogLevel.DEBUG
+    assert kept_level(levels, "acme.orders") is LogLevel.ERROR
     assert kept_level({"http.*": "debug"}, "shell.run") is LogLevel.INFO
 
 

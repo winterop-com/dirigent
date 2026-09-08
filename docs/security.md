@@ -284,8 +284,7 @@ What remains is the indexed lookup on every request, and that is the cost the de
 deliberately, in exchange for the three things above.
 
 JWTs do have a place here, and it is the **federation boundary**. When OIDC/SSO lands, the
-shape is: validate a token an identity provider signed (realistically Keycloak, in the DHIS2
-world this project comes from), map its subject onto a local user, and then issue dirigent's
+shape is: validate a token an identity provider signed (realistically Keycloak), map its subject onto a local user, and then issue dirigent's
 own opaque credential for every request afterwards. JWT as the format two systems agree on,
 never as the format dirigent authenticates itself with. That keeps the revocation story, the
 audit trail, and the automation story intact, and confines the IdP's token to the one request

@@ -27,8 +27,8 @@ The documents live on topic shelves, each with its own README:
 | [`composition/`](composition) | Pipelines made of pipelines, and the handoff to a second instance. |
 | [`s3/`](s3) | Object storage through the `s3://` scheme, with no S3 block anywhere. |
 | [`demo/`](demo) | Surfaces shown off: the run form, rendered markdown, the requires preflight, the weekly-import shared-name pair. |
-| [`open-data/`](open-data) | Real feeds against public, mostly keyless APIs: weather, health indicators, maps, earthquakes, humanitarian data. |
-| [`validate/`](validate) | A gate that checks a value's shape and passes it through: `validate.schema`, including DHIS2 metadata. |
+| [`open-data/`](open-data) | Real feeds against public, mostly keyless APIs: acme, health indicators, maps, earthquakes, humanitarian data. |
+| [`validate/`](validate) | A gate that checks a value's shape and passes it through: `validate.schema`, with the shape carried and named. |
 
 **The tag rule.** Every document's `tags:` is drawn from one vocabulary of three groups and
 nothing else. The **shelf** is the directory the file sits in, exactly one, and every document
@@ -149,7 +149,7 @@ source -- so it lives here as a plain JSON Schema and is applied on its own, not
 pipeline document:
 
 ```bash
-dg schema create examples/schemas/dhis2-org-units.json
+dg schema create examples/schemas/ou-record.json
 ```
 
 A schema reads its own identity from its keywords: `$id` becomes the `code` it is addressed
@@ -263,7 +263,7 @@ what a failure looks like, so the seeded one is deliberately mixed:
 | What lands | How many | Why |
 | --- | --- | --- |
 | Pipelines stored | 132 | Every document here that an instance will hold |
-| Documents refused | 43 | Eighteen carry their own connections and eight their own schemas, which an instance will not store, so they run standalone instead: the DHIS2 ones in [validate/](validate), the three in [git/](git), two of the three in [sql/](sql), and the [recipes/](recipes), [patterns/](patterns) and [open-data/](open-data) files that carry one; two name a schema no instance here holds; six name a connection that does not exist, one of them (`warehouse-nobody-created`) built by the seed on purpose; two require a pipeline applied after them; and seven in [docker/](docker) name a compose or a build block the seed does not allowlist, two of those also naming a connection it does not create |
+| Documents refused | 38 | Thirteen carry their own connections and eight their own schemas, which an instance will not store, so they run standalone instead: the three in [git/](git), the three in [sql/](sql), and the [recipes/](recipes), [patterns/](patterns), [open-data/](open-data) and [validate/](validate) files that carry one; two name a schema no instance here holds; six name a connection that does not exist, one of them (`warehouse-nobody-created`) built by the seed on purpose; two require a pipeline applied after them; and seven in [docker/](docker) name a compose or a build block the seed does not allowlist, two of those also naming a connection it does not create |
 | Schedules | 17, all paused | `--paused` is what stops seventeen clocks starting to fire at somebody who has not looked at them |
 | Runs | 3 succeeded, 1 with errors, 2 failed | `hello-world`, `transform/jq-reshape.yaml` and `triggers/cron-windowed.yaml` settle green; `optional-step.yaml` settles `completed_with_errors`, which is a third status rather than a shade of failed; `error-handler.yaml` fails by design, and `s3-round-trip.yaml` cannot reach an object store nobody started |
 | Connections | 1 healthy, 3 red | `postman-echo` answers; `artifacts` points at `127.0.0.1:9000`, and `orders-topic` and `shop-queue` at the two brokers in `infra/compose.queues.yaml`, where nothing is listening unless you started what their headers document |

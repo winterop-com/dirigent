@@ -85,9 +85,9 @@ describe('the tags a filter can offer', () => {
     const wearing = (code: string, tags: string[]): PipelineOut => ({ ...ROW, id: code, code, tags })
 
     test('are the union of what the rows on screen wear, said once each', () => {
-        expect(tagsPresent([wearing('a', ['climate', 'http']), wearing('b', ['http', 'dhis2'])])).toEqual([
+        expect(tagsPresent([wearing('a', ['climate', 'http']), wearing('b', ['http', 'daily'])])).toEqual([
             'climate',
-            'dhis2',
+            'daily',
             'http',
         ])
     })

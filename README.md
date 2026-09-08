@@ -136,9 +136,10 @@ Every block, with the config it takes and the output it produces, is in
 
 None of this exists yet, and the order is roughly the order it is wanted in.
 
-- **Adapter packs.** DHIS2 today, more adapters to come, each its own package on the plugin
-  contract that already exists. The DHIS2 pack lives in the `winterop-com/dirigent-dhis2`
-  repository.
+- **Adapter packs.** An adapter is a pack, each its own package on the plugin contract that
+  already exists; the DHIS2 one is
+  [dirigent-dhis2](https://github.com/winterop-com/dirigent-dhis2), and
+  [docs/plugins.md](docs/plugins.md) says how to write one.
 - **The tabular half of the transform family.** More codecs beside `convert.std` and
   `convert.arrow`, an engine that runs a language runtime, and SQL over files: a duckdb-backed
   block reading parquet or CSV from a storage URI.
@@ -196,9 +197,8 @@ dg run --local examples/graph/linear.yaml -p day=2026-01-01 --enable-unsafe shel
 dg run --local examples/failure/retries.yaml          # watch the retry policy fire, then give up
 ```
 
-The `winterop-com/dirigent-dhis2` repository goes further: real pipelines against the public
-DHIS2 demo, each carrying the connection it needs so it runs with nothing to set up. They are
-what an adapter pack should one day replace, written with generic blocks in the meantime.
+An adapter pack ships its own shelf beside these, with pipelines against a real instance of
+the system it adapts.
 
 A test walks the directory on every CI run -- validation against the real catalog, the
 `requires` preflight, and a canonical round trip -- so no example can rot in silence.

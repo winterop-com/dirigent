@@ -483,7 +483,7 @@ A pack, or anything else a deployment adds, is one more layer:
 
 ```dockerfile
 FROM ghcr.io/winterop-com/dirigent:<version>
-RUN uv pip install dirigent-dhis2
+RUN uv pip install dirigent-<pack>
 ```
 
 `dg init --template compose` writes exactly this: a `Dockerfile` that is `FROM` the published

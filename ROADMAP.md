@@ -94,16 +94,12 @@ CLAUDE.md first, commit signed with conventional messages, every change ships wi
 `make test-postgres` stay green, coverage stays at or above 90, `mkdocs build --strict`
 stays clean, and every example stays executable.
 
-1. **M4 adapter packs.** dirigent-dhis2 has moved out to its own repository, owning its
-   blocks, examples and tests and self-testing against `dirigent-plugin`'s main;
+1. **M4 adapter packs.** The first adapter pack has moved out to its own repository, owning
+   its blocks, examples and tests and self-testing against `dirigent-plugin`'s main;
    `dirigent-integration` assembles the whole set and proves it composes. Every further pack
    takes the same shape: its own repository, its own examples, wired through a connection
-   kind, with a client written fresh or wrapping a stable one. Version handling is structural:
-   dirigent-dhis2 keys payload shapes off the instance major from `/api/system/info` (per
-   dhis2w-client, not `/api/N` path versioning) and pairs examples with version-pinned schemas
-   as the regression guard. Still open for the program: the DHIS2 example blitz (many small,
-   single-operation examples), the `dhis2-uid` format checker on the `formats` contribution
-   surface, and generalising `dirigent-integration`'s dev-dep filter beyond `dhis2w-`.
+   kind, with a client written fresh or wrapping a stable one. Still open for the program:
+   generalising `dirigent-integration`'s dev-dep filter beyond one pack's client prefix.
 2. **M5 hardening.** Log batching under load.
 3. **Post-M5.** Split dirigent-blocks into family packages (dirigent-block-http,
    dirigent-block-storage, ...) under an umbrella. Invisible to stored pipelines, because

@@ -227,8 +227,8 @@ def test_the_refusal_names_the_tag_as_it_was_written_and_states_the_rule() -> No
 
 
 def test_a_tag_may_carry_digits_and_inner_hyphens() -> None:
-    assert tagged(["dhis2", "weekly-import", "v2-beta", "2024-archive"]).tags == [
-        "dhis2",
+    assert tagged(["s3", "weekly-import", "v2-beta", "2024-archive"]).tags == [
+        "s3",
         "weekly-import",
         "v2-beta",
         "2024-archive",
@@ -236,7 +236,7 @@ def test_a_tag_may_carry_digits_and_inner_hyphens() -> None:
 
 
 def test_a_tag_is_lowercased_at_validation_so_every_comparison_after_it_is_exact() -> None:
-    assert tagged(["DHIS2", "Weekly-Import"]).tags == ["dhis2", "weekly-import"]
+    assert tagged(["S3", "Weekly-Import"]).tags == ["s3", "weekly-import"]
 
 
 def test_two_spellings_of_one_tag_are_the_same_tag_declared_twice() -> None:
