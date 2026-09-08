@@ -65,7 +65,7 @@ async def test_a_command_that_outlives_its_timeout_is_killed_as_transient(local_
     assert "did not finish" in str(raised.value)
 
 
-async def test_the_command_runs_inside_the_run_scratch_space(local_ctx: FakeContext) -> None:
+async def test_the_command_runs_inside_the_run_work_directory(local_ctx: FakeContext) -> None:
     output = await run(local_ctx, ShellRunConfig(command="pwd"))
     assert "runs/one/shell" in output.stdout
 

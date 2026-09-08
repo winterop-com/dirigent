@@ -108,7 +108,7 @@ dg connection check build-daemon
 
 `tls_key` and `password` are **sealed**: encrypted at rest, redacted in every API response, and
 never an argument or an inherited variable. Each reaches the CLI and the Engine API as a 0600
-file in a 0700 directory under the run's scratch space -- the TLS triple as `DOCKER_CERT_PATH`,
+file in a 0700 directory under the run's work directory -- the TLS triple as `DOCKER_CERT_PATH`,
 the login as a `DOCKER_CONFIG` of its own -- and both directories are removed when the step
 leaves, on success, on failure and on cancellation.
 
@@ -226,7 +226,8 @@ build:
     push: true
 ```
 
-The step logs in against a `DOCKER_CONFIG` directory of its own under scratch, with the
+The step logs in against a `DOCKER_CONFIG` directory of its own under the run's work
+directory, with the
 password on stdin rather than in an argument, pushes each tag with `docker push`, and logs out
 again; the directory goes with the step. The worker's own docker config is never written to and
 no session survives the step. The output carries `pushed`, the tags that reached the registry,

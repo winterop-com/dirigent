@@ -1,4 +1,4 @@
-"""Tests for the sql family, against a SQLite and a duckdb file in the run's scratch space."""
+"""Tests for the sql family, against a SQLite and a duckdb file in the run's work directory."""
 
 import base64
 import json
@@ -27,7 +27,7 @@ from dirigent_common import JsonMap
 from dirigent_plugin import BlockFailure, ErrorClass
 from dirigent_testing import FakeContext
 
-#: The database every test in this module builds, scratch-relative the way a document writes it.
+#: The database every test in this module builds, relative the way a document writes it.
 SQLITE = "sqlite+aiosqlite:///demo.db"
 
 
@@ -80,7 +80,7 @@ async def query(
 
 @pytest.fixture
 async def seeded(local_ctx: FakeContext) -> FakeContext:
-    """A context whose scratch space holds a two-row table."""
+    """A context whose work directory holds a two-row table."""
     connect(local_ctx)
     await execute(
         local_ctx,
@@ -312,7 +312,7 @@ async def test_a_check_of_a_database_that_is_not_there_is_red() -> None:
     assert report.detail
 
 
-async def test_a_check_says_a_scratch_relative_database_cannot_be_checked_outside_a_run() -> None:
+async def test_a_check_says_a_run_relative_database_cannot_be_checked_outside_a_run() -> None:
     report = await SqlConnectionKind().check(SqlConnectionConfig(url=SQLITE))
     assert not report.healthy
     assert "only inside a run" in (report.detail or "")
@@ -339,7 +339,7 @@ def _read(ctx: FakeContext, uri: str) -> str:
     return ctx.storage.path_for(uri).read_text()
 
 
-#: The duckdb database the engine's tests build, scratch-relative the way a document writes it.
+#: The duckdb database the engine's tests build, relative the way a document writes it.
 DUCKDB = "duckdb:///demo.duckdb"
 
 
@@ -352,7 +352,7 @@ def duck(ctx: FakeContext, url: str = DUCKDB, *, read_only: bool = False) -> Sql
 
 @pytest.fixture
 async def ducked(local_ctx: FakeContext) -> FakeContext:
-    """A context whose scratch space holds a duckdb file with a two-row table."""
+    """A context whose work directory holds a duckdb file with a two-row table."""
     duck(local_ctx)
     await execute(
         local_ctx,

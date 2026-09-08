@@ -28,7 +28,7 @@
 #
 # THE CREDENTIAL NEVER BECOMES AN ARGUMENT. The password is sealed on the connection, reaches
 # `docker login` on stdin, and lives in a DOCKER_CONFIG directory of its own under the run's
-# scratch space -- never the worker's own docker config. The step logs out and the directory
+# work directory -- never the worker's own docker config. The step logs out and the directory
 # goes when it leaves, so nothing about the login survives the step, and the password is
 # scrubbed out of every log line and every failure message.
 #

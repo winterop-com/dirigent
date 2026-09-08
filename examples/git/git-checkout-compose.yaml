@@ -1,6 +1,7 @@
 # A stack brought up from a compose file that lives in someone else's repository.
 #
-# The compose file is not in this document and was not written into scratch by an earlier
+# The compose file is not in this document and was not written into the work directory by an
+# earlier
 # step: it is a file in a public repository, and the checkout is what puts it somewhere the
 # compose CLI can open.
 #
@@ -13,20 +14,20 @@
 #   export DIRIGENT_ENABLED_UNSAFE_BLOCKS='["docker.compose.up","docker.compose.down","docker.run"]'
 #
 # Four hops, and what each one hands on:
-#   source    the repository, shallow, into ${run.scratch}/source/. Output: the commit and the
-#             scratch-relative target the compose step names a file inside.
+#   source    the repository, shallow, into source/ in the run's work directory. Output: the
+#             commit and the target the compose step names a file inside.
 #   stack     compose brought up from that file, detached, and left running for the rest of
 #             the run. Output: the services, the networks, and default_network.
 #   probe     a container on the stack's network, asking the service for a page.
 #   teardown  the same project down again, volumes included, on any outcome.
 #
-# THE PATH IS SCRATCH-RELATIVE ALL THE WAY THROUGH. docker.compose.up names a file inside the
-# run's scratch space, never an absolute path and never one that climbs out, and the checkout
-# landed the whole repository at "source". So the compose file is "source/<directory>/
-# compose.yaml" -- the repository's own layout, prefixed by where the checkout put it. The CLI
-# is always run with --project-directory set to the scratch root, so a compose file with
-# relative paths of its own resolves them against the run's space rather than its own
-# directory: a stack of pre-built images, like this one, is what that suits.
+# THE PATH IS WORK-DIRECTORY-RELATIVE ALL THE WAY THROUGH. docker.compose.up names a file
+# inside the run's work directory, never an absolute path and never one that climbs out, and
+# the checkout landed the whole repository at "source". So the compose file is
+# "source/<directory>/compose.yaml" -- the repository's own layout, prefixed by where the
+# checkout put it. The CLI is always run with --project-directory set to the work directory,
+# so a compose file with relative paths of its own resolves them against the run's directory
+# rather than its own: a stack of pre-built images, like this one, is what that suits.
 #
 # PIN THE REF FOR ANYTHING REAL. This one tracks the repository's default branch, which is
 # honest for an example and wrong for a pipeline you rely on: somebody else's commit would
@@ -73,7 +74,7 @@ params:
     compose_path:
       type: string
       default: source/wordpress-mysql/compose.yaml
-      description: The compose file to bring up, as a path under the run's scratch space.
+      description: The compose file to bring up, as a path under the run's work directory.
 
 steps:
   source:

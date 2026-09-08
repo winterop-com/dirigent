@@ -10,8 +10,8 @@ the block declares ``local_execution`` and the engine refuses it unless the inst
 its id.
 
 ``push`` needs a ``docker`` connection carrying a registry credential, and is refused without
-one. The login goes to a ``DOCKER_CONFIG`` directory of its own under scratch -- never the
-worker's own config -- with the password on stdin rather than in an argument, and the
+one. The login goes to a ``DOCKER_CONFIG`` directory of its own under the run's work directory --
+never the worker's own config -- with the password on stdin rather than in an argument, and the
 directory and the session in it go when the step leaves.
 """
 
@@ -56,7 +56,7 @@ class DockerBuildConfig(BlockModel):
     """Which context to build, with what Dockerfile, tags, and build arguments."""
 
     context: str
-    """The build context, as a directory inside the run's scratch space; never absolute, never climbing out."""
+    """The build context, as a directory inside the run's work directory; never absolute, never climbing out."""
 
     dockerfile: str = "Dockerfile"
     """The Dockerfile, as a path relative to the context."""
@@ -116,7 +116,7 @@ class DockerBuildConfig(BlockModel):
         for path in (self.context, self.dockerfile):
             if Path(path).is_absolute() or ".." in Path(path).parts:
                 raise ValueError(
-                    "the context and Dockerfile are paths inside the run's scratch space, so they "
+                    "the context and Dockerfile are paths inside the run's work directory, so they "
                     "cannot be absolute or climb out"
                 )
         reject_reserved(self.env_allowlist)
@@ -149,7 +149,7 @@ class DockerBuildOutput(BlockModel):
 
 
 class DockerBuildOperator(Operator[DockerBuildConfig, DockerBuildOutput]):
-    """Builds an image from a scratch context with buildx, behind the allowlist."""
+    """Builds an image from a context in the run's work directory with buildx, behind the allowlist."""
 
     spec = OperatorSpec(
         id="docker.build",

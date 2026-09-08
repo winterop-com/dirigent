@@ -2,11 +2,12 @@
 
 The `git.*` family puts an existing project into a run. It is one block today:
 
-- [`git.checkout`](blocks.md#gitcheckout) clones a repository at a ref into the run's scratch
-  space and reports the commit it landed on.
+- [`git.checkout`](blocks.md#gitcheckout) clones a repository at a ref into the run's work
+  directory and reports the commit it landed on.
 
 Nothing else could do that. `storage.copy` moves one object at a time, the compose and build
-blocks read only what is already under scratch, and `shell.run` with a `git clone` is an unsafe
+blocks read only what is already in the work directory, and `shell.run` with a `git clone` is
+an unsafe
 block on a worker that happens to have git and a network. With a checkout, a downstream
 [`docker.compose.up`](blocks.md#dockercomposeup) names its compose file, a
 [`docker.build`](blocks.md#dockerbuild) names its context, and a transform names its files, all
@@ -19,8 +20,8 @@ not do.
 ## This is an ordinary block
 
 `git.checkout` does **not** declare `local_execution`, so no instance has to allowlist it. That
-is a claim about the grant, not a convenience: the block writes only under the run's scratch
-space and reaches only the remote its connection names. It runs no command a document supplies,
+is a claim about the grant, not a convenience: the block writes only under the run's work
+directory and reaches only the remote its connection names. It runs no command a document supplies,
 inherits no worker environment a document names, and has no way to reach the host beyond git's
 own network call. "Can edit pipelines" therefore does not become "can run code on the worker",
 which is the boundary the unsafe allowlist exists to hold.
@@ -65,13 +66,13 @@ A credential reaches git, and reaches nothing else. In one paragraph:
 
 **Never in argv.** Every process on the host can read another's command line, so nothing
 secret is ever an argument. A token is written into a directory of its own under the run's
-scratch space, created `0700`, holding two `0600` files and a `0700` `GIT_ASKPASS` helper that
+work directory, created `0700`, holding two `0600` files and a `0700` `GIT_ASKPASS` helper that
 `cat`s the right one when git asks for a username or a password -- so the token is not in the
 environment either, only in a file that one process may read. An ssh key is a `0600` file in
 the same directory, named by `GIT_SSH_COMMAND`, with `IdentitiesOnly=yes` and `BatchMode=yes`
 so ssh uses that key and never prompts. **Never in the checkout.** The remote is handed to git
 with any userinfo stripped, and that stripped URL is what the clone writes into `.git/config`
-and what the block reports as `remote`: a later reader of the run's scratch space finds no
+and what the block reports as `remote`: a later reader of the run's work directory finds no
 credential there. **Never in the log.** The token, the key, and the key's path are all scrubbed
 out of every log line and every failure message the step produces, replaced by `***`.
 **Never past the step.** The private directory is removed when the step leaves,
@@ -111,10 +112,10 @@ steps:
 ```
 
 On the reference stack this is what makes a checkout visible to the docker family at all. The
-worker's daemon is a `docker:dind` sidecar, and it mounts the same `artifacts` volume at the
-same path as the worker, so a directory the checkout wrote is a directory the daemon can read.
+worker's daemon is a `docker:dind` sidecar, and it mounts the same `work` volume at the same
+path as the worker, so a directory the checkout wrote is a directory the daemon can read.
 A bind mount is resolved on the *daemon's* filesystem: point a worker at a daemon that cannot
-see the artifact root and a build context under scratch is an empty directory. See
+see the work root and a build context under it is an empty directory. See
 [docker.md](docker.md#the-daemon-these-blocks-reach).
 
 ## Refs, depth and submodules

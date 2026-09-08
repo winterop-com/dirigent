@@ -1,7 +1,7 @@
 # A database built, written and read back inside one run, with every value bound.
 #
 # NEEDS NOTHING: no network, no daemon, no server, no allowlist. The database is a SQLite file
-# in the run's own scratch space, and both sql blocks are ordinary.
+# in the run's own work directory, and both sql blocks are ordinary.
 #   dg run --local examples/sql/sql-sqlite-roundtrip.yaml
 # docs/sql.md is the family's home.
 #
@@ -21,7 +21,7 @@
 # `dg connection create sql ...` and the document would name it and stop there.
 #
 # WHY THE URL IS RELATIVE. A sqlite database written with a relative path is resolved against
-# the run's scratch space, so this run builds its database, uses it, and leaves it with
+# the run's work directory, so this run builds its database, uses it, and leaves it with
 # everything else the run wrote. That is what makes this example runnable anywhere with no
 # setup at all; a real pipeline names a database that already exists.
 #
@@ -41,7 +41,7 @@ format: dirigent/v1
 kind: pipeline
 code: sql-sqlite-roundtrip
 name: Write a table and read it back
-description: Create a SQLite database in the run's scratch space, insert rows with bound parameters, and read them back.
+description: Create a SQLite database in the run's work directory, insert rows with bound parameters, and read them back.
 
 tags: [sql]
 
@@ -55,7 +55,7 @@ connections:
   scratch-db:
     kind: sql
     config:
-      # Relative, so it lands in this run's scratch space and needs nothing on the host. The
+      # Relative, so it lands in this run's work directory and needs nothing on the host. The
       # driver is written out because these blocks speak to a database over an async one, and
       # a url without one is refused when the connection is written.
       url: sqlite+aiosqlite:///demo.db

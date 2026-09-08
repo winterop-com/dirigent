@@ -1,7 +1,7 @@
 # A result too big to carry: the rows stream to storage as NDJSON instead of into the output.
 #
 # NEEDS NOTHING: no network, no daemon, no server, no allowlist. The database is a SQLite file
-# in the run's own scratch space and so is the file the rows land in.
+# in the run's own work directory, and the rows land in the run's scratch space.
 #   dg run --local examples/sql/sql-query-to-storage.yaml
 # docs/sql.md is the family's home.
 #
@@ -57,7 +57,7 @@ connections:
   scratch-db:
     kind: sql
     config:
-      # Relative, so the database lands in this run's scratch space and needs nothing on the
+      # Relative, so the database lands in this run's work directory and needs nothing on the
       # host. The same connection as the roundtrip example, for the same reason.
       url: sqlite+aiosqlite:///demo.db
 

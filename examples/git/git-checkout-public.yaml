@@ -1,4 +1,4 @@
-# A public repository checked out into the run's scratch space, and the commit it landed on.
+# A public repository checked out into the run's work directory, and the commit it landed on.
 #
 # NEEDS NETWORK from the worker to github.com, and nothing else: git.checkout is an ordinary
 # block, so no id has to be allowlisted and no daemon has to be reachable.
@@ -6,7 +6,8 @@
 # docs/git.md is the family's home.
 #
 # Two hops, and what each one hands on:
-#   checkout  the repository, shallow, at its default branch, in ${run.scratch}/checkout/.
+#   checkout  the repository, shallow, at its default branch, at checkout/ in the run's
+#             work directory.
 #             Output: commit, ref, target and remote.
 #   report    a constant step that reads those three fields, which is all it takes to prove
 #             they are references any downstream step can name.
@@ -20,11 +21,13 @@
 # name it and stop there. Public repositories need no credential at all, which is why there is
 # none here.
 #
-# WHERE IT LANDS. target is a path inside the run's scratch space -- never absolute, never
+# WHERE IT LANDS. target is a path inside the run's work directory -- never absolute, never
 # climbing out -- and left unset it is the step's own name, so this checkout is at
-# ${run.scratch}/checkout/. That relative path is the whole point of the block: a downstream
-# docker.build names it as a context, a docker.compose.up names a file inside it, and a
-# transform names its files, none of them knowing where the run's scratch space actually is.
+# checkout/. A checkout is a directory a tool opens rather than bytes in storage, which is
+# why it lands there and not under ${run.scratch}. That relative path is the whole point of
+# the block: a downstream docker.build names it as a context, a docker.compose.up names a
+# file inside it, and a transform names its files, none of them knowing where the run's work
+# directory actually is.
 #
 # SHALLOW BY DEFAULT. depth is 1 unless a document says otherwise, which fetches the one
 # commit the ref points at and none of its history. That is what a build wants and it is a
@@ -39,7 +42,7 @@ format: dirigent/v1
 kind: pipeline
 code: git-checkout-public
 name: Check a public repository out
-description: Clone a public repository at its default branch into the run's scratch space and report the commit.
+description: Clone a public repository at its default branch into the run's work directory and report the commit.
 
 tags: [git]
 
@@ -77,5 +80,5 @@ steps:
         ref: "${steps.checkout.output.ref}"
         # The remote as the output reports it, which is the URL with any credential stripped.
         remote: "${steps.checkout.output.remote}"
-        # Scratch-relative, which is the form every downstream block wants.
+        # Relative to the run's work directory, which is the form every downstream block wants.
         target: "${steps.checkout.output.target}"

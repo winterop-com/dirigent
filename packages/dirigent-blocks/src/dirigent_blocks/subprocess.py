@@ -3,7 +3,7 @@
 Three blocks run code on the worker -- ``shell.run`` a command, ``docker.compose`` the
 compose CLI, ``docker.build`` buildx -- and all three want the same containment: a process in
 a session of its own so what it starts dies with it, an environment built from an allowlist
-rather than inherited wholesale, and a workspace of its own inside the run's scratch space.
+rather than inherited wholesale, and a workspace of its own inside the run's work directory.
 That shared machinery lives here so a block is only the argv it assembles and the output it
 parses.
 """
@@ -38,11 +38,11 @@ def local_root(ctx: StepContext) -> Path:
 
 
 def segment(ctx: StepContext, name: str) -> str:
-    """The path this attempt's files sit at, relative to the run's scratch space.
+    """The path this attempt's files sit at, under either of the run's two roots.
 
-    ``{name}/{step}[/{item}]/attempt-{n}``. The scratch space is the run's, so the step key
-    and, inside a fan-out, the item id are what keep two steps of one run and two items of one
-    step out of each other's files and working directories.
+    ``{name}/{step}[/{item}]/attempt-{n}``. Both roots are the run's, so the step key and,
+    inside a fan-out, the item id are what keep two steps of one run and two items of one step
+    out of each other's files and working directories.
     """
     item = f"/{ctx.run_item_id}" if ctx.run_item_id is not None else ""
     return f"{name}/{ctx.step}{item}/attempt-{ctx.attempt}"

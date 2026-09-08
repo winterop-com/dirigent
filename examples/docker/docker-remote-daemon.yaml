@@ -23,7 +23,7 @@
 # too, because it joins a network the first daemon owns.
 #
 # tls_key is sealed: encrypted at rest, redacted in every API response, and reaching the CLI
-# only as a 0600 file under the run's scratch space that goes when the step leaves. A client
+# only as a 0600 file under the run's work directory that goes when the step leaves. A client
 # key for a docker daemon is a credential for root on whatever that daemon runs on.
 #
 # TO MAKE IT YOURS: point host at your own daemon. A daemon that needs no TLS -- an ssh://

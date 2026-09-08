@@ -116,7 +116,7 @@ exec git-upload-pack "$1"
 def slow_remote(ctx: FakeContext, remote: Remote, word: str, delay: str = "2") -> str:
     """The same bare repository behind that helper, as an ``ext::`` URL git will accept.
 
-    The ``ext`` transport is refused by default, and HOME is the run's scratch space, so the
+    The ``ext`` transport is refused by default, and HOME is the run's work directory, so the
     allowance goes in the config git reads there.
     """
     root = work_root(ctx)
@@ -308,7 +308,7 @@ async def test_a_shallow_checkout_carries_one_commit_and_a_full_one_carries_them
 
 async def test_submodules_are_checked_out_when_asked(local_ctx: FakeContext, tmp_path: Path, remote: Remote) -> None:
     # A submodule over a file:// URL is refused by default since git 2.38, and HOME is the
-    # run's scratch space, so the allowance goes in the config git reads there.
+    # run's work directory, so the allowance goes in the config git reads there.
     root = work_root(local_ctx)
     root.mkdir(parents=True, exist_ok=True)
     (root / ".gitconfig").write_text('[protocol "file"]\n\tallow = always\n')

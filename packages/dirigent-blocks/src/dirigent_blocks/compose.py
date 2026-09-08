@@ -121,13 +121,13 @@ class DockerComposeUpConfig(BlockModel):
     """Which compose file to bring up, under what project, with which flags."""
 
     file: str | None = None
-    """The compose file, as a path inside the run's scratch space; never absolute, never climbing out.
+    """The compose file, as a path inside the run's work directory; never absolute, never climbing out.
 
     Exactly one of ``file`` or ``content`` is given. This form is for a file an upstream step
-    produced, such as a ``storage.copy`` into scratch."""
+    produced, such as a ``git.checkout`` of the document's repository."""
 
     content: str | None = None
-    """The compose file inline, written into scratch before the CLI runs.
+    """The compose file inline, written into the run's work directory before the CLI runs.
 
     Exactly one of ``file`` or ``content`` is given. This form keeps a small stack in the
     pipeline document itself."""
@@ -142,7 +142,7 @@ class DockerComposeUpConfig(BlockModel):
     """Compose profiles to activate (``--profile``)."""
 
     env_files: list[str] = Field(default_factory=list[str])
-    """Env files for compose to read, as paths inside the run's scratch space (``--env-file``)."""
+    """Env files for compose to read, as paths inside the run's work directory (``--env-file``)."""
 
     env: dict[str, str] = Field(default_factory=dict[str, str])
     """Variables set for the CLI itself, such as those a compose file interpolates."""
@@ -212,16 +212,16 @@ class DockerComposeDownConfig(BlockModel):
     file: str | None = None
     """A compose file, only if the CLI needs ``-f`` to resolve the project; a project tears down
 
-    by its label alone otherwise. As a path inside the run's scratch space."""
+    by its label alone otherwise. As a path inside the run's work directory."""
 
     content: str | None = None
-    """A compose file inline, written to scratch, for the same reason as ``file``."""
+    """A compose file inline, written to the run's work directory, for the same reason as ``file``."""
 
     profiles: list[str] = Field(default_factory=list[str])
     """Compose profiles to activate, only meaningful alongside a ``file``."""
 
     env_files: list[str] = Field(default_factory=list[str])
-    """Env files for compose to read, as paths inside the run's scratch space (``--env-file``)."""
+    """Env files for compose to read, as paths inside the run's work directory (``--env-file``)."""
 
     env: dict[str, str] = Field(default_factory=dict[str, str])
     """Variables set for the CLI itself, such as those a compose file interpolates."""
@@ -256,7 +256,7 @@ class DockerComposeDownConfig(BlockModel):
 
     @model_validator(mode="after")
     def _check_shape(self) -> "DockerComposeDownConfig":
-        """Reject two compose-file forms at once, or a path that climbs out of scratch."""
+        """Reject two compose-file forms at once, or a path that climbs out of the work directory."""
         if self.file and self.content:
             raise ValueError("docker.compose.down takes at most one of file or content")
         _reject_escaping((self.file, *self.env_files))
@@ -283,7 +283,7 @@ class DockerComposeUpOutput(BlockModel):
     """Always true: the step returns only once the stack is up."""
 
     compose_file: str
-    """The compose file the CLI was given, as a path inside the run's scratch space.
+    """The compose file the CLI was given, as a path inside the run's work directory.
 
     A later step that needs the same document -- a ``docker.compose.down`` of a stack this step
     brought up from inline content -- passes this back as its own ``file``."""
@@ -377,7 +377,7 @@ class DockerComposeUpOperator(Operator[DockerComposeUpConfig, DockerComposeUpOut
             default_network=default_network,
             stdout_uri=stdout_uri,
             stderr_uri=stderr_uri,
-            compose_file=_scratch_relative(compose_file, root),
+            compose_file=_work_relative(compose_file, root),
         )
 
 
@@ -440,9 +440,9 @@ def _global_flags(
 ) -> list[str]:
     """The flags every compose invocation carries: the project, an optional file, profiles, env files.
 
-    ``--project-directory`` is the run's scratch space whatever directory the compose file itself
+    ``--project-directory`` is the run's work directory whatever directory the compose file itself
     sits in, so relative build contexts and env files in the document resolve against the run's
-    own space rather than against a generated file's directory.
+    own directory rather than against a generated file's directory.
     """
     flags = [*command_path, "--project-name", project, "--project-directory", str(root)]
     if compose_file is not None:
@@ -609,15 +609,15 @@ def _service_from(inspected: ContainerInspect) -> ComposeService:
     )
 
 
-# -- scratch and naming ----------------------------------------------------------
+# -- paths and naming ------------------------------------------------------------
 
 
 def _reject_escaping(paths: tuple[str | None, ...]) -> None:
-    """Refuse a scratch-relative path that is absolute or climbs out of the run's scratch space."""
+    """Refuse a work-directory-relative path that is absolute or climbs out of the run's work directory."""
     for path in paths:
         if path and (Path(path).is_absolute() or ".." in Path(path).parts):
             raise ValueError(
-                "a compose file or env file is a path inside the run's scratch space, so it cannot "
+                "a compose file or env file is a path inside the run's work directory, so it cannot "
                 "be absolute or climb out"
             )
 
@@ -628,11 +628,11 @@ def _workspace(ctx: StepContext) -> Path:
 
 
 def _compose_file(file: str | None, content: str | None, ctx: StepContext, root: Path) -> Path | None:
-    """Resolve the compose file: inline content, a named scratch file, or none.
+    """Resolve the compose file: inline content, a file named in the work directory, or none.
 
     Inline content is written under ``compose/{step}[/{item}]/attempt-{n}`` so two compose steps
     of one run, or two items of one fan-out, never write over each other's document. A named file
-    is the author's own path, which stays relative to the run's scratch space.
+    is the author's own path, which stays relative to the run's work directory.
     """
     if content is not None:
         directory = subprocess.workspace(ctx, "compose")
@@ -644,8 +644,8 @@ def _compose_file(file: str | None, content: str | None, ctx: StepContext, root:
     return None
 
 
-def _scratch_relative(path: Path, root: Path) -> str:
-    """A compose file's path as a later step would name it, relative to the run's scratch space."""
+def _work_relative(path: Path, root: Path) -> str:
+    """A compose file's path as a later step would name it, relative to the run's work directory."""
     return str(path.relative_to(root))
 
 
