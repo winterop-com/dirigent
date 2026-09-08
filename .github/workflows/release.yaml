@@ -52,8 +52,14 @@ jobs:
       - name: Build the bundle
         run: make ui
 
+      # One dist directory per package, so the publish job for a package uploads its own
+      # files and nothing else.
       - name: Build every wheel and sdist
-        run: uv build --all-packages
+        run: |
+          for package in packages/*/; do
+            name=$(basename "$package")
+            uv build --package "$name" --out-dir "dist/$name"
+          done
 
       - uses: actions/upload-artifact@v7
         with:
@@ -61,11 +67,27 @@ jobs:
           path: dist/
 
   pypi:
-    name: publish to PyPI
+    name: publish ${{ matrix.package }} to PyPI
     needs: build
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - dirigent-common
+          - dirigent-plugin
+          - dirigent-client
+          - dirigent-core
+          - dirigent-parquet
+          - dirigent-blocks
+          - dirigent-server
+          - dirigent-cli
+          - dirigent-storage-s3
+          - dirigent-testing
+    # One environment per package: PyPI's trusted publisher for a project is the tuple of
+    # repository, workflow and environment, and every package needs its own.
     environment:
-      name: pypi
+      name: pypi-${{ matrix.package }}
     permissions:
       id-token: write
     steps:
@@ -76,6 +98,8 @@ jobs:
 
       # No password: the action exchanges the runner's OIDC token with PyPI.
       - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/${{ matrix.package }}/
 
   image:
     name: publish the image
