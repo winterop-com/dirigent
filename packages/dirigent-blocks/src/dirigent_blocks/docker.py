@@ -376,7 +376,12 @@ class DockerRunConfig(BlockModel):
     """Files to stage into the read-only input mount, as ``name inside the mount -> storage URI``."""
 
     outputs: dict[str, str] = Field(default_factory=dict[str, str])
-    """Files the container writes to the output mount, as ``name inside the mount -> storage URI``."""
+    """Files the container writes to the output mount, as ``name inside the mount -> target``.
+
+    A target carrying a URI scheme is copied to storage, where it outlives the run. A target
+    without one is a path relative to the run's work directory on this worker, which is where
+    a later step's tool opens a file from: a build context, a compose file, a bind mount. Such
+    a path is never absolute and never climbs out of that directory."""
 
     inputs_path: str = "/dirigent/inputs"
     """Where the staged inputs appear inside the container."""
@@ -434,6 +439,14 @@ class DockerRunConfig(BlockModel):
         for name in (*self.inputs, *self.outputs):
             if not name or Path(name).is_absolute() or ".." in Path(name).parts:
                 raise ValueError("a mounted file is named inside its mount, so it cannot be absolute or climb out")
+        for target in self.outputs.values():
+            if "://" in target:
+                continue
+            if Path(target).is_absolute() or ".." in Path(target).parts:
+                raise ValueError(
+                    "an output without a URI scheme is a path inside the run's work directory, so it "
+                    "cannot be absolute or climb out"
+                )
         reject_reserved(self.env_allowlist)
         return self
 
@@ -472,7 +485,8 @@ class DockerRunOutput(BlockModel):
     container_id: str
     image: str
     outputs: dict[str, str] = Field(default_factory=dict[str, str])
-    """Where each declared output was written, by the name the config gave it."""
+    """Where each declared output was written, by the name the config gave it: the storage URI,
+    or the path relative to the run's work directory it landed at."""
 
 
 class DockerRunOperator(Operator[DockerRunConfig, DockerRunOutput]):
@@ -720,25 +734,34 @@ async def _stage_inputs(config: DockerRunConfig, ctx: StepContext, mounts: Mount
 
 
 async def _collect_outputs(config: DockerRunConfig, handle: RemoteHandle, ctx: StepContext) -> dict[str, str]:
-    """Move every declared output back into storage, so it outlives the container that wrote it."""
+    """Move every declared output out of the container's mount, to storage or to the work directory."""
     if not config.outputs:
         return {}
     directory = Path(handle.meta["outputs_dir"])
     collected: dict[str, str] = {}
-    for name, uri in config.outputs.items():
+    for name, target in config.outputs.items():
         produced = directory / name
         if not produced.is_file():
             raise BlockFailure(
                 f"the container did not write the declared output {name!r} to {config.outputs_path}",
                 error_class=ErrorClass.REJECTED,
             )
-        written = 0
-        with produced.open("rb") as source:
-            async with ctx.storage.open_write(uri) as sink:
+        if "://" in target:
+            written = 0
+            with produced.open("rb") as source:
+                async with ctx.storage.open_write(target) as sink:
+                    while chunk := source.read(COPY_CHUNK_BYTES):
+                        written += await sink.write(chunk)
+            ctx.log.info("output collected", name=name, uri=target, bytes_written=written)
+        else:
+            written = 0
+            destination = subprocess.local_root(ctx) / target
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            with produced.open("rb") as source, destination.open("wb") as sink:
                 while chunk := source.read(COPY_CHUNK_BYTES):
-                    written += await sink.write(chunk)
-        ctx.log.info("output collected", name=name, uri=uri, bytes_written=written)
-        collected[name] = uri
+                    written += sink.write(chunk)
+            ctx.log.info("output collected", name=name, path=target, bytes_written=written)
+        collected[name] = target
     return collected
 
 

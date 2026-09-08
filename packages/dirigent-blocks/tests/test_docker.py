@@ -201,6 +201,13 @@ def test_a_mount_that_climbs_out_of_its_directory_is_refused() -> None:
         DockerRunConfig(image="alpine", outputs={"../escape.txt": "file://x"})
 
 
+def test_an_output_landing_in_the_work_directory_cannot_be_absolute_or_climb_out() -> None:
+    with pytest.raises(ValidationError, match="cannot be absolute or climb out"):
+        DockerRunConfig(image="alpine", outputs={"result.txt": "/etc/passwd"})
+    with pytest.raises(ValidationError, match="cannot be absolute or climb out"):
+        DockerRunConfig(image="alpine", outputs={"result.txt": "../escape.txt"})
+
+
 def test_a_memory_limit_below_the_daemon_minimum_is_refused() -> None:
     with pytest.raises(ValidationError):
         DockerRunConfig(image="alpine", memory=1024)
@@ -693,6 +700,21 @@ async def test_fetch_collects_the_declared_outputs_back_into_storage(
     output = await DockerRunOperator().fetch(handle, config, local_ctx.as_context())
     assert output.outputs == {"result.txt": "file://out/result.txt"}
     assert local_ctx.storage.path_for("file://out/result.txt").read_bytes() == b"the answer\n"
+
+
+async def test_fetch_collects_an_output_without_a_scheme_into_the_work_directory(
+    daemon: FakeDaemon, local_ctx: FakeContext
+) -> None:
+    daemon.exited(0)
+    config = DockerRunConfig(image="alpine", outputs={"result.txt": "context/result.txt"})
+    handle = await DockerRunOperator().execute(config, local_ctx.as_context())
+    assert isinstance(handle, RemoteHandle)
+    produced = Path(handle.meta["outputs_dir"]) / "result.txt"
+    produced.write_bytes(b"the answer\n")
+
+    output = await DockerRunOperator().fetch(handle, config, local_ctx.as_context())
+    assert output.outputs == {"result.txt": "context/result.txt"}
+    assert (local_ctx.work / "context/result.txt").read_bytes() == b"the answer\n"
 
 
 async def test_a_declared_output_the_container_never_wrote_is_a_rejection(
