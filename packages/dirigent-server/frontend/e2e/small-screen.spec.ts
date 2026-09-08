@@ -104,10 +104,12 @@ test('a dialog fills the screen, with its verbs at the foot', async ({ page }) =
 
     const dialog = page.getByRole('dialog')
     await expect(dialog).toBeVisible()
-    const box = await dialog.boundingBox()
+    // The dialog scales in, so its box is read once every animation on it has finished.
     const window = page.viewportSize()
-    expect(box?.width).toBe(window?.width)
-    expect(box?.height).toBe(window?.height)
-    expect(Math.round(box?.x ?? -1)).toBe(0)
-    expect(Math.round(box?.y ?? -1)).toBe(0)
+    await expect
+        .poll(async () => {
+            const box = await dialog.boundingBox()
+            return box === null ? null : [Math.round(box.width), Math.round(box.height), Math.round(box.x), Math.round(box.y)]
+        })
+        .toEqual([window?.width, window?.height, 0, 0])
 })
