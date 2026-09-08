@@ -432,7 +432,7 @@ A `docker` connection carries the two docker credentials there are, and both are
 client TLS key that reaches a remote daemon, and the registry password a `docker.build` pushes
 with. Sealed means encrypted at rest, redacted in every API response, and never an argument or
 an inherited variable. Each reaches the CLI only as a 0600 file in a 0700 directory under the
-run's scratch space -- the key as `DOCKER_CERT_PATH`, the login as a `DOCKER_CONFIG` of its own
+run's work directory -- the key as `DOCKER_CERT_PATH`, the login as a `DOCKER_CONFIG` of its own
 -- and both directories are removed when the step leaves, whether it succeeded, failed or was
 cancelled. A push logs out before it returns, so the worker's own docker config is never
 written to and no session survives the step.
@@ -466,8 +466,8 @@ than the worker's process. An engine that runs behind no allowlist must not be a
 one.
 
 `shell.run` additionally passes only `PATH`, `LANG`, `LC_ALL`, and `TZ` plus whatever the
-allowlist names -- never the worker's environment wholesale -- and gets a scratch-scoped
-working directory it cannot climb out of.
+allowlist names -- never the worker's environment wholesale -- and gets a working directory
+of its own under the run's work directory that it cannot climb out of.
 
 It also gets a deadline it cannot outlive, and neither can anything it starts. The command
 runs in a session of its own, and that whole session is killed when the block's own timeout

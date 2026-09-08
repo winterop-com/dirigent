@@ -40,7 +40,7 @@ Two properties are worth reading before a block is used:
 | [`docker.compose.up`](#dockercomposeup) | operator | execute | Bring a compose stack up on the worker. | `builtin` |
 | [`docker.run`](#dockerrun) | operator | execute | Run a container on the worker. | `builtin` |
 | [`filter.jq`](#filterjq) | operator | transform | Keep the elements of a list a jq program answers true for. | `builtin` |
-| [`git.checkout`](#gitcheckout) | operator | git | Check a repository out into the run's scratch space. | `builtin` |
+| [`git.checkout`](#gitcheckout) | operator | git | Check a repository out into the run's work directory. | `builtin` |
 | [`http.ready`](#httpready) | sensor | http | Wait for an HTTP endpoint to report ready. | `builtin` |
 | [`http.request`](#httprequest) | operator | http | Call an HTTP endpoint. | `builtin` |
 | [`kafka.consume`](#kafkaconsume) | sensor | kafka | Wait for messages on a Kafka topic. | `builtin` |
@@ -122,7 +122,7 @@ Contributed by `builtin`. Not idempotent. **Runs code on the worker**, so the in
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `context` | `string` | yes |  | The build context, as a directory inside the run's scratch space; never absolute, never climbing out. |
+| `context` | `string` | yes |  | The build context, as a directory inside the run's work directory; never absolute, never climbing out. |
 | `dockerfile` | `string` |  | `"Dockerfile"` | The Dockerfile, as a path relative to the context. |
 | `tags` | `string[]` |  |  | Tags to give the built image (`--tag`); a later step references the image by one of them. |
 | `build_args` | `object of string` |  |  | Build arguments the Dockerfile reads (`--build-arg`). |
@@ -161,9 +161,9 @@ Contributed by `builtin`. Not idempotent. **Runs code on the worker**, so the in
 | --- | --- | --- | --- | --- |
 | `project_name` | `string or null` |  | `null` | The compose project (`-p`). Defaults to the same deterministic name `up` derives from |
 | `file` | `string or null` |  | `null` | A compose file, only if the CLI needs `-f` to resolve the project; a project tears down |
-| `content` | `string or null` |  | `null` | A compose file inline, written to scratch, for the same reason as `file`. |
+| `content` | `string or null` |  | `null` | A compose file inline, written to the run's work directory, for the same reason as `file`. |
 | `profiles` | `string[]` |  |  | Compose profiles to activate, only meaningful alongside a `file`. |
-| `env_files` | `string[]` |  |  | Env files for compose to read, as paths inside the run's scratch space (`--env-file`). |
+| `env_files` | `string[]` |  |  | Env files for compose to read, as paths inside the run's work directory (`--env-file`). |
 | `env` | `object of string` |  |  | Variables set for the CLI itself, such as those a compose file interpolates. |
 | `env_allowlist` | `string[]` |  |  | Worker environment variables the CLI is allowed to inherit; never the instance's `DIRIGENT_*`. |
 | `down_volumes` | `boolean` |  | `false` | Also remove the named volumes the stack declared (`-v`). |
@@ -193,11 +193,11 @@ Contributed by `builtin`. Not idempotent. **Runs code on the worker**, so the in
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `file` | `string or null` |  | `null` | The compose file, as a path inside the run's scratch space; never absolute, never climbing out. |
-| `content` | `string or null` |  | `null` | The compose file inline, written into scratch before the CLI runs. |
+| `file` | `string or null` |  | `null` | The compose file, as a path inside the run's work directory; never absolute, never climbing out. |
+| `content` | `string or null` |  | `null` | The compose file inline, written into the run's work directory before the CLI runs. |
 | `project_name` | `string or null` |  | `null` | The compose project (`-p`). Defaults to a deterministic name derived from the run id, |
 | `profiles` | `string[]` |  |  | Compose profiles to activate (`--profile`). |
-| `env_files` | `string[]` |  |  | Env files for compose to read, as paths inside the run's scratch space (`--env-file`). |
+| `env_files` | `string[]` |  |  | Env files for compose to read, as paths inside the run's work directory (`--env-file`). |
 | `env` | `object of string` |  |  | Variables set for the CLI itself, such as those a compose file interpolates. |
 | `env_allowlist` | `string[]` |  |  | Worker environment variables the CLI is allowed to inherit. |
 | `wait` | `boolean` |  | `false` | Wait until every service is running and healthy before the step returns (`--wait`). |
@@ -220,7 +220,7 @@ Contributed by `builtin`. Not idempotent. **Runs code on the worker**, so the in
 | `networks` | `string[]` |  |  | The docker networks the project's containers are attached to, by the names the daemon knows. |
 | `default_network` | `string` | yes |  | The project's default network, which a downstream `docker.run` names to join the stack. |
 | `up` | `boolean` |  | `true` | Always true: the step returns only once the stack is up. |
-| `compose_file` | `string` | yes |  | The compose file the CLI was given, as a path inside the run's scratch space. |
+| `compose_file` | `string` | yes |  | The compose file the CLI was given, as a path inside the run's work directory. |
 | `stdout_uri` | `string` | yes |  | Where the whole of the CLI's stdout was written. |
 | `stderr_uri` | `string` | yes |  | Where the whole of the CLI's stderr was written. |
 
@@ -298,7 +298,7 @@ Contributed by `builtin`. Idempotent.
 
 ### `git.checkout`
 
-Check a repository out into the run's scratch space.
+Check a repository out into the run's work directory.
 
 Contributed by `builtin`. Idempotent.
 
@@ -308,7 +308,7 @@ Contributed by `builtin`. Idempotent.
 | --- | --- | --- | --- | --- |
 | `connection` | `string` | yes |  | The `git` connection naming the remote and holding its credential. |
 | `ref` | `string or null` |  | `null` | The branch, tag or full commit sha to land on. Unset takes the remote's default branch. |
-| `target` | `string` |  | `""` | The directory the checkout lands in, inside the run's scratch space; never absolute, never climbing out. Empty takes the step's own name, so a step named `checkout` writes `checkout/` and a downstream `docker.build` names `checkout` as its context. |
+| `target` | `string` |  | `""` | The directory the checkout lands in, inside the run's work directory; never absolute, never climbing out. Empty takes the step's own name, so a step named `checkout` writes `checkout/` and a downstream `docker.build` names `checkout` as its context. |
 | `depth` | `integer` |  | `1` | How many commits of history to fetch. `1` is a shallow checkout of the ref alone, which is what a build wants; `0` fetches the whole history, which a step reading the log or describing a tag needs. |
 | `submodules` | `boolean` |  | `false` | Also check out the repository's submodules, recursively. |
 | `timeout` | `string (humane-duration)` |  | `"10m"` | The deadline on each git invocation, after which it is killed as transient. |
@@ -319,7 +319,7 @@ Contributed by `builtin`. Idempotent.
 | --- | --- | --- | --- | --- |
 | `commit` | `string` | yes |  | The full sha the checkout landed on, which is the only exact name for what was built. |
 | `ref` | `string` | yes |  | The ref that was asked for, or the default branch the clone landed on when none was. |
-| `target` | `string` | yes |  | The checkout's directory, scratch-relative, as a downstream block names it. |
+| `target` | `string` | yes |  | The checkout's directory, relative to the run's work directory, as a downstream block names it. |
 | `remote` | `string` | yes |  | The remote it came from, with any credential stripped. |
 | `stdout_uri` | `string` |  | `""` | Where the whole of the fetching command's stdout was written; empty when the checkout was already standing and nothing was fetched. |
 | `stderr_uri` | `string` |  | `""` | Where the whole of the fetching command's stderr was written, which is where git prints what it is doing; empty when the checkout was already standing and nothing was fetched. |
@@ -452,7 +452,7 @@ Contributed by `builtin`. Not idempotent. **Runs code on the worker**, so the in
 | --- | --- | --- | --- | --- |
 | `argv` | `string[]` |  |  | The command as an argument vector, which does not involve a shell. |
 | `command` | `string or null` |  | `null` | The command as a shell string, for when a pipe or a redirect is the point. |
-| `cwd` | `string or null` |  | `null` | A directory relative to the run's scratch space; never an absolute path. |
+| `cwd` | `string or null` |  | `null` | A directory relative to the run's work directory; never an absolute path. |
 | `env` | `object of string` |  |  | Variables set explicitly for this command. |
 | `env_allowlist` | `string[]` |  |  | Worker environment variables this command is allowed to inherit. |
 | `timeout` | `string (humane-duration)` |  | `"5m"` | How long the process may run before it is killed as a transient failure. |

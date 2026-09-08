@@ -185,7 +185,8 @@ class SqlConnectionKind(ConnectionKind):
         if _is_run_relative(url):
             return HealthReport(
                 healthy=False,
-                detail="a scratch-relative database file exists only inside a run, so there is nothing here to check",
+                detail="a database file relative to a run's work directory exists only inside a run, "
+                "so there is nothing here to check",
             )
         if url.get_backend_name() == DUCKDB:
             return await _duck_check(settings, url)

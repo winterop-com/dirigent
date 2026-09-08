@@ -12,8 +12,8 @@
 #   export DIRIGENT_ENABLED_UNSAFE_BLOCKS='["docker.run","docker.build"]'
 #
 # Three hops, and what each one hands on:
-#   source  the repository, shallow, into ${run.scratch}/source/. Output: the commit, and the
-#           scratch-relative path the build step names next.
+#   source  the repository, shallow, into source/ in the run's work directory. Output: the
+#           commit, and the path the build step names next.
 #   build   buildx builds that directory with the repository's own Dockerfile and loads the
 #           image into the worker's daemon store. Output: the image id, its size and its tags.
 #   smoke   the built image, run once, proving the project starts.
@@ -21,8 +21,8 @@
 # THE CHECKOUT IS WHAT MAKES THE BUILD POSSIBLE. docker.build takes a context DIRECTORY on the
 # worker's filesystem and has no inline form, so before this block existed a pipeline had to
 # put every file there itself, one storage.copy at a time. A checkout puts a whole repository
-# there in one step, and the build names it by the same scratch-relative path the checkout
-# reported.
+# there in one step, and the build names it by the same work-directory-relative path the
+# checkout reported.
 #
 # THE TAG IS THE CONTRACT. Nothing is pushed anywhere, so the image exists only in the store of
 # the daemon that built it, under the tag the build gave it. Both steps read that name from one
@@ -87,7 +87,8 @@ steps:
     depends_on: [source]
     deadline: 15m
     config:
-      # The checkout's directory, scratch-relative. The Dockerfile path is relative to it, and
+      # The checkout's directory, relative to the run's work directory. The Dockerfile path is
+      # relative to it, and
       # "Dockerfile" is already the default; it is written out here because the whole point is
       # that this is the repository's file and not one this pipeline invented.
       context: source

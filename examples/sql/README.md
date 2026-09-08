@@ -13,7 +13,7 @@ dg run --local examples/sql/sql-query-to-storage.yaml
 ```
 
 Those two need nothing at all -- no network, no daemon, no server. Each builds a SQLite
-database in the run's own scratch space, so the whole example is self-contained. The DuckDB one
+database in the run's own work directory, so the whole example is self-contained. The DuckDB one
 needs the engine (`dirigent-blocks[duckdb]`) and the parquet pack, and nothing else; the last
 names a real PostgreSQL and says so in its own header.
 

@@ -32,7 +32,7 @@ class ShellRunConfig(BlockModel):
     involves no shell at all."""
 
     cwd: str | None = None
-    """A directory relative to the run's scratch space; never an absolute path."""
+    """A directory relative to the run's work directory; never an absolute path."""
 
     env: dict[str, str] = Field(default_factory=dict[str, str])
     """Variables set explicitly for this command."""
@@ -52,7 +52,7 @@ class ShellRunConfig(BlockModel):
         if bool(self.argv) == bool(self.command):
             raise ValueError("shell.run takes either argv or command, and exactly one of them")
         if self.cwd and (Path(self.cwd).is_absolute() or ".." in Path(self.cwd).parts):
-            raise ValueError("cwd is a path inside the run's scratch space, so it cannot be absolute or climb out")
+            raise ValueError("cwd is a path inside the run's work directory, so it cannot be absolute or climb out")
         reject_reserved(self.env_allowlist)
         return self
 
@@ -91,7 +91,7 @@ class ShellRunOutput(BlockModel):
 
 
 class ShellRunOperator(Operator[ShellRunConfig, ShellRunOutput]):
-    """Runs a command on the worker, inside the run's scratch space and behind the allowlist."""
+    """Runs a command on the worker, inside the run's work directory and behind the allowlist."""
 
     spec = OperatorSpec(
         id="shell.run",

@@ -163,7 +163,7 @@ def test_up_requires_exactly_one_of_file_or_content() -> None:
         DockerComposeUpConfig(file="a.yaml", content="services: {}")
 
 
-def test_up_refuses_a_compose_file_that_climbs_out_of_scratch() -> None:
+def test_up_refuses_a_compose_file_that_climbs_out_of_the_work_directory() -> None:
     with pytest.raises(ValidationError, match="cannot be absolute or climb out"):
         DockerComposeUpConfig(file="/etc/compose.yaml")
     with pytest.raises(ValidationError, match="cannot be absolute or climb out"):

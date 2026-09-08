@@ -1,16 +1,17 @@
-"""``git.checkout``: put a repository at a ref into the run's scratch space.
+"""``git.checkout``: put a repository at a ref into the run's work directory.
 
 Nothing else can bring an existing project into a run. ``storage.copy`` moves one object at a
-time, the compose and build blocks read only what is already under scratch, and ``shell.run``
-with a ``git clone`` is an unsafe block on a worker that happens to have git and a network.
-This block clones into a scratch-relative directory and reports the commit it landed on, so a
-downstream ``docker.compose.up`` names its compose file, a ``docker.build`` names its context,
-and a transform names its files, all relative to that directory.
+time, the compose and build blocks read only what is already in the work directory, and
+``shell.run`` with a ``git clone`` is an unsafe block on a worker that happens to have git and
+a network. This block clones into a directory under the run's work directory and reports the
+commit it landed on, so a downstream ``docker.compose.up`` names its compose file, a
+``docker.build`` names its context, and a transform names its files, all relative to that
+directory.
 
-It is an **ordinary** block. It writes only under the run's scratch space and reaches only the
+It is an **ordinary** block. It writes only under the run's work directory and reaches only the
 remote its connection names, which is a narrower grant than ``shell.run`` and does not need the
-unsafe allowlist. It does need a ``file://`` scratch prefix, because a checkout is a directory
-on the worker's filesystem.
+unsafe allowlist. A checkout is a directory a tool opens, so it lands on the worker's own
+filesystem rather than in storage, and a step that reads it runs on the same worker.
 
 The credential never becomes an argument. A token reaches git through a ``GIT_ASKPASS`` helper
 that reads it out of a file in a 0700 directory of its own; an ssh key is a 0600 file that
@@ -184,7 +185,7 @@ class GitCheckoutConfig(BlockModel):
     """The branch, tag or full commit sha to land on. Unset takes the remote's default branch."""
 
     target: str = ""
-    """The directory the checkout lands in, inside the run's scratch space; never absolute,
+    """The directory the checkout lands in, inside the run's work directory; never absolute,
     never climbing out. Empty takes the step's own name, so a step named ``checkout`` writes
     ``checkout/`` and a downstream ``docker.build`` names ``checkout`` as its context."""
 
@@ -201,10 +202,10 @@ class GitCheckoutConfig(BlockModel):
 
     @model_validator(mode="after")
     def _check_shape(self) -> "GitCheckoutConfig":
-        """Refuse a target that is absolute or climbs out of the run's scratch space."""
+        """Refuse a target that is absolute or climbs out of the run's work directory."""
         if self.target and (Path(self.target).is_absolute() or ".." in Path(self.target).parts):
             raise ValueError(
-                "a checkout target is a path inside the run's scratch space, so it cannot be absolute or climb out"
+                "a checkout target is a path inside the run's work directory, so it cannot be absolute or climb out"
             )
         return self
 
@@ -219,7 +220,7 @@ class GitCheckoutOutput(BlockModel):
     """The ref that was asked for, or the default branch the clone landed on when none was."""
 
     target: str
-    """The checkout's directory, scratch-relative, as a downstream block names it."""
+    """The checkout's directory, relative to the run's work directory, as a downstream block names it."""
 
     remote: str
     """The remote it came from, with any credential stripped."""
@@ -234,11 +235,11 @@ class GitCheckoutOutput(BlockModel):
 
 
 class GitCheckoutOperator(Operator[GitCheckoutConfig, GitCheckoutOutput]):
-    """Clones a repository at a ref into the run's scratch space and reports the commit."""
+    """Clones a repository at a ref into the run's work directory and reports the commit."""
 
     spec = OperatorSpec(
         id="git.checkout",
-        summary="Check a repository out into the run's scratch space.",
+        summary="Check a repository out into the run's work directory.",
         idempotent=True,
     )
     config_model: ClassVar[type[BaseModel]] = GitCheckoutConfig
@@ -405,7 +406,7 @@ class _Git:
 async def _standing(git: _Git, config: GitCheckoutConfig, destination: Path, remote: str) -> bool:
     """Whether the target already holds a working tree at the commit being asked for.
 
-    A retry of a step, or a second run into a scratch space that already holds the checkout,
+    A retry of a step, or a second run into a work directory that already holds the checkout,
     should cost one ref listing rather than a second clone. Anything that is not a working
     tree at the wanted commit answers false, and the target is then rebuilt from scratch.
     """
@@ -459,7 +460,7 @@ def public_url(url: str) -> str:
     """The remote with any userinfo removed, which is what git and the output are both given.
 
     A URL that carries its own credential would put it in the checkout's ``.git/config``,
-    where it outlives the step and reaches every later reader of the scratch space.
+    where it outlives the step and reaches every later reader of the work directory.
     """
     split = urlsplit(url)
     if not split.scheme or "@" not in split.netloc:
