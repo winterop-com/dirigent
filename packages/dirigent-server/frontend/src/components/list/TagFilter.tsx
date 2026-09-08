@@ -15,7 +15,7 @@ import {
  * SEVERAL TAGS NARROW. `tag` repeats on the wire and repeating it means and, so this is a set
  * and not a choice: the menu checks what is chosen, and every chosen tag stands beside it as a
  * chip that removes itself. A control that could hold only one would ask a question the API
- * does not, and "the nightly weather imports" is an intersection.
+ * does not, and "the nightly acme imports" is an intersection.
  *
  * THE MENU IS EVERY TAG THE INSTANCE WEARS, not the tags on the rows that came back: choosing
  * one narrows the listing on the server, so a menu built from the answer would drop the tag

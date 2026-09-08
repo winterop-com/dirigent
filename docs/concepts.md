@@ -48,18 +48,18 @@ than by name alone. Tags live in the document, so they version and apply like ev
 about a pipeline, and a second apply says what they are now rather than what to add.
 
 ```yaml
-tags: [weather, nightly]
+tags: [acme, nightly]
 ```
 
 A tag is **normalised at apply**: it is lowercased, and what is left must be letters, digits
-and hyphens, start with a letter or digit, and be at most 32 characters. `tags: [Weather]` is
-stored as `weather`; `tags: [nightly import]` is refused at validation, at `tags[0]`, with the
+and hyphens, start with a letter or digit, and be at most 32 characters. `tags: [Acme]` is
+stored as `acme`; `tags: [nightly import]` is refused at validation, at `tags[0]`, with the
 tag named and the rule stated. Comparison is exact from then on, so nothing downstream has to
 reapply the rule. A document wears at most 16 of them, and says each one once.
 
-Tags **narrow**: `GET /pipelines?tag=weather&tag=nightly`, `dg pipeline list --tag weather --tag
+Tags **narrow**: `GET /pipelines?tag=acme&tag=nightly`, `dg pipeline list --tag acme --tag
 nightly` and two chips on the pipelines screen all list the pipelines wearing *both*, because
-"the nightly weather imports" is an intersection. The runs listing takes the same filter through
+"the nightly acme imports" is an intersection. The runs listing takes the same filter through
 the run's pipeline -- `GET /runs?tag=nightly&status=failed`, `dg runs list --tag nightly
 --status failed` -- and asks what that pipeline wears now: a run pins the version it started
 from, never its pipeline's tags, so retagging a pipeline moves its whole history with it.

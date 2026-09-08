@@ -7,8 +7,8 @@ entry point. A pack lives in its own repository, is installed into an instance's
 and is wired in by that entry point alone. Install is the whole of configuration.
 
 `dirigent-plugin` is the contract a pack builds against. The worked example throughout this page
-is `dirigent-weather`, a pack for an imaginary weather service: it contributes a `weather`
-connection kind, the `weather.*` blocks that speak to it, and the `weather-station-id` format.
+is `dirigent-acme`, a pack for an imaginary vendor, Acme: it contributes an `acme`
+connection kind, the `acme.*` blocks that speak to it, and the `acme-site-id` format.
 
 ## The seam is one entry point
 
@@ -18,7 +18,7 @@ plugin object:
 ```toml
 # the pack's pyproject.toml
 [project.entry-points."dirigent.plugins.v1"]
-weather = "dirigent_weather:plugin"
+acme = "dirigent_acme:plugin"
 ```
 
 That object exposes one `@extension`-marked method returning a `Contribution`:
@@ -27,18 +27,18 @@ That object exposes one `@extension`-marked method returning a `Contribution`:
 from dirigent_plugin import Contribution, extension
 
 
-class WeatherPlugin:
+class AcmePlugin:
     @extension
     def contribute(self) -> Contribution:
         return Contribution(
-            operators=[WeatherStationsOperator(), WeatherObservationsOperator(), ...],
-            sensors=[WeatherStationReportingSensor()],
-            connection_kinds=[WeatherConnectionKind()],
-            formats={"weather-station-id": is_station_id},
+            operators=[AcmeSitesOperator(), AcmeOrdersOperator(), ...],
+            sensors=[AcmeOrderShippedSensor()],
+            connection_kinds=[AcmeConnectionKind()],
+            formats={"acme-site-id": is_site_id},
         )
 
 
-plugin = WeatherPlugin()
+plugin = AcmePlugin()
 ```
 
 At startup the host (`dirigent_core.plugins.load_plugin_host`, built on pluginkit's
@@ -51,7 +51,7 @@ by string forever.
 So adding a pack to any instance is:
 
 ```bash
-uv add dirigent-weather
+uv add dirigent-acme
 ```
 
 into the same environment, then a restart. It appears in `dg blocks` and as a connection kind
@@ -175,7 +175,7 @@ contract. A formatter renders a record kind it has never heard of rather than fa
 The surfaces are the vocabulary; the connecting happens in a pipeline. A **connection kind**
 plus the **blocks** that speak it bring one external system into reach. From there, packs
 compose without knowing about each other: every block reads `${steps.<name>.output...}` and
-writes a typed output, so a `weather` export can feed a `convert` transform, feed an `s3` write,
+writes a typed output, so an `acme` export can feed a `convert` transform, feed an `s3` write,
 feed an `http.request` post -- three packs meeting only through the run's data plane and the
 shared step context.
 
@@ -227,20 +227,20 @@ is mechanical:
 The result is that a new integration is a repository, an entry point, and an install,
 developed and tested on its own cadence and wired into any instance the moment it is present.
 
-## Using a pack end to end: the weather adapter
+## Using a pack end to end: the Acme adapter
 
-From an empty directory to a running weather pipeline.
+From an empty directory to a running acme pipeline.
 
 ### 1. A project and an instance
 
 ```bash
 uv init flows && cd flows
-uv add dirigent-cli dirigent-weather   # dirigent-cli brings the server, engine and built-in blocks; dirigent-weather is the adapter
+uv add dirigent-cli dirigent-acme   # dirigent-cli brings the server, engine and built-in blocks; dirigent-acme is the adapter
 uv run dg init                         # scaffolds an instance, a first admin, and an example document
 ```
 
-`uv add dirigent-weather` is the whole of installing the adapter: the entry point it declares is
-what the instance discovers at startup, so `dg blocks` lists the `weather.*` blocks and `weather`
+`uv add dirigent-acme` is the whole of installing the adapter: the entry point it declares is
+what the instance discovers at startup, so `dg blocks` lists the `acme.*` blocks and `acme`
 appears as a connection kind, with nothing registered by hand. A pack added to an instance
 that is already running is picked up on the next restart.
 
@@ -250,12 +250,12 @@ The credential lives in one connection, created once; documents name it by code 
 carry it:
 
 ```bash
-uv run dg connection create weather weather-prod \
-  --set base_url=https://api.weather.example/v2 \
+uv run dg connection create acme acme-prod \
+  --set base_url=https://api.acme.example/v2 \
   --set basic_username=ops --set basic_password=district
 # or a personal access token instead of basic auth:
 #   --set api_token=<PAT>
-uv run dg connection check weather-prod     # confirms the credential and reports the server version
+uv run dg connection check acme-prod     # confirms the credential and reports the server version
 ```
 
 On a terminal a missing secret is prompted for; in a script every value arrives via `--set`.
@@ -266,12 +266,12 @@ To catch a change in the service's payload at the boundary, hold the expected sh
 and gate on it (see [JSON Schema](json-schema.md)):
 
 ```bash
-uv run dg schema create schemas/weather-stations.json
+uv run dg schema create schemas/acme-sites.json
 ```
 
 ### 4. A pipeline
 
-A document that reads the station list, checks its shape, and exports a day of observations to
+A document that reads the site list, checks its shape, and exports a day of orders to
 storage, naming the connection by code:
 
 ```yaml
@@ -279,30 +279,30 @@ format: dirigent/v1
 kind: pipeline
 code: nightly-export
 requires:
-  blocks: [weather.stations, validate.schema, weather.observations]
-  schemas: [weather-stations]
+  blocks: [acme.sites, validate.schema, acme.orders]
+  schemas: [acme-sites]
 steps:
-  stations:
-    block: weather.stations
+  sites:
+    block: acme.sites
     config:
-      connection: weather-prod
+      connection: acme-prod
       region: nordics
       fields: id,name,elevation
   check:
     block: validate.schema
-    depends_on: [stations]
+    depends_on: [sites]
     config:
-      input: ${steps.stations.output.json_body}
-      schema: weather-stations
+      input: ${steps.sites.output.json_body}
+      schema: acme-sites
   export:
-    block: weather.observations
+    block: acme.orders
     depends_on: [check]
     config:
-      connection: weather-prod
-      station: NO-BRGN-01
+      connection: acme-prod
+      site: NO-BRGN-01
       period: 2026-01
       measure: TEMPERATURE
-      save_to: "${run.scratch}/observations.json"
+      save_to: "${run.scratch}/orders.json"
 ```
 
 Apply it, then run it:
@@ -318,7 +318,7 @@ A document that carries its own `connections:` block runs on its own, which is h
 examples work. They live with the pack in the pack's own repository; from a checkout of it:
 
 ```bash
-uv run dg run --local examples/weather-observations.yaml
+uv run dg run --local examples/acme-orders.yaml
 ```
 
 A real pack built exactly this way is

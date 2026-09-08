@@ -76,8 +76,8 @@ describe('the address of the listing a number links to', () => {
     })
 
     test('carries every tag, so "every nightly run that failed" is one address', () => {
-        expect(runsLink({ ...EVERY_RUN, status: 'failed', tags: ['nightly', 'weather'] })).toBe(
-            '/runs?status=failed&tag=nightly&tag=weather',
+        expect(runsLink({ ...EVERY_RUN, status: 'failed', tags: ['nightly', 'acme'] })).toBe(
+            '/runs?status=failed&tag=nightly&tag=acme',
         )
     })
 
@@ -99,7 +99,7 @@ describe('the filters an address asks the listing to open on', () => {
     })
 
     test('take every tag the address repeated, because repeating one narrows', () => {
-        expect(asked('tag=nightly&tag=weather').tags).toEqual(['nightly', 'weather'])
+        expect(asked('tag=nightly&tag=acme').tags).toEqual(['nightly', 'acme'])
     })
 
     test('lowercase a shouted tag, because that is the only spelling the instance stores', () => {

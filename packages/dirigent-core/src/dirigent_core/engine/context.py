@@ -150,7 +150,7 @@ def kept_level(log_levels: Mapping[str, object] | None, block_id: str) -> LogLev
     """Resolve which level a run keeps for one block, from its pattern map.
 
     Patterns are fnmatch over the block id, and the most specific match wins -- the longest
-    pattern, with ``*`` last -- so ``{"*": "info", "weather.*": "debug"}`` is one loud family
+    pattern, with ``*`` last -- so ``{"*": "info", "acme.*": "debug"}`` is one loud family
     in a quiet run. No map, and no matching pattern, keep info and up.
     """
     if not log_levels:

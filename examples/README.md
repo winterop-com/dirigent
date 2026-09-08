@@ -27,7 +27,7 @@ The documents live on topic shelves, each with its own README:
 | [`composition/`](composition) | Pipelines made of pipelines, and the handoff to a second instance. |
 | [`s3/`](s3) | Object storage through the `s3://` scheme, with no S3 block anywhere. |
 | [`demo/`](demo) | Surfaces shown off: the run form, rendered markdown, the requires preflight, the weekly-import shared-name pair. |
-| [`open-data/`](open-data) | Real feeds against public, mostly keyless APIs: weather, health indicators, maps, earthquakes, humanitarian data. |
+| [`open-data/`](open-data) | Real feeds against public, mostly keyless APIs: acme, health indicators, maps, earthquakes, humanitarian data. |
 | [`validate/`](validate) | A gate that checks a value's shape and passes it through: `validate.schema`, with the shape carried and named. |
 
 **The tag rule.** Every document's `tags:` is drawn from one vocabulary of three groups and
