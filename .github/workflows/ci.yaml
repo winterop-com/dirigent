@@ -73,6 +73,10 @@ jobs:
       - name: Sync the workspace
         run: uv sync --all-packages --locked
 
+      # duckdb resolves an extension from the running user's home, and a bare runner has none.
+      - name: Install duckdb's httpfs extension
+        run: uv run python -c "import duckdb; duckdb.connect().execute('INSTALL httpfs')"
+
       # Streaming, the multipart write and its abort, and paginated listing need a real S3
       # API, which no fake covers.
       - name: S3 lane
