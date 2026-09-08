@@ -1,6 +1,6 @@
 [project]
 name = "dirigent-common"
-version = "0.9.0"
+version = "0.9.1"
 description = "Value types and shared schemas every dirigent package may depend on."
 readme = "README.md"
 requires-python = ">=3.13"

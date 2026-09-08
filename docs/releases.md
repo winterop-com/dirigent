@@ -15,6 +15,36 @@ package and uploads it to PyPI through trusted publishing, then builds the image
 commit and pushes it as `<version>` and `latest`. The two sibling repositories then relock
 against the tag and bump.
 
+## 0.9.1
+
+Released 2026-09-09. Every package in the workspace moves to 0.9.1 together.
+
+### Before you upgrade
+
+Nothing in the schema, the wire or the settings changed since 0.9.0.
+
+**The image is built for amd64 and arm64.** One multi-platform manifest per release, on
+docker's reusable builder, tagged with the version and `latest`; a scaffolded stack on an
+Apple Silicon host no longer runs the image under emulation.
+
+**Every package publishes from its own environment.** The release workflow publishes each
+package to PyPI from `pypi-<package>`, which is how PyPI ties a trusted publisher to one
+project.
+
+### Blocks
+
+- **A `docker.run` output without a URI scheme lands in the run's work directory**, where
+  `docker.build` and `docker.compose.up` read; a URI still goes to storage.
+
+### Documentation
+
+- **Work directory, not scratch.** Every docstring, refusal message, example and page that
+  described a tool's path as living in scratch now says the work directory, which is where
+  the build context, the compose file, a checkout, a shell's working directory and a relative
+  database file resolve.
+- **The pack-authoring guide's worked example is a vendor with no domain**, Acme, and the
+  DHIS2-shaped examples live with dirigent-dhis2.
+
 ## 0.9.0
 
 Released 2026-09-09. The first public release: every package in the workspace moves to 0.9.0
