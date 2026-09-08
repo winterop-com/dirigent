@@ -265,7 +265,7 @@ async def _drive_until_terminal(handle: RemoteHandle, config: DockerRunConfig, c
 @pytest.mark.docker
 @requires_daemon
 async def test_a_real_build_lands_an_image_a_later_step_runs(local_ctx: FakeContext) -> None:
-    root = Path(local_ctx.storage.root) / "runs" / "one"
+    root = local_ctx.work_dir
     root.mkdir(parents=True, exist_ok=True)
     (root / "Dockerfile").write_text(TINY_DOCKERFILE)
 
