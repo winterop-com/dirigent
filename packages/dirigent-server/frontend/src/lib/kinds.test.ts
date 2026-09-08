@@ -7,14 +7,14 @@ const NAMED = ['operator', 'sensor', 'schedule', 'webhook', 'cron', 'interval', 
 
 describe('which family a kind is drawn in', () => {
     test('is total: every string gets one of the declared families', () => {
-        const strings = [...NAMED, 'http', 'dhis2', 'postgres', 's3', '', 'a', 'a kind nobody has written yet']
+        const strings = [...NAMED, 'http', 'weather', 'postgres', 's3', '', 'a', 'a kind nobody has written yet']
         for (const kind of strings) {
             expect(KIND_FAMILIES).toContain(kindFamily(kind))
         }
     })
 
     test('is stable: the same kind is the same colour every time it is asked', () => {
-        for (const kind of ['dhis2', 'http', 'openhim']) {
+        for (const kind of ['weather', 'http', 'openhim']) {
             expect(kindFamily(kind)).toBe(kindFamily(kind))
         }
     })
@@ -26,7 +26,7 @@ describe('which family a kind is drawn in', () => {
     })
 
     test('does not fall back to one family for everything it has not been told about', () => {
-        const unknown = ['http', 'dhis2', 'postgres', 's3', 'openhim', 'smtp', 'redis', 'kafka', 'sftp', 'gcs']
+        const unknown = ['http', 'weather', 'postgres', 's3', 'openhim', 'smtp', 'redis', 'kafka', 'sftp', 'gcs']
         expect(new Set(unknown.map(kindFamily)).size).toBeGreaterThan(1)
     })
 })
@@ -39,7 +39,7 @@ describe('the properties a kind chip is filled from', () => {
     })
 
     test('take the hue and the ink from one family, never from two', () => {
-        for (const kind of [...NAMED, 'dhis2', 'http']) {
+        for (const kind of [...NAMED, 'weather', 'http']) {
             const tokens = kindTokens(kind)
             expect(tokens['--chip-ink']).toBe(tokens['--chip'].replace(')', '-ink)'))
         }
@@ -52,6 +52,6 @@ describe('how a kind reads', () => {
     })
 
     test('a kind with no underscore is left exactly as the wire wrote it', () => {
-        expect(kindLabel('dhis2')).toBe('dhis2')
+        expect(kindLabel('weather')).toBe('weather')
     })
 })

@@ -3,7 +3,7 @@
  *
  * A KIND IS NOT A STATUS. A status says how something is going and is drawn from the state
  * machine's own token; a kind says what something is -- an operator or a sensor, a cron or an
- * interval, an http credential or a dhis2 one -- and a listing of them reads far faster when
+ * interval, an http credential or a database one -- and a listing of them reads far faster when
  * each family holds one hue. `--kind-<family>` in index.css is that hue and `.kind-chip` is
  * the fill rule, so nothing here writes a colour: it names one.
  *

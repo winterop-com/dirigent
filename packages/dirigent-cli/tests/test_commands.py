@@ -547,7 +547,7 @@ def test_the_pipeline_listing_shows_tags_and_narrows_by_them(tmp_path: Path, ser
 
     narrowed = rows(invoke("pipeline", "list", "--tag", "climate", "--json").stdout)
     assert [row["code"] for row in narrowed] == ["cli-labelled"]
-    assert rows(invoke("pipeline", "list", "--tag", "climate", "--tag", "dhis2", "--json").stdout) == []
+    assert rows(invoke("pipeline", "list", "--tag", "climate", "--tag", "weather", "--json").stdout) == []
 
 
 def test_the_runs_listing_narrows_by_the_tags_the_runs_pipeline_wears(tmp_path: Path, server: str) -> None:
@@ -570,7 +570,7 @@ def test_the_runs_listing_narrows_by_the_tags_the_runs_pipeline_wears(tmp_path: 
     assert sorted(pipelines_of()) == ["cli-demo", "cli-labelled"]
     assert pipelines_of("climate") == ["cli-labelled"]
     assert pipelines_of("climate", "http") == ["cli-labelled"], "a repeated tag narrows rather than widens"
-    assert pipelines_of("climate", "dhis2") == []
+    assert pipelines_of("climate", "weather") == []
 
 
 def test_a_stored_pipeline_is_re_checked_against_the_instance(tmp_path: Path, server: str) -> None:
@@ -705,8 +705,8 @@ def test_log_levels_read_bare_and_patterned_forms_with_the_later_repeat_winning(
     assert parse_log_levels(None) is None
     assert parse_log_levels([]) is None
     assert parse_log_levels(["debug"]) == {"*": LogLevel.DEBUG}
-    assert parse_log_levels(["dhis2.*=debug"]) == {"dhis2.*": LogLevel.DEBUG}
-    assert parse_log_levels(["warning", "dhis2.*=DEBUG"]) == {"*": LogLevel.WARNING, "dhis2.*": LogLevel.DEBUG}
+    assert parse_log_levels(["weather.*=debug"]) == {"weather.*": LogLevel.DEBUG}
+    assert parse_log_levels(["warning", "weather.*=DEBUG"]) == {"*": LogLevel.WARNING, "weather.*": LogLevel.DEBUG}
     assert parse_log_levels(["*=info", "*=debug"]) == {"*": LogLevel.DEBUG}
 
 
@@ -716,7 +716,7 @@ def test_a_log_level_that_is_not_one_is_refused_naming_the_piece() -> None:
 
     from dirigent_cli.commands import parse_log_levels
 
-    for value in (["loud"], ["dhis2.*=loud"], ["=debug"]):
+    for value in (["loud"], ["weather.*=loud"], ["=debug"]):
         try:
             parse_log_levels(value)
         except (typer.Exit, click.exceptions.Exit, SystemExit):

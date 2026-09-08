@@ -406,9 +406,9 @@ describe('the last day of runs, by the hour', () => {
 
 describe('what this instance depends on', () => {
     test('lists the workers before the connections, because nothing runs without one', () => {
-        const rows = healthRows([worker('alpha')], [connection('dhis2', true)])
+        const rows = healthRows([worker('alpha')], [connection('weather', true)])
         expect(rows.map((row) => row.kind)).toEqual(['worker', 'connection'])
-        expect(rows.map((row) => row.label)).toEqual(['alpha', 'dhis2'])
+        expect(rows.map((row) => row.label)).toEqual(['alpha', 'weather'])
     })
 
     test('says what a worker is and how much it can take when it has nothing to report', () => {
@@ -434,44 +434,44 @@ describe('what this instance depends on', () => {
     })
 
     test('carries what a connection said the last time anything asked', () => {
-        const [row] = healthRows([], [connection('dhis2', true, 'DHIS2 2.41.1')])
-        expect(row).toMatchObject({ tone: 'good', detail: 'DHIS2 2.41.1', at: '2026-01-01T00:00:00Z' })
+        const [row] = healthRows([], [connection('weather', true, 'Weather API v3')])
+        expect(row).toMatchObject({ tone: 'good', detail: 'Weather API v3', at: '2026-01-01T00:00:00Z' })
     })
 
     test('carries the refusal whole, and leaves the truncating to the panel', () => {
-        const [row] = healthRows([], [connection('dhis2', false, 'connect timed out after 30s')])
+        const [row] = healthRows([], [connection('weather', false, 'connect timed out after 30s')])
         expect(row).toMatchObject({ tone: 'critical', detail: 'connect timed out after 30s' })
     })
 
     test('tells a connection nobody has checked from one that answered', () => {
-        const [row] = healthRows([], [connection('dhis2', null)])
+        const [row] = healthRows([], [connection('weather', null)])
         expect(row).toMatchObject({ tone: 'neutral', detail: 'never checked', at: null })
     })
 })
 
 describe('the line along the foot of the panel', () => {
     test('says nothing is wrong in one sentence when nothing is, without the metaphor', () => {
-        expect(healthNote([worker('alpha')], [connection('dhis2', true)])).toBe(
+        expect(healthNote([worker('alpha')], [connection('weather', true)])).toBe(
             'Every worker and every connection is healthy.',
         )
     })
 
     // REVERT-PROOF. "3 of 3 connections healthy" spends a clause saying nothing happened.
     test('leaves out a half that is entirely well', () => {
-        const note = healthNote([worker('alpha'), worker('beta', { stale: true })], [connection('dhis2', true)])
+        const note = healthNote([worker('alpha'), worker('beta', { stale: true })], [connection('weather', true)])
         expect(note).toBe('1 of 2 workers healthy.')
     })
 
     test('says both halves when both have something to say', () => {
         const note = healthNote(
             [worker('alpha'), worker('beta', { stale: true })],
-            [connection('dhis2', true), connection('tracker', false)],
+            [connection('weather', true), connection('tracker', false)],
         )
         expect(note).toBe('1 of 2 workers healthy · 1 of 2 connections healthy.')
     })
 
     test('says a fleet that has never registered rather than counting none of none', () => {
-        expect(healthNote([], [connection('dhis2', true)])).toBe('No worker has registered.')
+        expect(healthNote([], [connection('weather', true)])).toBe('No worker has registered.')
     })
 
     test('does not promise connections an instance holding none has', () => {

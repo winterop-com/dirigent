@@ -35,13 +35,7 @@ EXAMPLE_PIPELINES = (
 
 #: Named schemas the examples reference by code; examples/schemas/ defines them. A carried
 #: schema satisfies its own reference, so only the instance-held codes need to appear here.
-EXAMPLE_SCHEMAS = (
-    "dhis2-data-elements",
-    "dhis2-number-data-elements",
-    "dhis2-org-units",
-    "dhis2-system-info",
-    "ou-record",
-)
+EXAMPLE_SCHEMAS = ("ou-record",)
 
 #: Files under examples/ that are not pipeline documents.
 NOT_DOCUMENTS = frozenset({"connections.yaml"})

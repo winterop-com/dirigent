@@ -16,18 +16,18 @@ A pipeline document carries a pipeline. A schema is not part of one -- it is app
 the way a connection is:
 
 ```bash
-dg schema create examples/schemas/dhis2-org-units.json   # from a file
-dg schema create -                                        # from stdin
+dg schema create schemas/weather-stations.json   # from a file
+dg schema create -                               # from stdin
 dg schema list
-dg schema show dhis2-org-units
-dg schema delete dhis2-org-units
+dg schema show weather-stations
+dg schema delete weather-stations
 ```
 
 A schema reads its own identity from its keywords, so there is nothing else to pass:
 
 | Keyword | Becomes | If absent |
 | --- | --- | --- |
-| `$id` | the `code` the schema is addressed by | the file's stem (`dhis2-org-units.json` -> `dhis2-org-units`) |
+| `$id` | the `code` the schema is addressed by | the file's stem (`weather-stations.json` -> `weather-stations`) |
 | `title` | the `name` shown beside the code | the schema has no name, and the code is its title |
 | `description` | the body | the schema has no body |
 
@@ -37,13 +37,13 @@ is a full URI is accepted, and its last path segment is taken as the code.
 
 ## The shape of a shape
 
-Every example below describes the same read, `GET /api/organisationUnits.json?fields=id,displayName,level`,
+Every example below describes the same read, `GET /api/stations.json?fields=id,name,elevation`,
 whose payload is an object wrapping a list:
 
 ```json
-{"organisationUnits": [
-  {"id": "ImspTQPwCqd", "displayName": "Sierra Leone", "level": 1},
-  {"id": "O6uvpzGd5pu", "displayName": "Bo",           "level": 2}
+{"stations": [
+  {"id": "NO-BRGN-01", "name": "Bergen Florida", "elevation": 12},
+  {"id": "NO-TRMS-02", "name": "Tromso Holt",    "elevation": 21}
 ]}
 ```
 
@@ -65,9 +65,9 @@ ones that must be present:
 ```json
 {
   "type": "object",
-  "required": ["organisationUnits"],
+  "required": ["stations"],
   "properties": {
-    "organisationUnits": {"type": "array"}
+    "stations": {"type": "array"}
   }
 }
 ```
@@ -82,13 +82,13 @@ Say `additionalProperties: false` to close that door -- to reject any field you 
 ```json
 {
   "type": "object",
-  "required": ["organisationUnits"],
-  "properties": {"organisationUnits": {"type": "array"}},
+  "required": ["stations"],
+  "properties": {"stations": {"type": "array"}},
   "additionalProperties": false
 }
 ```
 
-Now `{"organisationUnits": [], "pager": {}}` is refused, because `pager` was not named. This is the
+Now `{"stations": [], "pager": {}}` is refused, because `pager` was not named. This is the
 difference between "the fields I need are here" and "these are the only fields there are." A read
 that pins a payload usually wants the closed door on the objects it fully understands, and the open
 door where the source may add fields you do not care about.
@@ -101,17 +101,17 @@ describe the list's contents:
 ```json
 {
   "type": "object",
-  "required": ["organisationUnits"],
+  "required": ["stations"],
   "properties": {
-    "organisationUnits": {
+    "stations": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["id", "displayName", "level"],
+        "required": ["id", "name", "elevation"],
         "properties": {
-          "id":          {"type": "string"},
-          "displayName": {"type": "string"},
-          "level":       {"type": "integer", "minimum": 1}
+          "id":        {"type": "string"},
+          "name":      {"type": "string"},
+          "elevation": {"type": "integer", "minimum": -500}
         }
       }
     }
@@ -119,72 +119,73 @@ describe the list's contents:
 }
 ```
 
-This is the whole `dhis2-org-units` example. It accepts the payload at the top of the page and
+This is the whole `weather-stations` example. It accepts the payload at the top of the page and
 rejects each of these, each for one reason:
 
-- `{"organisationUnits": [{"id": "x", "displayName": "Bo"}]}` -- the element is missing `level`.
-- `{"organisationUnits": [{"id": "x", "displayName": "Bo", "level": 0}]}` -- `level` is below `minimum`.
-- `{"organisationUnits": [{"id": 42, "displayName": "Bo", "level": 1}]}` -- `id` is a number, not a string.
+- `{"stations": [{"id": "x", "name": "Bergen Florida"}]}` -- the element is missing `elevation`.
+- `{"stations": [{"id": "x", "name": "Bergen Florida", "elevation": -900}]}` -- `elevation` is below `minimum`.
+- `{"stations": [{"id": 42, "name": "Bergen Florida", "elevation": 12}]}` -- `id` is a number, not a string.
 
 `minItems` and `maxItems` bound the length; `uniqueItems: true` forbids duplicate elements.
 
 ## Numbers and strings: pinning the value, not just the type
 
 A `string` takes `minLength`, `maxLength`, and `pattern` -- a regular expression the whole string is
-tested against. DHIS2 identifiers are eleven characters, a letter then ten alphanumerics:
+tested against. A weather station id is a two-letter country code, a four-letter site code, and a
+two-digit index:
 
 ```json
-{"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9]{10}$"}
+{"type": "string", "pattern": "^[A-Z]{2}-[A-Z]{4}-[0-9]{2}$"}
 ```
 
-That accepts `"ImspTQPwCqd"` and rejects `"too-short"` and `"has a space here!!"`. A `number` or
+That accepts `"NO-BRGN-01"` and rejects `"too-short"` and `"has a space here!!"`. A `number` or
 `integer` takes `minimum`, `maximum`, and the exclusive pair `exclusiveMinimum` / `exclusiveMaximum`.
 
 ## enum: the value is one of a known set
 
-`enum` lists the values a field may take. DHIS2's `valueType` is a fixed vocabulary, and a payload
-carrying a word that is not in it is exactly the drift a schema exists to catch:
+`enum` lists the values a field may take. The weather service's `measure` is a fixed vocabulary,
+and a payload carrying a word that is not in it is exactly the drift a schema exists to catch:
 
 ```json
 {
   "type": "string",
-  "enum": ["NUMBER", "INTEGER", "TEXT", "BOOLEAN", "DATE", "DATETIME", "PERCENTAGE"]
+  "enum": ["TEMPERATURE", "PRECIPITATION", "WIND_SPEED", "WIND_DIRECTION", "HUMIDITY", "PRESSURE"]
 }
 ```
 
-`"NUMBER"` passes; `"FLOAT"` is refused. `enum` works on any type -- `"enum": [1, 2, 3]` or
-`"enum": [true, false]` -- and `const` is the one-value case, `"const": "AGGREGATE"`.
+`"TEMPERATURE"` passes; `"WINDCHILL"` is refused. `enum` works on any type -- `"enum": [1, 2, 3]`
+or `"enum": [true, false]` -- and `const` is the one-value case, `"const": "HOURLY"`.
 
 ## Reuse: $defs and $ref
 
-When a shape appears twice, name it once under `$defs` and point at it with `$ref`. A UID is the
-same eleven characters wherever it appears, so it is written once:
+When a shape appears twice, name it once under `$defs` and point at it with `$ref`. A station id is
+the same three parts wherever it appears, so it is written once:
 
 ```json
 {
   "type": "object",
-  "required": ["organisationUnits"],
+  "required": ["stations"],
   "properties": {
-    "organisationUnits": {
+    "stations": {
       "type": "array",
       "items": {
         "type": "object",
         "required": ["id"],
-        "properties": {"id": {"$ref": "#/$defs/uid"}}
+        "properties": {"id": {"$ref": "#/$defs/station_id"}}
       }
     }
   },
   "$defs": {
-    "uid": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9]{10}$"}
+    "station_id": {"type": "string", "pattern": "^[A-Z]{2}-[A-Z]{4}-[0-9]{2}$"}
   }
 }
 ```
 
-`#/$defs/uid` is a JSON Pointer into this document: `#` is the root, and the path walks to the named
-subschema. A `$ref` may point anywhere in the document, and a `$def` may `$ref` another, so a shape
-composes out of named parts.
+`#/$defs/station_id` is a JSON Pointer into this document: `#` is the root, and the path walks to
+the named subschema. A `$ref` may point anywhere in the document, and a `$def` may `$ref` another,
+so a shape composes out of named parts.
 
-## format: the string that is really a date, or a UID
+## format: the string that is really a date, or a station id
 
 `format` annotates a string with the *kind* of string it is -- a date, a UUID, an email. In JSON
 Schema, `format` is an annotation by default and asserts nothing; a validator only checks it when it
@@ -204,7 +205,7 @@ own data speaks:
 | `sha512` | a 128-character hex digest | ... |
 | `base64` | standard base-64, decodable | `aGVsbG8=` |
 
-So the DHIS2 `serverDate` is pinned as a real timestamp, not just any string:
+So an observation's `observed_at` is pinned as a real timestamp, not just any string:
 
 ```json
 {"type": "string", "format": "date-time"}
@@ -216,11 +217,13 @@ already a string.
 
 A pack adds its own formats the same way it adds blocks: a `Contribution` carries a `formats`
 map of name to checker, and every format an installed pack contributes joins the ones above in
-the checker the engine hands its validator. So `dirigent-dhis2` contributes `dhis2-uid`, and a
-schema that writes `format: dhis2-uid` asserts wherever that pack is installed. This keeps a
-schema portable: a `format` no installed pack contributes stays a passing annotation -- the
-value is valid, just unchecked -- so the same schema asserts on an instance that has the pack
-and passes on one that does not.
+the checker the engine hands its validator. So a `dirigent-weather` pack contributes
+`weather-station-id` and `weather-period`, and a schema that writes `format: weather-station-id`
+asserts wherever that pack is installed. This keeps a schema portable: a `format` no installed
+pack contributes stays a passing annotation -- the value is valid, just unchecked -- so the same
+schema asserts on an instance that has the pack and passes on one that does not. A pack that
+does this for a real system is
+[dirigent-dhis2](https://github.com/winterop-com/dirigent-dhis2).
 
 ## Where a schema is enforced
 
@@ -238,7 +241,7 @@ check:
   depends_on: [fetch]
   config:
     input: ${steps.fetch.output.json_body}
-    schema: dhis2-org-units
+    schema: weather-stations
 ```
 
 Because a named schema is a resource with a `code`, a document that references one declares it,
@@ -247,7 +250,7 @@ and applying that document on an instance that does not hold the schema is refus
 
 ```yaml
 requires:
-  schemas: [dhis2-org-units]
+  schemas: [weather-stations]
 ```
 
 Or the document carries the shape itself, in a top-level `schemas:` section keyed by code -- the
@@ -255,11 +258,11 @@ same section, and the same rules, as the top-level `connections:` a document can
 
 ```yaml
 schemas:
-  ou-record:
+  station-record:
     type: object
-    required: [organisationUnits]
+    required: [stations]
     properties:
-      organisationUnits: { type: array }
+      stations: { type: array }
 
 steps:
   check:
@@ -267,7 +270,7 @@ steps:
     depends_on: [fetch]
     config:
       input: ${steps.fetch.output.json_body}
-      schema: ou-record
+      schema: station-record
 ```
 
 A carried schema resolves the gate's code before any instance-held one, so a document that
@@ -282,8 +285,8 @@ resolves its own gates. A `dg run --local` run holds no instance schema until on
 to it:
 
 ```bash
-dg run --local --schema examples/schemas/dhis2-data-elements.json \
-  examples/validate/dhis2-data-elements-named.yaml
+dg run --local --schema examples/schemas/ou-record.json \
+  examples/validate/the-shape-is-wrong.yaml
 ```
 
 A pipeline's own `params` schema is the other place a payload is validated: the parameters of
@@ -291,8 +294,8 @@ every run, whoever asked for it -- the API, the CLI, a schedule's pins, a backfi
 webhook payload -- are checked against it before the run is created, and against the same
 assembled checker a gate uses. So a parameter declared `format: date` refuses `2026-13-40` at
 the door rather than carrying it into the first step, and a parameter declared
-`format: dhis2-uid` asserts on an instance where that pack is installed and passes on one
-where it is not.
+`format: weather-station-id` asserts on an instance where that pack is installed and passes on
+one where it is not.
 
 ## The reference shelf
 
@@ -310,7 +313,7 @@ Draft 2020-12 is the full language; the working set, by what a keyword is doing:
 | Reuse | `$defs`, `$ref` (a JSON Pointer, `#/$defs/name`) |
 | Identity | `$id` (-> code), `title` (-> name), `description` (-> body), `$schema`, `$comment` |
 
-The three schemas in [`examples/schemas/`](https://github.com/winterop-com/dirigent/tree/main/examples/schemas)
-are this language exercised end to end: an object wrapping a list, an enum vocabulary, and a
-top-level object rather than a list. Each is applied with `dg schema create` and no pipeline in
-sight.
+[`examples/schemas/`](https://github.com/winterop-com/dirigent/tree/main/examples/schemas) and
+[`examples/validate/`](https://github.com/winterop-com/dirigent/tree/main/examples/validate) are
+this language exercised end to end: a schema applied with `dg schema create` and no pipeline in
+sight, a document that carries the same shape itself, and a payload refused at the gate.

@@ -39,7 +39,7 @@ BASIC_USER_FIELD = "basic_username"
 BASIC_PASSWORD_FIELD = "basic_password"
 
 #: The authorization scheme an ``api_token`` is sent under when the config names none, which
-#: is the scheme a DHIS2 personal access token is presented with.
+#: is the scheme a personal access token is usually presented with.
 DEFAULT_API_TOKEN_SCHEME = "ApiToken"
 
 DEFAULT_HTTP_TIMEOUT = 30.0
@@ -150,7 +150,7 @@ def kept_level(log_levels: Mapping[str, object] | None, block_id: str) -> LogLev
     """Resolve which level a run keeps for one block, from its pattern map.
 
     Patterns are fnmatch over the block id, and the most specific match wins -- the longest
-    pattern, with ``*`` last -- so ``{"*": "info", "dhis2.*": "debug"}`` is one loud family
+    pattern, with ``*`` last -- so ``{"*": "info", "weather.*": "debug"}`` is one loud family
     in a quiet run. No map, and no matching pattern, keep info and up.
     """
     if not log_levels:
@@ -379,8 +379,8 @@ def build_http_client(config: BaseModel) -> httpx2.AsyncClient:
 
     A credential is read from one of two fields. ``bearer_token`` is sent as
     ``Authorization: Bearer``; ``api_token`` is sent under the scheme the config's
-    ``api_token_scheme`` names, and ``ApiToken`` when it names none, because that is what a
-    DHIS2 personal access token needs. ``bearer_token`` wins if a config carries both.
+    ``api_token_scheme`` names, and ``ApiToken`` when it names none, which is the scheme a
+    personal access token usually needs. ``bearer_token`` wins if a config carries both.
     ``basic_username`` and ``basic_password`` become the client's auth, which httpx applies
     per request, so basic credentials beside a token win over the header.
     """

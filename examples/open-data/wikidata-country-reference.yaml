@@ -8,7 +8,7 @@
 #
 # The query asks for sovereign states with an ISO 3166-1 alpha-3 code, plus the alpha-2 and
 # numeric codes and the English label. The result is the reference table other pipelines join
-# against: WHO GHO speaks alpha-3, DHIS2 org units often carry alpha-2, and national statistics
+# against: WHO GHO speaks alpha-3, health information systems often carry alpha-2, and national statistics
 # offices publish the numeric code.
 #
 # On manners: the endpoint asks every client for a descriptive User-Agent that says who is

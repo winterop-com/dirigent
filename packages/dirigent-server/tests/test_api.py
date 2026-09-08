@@ -541,7 +541,7 @@ def test_reading_a_pipeline_includes_its_current_document(client: TestClient) ->
 
 
 #: Three documents wearing overlapping vocabularies, so a repeated tag has something to narrow.
-TAGGED = {"climate-load": ["climate", "http"], "climate-shape": ["climate"], "org-units": ["dhis2", "http"]}
+TAGGED = {"climate-load": ["climate", "http"], "climate-shape": ["climate"], "org-units": ["nightly", "http"]}
 
 
 def apply_tagged(client: TestClient) -> None:
@@ -576,17 +576,17 @@ def test_the_tag_parameter_narrows_the_listing_and_repeats_to_say_and(client: Te
     assert codes() == ["api-demo", "climate-load", "climate-shape", "org-units"]
     assert codes("climate") == ["climate-load", "climate-shape"]
     assert codes("climate", "http") == ["climate-load"]
-    assert codes("climate", "dhis2") == []
+    assert codes("climate", "nightly") == []
     assert codes("nobody-uses-this") == []
 
 
 def test_a_shouted_tag_is_applied_lowercased_and_answers_to_that_spelling_alone(client: TestClient) -> None:
     apply_document(
         client,
-        "format: dirigent/v1\ncode: shouted\ndescription: A shouting pipeline.\ntags: [Climate, DHIS2]\n"
+        "format: dirigent/v1\ncode: shouted\ndescription: A shouting pipeline.\ntags: [Climate, Nightly]\n"
         "steps:\n  greet:\n    block: shell.run\n    config: { argv: [echo, hi] }\n",
     )
-    assert client.get(f"{PREFIX}/pipelines/shouted").json()["tags"] == ["climate", "dhis2"]
+    assert client.get(f"{PREFIX}/pipelines/shouted").json()["tags"] == ["climate", "nightly"]
     assert [row["code"] for row in client.get(f"{PREFIX}/pipelines", params=[("tag", "climate")]).json()["items"]] == [
         "shouted"
     ]
@@ -626,10 +626,10 @@ def test_the_runs_listing_narrows_by_the_tags_the_runs_pipeline_wears(client: Te
     assert pipelines_of() == set(TAGGED)
     assert pipelines_of("climate") == {"climate-load", "climate-shape"}
     assert pipelines_of("climate", "http") == {"climate-load"}, "a repeated tag narrows rather than widens"
-    assert pipelines_of("climate", "dhis2") == set()
+    assert pipelines_of("climate", "nightly") == set()
     assert pipelines_of("nobody-uses-this") == set()
 
-    ids = {row["id"] for row in client.get(f"{PREFIX}/runs", params=[("tag", "dhis2")]).json()["items"]}
+    ids = {row["id"] for row in client.get(f"{PREFIX}/runs", params=[("tag", "nightly")]).json()["items"]}
     assert ids == {runs["org-units"]}
 
 
@@ -647,7 +647,7 @@ def test_retagging_a_pipeline_moves_its_runs_under_the_new_tag(client: TestClien
     run_id = client.post(f"{PREFIX}/pipelines/climate-shape/$run", json={"params": {}}).json()["run_id"]
     apply_document(
         client,
-        "format: dirigent/v1\ncode: climate-shape\ndescription: A tagged pipeline.\ntags: [dhis2]\n"
+        "format: dirigent/v1\ncode: climate-shape\ndescription: A tagged pipeline.\ntags: [nightly]\n"
         "steps:\n  greet:\n    block: shell.run\n    config: { argv: [echo, hi] }\n",
     )
 
@@ -655,7 +655,7 @@ def test_retagging_a_pipeline_moves_its_runs_under_the_new_tag(client: TestClien
         return {row["id"] for row in client.get(f"{PREFIX}/runs", params=[("tag", tag)]).json()["items"]}
 
     assert run_id not in ids("climate")
-    assert run_id in ids("dhis2")
+    assert run_id in ids("nightly")
 
 
 def test_a_document_declaring_a_tag_that_is_not_one_is_refused_at_the_index(client: TestClient) -> None:

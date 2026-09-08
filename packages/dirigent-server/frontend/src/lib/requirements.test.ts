@@ -16,18 +16,18 @@ import {
 /** A document naming two blocks and one connection, which is the shape every case here bends. */
 const DOCUMENT: JsonMap = {
     name: 'nightly',
-    requires: { blocks: ['http.get', 'dhis2.push'], connections: ['dhis2-prod'], pipelines: ['upstream'] },
+    requires: { blocks: ['http.get', 'weather.observations'], connections: ['weather-prod'], pipelines: ['upstream'] },
     steps: {
         fetch: { block: 'http.get', config: { url: 'https://example.test' } },
-        push: { block: 'dhis2.push', depends_on: ['fetch'], config: { connection: 'dhis2-prod' } },
+        push: { block: 'weather.observations', depends_on: ['fetch'], config: { connection: 'weather-prod' } },
     },
 }
 
-const EVERYTHING = ['http.get', 'dhis2.push']
+const EVERYTHING = ['http.get', 'weather.observations']
 
 describe('what a document names', () => {
     test('reads the blocks it requires of an instance', () => {
-        expect(requiredBlocks(DOCUMENT)).toEqual(['http.get', 'dhis2.push'])
+        expect(requiredBlocks(DOCUMENT)).toEqual(['http.get', 'weather.observations'])
     })
 
     test('reads the pipelines it requires, which nothing here can check', () => {
@@ -35,7 +35,7 @@ describe('what a document names', () => {
     })
 
     test('reads a connection a step reaches even where the document forgot to require it', () => {
-        const forgot: JsonMap = { steps: { push: { block: 'dhis2.push', config: { connection: 'sneaky' } } } }
+        const forgot: JsonMap = { steps: { push: { block: 'weather.observations', config: { connection: 'sneaky' } } } }
         expect(connectionsNamed(forgot)).toEqual(['sneaky'])
     })
 
@@ -58,7 +58,7 @@ describe('what a document names', () => {
 
 describe('what an instance has not got', () => {
     test('is nothing at all when it has everything', () => {
-        const unmet = unmetIn(DOCUMENT, EVERYTHING, ['dhis2-prod'])
+        const unmet = unmetIn(DOCUMENT, EVERYTHING, ['weather-prod'])
         expect(anythingUnmet(unmet)).toBe(false)
         expect(unmetLines(unmet)).toEqual([])
     })
@@ -69,22 +69,22 @@ describe('what an instance has not got', () => {
      * on its own is a fact nobody can act on. Breaking the catalog lookup fails here.
      */
     test('names the step and the block when the catalog does not publish it', () => {
-        const unmet = unmetIn(DOCUMENT, ['http.get'], ['dhis2-prod'])
-        expect(unmet.steps).toEqual([{ step: 'push', block: 'dhis2.push' }])
+        const unmet = unmetIn(DOCUMENT, ['http.get'], ['weather-prod'])
+        expect(unmet.steps).toEqual([{ step: 'push', block: 'weather.observations' }])
         expect(stepMissing(unmet, 'push')).toBe(true)
         expect(stepMissing(unmet, 'fetch')).toBe(false)
-        expect(unmetLines(unmet)).toContain('this run will fail at push: dhis2.push is not installed')
+        expect(unmetLines(unmet)).toContain('this run will fail at push: weather.observations is not installed')
     })
 
     test('marks the required block critical as well as the step that runs it', () => {
-        const unmet = unmetIn(DOCUMENT, ['http.get'], ['dhis2-prod'])
-        expect(blockMissing(unmet, 'dhis2.push')).toBe(true)
+        const unmet = unmetIn(DOCUMENT, ['http.get'], ['weather-prod'])
+        expect(blockMissing(unmet, 'weather.observations')).toBe(true)
         expect(blockMissing(unmet, 'http.get')).toBe(false)
     })
 
     test('says a required block once even though a step runs it, rather than twice over', () => {
-        const lines = unmetLines(unmetIn(DOCUMENT, ['http.get'], ['dhis2-prod']))
-        expect(lines.filter((line) => line.includes('dhis2.push'))).toHaveLength(1)
+        const lines = unmetLines(unmetIn(DOCUMENT, ['http.get'], ['weather-prod']))
+        expect(lines.filter((line) => line.includes('weather.observations'))).toHaveLength(1)
     })
 
     test('says a required block no step runs, because an apply will still refuse it', () => {
@@ -96,8 +96,8 @@ describe('what an instance has not got', () => {
 
     test('says a named connection this instance does not hold', () => {
         const unmet = unmetIn(DOCUMENT, EVERYTHING, [])
-        expect(connectionMissing(unmet, 'dhis2-prod')).toBe(true)
-        expect(unmetLines(unmet)).toEqual(['the connection dhis2-prod is not configured on this instance'])
+        expect(connectionMissing(unmet, 'weather-prod')).toBe(true)
+        expect(unmetLines(unmet)).toEqual(['the connection weather-prod is not configured on this instance'])
     })
 
     test('claims nothing while the catalog has not been read, because unread is not empty', () => {
@@ -111,11 +111,11 @@ describe('what an instance has not got', () => {
     test('checks the half it has been told about when only one read has landed', () => {
         const unmet = unmetIn(DOCUMENT, null, [])
         expect(unmet.steps).toEqual([])
-        expect(unmet.connections).toEqual(['dhis2-prod'])
+        expect(unmet.connections).toEqual(['weather-prod'])
     })
 
     test('holds no opinion about a required pipeline, which is not this instance to answer for', () => {
-        const unmet = unmetIn(DOCUMENT, EVERYTHING, ['dhis2-prod'])
+        const unmet = unmetIn(DOCUMENT, EVERYTHING, ['weather-prod'])
         expect(anythingUnmet(unmet)).toBe(false)
     })
 

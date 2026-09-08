@@ -63,7 +63,7 @@ async def test_a_format_asserts_not_merely_annotates(ctx: FakeContext) -> None:
 async def test_a_contributed_format_asserts_through_the_gate(ctx: FakeContext) -> None:
     """A format a pack contributes gates just as a base one does, once installed on the context.
 
-    ``even-digits`` stands in for a pack's own format such as ``dhis2-uid``: a value that
+    ``even-digits`` stands in for a pack's own format such as ``weather-station-id``: a value that
     fails the predicate is refused, one that passes comes through.
     """
     ctx.formats["even-digits"] = lambda value: isinstance(value, str) and len(value) % 2 == 0
@@ -83,19 +83,19 @@ async def test_a_contributed_format_asserts_through_the_gate(ctx: FakeContext) -
 async def test_an_uncontributed_format_only_annotates(ctx: FakeContext) -> None:
     """A format no pack contributes stays a passing annotation, so a schema is portable.
 
-    ``format: dhis2-uid`` on an instance without the dhis2 pack asserts nothing: the value is
-    valid, just unchecked, which is jsonschema's own behaviour for an unknown format.
+    ``format: weather-station-id`` on an instance without that pack asserts nothing: the value
+    is valid, just unchecked, which is jsonschema's own behaviour for an unknown format.
     """
-    ctx.schemas["dhis2-shape"] = {
+    ctx.schemas["station-shape"] = {
         "type": "object",
-        "required": ["ou"],
-        "properties": {"ou": {"type": "string", "format": "dhis2-uid"}},
+        "required": ["station"],
+        "properties": {"station": {"type": "string", "format": "weather-station-id"}},
     }
     output = await call_block(
-        ValidateSchemaOperator(), {"input": {"ou": "not a uid at all"}, "schema": "dhis2-shape"}, ctx
+        ValidateSchemaOperator(), {"input": {"station": "not a station id at all"}, "schema": "station-shape"}, ctx
     )
     assert isinstance(output, ValidateSchemaOutput)
-    assert output.value == {"ou": "not a uid at all"}
+    assert output.value == {"station": "not a station id at all"}
 
 
 async def test_a_nested_failure_names_the_deep_path(ctx: FakeContext) -> None:

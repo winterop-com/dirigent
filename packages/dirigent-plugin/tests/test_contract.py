@@ -372,8 +372,8 @@ def test_merge_contributions_refuses_two_plugins_claiming_one_format() -> None:
     with pytest.raises(ValueError, match="duplicate format"):
         merge_contributions(
             [
-                Contribution(formats={"dhis2-uid": lambda value: True}),
-                Contribution(formats={"dhis2-uid": lambda value: True}),
+                Contribution(formats={"weather-station-id": lambda value: True}),
+                Contribution(formats={"weather-station-id": lambda value: True}),
             ]
         )
 

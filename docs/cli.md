@@ -793,7 +793,7 @@ doc.yaml -o json` and `dg run -o json --local doc.yaml` are the same invocation.
 ```text
 # Run
 dg run CODE|file|url [-p key=value] [-P FILE] [--watch] [--strict] [--as CODE] [--window A..B]
-dg run ... [--log-level debug] [--log-level dhis2.*=debug]   # what the run's log keeps; info and up when omitted
+dg run ... [--log-level debug] [--log-level weather.*=debug]   # what the run's log keeps; info and up when omitted
 dg run ... [--priority low|normal|high]                      # how far ahead of other runs it is claimed
 dg run --local file|url [--connections FILE] [--schema FILE] [--enable-unsafe BLOCK,...] [--also-apply FILE] [--keep]
 dg run --local ... [--root DIR]                              # hold the instance in DIR and keep it, so a later run reads it
@@ -870,12 +870,12 @@ with an `auth` record naming the server, where that URL came from, and who the C
 no token at all it refuses rather than saying nothing.
 
 `--tag` is the server's own filter on both listings that take it, so a row it leaves out is one
-the CLI never read. It repeats, and repeating it narrows: `dg pipeline list --tag dhis2 --tag
+the CLI never read. It repeats, and repeating it narrows: `dg pipeline list --tag weather --tag
 nightly` lists the pipelines wearing both, and `dg runs list --tag nightly --status failed` is
 every failed run of a pipeline tagged `nightly` -- the tags are the pipeline's, asked as it is
 tagged now, because a run pins its version and never its pipeline's vocabulary. A tag is
-lowercased when the document is applied, so `--tag DHIS2` matches nothing and `--tag dhis2`
-matches what `tags: [DHIS2]` stored.
+lowercased when the document is applied, so `--tag Weather` matches nothing and `--tag weather`
+matches what `tags: [Weather]` stored.
 
 `dg worker --tag` is the other `--tag` and a different thing entirely: it is what one worker
 advertises it carries, which the claim routes on rather than filters by. See

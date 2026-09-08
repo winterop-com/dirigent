@@ -113,9 +113,9 @@ class Credential(BaseModel):
 
 
 def test_the_context_resolves_a_connection_the_test_installed(block_ctx: FakeContext) -> None:
-    block_ctx.connections["dhis2"] = Credential(token="secret")
+    block_ctx.connections["weather"] = Credential(token="secret")
 
-    assert block_ctx.connection("dhis2", Credential).token == "secret"
+    assert block_ctx.connection("weather", Credential).token == "secret"
 
 
 async def test_the_context_builds_a_client_on_the_handler_the_test_installed(block_ctx: FakeContext) -> None:

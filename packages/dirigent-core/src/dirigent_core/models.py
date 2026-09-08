@@ -217,7 +217,7 @@ class Run(Entity):
     """Which log levels this run keeps, as a map of block-id pattern to level.
 
     None keeps the default: info and up. The most specific pattern wins, so
-    ``{"*": "info", "dhis2.*": "debug"}`` is one loud family in a quiet run."""
+    ``{"*": "info", "weather.*": "debug"}`` is one loud family in a quiet run."""
 
     worker_tags: Mapped[JsonList] = mapped_column(JsonDocument, nullable=False, default=list)
     """The tags a worker must carry to claim this run, pinned from ``requires.workers``.

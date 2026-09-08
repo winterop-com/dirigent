@@ -293,7 +293,7 @@ async def test_a_plan_can_be_asked_for_without_applying(
 TAGGED = {
     "climate-load": ["climate", "http"],
     "climate-shape": ["climate", "transform"],
-    "org-units": ["dhis2", "http"],
+    "org-units": ["nightly", "http"],
 }
 
 
@@ -326,7 +326,7 @@ async def assert_the_tag_filter_narrows_by_containment(
     assert await codes("climate") == ["climate-load", "climate-shape"]
     assert await codes("http") == ["climate-load", "org-units"]
     assert await codes("climate", "http") == ["climate-load"], "a repeated tag narrows rather than widens"
-    assert await codes("climate", "dhis2") == [], "no pipeline wears both"
+    assert await codes("climate", "nightly") == [], "no pipeline wears both"
     assert await codes("clim") == [], "a tag matches whole or not at all"
     assert await codes("nobody-uses-this") == []
 
@@ -348,11 +348,11 @@ async def test_applying_replaces_the_tags_a_document_declares(
         assert pipeline is not None
         assert pipeline.tags == ["climate", "http"]
     async with session_scope(sessions) as session:
-        await apply_document(session, services, load_text(tagged("relabelled", ["dhis2"])))
+        await apply_document(session, services, load_text(tagged("relabelled", ["nightly"])))
     async with session_scope(sessions) as session:
         pipeline = await find_pipeline(session, "relabelled")
         assert pipeline is not None
-        assert pipeline.tags == ["dhis2"], "the whole list is replaced, not merged"
+        assert pipeline.tags == ["nightly"], "the whole list is replaced, not merged"
 
 
 async def test_a_document_declaring_no_tags_leaves_the_pipeline_wearing_none(
@@ -384,11 +384,11 @@ async def test_an_apply_stores_the_lowercased_tag_and_the_filter_finds_it_there(
 ) -> None:
     """A tag is normalised once, at apply, so the listing compares exactly from then on."""
     async with session_scope(sessions) as session:
-        await apply_document(session, services, load_text(tagged("shouted", ["Climate", "DHIS2"])))
+        await apply_document(session, services, load_text(tagged("shouted", ["Climate", "Nightly"])))
     async with session_scope(sessions) as session:
         pipeline = await find_pipeline(session, "shouted")
         assert pipeline is not None
-        assert pipeline.tags == ["climate", "dhis2"]
+        assert pipeline.tags == ["climate", "nightly"]
     async with session_scope(sessions) as session:
         assert [row.code for row in await list_pipelines(session, tags=["climate"])] == ["shouted"]
         assert await list_pipelines(session, tags=["Climate"]) == [], "the stored spelling is the only one"
