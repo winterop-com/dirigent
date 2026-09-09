@@ -1260,11 +1260,11 @@ def test_init_shows_the_token_once_and_says_where_it_lives(tmp_path: Path) -> No
     assert "http://127.0.0.1:3333" in text
 
 
-def test_init_says_what_this_instance_is_not(tmp_path: Path) -> None:
-    """It is one person's SQLite instance, and somebody has to be told a real server is not."""
+def test_init_says_the_one_thing_a_local_instance_cannot_do(tmp_path: Path) -> None:
+    """No secret key means no stored credential, and that is the one fact worth a line."""
     result = invoke("init", str(tmp_path / "instance"), "--password", "a test password")
 
-    assert "compose" in plain(result.output)
+    assert "DIRIGENT_SECRET_KEY" in plain(result.output)
 
 
 def test_init_refuses_to_clobber_an_instance_that_is_already_there(tmp_path: Path) -> None:
