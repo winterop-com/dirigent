@@ -26,9 +26,9 @@ that executed differently would prove nothing.
 
 ```bash
 dg dev | dg format                      # a local instance: API, worker, one SQLite file
-# it starts empty: .dirigent/state is cleared on every start, and --keep-state opts out
-# its admin is dev / dirigent-dev, a fixture; the starting record carries the token, minted
-# once, so copy it out of that line
+# its state is .dirigent/state, kept between starts; --wipe-state starts from nothing
+# on an empty state its admin is dev / dirigent-dev, a fixture; the starting record carries
+# the token, minted once, so copy it out of that line
 export DG_URL=http://127.0.0.1:3333 DG_TOKEN=...
 
 dg init my-pipelines && cd my-pipelines && uv sync
@@ -136,10 +136,9 @@ It refuses to run over an instance that is already there: migrating and re-admin
 database is not what running it twice means. `--documents-only` scaffolds beside one without
 touching it, which is what to use against a server somebody else runs.
 
-Run the instance it made with `uv run dg dev --keep-state`, in its own terminal in the project
-directory: it keeps running, and serves the UI at `http://127.0.0.1:3333`. A plain `dg dev`
-starts by emptying `.dirigent/state/`, which would take the admin and the token `dg init` just
-created.
+Run the instance it made with `uv run dg dev`, in its own terminal in the project directory:
+it keeps running, and serves the UI at `http://127.0.0.1:3333`. `dg dev --wipe-state` would
+empty `.dirigent/state/` first, taking the admin and the token `dg init` just created with it.
 
 What it makes is one person's instance on one machine -- SQLite on this disk, and no secret
 key, so a connection carrying a credential cannot be stored until `DIRIGENT_SECRET_KEY` is
@@ -502,7 +501,7 @@ rather than being able to change what a parser reads the record by.
 | `step` | An attempt changes state; the message is the new status | `block`, `attempt`, `duration_ms` once it has settled |
 | `log` | A block writes a line | Whatever the block bound to it |
 | `output` | A step settles, from `-v` up; the message is its status | The output's own fields, or `artifact` and `bytes` when it went to storage |
-| `process` | A long-running process starts, when it is ready, and when `dg dev` clears its state | `process`, and for `dg dev` the `api`, `docs`, `state`, `admin`, `token` and `migrated` it would otherwise have printed; a `state cleared` carries the `state` it deleted and the `hint` that keeps it |
+| `process` | A long-running process starts, when it is ready, and when `dg dev --wipe-state` clears its state | `process`, and for `dg dev` the `api`, `docs`, `state`, `admin`, `token` and `migrated` it would otherwise have printed; a `state cleared` carries the `state` it deleted and the `hint` that keeps it |
 
 **Verbosity chooses events, never shapes.** The default writes `run`, `step` and every `log`
 line at `info` and above. `-v` adds the `output` event. `-d` adds the `log` lines a block
@@ -847,7 +846,7 @@ dg alerts queue
 dg alerts retry NOTIFICATION
 
 # Processes (container entry points)
-dg dev [--host H] [--port 3333] [--ui/--no-ui] [--keep-state]  # standalone: SQLite, API + worker
+dg dev [--host H] [--port 3333] [--ui/--no-ui] [--wipe-state]  # standalone: SQLite, API + worker
 dg server [--host H] [--port 3333] [--reload] [--no-scheduler] [--ui/--no-ui]  # dg serve works too
 dg worker [--concurrency N] [--tag T] [--name NAME]   # --tag is what this worker advertises
 dg scheduler                            # the clock on its own; PostgreSQL only

@@ -35,9 +35,8 @@ dg dev | dg format
 
 `dg dev` is the standalone mode: SQLite in a file, and the API, the scheduler, and a worker in
 one process. It writes NDJSON like every dirigent process, so `dg format` renders it. It
-migrates the database, mints a development admin, and emits a token exactly once. It also
-starts from an empty `.dirigent/state`, clearing it first and saying so -- pass
-`--keep-state` when yesterday's runs are the point:
+migrates the database, mints a development admin, and emits a token exactly once. Its state
+is `.dirigent/state`, kept between starts -- pass `--wipe-state` to begin from nothing:
 
 ```text
 2026-01-01T18:22:23.069+01:00 [info    ] starting   [process] process=dev api=http://127.0.0.1:3333 docs=http://127.0.0.1:3333/docs admin=dev state=/home/you/dirigent-tutorial/.dirigent/state token=C_8u-blmgbzhoV2nbonBBxnxjZUqRflUIb0Oy81BE-g migrated=0001_baseline
@@ -71,7 +70,7 @@ Created a basic project in regional:
   + regional/.gitignore
 
 That is a working set of documents, and no instance: nothing is running yet.
-  An instance here:  dg dev --keep-state  (its database and artifacts live in .dirigent/state)
+  An instance here:  dg dev  (its database and artifacts live in .dirigent/state)
   One that exists:   export DG_URL=... DG_TOKEN=...
 
 Then dg apply --dry-run, and dg apply.
@@ -589,8 +588,8 @@ blocking the transaction that settled the run.
 - A schedule and an alert rule.
 - No Python, no deployment, and no framework in your codebase.
 
-Tear it down by stopping `dg dev`. There is nothing to delete: the next `dg dev` starts by
-emptying `.dirigent/state` anyway, unless it is given `--keep-state`.
+Tear it down by stopping `dg dev`. The next `dg dev` picks the instance up where it was;
+`dg dev --wipe-state` empties `.dirigent/state` and starts from nothing.
 
 ## Where to go next
 

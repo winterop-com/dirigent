@@ -353,10 +353,9 @@ Deployment shapes, all correct because leadership is an advisory lock and all co
 the database:
 
 - **Local / evaluation.** One process, zero dependencies: `dg dev` runs API, UI, scheduler,
-  and worker in a single asyncio process on SQLite. That SQLite file is a development
-  artifact rather than a database anybody keeps: `dg dev` empties `.dirigent/state` on every
-  start, because while the schema still moves a stale one answers strangely instead of
-  failing, and `--keep-state` is the opt-out. Only a directory dirigent named itself goes.
+  and worker in a single asyncio process on SQLite. Its state is `.dirigent/state`, kept
+  between starts and migrated forward; `dg dev --wipe-state` empties it first, for a checkout
+  whose baseline migration moved in place. Only a directory dirigent named itself goes.
 - **Typical production.** Three services: Postgres, `dg server` (API plus embedded
   scheduler), and one `dg worker` -- which is what `infra/compose.yaml` at the repository root is.
   The scheduler is embedded by default because needing a fourth service just to get a clock
@@ -1331,7 +1330,7 @@ the default output is reading the API.
 
 ```text
 # processes (container entry points)
-dg dev [--keep-state]                   # standalone: SQLite, API + scheduler + worker; starts empty
+dg dev [--wipe-state]                   # standalone: SQLite, API + scheduler + worker
 dg server [--no-scheduler]              # API; the scheduler is embedded unless it is isolated
 dg worker [--concurrency N]
 dg scheduler                            # the clock on its own, when the API is scaled out

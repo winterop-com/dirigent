@@ -293,7 +293,7 @@ def _initialised(record: Record) -> RenderableType | None:
         f"\n  [bold]{token}[/]"
         "\n\nStart the instance in a second terminal here; it keeps running:"
         "\n  [bold]uv sync[/]"
-        "\n  [bold]uv run dg dev --keep-state[/]  [dim]# plain dg dev empties .dirigent/state first[/]"
+        "\n  [bold]uv run dg dev[/]"
         f"\nThe UI is at http://127.0.0.1:3333, and {admin} logs in with the password you gave."
         "\n\nThen apply the example here, and run it:"
         "\n  [bold]uv run dg apply[/]"

@@ -53,9 +53,9 @@ dg runs logs $(dg runs list --json | jq -r '.[0].id')
 ```
 
 `dg dev` is the zero-dependency mode: one process, one SQLite file, an embedded worker, and a
-development admin it creates for you. It starts from an empty `.dirigent/state` every time,
-because that SQLite file is a development artifact and a stale schema answers strangely;
-`--keep-state` keeps it. `dg server` and `dg worker` are the split processes for
+development admin it creates for you. Its database and artifacts live in `.dirigent/state`,
+and an instance that is already there, made by `dg init` or by an earlier start, is the one
+that runs; `--wipe-state` starts from nothing. `dg server` and `dg worker` are the split processes for
 a real deployment; `dg worker` refuses to start on SQLite, because its claim fallback is only
 correct with exactly one process.
 
