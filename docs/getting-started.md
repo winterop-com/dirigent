@@ -165,6 +165,8 @@ instance is somebody else's server. At a terminal, `dg init hello` with no flags
 form that asks all of this: where it runs, the stack's services, packs, a workflow, and the
 first admin.
 
+![The dg init form](images/init-form.svg)
+
 It scaffolds `dirigent.yaml`, which says where documents live and holds the few settings a
 project is likely to change; `dirigent.example.yaml`, every setting there is with its default
 and description, commented out and never loaded; `.dirigent/profiles.yaml`, saying which

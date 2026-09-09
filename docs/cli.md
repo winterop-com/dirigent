@@ -113,7 +113,7 @@ server remains the only place a definition actually exists.
 
 ```bash
 dg init hello                          # at a terminal: one form asks everything below
-dg init hello --template local         # an instance here on SQLite, and the documents that address it
+dg init hello --template local         # an instance on this machine, and the documents that address it
 dg init hello --template compose       # the documents and a container stack to run them on
 dg init hello --template documents     # the documents alone, against an instance elsewhere
 dg init hello --template compose --service s3 --service docker --pack dirigent-dhis2 --workflow
@@ -122,7 +122,14 @@ dg init hello --template compose --service s3 --service docker --pack dirigent-d
 At a terminal, with no `--template`, `dg init` opens one form: where the project runs, which
 services the stack carries, which packs come along, whether a GitHub workflow is written, and
 the first admin's username and password, typed twice. Everything is visible at once and
-nothing is written until Create; Escape leaves nothing behind. The flags answer the same
+nothing is written until Create; Escape leaves nothing behind.
+
+![The dg init form as it opens: where it runs, packs, a workflow, and the first admin](images/init-form.svg)
+
+Choosing the stack shows its services, with object storage on and the workers' daemon toggled
+here, and the footer says what Create will write:
+
+![The dg init form with the container stack chosen and its services shown](images/init-form-stack.svg) The flags answer the same
 questions for a script, and are what a pipe or CI uses: without a terminal there is no form,
 and the defaults are `local` with S3 on the stack.
 

@@ -14,6 +14,7 @@ from typing import cast
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.theme import Theme
 from textual.widgets import Button, Checkbox, Input, Label, RadioButton, RadioSet, SelectionList
 
 from dirigent_cli.project import (
@@ -26,9 +27,37 @@ from dirigent_cli.project import (
 
 MIN_PASSWORD_LENGTH = 8
 
+#: The web UI's dark palette, so the form is the same product as the screen behind the door:
+#: the amber accent on the near-black ground, with the same surfaces, inks and status colours.
+DIRIGENT_THEME = Theme(
+    name="dirigent",
+    primary="#e9b452",
+    secondary="#00a7e2",
+    accent="#e9b452",
+    foreground="#eaeff5",
+    background="#070a0f",
+    surface="#10151c",
+    panel="#191f26",
+    success="#5cb85c",
+    warning="#f9b64f",
+    error="#ed5350",
+    dark=True,
+    variables={
+        "input-cursor-background": "#e9b452",
+        "input-cursor-foreground": "#0a0e12",
+        "input-selection-background": "#e9b45240",
+        "block-cursor-background": "#e9b452",
+        "block-cursor-foreground": "#0a0e12",
+        "border": "#323941",
+        "border-blurred": "#191f26",
+        "footer-background": "#10151c",
+        "button-color-foreground": "#0a0e12",
+    },
+)
+
 #: The three places a project runs, in the order the form lists them.
 KINDS = (
-    ("local", "Here, one process on SQLite", "dg dev; one person, one machine"),
+    ("local", "Local: one process on SQLite", "dg dev; one person, one machine"),
     ("compose", "A container stack", "compose: PostgreSQL, workers, the published image"),
     ("documents", "Documents only", "against an instance somebody else runs"),
 )
@@ -37,13 +66,22 @@ KINDS = (
 class InitForm(App[InitChoices | None]):
     """The scaffolding form: kind, services, packs, workflow, admin, on one screen."""
 
+    TITLE = "dg init"
+
     CSS = """
     Screen { padding: 1 2; }
     #body { height: 1fr; }
+    Label { width: 1fr; }
     .section { color: $text-muted; margin-top: 1; }
     .hint { color: $text-muted; }
+    SelectionList > .selection-list--button { color: $surface; background: $surface; }
+    SelectionList > .selection-list--button-selected { color: $success; background: $surface; }
+    SelectionList > .selection-list--button-highlighted { color: $surface; background: $surface; }
+    SelectionList > .selection-list--button-selected-highlighted { color: $success; background: $surface; }
+    Checkbox > .toggle--button { color: $surface; background: $surface; }
+    Checkbox.-on > .toggle--button { color: $success; background: $surface; }
     #kind { height: auto; }
-    #services, #packs { height: auto; border: round $panel-lighten-2; }
+    #services, #packs { height: auto; border: round $border; }
     #admin-block { height: auto; }
     #admin-row { height: auto; }
     #admin-row Input { width: 1fr; margin-right: 2; }
@@ -61,6 +99,8 @@ class InitForm(App[InitChoices | None]):
     def __init__(self, directory: Path, *, version: str, admin: str = "admin", password: str = "") -> None:
         """Open on a directory, the runtime it will pin, and whatever the flags already said."""
         super().__init__()
+        self.register_theme(DIRIGENT_THEME)
+        self.theme = "dirigent"
         self._directory = directory
         self._version = version
         self._admin = admin
@@ -70,8 +110,7 @@ class InitForm(App[InitChoices | None]):
         """Lay the whole form out on one screen."""
         yield Label(f"New dirigent project: {self._directory.name}")
         yield Label(
-            f"Everything lives in this directory: the documents, the runtime it pins ({self._version}), "
-            "and its instance.",
+            f"The documents, the runtime it pins ({self._version}) and its instance, all in this directory.",
             classes="hint",
         )
         with VerticalScroll(id="body"):

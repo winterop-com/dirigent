@@ -644,7 +644,7 @@ def _refuse_an_existing_instance(root: Path) -> None:
             ways=[
                 ("dg dev", "starts it"),
                 ("dg db upgrade", "brings its schema forward"),
-                ("dg init --documents-only", "scaffolds documents beside it"),
+                ("dg init --template documents", "scaffolds documents beside it"),
             ],
         )
 
