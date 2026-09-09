@@ -1,6 +1,6 @@
 [project]
 name = "dirigent-cli"
-version = "0.10.1"
+version = "0.10.2"
 description = "The dirigent command line interface (dirigent / dg)."
 readme = "README.md"
 requires-python = ">=3.13"

@@ -15,6 +15,17 @@ package and uploads it to PyPI through trusted publishing, then builds the image
 commit and pushes it as `<version>` and `latest`. The two sibling repositories then relock
 against the tag and bump.
 
+## 0.10.2
+
+Released 2026-09-09. Every package in the workspace moves to 0.10.2 together.
+
+### Command line
+
+- **`dg init` closes on the one fact that is not obvious.** The paragraph about SQLite and the
+  compose stack is gone; what stays is that no secret key is set, so a connection carrying a
+  credential cannot be stored until it is. Nothing in the schema, the wire or the settings
+  changed since 0.10.1.
+
 ## 0.10.1
 
 Released 2026-09-09. Every package in the workspace moves to 0.10.1 together.
