@@ -32,7 +32,6 @@ from dirigent_cli.local import (
 from dirigent_cli.output import (
     Detail,
     age,
-    configure,
     console,
     elapsed,
     emit_event,
@@ -510,10 +509,6 @@ def init_command(
 
     from dirigent_core.auth import MIN_PASSWORD_LENGTH, WeakPassword
 
-    state = state_of(ctx)
-    # Run once by a person at a terminal, so it renders unless records were asked for.
-    if not state.chosen:
-        configure(output="console")
     root = directory.resolve()
     version = cli_version()
     unasked = template is None and service is None and pack is None and not workflow
@@ -1523,7 +1518,7 @@ def log_events(entries: list[LogEntryOut], labels: dict[UUID, str] | None = None
 
 def print_events(events: list[WatchEvent], level: Detail = Detail.SUMMARY, *, out: Sink | None = None) -> None:
     """Write transitions and log lines in the order they happened."""
-    writer = out or Sink()
+    writer = out or Sink(output_mode())
     for when, _, subject, label in sorted(events, key=lambda event: (event[0], event[1])):
         if isinstance(subject, LogEntryOut):
             if subject.level is LogLevel.DEBUG and level is not Detail.FULL:

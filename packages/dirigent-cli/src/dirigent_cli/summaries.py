@@ -217,7 +217,11 @@ def _kept(record: Record) -> list[RenderableType]:
 
 
 def _issued(record: Record) -> RenderableType | None:
-    """Hand over a minted token: the form it is used in, and that it is shown once."""
+    """Hand over a minted token: the form it is used in, and that it is shown once.
+
+    A login's ``token.issued`` and ``dg dev``'s ``starting`` both carry one exactly once; a
+    process record without a token, ``ready`` or ``state cleared``, is its line alone.
+    """
     token = record.get("token")
     if not token:
         return None
@@ -404,6 +408,7 @@ RENDERERS: Final[Mapping[str, Callable[[Record], RenderableType | None]]] = {
     "validation": _validation,
     "error": _refusal,
     "token.issued": _issued,
+    "process": _issued,
     "project.scaffolded": _scaffolded,
     "instance.initialised": _initialised,
 }

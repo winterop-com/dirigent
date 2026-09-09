@@ -366,3 +366,14 @@ def test_a_run_profile_renders_the_chain_and_the_split_along_it() -> None:
     assert "critical path: extract -> load" in text
     assert "waiting" in text and "2.0s" in text
     assert "70%" in text, "the share of the run is what says which part is worth attention"
+
+
+def test_a_process_that_minted_a_token_hands_it_over_beneath_its_line() -> None:
+    """Dg dev's starting record carries the fixture token once; the rendering must not drop it."""
+    drawn = printed(
+        Console().render(make("process", at=AT, message="starting", process="dev", token="a-dev-token", admin="dev"))
+    )
+    assert "export DG_TOKEN=a-dev-token" in drawn
+    assert "starting" in drawn
+    quiet = printed(Console().render(make("process", at=AT, message="ready", process="dev")))
+    assert "DG_TOKEN" not in quiet

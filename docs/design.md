@@ -1323,10 +1323,10 @@ The CLI is Typer plus rich, installed as `dirigent` with `dg` as the short alias
 the operator's remote (a server via `--profile` / `DG_URL` / `DG_TOKEN`) and the process
 entry point for containers. Nouns are subcommand groups matching the API resources; the only
 top-level verbs are the ones an operator reaches for constantly (`run`, `apply`, `export`,
-`validate`) and the process entry points. Machine output is the default and `-o console` is how
-one invocation asks for the rendering instead: a stream writes NDJSON, one record per line each
-carrying a `kind`, and a list or a show writes the server's own response, so a script that parses
-the default output is reading the API.
+`validate`) and the process entry points. The terminal decides the output: a person at one reads the
+rendering, and a pipe, a container or CI reads NDJSON, one record per line each carrying a
+`kind`, with a list or a show writing the server's own response, so a script that parses what
+it is given is reading the API. `--json` and `-o console` override the terminal either way.
 
 ```text
 # processes (container entry points)

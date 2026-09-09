@@ -20,11 +20,11 @@ dg dev
 SQLite in a file, the API, the scheduler, and a worker in a single asyncio process. Its
 database and its artifacts go in `.dirigent/state/` under the working directory, kept
 between starts unless `--wipe-state` says otherwise. It migrates, mints a development admin
-on an empty instance, emits the token once, and then goes quiet. Like every process it writes
-NDJSON, so a person reads it through `dg format`:
+on an empty instance, emits the token once, and then goes quiet. At a terminal it renders
+its lines; under compose or `docker logs` it writes NDJSON, which `dg format` renders back:
 
 ```bash
-dg dev | dg format
+dg dev
 ```
 
 ```text
@@ -40,8 +40,8 @@ export DG_TOKEN=$(dg dev | jq -r 'select(.kind == "process" and has("token")) | 
 ```
 
 `dg dev` starts its own logging at WARNING, and `-v` is what asks for the migration lines, the
-request log, and the engine's own events. That is a level, not a spelling: the stream is
-NDJSON either way.
+request log, and the engine's own events. That is a level, not a spelling: the terminal
+decides the spelling.
 
 This is for a laptop, an evaluation, or a CI job. It refuses to start on anything but SQLite:
 `dg dev` on PostgreSQL is just `dg server`, and pretending otherwise would give two names to
@@ -542,7 +542,7 @@ exhaustion, which is exactly why it is refused up front.
 | Setting | Default | What it means |
 | --- | --- | --- |
 | `DIRIGENT_LOG_LEVEL` | `INFO` | Process log level: `DEBUG`, `INFO`, `WARNING`, or `ERROR`. This is the *process* log; product telemetry is the `log_entries` table. A CLI `-v` / `--debug` flag wins over it. |
-| `DIRIGENT_LOG_FORMAT` | `console` | How a command spells its logs: `console` for a terminal, `json` for a collector. `dg dev`, `dg server`, `dg worker` and `dg scheduler` write NDJSON whatever it says. |
+| `DIRIGENT_LOG_FORMAT` | the terminal decides | How a command spells its output and its logs: `console` renders, `json` writes records. Unset, a terminal renders and anything else gets records, the process commands included. |
 
 ### Storage and artifacts
 
@@ -731,7 +731,7 @@ container it is the container's own environment. A machine with no instance at a
 one line rather than reporting the absence of everything, part by part:
 
 ```console
-$ dg health | dg format
+$ dg health
 no database at .dirigent/state/dirigent.db [check] check=database status=absent probe=readiness
 there is no instance here: no database at .dirigent/state/dirigent.db, and no server was named [health] checked=1 ...
 ```
@@ -739,7 +739,7 @@ there is no instance here: no database at .dirigent/state/dirigent.db, and no se
 And a deployment that is up reads as one:
 
 ```console
-$ dg health | dg format
+$ dg health
 the database at postgresql://dirigent:***@postgres:5432/dirigent answers, schema 0001_baseline [check] ...
 3 of 3 workers beating [check] check=worker status=healthy probe=readiness
 2 schedules waiting, none overdue [check] check=scheduler status=healthy probe=readiness
@@ -795,14 +795,15 @@ time. The stdlib bridge means uvicorn, SQLAlchemy, alembic, and httpx2 records r
 the same processors as dirigent's own events and end up in the same shape.
 
 **Where they go.** `dg dev`, `dg server`, `dg worker` and `dg scheduler` write their logs to
-**stdout**, as NDJSON, because for a process that stream is the log. Everything else -- the
+**stdout**, because for a process that stream is the log: NDJSON under a collector, rendered
+lines at a terminal. Everything else -- the
 commands a person types -- writes its logs to **stderr**, leaving stdout for the answer. There
 is no log file, no rotation, and no setting that names a path: collect them the way your
 runtime collects a container's output.
 
 | Setting | Default | Effect |
 | --- | --- | --- |
-| `DIRIGENT_LOG_FORMAT` | `console` | How a **command** spells its logs: `console` renders coloured, aligned lines, `json` emits one record per line. It does not reach the four process commands, which are NDJSON whatever it says |
+| `DIRIGENT_LOG_FORMAT` | the terminal decides | How a command spells its output and its logs: `console` renders coloured, aligned lines, `json` emits one record per line. Unset, a terminal renders and a pipe or a container's log gets records, the four process commands included |
 | `DIRIGENT_LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, or `ERROR`. A CLI `-v` (INFO), `--debug` (DEBUG), or `--debug-all` (DEBUG, uncapped) wins over it |
 
 At DEBUG, three libraries are floored at INFO -- `aiosqlite`, `asyncio`, and `httpcore2` --
@@ -1137,8 +1138,8 @@ than one that holds locks for minutes, and an interrupted sweep has still made p
 work off a backlog before setting a policy, or prune an instance that runs no scheduler:
 
 ```bash
-dg prune --runs 90d --logs 14d --dry-run | dg format   # what would go
-dg prune --runs 90d --logs 14d | dg format             # what went
+dg prune --runs 90d --logs 14d --dry-run   # what would go
+dg prune --runs 90d --logs 14d             # what went
 ```
 
 An age given on the command line beats the configured one, and a family with neither is not

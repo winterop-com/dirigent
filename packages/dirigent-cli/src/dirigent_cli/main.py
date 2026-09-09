@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Any, cast
+from typing import TYPE_CHECKING, Annotated, Any, TextIO, cast
 
 import typer
 from pydantic import ValidationError
@@ -23,7 +23,7 @@ from dirigent_client.enums import UserRole
 from dirigent_core import migrations
 from dirigent_core.config import STATE_DIR, Settings, get_settings, redacted_url, reset_settings_cache
 from dirigent_core.logging import LOG_FORMAT_ENV, configure_logging, silence_stdout
-from dirigent_core.protocol import FORMATS, Format, Record, as_json, make
+from dirigent_core.protocol import FORMATS, Format, Record, make
 from dirigent_core.telemetry import configure_telemetry
 
 if TYPE_CHECKING:
@@ -158,22 +158,22 @@ def main_callback(
         verbose=verbose,
         debug=debug,
         debug_all=debug_all,
-        output=_output_format(output, json_output=json_output),
-        chosen=output is not None or json_output or LOG_FORMAT_ENV in os.environ,
+        output=resolve_output(output, json_output=json_output),
     )
     ctx.obj.configure_output()
 
 
-def _output_format(named: str | None, *, json_output: bool) -> Format:
-    """Resolve the output: the flag, then the environment, then NDJSON.
+def resolve_output(named: str | None, *, json_output: bool) -> Format:
+    """Resolve the output: the flag, then the environment, then the terminal.
 
     ``--json`` is the same request as ``--output json``, and the environment is where a
-    container says it once. NDJSON is what an unasked invocation writes, so what a command
-    emits does not depend on who happens to be reading it; ``-o console`` renders it.
+    container says it once. Unasked, a terminal gets the rendering and anything else gets
+    NDJSON: a pipe, a container's log, an agent's shell and CI are never terminals, so a
+    script reads records without asking, and a person reads lines without asking.
     """
     chosen = named or ("json" if json_output else None) or os.environ.get(LOG_FORMAT_ENV)
     if chosen is None:
-        return "json"
+        return "console" if sys.stdout.isatty() else "json"
     resolved = chosen.lower()
     if resolved not in FORMATS:
         # The output that was asked for is exactly what is missing, so the refusal is written
@@ -643,7 +643,7 @@ def server(
         os.environ[UI_ENV] = "true" if ui else "false"
         reset_settings_cache()
     settings = get_settings()
-    configure_logging(_level(ctx, settings), "json", cap_foreign=_cap_foreign(ctx), stream=sys.stdout)
+    _process_logging(_level(ctx, settings), cap_foreign=_cap_foreign(ctx))
     if settings.is_sqlite and settings.scheduler_enabled:
         refuse(
             "dg server embeds the scheduler, and leadership is a PostgreSQL advisory lock: on SQLite "
@@ -687,7 +687,7 @@ def docker_reap(
     from dirigent_cli.stream import Sink
 
     settings = get_settings()
-    configure_logging(_level(ctx, settings), "json", cap_foreign=_cap_foreign(ctx), stream=sys.stderr)
+    _process_logging(_level(ctx, settings), cap_foreign=_cap_foreign(ctx), stream=sys.stderr)
     if not reaper.reachable():
         refuse(
             "docker is not on this host's PATH, so there is no daemon to reap stacks from",
@@ -830,11 +830,9 @@ def dev(
     settings = get_settings()
     # A developer convenience starts its own logging at WARNING and -v is what asks for more,
     # while a named DIRIGENT_LOG_LEVEL still wins.
-    configure_logging(
+    _process_logging(
         state.level if state is not None else "WARNING",
-        "json",
         cap_foreign=state is None or not state.debug_all,
-        stream=sys.stdout,
     )
     if not settings.is_sqlite:
         refuse(
@@ -919,16 +917,37 @@ def dev_started(
 
 
 def emit(record: Record) -> None:
-    """Write one record to the stream and flush it: a reader is waiting on this line.
+    """Write one record to the stream in this invocation's output, and flush it.
 
     A reader that has gone ends the stream rather than the process: the pipe is closed and
     every later write goes to the void, while shutdown runs to completion.
     """
+    from dirigent_cli.output import output_mode
+    from dirigent_cli.stream import Sink
+
     try:
-        sys.stdout.write(f"{as_json(record)}\n")
-        sys.stdout.flush()
+        Sink(output_mode()).write(record)
     except BrokenPipeError:
         silence_stdout()
+
+
+def _process_logging(level: str, *, cap_foreign: bool, stream: TextIO | None = None) -> None:
+    """Point a process's logging at its stream, in this invocation's output.
+
+    The console grammar is the one records are rendered in, so a process read at a terminal
+    is one stream of lines, and a process read by a pipe is one stream of records.
+    """
+    from dirigent_cli.output import output_mode
+    from dirigent_cli.stream import ansi
+
+    mode = output_mode()
+    configure_logging(
+        level,
+        mode,
+        cap_foreign=cap_foreign,
+        stream=stream if stream is not None else sys.stdout,
+        paint=ansi if mode == "console" else None,
+    )
 
 
 async def dev_admin(settings: Settings) -> tuple[str | None, str | None]:
@@ -1007,7 +1026,7 @@ def worker(
     import asyncio
 
     settings = get_settings()
-    configure_logging(_level(ctx, settings), "json", cap_foreign=_cap_foreign(ctx), stream=sys.stdout)
+    _process_logging(_level(ctx, settings), cap_foreign=_cap_foreign(ctx))
     configure_telemetry(settings)
     if settings.is_sqlite:
         refuse(
@@ -1042,7 +1061,7 @@ def scheduler_command(ctx: typer.Context) -> None:
     import asyncio
 
     settings = get_settings()
-    configure_logging(_level(ctx, settings), "json", cap_foreign=_cap_foreign(ctx), stream=sys.stdout)
+    _process_logging(_level(ctx, settings), cap_foreign=_cap_foreign(ctx))
     configure_telemetry(settings)
     if settings.is_sqlite:
         refuse(

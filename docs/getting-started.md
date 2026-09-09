@@ -70,7 +70,7 @@ The exit code is the run's outcome, so this works in CI directly. See
 ## A laptop instance: `dg dev`
 
 ```bash
-dg dev | dg format
+dg dev
 ```
 
 One asyncio process containing four things:
@@ -107,8 +107,8 @@ Only a directory dirigent named itself is ever removed. Point `database_url` som
 and the wipe is refused rather than guessed at, because the files beside that database are
 not dirigent's to delete.
 
-Like every dirigent process it writes NDJSON, so `dg format` is what renders it. The starting
-record says where its state is, what it bound, the admin it made, and the token, **once**; then
+At a terminal it renders its lines; in a pipe or a container's log it writes NDJSON, which
+`dg format` renders back. The starting record says where its state is, what it bound, the admin it made, and the token, **once**; then
 it stays quiet until something happens. Detail is what `-v` is for:
 
 ```text
@@ -315,8 +315,8 @@ dg admin token create ci
 ```
 
 `dg auth login` verifies the password against the API and then mints an API token named
-`cli-<username>`, which it writes as a `token.issued` record; through `dg format`, or with
-`-o console`, that is the export line to paste. `dg admin token create NAME` mints one under
+`cli-<username>`, which it writes as a `token.issued` record; at a terminal that is the
+export line to paste. `dg admin token create NAME` mints one under
 a name you choose, which is what a CI job should hold.
 
 **The secret prints exactly once.** The instance stores only a SHA-256 of it plus the first
@@ -334,8 +334,8 @@ accurate to the minute rather than to the request.
 Both `dg auth login` and `dg admin token create` are admin-only, because minting a credential
 is.
 
-Once a script rather than a person is holding that token, add `--json`. It is valid on every
-command: a listing or a show answers with the server's own response, and a streaming command --
+A script holding that token reads records without asking, because its stdout is not a
+terminal; `--json` asks for them at one. It is valid on every command: a listing or a show answers with the server's own response, and a streaming command --
 `dg run --watch`, `dg run --local`, `dg runs logs --follow` -- answers with NDJSON, one event
 object per line as things happen. Nothing but JSON reaches stdout, and a command that would
 have prompted for a value fails with a problem object instead of blocking on a pipe.

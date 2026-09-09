@@ -30,11 +30,11 @@ A gate, a lookup, a fan-out, and an error branch. Four steps, no Python.
 
 ```bash
 uv tool install dirigent-cli
-dg dev | dg format
+dg dev
 ```
 
 `dg dev` is the standalone mode: SQLite in a file, and the API, the scheduler, and a worker in
-one process. It writes NDJSON like every dirigent process, so `dg format` renders it. It
+one process. At a terminal it renders its lines; in a pipe it writes NDJSON. It
 migrates the database, mints a development admin, and emits a token exactly once. Its state
 is `.dirigent/state`, kept between starts -- pass `--wipe-state` to begin from nothing:
 

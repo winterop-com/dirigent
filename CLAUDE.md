@@ -82,13 +82,13 @@
 
 ## Output
 
-- Every command writes NDJSON to stdout by default: one record per line, no banner, no
-  table, no colour. That is `dg run` and `dg runs` as much as `dg dev`, `dg server`,
-  `dg worker` and `dg scheduler`. A person reads any of them by piping through
-  `dg format`, and `-o console` is how one invocation asks for the rendering instead.
-- `dg init` is the exception, because it is run once by a person setting a machine up and
-  never in a pipe: it renders unless records were asked for. `dg --version` answers with one
-  plain line, like `--help`; there is no `dg version` command.
+- The terminal decides the output. Stdout a terminal: every command renders, `dg dev` and
+  `dg server` included. Stdout anything else, a pipe, a container's log, an agent's shell,
+  CI: every command writes NDJSON, one record per line, no banner, no table, no colour.
+  `--json` forces records on a terminal, `-o console` forces the rendering into a pipe,
+  `DIRIGENT_LOG_FORMAT` names either once, and `dg format` reads a stream that was kept or
+  piped. There is no other exception: `dg init` follows the same rule. `dg --version`
+  answers with one plain line, like `--help`; there is no `dg version` command.
 - Every record carries a `kind`, which is what a formatter dispatches on and what `jq`
   selects by. A formatter renders an unrecognised kind rather than failing.
 - A record carries what its rendering needs, so no renderer reads the run a second time.

@@ -25,7 +25,7 @@ that executed differently would prove nothing.
 ## Talking to a server
 
 ```bash
-dg dev | dg format                      # a local instance: API, worker, one SQLite file
+dg dev                                  # a local instance: API, worker, one SQLite file
 # its state is .dirigent/state, kept between starts; --wipe-state starts from nothing
 # on an empty state its admin is dev / dirigent-dev, a fixture; the starting record carries
 # the token, minted once, so copy it out of that line
@@ -180,8 +180,8 @@ The stack runs the image that `Dockerfile` builds, and it builds on
 Adding a pack later is a line in that `Dockerfile` and `docker compose up --build`.
 `--admin` is refused with this template, and `--service` with the other two.
 
-Being run once by a person, `dg init` renders for a terminal rather than writing NDJSON.
-Asking for records gets them: `instance.initialised` carries the token it minted, and
+Like every command, `dg init` renders at a terminal and writes records into a pipe, and
+`--json` asks for the records at a terminal: `instance.initialised` carries the token it minted, and
 `--template documents` and `--template compose` write `project.scaffolded` instead, the latter
 with the `next` commands that start the stack, beginning with `uv sync`. Both carry the
 `template`, and the stack's `services`, any `packs`, and `workflow` when one was written.
@@ -387,23 +387,26 @@ Precedence is the flag, then `DIRIGENT_LOG_LEVEL`, then quiet.
 
 ### The stream is a protocol
 
-Every line a run writes is one record, and NDJSON is what a command writes unless something
-says otherwise. A person reads it by piping it through `dg format`:
+Every line a run writes is one record. At a terminal the records are rendered; anywhere else,
+a pipe, a file, a container's log, an agent's shell, CI, they are written as NDJSON, one JSON
+object per line, without asking:
 
 ```bash
-dg run --local ./document.yaml                 # one JSON object per record, the default
-dg run --local ./document.yaml | dg format     # the same records, rendered
-dg run --local ./document.yaml -o console      # rendered directly, without the pipe
+dg run --local ./document.yaml                 # rendered at a terminal; records into a pipe
+dg run --local ./document.yaml --json          # records, even at a terminal
+dg run --local ./document.yaml > run.ndjson    # kept, and read back with dg format -f
+dg format -f run.ndjson                        # the same records, rendered
 ```
 
-What a command emits does not depend on who is reading it, so a run watched live, the same
-run read back off a file, and the same run parsed by `jq` are one thing rendered three ways.
-Verbosity decides which records there are, and it decides that the same way under both
-outputs: `dg run -v | dg format` and `dg run -v -o console` print the same lines.
+The records are the same whoever reads them, so a run watched live, the same run read back
+off a file, and the same run parsed by `jq` are one thing rendered three ways. Verbosity
+decides which records there are, and it decides that the same way under both outputs:
+`dg run -v` at a terminal and `dg run -v --json` carry the same events.
 
-`-o` / `--output` is a global option, valid on every command and in any position. It beats
-`DIRIGENT_LOG_FORMAT`, which is where a container names the spelling once and which accepts
-the same names. Precedence is the flag, then the environment, then `json`.
+`-o` / `--output` is a global option, valid on every command and in any position: `-o json`
+(`--json` for short) forces records at a terminal, `-o console` forces the rendering into a
+pipe. It beats `DIRIGENT_LOG_FORMAT`, which is where a container names the spelling once and
+which accepts the same names. Precedence is the flag, then the environment, then the terminal.
 
 #### The console rendering
 
@@ -462,14 +465,15 @@ answers with a single thing -- `dg runs show`, `dg system info`, a minted token 
 one response as one JSON object on one line, which is the server's own document rather than a
 record.
 
-`dg dev`, `dg server`, `dg worker` and `dg scheduler` write NDJSON and nothing else: no
-banner, no table, no colour, whatever `-o` or `DIRIGENT_LOG_FORMAT` say. A process has one
-stream and a person reads it through `dg format`. Their logging joins that stream on standard
-output rather than standard error, so one pipe carries the whole story.
+`dg dev`, `dg server`, `dg worker` and `dg scheduler` follow the same rule: under compose,
+systemd or `docker logs` there is no terminal, so they write NDJSON and nothing else, no
+banner, no table, no colour; at a terminal they render the same lines. A process has one
+stream: its logging joins the records on standard output rather than standard error, so one
+pipe carries the whole story.
 
 ```bash
-dg dev | dg format                 # the whole stream, rendered
-dg dev > dev.ndjson                # or kept, and read back later with dg format -f
+dg dev                             # rendered at a terminal
+dg dev > dev.ndjson                # records, kept, and read back later with dg format -f
 ```
 
 #### A command's diagnostics
@@ -550,7 +554,7 @@ still read differently, and NDJSON carries every URI whole.
 It passes through anything that is not a record, so a mixed log still reads:
 
 ```bash
-dg run --local ./document.yaml -o json > run.ndjson
+dg run --local ./document.yaml > run.ndjson
 dg format -f run.ndjson
 dg dev | dg format
 ```
@@ -620,12 +624,12 @@ table does the same:
 │        │              │           │      │ -d prints it              │
 ```
 
-## Machine output: the default
+## Records when nothing is watching
 
-NDJSON is what every command writes unless `-o console` or `DIRIGENT_LOG_FORMAT` asks for the
-rendering, and `--json` is the explicit spelling of the same request as `-o json`. It implies
-no colour, no spinner, no progress, and no prompts: nothing reaches stdout that is not a JSON
-object, and a command that would have asked for a value fails rather than blocking on a pipe.
+NDJSON is what every command writes when stdout is not a terminal, and what `--json` or
+`-o json` asks for at one. It implies no colour, no spinner, no progress, and no prompts:
+nothing reaches stdout that is not a JSON object, and a command that would have asked for a
+value fails rather than blocking on a pipe. A script, an agent and CI never see anything else.
 
 A listing is a record stream like everything else: one line per row, each carrying its kind
 and the row itself under `fields`. A row has fields of its own that a record also has -- a
@@ -797,7 +801,7 @@ what it sat through belongs to the steps above it.
 the question they are for:
 
 ```bash
-dg runs profile RUN_ID | dg format
+dg runs profile RUN_ID
 dg runs profile RUN_ID | jq -r 'select(.kind == "run.profile.warning") | .message'
 ```
 
@@ -895,7 +899,7 @@ dg admin token create NAME [--user U] | list | revoke NAME [--user U]
 
 `dg auth login` mints an API token and is the one place it is readable, so it writes a
 `token.issued` record carrying the token itself -- a scripted login reads it off the stream,
-and `-o console` spells it as the `export DG_TOKEN=` line to paste. `dg auth status` answers
+and at a terminal it is spelled as the `export DG_TOKEN=` line to paste. `dg auth status` answers
 with an `auth` record naming the server, where that URL came from, and who the CLI is; with
 no token at all it refuses rather than saying nothing.
 
