@@ -15,6 +15,16 @@ package and uploads it to PyPI through trusted publishing, then builds the image
 commit and pushes it as `<version>` and `latest`. The two sibling repositories then relock
 against the tag and bump.
 
+## 0.10.1
+
+Released 2026-09-09. Every package in the workspace moves to 0.10.1 together.
+
+### Before you upgrade
+
+**`dg version` is gone; `dg --version` is the way to ask.** It answers with one plain line,
+`dg 0.10.1`, the way every CLI answers the flag, and the `version` record with the package
+table is no longer written. Nothing in the schema, the wire or the settings changed since 0.10.0.
+
 ## 0.10.0
 
 Released 2026-09-09. Every package in the workspace moves to 0.10.0 together.
