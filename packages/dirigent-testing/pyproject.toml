@@ -1,6 +1,6 @@
 [project]
 name = "dirigent-testing"
-version = "0.9.4"
+version = "0.9.5"
 description = "Test doubles and pytest fixtures for writing and testing dirigent blocks."
 readme = "README.md"
 requires-python = ">=3.13"
