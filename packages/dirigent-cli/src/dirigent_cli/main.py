@@ -109,9 +109,20 @@ app.command("validate", rich_help_panel=DEFINE_PANEL)(commands.validate_command)
 app.command("export", rich_help_panel=DEFINE_PANEL)(commands.export_command)
 
 
+def _say_version(asked: bool) -> None:
+    """Answer --version with one plain line, the way every CLI does, and stop."""
+    if asked:
+        typer.echo(f"dg {distribution_version('dirigent-cli')}")
+        raise typer.Exit
+
+
 @app.callback()
 def main_callback(
     ctx: typer.Context,
+    version: Annotated[
+        bool,
+        typer.Option("--version", callback=_say_version, is_eager=True, help="Print dg's version and exit."),
+    ] = False,
     url: Annotated[str | None, typer.Option("--url", help="The server to talk to.")] = None,
     token: Annotated[str | None, typer.Option("--token", help="The bearer token to present.")] = None,
     profile: Annotated[str | None, typer.Option("--profile", help="Which profile to use.")] = None,
@@ -177,8 +188,6 @@ def _output_format(named: str | None, *, json_output: bool) -> Format:
     return cast("Format", resolved)
 
 
-DISTRIBUTIONS = ("dirigent-cli", "dirigent-core", "dirigent-server", "dirigent-plugin", "dirigent-blocks")
-
 DEV_ADMIN = "dev"
 DEV_PASSWORD = "dirigent-dev"  # noqa: S105
 DEV_TOKEN_NAME = "dev"
@@ -241,16 +250,6 @@ def format_command(
     lines = file.read_text().splitlines() if file is not None else sys.stdin
     for item in rendered(lines, registered[named]):
         emit_rendered(item)
-
-
-@app.command(name="version", rich_help_panel=ADMIN_PANEL)
-def version_command() -> None:
-    """Show the versions of the installed dirigent packages."""
-    emit_fact(
-        "version",
-        message="dirigent",
-        packages=[{"package": name, "version": distribution_version(name)} for name in DISTRIBUTIONS],
-    )
 
 
 @config_app.command("show")
