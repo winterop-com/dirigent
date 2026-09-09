@@ -45,12 +45,13 @@ jobs:
             fi
           done
 
-      # The server wheel ships the built UI bundle, so the bundle is built before the build.
+      # The server wheel packages src/dirigent_server/static/, so the bundle is built and
+      # put there before the build.
       - name: Install bun
         uses: oven-sh/setup-bun@v2
 
-      - name: Build the bundle
-        run: make ui
+      - name: Build the bundle into the server package
+        run: make ui-static
 
       # One dist directory per package, so the publish job for a package uploads its own
       # files and nothing else.
@@ -60,6 +61,9 @@ jobs:
             name=$(basename "$package")
             uv build --package "$name" --out-dir "dist/$name"
           done
+
+      - name: Refuse a server wheel without the UI
+        run: unzip -l dist/dirigent-server/dirigent_server-*.whl | grep -q 'dirigent_server/static/index.html'
 
       - uses: actions/upload-artifact@v7
         with:
