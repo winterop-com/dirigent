@@ -15,6 +15,36 @@ package and uploads it to PyPI through trusted publishing, then builds the image
 commit and pushes it as `<version>` and `latest`. The two sibling repositories then relock
 against the tag and bump.
 
+## 0.9.2
+
+Released 2026-09-09. Every package in the workspace moves to 0.9.2 together.
+
+### Before you upgrade
+
+Nothing in the schema, the wire or the settings changed since 0.9.1.
+
+**The server wheel on PyPI carries the web UI.** The 0.9.0 and 0.9.1 wheels shipped without
+the bundle, so `dg dev` from a PyPI install answered that no bundle was built; the release
+now puts the bundle where the wheel packages it and refuses a server wheel without it.
+
+### Command line
+
+- **`dg init` refuses a short password before writing anything.** The length is checked where
+  the password is resolved, so a refusal leaves no half-made project.
+- **`dg init` refuses in plain words.** An init that renders writes one sentence on stderr,
+  with any hints under it; `--json` still gets the `error` record.
+
+### Blocks
+
+- **The docker CLI finds its plugins on any host.** `docker.build` and `docker.compose.*` run
+  the CLI with the run's directory as its home, and the docker config written there names the
+  worker's own `cli-plugins` directory, so `buildx` and `compose` resolve where Docker Desktop
+  installs them as well as where a package does.
+
+### Examples
+
+- The sql examples' sqlite connection is `work-db`, named for where it lives.
+
 ## 0.9.1
 
 Released 2026-09-09. Every package in the workspace moves to 0.9.1 together.
