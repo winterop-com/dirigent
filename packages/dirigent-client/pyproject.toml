@@ -1,6 +1,6 @@
 [project]
 name = "dirigent-client"
-version = "0.9.3"
+version = "0.9.4"
 description = "The dirigent API contract: typed wire schemas and an async Python client."
 readme = "README.md"
 requires-python = ">=3.13"
