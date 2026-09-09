@@ -608,7 +608,7 @@ def _refuse_an_existing_instance(root: Path) -> None:
         _init_fail(
             f"{existing} already exists, so this directory holds an instance already",
             problems=[
-                "dg dev --keep-state starts it",
+                "dg dev starts it",
                 "dg db upgrade brings its schema forward",
                 "dg init --documents-only scaffolds documents beside it",
             ],

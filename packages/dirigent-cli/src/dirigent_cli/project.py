@@ -519,13 +519,13 @@ __RUN__
 README_RUN: Final = {
     "basic": (
         "uv sync",
-        "uv run dg dev --keep-state",
+        "uv run dg dev",
         "uv run dg apply",
         "uv run dg run hello-world --watch",
     ),
     "ci": (
         "uv sync",
-        "uv run dg dev --keep-state",
+        "uv run dg dev",
         "uv run dg apply",
         "uv run dg run hello-world --watch",
     ),

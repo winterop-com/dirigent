@@ -810,18 +810,16 @@ def dev(
         bool,
         typer.Option(
             "--wipe-state/--keep-state",
-            help="Delete the state directory before starting, or keep what the last run left.",
+            help="Delete the state directory before starting, instead of running the instance that is there.",
         ),
-    ] = True,
+    ] = False,
 ) -> None:
     """Run the API and an embedded worker in one process, on SQLite, with no dependencies.
 
     The database and the artifacts live in .dirigent/state under the working directory, so
     starting this somewhere else means a different instance, with none of the same runs.
-
-    That directory is deleted on every start unless --keep-state says otherwise: SQLite here
-    is a development artifact, and a database left over from an older schema answers
-    strangely rather than failing. Only a directory dirigent named itself is removed.
+    An instance that is there, made by dg init or by an earlier start, is the one that runs;
+    --wipe-state deletes it first, and only a directory dirigent named itself is removed.
     """
     import asyncio
     import os
@@ -879,10 +877,10 @@ def clear_state(settings: Settings) -> Path | None:
 
 
 def state_cleared(directory: Path) -> Record:
-    """Build the record saying the state went, and how to have kept it.
+    """Build the record saying the state went, as --wipe-state asked.
 
-    Emitted only when something was actually deleted, so a first start on an empty machine
-    stays quiet.
+    Emitted only when something was actually deleted, so a wipe of an empty machine stays
+    quiet.
     """
     return make(
         "process",
@@ -890,7 +888,6 @@ def state_cleared(directory: Path) -> Record:
         message="state cleared",
         process="dev",
         state=str(directory),
-        hint="--keep-state keeps it",
     )
 
 

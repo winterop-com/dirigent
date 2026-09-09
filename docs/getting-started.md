@@ -97,14 +97,13 @@ once. Both are fixtures of a throwaway instance rather than credentials, which i
 fixed and written here. The compose stack is the other shape: its first admin is `admin`, with
 the password `.env` sets in `DIRIGENT_BOOTSTRAP_ADMIN_PASSWORD`, and nothing about it is fixed.
 
-**`dg dev` empties that directory every time it starts.** SQLite here is a development
-artifact rather than a database anybody keeps, and while the schema is still moving, a file
-from last week's migration answers strangely instead of failing outright -- so the default is
-to begin from nothing. It says so in one record when it deletes something, and `--keep-state`
-is how you ask for yesterday's runs back:
+**`dg dev` runs the instance that is in that directory.** An instance `dg init` made, or one
+an earlier start left, keeps its accounts, its runs and its artifacts; the schema is migrated
+forward on every start. `--wipe-state` is how you ask to begin from nothing, and it says so in
+one record when it deletes something:
 
 ```bash
-dg dev --keep-state
+dg dev --wipe-state
 ```
 
 Only a directory dirigent named itself is ever removed. Point `database_url` somewhere else
@@ -143,7 +142,7 @@ extra steps, and giving one thing two names helps nobody.
 dg init my-pipelines --password "the one you will use"
 cd my-pipelines
 uv sync
-uv run dg dev --keep-state       # in a second terminal, in this directory; it keeps running
+uv run dg dev                    # in a second terminal, in this directory; it keeps running
 ```
 
 ```bash
@@ -158,10 +157,9 @@ token goes into the project's `.env`, readable by you alone and kept out of git,
 export `DG_TOKEN` -- so nothing has to be pasted. `uv sync` builds the project's environment
 from the `pyproject.toml` it wrote, which pins the dirigent that scaffolded it -- so every
 `uv run dg` below is that runtime rather than whatever is on the path.
-`dg dev --keep-state` then runs what it made, and serves the UI at `http://127.0.0.1:3333`
--- and the flag is the whole reason this recipe has one, because a plain `dg dev` would empty
-the directory `dg init` just filled and mint a development admin of its own, leaving the token
-in `.env` addressing an account that no longer exists.
+`dg dev` then runs what it made, and serves the UI at `http://127.0.0.1:3333`. Never
+`--wipe-state` here: it would empty the directory `dg init` just filled and mint a development
+admin of its own, leaving the token in `.env` addressing an account that no longer exists.
 `dg init --documents-only` stops after the documents, which is what to use when the instance
 is somebody else's server.
 

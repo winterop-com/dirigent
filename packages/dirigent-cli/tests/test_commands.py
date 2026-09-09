@@ -1,5 +1,6 @@
 """The command tree, driven against a real server running in this process."""
 
+import asyncio
 import os
 import time
 from collections.abc import Iterator
@@ -12,7 +13,8 @@ import yaml
 from typer.testing import CliRunner
 
 from clisupport import asking_for_the_rendering, closing, of_kind, only, plain, records, refusal, rows
-from dirigent_cli.main import app, hoist_globals
+from dirigent_cli.commands import instance_settings
+from dirigent_cli.main import app, dev_admin, hoist_globals
 from dirigent_cli.profiles import resolve_endpoint
 from dirigent_cli.project import ProjectError, find_project, scaffold
 from dirigent_core.config import CONFIG_FILE_ENV, Settings, reset_settings_cache
@@ -1184,7 +1186,7 @@ def test_an_unreachable_server_says_so_rather_than_traces_back(monkeypatch: pyte
     assert result.exit_code == 1
     refused = refusal(result.stdout)
     assert "cannot reach" in refused["message"]
-    assert any("dg dev --keep-state" in problem for problem in refused["problems"]), (
+    assert any("dg dev" in problem for problem in refused["problems"]), (
         "a refused loopback connection does not say the local instance is not running"
     )
 
@@ -1231,6 +1233,20 @@ def test_init_puts_the_token_where_the_local_profile_reads_it(tmp_path: Path) ->
     endpoint = resolve_endpoint(start=root, environ={})
     assert endpoint.token == initialised["token"]
     assert endpoint.profile == "local"
+
+
+def test_a_plain_dev_start_keeps_the_instance_init_made(tmp_path: Path) -> None:
+    """A plain dg dev after dg init runs that instance: its admin stays, no development admin is made."""
+    root = tmp_path / "instance"
+    result = machine("init", str(root), "--password", "a test password", "--json")
+    assert result.exit_code == 0, result.output
+    settings = instance_settings(root)
+
+    admin, token = asyncio.run(dev_admin(settings))
+
+    assert admin == "admin", "the admin dg init made is the one dg dev names"
+    assert token is None, "the token was handed over by dg init, so dg dev mints none"
+    assert (root / ".dirigent" / "state" / "dirigent.db").is_file()
 
 
 def test_init_shows_the_token_once_and_says_where_it_lives(tmp_path: Path) -> None:
