@@ -615,14 +615,19 @@ def instance_settings(root: Path) -> Settings:
     )
 
 
-def _init_fail(message: str, *, problems: Sequence[str] = ()) -> NoReturn:
-    """Refuse an init: a record where records were asked for, plain sentences otherwise."""
+def _init_fail(message: str, *, ways: Sequence[tuple[str, str]] = ()) -> NoReturn:
+    """Refuse an init: a record where records were asked for, plain sentences otherwise.
+
+    Each way out is a command and what it does; the record carries them as one sentence
+    each, and the rendering sets the commands in a column of their own.
+    """
     if json_mode():
-        refuse(message, problems=problems)
+        refuse(message, problems=[f"{command} {what}" for command, what in ways])
     else:
-        error_console.print(message, highlight=False, markup=False)
-        for problem in problems:
-            error_console.print(f"  {problem}", highlight=False, markup=False)
+        error_console.print(f"[red]{escape(message)}[/]", highlight=False)
+        width = max((len(command) for command, _ in ways), default=0)
+        for command, what in ways:
+            error_console.print(f"  [bold]{escape(command).ljust(width)}[/]  [dim]{escape(what)}[/]", highlight=False)
     raise typer.Exit(code=1)
 
 
@@ -635,11 +640,11 @@ def _refuse_an_existing_instance(root: Path) -> None:
     existing = instance_settings(root).sqlite_path
     if existing is not None and existing.exists():
         _init_fail(
-            f"{existing} already exists, so this directory holds an instance already",
-            problems=[
-                "dg dev starts it",
-                "dg db upgrade brings its schema forward",
-                "dg init --documents-only scaffolds documents beside it",
+            f"this directory holds an instance already: {existing}",
+            ways=[
+                ("dg dev", "starts it"),
+                ("dg db upgrade", "brings its schema forward"),
+                ("dg init --documents-only", "scaffolds documents beside it"),
             ],
         )
 
