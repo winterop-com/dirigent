@@ -15,6 +15,26 @@ package and uploads it to PyPI through trusted publishing, then builds the image
 commit and pushes it as `<version>` and `latest`. The two sibling repositories then relock
 against the tag and bump.
 
+## 0.9.3
+
+Released 2026-09-09. Every package in the workspace moves to 0.9.3 together.
+
+### Before you upgrade
+
+Nothing in the schema, the wire or the settings changed since 0.9.2.
+
+### Command line
+
+- **`dg init` puts the token in the project's `.env`.** The first admin's token is written
+  to `.env` with owner-only permissions, every template's root `.gitignore` covers `.env`,
+  and the `local` profile reads it from there: nothing has to be exported before `dg apply`.
+- **A profile's `token_env` falls back to the project's `.env`.** Any `DG_*` variable the
+  shell does not set is read from the `.env` beside `.dirigent/`; the shell's value wins.
+- **`dg init` says where the instance is and how to start it.** The closing text names the
+  directory, the second terminal `uv run dg dev --keep-state` needs, and the UI's address.
+- **A refused connection to a loopback address says the local instance is not running**, and
+  which command starts it.
+
 ## 0.9.2
 
 Released 2026-09-09. Every package in the workspace moves to 0.9.2 together.
