@@ -38,24 +38,24 @@ export function BrandPane({
 }) {
     return (
         <aside
-            ref={ref} className="bg-terminal text-terminal-foreground relative flex items-center justify-between gap-4 overflow-hidden px-5 py-6 md:block md:p-0">
+            ref={ref} className="bg-terminal text-terminal-foreground relative flex items-center justify-between gap-4 overflow-hidden px-5 py-6 lg:block lg:p-0">
             {/* Below md the pane is a strip an inch tall, which a graph drawn to fill it would
                 only crowd. The box it spans at md is the pane's full width, 48px below the top,
                 and stops a fixed 64px above the lockup: the lockup's own height is what the two
                 offsets differ by. */}
-            <div className="hidden md:absolute md:inset-x-0 md:top-12 md:bottom-77 md:block xl:bottom-65">
+            <div className="hidden lg:absolute lg:inset-x-0 lg:top-12 lg:bottom-77 lg:block xl:bottom-65">
                 <BrandGraph />
             </div>
-            <div className="relative flex items-center gap-3.5 md:absolute md:right-12 md:bottom-31 md:left-12 md:flex-col md:items-start md:gap-6 xl:right-18 xl:left-18 xl:flex-row xl:items-center xl:gap-7">
-                <span className="bg-terminal-accent text-terminal flex size-10 shrink-0 items-center justify-center rounded-lg md:size-18 md:rounded-[1rem]">
-                    <Waypoints className="size-5 md:size-10" aria-hidden />
+            <div className="relative flex items-center gap-3.5 lg:absolute lg:right-12 lg:bottom-31 lg:left-12 lg:flex-col lg:items-start lg:gap-6 xl:right-18 xl:left-18 xl:flex-row xl:items-center xl:gap-7">
+                <span className="bg-terminal-accent text-terminal flex size-10 shrink-0 items-center justify-center rounded-lg lg:size-18 lg:rounded-[1rem]">
+                    <Waypoints className="size-5 lg:size-10" aria-hidden />
                 </span>
                 <h1 className="text-base font-semibold tracking-tight xl:text-wordmark">dirigent</h1>
             </div>
-            <dl className="relative flex items-baseline gap-x-3 text-xs md:absolute md:right-12 md:bottom-12 md:left-12 md:grid md:grid-cols-[4.5rem_1fr] md:gap-y-1.5 xl:right-18 xl:left-18">
-                <dt className="text-terminal-faint sr-only md:not-sr-only">instance</dt>
+            <dl className="relative flex items-baseline gap-x-3 text-xs lg:absolute lg:right-12 lg:bottom-12 lg:left-12 lg:grid lg:grid-cols-[4.5rem_1fr] lg:gap-y-1.5 xl:right-18 xl:left-18">
+                <dt className="text-terminal-faint sr-only lg:not-sr-only">instance</dt>
                 <dd className="text-terminal-muted font-mono">{window.location.host}</dd>
-                <dt className="text-terminal-faint sr-only md:not-sr-only">version</dt>
+                <dt className="text-terminal-faint sr-only lg:not-sr-only">version</dt>
                 <dd className="text-terminal-muted font-mono">{version ?? ''}</dd>
             </dl>
         </aside>

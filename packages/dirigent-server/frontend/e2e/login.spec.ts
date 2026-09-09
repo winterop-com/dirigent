@@ -99,7 +99,15 @@ test('a double-click gives the pane its own clamp back, and so does Delete', asy
     expect(await paneWidth(page)).toBeCloseTo(clamped, 0)
 })
 
-test('there is no seam to drag below md', async ({ page }) => {
+test('there is no seam to drag below lg', async ({ page }) => {
     await openLogin(page, 390, 844)
     await expect(seamOf(page)).toBeHidden()
+    await openLogin(page, 1000, 900)
+    await expect(seamOf(page)).toBeHidden()
+})
+
+test('two columns keep the pane at its floor', async ({ page }) => {
+    await openLogin(page, 1024, 900)
+    await expect(seamOf(page)).toBeVisible()
+    expect(await paneWidth(page)).toBeGreaterThanOrEqual(MIN)
 })

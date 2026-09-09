@@ -106,7 +106,7 @@ export function SeamHandle({
             aria-valuemax={bounds.max}
             aria-valuenow={Math.round(width)}
             tabIndex={0}
-            className="group absolute inset-y-0 -left-1 z-10 hidden w-2 cursor-col-resize outline-none md:block"
+            className="group absolute inset-y-0 -left-1 z-10 hidden w-2 cursor-col-resize outline-none lg:block"
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
