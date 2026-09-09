@@ -252,7 +252,7 @@ def test_a_person_can_scaffold_apply_run_and_read_a_pipeline(project: Path, serv
     url, token = dev
     env = environment(project, url=url, token=token)
 
-    scaffolded = run(["init", "--documents-only", "."], cwd=project, env=env)
+    scaffolded = run(["init", "--template", "documents", "."], cwd=project, env=env)
     assert scaffolded.returncode == 0, scaffolded.stderr or scaffolded.stdout
     assert (project / "dirigent.yaml").is_file()
     assert (project / "pipelines" / "hello-world.yaml").is_file()

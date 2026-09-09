@@ -16,7 +16,7 @@ from clisupport import asking_for_the_rendering, closing, of_kind, only, plain, 
 from dirigent_cli.commands import instance_settings
 from dirigent_cli.main import app, dev_admin, hoist_globals
 from dirigent_cli.profiles import resolve_endpoint
-from dirigent_cli.project import ProjectError, find_project, scaffold
+from dirigent_cli.project import InitChoices, ProjectError, find_project, scaffold
 from dirigent_core.config import CONFIG_FILE_ENV, Settings, reset_settings_cache
 
 runner = CliRunner(env={"COLUMNS": "200", "TERMINAL_WIDTH": "200"})
@@ -193,7 +193,7 @@ def latest_run() -> str:
 
 
 def test_init_scaffolds_a_project_that_finds_itself(tmp_path: Path) -> None:
-    result = invoke("init", str(tmp_path / "project"), "--documents-only")
+    result = invoke("init", str(tmp_path / "project"), "--template", "documents")
     assert result.exit_code == 0
     assert "dirigent.yaml" in result.output
     project = find_project(tmp_path / "project")
@@ -207,7 +207,7 @@ def test_init_writes_a_uv_project_pinning_the_running_runtime(tmp_path: Path) ->
 
     from dirigent_cli.commands import cli_version
 
-    result = machine("init", str(tmp_path / "project"), "--documents-only", "--json")
+    result = machine("init", str(tmp_path / "project"), "--template", "documents", "--json")
     assert result.exit_code == 0, result.output
     scaffolded = of_kind(records(result.stdout), "project.scaffolded")[0]
     assert "pyproject.toml" in scaffolded["files"]
@@ -222,7 +222,7 @@ def test_init_leaves_an_existing_pyproject_alone_and_says_so(tmp_path: Path) -> 
     root = tmp_path / "project"
     root.mkdir()
     (root / "pyproject.toml").write_text('[project]\nname = "theirs"\n')
-    result = machine("init", str(root), "--documents-only", "--json")
+    result = machine("init", str(root), "--template", "documents", "--json")
     assert result.exit_code == 0, result.output
     scaffolded = of_kind(records(result.stdout), "project.scaffolded")[0]
     assert scaffolded["skipped"] == ["pyproject.toml"]
@@ -232,7 +232,7 @@ def test_init_leaves_an_existing_pyproject_alone_and_says_so(tmp_path: Path) -> 
 
 def test_init_writes_a_working_config_and_a_reference_beside_it(tmp_path: Path) -> None:
     """The file someone edits stays short; the whole surface is one file away, and read-only."""
-    assert invoke("init", str(tmp_path / "project"), "--documents-only").exit_code == 0
+    assert invoke("init", str(tmp_path / "project"), "--template", "documents").exit_code == 0
     working = (tmp_path / "project" / "dirigent.yaml").read_text()
     example = (tmp_path / "project" / "dirigent.example.yaml").read_text()
     assert "worker_concurrency: 8" in working
@@ -243,13 +243,13 @@ def test_init_writes_a_working_config_and_a_reference_beside_it(tmp_path: Path) 
 
 
 def test_init_ignores_instance_state_and_leaves_the_profiles_committable(tmp_path: Path) -> None:
-    assert invoke("init", str(tmp_path / "project"), "--documents-only").exit_code == 0
+    assert invoke("init", str(tmp_path / "project"), "--template", "documents").exit_code == 0
     ignore = tmp_path / "project" / ".dirigent" / ".gitignore"
     assert ignore.read_text().splitlines()[-1] == "state/"
 
 
-def test_the_ci_template_adds_a_workflow(tmp_path: Path) -> None:
-    result = invoke("init", str(tmp_path / "ci"), "--template", "ci", "--documents-only")
+def test_the_workflow_flag_adds_a_workflow(tmp_path: Path) -> None:
+    result = invoke("init", str(tmp_path / "ci"), "--template", "documents", "--workflow")
     assert result.exit_code == 0
     workflow = tmp_path / "ci" / ".github" / "workflows" / "dirigent.yml"
     assert workflow.is_file()
@@ -265,20 +265,20 @@ def test_init_refuses_a_short_password_before_writing_anything(tmp_path: Path) -
 
 
 def test_init_never_overwrites(tmp_path: Path) -> None:
-    scaffold(tmp_path / "twice")
+    scaffold(tmp_path / "twice", InitChoices())
     with pytest.raises(ProjectError, match="never overwrites"):
-        scaffold(tmp_path / "twice")
-    assert invoke("init", str(tmp_path / "twice"), "--documents-only").exit_code == 1
+        scaffold(tmp_path / "twice", InitChoices())
+    assert invoke("init", str(tmp_path / "twice"), "--template", "documents").exit_code == 1
 
 
 def test_an_unknown_template_is_refused(tmp_path: Path) -> None:
     result = invoke("init", str(tmp_path / "x"), "--template", "kubernetes")
     assert result.exit_code == 1
-    assert "basic, ci and compose" in result.output
+    assert "local, compose and documents" in result.output
 
 
 def test_the_scaffolded_example_validates_offline(tmp_path: Path) -> None:
-    scaffold(tmp_path / "project")
+    scaffold(tmp_path / "project", InitChoices())
     result = machine("validate", str(tmp_path / "project" / "pipelines" / "hello-world.yaml"))
     assert result.exit_code == 0
     assert only(result.stdout, "validation")["message"] == "valid"
@@ -473,7 +473,7 @@ def test_schema_create_refuses_a_body_that_is_not_a_schema(tmp_path: Path, serve
 
 
 def test_apply_in_a_project_applies_every_document(tmp_path: Path, server: str) -> None:
-    scaffold(tmp_path)
+    scaffold(tmp_path, InitChoices())
     (tmp_path / "pipelines" / "second.yaml").write_text(DOCUMENT)
     result = machine("apply")
     assert result.exit_code == 0
@@ -484,7 +484,7 @@ def test_apply_in_a_project_applies_pipelines_before_the_documents_that_schedule
     tmp_path: Path, server: str
 ) -> None:
     """A triggers document naming an absent pipeline is refused, so ordering is the whole test."""
-    scaffold(tmp_path)
+    scaffold(tmp_path, InitChoices())
     (tmp_path / "pipelines" / "second.yaml").write_text(DOCUMENT)
     # Sorts first by path, so only the ordering rule can make this converge in one apply.
     (tmp_path / "pipelines" / "a-clocks.yaml").write_text(
@@ -499,7 +499,7 @@ def test_apply_in_a_project_applies_pipelines_before_the_documents_that_schedule
 
 
 def test_renaming_a_whole_project_is_refused(tmp_path: Path, server: str) -> None:
-    scaffold(tmp_path)
+    scaffold(tmp_path, InitChoices())
     result = machine("apply", "--as", "everything")
     assert result.exit_code == 1
     assert "--as recodes one document" in refusal(result.stdout)["message"]
@@ -1290,7 +1290,7 @@ def test_documents_only_writes_no_database(tmp_path: Path) -> None:
     """The old behaviour is still available, and it is what the flag now names."""
     root = tmp_path / "documents"
 
-    result = invoke("init", str(root), "--documents-only")
+    result = invoke("init", str(root), "--template", "documents")
 
     assert result.exit_code == 0, result.output
     assert not (root / ".dirigent" / "state" / "dirigent.db").exists()

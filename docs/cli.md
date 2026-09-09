@@ -112,17 +112,35 @@ A project is a directory of documents: a working set, never a second source of t
 server remains the only place a definition actually exists.
 
 ```bash
-dg init                       # an instance and the documents that address it
-dg init --documents-only      # the documents alone, against an instance elsewhere
-dg init --template ci         # and a workflow that applies the project on merge
-dg init --template compose    # the documents and a container stack to run them on
+dg init hello                          # at a terminal: one form asks everything below
+dg init hello --template local         # an instance here on SQLite, and the documents that address it
+dg init hello --template compose       # the documents and a container stack to run them on
+dg init hello --template documents     # the documents alone, against an instance elsewhere
+dg init hello --template compose --service s3 --service docker --pack dirigent-dhis2 --workflow
 ```
 
-`dg init` initialises an instance: it writes the documents, creates `.dirigent/state/`,
+At a terminal, with no `--template`, `dg init` opens one form: where the project runs, which
+services the stack carries, which packs come along, whether a GitHub workflow is written, and
+the first admin's username and password, typed twice. Everything is visible at once and
+nothing is written until Create; Escape leaves nothing behind. The flags answer the same
+questions for a script, and are what a pipe or CI uses: without a terminal there is no form,
+and the defaults are `local` with S3 on the stack.
+
+`--template local` initialises an instance: it writes the documents, creates `.dirigent/state/`,
 migrates the schema, creates the first admin and mints it one token. The token is shown once,
 and written to the project's `.env` with owner-only permissions, where the `local` profile
 reads it whenever the shell does not export `DG_TOKEN`. Give the password with `--password`,
 or `DIRIGENT_BOOTSTRAP_ADMIN_PASSWORD` where there is nothing to prompt.
+
+`--service` names what the stack carries beside PostgreSQL, the migration, the server and the
+worker, and may repeat: `s3` (object storage, on unless the flag says otherwise; off means
+artifacts on a volume), `docker` (the workers' own daemon, so the `docker.*` blocks run),
+`kafka` and `rabbitmq` (a broker, with its connection bootstrapped and a `hello` topic or queue
+declared). Each service brings one example into `pipelines/` that uses it, `s3-hello`,
+`docker-hello`, `kafka-hello` or `rabbitmq-hello`, runnable the day the stack is made.
+`--pack` adds a published pack pinned at this version, `dirigent-dhis2` today: a line in the
+stack's `Dockerfile`, or a dependency in `pyproject.toml` for the other two templates.
+`--workflow` writes `.github/workflows/dirigent.yml`, which applies the project on merge.
 
 What it writes is a uv project. `pyproject.toml` depends on `dirigent-cli` at the version of
 the `dg` that scaffolded it, so `uv sync` builds the project's own environment and `uv run dg`
@@ -133,8 +151,8 @@ under `skipped`, and adding `dirigent-cli` to that `pyproject.toml` is then your
 existing root `.gitignore` gains the missing lines instead.
 
 It refuses to run over an instance that is already there: migrating and re-admining a live
-database is not what running it twice means. `--documents-only` scaffolds beside one without
-touching it, which is what to use against a server somebody else runs.
+database is not what running it twice means. `--template documents` scaffolds beside one
+without touching it, which is what to use against a server somebody else runs.
 
 Run the instance it made with `uv run dg dev`, in its own terminal in the project directory:
 it keeps running, and serves the UI at `http://127.0.0.1:3333`. `dg dev --wipe-state` would
@@ -152,13 +170,14 @@ containers, and the first admin is `admin` with the password from the `.env`.
 
 The stack runs the image that `Dockerfile` builds, and it builds on
 `ghcr.io/winterop-com/dirigent`, pinned to the version of the `dg` that wrote the file.
-Adding a pack is a line in that `Dockerfile` and `docker compose up --build`.
-`--documents-only` and `--admin` are refused with this template.
+Adding a pack later is a line in that `Dockerfile` and `docker compose up --build`.
+`--admin` is refused with this template, and `--service` with the other two.
 
 Being run once by a person, `dg init` renders for a terminal rather than writing NDJSON.
 Asking for records gets them: `instance.initialised` carries the token it minted, and
-`--documents-only` and `--template compose` write `project.scaffolded` instead, the latter
-with the `next` commands that start the stack, beginning with `uv sync`.
+`--template documents` and `--template compose` write `project.scaffolded` instead, the latter
+with the `next` commands that start the stack, beginning with `uv sync`. Both carry the
+`template`, and the stack's `services`, any `packs`, and `workflow` when one was written.
 
 Inside a project, `dg apply` with no argument applies every document, and `dg apply
 --dry-run` is the whole-project diff. That plus a pipeline repository on GitHub is the entire
@@ -668,7 +687,7 @@ verb and whose fields are the identity of what changed:
 | `user.created` | `dg admin user create` | `username`, `role`, `database` |
 | `password.changed` | `dg auth password` | `other_sessions` |
 | `password.reset` | `dg admin user password` | `username`, `sessions` |
-| `project.scaffolded` | `dg init --documents-only`, `dg init --template compose` | `template`, `directory`, `version`, `files[]` including the `pyproject.toml` that pins the runtime, `skipped[]` for files already there, and `next[]`, the `uv run dg` commands that start a scaffolded stack |
+| `project.scaffolded` | `dg init --template documents`, `dg init --template compose` | `template`, `directory`, `version`, `files[]` including the `pyproject.toml` that pins the runtime, `skipped[]` for files already there, and `next[]`, the `uv run dg` commands that start a scaffolded stack |
 | `instance.initialised` | `dg init` | `template`, `directory`, `state`, `schema`, `admin`, `version`, `files[]` including the `pyproject.toml` that pins the runtime, `skipped[]` for files already there, and the `token` it minted |
 
 The `message` is the status a `run` or a `step` reached -- `started`, `queued`, `succeeded` --
@@ -810,7 +829,7 @@ dg runs retry RUN_ID --step NAME [--failed-items]
 dg format [console|compact] [-f FILE]   # render an NDJSON stream; reads stdin by default
 
 # Define
-dg init [DIR] [--template basic|ci|compose] [--documents-only] [--admin NAME] [--password ...]
+dg init [DIR] [--template local|compose|documents] [--service S]... [--pack P]... [--workflow] [--admin NAME] [--password ...]
 dg apply [file|url|-] [--dry-run] [--as CODE] [--paused] [--prune]
 dg validate [file|url] [--server]
 dg export CODE [-f FILE] [--version N]

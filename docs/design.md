@@ -1337,7 +1337,7 @@ dg scheduler                            # the clock on its own, when the API is 
 dg db upgrade | current | history
 
 # projects and definitions
-dg init [DIR] [--template basic|ci]
+dg init [DIR] [--template local|compose|documents]
 dg apply [file|url|-] [--dry-run] [--as NAME] [--paused]      # no argument in a project: the whole project
 dg export NAME [-o FILE] [--version N]
 dg validate [file|url] [--server]

@@ -59,7 +59,7 @@ cd regional
 ```
 
 ```text
-Created a basic project in regional:
+Created a local project in regional:
   + regional/dirigent.yaml
   + regional/pipelines/hello-world.yaml
   + regional/.dirigent/profiles.yaml
