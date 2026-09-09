@@ -15,6 +15,22 @@ package and uploads it to PyPI through trusted publishing, then builds the image
 commit and pushes it as `<version>` and `latest`. The two sibling repositories then relock
 against the tag and bump.
 
+## 0.11.0
+
+Released 2026-09-09. Every package in the workspace moves to 0.11.0 together.
+
+### Before you upgrade
+
+**The terminal decides the output.** Every command, `dg dev` and `dg server` included, renders
+when stdout is a terminal and writes NDJSON when it is not. A pipe, a file, a container's log,
+an agent's shell and CI are never terminals, so a script, `docker logs` and a collector see no
+change: records, one per line, without asking. What changes is what a person sees: `dg pipeline
+list` draws its table, `dg dev` prints its lines, and nothing is piped through `dg format` to
+be read. `--json` (or `-o json`) asks for records at a terminal, `-o console` for the rendering
+into a pipe, `DIRIGENT_LOG_FORMAT` names either once, and `dg format` reads a stream that was
+kept. `dg init` follows the same rule, so in a pipe it writes records. Nothing in the schema,
+the wire or the settings changed since 0.10.2.
+
 ## 0.10.2
 
 Released 2026-09-09. Every package in the workspace moves to 0.10.2 together.
