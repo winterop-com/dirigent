@@ -15,6 +15,34 @@ package and uploads it to PyPI through trusted publishing, then builds the image
 commit and pushes it as `<version>` and `latest`. The two sibling repositories then relock
 against the tag and bump.
 
+## 0.10.0
+
+Released 2026-09-09. Every package in the workspace moves to 0.10.0 together.
+
+### Before you upgrade
+
+**`dg init` has three templates, and two flags are gone.** The templates are `local` (an
+instance on this machine, on SQLite), `compose` (a container stack) and `documents` (the documents alone).
+`basic` and `ci` are gone: `basic` is `local`, and the workflow `ci` wrote is `--workflow` on
+any template. `--documents-only` is `--template documents`. Nothing in the schema, the wire or
+the settings changed since 0.9.5.
+
+### Command line
+
+- **`dg init` at a terminal is one form.** Where the project runs, which services the stack
+  carries, which packs come along, a workflow, and the first admin's username and password
+  typed twice, all on one screen, written only on Create. Escape leaves nothing behind. Without
+  a terminal, or with `--template`, the flags answer the same questions.
+- **The stack's services are chosen.** `--service s3` (on by default; off means artifacts on a
+  volume), `--service docker` (the workers' own daemon), `--service kafka` and
+  `--service rabbitmq` (a broker, its connection bootstrapped, a `hello` topic or queue
+  declared). Each service brings one example into `pipelines/` that uses it.
+- **Packs are a flag.** `--pack dirigent-dhis2` pins the pack at this version, in the stack's
+  `Dockerfile` or in `pyproject.toml`.
+- **A scaffolded project starts at 0.1.0**, not 0.0.0.
+- The `project.scaffolded` and `instance.initialised` records carry `services`, `packs` and
+  `workflow` beside `template`.
+
 ## 0.9.5
 
 Released 2026-09-09. Every package in the workspace moves to 0.9.5 together.
