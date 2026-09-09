@@ -41,6 +41,7 @@ from dirigent_cli.output import (
     emit_problem,
     emit_record,
     emit_records,
+    error_console,
     fields,
     flagged,
     json_mode,
@@ -490,6 +491,8 @@ def init_command(
     """
     import asyncio
 
+    from dirigent_core.auth import MIN_PASSWORD_LENGTH, WeakPassword
+
     state = state_of(ctx)
     # Run once by a person at a terminal, so it renders unless records were asked for.
     if not state.chosen:
@@ -501,12 +504,12 @@ def init_command(
     try:
         check_template(template)
     except ProjectError as error:
-        fail(str(error))
+        _init_fail(str(error))
     stack = template == COMPOSE_TEMPLATE_NAME
     if stack and documents_only:
-        fail("--documents-only does not apply to the compose template, which writes no instance to skip")
+        _init_fail("--documents-only does not apply to the compose template, which writes no instance to skip")
     if stack and admin != "admin":
-        fail("--admin does not apply to the compose template; the stack's first admin is named admin")
+        _init_fail("--admin does not apply to the compose template; the stack's first admin is named admin")
     if not documents_only and not stack:
         _refuse_an_existing_instance(root)
     secret = (
@@ -514,11 +517,13 @@ def init_command(
         if documents_only
         else (password or os.environ.get(BOOTSTRAP_PASSWORD_ENV) or _prompt_for_a_password(stack=stack))
     )
+    if not documents_only and len(secret) < MIN_PASSWORD_LENGTH:
+        _init_fail(str(WeakPassword()))
     version = cli_version()
     try:
         made = scaffold(directory, template=template, version=version, password=secret)
     except ProjectError as error:
-        fail(str(error))
+        _init_fail(str(error))
     left = [_within(path, directory) for path in made.skipped]
     if documents_only or stack:
         starting = [
@@ -573,6 +578,17 @@ def instance_settings(root: Path) -> Settings:
     )
 
 
+def _init_fail(message: str, *, problems: Sequence[str] = ()) -> NoReturn:
+    """Refuse an init: a record where records were asked for, plain sentences otherwise."""
+    if json_mode():
+        refuse(message, problems=problems)
+    else:
+        error_console.print(message, highlight=False, markup=False)
+        for problem in problems:
+            error_console.print(f"  {problem}", highlight=False, markup=False)
+    raise typer.Exit(code=1)
+
+
 def _refuse_an_existing_instance(root: Path) -> None:
     """Refuse to initialise over an instance that is already there.
 
@@ -581,7 +597,7 @@ def _refuse_an_existing_instance(root: Path) -> None:
     """
     existing = instance_settings(root).sqlite_path
     if existing is not None and existing.exists():
-        refuse(
+        _init_fail(
             f"{existing} already exists, so this directory holds an instance already",
             problems=[
                 "dg dev --keep-state starts it",
@@ -589,13 +605,12 @@ def _refuse_an_existing_instance(root: Path) -> None:
                 "dg init --documents-only scaffolds documents beside it",
             ],
         )
-        raise typer.Exit(code=1)
 
 
 def _prompt_for_a_password(*, stack: bool = False) -> str:
     """Ask for the first admin's password, or say how to give it without a prompt."""
     if not sys.stdin.isatty():
-        fail(f"no password for the first admin: pass --password, or set {BOOTSTRAP_PASSWORD_ENV}")
+        _init_fail(f"no password for the first admin: pass --password, or set {BOOTSTRAP_PASSWORD_ENV}")
     asked = "password for the stack's first admin" if stack else "password for the first admin"
     return str(typer.prompt(asked, hide_input=True, confirmation_prompt=True))
 
@@ -623,7 +638,7 @@ async def first_admin(settings: Settings, username: str, password: str) -> str:
             issued = await issue_token(session, user, name="init")
             return issued.secret.get_secret_value()
     except AuthError as error:
-        fail(str(error))
+        _init_fail(str(error))
     finally:
         await engine.dispose()
 

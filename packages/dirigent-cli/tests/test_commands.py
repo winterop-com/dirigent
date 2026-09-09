@@ -253,6 +253,14 @@ def test_the_ci_template_adds_a_workflow(tmp_path: Path) -> None:
     assert "dg apply --dry-run" in workflow.read_text()
 
 
+def test_init_refuses_a_short_password_before_writing_anything(tmp_path: Path) -> None:
+    project = tmp_path / "short"
+    result = machine("init", str(project), "--password", "short", "--json")
+    assert result.exit_code == 1
+    assert "at least 8" in only(result.stdout, "error")["detail"]
+    assert not project.exists(), "nothing is written for a password that would have been refused"
+
+
 def test_init_never_overwrites(tmp_path: Path) -> None:
     scaffold(tmp_path / "twice")
     with pytest.raises(ProjectError, match="never overwrites"):
