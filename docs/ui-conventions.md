@@ -192,11 +192,16 @@ stand for something the reader can act on or read a value from.
 
 **The brand pane is bounded.** It is 52% of the window, never under 560px and never past
 1056px, the width at which the graph reaches its largest scale, so a display wider than that
-spends what it gains on the form rather than on the mark; between the two
-breakpoints it is a fraction, because a fixed pane would leave the form pane narrower than the
-form, and below them the two stack and the pane is a strip. The form pane bounds its form the
-same way and centres it, so what a wider window buys that column is spent evenly either side of
-the one question it asks.
+spends what it gains on the form rather than on the mark. The two columns begin at `lg`, not
+`md`: a window under 1024px cannot hold the pane's floor beside the form and its padding, and a
+pane drawn narrower than its floor squeezes the graph into a strip. Between `lg` and `xl` the
+pane holds that floor and the form column takes what is left; below `lg` the two stack and the
+pane is a strip. The form pane bounds its form the same way and centres it, so what a wider
+window buys that column is spent evenly either side of the one question it asks.
+
+**The door's refusal is `Refusal`, like every form's.** A wrong password and a rate limit arrive
+as problem documents and are drawn in the same bordered box a dialog draws, above the button
+and spanning the form, rather than as a bare red line under one field.
 
 **And the seam between the two is dragged.** It is a `separator` like every other dragged edge
 here -- eight pixels of hit area over the line, drawn as nothing until a pointer, a focus ring or

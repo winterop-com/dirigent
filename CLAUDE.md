@@ -106,8 +106,10 @@
   to it, and reviewed against it with the `ui-review` skill (live browser, changed screens,
   both palettes) before its PR merges. A convention that proves wrong is changed in that file
   first, then in the code.
-- The frontend e2e suite and the dev server serve `frontend/dist`: run `bun run build` before
-  any e2e run or live review, or you are testing a stale bundle.
+- The frontend e2e suite serves `frontend/dist`, and a checkout's `dg dev` serves the
+  packaged `dirigent-server/src/dirigent_server/static/` when it holds a bundle, else
+  `frontend/dist`: run `make ui-static` before any e2e run or live review, or you are
+  testing a stale bundle.
 
 ## Git hygiene
 

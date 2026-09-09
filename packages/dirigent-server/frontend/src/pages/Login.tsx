@@ -11,6 +11,7 @@ import {
 import { rememberUsername, rememberedUsername } from '@/components/login/remembered'
 import { SeamHandle } from '@/components/login/SeamHandle'
 import { revealOf } from '@/components/login/reveal'
+import { Refusal } from '@/components/Refusal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -37,8 +38,9 @@ const FIELD = 'border-border-strong h-12 rounded-lg pl-11'
  *
  * TWO PANES, BECAUSE THE DOOR HAS TWO JOBS. The brand pane says which instance this is -- the
  * mark the rail wears, the wordmark, the host and the version it answered with -- and the form
- * pane asks the one question. At a narrow width the panes stack, brand first and compact,
- * because the answer to "what am I signing into" is read before the fields either way.
+ * pane asks the one question. Below lg the panes stack, brand first and compact, because the
+ * answer to "what am I signing into" is read before the fields either way -- and because two
+ * columns in a window under 1024px would draw the pane narrower than its own floor.
  *
  * THE DOOR GREETS, AND NOTHING BEHIND IT DOES. This is the one screen a person meets before the
  * product's own facts are on it, so it carries an eyebrow, a heading, a one-line subtitle and
@@ -145,14 +147,13 @@ export function Login() {
     }
 
     return (
-        // The brand pane is 52% of the reference width and bounded: never narrower than 560px
-        // beside a form at xl, never wider than 1056px, the width at which the graph reaches its
-        // largest scale, so past it a wide display gives its extra room to the form pane.
-        // Between md and xl it is a fraction,
-        // because a fixed pane would leave the form pane narrower than the form; below md the
-        // two stack and the pane is a strip.
+        // The brand pane is 52% of the reference width and bounded: never narrower than 560px,
+        // never wider than 1056px, the width at which the graph reaches its largest scale, so
+        // past it a wide display gives its extra room to the form pane. Between lg and xl it
+        // holds its floor and the form column takes what is left, which at lg is still the
+        // form and its padding; below lg the two stack and the pane is a strip.
         <div
-            className="bg-background flex min-h-svh flex-col md:grid md:grid-cols-[var(--login-pane,minmax(20rem,40%))_1fr] xl:grid-cols-[var(--login-pane,clamp(35rem,52vw,66rem))_1fr]"
+            className="bg-background flex min-h-svh flex-col lg:grid lg:grid-cols-[var(--login-pane,minmax(35rem,45%))_1fr] xl:grid-cols-[var(--login-pane,clamp(35rem,52vw,66rem))_1fr]"
             style={chosen === null ? undefined : ({ '--login-pane': `${String(chosen)}px` } as CSSProperties)}
         >
             <BrandPane version={version} ref={pane} />
@@ -161,7 +162,7 @@ export function Login() {
                 between the two would not be there at all. The form is centred in it at every
                 width, so what a wider window gives this column is spent evenly either side of
                 the one question it asks. */}
-            <main className="dark:bg-card relative flex flex-1 items-center justify-center p-6 md:p-12">
+            <main className="dark:bg-card relative flex flex-1 items-center justify-center p-6 lg:p-12">
                 <SeamHandle width={drawn} onChange={choose} onReset={forget} />
                 <form
                     className="grid w-full max-w-xs gap-5 xl:w-[26.875rem] xl:max-w-none"
@@ -238,12 +239,8 @@ export function Login() {
                                 )}
                             </button>
                         </div>
-                        {auth.problem !== null && (
-                            <p role="alert" className="text-critical text-sm">
-                                {auth.problem.detail}
-                            </p>
-                        )}
                     </div>
+                    {auth.problem !== null && <Refusal problem={auth.problem} />}
                     <Button
                         type="submit"
                         className="h-13 w-full rounded-lg"
