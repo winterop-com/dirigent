@@ -1,6 +1,6 @@
 [project]
 name = "dirigent-storage-s3"
-version = "0.10.0"
+version = "0.10.1"
 description = "The s3:// storage backend for dirigent, compatible with any S3 API."
 readme = "README.md"
 requires-python = ">=3.13"
