@@ -322,6 +322,7 @@ def _materialise(settings: DockerConnectionConfig, directory: Path, *, isolate_c
     if isolate_config:
         config = directory / "config"
         config.mkdir(mode=stat.S_IRWXU)
+        write_cli_config(config)
         environ["DOCKER_CONFIG"] = str(config)
     if settings.password is not None:
         hidden.append(settings.password.get_secret_value())
@@ -337,6 +338,30 @@ def daemon_environment(base: dict[str, str], material: Sealed) -> dict[str, str]
     """
     kept = {name: value for name, value in base.items() if name not in DAEMON_ENV}
     return {**(kept if "DOCKER_HOST" in material.environ else base), **material.environ}
+
+
+def cli_plugin_dirs() -> list[Path]:
+    """The worker's own docker CLI plugin directory, if it has one.
+
+    Docker Desktop installs ``buildx`` and ``compose`` under the user's ``~/.docker/cli-plugins``
+    and nowhere a run whose ``HOME`` is its work directory would look.
+    """
+    base = Path(os.environ["DOCKER_CONFIG"]) if os.environ.get("DOCKER_CONFIG") else Path.home() / ".docker"
+    plugins = base / "cli-plugins"
+    return [plugins] if plugins.is_dir() else []
+
+
+def write_cli_config(directory: Path) -> None:
+    """Write a docker config in ``directory`` that names the worker's plugin directories.
+
+    Nothing is written when the worker has no plugin directory of its own. The directory is
+    made 0700 if it is not there yet.
+    """
+    dirs = cli_plugin_dirs()
+    if not dirs:
+        return
+    directory.mkdir(mode=stat.S_IRWXU, parents=True, exist_ok=True)
+    (directory / "config.json").write_text(json.dumps({"cliPluginsExtraDirs": [str(path) for path in dirs]}) + "\n")
 
 
 def private_parent(ctx: StepContext) -> Path:

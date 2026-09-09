@@ -32,6 +32,7 @@ from dirigent_blocks.docker import (
     login,
     logout,
     sealed,
+    write_cli_config,
 )
 from dirigent_blocks.environment import reject_reserved
 from dirigent_common import BlockModel, Duration
@@ -183,6 +184,7 @@ class DockerBuildOperator(Operator[DockerBuildConfig, DockerBuildOutput]):
             environ = daemon_environment(
                 subprocess.environment([*DAEMON_ENV, *config.env_allowlist], config.env, root), material
             )
+            write_cli_config(root / ".docker")
             code, out, err = await subprocess.run(
                 directory=root,
                 ctx=ctx,
