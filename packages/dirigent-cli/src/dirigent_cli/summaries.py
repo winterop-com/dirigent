@@ -291,17 +291,14 @@ def _initialised(record: Record) -> RenderableType | None:
         f"\ntoken of its first admin, [bold]{admin}[/], is in .env, where the local profile reads it."
         "\nShown here once:"
         f"\n  [bold]{token}[/]"
-        "\n\nStart the instance in a second terminal here; it keeps running:"
+        "\n\nStart the instance in a second terminal, in this directory; it keeps running:"
         "\n  [bold]uv sync[/]"
         "\n  [bold]uv run dg dev[/]"
-        f"\nThe UI is at http://127.0.0.1:3333, and {admin} logs in with the password you gave."
-        "\n\nThen apply the example here, and run it:"
+        f"\nThe UI is at http://127.0.0.1:3333 and {admin} logs in with the password you gave."
+        "\n\nThen, in this directory, apply the example and run it:"
         "\n  [bold]uv run dg apply[/]"
         "\n  [bold]uv run dg run hello-world --watch[/]"
-        "\n\n[yellow]This is an instance for one person on one machine[/]: SQLite on this disk, and"
-        "\nno secret key, so a connection carrying a credential cannot be stored until"
-        "\nDIRIGENT_SECRET_KEY is set. A real server is the compose stack, with PostgreSQL"
-        "\nand workers of its own."
+        "\n\n[dim]No DIRIGENT_SECRET_KEY is set, so a connection carrying a credential cannot be stored until it is.[/]"
     )
     return Group(*parts)
 
