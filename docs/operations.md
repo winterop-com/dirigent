@@ -18,9 +18,9 @@ dg dev
 ```
 
 SQLite in a file, the API, the scheduler, and a worker in a single asyncio process. Its
-database and its artifacts go in `.dirigent/state/` under the working directory, emptied and
-recreated on every start unless `--keep-state` says otherwise. It migrates, mints a
-development admin, emits the token once, and then goes quiet. Like every process it writes
+database and its artifacts go in `.dirigent/state/` under the working directory, kept
+between starts unless `--wipe-state` says otherwise. It migrates, mints a development admin
+on an empty instance, emits the token once, and then goes quiet. Like every process it writes
 NDJSON, so a person reads it through `dg format`:
 
 ```bash
@@ -304,12 +304,12 @@ is just not somewhere more than one process may point.
 
 ## Standing an instance up from a directory of documents
 
-While nothing has shipped, the baseline migration moves in place, so a development
-database from an older checkout would keep an older schema forever -- alembic sees its one
-revision as applied and upgrades nothing. That is why `dg dev` empties `.dirigent/state` on
-every start: a dev state is disposable, and the failure it would otherwise cause is a wrong
-answer rather than an error. `--keep-state` opts out, and is what to pass when yesterday's
-runs are the point; after a pull that moved the schema, drop the flag.
+Between releases the baseline migration can move in place, so a development database
+from an older checkout would keep an older schema forever -- alembic sees its one revision
+as applied and upgrades nothing. `dg dev --wipe-state` is what to pass after a pull that
+moved the schema: a dev state is disposable, and the failure it would otherwise cause is a
+wrong answer rather than an error. A released schema only moves forward, and a plain `dg dev`
+migrates the instance it finds.
 
 The server applies a directory at boot when one is named. `DIRIGENT_APPLY_DIR` points at
 a mounted directory of documents; every boot applies what is new or changed there -- the
@@ -621,9 +621,8 @@ dg db current          # which revision this database is at
 dg db history          # every revision, newest first
 ```
 
-**Who runs them.** Only `dg dev` migrates automatically, on every start -- and since it
-starts from an empty directory unless `--keep-state` says otherwise, that is usually a schema
-being created rather than upgraded, which is why its starting record names the baseline. `dg server`,
+**Who runs them.** Only `dg dev` migrates automatically, on every start; its starting record
+names the revision it moved to, when something moved. `dg server`,
 `dg worker`, and `dg scheduler` do not: they expect a schema that is already current. This is
 deliberate -- scaling the server out should not mean N processes racing to migrate one schema
 -- so a deployment needs a migration step of its own. In `infra/compose.yaml` that is a one-shot
@@ -760,8 +759,8 @@ everything checked is healthy [health] checked=4 healthy=4 absent=0 unhealthy=0
 history, not a fault; a database file that was never created is a machine with no instance,
 not a broken one. The bare form reports what is absent and fails only on what is present and
 broken -- so a stopped `dg dev` instance reads as "an instance's database is here, and nothing
-is running against it", exit `0`. Starting it again empties that database unless
-`--keep-state` says otherwise. Naming a component is the assertion that it should be there:
+is running against it", exit `0`. Starting it again runs that database, unless
+`--wipe-state` says otherwise. Naming a component is the assertion that it should be there:
 `dg health worker` on a host with no live worker exits `1`. Point a container's `HEALTHCHECK`
 at the named form, always -- `infra/compose.yaml`'s two healthchecks are `dg health server`
 and `dg health worker`.

@@ -117,7 +117,7 @@ def state_of(ctx: typer.Context) -> CliState:
 
 
 #: What a refused connection to a loopback address adds: the local instance is not running.
-LOCAL_INSTANCE_HINT = "nothing is listening there; uv run dg dev --keep-state in the project starts its instance"
+LOCAL_INSTANCE_HINT = "nothing is listening there; uv run dg dev in the project starts its instance"
 
 LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 

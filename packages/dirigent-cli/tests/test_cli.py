@@ -253,15 +253,15 @@ def test_dev_help_says_its_state_belongs_to_the_working_directory() -> None:
     assert "different instance" in result.output
 
 
-def test_dev_help_offers_keeping_the_state_it_otherwise_clears() -> None:
-    """The default is destructive, so the flag that opts out has to be visible in the help."""
+def test_dev_help_offers_wiping_the_state_it_otherwise_keeps() -> None:
+    """The default runs the instance that is there, and the destructive flag is visible in the help."""
     result = runner.invoke(app, ["dev", "--help"])
     assert result.exit_code == 0
-    assert "--keep-state" in plain(result.output)
+    assert "--wipe-state" in plain(result.output)
 
 
 def test_dev_clears_the_state_directory_it_owns(tmp_path: Path) -> None:
-    """The default: a state directory dirigent named is emptied, database and artifacts both."""
+    """--wipe-state: a state directory dirigent named is emptied, database and artifacts both."""
     state = tmp_path / ".dirigent" / "state"
     (state / "artifacts").mkdir(parents=True)
     (state / "dirigent.db").write_text("an older schema")
@@ -293,14 +293,13 @@ def test_dev_clears_nothing_on_a_first_start(tmp_path: Path) -> None:
     assert main.clear_state(settings) is None
 
 
-def test_dev_says_what_it_cleared_and_how_to_have_kept_it(tmp_path: Path) -> None:
-    """One record, carrying the flag that opts out, so a lost database is never a surprise."""
+def test_dev_says_what_it_cleared(tmp_path: Path) -> None:
+    """One record naming the directory, so a wiped database is never a surprise."""
     record = main.state_cleared(tmp_path / ".dirigent" / "state")
     assert record["kind"] == "process"
     assert record["message"] == "state cleared"
     assert record["process"] == "dev"
     assert record["state"] == str(tmp_path / ".dirigent" / "state")
-    assert record["hint"] == "--keep-state keeps it"
 
 
 def test_a_worker_can_be_assembled_from_the_installed_plugins() -> None:
