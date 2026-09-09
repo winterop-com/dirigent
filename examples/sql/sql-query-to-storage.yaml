@@ -54,7 +54,7 @@ requires:
     - value.const
 
 connections:
-  scratch-db:
+  work-db:
     kind: sql
     config:
       # Relative, so the database lands in this run's work directory and needs nothing on the
@@ -65,7 +65,7 @@ steps:
   build:
     block: sql.execute
     config:
-      connection: scratch-db
+      connection: work-db
       statements:
         - CREATE TABLE reading (id INTEGER PRIMARY KEY, site TEXT NOT NULL, value REAL NOT NULL)
         - INSERT INTO reading (id, site, value) VALUES (1, :north, 2.5), (2, :south, 4.0), (3, :north, 3.5)
@@ -77,7 +77,7 @@ steps:
     block: sql.query
     depends_on: [build]
     config:
-      connection: scratch-db
+      connection: work-db
       sql: SELECT id, site, value FROM reading ORDER BY id
       # A file inside the run's scratch space, so it is cleaned up with the run. A bucket URI
       # here is what makes the result outlive it.

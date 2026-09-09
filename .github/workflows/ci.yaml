@@ -247,7 +247,7 @@ jobs:
           done
 
       # The two runnable sql examples carry their own sql connections for the same reason, and
-      # each builds its SQLite database in the run's own scratch space, so they need no
+      # each builds its SQLite database in the run's own work directory, so they need no
       # database, no network and no allowlist.
       - name: Run the sql examples on the stack
         run: |

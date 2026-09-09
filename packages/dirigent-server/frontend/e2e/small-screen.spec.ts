@@ -29,6 +29,7 @@ test('the navigation is a drawer that opens, and closes on arriving somewhere', 
 
     await page.getByRole('button', { name: 'Open navigation' }).click()
     await expect(runs).toBeVisible()
+    await drawer.evaluate((el) => Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished)))
     await expect(page.getByRole('button', { name: 'Close navigation' })).toBeFocused()
 
     await runs.click()
