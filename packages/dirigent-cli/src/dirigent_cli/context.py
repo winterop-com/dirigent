@@ -40,13 +40,6 @@ class CliState(BaseModel):
     debug_all: bool = False
     output: Format = "json"
 
-    chosen: bool = False
-    """Whether a flag or the environment named the output, rather than it being the default.
-
-    A command run once by a person -- ``dg init`` -- renders unless it was asked for records,
-    and it can only tell the difference if the default is distinguishable from a choice.
-    """
-
     @property
     def json_output(self) -> bool:
         """Report whether this invocation writes records rather than a rendering."""

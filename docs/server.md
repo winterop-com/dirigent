@@ -92,13 +92,13 @@ docker compose --project-directory . -f infra/compose.yaml up -d --force-recreat
 ## 5. See what the instance holds
 
 ```bash
-dg pipeline list -o console
-dg runs list -o console
-dg trigger-document list -o console
+dg pipeline list
+dg runs list
+dg trigger-document list
 ```
 
-All three write NDJSON by default, which is what `-o console` renders for a person; `dg runs
-list | dg format` reads the same records.
+All three render at a terminal and write NDJSON into a pipe; `--json` asks for the records at
+a terminal, and `dg format` reads a stream that was kept.
 
 The last one is the instance's triggers documents -- the `kind: triggers` documents that
 declare schedules and webhooks for a pipeline defined elsewhere. Three routes serve them:

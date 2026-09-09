@@ -105,15 +105,17 @@ size is `<thing>_bytes`, an integer of bytes. A *configured* duration is a human
 so a configured size carries no `_bytes` suffix. The reader always knows whether a number is
 a machine's measurement or a person's setting.
 
-## Every command speaks NDJSON
+## Every command speaks NDJSON, and the terminal decides who hears it
 
-A command writes one record per line to stdout -- no banner, no table, no colour -- and a
-person reads it by piping through `dg format`, or asks one invocation to render with
-`-o console`. Every record carries a `kind`, which is what a formatter dispatches on and what
-`jq` selects by, and it carries what its rendering needs, so no renderer reads the run a
-second time. A table is a rendering of a record, and it lives in the formatter, never in the
-command. `dg init` is the one exception: run once by a person, never in a pipe, it renders
-unless records are asked for.
+A command writes one record per line to stdout -- no banner, no table, no colour -- whenever
+stdout is not a terminal: a pipe, a container's log, an agent's shell and CI all read records
+without asking. At a terminal the same records are rendered, the way `dg format` renders
+them. `--json` asks for records on a terminal, `-o console` for the rendering into a pipe,
+and `DIRIGENT_LOG_FORMAT` names either once. Every record carries a `kind`, which is what a
+formatter dispatches on and what `jq` selects by, and it carries what its rendering needs, so
+no renderer reads the run a second time. A table is a rendering of a record, and it lives in
+the formatter, never in the command. There is no exception: `dg dev` at a terminal renders
+its lines, and `dg init` in a pipe writes records.
 
 ### Giving a command a record
 

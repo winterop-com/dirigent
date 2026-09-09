@@ -17,7 +17,7 @@ import httpx2
 import pytest
 from cryptography.fernet import Fernet
 
-from clisupport import asking_for_the_rendering, closing, of_kind, records
+from clisupport import LINE, asking_for_the_rendering, closing, of_kind, plain, records
 
 pytestmark = pytest.mark.e2e
 
@@ -566,3 +566,36 @@ def test_dg_dev_announces_itself_as_records_and_not_a_schema_history(tmp_path: P
     messages = [str(record.get("message", "")) for record in emitted]
     for noise in ("Running upgrade", "user created", "token issued", "Application startup complete"):
         assert noise not in messages, f"{noise!r} is detail, and detail is what -v is for"
+
+
+def test_dg_dev_renders_its_lines_when_asked_to(project: Path) -> None:
+    """The process commands follow the output too: -o console draws the starting line in the grammar."""
+    port = free_port()
+    process = subprocess.Popen(  # noqa: S603 - the argv is this test's own
+        [str(dg_path()), "-o", "console", "dev", "--port", str(port)],
+        cwd=project,
+        env=environment(project),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+    try:
+        assert process.stdout is not None
+        deadline = time.monotonic() + STARTUP_TIMEOUT
+        first = ""
+        while time.monotonic() < deadline:
+            first = process.stdout.readline().strip()
+            if first:
+                break
+        assert LINE.match(plain(first)), first
+        assert "starting" in first
+    finally:
+        process.terminate()
+        try:
+            process.wait(timeout=30)
+        except subprocess.TimeoutExpired:  # pragma: no cover - a stuck process is killed
+            process.kill()
+            process.wait(timeout=30)
+        if process.stdout is not None:
+            process.stdout.close()

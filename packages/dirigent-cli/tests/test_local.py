@@ -3,6 +3,7 @@
 import asyncio
 import re
 import shutil
+import sys
 import time
 from collections.abc import Iterator
 from datetime import UTC, datetime
@@ -1063,7 +1064,11 @@ def test_the_environment_names_the_spelling_when_no_flag_does(tmp_path: Path, mo
 
 
 def test_a_command_asked_for_nothing_writes_records(tmp_path: Path) -> None:
-    """NDJSON is what a command writes when neither a flag nor the environment says."""
+    """Off a terminal, NDJSON is what a command writes when neither a flag nor the environment says.
+
+    The test runner's stdout is a pipe, which is what an agent's shell, CI and a container's
+    log are: records without asking.
+    """
     document = str(write(tmp_path, HELLO))
     result = invoke("run", "--local", document, "--enable-unsafe", "shell.run")
     lines = [line for line in result.stdout.splitlines() if line.strip()]
@@ -1232,3 +1237,35 @@ async def test_the_local_driver_widens_its_poll_when_nothing_moves(
     assert intervals[QUIET_TICKS] == pytest.approx(POLL_SECONDS), "the line that landed put the poll back"
     assert intervals[QUIET_TICKS + 1] == pytest.approx(POLL_SECONDS * POLL_WIDEN)
     await engine.dispose()
+
+
+def test_a_terminal_gets_the_rendering_unasked_and_records_when_it_asks(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The one thing the terminal decides: unasked, a person reads lines and a pipe reads records."""
+    from dirigent_cli.main import resolve_output
+
+    monkeypatch.delenv("DIRIGENT_LOG_FORMAT", raising=False)
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
+    assert resolve_output(None, json_output=False) == "console"
+    assert resolve_output(None, json_output=True) == "json"
+    assert resolve_output("json", json_output=False) == "json"
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: False)
+    assert resolve_output(None, json_output=False) == "json"
+    assert resolve_output("console", json_output=False) == "console"
+    monkeypatch.setenv("DIRIGENT_LOG_FORMAT", "console")
+    assert resolve_output(None, json_output=False) == "console"
+
+
+def test_a_process_record_follows_the_output_it_was_asked_for(capsys: pytest.CaptureFixture[str]) -> None:
+    """Dg dev's own lines go through the same sink as every record, so -o console renders them."""
+    from dirigent_cli import main
+    from dirigent_cli.output import configure
+    from dirigent_core.protocol import make
+
+    record = make("process", at=datetime.now(UTC), message="starting", process="dev", api="http://127.0.0.1:1")
+    configure(output="json")
+    main.emit(record)
+    assert parse(capsys.readouterr().out.strip()) is not None
+    configure(output="console")
+    main.emit(record)
+    assert LINE.match(plain(capsys.readouterr().out).splitlines()[0])
+    configure(output="json")

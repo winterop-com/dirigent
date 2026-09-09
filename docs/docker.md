@@ -260,7 +260,7 @@ reads the run id out of each project's name, and looks that run up:
 
 Each orphan is taken down with `docker compose -p <project> down -v --remove-orphans`, and each
 one is one record: `kind: docker_reaped`, carrying the project, the run id and the run's status,
-so `dg worker | dg format` shows what went. A project this instance did not create -- anything
+so `dg worker` shows what went. A project this instance did not create -- anything
 whose name is not `dirigent-<32 hex digits>` -- is never listed as a candidate at all.
 
 Two settings govern it:
@@ -276,8 +276,8 @@ five minutes.
 The same pass runs on demand:
 
 ```bash
-dg docker reap --dry-run | dg format
-dg docker reap | dg format
+dg docker reap --dry-run
+dg docker reap
 ```
 
 `--dry-run` writes the same records and takes nothing down.
