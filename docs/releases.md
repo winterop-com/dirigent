@@ -15,6 +15,34 @@ package and uploads it to PyPI through trusted publishing, then builds the image
 commit and pushes it as `<version>` and `latest`. The two sibling repositories then relock
 against the tag and bump.
 
+## 0.9.4
+
+Released 2026-09-09. Every package in the workspace moves to 0.9.4 together.
+
+### Before you upgrade
+
+**`dg dev` keeps `.dirigent/state`.** It runs the instance that is there, the one `dg init`
+made or an earlier start left, and migrates it forward. `--wipe-state` deletes the state first
+and is now the only way it goes; `--keep-state` is the default and no longer needs saying. A
+script that relied on every start beginning from nothing passes `--wipe-state`.
+
+Nothing in the schema, the wire or the settings changed since 0.9.3.
+
+### Command line
+
+- **A plain `dg dev` after `dg init` runs that instance.** Its admin stays, the token in
+  `.env` keeps working, and no development admin is minted over it.
+- **The init text, the scaffolded README and the hints say `uv run dg dev`.**
+
+### Web UI
+
+- **The login stacks below 1024px.** The brand pane is never drawn under its 560px floor, so
+  the graph is never squeezed into a strip; between 1024 and 1280 the pane holds the floor and
+  the form column takes the rest.
+- **A refused sign-in is a notice below the button that takes no room.** The server's
+  sentence is drawn in a critical-edged bar hung under the button, out of the flow, so the
+  centred form never moves; it replaces the bare line under the password field.
+
 ## 0.9.3
 
 Released 2026-09-09. Every package in the workspace moves to 0.9.3 together.
