@@ -135,21 +135,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
 
-      - name: Install dirigent
-        run: pipx install dirigent-cli
+      # The runtime pyproject.toml pins, not whatever is newest on the index.
+      - name: Install the project
+        run: uv sync
 
       # On a pull request this is the whole-project diff and nothing is written.
       - name: Plan
         if: github.event_name == 'pull_request'
-        run: dg apply --dry-run
+        run: uv run dg apply --dry-run
         env:
           DG_URL: ${{ secrets.DG_URL }}
           DG_TOKEN: ${{ secrets.DG_TOKEN }}
 
       - name: Apply
         if: github.event_name == 'push'
-        run: dg apply
+        run: uv run dg apply
         env:
           DG_URL: ${{ secrets.DG_URL }}
           DG_TOKEN: ${{ secrets.DG_TOKEN }}
