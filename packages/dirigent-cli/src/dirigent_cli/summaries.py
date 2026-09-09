@@ -285,12 +285,17 @@ def _initialised(record: Record) -> RenderableType | None:
             },
         )
     )
+    admin = escape(str(record.get("admin") or "admin"))
     parts.append(
-        "\nThe token is shown once and never stored in readable form. Keep it:"
-        f"\n  [bold]export DG_TOKEN={token}[/]"
-        "\n\nBuild the project's environment, start it, apply the example, run it:"
+        "\nThe instance lives in this directory. Its database is .dirigent/state, and the"
+        f"\ntoken of its first admin, [bold]{admin}[/], is in .env, where the local profile reads it."
+        "\nShown here once:"
+        f"\n  [bold]{token}[/]"
+        "\n\nStart the instance in a second terminal here; it keeps running:"
         "\n  [bold]uv sync[/]"
-        "\n  [bold]uv run dg dev --keep-state[/]  [dim]# plain dg dev starts by emptying .dirigent/state[/]"
+        "\n  [bold]uv run dg dev --keep-state[/]  [dim]# plain dg dev empties .dirigent/state first[/]"
+        f"\nThe UI is at http://127.0.0.1:3333, and {admin} logs in with the password you gave."
+        "\n\nThen apply the example here, and run it:"
         "\n  [bold]uv run dg apply[/]"
         "\n  [bold]uv run dg run hello-world --watch[/]"
         "\n\n[yellow]This is an instance for one person on one machine[/]: SQLite on this disk, and"

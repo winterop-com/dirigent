@@ -477,12 +477,15 @@ ROOT_IGNORE_TEMPLATE = """\
 # The environment uv sync builds from pyproject.toml.
 .venv/
 __pycache__/
+
+# This instance's token, or the stack's key and first password. Never shared.
+.env
 """
 
-#: Appended to the root ignore by the template whose .env holds the instance key.
-COMPOSE_IGNORE_TEMPLATE = """\
-# Holds this instance's key and its first admin's password.
-.env
+TOKEN_ENV_TEMPLATE = """\
+# The token dg init minted for this instance's first admin. The local profile in
+# .dirigent/profiles.yaml reads it from here when the shell does not export it.
+DG_TOKEN=__TOKEN__
 """
 
 PYPROJECT_TEMPLATE = """\
@@ -585,10 +588,7 @@ def scaffold(
     _record(directory / "pyproject.toml", pyproject, written, skipped)
     readme = README_TEMPLATE.replace("__NAME__", name).replace("__RUN__", "\n".join(README_RUN[template]))
     _record(directory / "README.md", readme, written, skipped)
-    ignore = ROOT_IGNORE_TEMPLATE
-    if template == COMPOSE_TEMPLATE_NAME:
-        ignore += "\n" + COMPOSE_IGNORE_TEMPLATE
-    _merge_ignore(directory / ".gitignore", ignore, written, skipped)
+    _merge_ignore(directory / ".gitignore", ROOT_IGNORE_TEMPLATE, written, skipped)
     if template == "ci":
         written.append(_write(directory / ".github" / "workflows" / "dirigent.yml", WORKFLOW_TEMPLATE))
     if template == COMPOSE_TEMPLATE_NAME:
@@ -601,6 +601,11 @@ def scaffold(
         )
         written.append(_write(directory / ".env", environment, mode=0o600))
     return Scaffolded(files=written, skipped=skipped)
+
+
+def write_token_env(directory: Path, token: str) -> Path:
+    """Write the ``.env`` holding a new instance's token, readable by its owner alone."""
+    return _write(directory / ".env", TOKEN_ENV_TEMPLATE.replace("__TOKEN__", token), mode=0o600)
 
 
 def _record(path: Path, content: str, written: list[Path], skipped: list[Path]) -> None:

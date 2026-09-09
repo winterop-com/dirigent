@@ -143,21 +143,25 @@ extra steps, and giving one thing two names helps nobody.
 dg init my-pipelines --password "the one you will use"
 cd my-pipelines
 uv sync
-export DG_TOKEN=...          # the token dg init printed, once
-uv run dg dev --keep-state &
-uv run dg apply
+uv run dg dev --keep-state       # in a second terminal, in this directory; it keeps running
+```
+
+```bash
+uv run dg apply                  # back in the first terminal, in this directory
 uv run dg run hello-world --watch
 ```
 
 `dg init` initialises an instance and the documents that address it: it creates
-`.dirigent/state/`, migrates the schema, creates the first admin, and mints it one token,
-printed once and never stored in readable form. `uv sync` builds the project's environment
+`.dirigent/state/`, migrates the schema, creates the first admin, and mints it one token. The
+token goes into the project's `.env`, readable by you alone and kept out of git, and the
+`local` profile in `.dirigent/profiles.yaml` reads it from there whenever the shell does not
+export `DG_TOKEN` -- so nothing has to be pasted. `uv sync` builds the project's environment
 from the `pyproject.toml` it wrote, which pins the dirigent that scaffolded it -- so every
 `uv run dg` below is that runtime rather than whatever is on the path.
-`dg dev --keep-state` then runs what it made
+`dg dev --keep-state` then runs what it made, and serves the UI at `http://127.0.0.1:3333`
 -- and the flag is the whole reason this recipe has one, because a plain `dg dev` would empty
 the directory `dg init` just filled and mint a development admin of its own, leaving the token
-you exported addressing an account that no longer exists.
+in `.env` addressing an account that no longer exists.
 `dg init --documents-only` stops after the documents, which is what to use when the instance
 is somebody else's server.
 

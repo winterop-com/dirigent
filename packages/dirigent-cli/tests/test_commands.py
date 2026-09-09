@@ -13,6 +13,7 @@ from typer.testing import CliRunner
 
 from clisupport import asking_for_the_rendering, closing, of_kind, only, plain, records, refusal, rows
 from dirigent_cli.main import app, hoist_globals
+from dirigent_cli.profiles import resolve_endpoint
 from dirigent_cli.project import ProjectError, find_project, scaffold
 from dirigent_core.config import CONFIG_FILE_ENV, Settings, reset_settings_cache
 
@@ -1181,7 +1182,19 @@ def test_an_unreachable_server_says_so_rather_than_traces_back(monkeypatch: pyte
     monkeypatch.setenv("DG_TOKEN", "irrelevant")
     result = machine("pipeline", "list")
     assert result.exit_code == 1
-    assert "cannot reach" in refusal(result.stdout)["message"]
+    refused = refusal(result.stdout)
+    assert "cannot reach" in refused["message"]
+    assert any("dg dev --keep-state" in problem for problem in refused["problems"]), (
+        "a refused loopback connection does not say the local instance is not running"
+    )
+
+
+def test_an_unreachable_remote_server_gets_no_local_advice(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("DG_URL", "http://198.51.100.9:9")
+    monkeypatch.setenv("DG_TOKEN", "irrelevant")
+    result = machine("pipeline", "list")
+    assert result.exit_code == 1
+    assert refusal(result.stdout).get("problems", []) == []
 
 
 def test_an_unauthenticated_cli_is_told_to_get_a_token(server: str, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1204,12 +1217,31 @@ def test_init_initialises_an_instance_that_dg_dev_can_run(tmp_path: Path) -> Non
     assert "admin" in result.output and "token" in result.output
 
 
-def test_init_mints_one_token_and_shows_it_once(tmp_path: Path) -> None:
-    """The token is never readable again, so the only place it exists is this output."""
+def test_init_puts_the_token_where_the_local_profile_reads_it(tmp_path: Path) -> None:
+    """The token lands in the project's .env, so no shell has to export it."""
+    root = tmp_path / "instance"
+
+    result = machine("init", str(root), "--password", "a test password", "--json")
+
+    assert result.exit_code == 0, result.output
+    initialised = only(result.stdout, "instance.initialised")
+    assert ".env" in initialised["files"]
+    assert f"DG_TOKEN={initialised['token']}" in (root / ".env").read_text().splitlines()
+    assert ".env" in (root / ".gitignore").read_text().splitlines()
+    endpoint = resolve_endpoint(start=root, environ={})
+    assert endpoint.token == initialised["token"]
+    assert endpoint.profile == "local"
+
+
+def test_init_shows_the_token_once_and_says_where_it_lives(tmp_path: Path) -> None:
+    """The rendering hands the token over, names .env, and spells the two terminals apart."""
     result = invoke("init", str(tmp_path / "instance"), "--password", "a test password")
 
     assert result.exit_code == 0, result.output
-    assert "DG_TOKEN=" in plain(result.output), "the token is not handed over in a usable form"
+    text = plain(result.output)
+    assert ".env" in text
+    assert "second terminal" in text
+    assert "http://127.0.0.1:3333" in text
 
 
 def test_init_says_what_this_instance_is_not(tmp_path: Path) -> None:

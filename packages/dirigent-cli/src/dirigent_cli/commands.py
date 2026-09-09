@@ -56,7 +56,14 @@ from dirigent_cli.output import (
     table,
 )
 from dirigent_cli.params import ParamError, build_params
-from dirigent_cli.project import COMPOSE_TEMPLATE_NAME, ProjectError, check_template, find_project, scaffold
+from dirigent_cli.project import (
+    COMPOSE_TEMPLATE_NAME,
+    ProjectError,
+    check_template,
+    find_project,
+    scaffold,
+    write_token_env,
+)
 from dirigent_cli.scaffold import ScaffoldedRecord, ScaffoldError, ScaffoldRecord, scaffold_pack
 from dirigent_cli.sources import Document, SourceError, looks_like_a_document, read_document, read_path
 from dirigent_cli.stream import Sink, track_steps, use_scratch_prefix
@@ -546,6 +553,7 @@ def init_command(
     migrated = migrations.head_revision(settings) or "none"
     migrations.upgrade("head", settings)
     token = asyncio.run(first_admin(settings, admin, secret))
+    env_file = write_token_env(root, token)
     emit_fact(
         "instance.initialised",
         message="initialised",
@@ -556,7 +564,7 @@ def init_command(
         admin=admin,
         token=token,
         version=version,
-        files=[_within(path, root) for path in made.files],
+        files=[_within(path, root) for path in [*made.files, env_file]],
         **({"skipped": [_within(path, root) for path in made.skipped]} if made.skipped else {}),
     )
 

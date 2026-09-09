@@ -12,7 +12,7 @@ from typer.testing import CliRunner
 
 from clisupport import of_kind, records, refusal
 from dirigent_cli.main import app, hoist_globals
-from dirigent_cli.project import project_name, scaffold
+from dirigent_cli.project import project_name, scaffold, write_token_env
 
 runner = CliRunner()
 
@@ -214,7 +214,7 @@ def test_an_existing_root_ignore_gains_the_missing_lines(tmp_path: Path) -> None
     root.mkdir()
     (root / ".gitignore").write_text(".venv/\n")
     made = scaffold(root, version="1.2.3")
-    assert (root / ".gitignore").read_text().splitlines() == [".venv/", "__pycache__/"]
+    assert (root / ".gitignore").read_text().splitlines() == [".venv/", "__pycache__/", ".env"]
     assert root / ".gitignore" in made.files
     assert made.skipped == []
 
@@ -231,9 +231,17 @@ def test_the_readme_names_the_pinned_runtime_and_the_first_command(tmp_path: Pat
     assert readme.splitlines()[0] == "# read"
 
 
-def test_the_root_ignore_covers_the_environment_uv_builds(tmp_path: Path) -> None:
+def test_the_root_ignore_covers_the_environment_uv_builds_and_the_env_file(tmp_path: Path) -> None:
     scaffold(tmp_path / "plain", version="1.2.3")
     lines = (tmp_path / "plain" / ".gitignore").read_text().splitlines()
     assert ".venv/" in lines
     assert "__pycache__/" in lines
-    assert ".env" not in lines
+    assert ".env" in lines, "the token dg init writes to .env would be committed"
+
+
+def test_the_token_env_file_is_readable_by_its_owner_alone(tmp_path: Path) -> None:
+    scaffold(tmp_path / "plain", version="1.2.3")
+    path = write_token_env(tmp_path / "plain", "a-minted-token")
+    assert path == tmp_path / "plain" / ".env"
+    assert "DG_TOKEN=a-minted-token" in path.read_text().splitlines()
+    assert path.stat().st_mode & 0o777 == 0o600
