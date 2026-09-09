@@ -15,6 +15,20 @@ package and uploads it to PyPI through trusted publishing, then builds the image
 commit and pushes it as `<version>` and `latest`. The two sibling repositories then relock
 against the tag and bump.
 
+## 0.9.5
+
+Released 2026-09-09. Every package in the workspace moves to 0.9.5 together.
+
+### Before you upgrade
+
+Nothing in the schema, the wire or the settings changed since 0.9.4.
+
+### Command line
+
+- **`dg init` refusing over an existing instance reads as a table.** The sentence is red, and
+  each way out is a bold command with what it does dimmed beside it; the `--json` record is
+  unchanged.
+
 ## 0.9.4
 
 Released 2026-09-09. Every package in the workspace moves to 0.9.4 together.
