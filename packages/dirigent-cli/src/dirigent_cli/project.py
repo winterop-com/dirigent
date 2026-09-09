@@ -135,21 +135,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
 
-      - name: Install dirigent
-        run: pipx install dirigent-cli
+      # The runtime pyproject.toml pins, not whatever is newest on the index.
+      - name: Install the project
+        run: uv sync
 
       # On a pull request this is the whole-project diff and nothing is written.
       - name: Plan
         if: github.event_name == 'pull_request'
-        run: dg apply --dry-run
+        run: uv run dg apply --dry-run
         env:
           DG_URL: ${{ secrets.DG_URL }}
           DG_TOKEN: ${{ secrets.DG_TOKEN }}
 
       - name: Apply
         if: github.event_name == 'push'
-        run: dg apply
+        run: uv run dg apply
         env:
           DG_URL: ${{ secrets.DG_URL }}
           DG_TOKEN: ${{ secrets.DG_TOKEN }}
@@ -178,7 +180,270 @@ steps:
 """
 
 
-COMPOSE_TEMPLATE = """\
+class Service(BaseModel):
+    """One optional service of the container stack, as the form and the flag name it."""
+
+    model_config = ConfigDict(frozen=True)
+
+    code: str
+    title: str
+    what: str
+
+
+#: The services a stack may add beside PostgreSQL, migrate, server and worker. S3 is on
+#: unless switched off: object storage is part of the base stack.
+SERVICES: Final = (
+    Service(code="s3", title="Object storage (S3)", what="artifacts on a bucket; off means a volume"),
+    Service(code="docker", title="Docker daemon for the workers", what="the docker.* blocks, a dind sidecar"),
+    Service(code="kafka", title="Kafka", what="a broker the queue sensors wait on"),
+    Service(code="rabbitmq", title="RabbitMQ", what="a broker the queue sensors wait on"),
+)
+
+DEFAULT_SERVICES: Final = ("s3",)
+
+#: The example each service brings into `pipelines/`, so a stack with the service has one
+#: document that uses it the day it is made.
+SERVICE_EXAMPLES: Final = {
+    "s3": (
+        "s3-hello.yaml",
+        """\
+# A greeting written to the stack's own bucket and read back, through the s3:// scheme.
+#
+# There is no S3 block: storage.copy moves bytes between schemes, and the stack's `migrate`
+# service bootstraps the `artifacts` connection that serves s3://. The bucket comes from the
+# URI, so this one is the stack's:
+#
+#   dg run s3-hello --watch
+
+format: dirigent/v1
+kind: pipeline
+code: s3-hello
+name: Hello, object storage
+description: Write a greeting to the bucket and copy it back, through s3://.
+
+requires:
+  blocks:
+    - value.const
+    - storage.copy
+  connections:
+    - artifacts
+  storage:
+    - s3
+
+steps:
+  greet:
+    block: value.const
+    config:
+      value: "hello from object storage"
+      save_to: "${run.scratch}/hello.txt"
+
+  upload:
+    block: storage.copy
+    depends_on: [greet]
+    config:
+      source: "${steps.greet.output.uri}"
+      target: "s3://dirigent/hello/${run.id}.txt"
+
+  download:
+    block: storage.copy
+    depends_on: [upload]
+    config:
+      source: "s3://dirigent/hello/${run.id}.txt"
+      target: "${run.scratch}/hello-back.txt"
+""",
+    ),
+    "docker": (
+        "docker-hello.yaml",
+        """\
+# A command run in a container on the workers' own daemon, the `docker` service.
+#
+# docker.run is on the stack's allowlist (DIRIGENT_ENABLED_UNSAFE_BLOCKS in .env) because the
+# daemon it reaches is the sidecar, never the host's. The image is pulled first, gets no
+# network, and is capped in memory and processes:
+#
+#   dg run docker-hello --watch
+
+format: dirigent/v1
+kind: pipeline
+code: docker-hello
+name: Hello from a container
+description: Run a command in a container, with no network and the image pulled first.
+
+requires:
+  blocks:
+    - docker.run
+  workers:
+    - docker
+
+steps:
+  greet:
+    block: docker.run
+    deadline: 5m
+    config:
+      image: alpine:3
+      pull: true
+      network: none
+      argv: [echo, "hello from a container"]
+      memory: 64mb
+      pids_limit: 64
+""",
+    ),
+    "kafka": (
+        "kafka-hello.yaml",
+        """\
+# Three records published to the stack's Kafka broker and read back off the topic.
+#
+# The `migrate` service bootstraps the `kafka` connection and the `kafka-topic` service
+# creates the `hello` topic, so nothing has to be arranged first:
+#
+#   dg run kafka-hello --watch
+
+format: dirigent/v1
+kind: pipeline
+code: kafka-hello
+name: Hello, Kafka
+description: Publish records to a topic and consume the same batch back.
+
+requires:
+  blocks:
+    - kafka.produce
+    - kafka.consume
+  connections:
+    - kafka
+
+steps:
+  publish:
+    block: kafka.produce
+    config:
+      connection: kafka
+      topic: hello
+      records:
+        - {greeting: hello, n: 1}
+        - {greeting: hello, n: 2}
+        - {greeting: hello, n: 3}
+      timeout: 30s
+
+  consume:
+    block: kafka.consume
+    depends_on: [publish]
+    poll: 5s
+    deadline: 5m
+    config:
+      connection: kafka
+      topic: hello
+      start: earliest
+      min_messages: 3
+      max_messages: 50
+      poll_timeout: 5s
+      value_format: json
+""",
+    ),
+    "rabbitmq": (
+        "rabbitmq-hello.yaml",
+        """\
+# A run that waits for a message on the stack's RabbitMQ queue, then hands the batch on.
+#
+# The `migrate` service bootstraps the `rabbitmq` connection and the `rabbitmq-queue`
+# service declares the `hello` queue. Publish something to it from the management UI at
+# http://127.0.0.1:15672 (dirigent / dirigent), and the run that is waiting takes it:
+#
+#   dg run rabbitmq-hello --watch
+
+format: dirigent/v1
+kind: pipeline
+code: rabbitmq-hello
+name: Hello, RabbitMQ
+description: Wait for a message on a queue and hand the batch on.
+
+requires:
+  blocks:
+    - rabbitmq.consume
+  connections:
+    - rabbitmq
+
+steps:
+  wait:
+    block: rabbitmq.consume
+    poll: 10s
+    deadline: 1h
+    on_timeout: skip
+    config:
+      connection: rabbitmq
+      queue: hello
+      min_messages: 1
+      max_messages: 50
+      poll_timeout: 5s
+      ack: on_success
+      value_format: json
+""",
+    ),
+}
+
+
+class Pack(BaseModel):
+    """One published pack the form and the flag can add to a project."""
+
+    model_config = ConfigDict(frozen=True)
+
+    name: str
+    what: str
+
+
+#: The packs on PyPI at this version.
+PACKS: Final = (Pack(name="dirigent-dhis2", what="DHIS2 blocks and connection kinds"),)
+
+
+#: How a project runs: one process here on SQLite, a container stack, or documents against an
+#: instance somebody else runs.
+TEMPLATES: Final = ("local", "compose", "documents")
+
+COMPOSE_TEMPLATE_NAME: Final = "compose"
+
+
+class InitChoices(BaseModel):
+    """Everything ``dg init`` decides, from the form or from the flags, before it writes."""
+
+    model_config = ConfigDict(frozen=True)
+
+    template: str = "local"
+    services: tuple[str, ...] = DEFAULT_SERVICES
+    workflow: bool = False
+    packs: tuple[str, ...] = ()
+    admin: str = "admin"
+    password: str = ""
+
+    @property
+    def stack(self) -> bool:
+        """Whether the instance is the containers."""
+        return self.template == COMPOSE_TEMPLATE_NAME
+
+    @property
+    def instance(self) -> bool:
+        """Whether an instance is initialised here, in ``.dirigent/state``."""
+        return self.template == "local"
+
+    def has(self, service: str) -> bool:
+        """Whether the stack carries a service."""
+        return self.stack and service in self.services
+
+
+def check_choices(choices: InitChoices) -> None:
+    """Refuse a choice that does not exist, before anything is written or asked for."""
+    if choices.template not in TEMPLATES:
+        raise ProjectError(f"no template named {choices.template!r}; the templates are local, compose and documents")
+    known = {service.code for service in SERVICES}
+    for service in choices.services:
+        if service not in known:
+            raise ProjectError(f"no service named {service!r}; the services are {', '.join(sorted(known))}")
+    packs = {pack.name for pack in PACKS}
+    for pack in choices.packs:
+        if pack not in packs:
+            raise ProjectError(f"no pack named {pack!r}; the packs are {', '.join(sorted(packs))}")
+    if choices.services != DEFAULT_SERVICES and not choices.stack:
+        raise ProjectError("--service applies to the compose template alone; the other two run no stack")
+
+
+COMPOSE_HEAD = """\
 name: dirigent
 
 x-dirigent: &dirigent
@@ -196,10 +461,7 @@ x-dirigent: &dirigent
     DIRIGENT_ENVIRONMENT: ${DIRIGENT_ENVIRONMENT:-prod}
     DIRIGENT_LOG_LEVEL: ${DIRIGENT_LOG_LEVEL:-INFO}
     DIRIGENT_LOG_FORMAT: json
-    # `migrate` puts the connection this resolves through in place before anything runs.
-    DIRIGENT_ARTIFACT_ROOT: s3://${S3_BUCKET:-dirigent}/artifacts
-    DIRIGENT_STORAGE_CONNECTIONS: s3=${S3_CONNECTION:-artifacts}
-    # What a tool opens through the filesystem -- a checkout, a build context, a compose
+__ARTIFACTS__    # What a tool opens through the filesystem -- a checkout, a build context, a compose
     # file, a bind mount -- rather than through storage. The daemon mounts it at the same
     # path, so a bind docker.run hands over means the same directory on both sides.
     DIRIGENT_WORK_ROOT: /var/lib/dirigent/work
@@ -221,9 +483,7 @@ x-dirigent: &dirigent
       condition: service_healthy
     migrate:
       condition: service_completed_successfully
-    s3-bucket:
-      condition: service_completed_successfully
-
+__DEPENDS_S3__
 services:
   postgres:
     image: postgres:17-alpine
@@ -247,10 +507,27 @@ services:
       # mapping exists only so a person on the host can inspect the database.
       - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
 
-  # Brings the schema forward, and ensures the connection the artifact root resolves
-  # through. That is a row, and a container has no API token, so `dg connection ensure`
-  # writes it process-side and seals its secret half with the instance key, exactly as the
-  # API would. Re-running the stack brings the row to whatever the environment now says.
+"""
+
+COMPOSE_ARTIFACTS_S3 = """\
+    # `migrate` puts the connection this resolves through in place before anything runs.
+    DIRIGENT_ARTIFACT_ROOT: s3://${S3_BUCKET:-dirigent}/artifacts
+    DIRIGENT_STORAGE_CONNECTIONS: s3=${S3_CONNECTION:-artifacts}
+"""
+
+COMPOSE_ARTIFACTS_VOLUME = """\
+    # A volume the server and the worker share; object storage is the `s3` service, which
+    # this stack was scaffolded without.
+    DIRIGENT_ARTIFACT_ROOT: file:///var/lib/dirigent/artifacts
+"""
+
+COMPOSE_DEPENDS_S3 = """\
+    s3-bucket:
+      condition: service_completed_successfully
+"""
+
+COMPOSE_MIGRATE = """\
+  # Brings the schema forward__MIGRATE_WHAT__
   migrate:
     <<: *dirigent
     restart: "no"
@@ -258,6 +535,40 @@ services:
     command:
       - |
         dg db upgrade
+__MIGRATE_S3____MIGRATE_BROKERS__    environment:
+      <<: *dirigent-env
+__MIGRATE_ENV__    depends_on:
+      postgres:
+        condition: service_healthy
+
+"""
+
+COMPOSE_MIGRATE_S3_WHAT = """, and ensures the connection the artifact root resolves
+  # through. That is a row, and a container has no API token, so `dg connection ensure`
+  # writes it process-side and seals its secret half with the instance key, exactly as the
+  # API would. Re-running the stack brings the row to whatever the environment now says."""
+
+COMPOSE_MIGRATE_KAFKA = """\
+        dg connection ensure kafka kafka \\
+          --name "Kafka" \\
+          --description "The stack's own broker." \\
+          --set bootstrap_servers='["kafka:9092"]'
+"""
+
+COMPOSE_MIGRATE_RABBITMQ = """\
+        dg connection ensure rabbitmq rabbitmq \\
+          --name "RabbitMQ" \\
+          --description "The stack's own broker." \\
+          --set url="amqp://$$RABBITMQ_USER@rabbitmq:5672/" \\
+          --set password="$$RABBITMQ_PASSWORD"
+"""
+
+COMPOSE_MIGRATE_ENV_RABBITMQ = """\
+      RABBITMQ_USER: ${RABBITMQ_USER:-dirigent}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-dirigent}
+"""
+
+COMPOSE_MIGRATE_S3 = """\
         dg connection ensure s3 "$$S3_CONNECTION" \\
           --name "Artifact storage" \\
           --description "The bucket every worker on this stack reads and writes artifacts in." \\
@@ -266,17 +577,17 @@ services:
           --set access_key_id="$$S3_ACCESS_KEY" \\
           --set secret_access_key="$$S3_SECRET_KEY" \\
           --set path_style=true
-    environment:
-      <<: *dirigent-env
+"""
+
+COMPOSE_MIGRATE_ENV_S3 = """\
       # The credentials reach the command as environment, never as a file or an image layer.
       S3_CONNECTION: ${S3_CONNECTION:-artifacts}
       S3_BUCKET: ${S3_BUCKET:-dirigent}
       S3_ACCESS_KEY: ${S3_ACCESS_KEY:-dirigent}
       S3_SECRET_KEY: ${S3_SECRET_KEY:-dirigent}
-    depends_on:
-      postgres:
-        condition: service_healthy
+"""
 
+COMPOSE_S3 = """\
   # Artifact storage. The endpoint the connection names is the one containers resolve, not
   # the one a shell on the host does: `localhost` inside a container is the container.
   s3:
@@ -314,6 +625,9 @@ services:
       S3_SECRET_KEY: ${S3_SECRET_KEY:-dirigent}
       S3_BUCKET: ${S3_BUCKET:-dirigent}
 
+"""
+
+COMPOSE_SERVER = """\
   server:
     <<: *dirigent
     command: ["server"]
@@ -328,7 +642,7 @@ services:
     volumes:
       - ./dirigent.yaml:/etc/dirigent/dirigent.yaml:ro
       - ./pipelines:/etc/dirigent/pipelines:ro
-    ports:
+__ARTIFACTS_MOUNT__    ports:
       - "${DIRIGENT_PORT:-3333}:3333"
     healthcheck:
       test: ["CMD", "dg", "health", "server"]
@@ -337,6 +651,13 @@ services:
       retries: 10
       start_period: 15s
 
+"""
+
+COMPOSE_ARTIFACTS_MOUNT = """\
+      - artifacts:/var/lib/dirigent/artifacts
+"""
+
+COMPOSE_DOCKER = """\
   # The daemon the `docker.*` blocks drive. It is the worker's own, so a pipeline's
   # containers are never the host's, and no host socket is mounted anywhere in this stack.
   docker:
@@ -362,12 +683,112 @@ services:
       retries: 30
       start_period: 10s
 
+"""
+
+COMPOSE_KAFKA = """\
+  # Redpanda speaks the Kafka protocol and needs no ZooKeeper, so one container is a cluster.
+  # It advertises its compose name, so the workers reach it and a producer on the host runs
+  # inside the network: `docker compose exec kafka rpk topic produce ...`.
+  kafka:
+    image: ${DIRIGENT_KAFKA_IMAGE:-redpandadata/redpanda:v24.2.18}
+    restart: unless-stopped
+    command:
+      - redpanda
+      - start
+      - --mode=dev-container
+      - --smp=1
+      - --node-id=0
+      - --check=false
+      - --kafka-addr=PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr=PLAINTEXT://kafka:9092
+      # A topic a producer invented is a typo that reads as a working pipeline, so a document
+      # naming a topic nobody created is refused instead.
+      - --set
+      - redpanda.auto_create_topics_enabled=false
+    volumes:
+      - kafka:/var/lib/redpanda/data
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -q 'Healthy:.*true'"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  # The topic the hello example publishes to has to exist: the broker refuses to invent one.
+  kafka-topic:
+    image: ${DIRIGENT_KAFKA_IMAGE:-redpandadata/redpanda:v24.2.18}
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        rpk topic create hello --brokers kafka:9092 || rpk topic describe hello --brokers kafka:9092 >/dev/null
+
+"""
+
+COMPOSE_RABBITMQ = """\
+  rabbitmq:
+    image: ${DIRIGENT_RABBITMQ_IMAGE:-rabbitmq:3-management-alpine}
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-dirigent}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-dirigent}
+    volumes:
+      - rabbitmq:/var/lib/rabbitmq
+    ports:
+      # The management UI, which is how a person watches a queue drain.
+      - "127.0.0.1:${RABBITMQ_UI_PORT:-15672}:15672"
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  # The queue the hello example waits on has to exist: the block declares nothing.
+  rabbitmq-queue:
+    image: ${DIRIGENT_RABBITMQ_IMAGE:-rabbitmq:3-management-alpine}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        rabbitmqadmin --host rabbitmq --username "$$RABBITMQ_USER" --password "$$RABBITMQ_PASSWORD" \\
+          declare queue name=hello durable=true
+    environment:
+      RABBITMQ_USER: ${RABBITMQ_USER:-dirigent}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-dirigent}
+
+"""
+
+COMPOSE_WORKER = """\
   worker:
     <<: *dirigent
     command: ["worker"]
     environment:
       <<: *dirigent-env
       DIRIGENT_WORKER_CONCURRENCY: ${DIRIGENT_WORKER_CONCURRENCY:-8}
+__WORKER_DOCKER_ENV__    volumes:
+      - ./dirigent.yaml:/etc/dirigent/dirigent.yaml:ro
+      - ./pipelines:/etc/dirigent/pipelines:ro
+__ARTIFACTS_MOUNT____WORKER_DOCKER_VOLUMES__      # The worker's own working files, at the path every service names.
+      - work:/var/lib/dirigent/work
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+__WORKER_DEPENDS__    stop_grace_period: 60s
+    healthcheck:
+      test: ["CMD", "dg", "health", "worker"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+"""
+
+COMPOSE_WORKER_DOCKER_ENV = """\
       # This worker reaches a daemon, so it claims work from a document declaring
       # `requires.workers: [docker]`.
       DIRIGENT_WORKER_TAGS: docker
@@ -376,39 +797,66 @@ services:
       DOCKER_HOST: tcp://docker:2376
       DOCKER_TLS_VERIFY: "1"
       DOCKER_CERT_PATH: /certs/client
-    volumes:
-      - ./dirigent.yaml:/etc/dirigent/dirigent.yaml:ro
-      - ./pipelines:/etc/dirigent/pipelines:ro
-      - docker-certs:/certs/client:ro
-      # The same volume the daemon mounts, at the same path.
-      - work:/var/lib/dirigent/work
-    depends_on:
-      postgres:
-        condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
-      s3-bucket:
-        condition: service_completed_successfully
-      docker:
-        condition: service_healthy
-    stop_grace_period: 60s
-    healthcheck:
-      test: ["CMD", "dg", "health", "worker"]
-      interval: 15s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-
-volumes:
-  postgres:
-  s3:
-  # The worker's own working files. Not shared with the server: nothing it does opens one.
-  work:
-  docker-certs:
-  docker-data:
 """
 
-ENV_TEMPLATE = """\
+COMPOSE_WORKER_DOCKER_VOLUMES = """\
+      - docker-certs:/certs/client:ro
+"""
+
+COMPOSE_DEPENDS = {
+    "s3": "      s3-bucket:\n        condition: service_completed_successfully\n",
+    "docker": "      docker:\n        condition: service_healthy\n",
+    "kafka": "      kafka-topic:\n        condition: service_completed_successfully\n",
+    "rabbitmq": "      rabbitmq-queue:\n        condition: service_completed_successfully\n",
+}
+
+COMPOSE_VOLUMES = {
+    "artifacts": "  artifacts:\n",
+    "s3": "  s3:\n",
+    "docker": "  docker-certs:\n  docker-data:\n",
+    "kafka": "  kafka:\n",
+    "rabbitmq": "  rabbitmq:\n",
+}
+
+
+def compose_document(choices: InitChoices, version: str) -> str:
+    """Assemble the stack for the services chosen: the base, plus a fragment per service."""
+    s3 = choices.has("s3")
+    docker = choices.has("docker")
+    artifacts_mount = "" if s3 else COMPOSE_ARTIFACTS_MOUNT
+    parts = [
+        COMPOSE_HEAD.replace("__ARTIFACTS__", COMPOSE_ARTIFACTS_S3 if s3 else COMPOSE_ARTIFACTS_VOLUME).replace(
+            "__DEPENDS_S3__", COMPOSE_DEPENDS_S3 if s3 else ""
+        ),
+        COMPOSE_MIGRATE.replace("__MIGRATE_WHAT__", COMPOSE_MIGRATE_S3_WHAT if s3 else ".")
+        .replace("__MIGRATE_S3__", COMPOSE_MIGRATE_S3 if s3 else "")
+        .replace(
+            "__MIGRATE_BROKERS__",
+            (COMPOSE_MIGRATE_KAFKA if choices.has("kafka") else "")
+            + (COMPOSE_MIGRATE_RABBITMQ if choices.has("rabbitmq") else ""),
+        )
+        .replace(
+            "__MIGRATE_ENV__",
+            (COMPOSE_MIGRATE_ENV_S3 if s3 else "") + (COMPOSE_MIGRATE_ENV_RABBITMQ if choices.has("rabbitmq") else ""),
+        ),
+        COMPOSE_S3 if s3 else "",
+        COMPOSE_SERVER.replace("__ARTIFACTS_MOUNT__", artifacts_mount),
+        COMPOSE_DOCKER if docker else "",
+        COMPOSE_KAFKA if choices.has("kafka") else "",
+        COMPOSE_RABBITMQ if choices.has("rabbitmq") else "",
+        COMPOSE_WORKER.replace("__WORKER_DOCKER_ENV__", COMPOSE_WORKER_DOCKER_ENV if docker else "")
+        .replace("__ARTIFACTS_MOUNT__", artifacts_mount)
+        .replace("__WORKER_DOCKER_VOLUMES__", COMPOSE_WORKER_DOCKER_VOLUMES if docker else "")
+        .replace("__WORKER_DEPENDS__", "".join(COMPOSE_DEPENDS[code] for code in choices.services)),
+        "volumes:\n  postgres:\n"
+        + ("" if s3 else COMPOSE_VOLUMES["artifacts"])
+        + "  # The worker's own working files. Not shared with the server: nothing it does opens one.\n  work:\n"
+        + "".join(COMPOSE_VOLUMES[code] for code in choices.services),
+    ]
+    return "".join(parts).replace("__VERSION__", version)
+
+
+ENV_HEAD = """\
 # Fills in ${...} in compose.yaml. Dirigent's own settings are in dirigent.yaml.
 
 # Losing this means losing every stored connection secret. Changing it does not re-encrypt
@@ -441,6 +889,9 @@ DIRIGENT_DATABASE_MAX_OVERFLOW=4
 
 DIRIGENT_SCHEDULER_ENABLED=true
 
+"""
+
+ENV_S3 = """\
 # The `migrate` service writes the connection S3_CONNECTION names from S3_ACCESS_KEY and
 # S3_SECRET_KEY, so the credentials live here and nowhere else; change one and the next `up`
 # brings the row to it.
@@ -454,15 +905,60 @@ S3_CONNECTION=artifacts
 S3_PORT=9010
 DIRIGENT_S3_IMAGE=rustfs/rustfs:1.0.0-rc.4
 
+"""
+
+ENV_KAFKA = """\
+DIRIGENT_KAFKA_IMAGE=redpandadata/redpanda:v24.2.18
+
+"""
+
+ENV_RABBITMQ = """\
+RABBITMQ_USER=dirigent
+RABBITMQ_PASSWORD=dirigent
+RABBITMQ_UI_PORT=15672
+DIRIGENT_RABBITMQ_IMAGE=rabbitmq:3-management-alpine
+
+"""
+
+ENV_UNSAFE_DOCKER = """\
 # Comma-separated block ids, empty for none. Listing one means whoever can edit a pipeline
 # can run code on a worker. The docker.* blocks reach the dind sidecar this stack starts.
 #
 #   DIRIGENT_ENABLED_UNSAFE_BLOCKS=shell.run,docker.run,docker.compose.up,docker.compose.down
+DIRIGENT_ENABLED_UNSAFE_BLOCKS=docker.run
+"""
+
+ENV_UNSAFE = """\
+# Comma-separated block ids, empty for none. Listing one means whoever can edit a pipeline
+# can run code on a worker.
+#
+#   DIRIGENT_ENABLED_UNSAFE_BLOCKS=shell.run
 DIRIGENT_ENABLED_UNSAFE_BLOCKS=
+"""
+
+ENV_TAIL = """\
 
 # The published image the Dockerfile beside this builds on.
 DIRIGENT_IMAGE=ghcr.io/winterop-com/dirigent:__VERSION__
 """
+
+
+def env_document(choices: InitChoices, version: str, key: str) -> str:
+    """Assemble the ``.env`` for the services chosen."""
+    return (
+        (
+            ENV_HEAD
+            + (ENV_S3 if choices.has("s3") else "")
+            + (ENV_KAFKA if choices.has("kafka") else "")
+            + (ENV_RABBITMQ if choices.has("rabbitmq") else "")
+            + (ENV_UNSAFE_DOCKER if choices.has("docker") else ENV_UNSAFE)
+            + ENV_TAIL
+        )
+        .replace("__SECRET_KEY__", key)
+        .replace("__PASSWORD__", choices.password)
+        .replace("__VERSION__", version)
+    )
+
 
 DOCKERFILE_TEMPLATE = """\
 # This instance's image: the published dirigent, plus whatever is added below.
@@ -470,8 +966,22 @@ ARG DIRIGENT_IMAGE=ghcr.io/winterop-com/dirigent:__VERSION__
 FROM ${DIRIGENT_IMAGE}
 
 # A pack is a Python package; install it here and run `docker compose up --build`.
-# RUN uv pip install dirigent-dhis2==__VERSION__
-"""
+__PACKS__"""
+
+
+def dockerfile_document(choices: InitChoices, version: str) -> str:
+    """The image this stack builds, with each chosen pack installed into it."""
+    lines = "".join(f"RUN uv pip install {pack}=={version}\n" for pack in choices.packs)
+    return DOCKERFILE_TEMPLATE.replace(
+        "__PACKS__", lines or f"# RUN uv pip install dirigent-dhis2=={version}\n"
+    ).replace("__VERSION__", version)
+
+
+def pyproject_document(name: str, choices: InitChoices, version: str) -> str:
+    """The uv project pinning the runtime, and each chosen pack beside it."""
+    packs = "".join(f'    "{pack}=={version}",\n' for pack in choices.packs)
+    return PYPROJECT_TEMPLATE.replace("__NAME__", name).replace("__VERSION__", version).replace("__PACKS__", packs)
+
 
 ROOT_IGNORE_TEMPLATE = """\
 # The environment uv sync builds from pyproject.toml.
@@ -491,12 +1001,12 @@ DG_TOKEN=__TOKEN__
 PYPROJECT_TEMPLATE = """\
 [project]
 name = "__NAME__"
-version = "0.0.0"
+version = "0.1.0"
 description = "A dirigent project: pipeline documents, and the runtime that runs them."
 requires-python = ">=3.13"
 dependencies = [
     "dirigent-cli==__VERSION__",
-]
+__PACKS__]
 """
 
 README_TEMPLATE = """\
@@ -517,15 +1027,15 @@ __RUN__
 
 #: The commands a scaffolded project's README opens with, per template.
 README_RUN: Final = {
-    "basic": (
+    "local": (
         "uv sync",
         "uv run dg dev",
         "uv run dg apply",
         "uv run dg run hello-world --watch",
     ),
-    "ci": (
+    "documents": (
         "uv sync",
-        "uv run dg dev",
+        "uv run dg apply --dry-run",
         "uv run dg apply",
         "uv run dg run hello-world --watch",
     ),
@@ -536,19 +1046,6 @@ README_RUN: Final = {
         "uv run dg run hello-world --watch",
     ),
 }
-
-
-#: The templates dg init can scaffold from.
-TEMPLATES: Final = ("basic", "ci", "compose")
-
-#: The template whose instance is a container stack rather than a state directory.
-COMPOSE_TEMPLATE_NAME: Final = "compose"
-
-
-def check_template(template: str) -> None:
-    """Refuse a template that does not exist, before anything is written or asked for."""
-    if template not in TEMPLATES:
-        raise ProjectError(f"no template named {template!r}; the built-in templates are basic, ci and compose")
 
 
 class Scaffolded(BaseModel):
@@ -566,40 +1063,32 @@ def project_name(directory: Path) -> str:
     return slug or "dirigent-project"
 
 
-def scaffold(
-    directory: Path,
-    *,
-    template: str = "basic",
-    version: str = "0.0.0",
-    password: str = "",
-) -> Scaffolded:
+def scaffold(directory: Path, choices: InitChoices, *, version: str = "0.0.0") -> Scaffolded:
     """Create a uv project: pyproject, the project file, a pipelines directory, and an example."""
-    check_template(template)
+    check_choices(choices)
     written: list[Path] = []
     skipped: list[Path] = []
     directory.mkdir(parents=True, exist_ok=True)
     written.append(_write(directory / PROJECT_FILE, PROJECT_TEMPLATE + "\n" + project_document()))
     written.append(_write(directory / DEFAULT_PIPELINES_DIR / "hello-world.yaml", EXAMPLE_TEMPLATE))
+    if choices.stack:
+        for code in choices.services:
+            filename, document = SERVICE_EXAMPLES[code]
+            written.append(_write(directory / DEFAULT_PIPELINES_DIR / filename, document))
     written.append(_write(directory / ".dirigent" / "profiles.yaml", PROFILES_TEMPLATE))
     written.append(_write(directory / ".dirigent" / ".gitignore", STATE_IGNORE_TEMPLATE))
     written.append(_write(directory / EXAMPLE_CONFIG_FILE, example_document()))
     name = project_name(directory)
-    pyproject = PYPROJECT_TEMPLATE.replace("__NAME__", name).replace("__VERSION__", version)
-    _record(directory / "pyproject.toml", pyproject, written, skipped)
-    readme = README_TEMPLATE.replace("__NAME__", name).replace("__RUN__", "\n".join(README_RUN[template]))
+    _record(directory / "pyproject.toml", pyproject_document(name, choices, version), written, skipped)
+    readme = README_TEMPLATE.replace("__NAME__", name).replace("__RUN__", "\n".join(README_RUN[choices.template]))
     _record(directory / "README.md", readme, written, skipped)
     _merge_ignore(directory / ".gitignore", ROOT_IGNORE_TEMPLATE, written, skipped)
-    if template == "ci":
+    if choices.workflow:
         written.append(_write(directory / ".github" / "workflows" / "dirigent.yml", WORKFLOW_TEMPLATE))
-    if template == COMPOSE_TEMPLATE_NAME:
-        written.append(_write(directory / "compose.yaml", COMPOSE_TEMPLATE.replace("__VERSION__", version)))
-        written.append(_write(directory / "Dockerfile", DOCKERFILE_TEMPLATE.replace("__VERSION__", version)))
-        environment = (
-            ENV_TEMPLATE.replace("__SECRET_KEY__", _an_instance_key())
-            .replace("__PASSWORD__", password)
-            .replace("__VERSION__", version)
-        )
-        written.append(_write(directory / ".env", environment, mode=0o600))
+    if choices.stack:
+        written.append(_write(directory / "compose.yaml", compose_document(choices, version)))
+        written.append(_write(directory / "Dockerfile", dockerfile_document(choices, version)))
+        written.append(_write(directory / ".env", env_document(choices, version, _an_instance_key()), mode=0o600))
     return Scaffolded(files=written, skipped=skipped)
 
 

@@ -57,9 +57,9 @@ from dirigent_cli.output import (
 )
 from dirigent_cli.params import ParamError, build_params
 from dirigent_cli.project import (
-    COMPOSE_TEMPLATE_NAME,
+    InitChoices,
     ProjectError,
-    check_template,
+    check_choices,
     find_project,
     scaffold,
     write_token_env,
@@ -479,22 +479,32 @@ def _trigger_targets(dg: Session, wanted: set[str]) -> dict[str, TriggerTarget]:
 def init_command(
     ctx: typer.Context,
     directory: Annotated[Path, typer.Argument(help="Where to create the instance and project.")] = Path(),
-    template: Annotated[str, typer.Option(help="Which template to scaffold: basic, ci or compose.")] = "basic",
-    documents_only: Annotated[
-        bool,
-        typer.Option("--documents-only", help="Scaffold the documents and initialise no instance."),
+    template: Annotated[
+        str | None,
+        typer.Option(help="Where it runs: local (dg dev on SQLite), compose (a container stack) or documents."),
+    ] = None,
+    service: Annotated[
+        list[str] | None,
+        typer.Option("--service", help="A service the stack carries: s3, docker, kafka or rabbitmq. Repeatable."),
+    ] = None,
+    workflow: Annotated[
+        bool, typer.Option("--workflow", help="Write a GitHub workflow that applies on merge.")
     ] = False,
+    pack: Annotated[
+        list[str] | None, typer.Option("--pack", help="A pack to add, such as dirigent-dhis2. Repeatable.")
+    ] = None,
     admin: Annotated[str, typer.Option(help="The first admin account's username.")] = "admin",
-    password: Annotated[str | None, typer.Option(help="Its password; prompted for when omitted.")] = None,
+    password: Annotated[str | None, typer.Option(help="Its password; asked for when omitted.")] = None,
 ) -> None:
     """Initialise a uv project and the instance it addresses, ready for `dg dev`.
 
-    Writes the documents and a `pyproject.toml` pinning the running dirigent, so `uv sync`
-    builds the project's environment and `uv run dg` is the runtime it was scaffolded on.
-    Then creates the state directory, migrates the schema, creates the first admin and mints
-    it a token. `--documents-only` stops after the documents. `--template compose` writes the
-    documents and a container stack instead, and initialises nothing locally: the instance is
-    the containers.
+    At a terminal, with no --template, one form asks everything: where the project runs, the
+    stack's services, packs, and the first admin. The flags answer the same questions for a
+    script. `--template local` writes the documents and a `pyproject.toml` pinning the running
+    dirigent, then creates the state directory, migrates the schema, creates the first admin
+    and mints it a token, kept in `.env`. `--template compose` writes the documents and a
+    container stack instead, and initialises nothing locally: the instance is the containers.
+    `--template documents` writes the documents alone, against an instance somebody else runs.
     """
     import asyncio
 
@@ -505,34 +515,55 @@ def init_command(
     if not state.chosen:
         configure(output="console")
     root = directory.resolve()
-    # Refusing and asking both happen before anything is written, so a run that cannot
-    # finish has not half-created a project, and nobody is asked for a password to satisfy
-    # a command that was going to fail anyway.
-    try:
-        check_template(template)
-    except ProjectError as error:
-        _init_fail(str(error))
-    stack = template == COMPOSE_TEMPLATE_NAME
-    if stack and documents_only:
-        _init_fail("--documents-only does not apply to the compose template, which writes no instance to skip")
-    if stack and admin != "admin":
-        _init_fail("--admin does not apply to the compose template; the stack's first admin is named admin")
-    if not documents_only and not stack:
-        _refuse_an_existing_instance(root)
-    secret = (
-        ""
-        if documents_only
-        else (password or os.environ.get(BOOTSTRAP_PASSWORD_ENV) or _prompt_for_a_password(stack=stack))
-    )
-    if not documents_only and len(secret) < MIN_PASSWORD_LENGTH:
-        _init_fail(str(WeakPassword()))
     version = cli_version()
+    unasked = template is None and service is None and pack is None and not workflow
+    asked = unasked and sys.stdin.isatty() and sys.stdout.isatty()
+    # Refusing happens before anything is written or asked for, so a run that cannot finish
+    # has not half-created a project, and nobody fills a form for a command that was going
+    # to fail anyway.
+    if template in (None, "local"):
+        _refuse_an_existing_instance(root)
+    if asked:
+        from dirigent_cli.init_form import run_form
+
+        chosen = run_form(
+            root, version=version, admin=admin, password=password or os.environ.get(BOOTSTRAP_PASSWORD_ENV, "")
+        )
+        if chosen is None:
+            _init_fail("cancelled; nothing was written")
+        choices = chosen
+    else:
+        choices = InitChoices(
+            template=template or "local",
+            services=tuple(service) if service is not None else InitChoices().services,
+            workflow=workflow,
+            packs=tuple(pack or ()),
+            admin=admin,
+            password=password or os.environ.get(BOOTSTRAP_PASSWORD_ENV) or "",
+        )
+        try:
+            check_choices(choices)
+        except ProjectError as error:
+            _init_fail(str(error))
+        if choices.stack and admin != "admin":
+            _init_fail("--admin does not apply to the compose template; the stack's first admin is named admin")
+        if choices.template != "documents" and not choices.password:
+            choices = choices.model_copy(update={"password": _prompt_for_a_password(stack=choices.stack)})
+    if choices.template != "documents" and len(choices.password) < MIN_PASSWORD_LENGTH:
+        _init_fail(str(WeakPassword()))
     try:
-        made = scaffold(directory, template=template, version=version, password=secret)
+        made = scaffold(directory, choices, version=version)
     except ProjectError as error:
         _init_fail(str(error))
     left = [_within(path, directory) for path in made.skipped]
-    if documents_only or stack:
+    described = {
+        "template": choices.template,
+        "version": version,
+        **({"services": list(choices.services)} if choices.stack else {}),
+        **({"workflow": True} if choices.workflow else {}),
+        **({"packs": list(choices.packs)} if choices.packs else {}),
+    }
+    if not choices.instance:
         starting = [
             "uv sync",
             "docker compose up -d",
@@ -541,30 +572,28 @@ def init_command(
         emit_fact(
             "project.scaffolded",
             message="scaffolded",
-            template=template,
             directory=str(directory),
-            version=version,
             files=[_within(path, directory) for path in made.files],
+            **described,
             **({"skipped": left} if left else {}),
-            **({"next": starting} if stack else {}),
+            **({"next": starting} if choices.stack else {}),
         )
         return
     settings = instance_settings(root)
     migrated = migrations.head_revision(settings) or "none"
     migrations.upgrade("head", settings)
-    token = asyncio.run(first_admin(settings, admin, secret))
+    token = asyncio.run(first_admin(settings, choices.admin, choices.password))
     env_file = write_token_env(root, token)
     emit_fact(
         "instance.initialised",
         message="initialised",
-        template=template,
         directory=str(root),
         state=STATE_DIR,
         schema=migrated,
-        admin=admin,
+        admin=choices.admin,
         token=token,
-        version=version,
         files=[_within(path, root) for path in [*made.files, env_file]],
+        **described,
         **({"skipped": [_within(path, root) for path in made.skipped]} if made.skipped else {}),
     )
 
@@ -615,7 +644,7 @@ def _refuse_an_existing_instance(root: Path) -> None:
             ways=[
                 ("dg dev", "starts it"),
                 ("dg db upgrade", "brings its schema forward"),
-                ("dg init --documents-only", "scaffolds documents beside it"),
+                ("dg init --template documents", "scaffolds documents beside it"),
             ],
         )
 

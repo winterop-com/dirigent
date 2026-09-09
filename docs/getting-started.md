@@ -160,8 +160,12 @@ from the `pyproject.toml` it wrote, which pins the dirigent that scaffolded it -
 `dg dev` then runs what it made, and serves the UI at `http://127.0.0.1:3333`. Never
 `--wipe-state` here: it would empty the directory `dg init` just filled and mint a development
 admin of its own, leaving the token in `.env` addressing an account that no longer exists.
-`dg init --documents-only` stops after the documents, which is what to use when the instance
-is somebody else's server.
+`dg init --template documents` stops after the documents, which is what to use when the
+instance is somebody else's server. At a terminal, `dg init hello` with no flags opens one
+form that asks all of this: where it runs, the stack's services, packs, a workflow, and the
+first admin.
+
+![The dg init form](images/init-form.svg)
 
 It scaffolds `dirigent.yaml`, which says where documents live and holds the few settings a
 project is likely to change; `dirigent.example.yaml`, every setting there is with its default
@@ -187,9 +191,11 @@ uv run dg auth login --username admin
 `--template compose` writes the same documents plus `compose.yaml`, a `Dockerfile`, a `.env`
 holding a generated `DIRIGENT_SECRET_KEY` and the password given here, and a root
 `.gitignore` keeping that `.env` out of the repository. The stack it describes is PostgreSQL, the API with
-the scheduler embedded, object storage for artifacts, a docker sidecar and a worker, all
-running the image that `Dockerfile` builds on `ghcr.io/winterop-com/dirigent`, pinned to the
-version of the `dg` that wrote the file. Adding a pack is a line in that `Dockerfile` and
+the scheduler embedded, object storage for artifacts and a worker, all running the image that
+`Dockerfile` builds on `ghcr.io/winterop-com/dirigent`, pinned to the version of the `dg` that
+wrote the file. `--service docker` adds the workers' own daemon, `--service kafka` and
+`--service rabbitmq` a broker, each with a hello example in `pipelines/`; `--pack dirigent-dhis2`
+installs the pack into the image. Adding one later is a line in that `Dockerfile` and
 `docker compose up --build`.
 
 Nothing is initialised on this machine: no state directory, no migration and no token, because
