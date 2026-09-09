@@ -1,4 +1,4 @@
-import { ArrowRight, Eye, EyeOff, Lock, User } from 'lucide-react'
+import { ArrowRight, CircleAlert, Eye, EyeOff, Lock, User } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import { useNavigate } from 'react-router'
 
@@ -11,7 +11,6 @@ import {
 import { rememberUsername, rememberedUsername } from '@/components/login/remembered'
 import { SeamHandle } from '@/components/login/SeamHandle'
 import { revealOf } from '@/components/login/reveal'
-import { Refusal } from '@/components/Refusal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -54,6 +53,10 @@ const FIELD = 'border-border-strong h-12 rounded-lg pl-11'
  * THE REFUSAL IS THE SERVER'S OWN SENTENCE. A wrong password and a rate limit are different
  * things and the server says which; restating either as "login failed" would throw away the one
  * fact worth having -- that this instance will accept nothing for a minute.
+ *
+ * AND IT TAKES NO ROOM. The form is centred in its column, so a notice that took space would
+ * move every field and the button the moment somebody got a password wrong. It hangs below the
+ * button, positioned out of the flow, and the form stays exactly where it was.
  */
 export function Login() {
     const auth = useStore(authStore)
@@ -165,7 +168,7 @@ export function Login() {
             <main className="dark:bg-card relative flex flex-1 items-center justify-center p-6 lg:p-12">
                 <SeamHandle width={drawn} onChange={choose} onReset={forget} />
                 <form
-                    className="grid w-full max-w-xs gap-5 xl:w-[26.875rem] xl:max-w-none"
+                    className="relative grid w-full max-w-xs gap-5 xl:w-[26.875rem] xl:max-w-none"
                     onSubmit={(event) => {
                         void submit(event)
                     }}
@@ -240,7 +243,6 @@ export function Login() {
                             </button>
                         </div>
                     </div>
-                    {auth.problem !== null && <Refusal problem={auth.problem} />}
                     <Button
                         type="submit"
                         className="h-13 w-full rounded-lg"
@@ -250,6 +252,15 @@ export function Login() {
                         {SIGN_IN_LABEL}
                         <ArrowRight className="size-4.5" aria-hidden />
                     </Button>
+                    {auth.problem !== null && (
+                        <p
+                            role="alert"
+                            className="border-critical/40 bg-critical/10 text-critical absolute inset-x-0 top-[calc(100%+1.5rem)] flex h-12 items-center gap-3 rounded-lg border px-4 text-sm"
+                        >
+                            <CircleAlert className="size-4 shrink-0" aria-hidden />
+                            <span className="truncate">{auth.problem.detail}</span>
+                        </p>
+                    )}
                 </form>
             </main>
         </div>

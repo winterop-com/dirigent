@@ -199,9 +199,11 @@ pane holds that floor and the form column takes what is left; below `lg` the two
 pane is a strip. The form pane bounds its form the same way and centres it, so what a wider
 window buys that column is spent evenly either side of the one question it asks.
 
-**The door's refusal is `Refusal`, like every form's.** A wrong password and a rate limit arrive
-as problem documents and are drawn in the same bordered box a dialog draws, above the button
-and spanning the form, rather than as a bare red line under one field.
+**The door's refusal takes no room.** A wrong password and a rate limit arrive as problem
+documents, and the sentence is drawn in a critical-edged bar the height of a field, hung below
+the button and positioned out of the flow: the form is centred in its column, so a notice that
+took space would move every field the moment somebody got a password wrong. It is the one
+refusal in the app not drawn by `Refusal`, for that reason alone.
 
 **And the seam between the two is dragged.** It is a `separator` like every other dragged edge
 here -- eight pixels of hit area over the line, drawn as nothing until a pointer, a focus ring or
