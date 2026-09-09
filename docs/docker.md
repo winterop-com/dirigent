@@ -77,7 +77,9 @@ fallback**: it works, but it grants that container root on the host. See
 [operations](operations.md#dockerrun-on-a-containerized-worker).
 
 The worker image (`infra/Dockerfile`) always ships the docker CLI with the compose and buildx
-plugins, so the CLI blocks have something to run.
+plugins, so the CLI blocks have something to run. A step's `HOME` is its own work directory, so
+the CLI blocks write the run a docker config that names the worker's own plugin directory:
+`buildx` and `compose` resolve wherever Docker Desktop or a package put them.
 
 ## The `docker` connection kind
 

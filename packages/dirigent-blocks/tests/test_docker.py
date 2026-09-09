@@ -19,11 +19,13 @@ from dirigent_blocks.docker import (
     DockerRunConfig,
     DockerRunOperator,
     DockerRunOutput,
+    cli_plugin_dirs,
     demultiplex,
     open_client,
     resolve_endpoint,
     socket_path,
     split_image,
+    write_cli_config,
 )
 from dirigent_common import SHELL_MEDIA_TYPE
 from dirigent_plugin import BlockFailure, ErrorClass, ProbeResult, ProbeStatus, RemoteHandle
@@ -160,6 +162,50 @@ def test_a_zero_length_frame_contributes_nothing() -> None:
 
 def test_the_stdin_frame_type_is_read_as_stdout() -> None:
     assert demultiplex(frame(0, b"raw\n")) == (b"raw\n", b"")
+
+
+# -- the CLI's plugin directories ------------------------------------------------
+
+
+def test_the_plugin_directory_is_found_under_the_named_docker_config(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    plugins = tmp_path / "config" / "cli-plugins"
+    plugins.mkdir(parents=True)
+    monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / "config"))
+    assert cli_plugin_dirs() == [plugins]
+
+
+def test_the_plugin_directory_is_found_under_home_when_no_config_is_named(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    plugins = tmp_path / ".docker" / "cli-plugins"
+    plugins.mkdir(parents=True)
+    monkeypatch.delenv("DOCKER_CONFIG", raising=False)
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    assert cli_plugin_dirs() == [plugins]
+
+
+def test_a_worker_with_no_plugin_directory_has_none(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / "config"))
+    assert cli_plugin_dirs() == []
+
+
+def test_the_run_config_names_the_workers_plugin_directory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    plugins = tmp_path / "config" / "cli-plugins"
+    plugins.mkdir(parents=True)
+    monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / "config"))
+
+    write_cli_config(tmp_path / "run" / ".docker")
+
+    written = json.loads((tmp_path / "run" / ".docker" / "config.json").read_text())
+    assert written == {"cliPluginsExtraDirs": [str(plugins)]}
+
+
+def test_no_plugin_directory_writes_no_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / "config"))
+    write_cli_config(tmp_path / "run" / ".docker")
+    assert not (tmp_path / "run").exists()
 
 
 # -- the spec and the config -----------------------------------------------------

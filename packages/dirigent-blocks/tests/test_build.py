@@ -1,6 +1,7 @@
 """Tests for docker.build: argv assembly, the iidfile read, size, and how a build ends."""
 
 import asyncio
+import json
 import subprocess as std_subprocess
 from collections.abc import Callable
 from pathlib import Path
@@ -221,6 +222,21 @@ async def test_a_build_context_comes_from_the_work_directory_whatever_scratch_is
     await DockerBuildOperator().execute(DockerBuildConfig(context="."), local_ctx.as_context())
     build = next(argv for argv in calls if "build" in argv)
     assert str(local_ctx.work) in build
+
+
+async def test_a_build_gives_the_cli_a_config_naming_the_workers_plugin_directory(
+    local_ctx: FakeContext, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The run's HOME is its work directory, where the CLI would otherwise find no buildx."""
+    plugins = tmp_path / "config" / "cli-plugins"
+    plugins.mkdir(parents=True)
+    monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / "config"))
+    scripted_exec(monkeypatch, build_and_inspect)
+
+    await DockerBuildOperator().execute(DockerBuildConfig(context="."), local_ctx.as_context())
+
+    written = json.loads((local_ctx.work / ".docker" / "config.json").read_text())
+    assert written == {"cliPluginsExtraDirs": [str(plugins)]}
 
 
 async def test_a_size_read_that_fails_leaves_the_size_zero(
