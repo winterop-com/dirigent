@@ -52,7 +52,7 @@ requires:
     - value.const
 
 connections:
-  scratch-db:
+  work-db:
     kind: sql
     config:
       # Relative, so it lands in this run's work directory and needs nothing on the host. The
@@ -73,7 +73,7 @@ steps:
   build:
     block: sql.execute
     config:
-      connection: scratch-db
+      connection: work-db
       statements:
         - CREATE TABLE reading (id INTEGER PRIMARY KEY, site TEXT NOT NULL, value REAL NOT NULL)
         # Both inserts share one params map, which is why they name different columns of it
@@ -90,7 +90,7 @@ steps:
     block: sql.query
     depends_on: [build]
     config:
-      connection: scratch-db
+      connection: work-db
       # One statement. A document that needs two writes two steps, or uses sql.execute.
       sql: SELECT id, site, value FROM reading WHERE site = :site ORDER BY id
       params:
