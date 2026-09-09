@@ -183,3 +183,26 @@ def test_with_nothing_configured_the_cli_assumes_the_dev_server(tmp_path: Path) 
 
 def test_a_trailing_slash_never_reaches_the_client(tmp_path: Path) -> None:
     assert resolve_endpoint(url="https://x.example.org/", start=tmp_path, environ={}).url == "https://x.example.org"
+
+
+def test_the_project_env_file_stands_in_for_an_unset_token_variable(tmp_path: Path) -> None:
+    write(tmp_path)
+    (tmp_path / ".env").write_text("DG_STAGING_TOKEN=from-the-env-file\n")
+    endpoint = resolve_endpoint(start=tmp_path, environ={})
+    assert endpoint.profile == "staging"
+    assert endpoint.token == "from-the-env-file"
+
+
+def test_the_environment_wins_over_the_project_env_file(tmp_path: Path) -> None:
+    write(tmp_path)
+    (tmp_path / ".env").write_text("DG_STAGING_TOKEN=from-the-env-file\n")
+    endpoint = resolve_endpoint(start=tmp_path, environ={"DG_STAGING_TOKEN": "from-the-shell"})
+    assert endpoint.token == "from-the-shell"
+
+
+def test_the_project_env_file_is_found_from_a_subdirectory(tmp_path: Path) -> None:
+    write(tmp_path)
+    (tmp_path / ".env").write_text("DG_STAGING_TOKEN=from-the-env-file\n")
+    deep = tmp_path / "pipelines" / "nested"
+    deep.mkdir(parents=True)
+    assert resolve_endpoint(start=deep, environ={}).token == "from-the-env-file"

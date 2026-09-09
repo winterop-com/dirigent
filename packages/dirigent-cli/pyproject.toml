@@ -14,6 +14,7 @@ dependencies = [
     "dirigent-plugin",
     "dirigent-server",
     "httpx2>=2.12.0",
+    "python-dotenv>=1.1.0",
     "pyyaml>=6.0.3",
     "rich>=15.0.0",
     "tomli-w>=1.2.0",

@@ -12,12 +12,14 @@ from pathlib import Path
 from typing import Any, Final, cast
 
 import yaml
+from dotenv import dotenv_values
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, model_validator
 
 from dirigent_client import API_PREFIX
 from dirigent_common import EntityName
 
 PROJECT_PROFILES: Final = Path(".dirigent") / "profiles.yaml"
+PROJECT_ENV_FILE: Final = ".env"
 USER_PROFILES: Final = Path.home() / ".config" / "dirigent" / "profiles.yaml"
 
 URL_ENV: Final = "DG_URL"
@@ -109,6 +111,21 @@ class ProfileStore(BaseModel):
     profiles: dict[EntityName, Profile] = Field(default_factory=dict[str, Profile])
     path: Path | None = None
 
+    @property
+    def env_file(self) -> Path | None:
+        """The ``.env`` at the root of the project this file belongs to, or none for the user file."""
+        if self.path is None or self.path.parent.name != PROJECT_PROFILES.parent.name:
+            return None
+        return self.path.parent.parent / PROJECT_ENV_FILE
+
+    def environment(self, environ: Mapping[str, str]) -> dict[str, str]:
+        """The environment a profile resolves in: the process's, with the project's ``.env`` filling gaps."""
+        path = self.env_file
+        if path is None or not path.is_file():
+            return dict(environ)
+        from_file = {key: value for key, value in dotenv_values(path).items() if value is not None}
+        return {**from_file, **environ}
+
     def select(self, name: str | None) -> Profile | None:
         """Choose a profile by name, by the file's default, or by there being only one."""
         wanted = name or self.default
@@ -189,11 +206,12 @@ def resolve_endpoint(
 ) -> Endpoint:
     """Resolve the server and token: flags first, then ``DG_*``, then the selected profile.
 
+    A project's ``.env`` stands in for any ``DG_*`` variable the environment does not set.
     With ``needs_token`` off, a profile whose token cannot be resolved yields no token rather
     than refusing, which is what the command that mints one asks for.
     """
-    env = environ if environ is not None else dict(os.environ)
     store = find_store(start)
+    env = store.environment(environ if environ is not None else os.environ)
     chosen = store.select(profile or env.get(PROFILE_ENV))
 
     if url is not None:

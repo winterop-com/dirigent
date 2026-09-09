@@ -71,7 +71,10 @@ dg --profile prod runs list --status failed
 ```
 
 Precedence is `--url` / `--token` flags, then `DG_URL` / `DG_TOKEN`, then the selected
-profile.
+profile. A `.env` at the root of the project, beside `.dirigent/`, stands in for any of these
+variables the shell does not set, including the one a `token_env` names: that is where
+`dg init` puts the token it mints, and where a `DG_STAGING_TOKEN` for the profile above can
+live too. The shell's own value always wins over the file's.
 
 A profile holds a URL and a token, and nothing else. It never holds a database URL, and one
 that names a database scheme is refused on sight: a CLI that could reach the database would
@@ -116,14 +119,15 @@ dg init --template compose    # the documents and a container stack to run them 
 ```
 
 `dg init` initialises an instance: it writes the documents, creates `.dirigent/state/`,
-migrates the schema, creates the first admin and mints it one token. The token is shown once
-and never stored in readable form, so keep it. Give the password with `--password`, or
-`DIRIGENT_BOOTSTRAP_ADMIN_PASSWORD` where there is nothing to prompt.
+migrates the schema, creates the first admin and mints it one token. The token is shown once,
+and written to the project's `.env` with owner-only permissions, where the `local` profile
+reads it whenever the shell does not export `DG_TOKEN`. Give the password with `--password`,
+or `DIRIGENT_BOOTSTRAP_ADMIN_PASSWORD` where there is nothing to prompt.
 
 What it writes is a uv project. `pyproject.toml` depends on `dirigent-cli` at the version of
 the `dg` that scaffolded it, so `uv sync` builds the project's own environment and `uv run dg`
 is that pinned runtime rather than whatever is on the path. A `README.md` carries the
-template's commands, and a root `.gitignore` covers `.venv/` and `__pycache__/`. A directory
+template's commands, and a root `.gitignore` covers `.venv/`, `__pycache__/` and `.env`. A directory
 that already has a `pyproject.toml` or a `README.md` keeps its own -- the record lists those
 under `skipped`, and adding `dirigent-cli` to that `pyproject.toml` is then yours to do; an
 existing root `.gitignore` gains the missing lines instead.
@@ -132,8 +136,10 @@ It refuses to run over an instance that is already there: migrating and re-admin
 database is not what running it twice means. `--documents-only` scaffolds beside one without
 touching it, which is what to use against a server somebody else runs.
 
-Run the instance it made with `uv run dg dev --keep-state`. A plain `dg dev` starts by emptying
-`.dirigent/state/`, which would take the admin and the token `dg init` just created.
+Run the instance it made with `uv run dg dev --keep-state`, in its own terminal in the project
+directory: it keeps running, and serves the UI at `http://127.0.0.1:3333`. A plain `dg dev`
+starts by emptying `.dirigent/state/`, which would take the admin and the token `dg init` just
+created.
 
 What it makes is one person's instance on one machine -- SQLite on this disk, and no secret
 key, so a connection carrying a credential cannot be stored until `DIRIGENT_SECRET_KEY` is
