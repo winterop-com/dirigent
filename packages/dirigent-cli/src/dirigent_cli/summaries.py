@@ -306,18 +306,6 @@ def _initialised(record: Record) -> RenderableType | None:
     return Group(*parts)
 
 
-def _version(record: Record) -> RenderableType | None:
-    """Render the installed packages as the table `dg version` used to draw itself."""
-    packages = _mappings(record, "packages")
-    if not packages:
-        return None
-    return build_table(
-        "dirigent",
-        ["package", "version"],
-        [[str(one.get("package")), str(one.get("version"))] for one in packages],
-    )
-
-
 def _config(record: Record) -> RenderableType | None:
     """Render the effective configuration as a setting-per-row table."""
     settings = record.get("settings")
@@ -414,7 +402,6 @@ RENDERERS: Final[Mapping[str, Callable[[Record], RenderableType | None]]] = {
     "run": _run,
     "run.profile": _profile,
     "backfill": _backfill,
-    "version": _version,
     "config": _config,
     "db.history": _db_history,
     "validation": _validation,

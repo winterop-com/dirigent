@@ -39,12 +39,11 @@ def isolated_settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterat
     reset_settings_cache()
 
 
-def test_version_writes_one_record_naming_every_installed_package() -> None:
-    result = runner.invoke(app, ["version"])
-    assert result.exit_code == 0
-    named = {one["package"]: one["version"] for one in only(result.stdout, "version")["packages"]}
-    assert "dirigent-core" in named
-    assert "dirigent-plugin" in named
+def test_the_version_flag_answers_with_one_plain_line() -> None:
+    """`dg --version` is the one output that is not a record: a line a person or a script reads as is."""
+    result = runner.invoke(app, ["--version"])
+    assert result.exit_code == 0, result.output
+    assert result.output.strip() == f"dg {distribution_version('dirigent-cli')}"
 
 
 def test_config_show_writes_the_effective_settings_as_a_record() -> None:
@@ -322,7 +321,7 @@ def test_the_server_command_builds_an_importable_app() -> None:
 def test_help_lists_the_command_groups() -> None:
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
-    for command in ("version", "config", "db", "server", "dev", "worker", "scheduler"):
+    for command in ("config", "db", "server", "dev", "worker", "scheduler"):
         assert command in result.output
 
 

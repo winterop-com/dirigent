@@ -663,7 +663,6 @@ verb and whose fields are the identity of what changed:
 
 | `kind` | Written by | What it carries |
 | --- | --- | --- |
-| `version` | `dg version` | `packages[]` of `package` and `version` |
 | `config` | `dg config show` | `settings`, secrets redacted |
 | `db.revision` | `dg db current` | `revision`, `head`, `at_head` |
 | `db.history` | `dg db history` | `history`, as alembic wrote it |
@@ -881,7 +880,7 @@ dg health database | worker | scheduler | server [--liveness]
 dg docker reap [--dry-run]              # compose stacks left up by runs that have ended
 
 # Administration
-dg version | dg config show
+dg --version | dg config show
 dg prune [--runs 30d] [--logs 7d] [--deliveries 30d] [--firings 30d] [--notifications 30d]
          [--no-scratch] [--dry-run]     # an age given here beats the configured one
 dg db upgrade [REVISION] | current | history

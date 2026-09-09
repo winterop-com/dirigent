@@ -13,7 +13,7 @@ a container runs.
 
 ```bash
 uv tool install dirigent-cli
-dg version
+dg --version
 ```
 
 That tool-installed `dg` is what runs `dg init`. A project it scaffolds is a uv project that
@@ -22,9 +22,6 @@ pins its own dirigent, so inside one the pinned runtime is reached as `uv run dg
 
 Two other ways to have `dg`: `uv sync` in a clone and `uv run dg`, or the one inside the
 published image, `docker compose exec server dg ...`, which needs nothing on the host.
-
-That answers with one NDJSON record naming every installed package, which is what every
-command writes unasked; `dg version -o console` draws it as a table instead.
 
 That gives you the CLI, the engine, the built-in blocks, and the server, because they are
 dependencies of the CLI package. You need Python 3.13 and [uv](https://docs.astral.sh/uv/).
@@ -35,7 +32,7 @@ dependencies of the CLI package. You need Python 3.13 and [uv](https://docs.astr
 git clone https://github.com/winterop-com/dirigent
 cd dirigent
 make install          # uv sync --all-packages
-uv run dg version
+uv run dg --version
 ```
 
 Every `dg` below becomes `uv run dg` in a source checkout. `make check` is the read-only gate

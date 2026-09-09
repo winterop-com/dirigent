@@ -288,19 +288,6 @@ def test_a_settled_step_leaves_its_output_to_the_table() -> None:
     assert "exit_code=0" not in line
 
 
-def test_the_installed_packages_are_drawn_as_a_table_off_the_version_record() -> None:
-    """`dg version` writes the packages; the table is the formatter's reading of them."""
-    drawn = printed(
-        Console().render(
-            make("version", at=AT, message="dirigent", packages=[{"package": "dirigent-core", "version": "0.4.0"}])
-        )
-    )
-    assert "package" in drawn and "version" in drawn
-    assert "dirigent-core" in drawn
-    assert "0.4.0" in drawn
-    assert "packages=" not in drawn, "what the table draws is not also spelled out on the line"
-
-
 def test_the_effective_configuration_is_drawn_as_a_setting_per_row() -> None:
     drawn = printed(
         Console().render(

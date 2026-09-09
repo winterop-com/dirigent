@@ -1358,7 +1358,7 @@ dg alerts test NOTIFIER [--connection NAME] | dg alerts queue
 # catalog, connections, operations
 dg blocks list [--kind operator|sensor] | show BLOCK_ID
 dg connection list | create KIND NAME --set field=value | show | check | delete NAME
-dg system info | dg system workers | dg config show | dg version
+dg system info | dg system workers | dg config show | dg --version
 dg auth login | status
 dg admin user create | list | password | dg admin token create | list | revoke
 ```
