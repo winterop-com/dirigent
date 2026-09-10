@@ -40,11 +40,15 @@ BRIDGED_LOGGERS = (
 ACCESS_LOGGERS = ("uvicorn.access", "gunicorn.access")
 
 #: Libraries floored above DEBUG even when the process runs at DEBUG; the floor is a
-#: parameter rather than a constant so a caller can lift it.
+#: parameter rather than a constant so a caller can lift it. The queue clients are floored at
+#: CRITICAL: they log a refused connection as an error of their own, and the check or the step
+#: that made the call reports the same failure.
 NOISY_LOGGERS: dict[str, int] = {
     "aiosqlite": logging.INFO,
     "asyncio": logging.INFO,
     "httpcore2": logging.INFO,
+    "aiokafka": logging.CRITICAL,
+    "aiormq": logging.CRITICAL,
 }
 
 #: Marks the handler this module owns, so repeated configuration never stacks handlers.

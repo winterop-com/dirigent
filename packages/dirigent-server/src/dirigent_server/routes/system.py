@@ -1,6 +1,4 @@
-"""What this instance is, and whether everything it depends on is answering."""
-
-import asyncio
+"""What this instance is, and what each connection said when it was last checked."""
 
 import sqlalchemy as sa
 from fastapi import APIRouter
@@ -10,7 +8,6 @@ from dirigent_core import __version__
 from dirigent_core.models import Connection, Worker, utcnow
 from dirigent_core.registry import STALE_AFTER
 from dirigent_server.dependencies import ServicesDep, SessionDep, SettingsDep
-from dirigent_server.routes.connections import check
 from dirigent_server.security import PrincipalDep
 from dirigent_server.transactions import Transactional
 
@@ -20,7 +17,7 @@ router = APIRouter(route_class=Transactional, tags=["system"])
 @router.get(
     "/system/info",
     operation_id="getSystemInfo",
-    summary="Describe the instance and check every connection",
+    summary="Describe the instance and repeat every connection's last check",
     response_model=SystemInfo,
 )
 async def system_info(
@@ -29,10 +26,13 @@ async def system_info(
     settings: SettingsDep,
     principal: PrincipalDep,
 ) -> SystemInfo:
-    """Describe the instance, and fan out over every connection's own health check."""
+    """Describe the instance from what it holds, without opening any connection.
+
+    A connection's health is what its last check wrote on the row: this read is made on every
+    page load, and must not run anyone's connect timeout.
+    """
     catalog = services.host.catalog()
     rows = list((await session.execute(sa.select(Connection).order_by(Connection.code))).scalars())
-    reports = await asyncio.gather(*(check(row, services) for row in rows))
     live = await session.execute(
         sa.select(sa.func.count()).select_from(Worker).where(Worker.last_seen_at >= utcnow() - STALE_AFTER)
     )
@@ -54,10 +54,10 @@ async def system_info(
                 code=row.code,
                 name=row.name,
                 kind=row.kind,
-                connected=report.healthy,
-                detail=report.detail,
-                version=report.version,
+                last_check_at=row.last_check_at,
+                last_check_healthy=row.last_check_healthy,
+                last_check_detail=row.last_check_detail,
             )
-            for row, report in zip(rows, reports, strict=True)
+            for row in rows
         ],
     )

@@ -267,13 +267,20 @@ async def check_connection(
     services: ServicesDep,
     principal: AdminDep,
 ) -> HealthReport:
-    """Open the credential and ask its kind whether the external system answers."""
+    """Open the credential and ask its kind whether the external system answers.
+
+    The probe runs between two transactions, never inside one: a transaction holds the write
+    lock from the moment it opens, and a probe can last a connect timeout. The row is written
+    afterwards with one statement, so a connection deleted meanwhile is simply not written.
+    """
     row = await find(session, code)
+    await session.commit()
     report = await check(row, services)
-    row.last_check_at = utcnow()
-    row.last_check_healthy = report.healthy
-    row.last_check_detail = report.detail
-    await session.flush()
+    await session.execute(
+        sa.update(Connection)
+        .where(Connection.code == code)
+        .values(last_check_at=utcnow(), last_check_healthy=report.healthy, last_check_detail=report.detail)
+    )
     return report
 
 

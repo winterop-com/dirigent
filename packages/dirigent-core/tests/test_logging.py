@@ -116,6 +116,12 @@ def test_library_stdlib_records_flow_through_the_bridge(caplog: pytest.LogCaptur
     assert payload["run_id"] == "0198"
 
 
+def test_the_queue_clients_are_floored_because_the_call_reports_their_failure() -> None:
+    configure_logging("INFO", "json")
+    assert logging.getLogger("aiokafka.conn").getEffectiveLevel() == logging.CRITICAL
+    assert logging.getLogger("aiormq.connection").getEffectiveLevel() == logging.CRITICAL
+
+
 def test_configuring_twice_does_not_stack_handlers() -> None:
     configure_logging("INFO", "json")
     configure_logging("DEBUG", "console")

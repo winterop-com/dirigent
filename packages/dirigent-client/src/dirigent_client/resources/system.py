@@ -12,7 +12,7 @@ class System(Resource):
     """Describe the instance, and read the two probes a load balancer reads."""
 
     async def info(self) -> SystemInfo:
-        """Describe the instance, and fan out over every connection's own health check."""
+        """Describe the instance, and repeat what each connection said when it was last checked."""
         return await self._one(SystemInfo, "GET", "/system/info")
 
     async def health(self) -> Health:

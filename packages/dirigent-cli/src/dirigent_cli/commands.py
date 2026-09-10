@@ -2360,7 +2360,7 @@ def workers_command(
 def system_info(
     ctx: typer.Context,
 ) -> None:
-    """Describe the instance, and check every connection it holds."""
+    """Describe the instance, and repeat what each connection said when it was last checked."""
     with client_for(state_of(ctx)) as dg:
         info = dg.call(dg.system.info())
     if state_of(ctx).json_output:
@@ -2383,9 +2383,16 @@ def system_info(
         console.print()
         table(
             "connections",
-            ["code", "name", "kind", "connected", "detail"],
+            ["code", "name", "kind", "last check", "healthy", "detail"],
             [
-                [row.code, row.name or "-", row.kind, render_bool(row.connected), row.detail or "-"]
+                [
+                    row.code,
+                    row.name or "-",
+                    row.kind,
+                    moment(row.last_check_at),
+                    render_bool(row.last_check_healthy),
+                    row.last_check_detail or "-",
+                ]
                 for row in info.connections
             ],
         )

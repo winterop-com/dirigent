@@ -409,7 +409,7 @@ A token is not transferable between instances: its hash lives in that instance's
 
 ```bash
 dg system workers                  # is anything registered, and is it stale?
-dg system info                     # workers_live, and every connection's health
+dg system info                     # workers_live, and every connection's last check
 docker compose logs worker
 ```
 
