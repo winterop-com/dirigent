@@ -13,6 +13,10 @@ import { cn } from '@/lib/utils'
  * prose and a table in a column 360px wide -- so every pane holding one offers the window, and
  * the button is the whole of that gesture.
  *
+ * THE BUTTON SITS WHERE NO TEXT DOES. The bottom-right corner of a pane is where its two
+ * scrollbars meet and a document's last line ends early, so the button there covers nothing a
+ * reader needs; at the top right it covered the tail of a program's first line.
+ *
  * TWO EDITORS OVER ONE BUFFER READ THE SAME BUFFER. Monaco holds one model per path, so a
  * source pane and its window name the same one: what is typed in either is what the other
  * shows, and closing the window loses nothing. The caller hands over both panes for that
@@ -43,7 +47,7 @@ export function WindowedPane({
                 variant="ghost"
                 size="icon"
                 aria-label={`Open ${name} in a window`}
-                className="text-faint border-border bg-background/90 absolute top-1.5 right-3.5 size-6 rounded-md border"
+                className="text-faint border-border bg-background/90 absolute right-3.5 bottom-1.5 size-6 rounded-md border"
                 onClick={() => {
                     setWide(true)
                 }}

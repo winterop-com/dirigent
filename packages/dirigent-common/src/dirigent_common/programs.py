@@ -10,3 +10,6 @@ SHELL_MEDIA_TYPE: Final = "text/x-shellscript"
 
 #: A Jinja template rendering text, as the run report and ``report.render`` take one.
 TEMPLATE_MEDIA_TYPE: Final = "text/x-jinja"
+
+#: One SQL statement, as ``sql.query`` takes one.
+SQL_MEDIA_TYPE: Final = "application/sql"

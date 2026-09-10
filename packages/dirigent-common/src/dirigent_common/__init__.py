@@ -34,7 +34,7 @@ from dirigent_common.names import (
     is_step_name,
     step_name_error,
 )
-from dirigent_common.programs import JQ_MEDIA_TYPE, SHELL_MEDIA_TYPE, TEMPLATE_MEDIA_TYPE
+from dirigent_common.programs import JQ_MEDIA_TYPE, SHELL_MEDIA_TYPE, SQL_MEDIA_TYPE, TEMPLATE_MEDIA_TYPE
 from dirigent_common.schemas import BlockModel, HealthReport, HttpConnectionConfig
 from dirigent_common.sizes import (
     SIZE_PATTERN,
@@ -61,6 +61,7 @@ __all__ = [
     "ENTITY_NAME_PATTERN",
     "JQ_MEDIA_TYPE",
     "SHELL_MEDIA_TYPE",
+    "SQL_MEDIA_TYPE",
     "TEMPLATE_MEDIA_TYPE",
     "SIZE_PATTERN",
     "STORAGE_URI_FORMAT",

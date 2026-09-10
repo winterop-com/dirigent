@@ -10,6 +10,7 @@ import type { JsonMap } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
 import 'monaco-editor/esm/vs/basic-languages/shell/shell.contribution'
+import 'monaco-editor/esm/vs/basic-languages/sql/sql.contribution'
 import 'monaco-editor/esm/vs/basic-languages/twig/twig.contribution'
 import 'monaco-editor/esm/vs/basic-languages/yaml/yaml.contribution'
 import 'monaco-editor/esm/vs/language/json/monaco.contribution'
@@ -27,8 +28,14 @@ import 'monaco-editor/esm/vs/language/json/monaco.contribution'
  * A FIELD IS SOURCE WHEN ITS SCHEMA SAYS SO. A block config field carrying `contentMediaType`
  * holds a program, and `LANGUAGES` is the whole of what this app does with one: the language
  * monaco tokenises it as, and the extension its buffer is named with. A media type monaco has
- * no language for is edited as plain text, which is a mono font and no colour -- honest for jq,
- * which monaco does not ship.
+ * no language for is edited as plain text, which is a mono font and no colour.
+ *
+ * JQ IS THIS APP'S OWN GRAMMAR. Monaco ships no jq, and a jq program is the language most
+ * written in this app, so `jq` is registered here as a Monarch tokeniser: comments, strings
+ * with their `\(...)` interpolation, numbers, `$variables`, `.paths`, the keywords and the
+ * builtins. Its token classes are the ones the house theme below already names, but for the
+ * binding: a `$name` and a `.path` are the two things a reader tells apart at a glance, so the
+ * binding gets an ink of its own and nothing else about the palette learns the language exists.
  *
  * IT IS LOADED IN ITS OWN CHUNK. Monaco and its two workers are the largest thing this app can
  * pull, so nothing imports this file by name: `CodePane` beside it is the one dynamic import,
@@ -45,8 +52,8 @@ import 'monaco-editor/esm/vs/language/json/monaco.contribution'
  * step panel's inline JSON already wears, so a value reads the same at every size.
  *
  * ONLY THE EDITOR AND THE LANGUAGES IT HOSTS ARE IMPORTED. `monaco-editor` as a whole registers
- * every language it ships; what is wanted is the editor plus YAML, shell and twig, so the api
- * entry and those three contributions are imported by path and the rest are never fetched. A
+ * every language it ships; what is wanted is the editor plus YAML, shell, twig and SQL, so the
+ * api entry and those four contributions are imported by path and the rest are never fetched. A
  * language `LANGUAGES` names but nothing imported tokenises as plain text and says nothing.
  */
 
@@ -59,6 +66,174 @@ const environment: monaco.Environment = {
     },
 }
 ;(self as unknown as { MonacoEnvironment: monaco.Environment }).MonacoEnvironment = environment
+
+/** The words jq's own grammar spells: everything that is syntax rather than a function. */
+const JQ_KEYWORDS = [
+    'def',
+    'if',
+    'then',
+    'elif',
+    'else',
+    'end',
+    'as',
+    'reduce',
+    'foreach',
+    'try',
+    'catch',
+    'label',
+    'import',
+    'include',
+    'and',
+    'or',
+    'not',
+]
+
+/** The builtins a program reaches for, which read as the functions they are rather than as names. */
+const JQ_BUILTINS = [
+    'map',
+    'select',
+    'length',
+    'keys',
+    'values',
+    'has',
+    'in',
+    'to_entries',
+    'from_entries',
+    'with_entries',
+    'add',
+    'any',
+    'all',
+    'flatten',
+    'range',
+    'floor',
+    'sqrt',
+    'pow',
+    'log',
+    'tostring',
+    'tonumber',
+    'type',
+    'infinite',
+    'nan',
+    'sort',
+    'sort_by',
+    'group_by',
+    'unique',
+    'unique_by',
+    'min',
+    'max',
+    'min_by',
+    'max_by',
+    'reverse',
+    'contains',
+    'inside',
+    'startswith',
+    'endswith',
+    'ltrimstr',
+    'rtrimstr',
+    'explode',
+    'implode',
+    'split',
+    'join',
+    'ascii_downcase',
+    'ascii_upcase',
+    'recurse',
+    'env',
+    'input',
+    'inputs',
+    'debug',
+    'stderr',
+    'input_filename',
+    'splits',
+    'sub',
+    'gsub',
+    'test',
+    'match',
+    'capture',
+    'scan',
+    'ascii',
+    'todate',
+    'fromdate',
+    'now',
+    'dateadd',
+    'datesub',
+    'date',
+    'tojson',
+    'fromjson',
+    'getpath',
+    'setpath',
+    'delpaths',
+    'paths',
+    'leaf_paths',
+    'first',
+    'last',
+    'nth',
+    'until',
+    'limit',
+    'while',
+    'repeat',
+    'isvalid',
+    'error',
+    'halt',
+    'halt_error',
+]
+
+/**
+ * jq as monaco tokenises it.
+ *
+ * A path and a variable are what a jq program is mostly made of, so each is a token of its
+ * own: `.field` and `.[` read as the keys they name, `$name` as a binding. An interpolation
+ * inside a string is the program again, which is why the string state re-enters `@root`.
+ */
+const JQ_LANGUAGE: monaco.languages.IMonarchLanguage = {
+    defaultToken: '',
+    keywords: JQ_KEYWORDS,
+    builtins: JQ_BUILTINS,
+    tokenizer: {
+        root: [
+            [/#.*$/, 'comment'],
+            [/"/, { token: 'string', next: '@string' }],
+            [/\$[A-Za-z_]\w*/, 'variable.binding'],
+            [/\.\./, 'keyword'],
+            [/\.[A-Za-z_]\w*/, 'type'],
+            [/\.(?=\[)/, 'type'],
+            [
+                /[A-Za-z_]\w*/,
+                { cases: { '@keywords': 'keyword', '@builtins': 'type', '@default': 'identifier' } },
+            ],
+            [/\d+\.\d+(?:[eE][-+]?\d+)?/, 'number.float'],
+            [/\d+/, 'number'],
+            [/[{}()[\]]/, '@brackets'],
+            [/\|=|\/\/=?|==|!=|<=|>=|[-+*/%<>=]/, 'operator'],
+            [/[|,;:?]/, 'delimiter'],
+        ],
+        string: [
+            // An interpolation is a program in the middle of a string, and it ends at the
+            // parenthesis this state opened.
+            [/\\\(/, { token: 'delimiter', next: '@interpolation' }],
+            [/\\./, 'string'],
+            [/[^\\"]+/, 'string'],
+            [/"/, { token: 'string', next: '@pop' }],
+        ],
+        interpolation: [[/\)/, { token: 'delimiter', next: '@pop' }], { include: '@root' }],
+    },
+}
+
+monaco.languages.register({ id: 'jq', extensions: ['.jq'], aliases: ['jq'] })
+monaco.languages.setMonarchTokensProvider('jq', JQ_LANGUAGE)
+monaco.languages.setLanguageConfiguration('jq', {
+    comments: { lineComment: '#' },
+    brackets: [
+        ['{', '}'],
+        ['[', ']'],
+        ['(', ')'],
+    ],
+    autoClosingPairs: [
+        { open: '{', close: '}' },
+        { open: '[', close: ']' },
+        { open: '(', close: ')' },
+        { open: '"', close: '"' },
+    ],
+})
 
 /** How a buffer is tokenised and what it is named, which is all a media type decides here. */
 interface Buffer {
@@ -77,8 +252,9 @@ const LANGUAGES: Record<string, Buffer> = {
     // Jinja is Twig's grammar in everything a template here writes: the same `{{ }}`, `{% %}`
     // and `{# #}` delimiters, and monaco ships Twig.
     'text/x-jinja': { language: 'twig', extension: 'j2' },
-    'application/jq': { language: 'plaintext', extension: 'jq' },
+    'application/jq': { language: 'jq', extension: 'jq' },
     'application/json': { language: 'json', extension: 'json' },
+    'application/sql': { language: 'sql', extension: 'sql' },
 }
 
 /**
@@ -115,12 +291,16 @@ function houseTheme(dark: boolean): monaco.editor.IStandaloneThemeData {
         string: resolvedColor('var(--color-good-ink)'),
         number: resolvedColor('var(--color-warning-ink)'),
         accent: resolvedColor('var(--color-accent)'),
+        // A jq binding needs a hue neither a key nor a string wears, and the kind family is
+        // where a hue that means neither a state nor an action lives.
+        binding: resolvedColor('var(--color-kind-violet-ink)'),
     }
     return {
         base: dark ? 'vs-dark' : 'vs',
         inherit: true,
-        // The base theme carries its own rules for JSON's tokens, and a more specific token
-        // selector wins over a general one, so each JSON token is named here too.
+        // The base theme carries its own rules for JSON's and SQL's tokens -- pure red for a
+        // SQL string, magenta for a SQL function -- and a more specific token selector wins
+        // over a general one, so every token those two languages suffix is named here too.
         rules: [
             { token: 'string.key.json', foreground: ink.key },
             { token: 'string.value.json', foreground: ink.string },
@@ -130,8 +310,16 @@ function houseTheme(dark: boolean): monaco.editor.IStandaloneThemeData {
             { token: 'delimiter.array.json', foreground: ink.quiet },
             { token: 'delimiter.colon.json', foreground: ink.quiet },
             { token: 'delimiter.comma.json', foreground: ink.quiet },
+            { token: 'string.sql', foreground: ink.string },
+            { token: 'string.double.sql', foreground: ink.string },
+            { token: 'number.sql', foreground: ink.number },
+            { token: 'predefined.sql', foreground: ink.key },
+            { token: 'operator.sql', foreground: ink.quiet },
+            { token: 'identifier.quote.sql', foreground: ink.text },
+            { token: 'comment.quote.sql', foreground: ink.quiet },
             { token: 'type', foreground: ink.key },
             { token: 'variable', foreground: ink.key },
+            { token: 'variable.binding', foreground: ink.binding },
             { token: 'string', foreground: ink.string },
             { token: 'number', foreground: ink.number },
             { token: 'keyword', foreground: ink.number },

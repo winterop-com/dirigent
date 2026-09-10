@@ -23,7 +23,7 @@ from dirigent_blocks.sql import (
     s3_options,
     spelled_row,
 )
-from dirigent_common import JsonMap
+from dirigent_common import SQL_MEDIA_TYPE, JsonMap
 from dirigent_plugin import BlockFailure, ErrorClass
 from dirigent_testing import FakeContext
 
@@ -162,6 +162,13 @@ def test_more_than_one_statement_is_refused_when_the_document_is_written(sql: st
 )
 def test_one_statement_stays_one_statement_however_it_spells_a_semicolon(sql: str) -> None:
     assert SqlQueryConfig(connection="db", sql=sql).sql == sql
+
+
+def test_a_query_publishes_its_statement_as_sql() -> None:
+    """A form generated from the schema needs the language named to edit the field as source."""
+    published = SqlQueryConfig.model_json_schema()["properties"]["sql"]
+
+    assert published["contentMediaType"] == SQL_MEDIA_TYPE
 
 
 def test_an_empty_statement_in_a_list_is_refused() -> None:
