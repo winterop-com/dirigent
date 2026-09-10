@@ -99,9 +99,8 @@ def seed_record(message: str, **fields: Any) -> None:
 def instance_env(root: Path) -> dict[str, str]:
     """Build the environment `dg dev` is started with, pointed at one fresh state directory.
 
-    `dg dev` empties that directory itself on every start, so nothing is wiped here and the
-    key below is minted per seeding rather than kept: an instance that begins empty holds no
-    connection an older key would have to open.
+    `dg dev` is started with --wipe-state, so the key below is minted per seeding rather than
+    kept: an instance that begins empty holds no connection an older key would have to open.
     """
     state = (root / STATE_DIR).resolve()
     return os.environ | {
@@ -326,7 +325,7 @@ def main(argv: list[str] | None = None) -> int:
     reaches both processes and one NDJSON stream carries both.
     """
     options = parse(argv)
-    command = ["dg", "dev", "--host", options.host, "--port", str(options.port)]
+    command = ["dg", "dev", "--wipe-state", "--host", options.host, "--port", str(options.port)]
     process = subprocess.Popen(command, env=instance_env(options.root))
 
     def relay(number: int, _frame: FrameType | None) -> None:

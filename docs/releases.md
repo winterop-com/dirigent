@@ -15,6 +15,36 @@ package and uploads it to PyPI through trusted publishing, then builds the image
 commit and pushes it as `<version>` and `latest`. The two sibling repositories then relock
 against the tag and bump.
 
+## 0.12.0
+
+Released 2026-09-10. Every package in the workspace moves to 0.12.0 together.
+
+### Before you upgrade
+
+**`GET /system/info` repeats each connection's last check instead of probing.** Its
+`connections` rows carry `last_check_at`, `last_check_healthy` and `last_check_detail`, the
+same three fields a connection's own row holds; `connected`, `detail` and `version` are gone,
+and a row nothing has checked carries nulls. The read used to open every connection inside
+its own transaction, and the UI makes it on every page load: on SQLite each refresh ran every
+connect timeout while holding the write lock, and a few refreshes in a row starved the worker,
+the scheduler and other requests into "database is locked". A probe happens where it is asked
+for, `dg connection check` and the UI's check button, and `dg system info` renders
+`last check`, `healthy` and `detail`.
+
+### Fixes
+
+- **A check holds no transaction while its probe is out.** `POST /connections/{code}/$check`
+  reads the row, probes, then writes the result in a second transaction, so a system that is
+  slow to refuse no longer holds the write lock for the length of its connect timeout.
+- **A Kafka consumer whose start failed is stopped**, which removes the
+  `Unclosed AIOKafkaConsumer` line the event loop logged after every refused check or poke.
+- **A refused Kafka or RabbitMQ connection is reported once.** The `aiokafka` and `aiormq`
+  loggers are floored; the check's row or the step's failure carries the message.
+- **`make dev` and `make dev-seeded` start from an empty state.** Both pass `--wipe-state`
+  to `dg dev`; `make dev` is new.
+
+Nothing in the schema or the settings changed since 0.11.0.
+
 ## 0.11.0
 
 Released 2026-09-09. Every package in the workspace moves to 0.11.0 together.
