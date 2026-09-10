@@ -246,6 +246,41 @@ function withStepMember(document: JsonMap, step: string, member: string, value: 
     return { ...document, steps: { ...steps, [step]: changed } }
 }
 
+/**
+ * What a document's `report:` section asks for.
+ *
+ * The three answers are the section's three states: no section at all, a section with no
+ * template, and a section carrying one. An empty section is not the absence of a section --
+ * `report: {}` is what asks for the built-in document.
+ */
+export interface ReportSection {
+    declared: boolean
+    /** The document's own template, or null where the section asks for the built-in one. */
+    template: string | null
+}
+
+/** The report section a document declares. */
+export function reportIn(document: JsonMap | null): ReportSection {
+    const found = document?.report
+    if (found === null || found === undefined || typeof found !== 'object' || Array.isArray(found)) {
+        return { declared: false, template: null }
+    }
+    const template = (found as JsonMap).template
+    return { declared: true, template: typeof template === 'string' ? template : null }
+}
+
+/** A document that renders a report when a run of it settles: its own template, or the built-in one. */
+export function withReport(document: JsonMap, template: string | null): JsonMap {
+    return { ...document, report: template === null ? {} : { template } }
+}
+
+/** A document that renders no report at all. */
+export function withoutReport(document: JsonMap): JsonMap {
+    const next = { ...document }
+    delete next.report
+    return next
+}
+
 /** What has been edited and not applied. */
 export interface DocumentEdits {
     /** Steps that were added, removed, or changed. */

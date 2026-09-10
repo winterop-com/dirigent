@@ -1,87 +1,99 @@
-import { Fact, Section } from '@/components/run/Panel'
-import { StatusChip } from '@/components/run/StatusChip'
-import { countedHeading, formatBytes, formatDuration, shortenUri } from '@/lib/format'
+import { useEffect, useState } from 'react'
+
+import { Section } from '@/components/run/Panel'
+import { useApiPrefix } from '@/hooks/use-api-prefix'
+import { artifactUrl, readArtifacts, reportArtifact, type ArtifactOut } from '@/lib/artifacts'
+import { countedHeading, formatBytes, shortenUri } from '@/lib/format'
 import type { RunDetailState } from '@/lib/run-detail'
-import type { Problem } from '@/lib/api'
-import { itemsNote, type AttemptEvent, type RunReport } from '@/lib/runs'
+import { runSettled } from '@/lib/status'
 
 /**
- * What the run produced: the artifacts its steps wrote, and the summary the API renders.
+ * What the run wrote down, each row a link to the content itself.
  *
- * AN ARTIFACT IS AN ATTEMPT'S OUTPUT THAT WENT TO STORAGE. An output small enough to inline is
- * on the attempt itself and is read on the step's own tab; what is listed here is the outputs
- * that became objects, which are the ones with a URI and a size.
+ * AN ARTIFACT IS A ROW THE RUN HOLDS, NOT SOMETHING DERIVED FROM AN ATTEMPT.
+ * `GET /runs/{id}/artifacts` is the listing, so an output that inlined is here beside one that
+ * went to storage -- both are read back through `GET /artifacts/{id}`, and a link is what takes
+ * a reader to one. A small output is still drawn as a value on the step's own tab, because a
+ * value somebody can read is not a file they should have to download.
  *
- * The report is read once when the run settles rather than followed: it is a summary of a
- * finished thing, and the event stream already says everything that is still moving.
+ * THE REPORT DOCUMENT IS NOT HERE. It is the run's own account of itself rather than a step's
+ * output, and the Report tab draws it.
+ *
+ * THE WIRE ROW NAMES THE STEP BUT NOT THE FAN-OUT ELEMENT, so an element's label is taken from
+ * the attempt that wrote the same uri -- which the event stream has already reported.
  */
-export function OutputTab({
-    state,
-    report,
-    problem,
-}: {
-    state: RunDetailState
-    report: RunReport | null
-    problem: Problem | null
-}) {
-    const artifacts = state.order
-        .map((id) => state.attempts[id])
-        .filter((attempt): attempt is AttemptEvent => attempt !== undefined && attempt.output_uri !== null)
-    const items = report === null ? null : itemsNote(report.items_total, report.items_failed)
+export function OutputTab({ state, runId }: { state: RunDetailState; runId: string }) {
+    const [artifacts, setArtifacts] = useState<ArtifactOut[] | null>(null)
+    const prefix = useApiPrefix()
+    // A run writes its outputs as it goes and its report document as it settles, so the
+    // listing is read again once nothing more can be added to it.
+    const settled = runSettled(state.run.status)
+
+    useEffect(() => {
+        let cancelled = false
+        void readArtifacts(runId).then(
+            (rows) => {
+                if (!cancelled) setArtifacts(rows)
+            },
+            () => {
+                if (!cancelled) setArtifacts([])
+            },
+        )
+        return () => {
+            cancelled = true
+        }
+    }, [runId, settled])
+
+    const report = artifacts === null ? null : reportArtifact(artifacts)
+    const rows = artifacts === null ? [] : artifacts.filter((row) => row.id !== report?.id)
+    const items = new Map<string, string>(
+        state.order.flatMap((id) => {
+            const attempt = state.attempts[id]
+            if (attempt === undefined || attempt.output_uri === null || attempt.item === null) return []
+            return [[attempt.output_uri, attempt.item] as [string, string]]
+        }),
+    )
 
     return (
         <div className="flex flex-col gap-4 p-4">
-            <Section title={countedHeading('Artifacts', artifacts.length)}>
-                {artifacts.length === 0 ? (
-                    <p className="text-muted-foreground text-xs">No step of this run wrote its output to storage.</p>
+            <Section title={artifacts === null ? 'Artifacts' : countedHeading('Artifacts', rows.length)}>
+                {artifacts === null ? (
+                    <p className="text-muted-foreground text-xs">Reading the artifacts.</p>
+                ) : rows.length === 0 ? (
+                    <p className="text-muted-foreground text-xs">No step of this run wrote an output.</p>
                 ) : (
                     <ul className="space-y-2">
-                        {artifacts.map((attempt) => (
-                            <li key={attempt.id} className="space-y-0.5">
+                        {rows.map((row) => (
+                            <li key={row.id} className="space-y-0.5">
                                 <div className="flex items-baseline gap-2">
-                                    <span className="truncate text-sm">{attempt.step_name}</span>
-                                    {attempt.item !== null && (
-                                        <span className="text-faint font-mono text-xs">{attempt.item}</span>
+                                    {prefix === null ? (
+                                        <span className="truncate text-sm">{row.step_name ?? 'the run'}</span>
+                                    ) : (
+                                        <a
+                                            className="text-primary-ink truncate text-sm hover:underline"
+                                            href={artifactUrl(prefix, row.id)}
+                                            download
+                                            rel="noopener"
+                                        >
+                                            {row.step_name ?? 'the run'}
+                                        </a>
+                                    )}
+                                    {row.uri !== null && items.get(row.uri) !== undefined && (
+                                        <span className="text-faint font-mono text-xs">{items.get(row.uri)}</span>
                                     )}
                                     <span className="text-muted-foreground ml-auto shrink-0 text-xs">
-                                        {formatBytes(attempt.output_bytes)}
+                                        {formatBytes(row.size_bytes)}
                                     </span>
                                 </div>
-                                <p className="identifier" title={attempt.output_uri ?? undefined}>
-                                    {shortenUri(attempt.output_uri ?? '')}
-                                </p>
+                                {/* A row with no uri inlined on the run, and has no location to state. */}
+                                {row.uri !== null && (
+                                    <p className="identifier" title={row.uri}>
+                                        {shortenUri(row.uri)}
+                                    </p>
+                                )}
                             </li>
                         ))}
                     </ul>
-                )}
-            </Section>
-
-            <Section title="Report">
-                {problem !== null ? (
-                    <p className="text-muted-foreground text-xs">{problem.detail}</p>
-                ) : report === null ? (
-                    <p className="text-muted-foreground text-xs">Reading the summary.</p>
-                ) : (
-                    <>
-                        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
-                            <Fact term="took" detail={formatDuration(report.duration_ms)} />
-                            {items !== null && <Fact term="items" detail={items} />}
-                        </dl>
-                        <ul className="mt-2 space-y-1">
-                            {report.steps.map((step) => (
-                                <li key={step.step} className="flex items-center gap-2">
-                                    <StatusChip status={step.outcome} />
-                                    <span className="truncate text-sm">{step.step}</span>
-                                    {step.warnings > 0 && (
-                                        <span className="text-warning text-xs">{step.warnings} warned</span>
-                                    )}
-                                    <span className="text-faint ml-auto shrink-0 text-xs">
-                                        {formatDuration(step.duration_ms)}
-                                    </span>
-                                </li>
-                            ))}
-                        </ul>
-                    </>
                 )}
             </Section>
         </div>

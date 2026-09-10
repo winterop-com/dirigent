@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 
 import { ApplyDialog } from '@/components/pipeline/ApplyDialog'
 import { PipelineTab } from '@/components/pipeline/PipelineTab'
+import { ReportPane } from '@/components/pipeline/ReportPane'
 import { RunDialog } from '@/components/pipeline/RunDialog'
 import { SourceTab } from '@/components/pipeline/SourceTab'
 import { StepTab } from '@/components/pipeline/StepTab'
@@ -41,6 +42,8 @@ import {
     stepNames,
     stepTabLabel,
     withDependsOn,
+    withoutReport,
+    withReport,
     withStep,
     withStepConfig,
     withStepName,
@@ -465,6 +468,23 @@ export function PipelineEditor() {
                           ),
                       },
                   ]),
+            {
+                id: 'report',
+                label: 'Report',
+                render: () => (
+                    <ReportPane
+                        document={local}
+                        disabled={disabled}
+                        onChange={(chosen, template) => {
+                            changeDocument((current) =>
+                                chosen === 'none'
+                                    ? withoutReport(current)
+                                    : withReport(current, chosen === 'own' ? template : null),
+                            )
+                        }}
+                    />
+                ),
+            },
             {
                 id: 'source',
                 label: 'Source',

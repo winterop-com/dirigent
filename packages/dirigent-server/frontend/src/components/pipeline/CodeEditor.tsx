@@ -10,6 +10,7 @@ import type { JsonMap } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
 import 'monaco-editor/esm/vs/basic-languages/shell/shell.contribution'
+import 'monaco-editor/esm/vs/basic-languages/twig/twig.contribution'
 import 'monaco-editor/esm/vs/basic-languages/yaml/yaml.contribution'
 import 'monaco-editor/esm/vs/language/json/monaco.contribution'
 
@@ -44,8 +45,9 @@ import 'monaco-editor/esm/vs/language/json/monaco.contribution'
  * step panel's inline JSON already wears, so a value reads the same at every size.
  *
  * ONLY THE EDITOR AND THE LANGUAGES IT HOSTS ARE IMPORTED. `monaco-editor` as a whole registers
- * every language it ships; what is wanted is the editor plus YAML and shell, so the api entry
- * and those two contributions are imported by path and the other seventy are never fetched.
+ * every language it ships; what is wanted is the editor plus YAML, shell and twig, so the api
+ * entry and those three contributions are imported by path and the rest are never fetched. A
+ * language `LANGUAGES` names but nothing imported tokenises as plain text and says nothing.
  */
 
 /** Which worker each language runs in. `self` carries this: monaco reads it off the global. */
@@ -72,6 +74,9 @@ const PLAIN: Buffer = { language: 'plaintext', extension: 'txt' }
 
 const LANGUAGES: Record<string, Buffer> = {
     'text/x-shellscript': { language: 'shell', extension: 'sh' },
+    // Jinja is Twig's grammar in everything a template here writes: the same `{{ }}`, `{% %}`
+    // and `{# #}` delimiters, and monaco ships Twig.
+    'text/x-jinja': { language: 'twig', extension: 'j2' },
     'application/jq': { language: 'plaintext', extension: 'jq' },
     'application/json': { language: 'json', extension: 'json' },
 }
@@ -267,10 +272,18 @@ export function CodeEditor({
         model.setValue(value)
     }, [value])
 
+    // The theme is built from the live page's own custom properties, and the class next-themes
+    // writes on the root element lands in an effect of its own -- a child's effect runs first,
+    // so reading the colours here would read the mode being left rather than the one arriving.
+    // The rebuild waits for the frame the new class is painted in.
     useEffect(() => {
-        const dark = resolvedTheme === 'dark'
-        monaco.editor.defineTheme('dirigent', houseTheme(dark))
-        monaco.editor.setTheme('dirigent')
+        const frame = requestAnimationFrame(() => {
+            monaco.editor.defineTheme('dirigent', houseTheme(document.documentElement.classList.contains('dark')))
+            monaco.editor.setTheme('dirigent')
+        })
+        return () => {
+            cancelAnimationFrame(frame)
+        }
     }, [resolvedTheme])
 
     return <div ref={host} className={cn('h-full min-h-64 w-full', className)} data-testid="code-editor" />
