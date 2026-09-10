@@ -45,6 +45,7 @@ from dirigent_client.schemas.pipelines import (
 )
 from dirigent_client.schemas.runs import (
     TERMINAL_RUN_STATUSES,
+    ArtifactOut,
     AttemptEvent,
     AttemptOut,
     DagNode,
@@ -94,6 +95,7 @@ __all__ = [
     "BackfillAccepted",
     "BackfillRequest",
     "BackfilledRun",
+    "ArtifactOut",
     "AttemptEvent",
     "AttemptOut",
     "BlockEntry",

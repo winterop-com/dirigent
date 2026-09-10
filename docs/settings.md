@@ -70,3 +70,5 @@ one file away.
 | `webhook_intake_rate_per_minute` | `DIRIGENT_WEBHOOK_INTAKE_RATE_PER_MINUTE` | `120` | How fast one *offered* token may deliver, before anything is looked up. |
 | `login_rate_per_minute` | `DIRIGENT_LOGIN_RATE_PER_MINUTE` | `10` | How many login attempts one address, and one username, get a minute. |
 | `alert_base_url` | `DIRIGENT_ALERT_BASE_URL` | `null` | The externally reachable base URL, so an alert can link back to the run it is about. |
+| `report_max_size` | `DIRIGENT_REPORT_MAX_SIZE` | `1048576` | A run's report document larger than this is dropped with a warning in the run's log. |
+| `report_render_timeout` | `DIRIGENT_REPORT_RENDER_TIMEOUT` | `"5s"` | How long a report template may take to render before it is dropped with a warning. |

@@ -1930,11 +1930,27 @@ def _relay_log(entry: LogEntryOut, state: CliState) -> None:
 def runs_report(
     ctx: typer.Context,
     run_id: Annotated[UUID, typer.Argument(help="The run to summarise.")],
+    markdown: Annotated[
+        bool, typer.Option("--markdown", help="Write the document the run rendered when it settled.")
+    ] = False,
 ) -> None:
-    """Summarise a run: what each step amounted to, and how long it took."""
-    with client_for(state_of(ctx)) as dg:
+    """Summarise a run: what each step amounted to, and how long it took.
+
+    `--markdown` answers with the run's own report document instead, which a run renders only
+    when its pipeline document declares a `report:` section.
+    """
+    state = state_of(ctx)
+    with client_for(state) as dg:
+        if markdown:
+            document = dg.call(dg.runs.report_document(run_id))
+            if document is None:
+                fail(f"run {run_id} has no report document; declare `report:` in the pipeline document")
+            if state.json_output:
+                return emit_fact("run.report_document", message="rendered", run_id=str(run_id), document=document)
+            console.print(document, end="", highlight=False, markup=False)
+            return
         report = dg.call(dg.runs.report(run_id))
-    if state_of(ctx).json_output:
+    if state.json_output:
         return emit_one("run.report", report)
     _print_report(report)
 

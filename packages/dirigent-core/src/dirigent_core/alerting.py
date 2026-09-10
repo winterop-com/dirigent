@@ -9,7 +9,7 @@ import asyncio
 from collections.abc import AsyncGenerator, Sequence
 from contextlib import asynccontextmanager, suppress
 from datetime import datetime, timedelta
-from typing import Final, cast
+from typing import TYPE_CHECKING, Final, cast
 from uuid import UUID
 
 import sqlalchemy as sa
@@ -25,6 +25,9 @@ from dirigent_core.engine.services import EngineServices
 from dirigent_core.logging import get_logger
 from dirigent_core.models import AlertRule, Connection, LogEntry, Notification, Pipeline, Run, utcnow
 from dirigent_plugin import AlertMessage, Notifier
+
+if TYPE_CHECKING:
+    from dirigent_core.reporting import RunFacts
 
 EVENT_FOR_STATUS: dict[RunStatus, AlertEvent] = {
     RunStatus.FAILED: AlertEvent.RUN_FAILED,
@@ -101,7 +104,9 @@ def _as_text(value: JsonValue) -> str:
     return "" if value is None else str(value)
 
 
-def build_context(run: Run, pipeline: Pipeline, *, base_url: str | None = None) -> JsonMap:
+def build_context(
+    run: Run, pipeline: Pipeline, *, base_url: str | None = None, report_url: str | None = None
+) -> JsonMap:
     """Gather the facts a template may read, under the one namespace it has.
 
     A flat snapshot rather than a live handle: the notification is delivered later, and must
@@ -120,8 +125,16 @@ def build_context(run: Run, pipeline: Pipeline, *, base_url: str | None = None) 
             "finished_at": run.finished_at.isoformat() if run.finished_at else None,
             "duration_ms": round(duration * 1000) if duration is not None else None,
             "url": f"{base_url.rstrip('/')}/runs/{run.id}" if base_url else None,
+            "report_url": report_url,
         }
     }
+
+
+def report_url_for(base_url: str | None, artifact_id: UUID | None) -> str | None:
+    """Name where a rendered report document is read, when there is one and somewhere to read it."""
+    if base_url is None or artifact_id is None:
+        return None
+    return f"{base_url.rstrip('/')}/api/v1/artifacts/{artifact_id}"
 
 
 async def find_rule(session: AsyncSession, code: str) -> AlertRule | None:
@@ -270,11 +283,16 @@ async def raise_for_run(
     event: AlertEvent,
     *,
     now: datetime | None = None,
+    facts: "RunFacts | None" = None,
+    report: str | None = None,
+    report_artifact_id: UUID | None = None,
 ) -> list[Notification]:
     """Queue whatever this run's settling owes, in the caller's outcome transaction.
 
     Called from the same commit that settles the run, so a run cannot reach a terminal state
-    without its alerts having been queued.
+    without its alerts having been queued. ``facts`` is the run's full facts when the caller
+    has already assembled them, which is what a template reads beyond the ``run`` namespace;
+    the rendered document itself is not stored on the notification.
     """
     moment = now or utcnow()
     pipeline = await session.get(Pipeline, run.pipeline_id)
@@ -283,7 +301,8 @@ async def raise_for_run(
     rules = await matching_rules(session, event, run.pipeline_id)
     if not rules:
         return []
-    context = build_context(run, pipeline, base_url=services.settings.alert_base_url)
+    report_url = report_url_for(services.settings.alert_base_url, report_artifact_id)
+    context = _context_for(run, pipeline, facts, base_url=services.settings.alert_base_url, report_url=report_url)
     queued: list[Notification] = []
     for rule in rules:
         if await _already_raised(session, rule.id, run.id, event):
@@ -346,6 +365,29 @@ async def raise_for_run(
     return queued
 
 
+def _context_for(
+    run: Run,
+    pipeline: Pipeline,
+    facts: "RunFacts | None",
+    *,
+    base_url: str | None,
+    report_url: str | None,
+) -> JsonMap:
+    """The frozen context a notification carries: the run's whole facts when the caller has them.
+
+    The ``run`` namespace is the same either way, so a template written against it reads the
+    same whether the facts came with the call or were built here.
+    """
+    if facts is None:
+        return build_context(run, pipeline, base_url=base_url, report_url=report_url)
+    # Imported here rather than at module scope: reporting imports this module back.
+    from dirigent_core.reporting import as_context
+
+    context = as_context(facts)
+    cast("JsonMap", context["run"])["report_url"] = report_url
+    return context
+
+
 def _body(context: JsonMap) -> str:
     """Render the default body: the run's own facts, one per line, in a stable order."""
     run = cast("JsonMap", context.get("run", {}))
@@ -374,12 +416,24 @@ async def raise_for_status(
     status: RunStatus,
     *,
     now: datetime | None = None,
+    facts: "RunFacts | None" = None,
+    report: str | None = None,
+    report_artifact_id: UUID | None = None,
 ) -> list[Notification]:
     """Queue the alerts a terminal run status owes, if that status raises an event at all."""
     event = EVENT_FOR_STATUS.get(status)
     if event is None:
         return []
-    return await raise_for_run(session, services, run, event, now=now)
+    return await raise_for_run(
+        session,
+        services,
+        run,
+        event,
+        now=now,
+        facts=facts,
+        report=report,
+        report_artifact_id=report_artifact_id,
+    )
 
 
 async def raise_for_stuck(

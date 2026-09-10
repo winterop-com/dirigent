@@ -2,15 +2,22 @@
 
 import hashlib
 import json
+from contextlib import suppress
+from typing import Final
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirigent_common import JsonMap
 from dirigent_core.models import ArtifactRef, StepAttempt
-from dirigent_core.storage import Storage, join_uri, parse_uri
+from dirigent_core.storage import Storage, StorageError, join_uri, parse_uri
 
 JSON_CONTENT_TYPE = "application/json"
+
+MARKDOWN_CONTENT_TYPE: Final = "text/markdown"
+
+#: The key a text document inlines under, so an inline row is still a JSON document.
+TEXT_KEY: Final = "text"
 
 
 def canonical_json(value: object) -> bytes:
@@ -57,6 +64,58 @@ async def persist_output(
     attempt.output = output
     attempt.output_artifact_id = reference.id
     return reference
+
+
+async def persist_document(
+    session: AsyncSession,
+    storage: Storage,
+    run_id: UUID,
+    *,
+    name: str,
+    text: str,
+    content_type: str,
+    inline_max_bytes: int,
+    existing: ArtifactRef | None = None,
+) -> ArtifactRef:
+    """Record a run-level text document, inline or as a stored object, and return its reference.
+
+    ``existing`` is updated in place rather than replaced, so a link to the document survives
+    a run that settles a second time.
+    """
+    payload = text.encode()
+    reference = existing or ArtifactRef(run_id=run_id)
+    stale = reference.uri
+    reference.content_type = content_type
+    reference.size_bytes = len(payload)
+    reference.digest = digest_of(payload)
+    if len(payload) <= inline_max_bytes:
+        reference.inline_value = {TEXT_KEY: text}
+        reference.uri = None
+        reference.scheme = None
+    else:
+        uri = join_uri(storage.scratch_for(run_id), name)
+        await storage.write_bytes(uri, payload)
+        reference.inline_value = None
+        reference.uri = uri
+        reference.scheme = parse_uri(uri)[0]
+    if stale is not None and stale != reference.uri:
+        # The row no longer names the object, so nothing would ever read or sweep it again.
+        with suppress(StorageError, OSError):
+            await storage.delete(stale)
+    if existing is None:
+        session.add(reference)
+    await session.flush()
+    return reference
+
+
+async def load_document(storage: Storage, reference: ArtifactRef) -> str:
+    """Read a text document back, from the row when it inlined and from storage when it did not."""
+    if reference.inline_value is not None:
+        inlined = reference.inline_value.get(TEXT_KEY)
+        return inlined if isinstance(inlined, str) else ""
+    if reference.uri is None:
+        return ""
+    return (await storage.read_bytes(reference.uri)).decode()
 
 
 async def load_artifact(session: AsyncSession, storage: Storage, artifact_id: UUID) -> JsonMap | None:

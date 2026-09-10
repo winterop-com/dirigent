@@ -632,10 +632,22 @@ class Engine:
             # Imported here rather than at module scope: alerting imports this module back,
             # so naming it at import time closes a cycle.
             from dirigent_core.alerting import raise_for_status
+            from dirigent_core.reporting import render_run_report
 
+            # The document is rendered before the alerts are raised, so an alert can link it.
+            rendered = await render_run_report(session, self.services, run, definition, now=now)
             # Queued in the same commit that settles the run, so a run cannot reach a
             # terminal state without the alerts it owes having been written down.
-            await raise_for_status(session, self.services, run, status, now=now)
+            await raise_for_status(
+                session,
+                self.services,
+                run,
+                status,
+                now=now,
+                facts=rendered.facts,
+                report=rendered.markdown,
+                report_artifact_id=rendered.artifact_id,
+            )
             await promote_queued_run(session, self.services, run.pipeline_id)
             telemetry.record_run(status.value, definition.code)
         return status

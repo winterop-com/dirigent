@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from jsonschema import Draft202012Validator, ValidationError
 
 from dirigent_client.schemas import Catalog
+from dirigent_common import TEMPLATE_MEDIA_TYPE
 from dirigent_core.documentschema import DIALECT, document_schema
 from dirigent_core.plugins import load_plugin_host
 
@@ -163,3 +164,24 @@ def test_the_schema_offers_exactly_the_two_document_kinds(client: TestClient) ->
     assert [one["properties"]["kind"]["const"] for one in options] == ["pipeline", "triggers"]
     assert "steps" in branch(schema, "pipeline")["properties"]
     assert "pipeline" in branch(schema, "triggers")["properties"]
+
+
+def test_the_report_template_is_published_as_the_program_it_is(client: TestClient) -> None:
+    """An editor colours the field by its media type, so the schema has to carry one."""
+    schema = read(client)
+    pipeline = branch(schema, "pipeline")
+    assert "report" in pipeline["properties"]
+    report = cast("dict[str, Any]", schema["$defs"]["ReportSpec"])
+    assert report["properties"]["template"]["contentMediaType"] == TEMPLATE_MEDIA_TYPE
+
+
+def test_a_document_declaring_a_report_validates_against_the_published_schema(client: TestClient) -> None:
+    validator = Draft202012Validator(read(client))
+    document = {
+        "format": "dirigent/v1",
+        "kind": "pipeline",
+        "code": "reported",
+        "steps": {"parse": {"block": BLOCK, "config": {"from": "json", "to": "yaml", "input": "{}"}}},
+        "report": {"template": "# {{ run.status }}"},
+    }
+    assert validator.is_valid(document), deep_messages(validator.iter_errors(document))  # pyright: ignore[reportUnknownMemberType]

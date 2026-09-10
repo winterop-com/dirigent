@@ -143,6 +143,8 @@ def test_a_viewer_reads_a_pipeline_a_run_and_a_report(client: TestClient, viewer
     assert viewer.get(f"{PREFIX}/pipelines/api-demo/$export").status_code == 200
     assert viewer.get(f"{PREFIX}/runs/{run_id}").status_code == 200
     assert viewer.get(f"{PREFIX}/runs/{run_id}/$report").status_code == 200
+    assert viewer.get(f"{PREFIX}/runs/{run_id}/artifacts").status_code == 200
+    assert viewer.get(f"{PREFIX}/artifacts/{run_id}").status_code == 404, "read by a viewer, and simply not there"
     assert viewer.post(f"{PREFIX}/pipelines/api-demo/$validate", json={}).status_code == 200
 
 

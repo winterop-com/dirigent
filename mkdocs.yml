@@ -52,6 +52,7 @@ nav:
       - Plugins: plugins.md
   - Running it:
       - Operations: operations.md
+      - Reports: reports.md
       - Settings: settings.md
       - Security: security.md
       - Telemetry: telemetry.md

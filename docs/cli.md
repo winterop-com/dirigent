@@ -360,6 +360,21 @@ Four exit codes, across every command:
 Code 3 is what separates "this pipeline is broken" from "this invocation is broken" in CI,
 which is the distinction a job needs to decide whether to page anyone.
 
+### The report a run wrote for itself
+
+`dg runs report RUN_ID` summarises a run from live queries: what each step amounted to, and
+how long the whole thing took. `--markdown` answers with something else -- the markdown
+document the run itself rendered when it settled, stored with the run. It exists only when
+the pipeline document declares a `report:` section, and the command says so when it does not.
+The document is written as-is, so it pipes into a ticket, a pull request comment, or a file:
+
+```bash
+dg runs report RUN_ID --markdown > report.md
+```
+
+Under `--json`, or into a pipe, the same read is one `run.report_document` record carrying
+the whole document. `docs/reports.md` says what a template may read.
+
 ## When something is wrong
 
 The default output is the run, not the CLI. Three levels above it, each adding something a
@@ -692,6 +707,7 @@ verb and whose fields are the identity of what changed:
 | `pipeline.exported` | `dg export` | `code`, the `version` asked for, and the `document` it exported |
 | `run.detail` | `dg runs show` | The run, its `dag`, its `items` and its `attempts`, under `fields` |
 | `run.report` | `dg runs report` | What each step amounted to and how long it took, under `fields` |
+| `run.report_document` | `dg runs report --markdown` | `run_id`, and the markdown `document` the run rendered when it settled |
 | `system.info` | `dg system info` | The instance the CLI is talking to, under `fields` |
 | `auth` | `dg auth status` | `url`, `source`, `username`, `role`, `via` |
 | `user.created` | `dg admin user create` | `username`, `role`, `database` |
@@ -834,6 +850,7 @@ dg run --local ... [--root DIR]                              # hold the instance
 dg backfill PIPELINE --schedule CODE --from A --to B [--dry-run]
 dg runs list [--pipeline CODE] [--status failed] [--since 24h] [--tag nightly] [--limit 50]
 dg runs show | cancel | report | profile RUN_ID
+dg runs report RUN_ID [--markdown]      # the document the run rendered, when it declares `report:`
 dg runs logs RUN_ID [--follow] [--step NAME]
 dg runs retry RUN_ID --step NAME [--failed-items]
 dg format [console|compact] [-f FILE]   # render an NDJSON stream; reads stdin by default

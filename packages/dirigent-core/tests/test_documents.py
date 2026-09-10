@@ -859,3 +859,18 @@ def test_a_parameter_schema_that_is_one_and_a_document_without_any_are_both_acce
         "steps:\n  a: { block: test.echo }\n"
     )
     assert validate_against_catalog(declared, host.catalog()) == []
+
+
+def test_a_report_section_survives_the_canonical_form_even_when_it_says_nothing() -> None:
+    """``report: {}`` is what asks for the built-in template, so it cannot be dropped as empty."""
+    document = canonical_document(load_text(MINIMAL + "report: {}\n"))
+    assert document["report"] == {}
+
+
+def test_a_document_with_no_report_says_nothing_about_one() -> None:
+    assert "report" not in canonical_document(load_text(MINIMAL))
+
+
+def test_a_report_template_round_trips_through_the_canonical_form() -> None:
+    document = load_text(MINIMAL + 'report:\n  template: "# {{ run.status }}"\n')
+    assert load_document(canonical_document(document)) == document
