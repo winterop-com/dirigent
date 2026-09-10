@@ -7,3 +7,6 @@ JQ_MEDIA_TYPE: Final = "application/jq"
 
 #: A string handed to a shell to parse, as ``shell.run`` and ``docker.run`` take one.
 SHELL_MEDIA_TYPE: Final = "text/x-shellscript"
+
+#: A Jinja template rendering text, as the run report and ``report.render`` take one.
+TEMPLATE_MEDIA_TYPE: Final = "text/x-jinja"
