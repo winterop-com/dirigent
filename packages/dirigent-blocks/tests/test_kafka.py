@@ -210,6 +210,7 @@ async def test_a_health_check_answers_rather_than_raises_when_the_cluster_is_dow
 
     assert report.healthy is False
     assert "no brokers available" in (report.detail or "")
+    assert cluster.stopped, "a consumer whose start failed is still open until it is stopped"
 
 
 # -- the sensor ------------------------------------------------------------------
@@ -425,6 +426,7 @@ async def test_a_cluster_that_cannot_be_reached_is_transient(ctx: FakeContext, c
         await KafkaConsumeSensor().poke(config(), connected(ctx).as_context())
 
     assert raised.value.error_class is ErrorClass.TRANSIENT
+    assert cluster.stopped
 
 
 async def test_an_auth_failure_is_rejected_rather_than_retried(ctx: FakeContext, cluster: FakeConsumer) -> None:

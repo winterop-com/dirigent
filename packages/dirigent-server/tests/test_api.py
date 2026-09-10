@@ -1260,7 +1260,21 @@ def test_a_pipeline_with_no_runs_is_deleted_outright(client: TestClient) -> None
     assert client.delete(f"{PREFIX}/pipelines/api-demo").status_code == 204
 
 
-def test_system_info_describes_the_instance_and_fans_out_over_connections(client: TestClient) -> None:
+def test_system_info_repeats_each_connections_last_check_and_probes_nothing(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The corner of every page reads this, so it must never run anyone's connect timeout."""
+    from dirigent_blocks.connections import HttpConnectionKind
+
+    original = HttpConnectionKind.check
+    probes = 0
+
+    async def counted(self: HttpConnectionKind, config: Any) -> Any:
+        nonlocal probes
+        probes += 1
+        return await original(self, config)
+
+    monkeypatch.setattr(HttpConnectionKind, "check", counted)
     client.post(
         f"{PREFIX}/connections",
         json={
@@ -1274,14 +1288,54 @@ def test_system_info_describes_the_instance_and_fans_out_over_connections(client
     assert "file" in body["storage_schemes"]
     assert body["secrets_configured"] is True
     assert body["unsafe_blocks_enabled"] == ["shell.run"]
-    assert body["connections"][0] == {
-        "code": "unreachable",
-        "name": None,
-        "kind": "http",
-        "connected": False,
-        "detail": body["connections"][0]["detail"],
-        "version": None,
-    }
+    assert body["connections"] == [
+        {
+            "code": "unreachable",
+            "name": None,
+            "kind": "http",
+            "last_check_at": None,
+            "last_check_healthy": None,
+            "last_check_detail": None,
+        }
+    ]
+    assert probes == 0
+
+    report = client.post(f"{PREFIX}/connections/unreachable/$check").json()
+    assert probes == 1
+    row = client.get(f"{PREFIX}/system/info").json()["connections"][0]
+    assert (row["last_check_healthy"], row["last_check_detail"]) == (False, report["detail"])
+    assert row["last_check_at"] is not None
+    assert probes == 1, "reading the info again repeated the stored check rather than making one"
+
+
+def test_a_check_holds_no_transaction_while_its_probe_is_out(
+    client: TestClient, settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every transaction takes the write lock as it opens, and a probe can last a connect timeout."""
+    import sqlite3
+
+    from dirigent_common import HealthReport
+    from dirigent_server.routes import connections as routes
+
+    path = settings.database_url.removeprefix("sqlite+aiosqlite:///")
+
+    async def probe_that_needs_the_lock(row: Any, services: Any) -> HealthReport:
+        # BEGIN IMMEDIATE from a second connection fails within the timeout if the request
+        # still holds the write lock, which is exactly what the old fan-out did.
+        other = sqlite3.connect(path, timeout=0.2)
+        try:
+            other.execute("BEGIN IMMEDIATE")
+            other.execute("ROLLBACK")
+        finally:
+            other.close()
+        return HealthReport(healthy=True, detail="probed with the lock free")
+
+    monkeypatch.setattr(routes, "check", probe_that_needs_the_lock)
+    client.post(f"{PREFIX}/connections", json={"code": "demo", "kind": "http", "config": {"base_url": "http://x"}})
+    response = client.post(f"{PREFIX}/connections/demo/$check")
+    assert response.status_code == 200, response.text
+    row = client.get(f"{PREFIX}/connections/demo").json()
+    assert (row["last_check_healthy"], row["last_check_detail"]) == (True, "probed with the lock free")
 
 
 def test_the_worker_registry_is_served(client: TestClient) -> None:

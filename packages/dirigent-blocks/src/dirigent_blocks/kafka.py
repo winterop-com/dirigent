@@ -227,12 +227,13 @@ class KafkaConnectionKind(ConnectionKind):
         consumer = consumer_for(settings, group_id=None, start="latest")
         try:
             await consumer.start()
-            try:
-                topics = await consumer.topics()
-            finally:
-                await close(consumer)
+            topics = await consumer.topics()
         except Exception as error:  # every client error is a health answer, never a raise
             return HealthReport(healthy=False, detail=f"{type(error).__name__}: {error}")
+        finally:
+            # A consumer whose start failed is still open, and the library reports one that
+            # is dropped that way as an error on the event loop.
+            await close(consumer)
         return HealthReport(healthy=True, detail=f"{len(topics)} topics")
 
 
@@ -338,6 +339,7 @@ class KafkaConsumeSensor(Sensor[KafkaConsumeConfig, KafkaConsumeOutput]):
         try:
             await consumer.start()
         except Exception as error:
+            await close(consumer)
             raise BlockFailure(
                 f"the kafka cluster refused the connection: {error}", error_class=classify(error)
             ) from error

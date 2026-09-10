@@ -967,7 +967,7 @@ GET           /api/v1/runs/{id}/$logs        # a page like every listing; ?follo
 GET           /api/v1/runs/{id}/$events      # the whole run as one SSE stream, for a watcher
 GET           /api/v1/runs/{id}/$report      # a summary fit to paste into a ticket
 GET           /api/v1/workers                # the registry
-GET           /api/v1/system/info            # per-connection fan-out, run concurrently
+GET           /api/v1/system/info            # what is installed, and each connection's last check
 GET           /health                        # liveness; /health/ready runs the checks
 ```
 

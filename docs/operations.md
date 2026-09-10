@@ -891,7 +891,8 @@ already on a dashboard; see [telemetry](telemetry.md#bring-it-up-in-an-afternoon
 
 **What has no signal at all**, and is worth knowing you are blind to: scheduler leadership
 (nothing reports which process holds the lock), artifact-store reachability, connection health
-other than by asking for it with `dg system info` or `dg connection check`, and table growth
+other than by asking for it with `dg connection check` (`dg system info` repeats what the last
+check said), and table growth
 under an absent retention policy. The last one is the one that eventually hurts; a retention
 policy is off until you set one, so see [retention](#retention).
 

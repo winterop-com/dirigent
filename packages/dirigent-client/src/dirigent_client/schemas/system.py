@@ -13,14 +13,14 @@ from dirigent_common import JsonMap
 
 
 class ConnectionHealth(WireModel):
-    """What one connection reported when it was asked."""
+    """What one connection said the last time it was checked, or nothing if it never was."""
 
     code: str
     name: str | None = None
     kind: str
-    connected: bool
-    detail: str | None = None
-    version: str | None = None
+    last_check_at: datetime | None = None
+    last_check_healthy: bool | None = None
+    last_check_detail: str | None = None
 
 
 class SystemInfo(WireModel):

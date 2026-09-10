@@ -2,8 +2,10 @@
  * What this instance has installed.
  *
  * ONE READ, AND IT IS NOT THE PROBE. `GET /system/info` is the versioned API's and says what is
- * installed -- version, environment, database, blocks, storage schemes, plugins, and how every
- * configured connection answered. Whether the process is fit to serve is a different question
+ * installed -- version, environment, database, blocks, storage schemes, plugins, and what every
+ * configured connection said when it was last checked. It opens no connection itself: a read
+ * made on every page load must not run anyone's connect timeout. Whether the process is fit
+ * to serve is a different question
  * with a different answer, asked at the root by `lib/server-status`, and there is exactly one
  * reader of it: the corner dot's store, which the settings dialog reads rather than asking a
  * second time.
@@ -11,14 +13,14 @@
 
 import { apiJson } from '@/lib/api'
 
-/** How one configured connection answered when the info read fanned out. `ConnectionHealth`. */
+/** What one configured connection said the last time it was checked. `ConnectionHealth`. */
 export interface ConnectionHealth {
     code: string
     name: string | null
     kind: string
-    connected: boolean
-    detail: string | null
-    version: string | null
+    last_check_at: string | null
+    last_check_healthy: boolean | null
+    last_check_detail: string | null
 }
 
 /** Everything this instance is. `SystemInfo`. */
