@@ -18,7 +18,7 @@ const DURATION = /^(?:\d+(?:ms|s|m|h|d|w))+$/u
 export const SUBJECT_REFERENCES = 'pipeline, status, id, error, trigger, duration_ms and url'
 
 /** The hint under the subject box: what a template may reach for, and nothing else. */
-export const SUBJECT_HINT = `\${run.*} may read the run's ${SUBJECT_REFERENCES}.`
+export const SUBJECT_HINT = `A Jinja template: {{ run.* }} reads the run's ${SUBJECT_REFERENCES}.`
 
 /** The two scopes, in the order the control offers them. */
 export const SCOPES: readonly { value: AlertScope; label: string }[] = [

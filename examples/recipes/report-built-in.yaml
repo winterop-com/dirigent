@@ -8,10 +8,10 @@
 # nothing; an empty section renders the page the engine ships:
 #
 #   a title    the pipeline's name, or its code when it has none, and the run's status
-#   the facts  run id, pipeline and version, trigger, started, finished, duration, and the
-#              data window when the run has one
-#   the steps  a row per step: outcome, attempts, how long it took, how many warnings it
-#              logged, which a succeeded step can still have
+#   the facts  run id, pipeline and version, trigger, started, finished, duration, when the
+#              page was rendered, and the data window when the run has one
+#   the steps  a row per step: outcome, attempts, how long it took, how large its output was,
+#              and how many warnings it logged, which a succeeded step can still have
 #   the items  the elements that failed, when a fan-out step had any, each with the step it
 #              failed at and the error
 #   the error  the run's own error, or a cancellation's reason, when it ended badly

@@ -10,6 +10,10 @@ from dirigent_client.schemas.common import WireModel
 from dirigent_common import EntityName
 from dirigent_common.durations import Duration
 
+SUBJECT_HELP = "Subject, a Jinja template over the run's facts."
+
+BODY_HELP = "Body, a Jinja template over the run's facts; `report` is the run's report document when it has one."
+
 
 class AlertRuleIn(BaseModel):
     """An alert rule as a caller declares it."""
@@ -22,7 +26,8 @@ class AlertRuleIn(BaseModel):
     scope: AlertScope = AlertScope.GLOBAL
     pipeline: str | None = None
     connection: str | None = None
-    template: str | None = Field(default=None, description="Message subject, reading ${run.*}.")
+    template: str | None = Field(default=None, description=SUBJECT_HELP)
+    body: str | None = Field(default=None, description=BODY_HELP)
     throttle: Duration = timedelta(0)
 
 
@@ -39,6 +44,7 @@ class AlertRuleOut(WireModel):
     notifier: str
     connection: str | None = None
     template: str | None = None
+    body: str | None = None
     throttle: str
     active: bool
     paused: bool = False
@@ -47,9 +53,14 @@ class AlertRuleOut(WireModel):
 
 
 class AlertRuleUpdate(BaseModel):
-    """What a PATCH may change about an alert rule, which is whether it is paused."""
+    """What a PATCH may change about an alert rule: whether it is held, and what it says.
 
-    paused: bool
+    Every field is optional, and a field a caller leaves out is left as it was.
+    """
+
+    paused: bool | None = None
+    template: str | None = Field(default=None, description=SUBJECT_HELP)
+    body: str | None = Field(default=None, description=BODY_HELP)
 
 
 class NotificationOut(WireModel):

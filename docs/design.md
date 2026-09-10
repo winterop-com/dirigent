@@ -859,14 +859,19 @@ answerable from the run rather than from a process log on some worker.
 `stuck_run` is stuck; detection is a query the sweeper already runs, and the alert is
 raised from there.
 
-**Templates degrade, they do not fail.** A message template reads `${run.*}` against a
-snapshot of the run's facts taken when the alert was raised -- a snapshot, because delivery
-happens later and a message describing the run as it is *now* would be misleading. A
-reference that names nothing renders verbatim, because an alert is the last thing standing
-between a failure and the person who needs to know, and a typo must degrade to an ugly message
-rather than to no message. A reference that resolves to **null** renders as empty, which is a
-different case entirely: half a run's facts are legitimately null depending on how it ended,
-and printing `${run.error}` back at an operator whose run succeeded would be nonsense.
+**Templates degrade, they do not fail.** A rule's subject and its body are both Jinja
+templates over a snapshot of the run's facts taken when the alert was raised -- a snapshot,
+because delivery happens later and a message describing the run as it is *now* would be
+misleading. The context is the run's whole facts, the same ones a report document reads, plus
+`report`, the rendered document when the run has one. A name the facts do not have renders as
+**empty**, which is the same case as a fact that is legitimately null: half a run's facts are
+null depending on how it ended, and printing `{{ run.error }}` back at an operator whose run
+succeeded would be nonsense. A template that does not compile is refused when the rule is
+created, so a typo is answered where it was made rather than in place of a message. A render
+that fails when the alert is raised -- a subject or a body past its size cap, a sandbox
+refusal -- falls back to the default subject or the default body and leaves a warning in the
+run's own timeline, because an alert is the last thing standing between a failure and the
+person who needs to know.
 
 **A settled run brings its own document.** When a pipeline document declares a `report:`
 section, the transaction that settles a run renders that section's template against the run's

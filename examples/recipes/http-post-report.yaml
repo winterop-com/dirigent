@@ -31,13 +31,16 @@
 #               how a run ended, and a null renders as nothing rather than failing the page.
 #   pipeline.*  the pipeline version this run pinned, so the page names what actually ran.
 #   steps[]     one entry per step, in the order a person watched them, carrying outcome,
-#               attempts, duration_ms and output. output is the step's *last* attempt's
-#               value, and it is there only when the step ran: a skipped or never-reached
-#               step has none, which is why the page guards on it before reading into it.
+#               attempts, duration_ms, output and output_bytes. output is the step's *last*
+#               attempt's value, and it is there only when the step ran: a skipped or
+#               never-reached step has none, which is why the page guards on it before
+#               reading into it.
+#   rendered_at when this page was rendered, which is the moment the run settled.
 #
-# steps is a list, so a page that wants one step by name filters for it:
-# `steps | selectattr('step', 'equalto', 'summary') | first`. That is the whole idiom, and
-# it is why a step a template reads should be named for what it holds.
+# steps is a list, in the order a person watched the run. step is the same facts by name --
+# `step.summary.output.value` is the summary hop's output -- which is how this page reads one
+# hop without walking the list, and it is why a step a template reads should be named for what
+# it holds.
 #
 # The three filters are the ones that make a machine's number readable: `duration` turns
 # milliseconds into 1m30s, `iso` renders a moment, `bytes` a size. `round` is Jinja's own.
@@ -145,19 +148,19 @@ report:
     - started: {{ run.started_at | iso }}
     - finished: {{ run.finished_at | iso }}
     - duration: {{ run.duration_ms | duration }}
+    - rendered: {{ rendered_at | iso }}
 
     ## Steps
 
-    | step | outcome | attempts | took |
-    | --- | --- | --- | --- |
-    {% for step in steps %}
-    | {{ step.step }} | {{ step.outcome }} | {{ step.attempts }} | {{ step.duration_ms | duration }} |
+    | step | outcome | attempts | took | output |
+    | --- | --- | --- | --- | --- |
+    {% for one in steps %}
+    | {{ one.step }} | {{ one.outcome }} | {{ one.attempts }} | {{ one.duration_ms | duration }} | {{ one.output_bytes | bytes }} |
     {% endfor %}
 
     ## What came back
 
-    {% set summary = steps | selectattr('step', 'equalto', 'summary') | first %}
-    {% set echoed = summary.output.value %}
+    {% set echoed = step.summary.output.value %}
     {% if echoed %}
     The echo service answered {{ echoed.status }} and parsed {{ echoed.rows }} readings back,
     between {{ echoed.min }}C and {{ echoed.max }}C, averaging {{ echoed.mean | round(1) }}C.

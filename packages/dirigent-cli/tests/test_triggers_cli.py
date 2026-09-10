@@ -478,6 +478,67 @@ def test_an_alert_rule_is_created_listed_and_deleted(tmp_path: Path, server: str
     assert invoke("alerts", "rules", "delete", "nightly-failures").exit_code == 1
 
 
+def test_a_rule_takes_its_body_from_a_file(tmp_path: Path, server: str) -> None:
+    body = tmp_path / "alert-body.md.j2"
+    body.write_text("{{ run.pipeline }} failed: {{ run.error }}\n")
+    created = machine(
+        "alerts",
+        "rules",
+        "create",
+        "nightly-failures",
+        "--event",
+        "run_failed",
+        "--notifier",
+        "log",
+        "--template",
+        "{{ run.pipeline }} is unhappy",
+        "--body-file",
+        str(body),
+    )
+    assert created.exit_code == 0, created.output
+    declared = only(created.stdout, "alert_rule.created")
+    assert declared["template"] is True
+    assert declared["body"] is True
+
+
+def test_a_rule_takes_one_body_and_not_two(tmp_path: Path, server: str) -> None:
+    body = tmp_path / "alert-body.md.j2"
+    body.write_text("{{ run.error }}")
+    refused = invoke(
+        "alerts",
+        "rules",
+        "create",
+        "nightly-failures",
+        "--event",
+        "run_failed",
+        "--notifier",
+        "log",
+        "--body",
+        "{{ run.error }}",
+        "--body-file",
+        str(body),
+    )
+    assert refused.exit_code == 1
+    assert "--body or --body-file" in plain(refused.output)
+
+
+def test_a_rule_whose_template_does_not_compile_is_refused(server: str) -> None:
+    refused = invoke(
+        "alerts",
+        "rules",
+        "create",
+        "nightly-failures",
+        "--event",
+        "run_failed",
+        "--notifier",
+        "log",
+        "--template",
+        "{% endfor %}",
+    )
+    assert refused.exit_code == 1
+    assert "not a Jinja template" in plain(refused.output)
+
+
 def test_a_rule_is_paused_and_resumed_from_the_command_line(tmp_path: Path, server: str) -> None:
     apply_document(tmp_path)
     invoke("alerts", "rules", "create", "nightly-failures", "--event", "run_failed", "--notifier", "log")

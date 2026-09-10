@@ -55,7 +55,10 @@ export interface AlertRuleOut {
     notifier: string
     /** The connection this channel delivers through, or null where the channel needs none. */
     connection: string | null
+    /** The subject, a Jinja template over the run's facts. */
     template: string | null
+    /** The body, a Jinja template over the same facts. */
+    body: string | null
     /** A humane duration, such as `5m`, and never a number of seconds. */
     throttle: string
     active: boolean
@@ -76,6 +79,7 @@ export interface AlertRuleIn {
     pipeline: string | null
     connection: string | null
     template: string | null
+    body: string | null
     throttle: string
 }
 
