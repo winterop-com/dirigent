@@ -1,0 +1,93 @@
+# The same rendered page as examples/recipes/report-to-file.yaml, delivered to a bucket.
+#
+# NEEDS AN S3-COMPATIBLE ENDPOINT, set up exactly as s3-round-trip.yaml documents: the same
+# rustfs container, the same artifacts connection, the same DIRIGENT_STORAGE_CONNECTIONS.
+#
+# Three hops, and what each one hands on:
+#   summary  transform.jq, the numbers the page is about.
+#   page     report.render, the markdown. Output: text, content_type, text_bytes.
+#   deliver  storage.write, the text to an s3:// URI. Output: uri, bytes_written,
+#            content_type -- and on S3 the content type is stored with the object, so a
+#            browser opening the link is told what it is.
+#
+# THE RENDER DOES NOT KNOW WHERE THE PAGE GOES. It renders text and hands it on; only the
+# step below it names a destination, and changing s3:// to file:// is the whole difference
+# between this document and the recipe it was copied from. That is what schemes are for.
+#
+#      dg apply examples/s3/report-to-s3.yaml
+#      dg run report-to-s3 -p day=2026-01-01 --watch
+#
+# The page is at s3://<bucket>/reports/<day>.md when the run settles.
+
+format: dirigent/v1
+kind: pipeline
+code: report-to-s3
+name: A rendered report delivered to a bucket
+description: Render a markdown page from a Jinja template and write it to an object in S3.
+
+tags: [s3, report, storage, transform]
+
+requires:
+  blocks:
+    - transform.jq
+    - report.render
+    - storage.write
+  connections:
+    - artifacts
+  storage:
+    - s3
+
+params:
+  type: object
+  required: [day]
+  additionalProperties: false
+  properties:
+    day:
+      type: string
+      format: date
+      description: The day the report is about, and the object it is named as.
+    bucket:
+      type: string
+      default: dirigent-archive
+      description: The bucket the page is delivered into.
+
+steps:
+  summary:
+    block: transform.jq
+    config:
+      input:
+        day: ${params.day}
+        readings:
+          - {station: st-1, region: east, celsius: 4.5}
+          - {station: st-3, region: west, celsius: 1.2}
+          - {station: st-4, region: north, celsius: -3.4}
+      program: |
+        {day: .day,
+         stations: (.readings | length),
+         coldest: (.readings | min_by(.celsius) | .station),
+         rows: .readings}
+
+  page:
+    block: report.render
+    depends_on: [summary]
+    config:
+      values:
+        summary: ${steps.summary.output.value}
+      content_type: text/markdown
+      template: |
+        # Readings for {{ summary.day }}
+
+        {{ summary.stations }} stations reported; the coldest was {{ summary.coldest }}.
+
+        {% for row in summary.rows %}
+        - **{{ row.station }}** ({{ row.region }}): {{ row.celsius }}C
+        {% endfor %}
+
+  deliver:
+    block: storage.write
+    depends_on: [page]
+    config:
+      target: s3://${params.bucket}/reports/${params.day}.md
+      text: ${steps.page.output.text}
+      # Stored on the object, so whoever fetches it is told it is markdown.
+      content_type: ${steps.page.output.content_type}
