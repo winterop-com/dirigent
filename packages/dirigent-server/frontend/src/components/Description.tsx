@@ -18,11 +18,15 @@ import { oneLine } from '@/lib/identity'
  */
 const Markdown = lazy(() => import('@/components/Markdown').then((module) => ({ default: module.Markdown })))
 
-export function Description({ text }: { text: string | null }) {
+/** A description reads as a hint beside a title; a whole document, such as a run's report, reads as body. */
+export type DescriptionInk = 'hint' | 'body'
+
+export function Description({ text, ink = 'hint' }: { text: string | null; ink?: DescriptionInk }) {
     if (text === null || text.trim() === '') return null
+    const colour = ink === 'hint' ? 'text-muted-foreground' : 'text-foreground'
     return (
-        <Suspense fallback={<p className="text-muted-foreground text-sm">{oneLine(text)}</p>}>
-            <div className="text-muted-foreground">
+        <Suspense fallback={<p className={`${colour} text-sm`}>{oneLine(text)}</p>}>
+            <div className={colour}>
                 <Markdown text={text} />
             </div>
         </Suspense>

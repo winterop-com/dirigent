@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router'
 import { toast } from 'sonner'
 
 import { OutputTab } from '@/components/run/OutputTab'
+import { ReportTab } from '@/components/run/ReportTab'
 import { RunTab } from '@/components/run/RunTab'
 import { RunTerminal } from '@/components/run/RunTerminal'
 import { StatusChip } from '@/components/run/StatusChip'
@@ -321,10 +322,22 @@ export function RunDetail() {
             {
                 id: 'output',
                 label: 'Output',
-                render: () => <OutputTab state={state} report={report} problem={reportProblem} />,
+                render: () => <OutputTab state={state} runId={id} />,
+            },
+            {
+                id: 'report',
+                label: 'Report',
+                render: () => (
+                    <ReportTab
+                        runId={id}
+                        settled={runSettled(state.run.status)}
+                        report={report}
+                        problem={reportProblem}
+                    />
+                ),
             },
         ]
-    }, [chosen, document, report, reportProblem, state])
+    }, [chosen, document, id, report, reportProblem, state])
 
     useEffect(() => fillPanel(tabs, { screen: `run:${id}`, open: 'step' }), [tabs, id])
 

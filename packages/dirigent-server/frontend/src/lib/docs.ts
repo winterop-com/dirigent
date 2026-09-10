@@ -39,3 +39,6 @@ export const API_DOCS_URL = '/docs'
 
 /** Where everything this app does is written down. Outside the instance, so an absolute URL. */
 export const DOCS_URL = 'https://github.com/winterop-com/dirigent/tree/main/docs'
+
+/** What a report template may read, and what the built-in document says. */
+export const REPORTS_DOCS_URL = 'https://github.com/winterop-com/dirigent/blob/main/docs/reports.md'

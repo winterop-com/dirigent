@@ -191,6 +191,36 @@ export async function apiJson<T>(path: string, init: RequestInit = {}): Promise<
 }
 
 /**
+ * One read of a resource whose content is text rather than JSON.
+ *
+ * A stored report document is markdown and an artifact answers in the content type it was
+ * written as, so the body is taken as text. A refusal is still a problem document, so a body
+ * that arrives with an error status is read as one before it is raised.
+ */
+export async function apiText(path: string, init: RequestInit = {}): Promise<string> {
+    const headers = new Headers(init.headers)
+    headers.set('accept', 'text/*, */*')
+    let response: Response
+    try {
+        response = await apiFetch(path, { ...init, headers })
+    } catch (error) {
+        if (error instanceof ApiError) throw error
+        throw new ApiError(problemOf(0, null, path))
+    }
+    const body = await response.text().catch(() => '')
+    if (!response.ok) {
+        let refusal: unknown = null
+        try {
+            refusal = JSON.parse(body)
+        } catch {
+            refusal = null
+        }
+        throw new ApiError(problemOf(response.status, refusal, path))
+    }
+    return body
+}
+
+/**
  * One read of a path the server mounts outside the versioned API.
  *
  * `/health` and `/health/ready` answer at the root whatever `Settings.api_prefix` is, so they

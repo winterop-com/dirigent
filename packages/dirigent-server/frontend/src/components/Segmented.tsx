@@ -18,6 +18,7 @@ export function Segmented<T extends string>({
     value,
     options,
     size = 'sm',
+    disabled = false,
     onChoose,
 }: {
     /** What the group is called, for whoever is reading the screen rather than seeing it. */
@@ -26,6 +27,8 @@ export function Segmented<T extends string>({
     options: readonly Segment<T>[]
     /** `sm` is a settings row's control; `md` stands beside a form field at its own height. */
     size?: 'sm' | 'md'
+    /** Whether the choice may be answered at all. */
+    disabled?: boolean
     onChoose: (value: T) => void
 }) {
     return (
@@ -44,11 +47,13 @@ export function Segmented<T extends string>({
                     key={option.value}
                     type="button"
                     aria-pressed={option.value === value}
+                    disabled={disabled}
                     className={cn(
                         size === 'md' ? 'flex-1 px-3 text-sm whitespace-nowrap' : 'px-2 py-1 text-xs',
                         option.value === value
                             ? 'bg-primary text-primary-foreground font-medium'
                             : 'text-muted-foreground hover:bg-accent',
+                        disabled && 'opacity-50',
                     )}
                     onClick={() => {
                         onChoose(option.value)

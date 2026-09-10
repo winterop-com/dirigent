@@ -19,6 +19,7 @@ import {
     NEW_CODE,
     NEW_DOCUMENT,
     newDocument,
+    reportIn,
     revertDocument,
     startDocument,
     stepEdited,
@@ -28,6 +29,8 @@ import {
     stepTabLabel,
     toYaml,
     withDependsOn,
+    withoutReport,
+    withReport,
     withStep,
     withStepConfig,
     withStepName,
@@ -447,5 +450,33 @@ describe('whether a step fans out', () => {
 
     test('counts nothing where the list is an expression a run resolves', () => {
         expect(fanOutOf(FANNED, 'resolved')).toEqual({ fanOut: true, items: null })
+    })
+})
+
+describe('the report section', () => {
+    test('a document with no section declares none', () => {
+        expect(reportIn({ steps: {} })).toEqual({ declared: false, template: null })
+        expect(reportIn(null)).toEqual({ declared: false, template: null })
+    })
+
+    test('an empty section asks for the built-in document', () => {
+        expect(reportIn({ report: {} })).toEqual({ declared: true, template: null })
+    })
+
+    test('a section carrying a template answers with it', () => {
+        expect(reportIn({ report: { template: '# {{ run.status }}' } })).toEqual({
+            declared: true,
+            template: '# {{ run.status }}',
+        })
+    })
+
+    test('writing one replaces whichever section the document held', () => {
+        expect(withReport({ steps: {} }, null)).toEqual({ steps: {}, report: {} })
+        expect(withReport({ report: { template: 'old' } }, 'new')).toEqual({ report: { template: 'new' } })
+        expect(withoutReport({ steps: {}, report: {} })).toEqual({ steps: {} })
+    })
+
+    test('taking one away leaves a document that never had one alone', () => {
+        expect(withoutReport({ steps: {} })).toEqual({ steps: {} })
     })
 })
