@@ -32,14 +32,7 @@ from dirigent_core import telemetry
 from dirigent_core.database import session_scope
 from dirigent_core.engine.definition import PipelineDefinition, load_definition
 from dirigent_core.engine.runs import RunCreationError, cancel_run, retry_step
-from dirigent_core.engine.state import (
-    StepCounts,
-    attempt_counts,
-    build_step_states,
-    in_execution_order,
-    item_counts,
-    step_states,
-)
+from dirigent_core.engine.state import StepCounts, attempt_counts, item_counts, step_states
 from dirigent_core.models import (
     ArtifactRef,
     LogEntry,
@@ -52,6 +45,7 @@ from dirigent_core.models import (
 )
 from dirigent_core.pipelines import UNWELL, carries_tag, failing_steps
 from dirigent_core.registry import unmet_worker_tags
+from dirigent_core.reporting import duration_ms, items_in_order, run_facts
 from dirigent_server.dependencies import ServicesDep, SessionDep, get_sessions
 from dirigent_server.pagination import DEFAULT_PAGE, AfterParam, LimitParam, clip, int_cursor, uuid_cursor
 from dirigent_server.security import OperatorDep, PrincipalDep
@@ -120,46 +114,6 @@ def _render_run(run: Run, pipeline: Pipeline, version: PipelineVersion, failed_s
         else None,
         created_at=run.created_at,
     )
-
-
-async def _attempts(session: AsyncSession, run_id: UUID, step_order: Sequence[str] = ()) -> list[StepAttempt]:
-    """Read every attempt of a run, in the order they ran."""
-    rows = await session.execute(
-        sa.select(StepAttempt, RunItem.item_index)
-        .outerjoin(RunItem, RunItem.id == StepAttempt.run_item_id)
-        .where(StepAttempt.run_id == run_id)
-    )
-    found = rows.all()
-    indexes = {attempt.id: index for attempt, index in found if index is not None}
-    return in_execution_order([attempt for attempt, _ in found], indexes, step_order)
-
-
-async def _warnings(session: AsyncSession, run_id: UUID) -> dict[str, int]:
-    """Count the warnings and errors each step logged, which a succeeded step can still have."""
-    rows = await session.execute(
-        sa.select(LogEntry.step_name, sa.func.count())
-        .where(LogEntry.run_id == run_id, LogEntry.level.in_((LogLevel.WARNING, LogLevel.ERROR)))
-        .group_by(LogEntry.step_name)
-    )
-    return {name: count for name, count in rows.all() if name is not None}
-
-
-async def _items(session: AsyncSession, run_id: UUID) -> list[RunItem]:
-    """Read a run's fan-out items, in grid order."""
-    rows = await session.execute(
-        sa.select(RunItem).where(RunItem.run_id == run_id).order_by(RunItem.step_name, RunItem.item_index)
-    )
-    return list(rows.scalars())
-
-
-def _human_order(definition: PipelineDefinition, ran: Sequence[str]) -> list[str]:
-    """Name a run's steps the way a person watched them: as they ran, then as they were written.
-
-    The steps that ran arrive in execution order, which already carries the written order for
-    the steps that have not, so following them says both things at once.
-    """
-    seen = list(dict.fromkeys(ran))
-    return [name for name in seen if name in definition.steps] + [name for name in definition.steps if name not in seen]
 
 
 def _dag(
@@ -639,7 +593,7 @@ async def _story_read(
         if want_labels:
             read_labels = {
                 item.id: (item.item_key.strip() or str(item.item_index), item.item_index)
-                for item in await _items(session, run_id)
+                for item in await items_in_order(session, run_id)
             }
         attempts = await _attempt_rows(session, run_id)
         spilled = await _spilled(session, run_id)
@@ -772,47 +726,30 @@ async def report(run_id: UUID, session: SessionDep, principal: PrincipalDep) -> 
     """Summarise a run: what each step amounted to, and how long the whole thing took."""
     run = await _run_row(session, run_id)
     pipeline, version, definition = await _context(session, run)
-    attempts = await _attempts(session, run_id, version.step_order)
-    items = await _items(session, run_id)
-    states = build_step_states(definition, attempts)
-    warned = await _warnings(session, run_id)
-    steps = [
-        StepReport(
-            step=name,
-            block=definition.steps[name].block,
-            outcome=states[name].outcome.value,
-            attempts=sum(1 for attempt in attempts if attempt.step_name == name),
-            depends_on=list(definition.steps[name].depends_on),
-            warnings=warned.get(name, 0),
-            duration_ms=_duration_ms(
-                min((a.started_at for a in attempts if a.step_name == name and a.started_at), default=None),
-                max((a.finished_at for a in attempts if a.step_name == name and a.finished_at), default=None),
-            ),
-            error=next(
-                (a.error for a in attempts if a.step_name == name and a.status is AttemptStatus.FAILED and a.error),
-                None,
-            ),
-        )
-        for name in _human_order(definition, [attempt.step_name for attempt in attempts])
-    ]
+    facts = await run_facts(session, run, pipeline, version, definition, base_url=None)
     return RunReport(
         run_id=run.id,
-        pipeline=pipeline.code,
-        pipeline_version=version.version,
+        pipeline=facts.pipeline.code,
+        pipeline_version=facts.pipeline.version,
         status=run.status,
         triggered_by=run.triggered_by_label,
         started_at=run.started_at,
         finished_at=run.finished_at,
-        duration_ms=_duration_ms(run.started_at, run.finished_at),
-        steps=steps,
-        items_total=len(items),
-        items_failed=sum(1 for item in items if item.status is RunItemStatus.FAILED),
+        duration_ms=duration_ms(run.started_at, run.finished_at),
+        steps=[
+            StepReport(
+                step=step.step,
+                block=step.block,
+                outcome=step.outcome,
+                attempts=step.attempts,
+                depends_on=list(step.depends_on),
+                warnings=step.warnings,
+                duration_ms=step.duration_ms,
+                error=step.error,
+            )
+            for step in facts.steps
+        ],
+        items_total=facts.items_total,
+        items_failed=facts.items_failed,
         error=run.error,
     )
-
-
-def _duration_ms(started: datetime | None, finished: datetime | None) -> int | None:
-    """Report how long something took, or nothing when it has not finished."""
-    if started is None or finished is None:
-        return None
-    return round((finished - started).total_seconds() * 1000)

@@ -34,7 +34,7 @@ from dirigent_common.names import (
     is_step_name,
     step_name_error,
 )
-from dirigent_common.programs import JQ_MEDIA_TYPE, SHELL_MEDIA_TYPE
+from dirigent_common.programs import JQ_MEDIA_TYPE, SHELL_MEDIA_TYPE, TEMPLATE_MEDIA_TYPE
 from dirigent_common.schemas import BlockModel, HealthReport, HttpConnectionConfig
 from dirigent_common.sizes import (
     SIZE_PATTERN,
@@ -44,6 +44,7 @@ from dirigent_common.sizes import (
     format_size,
     parse_size,
 )
+from dirigent_common.templating import RenderTooLarge, TemplateError, compile_template, render
 from dirigent_common.types import JsonList, JsonMap
 from dirigent_common.uris import STORAGE_URI_FORMAT, StorageUri
 from dirigent_common.values import spelled
@@ -60,6 +61,7 @@ __all__ = [
     "ENTITY_NAME_PATTERN",
     "JQ_MEDIA_TYPE",
     "SHELL_MEDIA_TYPE",
+    "TEMPLATE_MEDIA_TYPE",
     "SIZE_PATTERN",
     "STORAGE_URI_FORMAT",
     "STEP_NAME_MAX_LENGTH",
@@ -77,19 +79,23 @@ __all__ = [
     "JsonMap",
     "NegativeDuration",
     "NegativeSize",
+    "RenderTooLarge",
     "Size",
     "SizeError",
     "StepName",
     "StorageUri",
+    "TemplateError",
     "as_markdown",
     "entity_name_error",
     "build_client",
+    "compile_template",
     "format_duration",
     "format_size",
     "is_entity_name",
     "is_step_name",
     "parse_duration",
     "parse_size",
+    "render",
     "spelled",
     "step_name_error",
     "to_timedelta",

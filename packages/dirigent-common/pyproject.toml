@@ -8,6 +8,7 @@ license = "LicenseRef-Proprietary"
 license-files = ["LICENSE"]
 dependencies = [
     "httpx2>=2.12.0",
+    "jinja2>=3.1.6",
     # nongpl: the format-nongpl extra pulls permissively-licensed format validators, not the
     # GPL rfc3987 the plain format extra carries -- safe while the project's own licence is undecided.
     "jsonschema[format-nongpl]>=4.23.0",
