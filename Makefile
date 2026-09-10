@@ -27,7 +27,7 @@ COMPOSE_SINKS ?= $(COMPOSE) -f infra/compose.sinks.yaml
 #: Every overlay at once, which is what "take it all away" has to name to reach every volume.
 COMPOSE_ALL ?= $(COMPOSE) -f infra/compose.brokers.yaml -f infra/compose.sql.yaml -f infra/compose.otel.yaml -f infra/compose.sinks.yaml
 
-.PHONY: help install lint static check gate e2e queues-up queues-down schemas dev dev-seeded ui ui-dev ui-lint ui-test ui-e2e ui-gate ui-static ui-wheel docker-build docker-rebuild docker-run docker-run-queues docker-run-sql docker-run-otel docker-run-sinks docker-run-all docker-clean test test-postgres test-s3 test-docker test-queues load coverage docs docs-blocks docs-settings docs-build clean
+.PHONY: help install lint static check gate e2e queues-up queues-down schemas dev dev-seeded ui ui-dev ui-fmt ui-lint ui-test ui-e2e ui-gate ui-static ui-wheel docker-build docker-rebuild docker-run docker-run-queues docker-run-sql docker-run-otel docker-run-sinks docker-run-all docker-clean test test-postgres test-s3 test-docker test-queues load coverage docs docs-blocks docs-settings docs-build clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -114,6 +114,9 @@ ui: ## Build the web UI bundle into $(FRONTEND)/dist, which the server serves fr
 ui-dev: ## Serve the UI with hot reload, proxying the API to a running `dg dev`
 	@echo "Start the API first: dg dev. Override its address with DIRIGENT_DEV_API."
 	cd $(FRONTEND) && bun run dev
+
+ui-fmt: ## Format the UI sources (mutating)
+	$(FRONTEND_INSTALL) && bun run fmt
 
 ui-lint: ## Read-only UI gate: oxlint, the type checker, and the type scale
 	$(FRONTEND_INSTALL) && bun run lint
