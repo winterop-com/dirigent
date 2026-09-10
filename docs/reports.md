@@ -57,10 +57,12 @@ The context is the run's facts, the same ones `dg runs report` summarises.
 | `run.url` | The run in the web UI, when `DIRIGENT_ALERT_BASE_URL` is set |
 | `run.report_url` | Where this document is read, once it is stored |
 | `pipeline.code` / `pipeline.name` / `pipeline.version` | The pipeline version the run pinned |
-| `steps[]` | `step`, `block`, `outcome`, `attempts`, `depends_on`, `warnings`, `duration_ms`, `error`, `output`, `output_uri` |
+| `steps[]` | `step`, `block`, `outcome`, `attempts`, `depends_on`, `warnings`, `duration_ms`, `error`, `output`, `output_uri`, `output_bytes`, in the order a person watched them |
+| `step.<name>` | The same facts by name, so `step.summary.output.value` reads one hop without walking the list |
 | `items[]` | `index`, `key`, `status`, `failing_step`, `error`, for each element of a fan-out |
 | `items_total` / `items_failed` | How many elements there were, and how many of them failed |
 | `url` | The run in the web UI, the same as `run.url` |
+| `rendered_at` | When the text was rendered: the moment the run settled, or the moment a route was asked |
 
 Three filters render a value the way a person reads it:
 
@@ -69,6 +71,11 @@ Three filters render a value the way a person reads it:
 | `duration` | milliseconds | `1m30s` |
 | `bytes` | bytes | `1.5mb` |
 | `iso` | a moment | `2026-01-01T05:00:00+00:00` |
+
+`output` is the step's last attempt's value, and `output_bytes` is how large that value was
+stored -- the artifact row's size where the attempt has one, else the length of the canonical
+JSON -- so `{{ step.load.output_bytes | bytes }}` reads `1.5mb`. Both are null for a step that
+never ran, which is why a template guards on the step before reading into it.
 
 A name the facts do not have renders as empty rather than failing the document. Half a run's
 facts are legitimately null depending on how it ended, so a template reading `run.error` on a
@@ -112,3 +119,26 @@ One document per run, rewritten in place when a retry reopens a settled run and 
 again, so a link an alert already carries keeps resolving. A small document inlines on the
 row; a larger one goes to the run's scratch prefix as `report.md` and is swept with the run
 once `DIRIGENT_RETENTION_RUNS` is set.
+
+## The same context, in an alert
+
+An alert rule reads these facts too. Its `template` is the subject and its `body` is the body,
+both Jinja over this context plus one more name: `report`, the run's rendered report document
+when it has one, so a rule can carry the whole page rather than a link to it.
+
+```bash
+dg alerts rules create nightly-failed --event run_failed --notifier slack \
+  --template '{{ pipeline.code }} failed at {{ step.load.step }}' \
+  --body-file alert-body.md.j2
+```
+
+A rule with no `template` gets `{{ run.pipeline }} run {{ run.status }}`; a rule with no `body`
+gets the run's own facts, one per line. A subject is collapsed to one line and cut at 200
+characters, because that is what a subject is. Both templates are compiled when the rule is
+created, so a syntax error is refused there; a render that fails when the alert is raised falls
+back to the default and leaves a warning in the run's timeline, because an alert is the last
+thing standing between a failure and the person who needs to know.
+
+What the channel does with a body: Slack clips it at 3000 characters, and email sends it as
+plain text. Markdown in a body reaches Slack as mrkdwn and an inbox as the characters you
+wrote.

@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dirigent_client.enums import AttemptStatus, LogLevel, RunItemStatus
 from dirigent_common import JsonMap, render
 from dirigent_core import alerting, telemetry
-from dirigent_core.artifacts import MARKDOWN_CONTENT_TYPE, persist_document
+from dirigent_core.artifacts import MARKDOWN_CONTENT_TYPE, canonical_json, persist_document
 from dirigent_core.engine.definition import PipelineDefinition
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.engine.state import build_step_states, in_execution_order
@@ -30,15 +30,16 @@ DEFAULT_TEMPLATE: Final = """\
 - started: {{ run.started_at | iso }}
 - finished: {{ run.finished_at | iso }}
 - duration: {{ run.duration_ms | duration }}
+- rendered: {{ rendered_at | iso }}
 {% if run.window_start or run.window_end %}
 - window: {{ run.window_start | iso }} to {{ run.window_end | iso }}
 {% endif %}
 
-| step | outcome | attempts | took | warnings |
-| --- | --- | --- | --- | --- |
-{% for step in steps %}
-| {{ step.step }} | {{ step.outcome }} | {{ step.attempts }} | {{ step.duration_ms | duration }} | \
-{{ step.warnings }} |
+| step | outcome | attempts | took | output | warnings |
+| --- | --- | --- | --- | --- | --- |
+{% for name, one in step.items() %}
+| {{ name }} | {{ one.outcome }} | {{ one.attempts }} | {{ one.duration_ms | duration }} | \
+{{ one.output_bytes | bytes }} | {{ one.warnings }} |
 {% endfor %}
 {% if items_failed > 0 %}
 
@@ -89,6 +90,7 @@ class StepFacts(BaseModel):
     error: str | None = None
     output: JsonMap | None = None
     output_uri: str | None = None
+    output_bytes: int | None = None
 
 
 class ItemFacts(BaseModel):
@@ -111,10 +113,14 @@ class RunFacts(BaseModel):
     run: JsonMap
     pipeline: PipelineFacts
     steps: list[StepFacts] = Field(default_factory=list[StepFacts])
+    step: dict[str, StepFacts] = Field(default_factory=dict[str, StepFacts])
+    """The same steps by name, so a template reads one step without filtering the list."""
+
     items: list[ItemFacts] = Field(default_factory=list[ItemFacts])
     items_total: int = 0
     items_failed: int = 0
     url: str | None = None
+    rendered_at: datetime
 
 
 async def attempts_in_order(session: AsyncSession, run_id: UUID, step_order: Sequence[str] = ()) -> list[StepAttempt]:
@@ -164,17 +170,17 @@ def duration_ms(started: datetime | None, finished: datetime | None) -> int | No
     return round((finished - started).total_seconds() * 1000)
 
 
-async def _output_uris(session: AsyncSession, run_id: UUID) -> dict[UUID, str]:
-    """Map each attempt whose output went to storage to the URI it went as.
+async def _output_rows(session: AsyncSession, run_id: UUID) -> dict[UUID, tuple[str | None, int | None]]:
+    """Map each attempt that stored an output to the URI it went as and how large it was.
 
-    An attempt whose output inlined is not in here: its own row carries the value.
+    The URI is null for an attempt whose output inlined: its own row carries the value.
     """
     rows = await session.execute(
-        sa.select(ArtifactRef.step_attempt_id, ArtifactRef.uri).where(
-            ArtifactRef.run_id == run_id, ArtifactRef.uri.is_not(None)
+        sa.select(ArtifactRef.step_attempt_id, ArtifactRef.uri, ArtifactRef.size_bytes).where(
+            ArtifactRef.run_id == run_id, ArtifactRef.step_attempt_id.is_not(None)
         )
     )
-    return {found: uri for found, uri in rows.all() if found is not None and uri is not None}
+    return {found: (uri, size) for found, uri, size in rows.all() if found is not None}
 
 
 async def run_facts(
@@ -185,17 +191,20 @@ async def run_facts(
     definition: PipelineDefinition,
     *,
     base_url: str | None,
+    rendered_at: datetime,
 ) -> RunFacts:
     """Assemble everything there is to say about one run, in one pass of queries."""
     attempts = await attempts_in_order(session, run.id, version.step_order)
     items = await items_in_order(session, run.id)
     warned = await warning_counts(session, run.id)
-    uris = await _output_uris(session, run.id)
+    stored = await _output_rows(session, run.id)
     states = build_step_states(definition, attempts)
     steps: list[StepFacts] = []
     for name in human_order(definition, [attempt.step_name for attempt in attempts]):
         of_step = [attempt for attempt in attempts if attempt.step_name == name]
         last = of_step[-1] if of_step else None
+        output = dict(last.output) if last is not None and last.output is not None else None
+        uri, size = stored.get(last.id, (None, None)) if last is not None else (None, None)
         steps.append(
             StepFacts(
                 step=name,
@@ -212,14 +221,16 @@ async def run_facts(
                     (one.error for one in of_step if one.status is AttemptStatus.FAILED and one.error),
                     None,
                 ),
-                output=dict(last.output) if last is not None and last.output is not None else None,
-                output_uri=uris.get(last.id) if last is not None else None,
+                output=output,
+                output_uri=uri,
+                output_bytes=size if size is not None else _json_bytes(output),
             )
         )
     return RunFacts(
         run=_run_namespace(run, pipeline, base_url=base_url),
         pipeline=PipelineFacts(code=pipeline.code, name=pipeline.name, version=version.version),
         steps=steps,
+        step={step.step: step for step in steps},
         items=[
             ItemFacts(
                 index=item.item_index,
@@ -233,7 +244,13 @@ async def run_facts(
         items_total=len(items),
         items_failed=sum(1 for item in items if item.status is RunItemStatus.FAILED),
         url=f"{base_url.rstrip('/')}/runs/{run.id}" if base_url else None,
+        rendered_at=rendered_at,
     )
+
+
+def _json_bytes(output: JsonMap | None) -> int | None:
+    """Measure an output the way the engine stores it, for a step whose artifact row is gone."""
+    return None if output is None else len(canonical_json(output))
 
 
 def _run_namespace(run: Run, pipeline: Pipeline, *, base_url: str | None) -> JsonMap:
@@ -246,17 +263,37 @@ def _run_namespace(run: Run, pipeline: Pipeline, *, base_url: str | None) -> Jso
     return namespace
 
 
+async def facts_of_run(
+    session: AsyncSession,
+    run: Run,
+    definition: PipelineDefinition,
+    *,
+    base_url: str | None,
+    rendered_at: datetime,
+) -> RunFacts:
+    """Assemble one run's facts from the run alone, reading the pipeline and version it pins."""
+    pipeline = await session.get(Pipeline, run.pipeline_id)
+    version = await session.get(PipelineVersion, run.pipeline_version_id)
+    if pipeline is None or version is None:  # pragma: no cover - the foreign keys make this unreachable
+        raise RuntimeError(f"run {run.id} names a pipeline or a version that is gone")
+    return await run_facts(session, run, pipeline, version, definition, base_url=base_url, rendered_at=rendered_at)
+
+
 def as_context(facts: RunFacts) -> JsonMap:
     """Render the facts as the plain JSON a template and a stored notification read."""
     return facts.model_dump(mode="json")
 
 
 class RenderedReport(BaseModel):
-    """What a settling run's report amounted to: its facts, and the document when there is one."""
+    """What a settling run's report amounted to: its facts, and the document when there is one.
+
+    ``facts`` is null for a run whose document declared no ``report:`` section: nothing has
+    asked for them yet, and an alert rule that wants them builds them itself.
+    """
 
     model_config = ConfigDict(frozen=True)
 
-    facts: RunFacts
+    facts: RunFacts | None = None
     markdown: str | None = None
     artifact_id: UUID | None = None
 
@@ -272,16 +309,13 @@ async def render_run_report(
     """Render and store the document a settling run owes, and never fail the run doing it.
 
     Called from the transaction that settles the run, so the facts are the ones the alerts it
-    owes are raised over. A template that loops, overflows or names nothing leaves a warning
-    in the run's timeline and no document.
+    owes are raised over. A run whose document declares no ``report:`` section costs nothing
+    here: the facts are a pass of queries, and nothing has asked for them. A template that
+    loops, overflows or names nothing leaves a warning in the run's timeline and no document.
     """
-    pipeline = await session.get(Pipeline, run.pipeline_id)
-    version = await session.get(PipelineVersion, run.pipeline_version_id)
-    if pipeline is None or version is None:  # pragma: no cover - the foreign keys make this unreachable
-        raise RuntimeError(f"run {run.id} names a pipeline or a version that is gone")
-    facts = await run_facts(session, run, pipeline, version, definition, base_url=services.settings.alert_base_url)
     if definition.report is None:
-        return RenderedReport(facts=facts)
+        return RenderedReport()
+    facts = await facts_of_run(session, run, definition, base_url=services.settings.alert_base_url, rendered_at=now)
     template = definition.report.template or DEFAULT_TEMPLATE
     try:
         markdown = await asyncio.wait_for(

@@ -28,7 +28,7 @@ from dirigent_core.alerting import (
     list_rules,
     queue_test_message,
     retry_notification,
-    set_paused,
+    update_rule,
 )
 from dirigent_core.models import AlertRule, Connection, Notification, Pipeline, Run
 from dirigent_server.dependencies import ServicesDep, SessionDep
@@ -52,6 +52,7 @@ def render(rule: AlertRule, pipeline: str | None, connection: str | None = None)
         notifier=rule.notifier,
         connection=connection,
         template=rule.template,
+        body=rule.body,
         throttle=format_duration(timedelta(seconds=rule.throttle_seconds)),
         active=rule.active,
         paused=rule.paused,
@@ -107,6 +108,7 @@ async def add_rule(
                 pipeline=payload.pipeline,
                 connection=payload.connection,
                 template=payload.template,
+                body=payload.body,
                 throttle=payload.throttle,
             ),
         )
@@ -118,17 +120,21 @@ async def add_rule(
 @router.patch(
     "/alert-rules/{code}",
     operation_id="updateAlertRule",
-    summary="Pause or resume an alert rule",
+    summary="Change an alert rule",
     response_model=AlertRuleOut,
 )
 async def change_rule(code: str, payload: AlertRuleUpdate, session: SessionDep, principal: OperatorDep) -> AlertRuleOut:
-    """Hold a rule's deliveries, or let them resume.
+    """Hold a rule's deliveries, let them resume, or rewrite what it says.
 
     Pausing is instance state on the row rather than something the rule declares, so a rule an
-    operator held keeps holding when the document that declared it is applied again.
+    operator held keeps holding when the document that declared it is applied again. A field
+    the caller left out is left as it was.
     """
     rule = await _rule_or_404(session, code)
-    await set_paused(session, rule, paused=payload.paused)
+    try:
+        await update_rule(session, rule, payload.model_dump(exclude_unset=True))
+    except AlertError as error:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)) from error
     return render(rule, await _pipeline_code(session, rule), await _connection_code(session, rule.connection_id))
 
 

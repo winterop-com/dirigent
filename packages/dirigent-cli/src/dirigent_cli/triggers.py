@@ -441,12 +441,22 @@ def alerts_rules_create(
     description: Annotated[str | None, typer.Option("--description", help="What this rule is for.")] = None,
     pipeline: Annotated[str | None, typer.Option("--pipeline", help="Watch one pipeline instead of all.")] = None,
     connection: Annotated[str | None, typer.Option("--connection", help="The credential the channel uses.")] = None,
-    template: Annotated[str | None, typer.Option("--template", help="Subject template, reading ${run.*}.")] = None,
+    template: Annotated[
+        str | None, typer.Option("--template", help="Subject, a Jinja template over the run's facts.")
+    ] = None,
+    body: Annotated[str | None, typer.Option("--body", help="Body, a Jinja template over the run's facts.")] = None,
+    body_file: Annotated[
+        Path | None, typer.Option("--body-file", help="Read the body template from a file instead.")
+    ] = None,
     throttle: Annotated[str, typer.Option("--throttle", help="At most one message per window, e.g. 15m.")] = "0s",
 ) -> None:
     """Declare an alert rule binding an event at a scope to a channel."""
     if event not in set(AlertEvent):
         _fail(f"{event!r} is not an alert event ({', '.join(sorted(AlertEvent))})")
+    if body is not None and body_file is not None:
+        _fail("a rule takes one body: --body or --body-file, not both")
+    if body_file is not None:
+        body = body_file.read_text()
     with client_for(state_of(ctx)) as dg:
         created = dg.call(
             dg.alerts.create_rule(
@@ -459,6 +469,7 @@ def alerts_rules_create(
                 pipeline=pipeline,
                 connection=connection,
                 template=template,
+                body=body,
                 throttle=throttle,
             )
         )
@@ -471,6 +482,8 @@ def alerts_rules_create(
         scope=created.pipeline or created.scope.value,
         notifier=created.notifier,
         connection=created.connection,
+        template=created.template is not None,
+        body=created.body is not None,
         throttle=created.throttle,
     )
 

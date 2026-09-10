@@ -693,7 +693,7 @@ verb and whose fields are the identity of what changed:
 | `webhook.created` | `dg webhook create` | `code`, `pipeline`, the `url` to POST to, and the `token` itself, once |
 | `webhook.token_rotated` | `dg webhook rotate-token` | `code`, `pipeline`, `url`, and the new `token`, once |
 | `webhook.deleted` | `dg webhook delete` | `code`, `pipeline` |
-| `alert_rule.created` / `.paused` / `.resumed` / `.deleted` | `dg alerts rules …` | `code`, `event`, `notifier`, and a new one's `scope`, `connection`, `throttle` |
+| `alert_rule.created` / `.paused` / `.resumed` / `.deleted` | `dg alerts rules …` | `code`, `event`, `notifier`, and a new one's `scope`, `connection`, `throttle`, and `template` and `body` as booleans saying whether the rule carries one |
 | `notification.queued` | `dg alerts test` | `notification_id`, `notifier`, `connection`, `subject` |
 | `notification.retried` | `dg alerts retry` | `notification_id`, `notifier`, `subject`, `attempt`, `available_at` |
 | `connection.checked` | `dg connection check` | `code`, `healthy`, `detail`, `version` |
@@ -886,7 +886,8 @@ dg trigger-document list | show CODE | delete CODE
 dg alerts rules list | pause | resume | delete CODE
 dg alerts rules create CODE --event run_failed --notifier log
                             [--name TEXT] [--description TEXT]
-                            [--pipeline P] [--connection C] [--template T] [--throttle 0s]
+                            [--pipeline P] [--connection C] [--throttle 0s]
+                            [--template T] [--body T | --body-file F]
 dg alerts test NOTIFIER [--connection CODE] [--subject TEXT]
 dg alerts queue
 dg alerts retry NOTIFICATION
@@ -1106,9 +1107,18 @@ that answers "the upstream system says it has been calling us all night".
 
 ```bash
 dg alerts rules create page-ops --event run_failed --notifier log --throttle 15m
+dg alerts rules create loud --event run_failed --notifier log \
+  --template '{{ pipeline.code }} failed after {{ run.duration_ms | duration }}' \
+  --body-file alert-body.md.j2
 dg alerts test log                          # one message, through the real queue
 dg alerts queue                             # what is queued, sent, or stuck
 ```
+
+`--template` is the subject and `--body` is the body, both Jinja templates over the run's
+facts; `--body-file` reads the body from a file instead, and naming both is refused. A rule
+with neither says `{{ run.pipeline }} run {{ run.status }}` over the run's facts one per line.
+Both are compiled when the rule is created, so a template that does not compile is refused
+here with the line it broke on. [Report documents](reports.md) is the context reference.
 
 The channels a rule may name, and the connection each one delivers through, are in
 [notifier channels](operations.md#notifier-channels).

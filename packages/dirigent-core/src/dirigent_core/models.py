@@ -474,6 +474,11 @@ class AlertRule(Entity):
     notifier: Mapped[str] = mapped_column(sa.String(100), nullable=False)
     connection_id: Mapped[UUID | None] = mapped_column(sa.ForeignKey("connections.id", ondelete="RESTRICT"))
     template: Mapped[str | None] = mapped_column(sa.Text)
+    """The subject, a Jinja template over the run's facts; the module's default when null."""
+
+    body: Mapped[str | None] = mapped_column(sa.Text)
+    """The body, a Jinja template over the same facts; the run's facts one per line when null."""
+
     throttle_seconds: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0, server_default=sa.text("0"))
     active: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=True, server_default=sa.true())
     paused: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False, server_default=sa.false())

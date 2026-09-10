@@ -1,6 +1,7 @@
 """A run's facts, assembled from a run driven to settlement by the engine."""
 
 import json
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -12,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from dirigent_client.enums import AlertEvent, LogLevel, RunItemStatus, RunStatus
 from dirigent_common import render
 from dirigent_core.alerting import AlertRuleRequest, create_rule
-from dirigent_core.artifacts import load_document
+from dirigent_core.artifacts import canonical_json, load_document
 from dirigent_core.config import Settings
 from dirigent_core.database import session_scope
 from dirigent_core.engine import EngineServices
@@ -33,6 +34,8 @@ from engineblocks import EngineTestPlugin, FailOperator
 from test_engine import drain, reload, start, steps
 
 FAST_RETRY = RetryPolicy(max_attempts=1)
+
+RENDERED_AT = datetime(2026, 1, 1, 5, 0, tzinfo=UTC)
 
 CHAIN = PipelineDefinition(
     code="reported-chain",
@@ -62,7 +65,9 @@ async def facts_of(
         version = await session.get(PipelineVersion, reloaded.pipeline_version_id)
         assert pipeline is not None
         assert version is not None
-        return await run_facts(session, reloaded, pipeline, version, definition, base_url=base_url)
+        return await run_facts(
+            session, reloaded, pipeline, version, definition, base_url=base_url, rendered_at=RENDERED_AT
+        )
 
 
 async def test_a_settled_chain_reports_its_steps_in_execution_order(
@@ -183,6 +188,62 @@ async def test_a_step_names_the_uri_its_output_spilled_to(sessions: Any, setting
     assert facts.steps[0].output == {"value": "hei", "length": 3}
 
 
+async def test_the_step_map_and_the_step_list_are_the_same_facts(
+    engine: Engine, sessions: Any, services: EngineServices
+) -> None:
+    """A template reads one hop by name, and it reads what the list says about that hop."""
+    run = await start(sessions, services, CHAIN)
+    await drain(engine)
+    facts = await facts_of(sessions, run, CHAIN)
+
+    assert list(facts.step) == [step.step for step in facts.steps], "the map keeps execution order"
+    assert facts.step["second"] is facts.steps[1]
+    context = as_context(facts)
+    assert context["step"]["second"] == context["steps"][1]
+    assert context["step"]["second"]["output"]["value"] == "hei again"
+
+
+async def test_a_step_says_how_large_its_output_was(engine: Engine, sessions: Any, services: EngineServices) -> None:
+    """The bytes are the stored output's, so the `bytes` filter has a size to render."""
+    run = await start(sessions, services, CHAIN)
+    await drain(engine)
+    facts = await facts_of(sessions, run, CHAIN)
+
+    first = facts.step["first"]
+    assert first.output is not None
+    assert first.output_bytes == len(canonical_json(first.output))
+    async with sessions() as session:
+        rows = await session.execute(
+            sa.select(ArtifactRef.size_bytes).where(ArtifactRef.run_id == run.id, ArtifactRef.step_name == "first")
+        )
+        assert rows.scalar_one() == first.output_bytes
+
+
+async def test_a_step_that_never_ran_carries_no_size(engine: Engine, sessions: Any, services: EngineServices) -> None:
+    definition = PipelineDefinition(
+        code="reported-halt",
+        steps=steps(
+            only=StepDefinition(block="test.fail", config={"fail_times": 1}, retry=FAST_RETRY),
+            after=StepDefinition(block="test.echo", depends_on=["only"]),
+        ),
+    )
+    run = await start(sessions, services, definition)
+    await drain(engine)
+    facts = await facts_of(sessions, run, definition)
+
+    assert facts.step["after"].output is None
+    assert facts.step["after"].output_bytes is None
+
+
+async def test_the_facts_say_when_they_were_assembled(engine: Engine, sessions: Any, services: EngineServices) -> None:
+    run = await start(sessions, services, CHAIN)
+    await drain(engine)
+    facts = await facts_of(sessions, run, CHAIN)
+
+    assert facts.rendered_at == RENDERED_AT
+    assert as_context(facts)["rendered_at"] == "2026-01-01T05:00:00Z", "an ISO 8601 instant, for the iso filter"
+
+
 # -- the report document ---------------------------------------------------------
 
 REPORTED = CHAIN.model_copy(update={"code": "reported-document", "report": ReportSpec()})
@@ -281,7 +342,7 @@ async def test_the_built_in_document_reads_as_the_markdown_it_is(
     text = render(DEFAULT_TEMPLATE, as_context(facts), max_bytes=1_000_000)
     lines = text.splitlines()
     assert lines[0] == "# reported-document run succeeded"
-    assert lines.count("| step | outcome | attempts | took | warnings |") == 1
+    assert lines.count("| step | outcome | attempts | took | output | warnings |") == 1
     assert len([line for line in lines if line.startswith("| ") and " | succeeded | " in line]) == 2
     assert "## Failed items" not in text
     assert "## Error" not in text
@@ -421,3 +482,61 @@ async def test_an_alert_for_a_run_with_no_report_names_no_document(
         rows = await session.execute(sa.select(Notification).where(Notification.run_id == run.id))
         notification = rows.scalar_one()
     assert notification.context["run"]["report_url"] is None
+
+
+# -- what a settlement pays for ---------------------------------------------------
+
+
+@pytest.fixture
+def counted_facts(monkeypatch: pytest.MonkeyPatch) -> list[UUID]:
+    """Record the run of every facts assembly, so a settlement's cost is countable."""
+    from dirigent_core import reporting
+
+    assembled: list[UUID] = []
+    original = reporting.run_facts
+
+    async def counting(session: Any, run: Run, *args: Any, **kwargs: Any) -> RunFacts:
+        assembled.append(run.id)
+        return await original(session, run, *args, **kwargs)
+
+    monkeypatch.setattr(reporting, "run_facts", counting)
+    return assembled
+
+
+async def test_a_run_with_no_report_and_no_rule_assembles_no_facts(
+    engine: Engine, sessions: Any, services: EngineServices, counted_facts: list[UUID]
+) -> None:
+    """Nothing asked for the facts, so settling the run does not pay for them."""
+    await start(sessions, services, CHAIN)
+    await drain(engine)
+
+    assert counted_facts == []
+
+
+async def test_a_declared_report_assembles_the_facts_once(
+    engine: Engine, sessions: Any, services: EngineServices, counted_facts: list[UUID]
+) -> None:
+    run = await start(sessions, services, REPORTED)
+    await drain(engine)
+
+    assert counted_facts == [run.id], "rendered once, and the alerts reuse what it built"
+
+
+async def test_a_matching_rule_assembles_the_facts_a_report_did_not(
+    engine: Engine, sessions: Any, services: EngineServices, counted_facts: list[UUID]
+) -> None:
+    """A rule reads the whole facts, so a pipeline with a rule and no report still gets them."""
+    async with session_scope(sessions) as session:
+        await create_rule(
+            session,
+            services,
+            AlertRuleRequest(code="tell-ops", event=AlertEvent.RUN_SUCCEEDED, notifier="recording"),
+        )
+    run = await start(sessions, services, CHAIN)
+    await drain(engine)
+
+    assert counted_facts == [run.id]
+    async with sessions() as session:
+        rows = await session.execute(sa.select(Notification).where(Notification.run_id == run.id))
+        notification = rows.scalar_one()
+    assert [step["step"] for step in notification.context["steps"]] == ["first", "second"]

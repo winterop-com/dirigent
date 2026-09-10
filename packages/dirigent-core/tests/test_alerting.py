@@ -13,10 +13,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from structlog.testing import capture_logs
 
 from dirigent_client.enums import AlertEvent, AlertScope, LogLevel, NotificationStatus, RunStatus, TriggerKind
-from dirigent_common import JsonMap
+from dirigent_common import JsonMap, render
 from dirigent_core.alerting import (
     DEFAULT_TEMPLATE,
     EVENT_FOR_STATUS,
+    SUBJECT_CAP,
     AlertError,
     AlertRuleRequest,
     NotificationDispatcher,
@@ -34,12 +35,12 @@ from dirigent_core.alerting import (
     raise_for_status,
     raise_for_stuck,
     recover_notifications,
-    render_template,
     renew_lease,
     retry_notification,
     send_notification,
     set_paused,
     throttled_until,
+    update_rule,
 )
 from dirigent_core.config import Settings
 from dirigent_core.database import session_scope
@@ -304,41 +305,29 @@ async def entries_of(sessions: async_sessionmaker[AsyncSession], run_id: UUID) -
         return list(rows.scalars())
 
 
-# -- render_template -------------------------------------------------------------
+# -- what a template reads -------------------------------------------------------
 
 
-def test_a_template_resolves_the_run_facts_it_names() -> None:
+def test_a_template_reads_the_run_facts_it_names() -> None:
     context = build_context(a_run(), a_pipeline())
-    assert render_template("${run.pipeline} run ${run.status}", context) == "nightly run failed"
+    assert render(DEFAULT_TEMPLATE, context, max_bytes=SUBJECT_CAP) == "nightly run failed"
 
 
-def test_a_template_resolves_a_nested_path() -> None:
+def test_a_template_reads_a_nested_path() -> None:
     context = build_context(a_run(params={"day": "2026-08-28"}), a_pipeline())
-    assert render_template("loading ${run.params.day}", context) == "loading 2026-08-28"
+    assert render("loading {{ run.params.day }}", context, max_bytes=SUBJECT_CAP) == "loading 2026-08-28"
 
 
-def test_an_unresolvable_reference_is_left_verbatim_rather_than_blanked() -> None:
+def test_a_name_the_facts_do_not_have_renders_empty() -> None:
+    """A typo degrades to a thinner message, never to no message."""
     context = build_context(a_run(), a_pipeline())
-    assert render_template("${run.typo} and ${nothing.at.all}", context) == "${run.typo} and ${nothing.at.all}"
-    assert render_template("${run.status.deeper}", context) == "${run.status.deeper}"
+    assert render("{{ run.typo }}|{{ nothing.at.all }}", context, max_bytes=SUBJECT_CAP) == "|"
+    assert render("{{ run.status.deeper }}", context, max_bytes=SUBJECT_CAP) == ""
 
 
-def test_a_template_with_no_references_is_its_own_rendering() -> None:
-    assert render_template("the nightly load needs looking at", {}) == "the nightly load needs looking at"
-
-
-def test_a_boolean_renders_as_a_word_and_a_null_renders_as_nothing() -> None:
-    context: JsonMap = {"flag": True, "off": False, "nothing": None}
-    assert render_template("${flag} ${off}", context) == "true false"
-    # A null is a resolved value, not a missing one, so it renders as empty rather than as
-    # the reference printed back.
-    assert render_template("${nothing}", context) == ""
-
-
-def test_an_empty_reference_names_nothing_and_is_left_alone() -> None:
-    # Rendering it would splice a Python dict repr into the alert, so it is left visible.
-    assert render_template("${ }", {"run": {"pipeline": "nightly"}}) == "${ }"
-    assert render_template("${}", {"run": {"pipeline": "nightly"}}) == "${}"
+def test_a_template_with_no_names_is_its_own_rendering() -> None:
+    text = "the nightly load needs looking at"
+    assert render(text, {}, max_bytes=SUBJECT_CAP) == text
 
 
 # -- build_context ---------------------------------------------------------------
@@ -463,7 +452,8 @@ async def test_a_rule_records_its_scope_its_channel_and_its_throttle(
             scope=AlertScope.PIPELINE,
             pipeline="nightly",
             connection="desk",
-            template="${run.pipeline} is unhappy",
+            template="{{ run.pipeline }} is unhappy",
+            body="{{ run.error }}",
             throttle=timedelta(minutes=15),
         ),
     )
@@ -756,7 +746,7 @@ async def test_the_default_subject_is_the_one_the_module_declares(
         stored = await session.get(Run, run.id)
         assert stored is not None
         queued = await raise_for_run(session, services, stored, AlertEvent.RUN_FAILED, now=NOW)
-    assert queued[0].subject == render_template(DEFAULT_TEMPLATE, queued[0].context)
+    assert queued[0].subject == "nightly run failed"
 
 
 async def test_raising_writes_the_alert_into_the_runs_own_timeline(
@@ -897,6 +887,251 @@ async def test_a_sweep_with_nothing_stuck_queues_nothing(
     )
     async with session_scope(sessions) as session:
         assert await raise_for_stuck(session, services, [], now=NOW) == 0
+
+
+# -- what a rule says --------------------------------------------------------------
+
+
+async def raise_one(
+    sessions: async_sessionmaker[AsyncSession],
+    services: EngineServices,
+    run: Run,
+    *,
+    report: str | None = None,
+) -> Notification:
+    """Raise a run's alerts and hand back the one message they queued."""
+    async with session_scope(sessions) as session:
+        stored = await session.get(Run, run.id)
+        assert stored is not None
+        queued = await raise_for_run(session, services, stored, AlertEvent.RUN_FAILED, now=NOW, report=report)
+    assert len(queued) == 1
+    return queued[0]
+
+
+async def test_a_subject_and_a_body_render_over_the_runs_whole_facts(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    run = await stored_run(sessions, services)
+    await declare(
+        sessions,
+        services,
+        AlertRuleRequest(
+            code="page-ops",
+            event=AlertEvent.RUN_FAILED,
+            notifier="recording",
+            template="{{ pipeline.code }} v{{ pipeline.version }} {{ run.status }}",
+            body="{{ run.error }} after {{ run.duration_ms | duration }}",
+        ),
+    )
+    queued = await raise_one(sessions, services, run)
+
+    assert queued.subject == "nightly v1 failed"
+    assert queued.body == "the loader gave up after 2m"
+
+
+async def test_a_body_reads_the_report_document_the_run_rendered(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    """The document is what the body may carry; it is not stored on the notification."""
+    run = await stored_run(sessions, services)
+    await declare(
+        sessions,
+        services,
+        AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, notifier="recording", body="{{ report }}"),
+    )
+    queued = await raise_one(sessions, services, run, report="# what happened\n\nnot much")
+
+    assert queued.body == "# what happened\n\nnot much"
+    assert "report" not in queued.context
+
+
+async def test_a_body_reads_one_step_by_name(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    run = await stored_run(sessions, services)
+    await declare(
+        sessions,
+        services,
+        AlertRuleRequest(
+            code="page-ops",
+            event=AlertEvent.RUN_FAILED,
+            notifier="recording",
+            body="only: {{ step.only.outcome }} on {{ step.only.block }}",
+        ),
+    )
+    queued = await raise_one(sessions, services, run)
+
+    assert queued.body == "only: running on test.echo"
+
+
+async def test_a_name_the_facts_do_not_have_renders_empty_in_a_body(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    run = await stored_run(sessions, services)
+    await declare(
+        sessions,
+        services,
+        AlertRuleRequest(
+            code="page-ops", event=AlertEvent.RUN_FAILED, notifier="recording", body="[{{ step.gone.outcome }}]"
+        ),
+    )
+    queued = await raise_one(sessions, services, run)
+
+    assert queued.body == "[]"
+    assert await entries_of(sessions, run.id) == [] or all(
+        entry.level is LogLevel.INFO for entry in await entries_of(sessions, run.id)
+    ), "an undefined name is not a failure"
+
+
+async def test_a_rule_whose_template_does_not_compile_is_refused_at_creation(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    with pytest.raises(AlertError, match="template is not a Jinja template: line 1"):
+        await declare(
+            sessions,
+            services,
+            AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, notifier="recording", template="{% for %}"),
+        )
+    with pytest.raises(AlertError, match="body is not a Jinja template: line 2"):
+        await declare(
+            sessions,
+            services,
+            AlertRuleRequest(
+                code="page-ops", event=AlertEvent.RUN_FAILED, notifier="recording", body="fine\n{% endif %}"
+            ),
+        )
+    async with sessions() as session:
+        assert await find_rule(session, "page-ops") is None
+
+
+async def test_a_body_over_the_cap_falls_back_with_a_warning_in_the_runs_timeline(
+    sessions: async_sessionmaker[AsyncSession], settings: Settings, host: PluginHost
+) -> None:
+    """An alert is the last thing between a failure and the person who needs to know."""
+    services = EngineServices.build(settings.model_copy(update={"report_max_size": 64}), host)
+    run = await stored_run(sessions, services)
+    await declare(
+        sessions,
+        services,
+        AlertRuleRequest(
+            code="page-ops",
+            event=AlertEvent.RUN_FAILED,
+            notifier="recording",
+            body="{% for index in range(1000) %}every single line of it, again{% endfor %}",
+        ),
+    )
+    queued = await raise_one(sessions, services, run)
+
+    assert queued.body.startswith("id: ")
+    assert "pipeline: nightly" in queued.body, "the default body, the run's facts one per line"
+    warned = [entry for entry in await entries_of(sessions, run.id) if entry.level is LogLevel.WARNING]
+    assert [entry.message for entry in warned] == [
+        "the body of alert 'page-ops' was not rendered, so the default was sent"
+    ]
+    assert "64b" in str((warned[0].fields or {})["reason"])
+
+
+async def test_a_subject_is_one_line_and_no_longer_than_the_cap(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    run = await stored_run(sessions, services)
+    await declare(
+        sessions,
+        services,
+        AlertRuleRequest(
+            code="page-ops",
+            event=AlertEvent.RUN_FAILED,
+            notifier="recording",
+            template="{{ run.pipeline }}\n  is\n\tunhappy: {{ 'x' * 300 }}",
+        ),
+    )
+    queued = await raise_one(sessions, services, run)
+
+    assert "\n" not in queued.subject
+    assert queued.subject.startswith("nightly is unhappy: xxx")
+    assert len(queued.subject) == SUBJECT_CAP
+
+
+async def test_a_subject_that_renders_past_its_cap_falls_back_to_the_default(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    run = await stored_run(sessions, services)
+    await declare(
+        sessions,
+        services,
+        AlertRuleRequest(
+            code="page-ops",
+            event=AlertEvent.RUN_FAILED,
+            notifier="recording",
+            template="{% for index in range(1000) %}every single line of it, again{% endfor %}",
+        ),
+    )
+    queued = await raise_one(sessions, services, run)
+
+    assert queued.subject == "nightly run failed"
+    warned = [entry for entry in await entries_of(sessions, run.id) if entry.level is LogLevel.WARNING]
+    assert [entry.message for entry in warned] == [
+        "the subject of alert 'page-ops' was not rendered, so the default was sent"
+    ]
+
+
+async def test_a_stuck_runs_subject_renders_over_the_facts_it_has(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    """A stuck run is still running, so its facts are the ones a sweep can see."""
+    run = await stored_run(sessions, services, status=RunStatus.RUNNING)
+    await declare(
+        sessions,
+        services,
+        AlertRuleRequest(
+            code="page-ops",
+            event=AlertEvent.RUN_STUCK,
+            notifier="recording",
+            template="{{ run.pipeline }} has not moved",
+        ),
+    )
+    async with session_scope(sessions) as session:
+        assert await raise_for_stuck(session, services, [run.id], now=NOW) == 1
+    queued = await notifications_of(sessions)
+
+    assert [notification.subject for notification in queued] == ["nightly has not moved"]
+
+
+async def test_a_test_message_renders_the_template_a_person_is_trying_out(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    async with session_scope(sessions) as session:
+        queued = await queue_test_message(
+            session,
+            services,
+            notifier="recording",
+            subject="{{ run.pipeline }} run {{ run.status }}",
+            body="a body over {{ run.pipeline }}",
+        )
+    assert queued.subject == "(test) run succeeded"
+    assert queued.body == "a body over (test)"
+
+
+async def test_a_rules_templates_can_be_rewritten_and_a_bad_one_is_refused(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    rule = await declare(
+        sessions, services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, notifier="recording")
+    )
+    async with session_scope(sessions) as session:
+        stored = await session.get(AlertRule, rule.id)
+        assert stored is not None
+        await update_rule(session, stored, {"body": "{{ run.error }}"})
+    async with sessions() as session:
+        found = await find_rule(session, "page-ops")
+        assert found is not None
+        assert found.body == "{{ run.error }}"
+        assert found.template is None, "a field the caller did not name is left as it was"
+    async with session_scope(sessions) as session:
+        stored = await session.get(AlertRule, rule.id)
+        assert stored is not None
+        with pytest.raises(AlertError, match="template is not a Jinja template"):
+            await update_rule(session, stored, {"template": "{% endfor %}"})
 
 
 # -- claiming ----------------------------------------------------------------------

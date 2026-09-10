@@ -331,6 +331,39 @@ def test_a_rule_carries_the_connection_it_delivers_through(client: TestClient) -
     assert listed[0]["paused"] is False
 
 
+def test_a_rule_carries_a_subject_and_a_body_template(client: TestClient) -> None:
+    declared = client.post(
+        f"{PREFIX}/alert-rules",
+        json={
+            "code": "page-ops",
+            "event": "run_failed",
+            "notifier": "log",
+            "template": "{{ run.pipeline }} is unhappy",
+            "body": "{{ report }}",
+        },
+    )
+    assert declared.status_code == 201
+    assert declared.json()["template"] == "{{ run.pipeline }} is unhappy"
+    assert declared.json()["body"] == "{{ report }}"
+    read = client.get(f"{PREFIX}/alert-rules").json()["items"][0]
+    assert read["body"] == "{{ report }}"
+    rewritten = client.patch(f"{PREFIX}/alert-rules/page-ops", json={"body": "{{ run.error }}"})
+    assert rewritten.status_code == 200
+    assert rewritten.json()["body"] == "{{ run.error }}"
+    assert rewritten.json()["template"] == "{{ run.pipeline }} is unhappy", "what was not named is left"
+
+
+def test_a_rule_whose_body_does_not_compile_is_refused(client: TestClient) -> None:
+    refused = client.post(
+        f"{PREFIX}/alert-rules",
+        json={"code": "page-ops", "event": "run_failed", "notifier": "log", "body": "{% endfor %}"},
+    )
+    assert refused.status_code == 422
+    assert "body is not a Jinja template" in refused.json()["detail"]
+    client.post(f"{PREFIX}/alert-rules", json={"code": "page-ops", "event": "run_failed", "notifier": "log"})
+    assert client.patch(f"{PREFIX}/alert-rules/page-ops", json={"template": "{% if %}"}).status_code == 422
+
+
 def test_a_rule_is_paused_and_resumed_on_the_row(client: TestClient) -> None:
     client.post(f"{PREFIX}/alert-rules", json={"code": "page-ops", "event": "run_failed", "notifier": "log"})
     paused = client.patch(f"{PREFIX}/alert-rules/page-ops", json={"paused": True})

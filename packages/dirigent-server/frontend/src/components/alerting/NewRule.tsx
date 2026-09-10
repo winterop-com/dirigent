@@ -84,6 +84,7 @@ export function NewRule({
             pipeline: scope === 'pipeline' ? pipeline : null,
             connection: needsConnection(notifier) ? connection : null,
             template: given(template),
+            body: null,
             throttle: throttle.trim(),
         })
             .then(
@@ -187,7 +188,7 @@ export function NewRule({
                     label="Subject"
                     value={template}
                     onChange={setTemplate}
-                    placeholder="${run.pipeline} run ${run.status}"
+                    placeholder="{{ run.pipeline }} run {{ run.status }}"
                     mono
                     hint={SUBJECT_HINT}
                 />

@@ -24,6 +24,7 @@ function aRule(over: Partial<AlertRuleOut> = {}): AlertRuleOut {
         notifier: 'log',
         connection: null,
         template: null,
+        body: null,
         throttle: '0s',
         active: true,
         paused: false,

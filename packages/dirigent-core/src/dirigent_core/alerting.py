@@ -6,7 +6,7 @@ coarser guard against a flapping pipeline.
 """
 
 import asyncio
-from collections.abc import AsyncGenerator, Sequence
+from collections.abc import AsyncGenerator, Mapping, Sequence
 from contextlib import asynccontextmanager, suppress
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Final, cast
@@ -18,12 +18,29 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from dirigent_client.enums import AlertEvent, AlertScope, LogLevel, NotificationStatus, RunStatus
-from dirigent_common import EntityName, JsonMap, format_duration
+from dirigent_common import (
+    EntityName,
+    JsonMap,
+    RenderTooLarge,
+    TemplateError,
+    compile_template,
+    format_duration,
+    render,
+)
 from dirigent_core.database import session_scope
-from dirigent_core.engine.references import substitute
+from dirigent_core.engine.definition import load_definition
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.logging import get_logger
-from dirigent_core.models import AlertRule, Connection, LogEntry, Notification, Pipeline, Run, utcnow
+from dirigent_core.models import (
+    AlertRule,
+    Connection,
+    LogEntry,
+    Notification,
+    Pipeline,
+    PipelineVersion,
+    Run,
+    utcnow,
+)
 from dirigent_plugin import AlertMessage, Notifier
 
 if TYPE_CHECKING:
@@ -35,7 +52,13 @@ EVENT_FOR_STATUS: dict[RunStatus, AlertEvent] = {
     RunStatus.SUCCEEDED: AlertEvent.RUN_SUCCEEDED,
 }
 
-DEFAULT_TEMPLATE = "${run.pipeline} run ${run.status}"
+DEFAULT_TEMPLATE = "{{ run.pipeline }} run {{ run.status }}"
+
+#: The characters a subject is cut to, which is what a subject line is.
+SUBJECT_CAP: Final = 200
+
+#: What a subject may render before it is refused: room to be cut rather than lost.
+SUBJECT_RENDER_CAP: Final = 8 * SUBJECT_CAP
 
 CLAIM_LIMIT = 1
 
@@ -63,38 +86,8 @@ class AlertRuleRequest(BaseModel):
     pipeline: str | None = None
     connection: str | None = None
     template: str | None = None
+    body: str | None = None
     throttle: timedelta = timedelta(0)
-
-
-#: Stands in for "this path names nothing", which is not the same as naming a null.
-MISSING: Final = object()
-
-
-def render_template(template: str, context: JsonMap) -> str:
-    """Render an alert's message, resolving ``${run.*}`` against the run's own facts.
-
-    An unresolvable reference is left verbatim rather than raised or blanked, so a typo in a
-    template never costs the message. A reference resolving to null renders as empty.
-    """
-
-    def one(reference: str) -> str:
-        resolved = _walk(context, reference.strip())
-        return f"${{{reference}}}" if resolved is MISSING else _as_text(cast("JsonValue", resolved))
-
-    return substitute(template, one)
-
-
-def _walk(context: JsonMap, reference: str) -> object:
-    """Walk a dotted path into the alert context, or return MISSING when it names nothing."""
-    parts = [piece for piece in reference.split(".") if piece]
-    if not parts:
-        return MISSING
-    current: JsonValue = context
-    for part in parts:
-        if not isinstance(current, dict) or part not in current:
-            return MISSING
-        current = current[part]
-    return current
 
 
 def _as_text(value: JsonValue) -> str:
@@ -166,6 +159,7 @@ async def create_rule(session: AsyncSession, services: EngineServices, request: 
         raise AlertError(f"no notifier {request.notifier!r} is installed ({installed})")
     if await find_rule(session, request.code) is not None:
         raise AlertError(f"an alert rule coded {request.code!r} already exists")
+    check_templates(template=request.template, body=request.body)
     pipeline_id = await _scope_pipeline(session, request)
     connection_id = await _connection_id(session, request.connection) if request.connection else None
     rule = AlertRule(
@@ -178,12 +172,24 @@ async def create_rule(session: AsyncSession, services: EngineServices, request: 
         notifier=request.notifier,
         connection_id=connection_id,
         template=request.template,
+        body=request.body,
         throttle_seconds=int(request.throttle.total_seconds()),
     )
     session.add(rule)
     await session.flush()
     _logger.info("alert rule created", rule=rule.code, alert_event=rule.event.value, notifier=rule.notifier)
     return rule
+
+
+def check_templates(*, template: str | None = None, body: str | None = None) -> None:
+    """Refuse a subject or a body that does not compile, naming the field and the line."""
+    for field, source in (("template", template), ("body", body)):
+        if source is None:
+            continue
+        try:
+            compile_template(source)
+        except TemplateError as error:
+            raise AlertError(f"{field} is not a Jinja template: {error}") from error
 
 
 async def _scope_pipeline(session: AsyncSession, request: AlertRuleRequest) -> UUID | None:
@@ -241,6 +247,31 @@ async def set_paused(session: AsyncSession, rule: AlertRule, *, paused: bool) ->
     return rule
 
 
+#: What a PATCH may write on a rule, and nothing else on the row.
+UPDATABLE: Final = ("paused", "template", "body")
+
+
+async def update_rule(session: AsyncSession, rule: AlertRule, changes: Mapping[str, object]) -> AlertRule:
+    """Write the fields a PATCH named on a rule, leaving every field it did not name.
+
+    A subject or a body is compiled here as it is at creation, so a rule on the row always
+    holds a template that renders.
+    """
+    named = {name: value for name, value in changes.items() if name in UPDATABLE}
+    if "template" in named or "body" in named:
+        check_templates(
+            template=cast("str | None", named.get("template", rule.template)),
+            body=cast("str | None", named.get("body", rule.body)),
+        )
+        rule.template = cast("str | None", named.get("template", rule.template))
+        rule.body = cast("str | None", named.get("body", rule.body))
+        await session.flush()
+        _logger.info("alert rule retemplated", rule=rule.code)
+    if "paused" in named:
+        await set_paused(session, rule, paused=bool(named["paused"]))
+    return rule
+
+
 async def raised_at(session: AsyncSession, rule: AlertRule, pipeline_id: UUID) -> datetime | None:
     """When this rule last raised anything **for this pipeline**.
 
@@ -291,8 +322,9 @@ async def raise_for_run(
 
     Called from the same commit that settles the run, so a run cannot reach a terminal state
     without its alerts having been queued. ``facts`` is the run's full facts when the caller
-    has already assembled them, which is what a template reads beyond the ``run`` namespace;
-    the rendered document itself is not stored on the notification.
+    has already assembled them, and they are read here when a rule matched and the caller had
+    none, so a run nothing watches pays for no facts at all. The rendered document is what the
+    templates read as ``report``; it is not stored on the notification.
     """
     moment = now or utcnow()
     pipeline = await session.get(Pipeline, run.pipeline_id)
@@ -302,7 +334,10 @@ async def raise_for_run(
     if not rules:
         return []
     report_url = report_url_for(services.settings.alert_base_url, report_artifact_id)
+    if facts is None:
+        facts = await _facts_of(session, run, base_url=services.settings.alert_base_url, rendered_at=moment)
     context = _context_for(run, pipeline, facts, base_url=services.settings.alert_base_url, report_url=report_url)
+    rendering = {**context, "report": report}
     queued: list[Notification] = []
     for rule in rules:
         if await _already_raised(session, rule.id, run.id, event):
@@ -326,7 +361,8 @@ async def raise_for_run(
                 )
             )
             continue
-        subject = render_template(rule.template or DEFAULT_TEMPLATE, context)
+        subject = _subject_of(session, rule, rendering, run_id=run.id, moment=moment)
+        body = _body_of(session, services, rule, rendering, run_id=run.id, moment=moment)
         notification = Notification(
             alert_rule_id=rule.id,
             run_id=run.id,
@@ -334,7 +370,7 @@ async def raise_for_run(
             notifier=rule.notifier,
             connection_id=rule.connection_id,
             subject=subject,
-            body=_body(context),
+            body=body,
             context=context,
             status=NotificationStatus.PENDING,
             available_at=moment,
@@ -386,6 +422,85 @@ def _context_for(
     context = as_context(facts)
     cast("JsonMap", context["run"])["report_url"] = report_url
     return context
+
+
+async def _facts_of(session: AsyncSession, run: Run, *, base_url: str | None, rendered_at: datetime) -> "RunFacts":
+    """Read a run's whole facts, for a rule that matched when the caller assembled none."""
+    # Imported here rather than at module scope: reporting imports this module back.
+    from dirigent_core.reporting import facts_of_run
+
+    version = await session.get(PipelineVersion, run.pipeline_version_id)
+    if version is None:  # pragma: no cover - a run always pins a version that exists
+        raise AlertError(f"run {run.id} pins a pipeline version that is gone")
+    definition = load_definition(version.document)
+    return await facts_of_run(session, run, definition, base_url=base_url, rendered_at=rendered_at)
+
+
+def _subject_of(
+    session: AsyncSession, rule: AlertRule, context: JsonMap, *, run_id: UUID | None, moment: datetime
+) -> str:
+    """Render a rule's subject: one line, whitespace collapsed, cut at the cap."""
+    try:
+        return _one_line(render(rule.template or DEFAULT_TEMPLATE, context, max_bytes=SUBJECT_RENDER_CAP))
+    except (TemplateError, RenderTooLarge) as error:
+        _render_failed(session, rule, "subject", error, run_id=run_id, moment=moment)
+        return _one_line(render(DEFAULT_TEMPLATE, context, max_bytes=SUBJECT_RENDER_CAP))
+
+
+def _body_of(
+    session: AsyncSession,
+    services: EngineServices,
+    rule: AlertRule,
+    context: JsonMap,
+    *,
+    run_id: UUID | None,
+    moment: datetime,
+) -> str:
+    """Render a rule's body, or write the run's own facts when it declares no template."""
+    if rule.body is None:
+        return _body(context)
+    try:
+        return render(rule.body, context, max_bytes=int(services.settings.report_max_size))
+    except (TemplateError, RenderTooLarge) as error:
+        _render_failed(session, rule, "body", error, run_id=run_id, moment=moment)
+        return _body(context)
+
+
+def _render_failed(
+    session: AsyncSession,
+    rule: AlertRule,
+    field: str,
+    error: Exception,
+    *,
+    run_id: UUID | None,
+    moment: datetime,
+) -> None:
+    """Say in the run's own timeline that a rule's template did not render, and what replaced it."""
+    _logger.warning("alert template not rendered", rule=rule.code, field=field, error=str(error))
+    if run_id is None:
+        return
+    session.add(
+        LogEntry(
+            run_id=run_id,
+            level=LogLevel.WARNING,
+            message=f"the {field} of alert {rule.code!r} was not rendered, so the default was sent",
+            fields={"reason": str(error), "notifier": rule.notifier},
+            created_at=moment,
+        )
+    )
+
+
+def _or_literal(source: str, context: JsonMap, *, max_bytes: int) -> str:
+    """Render text that a person typed, keeping it verbatim when it is not a template at all."""
+    try:
+        return render(source, context, max_bytes=max_bytes)
+    except (TemplateError, RenderTooLarge):
+        return source
+
+
+def _one_line(text: str) -> str:
+    """Collapse a rendering to the single line a subject is, no longer than the cap."""
+    return " ".join(text.split())[:SUBJECT_CAP]
 
 
 def _body(context: JsonMap) -> str:
@@ -467,19 +582,24 @@ async def queue_test_message(
     subject: str = "dirigent test alert",
     body: str = "This is a test message sent through the notifier surface.",
 ) -> Notification:
-    """Queue one unattached message, which is what ``dg alerts test`` sends."""
+    """Queue one unattached message, which is what ``dg alerts test`` sends.
+
+    The subject and the body are rendered as a rule's are, over a stand-in context, so a
+    template can be tried out before it is written onto a rule.
+    """
     if notifier not in services.host.notifiers:
         installed = ", ".join(sorted(services.host.notifiers)) or "none are installed"
         raise AlertError(f"no notifier {notifier!r} is installed ({installed})")
+    context: JsonMap = {"run": {"pipeline": "(test)", "status": "succeeded"}, "report": None}
     notification = Notification(
         alert_rule_id=None,
         run_id=None,
         event=AlertEvent.RUN_SUCCEEDED,
         notifier=notifier,
         connection_id=await _connection_id(session, connection) if connection else None,
-        subject=subject,
-        body=body,
-        context={"run": {"pipeline": "(test)", "status": "succeeded"}},
+        subject=_one_line(_or_literal(subject, context, max_bytes=SUBJECT_RENDER_CAP)),
+        body=_or_literal(body, context, max_bytes=int(services.settings.report_max_size)),
+        context=context,
         status=NotificationStatus.PENDING,
         available_at=utcnow(),
     )

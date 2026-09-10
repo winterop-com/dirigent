@@ -36,6 +36,7 @@ class Alerts(Resource):
         pipeline: str | None = None,
         connection: str | None = None,
         template: str | None = None,
+        body: str | None = None,
         throttle: timedelta | str = timedelta(0),
     ) -> AlertRuleOut:
         """Declare an alert rule, refusing a notifier or a pipeline this instance does not have."""
@@ -49,14 +50,31 @@ class Alerts(Resource):
             pipeline=pipeline,
             connection=connection,
             template=template,
+            body=body,
             throttle=to_timedelta(throttle),
         )
         return await self._one(AlertRuleOut, "POST", "/alert-rules", json=request_body(payload))
 
     async def set_rule_paused(self, code: str, *, paused: bool) -> AlertRuleOut:
         """Hold a rule's deliveries, or let them resume."""
-        payload = AlertRuleUpdate(paused=paused)
-        return await self._one(AlertRuleOut, "PATCH", f"/alert-rules/{code}", json=request_body(payload))
+        return await self.update_rule(code, paused=paused)
+
+    async def update_rule(
+        self,
+        code: str,
+        *,
+        paused: bool | None = None,
+        template: str | None = None,
+        body: str | None = None,
+    ) -> AlertRuleOut:
+        """Change what a rule says or whether it delivers.
+
+        A field this call was not given is absent from the body, which is how the endpoint
+        tells "leave it alone" from "clear it".
+        """
+        named = query(paused=paused, template=template, body=body)
+        body_json = AlertRuleUpdate.model_validate(named).model_dump(mode="json", exclude_unset=True)
+        return await self._one(AlertRuleOut, "PATCH", f"/alert-rules/{code}", json=body_json)
 
     async def delete_rule(self, code: str) -> None:
         """Remove an alert rule; the notifications it already raised are kept."""

@@ -211,6 +211,7 @@ def upgrade() -> None:
         sa.Column("notifier", sa.String(length=100), nullable=False),
         sa.Column("connection_id", sa.Uuid(), nullable=True),
         sa.Column("template", sa.Text(), nullable=True),
+        sa.Column("body", sa.Text(), nullable=True),
         sa.Column("throttle_seconds", sa.Integer(), server_default=sa.text("0"), nullable=False),
         sa.Column("active", sa.Boolean(), server_default=sa.true(), nullable=False),
         sa.Column("paused", sa.Boolean(), server_default=sa.false(), nullable=False),

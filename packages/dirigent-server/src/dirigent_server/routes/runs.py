@@ -781,7 +781,7 @@ async def report(run_id: UUID, session: SessionDep, principal: PrincipalDep) -> 
     """Summarise a run: what each step amounted to, and how long the whole thing took."""
     run = await _run_row(session, run_id)
     pipeline, version, definition = await _context(session, run)
-    facts = await run_facts(session, run, pipeline, version, definition, base_url=None)
+    facts = await run_facts(session, run, pipeline, version, definition, base_url=None, rendered_at=utcnow())
     return RunReport(
         run_id=run.id,
         pipeline=facts.pipeline.code,
