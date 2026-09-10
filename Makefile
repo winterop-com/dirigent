@@ -27,7 +27,7 @@ COMPOSE_SINKS ?= $(COMPOSE) -f infra/compose.sinks.yaml
 #: Every overlay at once, which is what "take it all away" has to name to reach every volume.
 COMPOSE_ALL ?= $(COMPOSE) -f infra/compose.brokers.yaml -f infra/compose.sql.yaml -f infra/compose.otel.yaml -f infra/compose.sinks.yaml
 
-.PHONY: help install lint static check gate e2e queues-up queues-down schemas dev-seeded ui ui-dev ui-lint ui-test ui-e2e ui-gate ui-static ui-wheel docker-build docker-rebuild docker-run docker-run-queues docker-run-sql docker-run-otel docker-run-sinks docker-run-all docker-clean test test-postgres test-s3 test-docker test-queues load coverage docs docs-blocks docs-settings docs-build clean
+.PHONY: help install lint static check gate e2e queues-up queues-down schemas dev dev-seeded ui ui-dev ui-lint ui-test ui-e2e ui-gate ui-static ui-wheel docker-build docker-rebuild docker-run docker-run-queues docker-run-sql docker-run-otel docker-run-sinks docker-run-all docker-clean test test-postgres test-s3 test-docker test-queues load coverage docs docs-blocks docs-settings docs-build clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -92,6 +92,9 @@ SEED_ROOT ?= .
 #: Where the seeded instance listens.
 SEED_HOST ?= 127.0.0.1
 SEED_PORT ?= 3333
+
+dev: ## Boot an empty instance for manual testing, wiping the state a previous one left
+	$(UV) run dg dev --wipe-state --host $(SEED_HOST) --port $(SEED_PORT)
 
 dev-seeded: ## Boot a seeded instance for manual testing; schedules land paused, some seeded runs fail on purpose
 	$(UV) run python scripts/seed_dev.py --root $(SEED_ROOT) --host $(SEED_HOST) --port $(SEED_PORT) | $(UV) run dg format
