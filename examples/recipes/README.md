@@ -111,9 +111,17 @@ and a parameter away in the others:
 | [reconcile-two-sources.yaml](reconcile-two-sources.yaml) | How do I say exactly how two systems disagree, in four buckets and with a tolerance? |
 | [pagination-by-fan-out.yaml](pagination-by-fan-out.yaml) | How do I fetch several pages at once, and what does `for_each` not let me do? |
 
+## The run's own report
+
+| File | The question it answers |
+| --- | --- |
+| [report-built-in.yaml](report-built-in.yaml) | How do I get a page about the run itself, without writing a line of template? |
+| [http-post-report.yaml](http-post-report.yaml) | How do I write that page myself, and which of the run's facts may it read? |
+
 ## The pages behind them
 
 [docs/jq.md](../../docs/jq.md) teaches the language, [docs/transforms.md](../../docs/transforms.md)
 the four verbs and their frames, [docs/json-schema.md](../../docs/json-schema.md) the shapes,
+[docs/reports.md](../../docs/reports.md) every fact a report template may read,
 and [docs/blocks.md](../../docs/blocks.md) is generated from the live catalog, so it is the
 honest answer to what a block's config actually takes.

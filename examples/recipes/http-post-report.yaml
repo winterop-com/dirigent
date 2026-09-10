@@ -1,0 +1,180 @@
+# POST a batch, summarise the receipt, and let the run write the page a person reads.
+#
+# In:  a count of stations and a count of days, as parameters. The readings are generated,
+#      so the payload is genuinely large without forty rows being typed out.
+# Out: forty readings POSTed, a small summary of what came back, and the run's own report
+#      document: a markdown page rendered when the run settles, stored with the run, and
+#      read back with `dg runs report ID --markdown`.
+#
+# The four hops:
+#
+#   readings  a jq program builds the batch. range() twice is a cross product, so
+#             stations x days rows come out of five lines rather than out of a literal, and
+#             the arithmetic is fixed rather than random: the same parameters always POST
+#             the same bytes, which is what makes a rerun comparable to the first run.
+#   publish   the batch goes out as structure. body is a value the block serialises, so a
+#             quote in a station name is not somebody else's parse error. The URL is here
+#             rather than on a connection because Postman Echo is public and this recipe
+#             should run with nothing applied first.
+#   summary   postman-echo answers with what it received: the parsed body under .json and
+#             the headers it saw under .headers. This hop keeps a page's worth of it -- a
+#             row count, min, max and mean, the first few rows, and the headers as a list
+#             of {name, value} pairs, because a template loops over a list without asking
+#             anything of the sandbox.
+#   report    the section at the bottom. It renders no data of its own: everything in it is
+#             the run's facts and the outputs the three steps left behind.
+#
+# Where the template's facts come from:
+#
+#   run.*       the engine's account of the run -- id, status, trigger, the two moments and
+#               the duration between them. Half of them are legitimately null depending on
+#               how a run ended, and a null renders as nothing rather than failing the page.
+#   pipeline.*  the pipeline version this run pinned, so the page names what actually ran.
+#   steps[]     one entry per step, in the order a person watched them, carrying outcome,
+#               attempts, duration_ms and output. output is the step's *last* attempt's
+#               value, and it is there only when the step ran: a skipped or never-reached
+#               step has none, which is why the page guards on it before reading into it.
+#
+# steps is a list, so a page that wants one step by name filters for it:
+# `steps | selectattr('step', 'equalto', 'summary') | first`. That is the whole idiom, and
+# it is why a step a template reads should be named for what it holds.
+#
+# The three filters are the ones that make a machine's number readable: `duration` turns
+# milliseconds into 1m30s, `iso` renders a moment, `bytes` a size. `round` is Jinja's own.
+#
+# To change it: -p stations=20 -p days=10 POSTs two hundred rows and the page reports two
+# hundred; -p rows_shown=10 lengthens the table without touching the payload. Deleting the
+# report: section stops the document being rendered at all, and `report: {}` swaps this page
+# for the built-in one -- report-built-in.yaml is that document.
+#
+#   dg run --local examples/recipes/http-post-report.yaml
+#   dg apply examples/recipes/http-post-report.yaml
+#   dg run http-post-report --watch
+#   dg runs report RUN_ID --markdown
+
+format: dirigent/v1
+kind: pipeline
+code: http-post-report
+name: POST a batch and report on it
+description: POST a generated batch to an echo service, summarise the receipt, and render the run's own markdown report from the run's facts and its steps' outputs.
+
+tags: [recipes, http, transform, report]
+
+requires:
+  blocks:
+    - transform.jq
+    - http.request
+
+params:
+  type: object
+  properties:
+    stations:
+      type: integer
+      minimum: 1
+      default: 8
+      description: How many stations report.
+    days:
+      type: integer
+      minimum: 1
+      default: 5
+      description: How many days each station reports for.
+    rows_shown:
+      type: integer
+      minimum: 1
+      default: 5
+      description: How many rows the report's table carries.
+
+steps:
+  readings:
+    block: transform.jq
+    config:
+      input:
+        stations: ${params.stations}
+        days: ${params.days}
+      program: |
+        . as {$stations, $days}
+        | {source: "dirigent recipes",
+           readings: [range($days) as $day
+                      | range($stations) as $station
+                      | {station: "st-\($station)",
+                         day: ("2026-01-0" + ($day + 1 | tostring)),
+                         # Fixed arithmetic, so the same parameters POST the same bytes.
+                         celsius: ((($station * 7) + ($day * 3)) % 19) - 4}]}
+
+  publish:
+    block: http.request
+    depends_on: [readings]
+    config:
+      url: https://postman-echo.com/post
+      method: POST
+      # A value the block serialises. Nothing here builds JSON out of strings.
+      body: ${steps.readings.output.value}
+      headers:
+        # A header the report's own table has something to show. Headers are strings, so
+        # a count is interpolated into one rather than passed as a number.
+        x-report-batch: ${params.stations}-stations-${params.days}-days
+      timeout: 30s
+
+  summary:
+    block: transform.jq
+    depends_on: [publish]
+    config:
+      input:
+        shown: ${params.rows_shown}
+        status: ${steps.publish.output.status}
+        echoed: ${steps.publish.output.json_body}
+      program: |
+        . as {$shown, $status, $echoed}
+        | ($echoed.json.readings | map(.celsius)) as $values
+        | {status: $status,
+           rows: ($echoed.json.readings | length),
+           min: ($values | min),
+           max: ($values | max),
+           mean: (($values | add) / ($values | length)),
+           first_rows: ($echoed.json.readings[:$shown]),
+           # A list rather than a map: a template loops over a list with no filter at all.
+           headers: ($echoed.headers | to_entries | map({name: .key, value: (.value | tostring)}))}
+
+report:
+  template: |
+    # {{ pipeline.name or pipeline.code }}: {{ run.status }}
+
+    - run: `{{ run.id }}`
+    - pipeline: `{{ pipeline.code }}` version {{ pipeline.version }}
+    - trigger: {{ run.trigger }}
+    - started: {{ run.started_at | iso }}
+    - finished: {{ run.finished_at | iso }}
+    - duration: {{ run.duration_ms | duration }}
+
+    ## Steps
+
+    | step | outcome | attempts | took |
+    | --- | --- | --- | --- |
+    {% for step in steps %}
+    | {{ step.step }} | {{ step.outcome }} | {{ step.attempts }} | {{ step.duration_ms | duration }} |
+    {% endfor %}
+
+    ## What came back
+
+    {% set summary = steps | selectattr('step', 'equalto', 'summary') | first %}
+    {% set echoed = summary.output.value %}
+    {% if echoed %}
+    The echo service answered {{ echoed.status }} and parsed {{ echoed.rows }} readings back,
+    between {{ echoed.min }}C and {{ echoed.max }}C, averaging {{ echoed.mean | round(1) }}C.
+
+    | station | day | celsius |
+    | --- | --- | --- |
+    {% for row in echoed.first_rows %}
+    | {{ row.station }} | {{ row.day }} | {{ row.celsius }} |
+    {% endfor %}
+
+    ### Headers it saw
+
+    | header | value |
+    | --- | --- |
+    {% for header in echoed.headers %}
+    | {{ header.name }} | {{ header.value }} |
+    {% endfor %}
+    {% else %}
+    The summary step left no output, so this run never got as far as a receipt.
+    {% endif %}
