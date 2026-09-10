@@ -23,7 +23,7 @@ from collections.abc import AsyncGenerator, AsyncIterator, Callable, Sequence
 from contextlib import asynccontextmanager
 from datetime import timedelta
 from pathlib import Path
-from typing import Any, ClassVar, Final
+from typing import Annotated, Any, ClassVar, Final
 from urllib.parse import urlsplit
 
 import sqlalchemy
@@ -35,7 +35,16 @@ from sqlalchemy.pool import NullPool
 from sqlalchemy.sql.elements import TextClause
 
 from dirigent_blocks import subprocess
-from dirigent_common import BlockModel, Duration, HealthReport, JsonList, JsonMap, StorageUri, spelled
+from dirigent_common import (
+    SQL_MEDIA_TYPE,
+    BlockModel,
+    Duration,
+    HealthReport,
+    JsonList,
+    JsonMap,
+    StorageUri,
+    spelled,
+)
 from dirigent_plugin import (
     BlockFailure,
     ConnectionKind,
@@ -210,7 +219,7 @@ class SqlQueryConfig(BlockModel):
     connection: ConnectionRef
     """The ``sql`` connection naming the database and holding its password."""
 
-    sql: str = Field(min_length=1)
+    sql: Annotated[str, Field(min_length=1, json_schema_extra={"contentMediaType": SQL_MEDIA_TYPE})]
     """One statement, and one only. A document that needs two writes two steps, or uses
     ``sql.execute``, which is the block that runs several as one transaction."""
 

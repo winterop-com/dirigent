@@ -1,15 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 
-import { Maximize2 } from 'lucide-react'
-
 import { MarkdownLine } from '@/components/Markdown'
 import { CodePane } from '@/components/pipeline/CodePane'
-import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { WindowedPane } from '@/components/WindowedPane'
 import type { JsonMap } from '@/lib/api'
 import {
     effectiveValue,
@@ -148,7 +145,7 @@ function Field({
         <div className="flex flex-col gap-1.5">
             <div className="flex flex-wrap items-baseline gap-x-2">
                 <Label
-                    htmlFor={field.kind === 'code' ? undefined : id}
+                    htmlFor={field.kind === 'code' || field.kind === 'json' ? undefined : id}
                     className="font-mono text-sm font-medium"
                 >
                     {field.name}
@@ -280,7 +277,6 @@ function TextControl({
     onTouch: () => void
 }) {
     const [text, setText] = useState(() => inputText(field, value))
-    const [wide, setWide] = useState(false)
     // What this control last wrote. A value that arrived from anywhere else -- the source pane,
     // another step being chosen -- is what the box is re-seeded from.
     const written = useRef<unknown>(value)
@@ -306,64 +302,40 @@ function TextControl({
         onChange(parsed.value)
     }
 
-    if (field.kind === 'code') {
+    // A program and a value edited as JSON are the same pane at two heights, and both open in
+    // a window: `WindowedPane` owns that gesture, and the window and the box name one path, so
+    // monaco hands them one buffer and closing the window loses nothing.
+    if (field.kind === 'code' || field.kind === 'json') {
+        const mediaType = field.kind === 'json' ? 'application/json' : field.mediaType
+        const path = `config/${field.name}`
         return (
-            <div className="border-border overflow-hidden rounded-md border" onBlur={onTouch}>
+            <WindowedPane
+                name={field.name}
+                className="border-border overflow-hidden rounded-md border"
+                onBlur={onTouch}
+                windowed={
+                    <CodePane
+                        value={text}
+                        mediaType={mediaType}
+                        path={path}
+                        label={`${field.name}, in a window`}
+                        className="min-h-0 flex-1"
+                        readOnly={disabled}
+                        onChange={write}
+                    />
+                }
+            >
                 <CodePane
                     value={text}
-                    mediaType={field.mediaType}
-                    path={`config/${field.name}`}
+                    mediaType={mediaType}
+                    path={path}
                     label={field.name}
                     placeholder={field.placeholder}
-                    className="h-48 min-h-32"
+                    className={field.kind === 'json' ? 'h-32 min-h-24' : 'h-48 min-h-32'}
+                    readOnly={disabled}
                     onChange={write}
                 />
-            </div>
-        )
-    }
-    if (field.kind === 'json') {
-        // The window and the box edit the same model: monaco holds one buffer per path, so
-        // what is typed in either is what the other shows, and closing the window loses
-        // nothing.
-        return (
-            <div className="border-border relative overflow-hidden rounded-md border" onBlur={onTouch}>
-                <CodePane
-                    value={text}
-                    mediaType="application/json"
-                    path={`config/${field.name}`}
-                    label={field.name}
-                    placeholder={field.placeholder}
-                    className="h-32 min-h-24"
-                    onChange={write}
-                />
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`Open ${field.name} in a window`}
-                    className="text-faint border-border bg-background/90 absolute top-1.5 right-3.5 size-6 rounded-md border"
-                    onClick={() => {
-                        setWide(true)
-                    }}
-                >
-                    <Maximize2 className="size-3.5" aria-hidden />
-                </Button>
-                <Dialog open={wide} onOpenChange={setWide}>
-                    <DialogContent
-                        finalFocus={false}
-                        className="flex h-[85vh] w-[min(64rem,90vw)] max-w-[min(64rem,90vw)] flex-col gap-3 sm:max-w-[min(64rem,90vw)]"
-                    >
-                        <DialogTitle className="font-mono text-sm">{field.name}</DialogTitle>
-                        <CodePane
-                            value={text}
-                            mediaType="application/json"
-                            path={`config/${field.name}`}
-                            label={`${field.name}, in a window`}
-                            className="min-h-0 flex-1"
-                            onChange={write}
-                        />
-                    </DialogContent>
-                </Dialog>
-            </div>
+            </WindowedPane>
         )
     }
     return (
