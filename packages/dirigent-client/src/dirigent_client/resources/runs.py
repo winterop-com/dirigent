@@ -14,6 +14,7 @@ from dirigent_client.enums import AttemptStatus, RunStatus
 from dirigent_client.errors import TransportError, WaitTimeout
 from dirigent_client.resources.base import Resource, query
 from dirigent_client.schemas import (
+    ArtifactOut,
     AttemptEvent,
     AttemptOut,
     ItemOut,
@@ -23,6 +24,9 @@ from dirigent_client.schemas import (
     RunOut,
     RunReport,
 )
+
+#: What a run's own report document is stored as, which is how it is told from a step's output.
+MARKDOWN_CONTENT_TYPE: Final = "text/markdown"
 
 POLL_SECONDS: Final = 1.0
 POLL_MAX_SECONDS: Final = 15.0
@@ -93,6 +97,29 @@ class Runs(Resource):
             f"/runs/{run_id}/attempts",
             params=query(step=step, status=status.value if status else None, after=after, limit=limit),
         )
+
+    async def artifacts(
+        self,
+        run_id: UUID | str,
+        *,
+        after: str | None = None,
+        limit: int | None = None,
+    ) -> Page[ArtifactOut]:
+        """List what a run wrote down: each step's stored output, and its report document."""
+        return await self._many(ArtifactOut, "GET", f"/runs/{run_id}/artifacts", params=query(after=after, limit=limit))
+
+    async def artifact_text(self, artifact_id: UUID | str) -> str:
+        """Read one artifact's content as the text it was stored as."""
+        return await self._transport.text(f"/artifacts/{artifact_id}")
+
+    async def report_document(self, run_id: UUID | str) -> str | None:
+        """Read the markdown document this run rendered when it settled, if it rendered one."""
+        page = await self.artifacts(run_id)
+        found = next(
+            (row for row in page.items if row.step_name is None and row.content_type == MARKDOWN_CONTENT_TYPE),
+            None,
+        )
+        return None if found is None else await self.artifact_text(found.id)
 
     async def cancel(self, run_id: UUID | str) -> RunOut:
         """Stop what has not started, and tell the remote about what has."""

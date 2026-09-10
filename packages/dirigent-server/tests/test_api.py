@@ -7,6 +7,7 @@ import time
 import uuid
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any, cast
 from uuid import UUID
 
@@ -22,6 +23,7 @@ from dirigent_client.enums import AttemptStatus, LogLevel, RunItemStatus, RunSta
 from dirigent_core.config import Settings
 from dirigent_core.database import create_engine, create_session_factory, session_scope
 from dirigent_core.models import (
+    ArtifactRef,
     Connection,
     LogEntry,
     PipelineVersion,
@@ -2563,3 +2565,91 @@ def test_the_event_stream_resumes_its_logs_from_the_last_event_id(client: TestCl
         again = sse_frames(response.iter_lines())
     assert [name for name, _, _ in again if name == "log"] == [], "the line already delivered is not repeated"
     assert [name for name, _, _ in again if name == "attempt"] != [], "attempts replay, and the client dedupes them"
+
+
+def artifact_row(run_id: UUID, **values: Any) -> sa.Executable:
+    """Write one artifact row the way a worker settling the run would."""
+    return sa.insert(ArtifactRef).values(run_id=run_id, id=uuid7(), **values)
+
+
+def test_a_runs_artifacts_are_listed_with_what_it_takes_to_read_one(client: TestClient) -> None:
+    run_id = started_run(client)
+    rows_written(
+        client,
+        artifact_row(
+            run_id,
+            content_type="text/markdown",
+            size_bytes=11,
+            inline_value={"text": "# a report"},
+        ),
+        artifact_row(
+            run_id,
+            step_name="greet",
+            content_type="application/json",
+            size_bytes=13,
+            inline_value={"value": "hello"},
+        ),
+    )
+
+    rows = client.get(f"{PREFIX}/runs/{run_id}/artifacts").json()["items"]
+    assert [row["content_type"] for row in rows] == ["text/markdown", "application/json"]
+    assert [row["step_name"] for row in rows] == [None, "greet"]
+    assert all(row["created_at"] and row["uri"] is None for row in rows)
+
+
+def test_a_runs_artifacts_are_only_listed_for_a_run_that_exists(client: TestClient) -> None:
+    assert client.get(f"{PREFIX}/runs/{uuid7()}/artifacts").status_code == 404
+
+
+def test_an_inline_text_artifact_is_read_back_as_the_text_it_is(client: TestClient) -> None:
+    run_id = started_run(client)
+    rows_written(
+        client, artifact_row(run_id, content_type="text/markdown", size_bytes=10, inline_value={"text": "# a report"})
+    )
+
+    artifact = client.get(f"{PREFIX}/runs/{run_id}/artifacts").json()["items"][0]
+    response = client.get(f"{PREFIX}/artifacts/{artifact['id']}")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/markdown")
+    assert response.text == "# a report"
+
+
+def test_an_inline_json_artifact_is_read_back_as_json(client: TestClient) -> None:
+    run_id = started_run(client)
+    rows_written(
+        client,
+        artifact_row(run_id, step_name="greet", content_type="application/json", inline_value={"value": "hello"}),
+    )
+
+    artifact = client.get(f"{PREFIX}/runs/{run_id}/artifacts").json()["items"][0]
+    response = client.get(f"{PREFIX}/artifacts/{artifact['id']}")
+    assert response.headers["content-type"].startswith("application/json")
+    assert response.json() == {"value": "hello"}
+
+
+def test_an_artifact_that_went_to_storage_is_streamed_out_of_it(client: TestClient, settings: Settings) -> None:
+    run_id = started_run(client)
+    root = Path(settings.artifact_root.removeprefix("file://"))
+    stored = root / str(run_id) / "report.md"
+    stored.parent.mkdir(parents=True, exist_ok=True)
+    stored.write_text("# a stored report\n")
+    rows_written(
+        client,
+        artifact_row(
+            run_id,
+            content_type="text/markdown",
+            size_bytes=stored.stat().st_size,
+            uri=f"file://{stored}",
+            scheme="file",
+        ),
+    )
+
+    artifact = client.get(f"{PREFIX}/runs/{run_id}/artifacts").json()["items"][0]
+    response = client.get(f"{PREFIX}/artifacts/{artifact['id']}")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/markdown")
+    assert response.text == "# a stored report\n"
+
+
+def test_an_artifact_this_instance_never_wrote_is_a_404(client: TestClient) -> None:
+    assert client.get(f"{PREFIX}/artifacts/{uuid7()}").status_code == 404

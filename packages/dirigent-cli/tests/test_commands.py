@@ -1336,3 +1336,58 @@ def test_every_single_read_answers_with_a_record_naming_its_kind(tmp_path: Path,
         for record in written:
             assert isinstance(record, dict), f"{argv} wrote a line that is not an object"
             assert record.get("kind"), f"{argv} wrote a record with no kind: {record}"
+
+
+def _write_report(tmp_path: Path, run_id: str, text: str) -> None:
+    """Store one report document for a run, the way the engine's settlement does."""
+    from uuid import UUID
+
+    import sqlalchemy as sa
+
+    from dirigent_core.database import create_engine, create_session_factory, session_scope
+    from dirigent_core.models import ArtifactRef
+
+    settings = Settings(database_url=f"sqlite+aiosqlite:///{tmp_path / 'dirigent.db'}")
+
+    async def store() -> None:
+        engine = create_engine(settings)
+        try:
+            async with session_scope(create_session_factory(engine)) as session:
+                await session.execute(
+                    sa.insert(ArtifactRef).values(
+                        run_id=UUID(run_id),
+                        content_type="text/markdown",
+                        size_bytes=len(text.encode()),
+                        inline_value={"text": text},
+                    )
+                )
+        finally:
+            await engine.dispose()
+
+    asyncio.run(store())
+
+
+def test_a_runs_report_document_is_written_as_the_markdown_it_is(tmp_path: Path, server: str) -> None:
+    apply_document(tmp_path)
+    assert invoke("run", "cli-demo").exit_code == 0
+    run_id = latest_run()
+    _write_report(tmp_path, run_id, "# cli-demo run succeeded\n")
+
+    written = only(machine("runs", "report", run_id, "--markdown").stdout, "run.report_document")
+    assert written["run_id"] == run_id
+    assert written["document"] == "# cli-demo run succeeded\n"
+
+    rendered = invoke("runs", "report", run_id, "--markdown")
+    assert rendered.exit_code == 0
+    assert rendered.output == "# cli-demo run succeeded\n"
+
+
+def test_a_run_that_rendered_no_document_says_how_to_ask_for_one(tmp_path: Path, server: str) -> None:
+    apply_document(tmp_path)
+    assert invoke("run", "cli-demo").exit_code == 0
+    run_id = latest_run()
+
+    refused = invoke("runs", "report", run_id, "--markdown")
+    assert refused.exit_code == 1
+    assert "has no report document" in plain(refused.output)
+    assert "declare `report:`" in plain(refused.output)

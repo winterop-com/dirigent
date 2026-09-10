@@ -602,6 +602,8 @@ the stack is complete out of the box; see
 | `DIRIGENT_NOTIFICATION_BACKOFF` | `30s` | The delay after a notification's first failed delivery; later ones double from it. |
 | `DIRIGENT_NOTIFICATION_LEASE` | `60s` | How long a claimed notification's lease is valid before another worker may take it. |
 | `DIRIGENT_ALERT_BASE_URL` | unset | The externally reachable base URL, so an alert can link back to the run it is about. Set it on the **workers** too, not only the server: the alert context is built by whichever worker settles the run, so a server-only setting means every alert links to nowhere. |
+| `DIRIGENT_REPORT_MAX_SIZE` | `1mb` | A run's report document larger than this is dropped with a warning in the run's log. The cap is enforced as the text is generated, so a runaway template stops at it rather than after it has built the whole document. |
+| `DIRIGENT_REPORT_RENDER_TIMEOUT` | `5s` | How long a report template may take to render before it is dropped with a warning. Rendering happens on the worker that settles the run, inside the transaction that settles it. |
 
 ### Webhook intake and login
 

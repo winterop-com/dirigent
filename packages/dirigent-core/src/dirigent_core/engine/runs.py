@@ -414,6 +414,12 @@ async def cancel_run(
     run.status = RunStatus.CANCELLED
     run.error = reason
     run.finished_at = moment
+    # Imported here rather than at module scope: reporting reads this module's definitions.
+    from dirigent_core.reporting import render_run_report
+
+    # A cancelled run is one of the runs whose report matters most, and no step of it can
+    # render one.
+    await render_run_report(session, services, run, await _definition_of(session, run), now=moment)
     # A cancelled run frees the concurrency slot as a finished one does; without promoting
     # here, cancelling the active run of a `queue` pipeline wedges the queue forever.
     await promote_queued_run(session, services, run.pipeline_id)

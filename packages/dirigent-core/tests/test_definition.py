@@ -1,6 +1,7 @@
 """Tests for the pipeline definition model: the graph checks and parameter validation."""
 
 from datetime import timedelta
+from typing import Any
 
 import pytest
 from pydantic import ValidationError
@@ -265,3 +266,42 @@ def test_the_canonical_form_leaves_an_untagged_document_saying_nothing_about_tag
 def test_tags_survive_a_round_trip_in_the_order_they_were_written() -> None:
     """A tag list is a list, not a set: the order an author chose is the order it reads back."""
     assert load_definition(dump_definition(tagged(["http", "climate"]))).tags == ["http", "climate"]
+
+
+def reported(section: Any) -> PipelineDefinition:
+    """Load a one-step document carrying the ``report`` section given."""
+    return load_definition(
+        {
+            "format": "dirigent/v1",
+            "kind": "pipeline",
+            "code": "reported",
+            "steps": {"a": {"block": "test.echo"}},
+            "report": section,
+        }
+    )
+
+
+def test_a_report_section_with_no_template_asks_for_the_built_in_one() -> None:
+    definition = reported({})
+    assert definition.report is not None
+    assert definition.report.template is None
+
+
+def test_a_document_declares_no_report_by_default() -> None:
+    assert chain().report is None
+
+
+def test_a_report_carries_the_template_it_declares() -> None:
+    definition = reported({"template": "# {{ run.status }}"})
+    assert definition.report is not None
+    assert definition.report.template == "# {{ run.status }}"
+
+
+def test_a_template_that_does_not_compile_is_refused_where_it_was_written() -> None:
+    with pytest.raises(ValidationError, match=r"report\.template"):
+        reported({"template": "{% if %}"})
+
+
+def test_a_key_the_report_section_does_not_define_is_refused() -> None:
+    with pytest.raises(ValidationError, match="extra"):
+        reported({"extra": 1})

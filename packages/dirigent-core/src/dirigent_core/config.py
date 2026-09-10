@@ -322,6 +322,12 @@ class Settings(BaseSettings):
     alert_base_url: str | None = None
     """The externally reachable base URL, so an alert can link back to the run it is about."""
 
+    report_max_size: Size = Field(default=1 * 1024 * 1024, ge=1)
+    """A run's report document larger than this is dropped with a warning in the run's log."""
+
+    report_render_timeout: Duration = Field(default=timedelta(seconds=5), gt=timedelta(0))
+    """How long a report template may take to render before it is dropped with a warning."""
+
     @field_validator("worker_tags", "enabled_unsafe_blocks", mode="before")
     @classmethod
     def _read_list(cls, value: object) -> object:

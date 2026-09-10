@@ -3,14 +3,14 @@
 import re
 from datetime import datetime, timedelta
 from enum import StrEnum
-from typing import Final, Literal, Self, cast
+from typing import Annotated, Final, Literal, Self, cast
 
 from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema import ValidationError as SchemaValidationError
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator, model_validator
 
 from dirigent_client.enums import RunPriority
-from dirigent_common import EntityName, JsonMap, StepName
+from dirigent_common import TEMPLATE_MEDIA_TYPE, EntityName, JsonMap, StepName, TemplateError, compile_template
 from dirigent_common.durations import Duration
 from dirigent_plugin import BLOCK_ID_PATTERN
 
@@ -249,6 +249,25 @@ class Requirements(BaseModel):
         return not (self.blocks or self.connections or self.pipelines or self.storage or self.schemas or self.workers)
 
 
+class ReportSpec(BaseModel):
+    """The report document a run renders when it settles; no template means the built-in one."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    template: Annotated[str | None, Field(json_schema_extra={"contentMediaType": TEMPLATE_MEDIA_TYPE})] = None
+
+    @field_validator("template")
+    @classmethod
+    def _check_template(cls, template: str | None) -> str | None:
+        """Refuse a template that does not compile, at apply rather than at settlement."""
+        if template is not None:
+            try:
+                compile_template(template)
+            except TemplateError as error:
+                raise ValueError(str(error)) from error
+        return template
+
+
 class ConnectionDefinition(BaseModel):
     """A connection a document carries with it, rather than naming one the instance holds.
 
@@ -293,6 +312,9 @@ class PipelineDefinition(BaseModel):
     steps: dict[StepName, StepDefinition] = Field(min_length=1)
     triggers: TriggerSpecs = Field(default_factory=TriggerSpecs)
     requires: Requirements = Field(default_factory=Requirements)
+    report: ReportSpec | None = None
+    """The document a settled run renders from its own facts; absent renders nothing."""
+
     connections: dict[EntityName, ConnectionDefinition] = Field(default_factory=dict[str, "ConnectionDefinition"])
     """Connections the document brings, for a run with no instance to name them on."""
     schemas: dict[EntityName, JsonMap] = Field(default_factory=dict[str, "JsonMap"])

@@ -119,6 +119,21 @@ class ItemOut(WireModel):
     error: str | None = None
 
 
+class ArtifactOut(WireModel):
+    """One artifact a run left behind: a step's output, or the run's own report document."""
+
+    id: UUID
+    step_name: str | None = None
+    """The step whose output this is, or nothing when the artifact belongs to the run itself."""
+
+    content_type: str | None = None
+    size_bytes: int | None = None
+    uri: str | None = None
+    """Where the content was written, when it was too large to inline on the row."""
+
+    created_at: datetime
+
+
 class DagNode(WireModel):
     """One node of the run's graph."""
 

@@ -8,13 +8,14 @@ from typing import Annotated
 from uuid import UUID
 
 import sqlalchemy as sa
-from fastapi import APIRouter, Header, HTTPException, Query, Request, status
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Header, HTTPException, Query, Request, Response, status
+from fastapi.responses import PlainTextResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from dirigent_client.enums import AttemptStatus, LogLevel, RunItemStatus, RunStatus
 from dirigent_client.schemas import (
     TERMINAL_RUN_STATUSES,
+    ArtifactOut,
     AttemptEvent,
     AttemptOut,
     DagNode,
@@ -29,6 +30,7 @@ from dirigent_client.schemas import (
 )
 from dirigent_common.durations import DurationError, parse_duration
 from dirigent_core import telemetry
+from dirigent_core.artifacts import JSON_CONTENT_TYPE, TEXT_KEY, canonical_json
 from dirigent_core.database import session_scope
 from dirigent_core.engine.definition import PipelineDefinition, load_definition
 from dirigent_core.engine.runs import RunCreationError, cancel_run, retry_step
@@ -281,6 +283,59 @@ async def list_attempts(
     found = [_render_attempt(row, spilled) for row in rows]
     items, following = clip(found, limit, lambda row: row.id)
     return Page(items=items, next=following)
+
+
+@router.get(
+    "/runs/{run_id}/artifacts",
+    operation_id="listRunArtifacts",
+    summary="List a run's artifacts",
+    response_model=Page[ArtifactOut],
+)
+async def list_artifacts(
+    run_id: UUID,
+    session: SessionDep,
+    principal: PrincipalDep,
+    after: AfterParam = None,
+    limit: LimitParam = DEFAULT_PAGE,
+) -> Page[ArtifactOut]:
+    """List what a run wrote down: each step's stored output, and the run's report document."""
+    await _run_row(session, run_id)
+    statement = sa.select(ArtifactRef).where(ArtifactRef.run_id == run_id).order_by(ArtifactRef.id).limit(limit + 1)
+    cursor = uuid_cursor(after)
+    if cursor is not None:
+        statement = statement.where(ArtifactRef.id > cursor)
+    rows = list((await session.execute(statement)).scalars())
+    found = [ArtifactOut.model_validate(row, from_attributes=True) for row in rows]
+    items, following = clip(found, limit, lambda row: row.id)
+    return Page(items=items, next=following)
+
+
+@router.get(
+    "/artifacts/{artifact_id}",
+    operation_id="readArtifact",
+    summary="Read an artifact's content",
+    response_class=Response,
+)
+async def read_artifact(
+    artifact_id: UUID, session: SessionDep, services: ServicesDep, principal: PrincipalDep
+) -> Response:
+    """Answer with an artifact's own content, in the content type it was stored as.
+
+    A document that inlined is answered from the row; one that went to storage is streamed
+    back out of it, so a large output never passes through the server whole.
+    """
+    reference = await session.get(ArtifactRef, artifact_id)
+    if reference is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"no artifact {artifact_id}")
+    content_type = reference.content_type or JSON_CONTENT_TYPE
+    if reference.inline_value is not None:
+        inlined = reference.inline_value.get(TEXT_KEY)
+        if isinstance(inlined, str):
+            return PlainTextResponse(inlined, media_type=content_type)
+        return Response(canonical_json(reference.inline_value), media_type=JSON_CONTENT_TYPE)
+    if reference.uri is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"artifact {artifact_id} holds no content")
+    return StreamingResponse(services.storage.open_read(reference.uri), media_type=content_type)
 
 
 async def _spilled(

@@ -1,7 +1,9 @@
 """A run's facts, assembled once for the report, the templates and the CLI."""
 
+import asyncio
 from collections.abc import Sequence
 from datetime import datetime
+from typing import Final
 from uuid import UUID
 
 import sqlalchemy as sa
@@ -9,11 +11,57 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirigent_client.enums import AttemptStatus, LogLevel, RunItemStatus
-from dirigent_common import JsonMap
+from dirigent_common import JsonMap, render
 from dirigent_core import alerting, telemetry
+from dirigent_core.artifacts import MARKDOWN_CONTENT_TYPE, persist_document
 from dirigent_core.engine.definition import PipelineDefinition
+from dirigent_core.engine.services import EngineServices
 from dirigent_core.engine.state import build_step_states, in_execution_order
+from dirigent_core.logging import get_logger
 from dirigent_core.models import ArtifactRef, LogEntry, Pipeline, PipelineVersion, Run, RunItem, StepAttempt
+
+#: The document a run renders when it declares ``report:`` without a template of its own.
+DEFAULT_TEMPLATE: Final = """\
+# {{ pipeline.name or pipeline.code }} run {{ run.status }}
+
+- run: {{ run.id }}
+- pipeline: {{ pipeline.code }} (version {{ pipeline.version }})
+- trigger: {{ run.trigger }}
+- started: {{ run.started_at | iso }}
+- finished: {{ run.finished_at | iso }}
+- duration: {{ run.duration_ms | duration }}
+{% if run.window_start or run.window_end %}
+- window: {{ run.window_start | iso }} to {{ run.window_end | iso }}
+{% endif %}
+
+| step | outcome | attempts | took | warnings |
+| --- | --- | --- | --- | --- |
+{% for step in steps %}
+| {{ step.step }} | {{ step.outcome }} | {{ step.attempts }} | {{ step.duration_ms | duration }} | \
+{{ step.warnings }} |
+{% endfor %}
+{% if items_failed > 0 %}
+
+## Failed items
+
+{% for item in items if item.status == 'failed' %}
+- {{ item.index }} `{{ item.key }}` failed at {{ item.failing_step }}: {{ item.error }}
+{% endfor %}
+{% endif %}
+{% if run.error %}
+
+## Error
+
+```
+{{ run.error }}
+```
+{% endif %}
+"""
+
+#: What the document is stored as when it is too large to inline.
+REPORT_NAME: Final = "report.md"
+
+_logger = get_logger("reporting")
 
 
 class PipelineFacts(BaseModel):
@@ -201,3 +249,79 @@ def _run_namespace(run: Run, pipeline: Pipeline, *, base_url: str | None) -> Jso
 def as_context(facts: RunFacts) -> JsonMap:
     """Render the facts as the plain JSON a template and a stored notification read."""
     return facts.model_dump(mode="json")
+
+
+class RenderedReport(BaseModel):
+    """What a settling run's report amounted to: its facts, and the document when there is one."""
+
+    model_config = ConfigDict(frozen=True)
+
+    facts: RunFacts
+    markdown: str | None = None
+    artifact_id: UUID | None = None
+
+
+async def render_run_report(
+    session: AsyncSession,
+    services: EngineServices,
+    run: Run,
+    definition: PipelineDefinition,
+    *,
+    now: datetime,
+) -> RenderedReport:
+    """Render and store the document a settling run owes, and never fail the run doing it.
+
+    Called from the transaction that settles the run, so the facts are the ones the alerts it
+    owes are raised over. A template that loops, overflows or names nothing leaves a warning
+    in the run's timeline and no document.
+    """
+    pipeline = await session.get(Pipeline, run.pipeline_id)
+    version = await session.get(PipelineVersion, run.pipeline_version_id)
+    if pipeline is None or version is None:  # pragma: no cover - the foreign keys make this unreachable
+        raise RuntimeError(f"run {run.id} names a pipeline or a version that is gone")
+    facts = await run_facts(session, run, pipeline, version, definition, base_url=services.settings.alert_base_url)
+    if definition.report is None:
+        return RenderedReport(facts=facts)
+    template = definition.report.template or DEFAULT_TEMPLATE
+    try:
+        markdown = await asyncio.wait_for(
+            asyncio.to_thread(render, template, as_context(facts), max_bytes=int(services.settings.report_max_size)),
+            timeout=services.settings.report_render_timeout.total_seconds(),
+        )
+        existing = await _report_row(session, run.id)
+        async with session.begin_nested():
+            reference = await persist_document(
+                session,
+                services.storage,
+                run.id,
+                name=REPORT_NAME,
+                text=markdown,
+                content_type=MARKDOWN_CONTENT_TYPE,
+                inline_max_bytes=int(services.settings.inline_artifact_max),
+                existing=existing,
+            )
+    except Exception as error:  # noqa: BLE001 - a report is never worth the run it describes
+        session.add(
+            LogEntry(
+                run_id=run.id,
+                level=LogLevel.WARNING,
+                message="the run's report was not rendered",
+                fields={"reason": str(error)},
+                created_at=now,
+            )
+        )
+        _logger.warning("the run's report was not rendered", run_id=str(run.id), error=str(error))
+        return RenderedReport(facts=facts)
+    return RenderedReport(facts=facts, markdown=markdown, artifact_id=reference.id)
+
+
+async def _report_row(session: AsyncSession, run_id: UUID) -> ArtifactRef | None:
+    """Find the one run-level document row a run has, which a resettlement writes over."""
+    found = await session.execute(
+        sa.select(ArtifactRef).where(
+            ArtifactRef.run_id == run_id,
+            ArtifactRef.step_attempt_id.is_(None),
+            ArtifactRef.content_type == MARKDOWN_CONTENT_TYPE,
+        )
+    )
+    return found.scalars().first()
