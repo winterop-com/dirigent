@@ -980,6 +980,8 @@ GET/POST      /api/v1/users                  # + PATCH, /{username}/$deactivate,
 GET/POST      /api/v1/connections            # + /{code}, PATCH, DELETE, /{code}/$check
 GET           /api/v1/blocks                 # catalog: operators, sensors, schemes, notifiers
 GET           /api/v1/blocks/{id}            # one block's published schemas
+GET           /api/v1/examples               # the installed corpus; filters: tag, shelf, plugin, starter
+GET           /api/v1/examples/{code}        # one document, with its source text
 GET           /api/v1/schema/document        # dirigent/v1 composed with this catalog's configs
 GET           /api/v1/pipelines              # + /{code}, /{code}/versions
 POST          /api/v1/pipelines/$apply       # a whole document; ?dry_run=true returns the plan

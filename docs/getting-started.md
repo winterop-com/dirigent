@@ -156,8 +156,10 @@ uv run dg dev                    # in a second terminal, in this directory; it k
 ```
 
 ```bash
-uv run dg apply                  # back in the first terminal, in this directory
-uv run dg run hello-world --watch
+uv run dg examples list --starter          # back in the first terminal, in this directory
+uv run dg pipeline new report-to-file      # copies it into pipelines/
+uv run dg apply
+uv run dg run report-to-file --watch
 ```
 
 `dg init` initialises an instance and the documents that address it: it creates
@@ -180,7 +182,7 @@ first admin.
 It scaffolds `dirigent.yaml`, which says where documents live and holds the few settings a
 project is likely to change; `dirigent.example.yaml`, every setting there is with its default
 and description, commented out and never loaded; `.dirigent/profiles.yaml`, saying which
-server to talk to; `pipelines/hello-world.yaml`, a working example; `.dirigent/.gitignore`,
+server to talk to; an empty `pipelines/`, or the starters `--pipeline` named; `.dirigent/.gitignore`,
 which keeps `.dirigent/state/` out of the repository while the profiles beside it stay
 committable; `pyproject.toml`, which pins the dirigent runtime the project runs on; a
 `README.md` with the commands for the template; and a root `.gitignore` for `.venv/` and
@@ -204,7 +206,7 @@ holding a generated `DIRIGENT_SECRET_KEY` and the password given here, and a roo
 the scheduler embedded, object storage for artifacts and a worker, all running the image that
 `Dockerfile` builds on `ghcr.io/winterop-com/dirigent`, pinned to the version of the `dg` that
 wrote the file. `--service docker` adds the workers' own daemon, `--service kafka` and
-`--service rabbitmq` a broker, each with a hello example in `pipelines/`; `--pack dirigent-dhis2`
+`--service rabbitmq` a broker; `--pack dirigent-dhis2`
 installs the pack into the image. Adding one later is a line in that `Dockerfile` and
 `docker compose up --build`.
 
@@ -220,7 +222,13 @@ immutable version. It is idempotent: a document whose digest matches the stored 
 unchanged, so applying the whole repository on every merge does not accumulate a version per
 commit. `dg apply --dry-run` prints the plan without writing.
 
-`dg run hello-world --watch` starts a run and streams its step transitions and block output
+`dg examples list` is the corpus this instance ships -- every installed plugin's documents,
+the packs' included. One that wears the `starter` tag may be copied into the project with
+`dg pipeline new CODE`, which writes `pipelines/CODE.yaml` verbatim, rewriting only the
+`code:` line and dropping that tag, and then says what the instance has to hold before it will
+apply. `dg examples show CODE` prints any of them without copying.
+
+`dg run report-to-file --watch` starts a run and streams its step transitions and block output
 until it settles, then exits with the run's outcome.
 
 That is the whole loop. The same instance is a web UI at `http://127.0.0.1:3333`, where the
@@ -447,7 +455,7 @@ For anything else, `-v` shows the engine's own events and the API calls the CLI 
 `-vv` shows everything:
 
 ```bash
-dg -v run hello-world --watch
+dg -v run report-to-file --watch
 ```
 
 ## Where to go next

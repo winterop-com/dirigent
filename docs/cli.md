@@ -32,9 +32,11 @@ dg dev                                  # a local instance: API, worker, one SQL
 export DG_URL=http://127.0.0.1:3333 DG_TOKEN=...
 
 dg init my-pipelines && cd my-pipelines && uv sync
+uv run dg examples list --starter       # the documents a project may copy
+uv run dg pipeline new report-to-file   # one of them, into pipelines/
 uv run dg apply --dry-run               # the whole-project plan
 uv run dg apply
-uv run dg run hello-world --watch
+uv run dg run report-to-file --watch
 ```
 
 ### Profiles
@@ -106,6 +108,36 @@ A step with several dependencies is drawn once, under the last of them, and name
 one step is one line, whatever its in-degree. `--json` is unaffected -- it returns the
 document and the structured plan, not a drawing.
 
+## Examples, and starting from one
+
+Every installed plugin ships documents, and an instance serves them: `dg examples list` is
+that catalogue, the packs' shelves included. A document that opted in to being copied wears
+the `starter` tag, and `dg pipeline new` copies it.
+
+```bash
+dg examples list                              # everything the instance ships
+dg examples list --starter                    # only what may be copied
+dg examples list --tag http --tag starter     # every tag named must be worn
+dg examples list --shelf recipes --plugin examples
+dg examples show http-post-report             # the document, verbatim
+dg examples show http-post-report > pipelines/mine.yaml
+```
+
+`--local` reads the corpus installed beside `dg` instead of the instance's, which is what a
+machine with no server to address has.
+
+```bash
+dg pipeline new http-post-report              # writes pipelines/http-post-report.yaml
+dg pipeline new http-post-report --code weekly-report --dir pipelines
+```
+
+The copy is the starter's text verbatim: only the top-level `code:` is rewritten and the
+`starter` tag dropped, so every teaching comment in it survives and no macro language is
+involved. Its knobs are its own `params`, and its preflight is its own `requires`, which the
+command prints as the list to work through -- the `dg connection create` lines, the schemas to
+apply, the packs a block needs. A code that is not in the catalogue, or one that is an example
+and not a starter, is refused and nothing is written; so is a file that is already there.
+
 ## Projects
 
 A project is a directory of documents: a working set, never a second source of truth. The
@@ -117,6 +149,7 @@ dg init hello --template local         # an instance on this machine, and the do
 dg init hello --template compose       # the documents and a container stack to run them on
 dg init hello --template documents     # the documents alone, against an instance elsewhere
 dg init hello --template compose --service s3 --service docker --pack dirigent-dhis2 --workflow
+dg init hello --pipeline report-to-file --pipeline http-post-report   # open with these starters
 ```
 
 At a terminal, with no `--template`, `dg init` opens one form: where the project runs, which
@@ -176,9 +209,14 @@ another, in the order given, which is how a directory holding a connection a lat
 names goes in first. It seeds whatever instance is there, so without `--wipe-state` every
 apply is an `unchanged`.
 
+`--seed-installed` does the same for the corpus every installed plugin ships, so no checkout
+and no path is needed: it walks the catalogue `dg examples list` reads and feeds each document
+through the same apply. Both flags may be given, and the directories go in first.
+
 ```bash
 dg dev --wipe-state --seed examples            # a fresh instance with the whole corpus in it
 dg dev --seed examples --seed ../pack/examples # two corpora, in that order
+dg dev --wipe-state --seed-installed           # every installed corpus, the packs' included
 ```
 
 What it makes is one person's instance on one machine -- SQLite on this disk, and no secret
@@ -876,7 +914,8 @@ dg runs retry RUN_ID --step NAME [--failed-items]
 dg format [console|compact] [-f FILE]   # render an NDJSON stream; reads stdin by default
 
 # Define
-dg init [DIR] [--template local|compose|documents] [--service S]... [--pack P]... [--workflow] [--admin NAME] [--password ...]
+dg init [DIR] [--template local|compose|documents] [--service S]... [--pack P]... [--pipeline STARTER]...
+dg init ... [--workflow] [--admin NAME] [--password ...]
 dg apply [file|url|-] [--dry-run] [--as CODE] [--paused] [--prune]
 dg validate [file|url] [--server]
 dg export CODE [-f FILE] [--version N]
@@ -886,6 +925,9 @@ dg pipeline activate | deactivate | delete CODE
 dg pipeline validate CODE [--version N] | --all   # re-check what is stored against this instance
 dg blocks list [--kind operator|sensor] | show BLOCK_ID
 dg blocks new NAME [--directory DIR]      # scaffold a new block pack
+dg examples list [--tag T]... [--shelf S] [--plugin P] [--starter] [--local]
+dg examples show CODE [--local]           # the document, verbatim, as the shelf holds it
+dg pipeline new STARTER [--code X] [--dir DIR] [--local]   # copy a starter into this project
 dg schema list | show CODE | delete CODE
 dg schema create FILE|- [--code CODE] [--name TEXT] [--description TEXT]
 
@@ -913,7 +955,7 @@ dg alerts queue
 dg alerts retry NOTIFICATION
 
 # Processes (container entry points)
-dg dev [--host H] [--port 3333] [--ui/--no-ui] [--wipe-state] [--seed DIR]...  # standalone: SQLite, API + worker
+dg dev [--host H] [--port 3333] [--ui/--no-ui] [--wipe-state] [--seed DIR]... [--seed-installed]
 dg server [--host H] [--port 3333] [--reload] [--no-scheduler] [--ui/--no-ui]  # dg serve works too
 dg worker [--concurrency N] [--tag T] [--name NAME]   # --tag is what this worker advertises
 dg scheduler                            # the clock on its own; PostgreSQL only

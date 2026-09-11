@@ -202,6 +202,11 @@ sits on, and its text -- and anything else on the shelf is passed over with a wa
 the plugin and the file. Two plugins may carry one code; one plugin carrying it twice keeps
 the first. The core corpus ships this way, as `dirigent-examples`.
 
+What the host reads is what every surface serves: `GET /api/v1/examples` and
+`GET /api/v1/examples/{code}`, `dg examples list` and `dg examples show`, and
+`dg pipeline new` for a document wearing the `starter` tag. A pack's shelves therefore reach
+a person the moment the pack is installed, with nothing to register beyond this hook.
+
 ## How a pack connects systems together
 
 The surfaces are the vocabulary; the connecting happens in a pipeline. A **connection kind**
