@@ -70,7 +70,7 @@ description: |
   There is no state block: the marker file *is* the state, and a sensor looking for it is how
   a run asks whether there was a previous one.
 
-tags: [open-data, http, sensor, storage, transform]
+tags: [open-data, http, sensor, storage, transform, starter]
 
 requires:
   blocks:

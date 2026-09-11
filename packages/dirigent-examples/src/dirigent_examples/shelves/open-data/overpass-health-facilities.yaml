@@ -46,7 +46,7 @@ description: |
   Hospitals and clinics inside a bounding box, read from the **Overpass API**, flattened into
   rows and written twice: csv for a person and parquet for the next pipeline.
 
-tags: [open-data, http, storage, transform, csv, parquet]
+tags: [open-data, http, storage, transform, csv, parquet, starter]
 
 requires:
   blocks:

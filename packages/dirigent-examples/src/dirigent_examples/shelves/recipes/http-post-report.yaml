@@ -61,7 +61,7 @@ code: http-post-report
 name: POST a batch and report on it
 description: POST a generated batch to an echo service, summarise the receipt, and render the run's own markdown report from the run's facts and its steps' outputs.
 
-tags: [recipes, http, transform, report]
+tags: [recipes, http, transform, report, starter]
 
 requires:
   blocks:

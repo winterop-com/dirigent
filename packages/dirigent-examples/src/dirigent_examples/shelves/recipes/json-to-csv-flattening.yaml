@@ -50,7 +50,7 @@ code: json-to-csv-flattening
 name: Nested JSON to a flat csv
 description: Reach into an envelope, flatten the nested fields into named columns, join the list cells, and convert the written rows into a csv artifact.
 
-tags: [recipes, storage, transform]
+tags: [recipes, storage, transform, starter]
 
 requires:
   blocks:

@@ -1,0 +1,142 @@
+# Fetch, check what came back, reshape it, check what you made, and post it on.
+#
+# This is the shape most real pipelines have, and the reason it is written out in full here is
+# the second gate. One gate, at the fetch, is the common half-measure: it catches the day the
+# source changes and catches nothing else. The second gate catches the other failure, which is
+# the pipeline's own -- a jq program edited under time pressure, a field renamed in one place
+# and not the other -- and it catches it before the bad row leaves the building.
+#
+# In:  a station and a day, as parameters.
+# Out: one checked row, posted to a public echo service, and a receipt saying what it saw.
+#
+# Five hops, and what each one hands on:
+#
+#   fetch     http.request. A GET whose query carries the two parameters, answered by Postman
+#             Echo, a public request-and-response service, so this runs against something real
+#             with nothing to stand up first. Output: status, headers, body, body_bytes.
+#   checked   validate.schema against `echo-reading`: the source's shape, as this document
+#             understands it. The block passes the value through unchanged when it holds, so
+#             the next step reads the gate's output rather than reaching back past it -- which
+#             is what makes the gate impossible to skip by accident.
+#   reading   transform.jq. The reshaping: the query the echo service reflected back becomes
+#             the row a receiver wants, and the temperature becomes a number, because a query
+#             string carries text and a downstream average cannot add text.
+#   verified  validate.schema again, against `station-reading` this time: the shape this
+#             document promises, with additionalProperties false so a field the program leaks
+#             is refused rather than shipped.
+#   publish   http.request POST. The body is the value the gate passed, serialised by the
+#             block: nothing here builds JSON out of strings.
+#
+# BOTH SCHEMAS ARE NAMED, NOT CARRIED. `schema:` takes a code and never a shape, and a document
+# that carries its own top-level `schemas:` section is refused by a server, so the two live in
+# examples/schemas/ and `requires.schemas` below says the instance must hold them. That is the
+# preflight: an apply against an instance missing either one is refused up front, naming what
+# is missing, instead of failing on the first run.
+#
+#   dg schema create examples/schemas/echo-reading.json
+#   dg schema create examples/schemas/station-reading.json
+#   dg apply examples/recipes/http-fetch-validate-post.yaml
+#   dg run http-fetch-validate-post --watch
+#
+# Locally there is no instance holding them, so hand them over on the command line:
+#
+#   dg run --local examples/recipes/http-fetch-validate-post.yaml \
+#     --schema examples/schemas/echo-reading.json \
+#     --schema examples/schemas/station-reading.json
+#
+# TO MAKE IT YOURS: point `fetch` at your source, rewrite the two schemas for its shape and
+# yours, and point `publish` at your receiver. The five hops do not move; a real pipeline is
+# this with a longer jq program and a connection holding the credential.
+
+format: dirigent/v1
+kind: pipeline
+code: http-fetch-validate-post
+name: Fetch, validate, transform, validate, post
+description: |
+  The full shape: a GET from a public endpoint, a schema gate on what came back, a jq
+  reshaping, a second gate on what was made, and a POST of the result.
+
+  The second gate is the point. The first one catches the source changing; the second catches
+  this document's own program going wrong, before the bad row is delivered.
+
+tags: [recipes, http, transform, validate, starter]
+
+requires:
+  blocks:
+    - http.request
+    - transform.jq
+    - validate.schema
+  # The preflight that refuses this document on an instance holding neither shape.
+  schemas:
+    - echo-reading
+    - station-reading
+
+params:
+  type: object
+  properties:
+    station:
+      type: string
+      minLength: 1
+      default: st-1
+      description: The station the reading is attributed to.
+    day:
+      type: string
+      format: date
+      default: "2026-01-01"
+      description: The day the reading reports for.
+    celsius:
+      type: string
+      default: "12.5"
+      description: The temperature, as the text a query string carries; the transform makes it a number.
+
+steps:
+  fetch:
+    block: http.request
+    config:
+      url: https://postman-echo.com/get
+      method: GET
+      query:
+        station: ${params.station}
+        day: ${params.day}
+        celsius: ${params.celsius}
+      timeout: 30s
+
+  checked:
+    block: validate.schema
+    depends_on: [fetch]
+    config:
+      input: ${steps.fetch.output.body}
+      # A code naming a schema the instance holds, never a shape written here.
+      schema: echo-reading
+
+  reading:
+    block: transform.jq
+    depends_on: [checked]
+    config:
+      input: ${steps.checked.output.value}
+      program: |
+        .args
+        | {station: .station,
+           day: .day,
+           # tonumber, because a query string carried this as text and a receiver that
+           # averages it cannot add text.
+           celsius: (.celsius | tonumber)}
+
+  verified:
+    block: validate.schema
+    depends_on: [reading]
+    config:
+      input: ${steps.reading.output.value}
+      schema: station-reading
+
+  publish:
+    block: http.request
+    depends_on: [verified]
+    config:
+      url: https://postman-echo.com/post
+      method: POST
+      # The value the gate passed through, serialised by the block.
+      body: ${steps.verified.output.value}
+      headers:
+        x-reading-day: ${params.day}
+      timeout: 30s

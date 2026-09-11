@@ -42,7 +42,7 @@ code: report-to-file
 name: Render a report and write it to a file
 description: Render a markdown page from a Jinja template, write it to the run's scratch space, and read it back.
 
-tags: [recipes, report, storage, transform]
+tags: [recipes, report, storage, transform, starter]
 
 requires:
   blocks:

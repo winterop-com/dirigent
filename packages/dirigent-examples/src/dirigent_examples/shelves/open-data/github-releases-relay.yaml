@@ -55,7 +55,7 @@ description: |
   Unauthenticated calls share a budget of 60 requests an hour per IP, which is what decides
   the cadence a schedule can have.
 
-tags: [open-data, http, sensor, storage, transform, webhook, filter, relay]
+tags: [open-data, http, sensor, storage, transform, webhook, filter, relay, starter]
 
 requires:
   blocks:

@@ -31,7 +31,7 @@ code: composition-parent
 name: The calling pipeline
 description: Run the child pipeline for two regions, waiting for one and not for the other.
 
-tags: [composition, execute, pipeline]
+tags: [composition, execute, pipeline, starter]
 
 requires:
   blocks:

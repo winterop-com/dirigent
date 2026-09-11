@@ -1,0 +1,13 @@
+{
+  "$id": "station-reading",
+  "title": "Station reading",
+  "description": "The row a transform is held to before it is posted onward: a station, the day it reports for, and a temperature that is a number rather than the string a query carried. The gate a document puts after its own jq program, so a typo in the program is refused instead of delivered.",
+  "type": "object",
+  "required": ["station", "day", "celsius"],
+  "additionalProperties": false,
+  "properties": {
+    "station": { "type": "string", "minLength": 1 },
+    "day": { "type": "string", "format": "date" },
+    "celsius": { "type": "number" }
+  }
+}

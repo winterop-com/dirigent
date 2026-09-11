@@ -51,7 +51,7 @@ description: |
   A fan-out's results are read back as one list, because a fan-out step stores one output and
   `for_each` cannot read an upstream step's output at all.
 
-tags: [open-data, http, storage, transform, fan-out, parquet]
+tags: [open-data, http, storage, transform, fan-out, parquet, starter]
 
 requires:
   blocks:

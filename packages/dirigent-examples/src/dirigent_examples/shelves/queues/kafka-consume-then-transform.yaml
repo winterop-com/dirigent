@@ -52,7 +52,7 @@ code: kafka-consume-then-transform
 name: Consume a Kafka topic, then transform the batch
 description: Wait for messages on a Kafka topic and reshape the batch the sensor handed on.
 
-tags: [queues, kafka, sensor, transform]
+tags: [queues, kafka, sensor, transform, starter]
 
 requires:
   blocks:

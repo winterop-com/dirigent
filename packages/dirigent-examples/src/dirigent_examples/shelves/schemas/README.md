@@ -26,7 +26,11 @@ A schema carries its own identity in its keywords, so there is nothing else to p
 | File | The shape it pins |
 | --- | --- |
 | [ou-record.json](ou-record.json) | A single organisation-unit record: a string `id`, a `name`, and an integer `level` |
+| [echo-reading.json](echo-reading.json) | What a fetch of the echo service answers with: an `args` map carrying `station` and `day`, and the `url` |
+| [station-reading.json](station-reading.json) | The row a transform is held to before it is posted on: a `station`, a `day`, and a numeric `celsius` |
 
-`ou-record` is the shape the two [validation documents](../validate) check a payload against.
+`ou-record` is the shape the two [validation documents](../validate) check a payload against, and
+the two reading shapes are the gates either side of the transform in
+[http-fetch-validate-post.yaml](../recipes/http-fetch-validate-post.yaml).
 The [JSON Schema guide](../../docs/json-schema.md) walks through how a schema like it is
 built, keyword by keyword.

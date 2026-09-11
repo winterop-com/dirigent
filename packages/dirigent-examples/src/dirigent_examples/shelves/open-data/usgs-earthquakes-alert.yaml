@@ -55,7 +55,7 @@ description: |
   A quiet day ends `succeeded` with the gate and the post skipped, which is what an alert
   pipeline has to be able to do.
 
-tags: [open-data, http, sensor, storage, transform, webhook, filter]
+tags: [open-data, http, sensor, storage, transform, webhook, filter, starter]
 
 requires:
   blocks:

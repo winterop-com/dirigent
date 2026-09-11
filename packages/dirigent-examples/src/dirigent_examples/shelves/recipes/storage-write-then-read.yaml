@@ -37,7 +37,7 @@ code: storage-write-then-read
 name: Write to storage, then read it back
 description: Put a transform's result in the run's scratch space with storage.write, read it into the next step with storage.read, and do it again with what that step produced.
 
-tags: [recipes, storage, transform]
+tags: [recipes, storage, transform, starter]
 
 requires:
   blocks:

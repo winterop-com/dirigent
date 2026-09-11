@@ -52,7 +52,7 @@ code: sql-postgres-readonly
 name: Read a warehouse through a read-only connection
 description: Query a PostgreSQL warehouse over a connection that refuses writes, with both values bound as parameters.
 
-tags: [sql]
+tags: [sql, starter]
 
 requires:
   blocks:

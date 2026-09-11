@@ -43,7 +43,7 @@ description: |
   The week is the run's window, so the same document serves the Monday schedule and a
   backfill of any week the archive holds.
 
-tags: [open-data, http, storage, transform, csv, schedule]
+tags: [open-data, http, storage, transform, csv, schedule, starter]
 
 requires:
   blocks:

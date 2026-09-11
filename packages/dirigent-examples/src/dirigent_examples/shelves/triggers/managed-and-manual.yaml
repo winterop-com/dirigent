@@ -37,7 +37,7 @@ code: managed-and-manual
 name: Managed beside manual
 description: Two document-managed schedules and a webhook, and what an apply leaves untouched.
 
-tags: [triggers, transform, webhook, schedule]
+tags: [triggers, transform, webhook, schedule, starter]
 
 concurrency: skip
 

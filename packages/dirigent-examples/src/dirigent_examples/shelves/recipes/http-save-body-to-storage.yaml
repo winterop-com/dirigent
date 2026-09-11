@@ -37,7 +37,7 @@ code: http-save-body-to-storage
 name: A response body saved to storage
 description: Call an endpoint, write the body it answered with to a storage URI, and read the file back for a summary.
 
-tags: [recipes, http, storage, transform]
+tags: [recipes, http, storage, transform, starter]
 
 requires:
   blocks:

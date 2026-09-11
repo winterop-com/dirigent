@@ -36,7 +36,7 @@ code: docker-build-run
 name: Build an image, then run it
 description: Write a Dockerfile into the run's work directory, build it with buildx, and run the tag.
 
-tags: [docker, execute]
+tags: [docker, execute, starter]
 
 requires:
   blocks:

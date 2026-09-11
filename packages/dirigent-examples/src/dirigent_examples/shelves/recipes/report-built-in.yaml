@@ -39,7 +39,7 @@ code: report-built-in
 name: The built-in report
 description: The smallest pipeline that renders a report document, with an empty report section and no template of its own.
 
-tags: [recipes, transform, report]
+tags: [recipes, transform, report, starter]
 
 requires:
   blocks:

@@ -40,11 +40,21 @@ and `sensor` for any sensor block. The **behaviours** are what the document teac
 reader filters by: `schedule`, `fan-out`, `graph`, `failure`, `retry`, `timeout`,
 `concurrency`, `params`, `references`, `rules`, `priority`, `window`, `composition`,
 `credential`, `outputs`, `filter`, `map`, `relay`, `csv`, `parquet`, `jq`, `sparql`,
-`geocode`, `briefing`, `observability`, `conventions`, and `report` for a document that
+`geocode`, `briefing`, `observability`, `conventions`, `report` for a document that
 declares a `report:` section, so every run of it writes its own account of itself, or renders
-a page of its own with `report.render`. A source's
+a page of its own with `report.render`, and `starter` for a document `dg pipeline new` may
+copy into a project: a real multi-step flow on a real source, carrying nothing. A source's
 name is never a tag: the pipeline's `code` and `name` already say it is USGS or WHO GHO, and a
 word one document wears is a filter nobody can use.
+
+**The starter rule.** `starter` is the one tag a document opts into rather than wears by
+description, and it is the narrowest. A document earns it by being a real multi-step flow on
+a real source -- a public endpoint, or a service a connection names. What disqualifies one is
+a top-level `connections:` or `schemas:` section, which an instance refuses at apply; a run
+that fails by design; a single step; and a hello-world. `dg pipeline new <code>` copies a
+starter's text verbatim into `pipelines/`, rewriting only the `code:` line and dropping
+`starter` from the `tags:` line, so the comments come with it and its `requires` is the list
+of what to create first.
 
 **The tiering rule.** `examples/` is what runs: every document there is runnable, though some
 need infrastructure whose setup their headers document -- the [`docker/`](docker) shelf needs a

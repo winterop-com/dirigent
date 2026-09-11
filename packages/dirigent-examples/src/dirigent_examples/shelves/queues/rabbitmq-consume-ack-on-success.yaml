@@ -58,7 +58,7 @@ code: rabbitmq-consume-ack-on-success
 name: Consume a RabbitMQ queue, acknowledging only on success
 description: Wait for messages on a RabbitMQ queue and reshape the batch, handing a short batch back to the queue.
 
-tags: [queues, rabbitmq, sensor, transform]
+tags: [queues, rabbitmq, sensor, transform, starter]
 
 requires:
   blocks:

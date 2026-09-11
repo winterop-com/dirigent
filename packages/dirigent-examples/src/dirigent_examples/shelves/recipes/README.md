@@ -94,6 +94,7 @@ and a parameter away in the others:
 | --- | --- |
 | [http-get-with-query.yaml](http-get-with-query.yaml) | How do I build a query without hand-writing a URL, and which field holds the answer? |
 | [http-post-json-echo.yaml](http-post-json-echo.yaml) | How do I POST a body assembled upstream, as structure rather than as text? |
+| [http-fetch-validate-post.yaml](http-fetch-validate-post.yaml) | How do I fetch, check what came back, reshape it, check what I made, and post it on? |
 | [http-headers-and-auth-connection.yaml](http-headers-and-auth-connection.yaml) | Where do credentials live, and what belongs in a header map instead? |
 | [http-save-body-to-storage.yaml](http-save-body-to-storage.yaml) | How do I keep a response body as an object somebody else can fetch? |
 | [http-post-file-from-storage.yaml](http-post-file-from-storage.yaml) | How do I POST a file that lives in storage? |

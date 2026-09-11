@@ -51,7 +51,7 @@ description: |
   An item whose match did not succeed is skipped rather than failed, and the rest of the grid
   carries on.
 
-tags: [patterns, storage, transform, fan-out, references]
+tags: [patterns, storage, transform, fan-out, references, starter]
 
 requires:
   blocks:

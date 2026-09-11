@@ -43,7 +43,7 @@ code: ndjson-to-parquet
 name: Records to parquet and back
 description: Write typed records into the run's scratch space, convert them through ndjson into parquet, and read the file back to see what landed.
 
-tags: [recipes, storage, transform, parquet]
+tags: [recipes, storage, transform, parquet, starter]
 
 requires:
   blocks:
