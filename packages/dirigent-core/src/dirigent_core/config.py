@@ -141,6 +141,14 @@ class Settings(BaseSettings):
     one, and every API route is unaffected either way.
     """
 
+    ui_dir: Path | None = None
+    """A built web UI bundle to serve, instead of the one installed with the server.
+
+    A server installed from a git checkout carries no bundle of its own; this names the
+    ``dist`` directory a checkout's ``make ui`` produced. A directory with no ``index.html``
+    serves nothing, as an absent bundle does.
+    """
+
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     """How loud the process log is. This is the process log; a run's own telemetry is the
     ``log_entries`` table, and a CLI ``-v`` or ``--debug`` flag wins over this."""

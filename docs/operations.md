@@ -536,6 +536,7 @@ exhaustion, which is exactly why it is refused up front.
 | `DIRIGENT_PORT` | `3333` | Port the API server binds. |
 | `DIRIGENT_API_PREFIX` | `/api/v1` | Mount point of the versioned REST API. Normalised to be rooted and free of a trailing slash. `/hooks/{token}` is not under it. |
 | `DIRIGENT_UI_ENABLED` | `true` | Whether the server serves the bundled web UI beside the API. `--ui/--no-ui` on `dg server` and `dg dev` is the flag form. See [the web UI](#the-web-ui). |
+| `DIRIGENT_UI_DIR` | unset | A built web UI bundle to serve instead of the one installed with the server: the `dist` directory a checkout's `make ui` produced. A server installed from git carries no bundle of its own. |
 
 ### Logging
 
