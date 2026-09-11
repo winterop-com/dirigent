@@ -611,7 +611,7 @@ COMPOSE_S3 = """\
 
   # The bucket has to exist before a run writes to it, and nothing else creates it.
   s3-bucket:
-    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+    image: quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z
     depends_on:
       s3:
         condition: service_healthy
