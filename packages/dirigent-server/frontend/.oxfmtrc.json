@@ -1,0 +1,14 @@
+{
+    "$schema": "./node_modules/oxfmt/configuration_schema.json",
+    "tabWidth": 4,
+    "printWidth": 110,
+    "singleQuote": true,
+    "jsxSingleQuote": false,
+    "semi": false,
+    "trailingComma": "all",
+    "sortTailwindcss": {
+        "stylesheet": "src/index.css",
+        "functions": ["cn", "cva"]
+    },
+    "ignorePatterns": ["dist", "src/components/ui", "components.json"]
+}

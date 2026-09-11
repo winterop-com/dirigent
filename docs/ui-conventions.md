@@ -24,6 +24,7 @@ and each one arrives as its own change. What follows is the frame every screen i
 | Mode | next-themes, `class` strategy | |
 | Fonts | IBM Plex Sans and IBM Plex Mono, self-hosted through `@fontsource` | No CDN: a UI served from a private network has to work on one |
 | Lint | oxlint, plus `scripts/check_ui_classes.py` | A JS linter cannot see inside a `className`, so the type scale gets a check of its own |
+| Format | oxfmt, pinned exactly, configured in `.oxfmtrc.json` | Prettier's output from the linter's own project, and it sorts Tailwind classes against `src/index.css` rather than guessing at the theme |
 | Tests | vitest in `environment: node`, playwright for the browser | |
 | Packages | **bun**, always. Never npm, yarn, or pnpm | |
 
@@ -55,6 +56,12 @@ import, fired by the shell once there is a session and the browser is idle -- `l
 `requestIdleCallback` where there is one and a timer where there is not -- so the first source tab
 or apply dialog of a session opens against a chunk that has already landed. Nothing waits on it,
 it happens once, and the login screen is outside the shell and asks for none of it.
+
+**oxfmt owns whitespace, quotes, semicolons and the order of Tailwind classes**, at four spaces,
+single quotes outside JSX, no semicolons and a print width of 110. Nothing about that is worth an
+opinion in review: run `make ui-fmt`. The generated files in `src/components/ui/` and
+`components.json` are ignored, as they are in oxlint. The check that gates it lands with the pass
+that formats the tree.
 
 `make ui` builds the bundle, `make ui-dev` serves it with hot reload against a running `dg dev`,
 `make ui-lint` and `make ui-test` are the gate, and `make ui-e2e` drives a real server in a
