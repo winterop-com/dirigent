@@ -1,4 +1,4 @@
-import { CheckCircle2, Play, ShieldCheck, Plus, LayoutGrid } from 'lucide-react'
+import { BookOpen, CheckCircle2, Play, ShieldCheck, Plus, LayoutGrid } from 'lucide-react'
 import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router'
 import { toast } from 'sonner'
@@ -12,6 +12,7 @@ import { StepTab } from '@/components/pipeline/StepTab'
 import { Breadcrumb } from '@/components/Breadcrumb'
 import { PageState } from '@/components/PageState'
 import { ToolbarActions } from '@/components/ToolbarActions'
+import { Button } from '@/components/ui/button'
 import { readConnections, type ConnectionOut } from '@/lib/connections'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { useSmallScreen } from '@/hooks/use-small-screen'
@@ -92,6 +93,14 @@ const PipelineGraph = lazy(() =>
     import('@/components/pipeline/PipelineGraph').then((module) => ({ default: module.PipelineGraph })),
 )
 
+/** The picker over the installed starters, fetched only when the empty canvas asks for it. */
+const StarterPicker = lazy(() =>
+    import('@/components/examples/StarterPicker').then((module) => ({ default: module.StarterPicker })),
+)
+
+/** What the empty canvas calls the other way in, which is the listing's own word for it. */
+const FROM_STARTER_LABEL = 'From a starter'
+
 export const VALIDATE_LABEL = 'Validate document'
 export const RUN_LABEL = 'Run pipeline'
 export const APPLY_LABEL = 'Apply document'
@@ -150,6 +159,7 @@ export function PipelineEditor() {
     })
     const [dialog, setDialog] = useState<'none' | 'apply' | 'validate' | 'run'>('none')
     const [issues, setIssues] = useState<string | null>(null)
+    const [picking, setPicking] = useState(false)
 
     const local = state.code === code ? state.local : null
     const edits = useMemo(() => editsIn(state.applied, local), [state.applied, local])
@@ -613,9 +623,24 @@ export function PipelineEditor() {
 
             <div className="relative min-h-96 flex-1 overflow-hidden rounded-md border border-border-strong bg-background">
                 {steps.length === 0 && local !== null && (
-                    <p className="pointer-events-none absolute top-4 left-4 z-10 text-sm text-muted-foreground">
-                        No steps.
-                    </p>
+                    <div className="absolute top-4 left-4 z-10 flex items-center gap-3">
+                        <p className="pointer-events-none text-sm text-muted-foreground">No steps.</p>
+                        {/* THE OTHER WAY IN IS NOT ON THE SCREEN. Add step is a control on this
+                            canvas and needs no narrating; copying a shipped document is a door
+                            nothing here would otherwise show, so the empty state offers it. */}
+                        {creating && !small && mayWrite && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                    setPicking(true)
+                                }}
+                            >
+                                <BookOpen aria-hidden />
+                                {FROM_STARTER_LABEL}
+                            </Button>
+                        )}
+                    </div>
                 )}
                 {local === null ? (
                     <div className="flex flex-col items-start gap-3 p-4">
@@ -657,6 +682,19 @@ export function PipelineEditor() {
                     </Suspense>
                 )}
             </div>
+
+            {picking && (
+                <Suspense fallback={null}>
+                    <StarterPicker
+                        open
+                        onOpenChange={setPicking}
+                        onChoose={(document) => {
+                            startDocument(document)
+                            openPanelTab('source')
+                        }}
+                    />
+                </Suspense>
+            )}
 
             {local !== null && (
                 <ApplyDialog

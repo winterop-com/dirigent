@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router'
 
 import { ApiChip } from '@/components/ApiChip'
 import { KindChip } from '@/components/KindChip'
@@ -19,6 +20,7 @@ import {
     type BlockEntry,
     type CatalogEntry,
 } from '@/lib/blocks'
+import { examplesPerBlock, readAllExamples } from '@/lib/examples'
 import { fillPanel, openPanel } from '@/lib/panels'
 import { fieldsOf, type FieldDescriptor } from '@/lib/schema-form'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
@@ -67,6 +69,10 @@ export function Blocks() {
     const [chosen, setChosen] = useState<string | null>(null)
 
     const { value, problem, read } = useRead(readCatalog)
+    // The corpus is a cached read shared with the Examples screen, so this costs one request
+    // per tab however often either screen is opened.
+    const corpus = useRead(readAllExamples)
+    const uses = useMemo(() => examplesPerBlock(corpus.value ?? []), [corpus.value])
 
     const blocks = useMemo(() => value?.blocks ?? [], [value])
     const shown = useMemo(() => narrowBlocks(blocks, needle), [blocks, needle])
@@ -77,6 +83,7 @@ export function Blocks() {
         () => narrowEntries(value?.connection_kinds ?? [], needle),
         [value, needle],
     )
+    const columns = useMemo(() => blockColumns(uses), [uses])
     const open = blocks.find((entry) => `block:${entry.id}` === chosen) ?? null
     const registryRows: Record<Registry['key'], CatalogEntry[]> = {
         scheme: schemes,
@@ -155,7 +162,7 @@ export function Blocks() {
                             <ListTable
                                 chrome={{ footer: false }}
                                 fixed
-                                columns={COLUMNS}
+                                columns={columns}
                                 rows={members}
                                 rowKey={blockId}
                                 reading={false}
@@ -201,36 +208,71 @@ export function Blocks() {
     )
 }
 
-const COLUMNS: Column<BlockEntry>[] = [
-    {
-        id: 'block',
-        header: 'Block',
-        // The lead cell takes the width the other columns do not, and its own text truncates
-        // inside it rather than pushing the table wider than the screen.
-        className: 'w-full max-w-0',
-        cell: (entry) => (
-            <div className="min-w-0">
-                {/* A block has no name, so the title is the id and wears the mono face itself. */}
-                <span className="font-mono text-sm font-semibold">{entry.id}</span>
-                <p className="truncate text-xs text-muted-foreground" title={entry.summary}>
-                    {entry.summary}
-                </p>
-            </div>
-        ),
-    },
-    {
-        id: 'kind',
-        header: 'Kind',
-        className: 'w-32 whitespace-nowrap',
-        cell: (entry) => <KindChip kind={entry.kind} />,
-    },
-    {
-        id: 'plugin',
-        header: 'Plugin',
-        className: 'w-36 font-mono text-xs whitespace-nowrap',
-        cell: (entry) => <span className="text-muted-foreground">{entry.plugin}</span>,
-    },
-]
+/**
+ * The columns, which differ only by how many shipped documents require each block.
+ *
+ * A BLOCK IS A REFERENCE UNTIL SOMETHING USES IT. What the catalog says a block takes is only
+ * half of what somebody browsing one wants; the other half is a document that actually uses it,
+ * and the corpus has one. The count is a link to the Examples screen narrowed to this block,
+ * and it is read off the same `requires.blocks` that listing narrows by -- so what the number
+ * says is what pressing it shows.
+ */
+function blockColumns(uses: ReadonlyMap<string, number>): Column<BlockEntry>[] {
+    return [
+        {
+            id: 'block',
+            header: 'Block',
+            // The lead cell takes the width the other columns do not, and its own text truncates
+            // inside it rather than pushing the table wider than the screen.
+            className: 'w-full max-w-0',
+            cell: (entry) => (
+                <div className="min-w-0">
+                    {/* A block has no name, so the title is the id and wears the mono face itself. */}
+                    <span className="font-mono text-sm font-semibold">{entry.id}</span>
+                    <p className="truncate text-xs text-muted-foreground" title={entry.summary}>
+                        {entry.summary}
+                    </p>
+                </div>
+            ),
+        },
+        {
+            id: 'kind',
+            header: 'Kind',
+            className: 'w-32 whitespace-nowrap',
+            cell: (entry) => <KindChip kind={entry.kind} />,
+        },
+        {
+            id: 'examples',
+            header: 'Examples',
+            className: 'w-28 whitespace-nowrap',
+            cell: (entry) => <ExampleCount id={entry.id} many={uses.get(entry.id) ?? 0} />,
+        },
+        {
+            id: 'plugin',
+            header: 'Plugin',
+            className: 'w-36 font-mono text-xs whitespace-nowrap',
+            cell: (entry) => <span className="text-muted-foreground">{entry.plugin}</span>,
+        },
+    ]
+}
+
+/** How many shipped documents require one block, as the link that shows them. */
+function ExampleCount({ id, many }: { id: string; many: number }) {
+    if (many === 0) return <span className="text-xs text-faint">none</span>
+    const said = `${String(many)} ${many === 1 ? 'example' : 'examples'}`
+    return (
+        <Link
+            className="text-xs text-primary-ink hover:underline"
+            to={`/examples?block=${encodeURIComponent(id)}`}
+            title={`The shipped documents that require ${id}`}
+            onClick={(event) => {
+                event.stopPropagation()
+            }}
+        >
+            {said}
+        </Link>
+    )
+}
 
 /** A supporting registry's row: the id, and the line its own schema opens with. */
 /**
