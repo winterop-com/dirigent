@@ -16,8 +16,10 @@
 #
 # THE DEFAULT EXCHANGE IS THE ONE WITH NO NAME, and on it a routing key is a queue name. So
 # `exchange: ""` with `routing_key: shop-reports` puts the message on that queue and nowhere
-# else. Naming an exchange instead routes by whatever bindings the broker holds, and an
-# exchange the broker does not have is rejected by name rather than published into the void.
+# else. The queue has to exist: the publish is mandatory, so a routing key nothing takes is
+# refused by the broker and fails the step, rather than dropped without a word. Naming an
+# exchange instead routes by whatever bindings the broker holds, and an exchange the broker
+# does not have is rejected by name the same way.
 #
 # WHAT THE MESSAGE CARRIES. A string message is sent as UTF-8 text and anything else as
 # canonical JSON, and the content type follows -- `text/plain` or `application/json` unless

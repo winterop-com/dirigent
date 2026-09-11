@@ -1,8 +1,9 @@
 """Tests for the rabbitmq blocks, against a fake broker rather than a real one."""
 
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
+import aio_pika.exceptions
 import pytest
 from aio_pika import DeliveryMode
 from pydantic import SecretStr, ValidationError
@@ -13,6 +14,7 @@ from dirigent_blocks.rabbitmq import (
     RabbitConnectionKind,
     RabbitConsumeConfig,
     RabbitConsumeSensor,
+    RabbitPublishConfig,
     RabbitPublishOperator,
     RabbitPublishOutput,
     classify,
@@ -54,6 +56,8 @@ class FakeBroker:
         self.exchanges = {"shop"}
         self.taken: list[FakeDelivery] = []
         self.published: list[tuple[str, Any]] = []
+        # The routing keys something is bound to; None means the broker routes everything.
+        self.routes: set[str] | None = None
         self.closed = False
         self.dsn: str | None = None
         self.fail_on_connect: Exception | None = None
@@ -78,7 +82,9 @@ class FakeBroker:
             raise RuntimeError(f"NOT_FOUND - no exchange '{name}'")
         return self
 
-    async def publish(self, message: Any, routing_key: str) -> None:
+    async def publish(self, message: Any, routing_key: str, *, mandatory: bool = False) -> None:
+        if mandatory and self.routes is not None and routing_key not in self.routes:
+            raise aio_pika.exceptions.DeliveryError(message, cast("Any", None))
         self.published.append((routing_key, message))
 
     async def get(self, *, fail: bool = False, no_ack: bool = False) -> FakeDelivery | None:
@@ -420,3 +426,18 @@ async def test_a_broker_that_refuses_the_publish_connection_is_classified_as_the
 
 def test_a_publish_declares_itself_not_idempotent() -> None:
     assert RabbitPublishOperator.spec.idempotent is False
+
+
+async def test_a_publish_nothing_takes_is_refused_rather_than_dropped(ctx: FakeContext, broker: FakeBroker) -> None:
+    """The default exchange drops a message whose routing key names no queue unless the publish is mandatory."""
+    broker.routes = {"shop-reports"}
+
+    with pytest.raises(BlockFailure) as raised:
+        await RabbitPublishOperator().execute(
+            RabbitPublishConfig(connection="broker", routing_key="nobody-listens", message="hello"),
+            connected(ctx).as_context(),
+        )
+
+    assert raised.value.error_class is ErrorClass.REJECTED
+    assert "nobody-listens" in str(raised.value)
+    assert broker.published == []

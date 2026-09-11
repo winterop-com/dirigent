@@ -3,6 +3,7 @@ import { useRef } from 'react'
 import { CodePane } from '@/components/pipeline/CodePane'
 import { Segmented } from '@/components/Segmented'
 import { WindowedPane } from '@/components/WindowedPane'
+import { ProgramReference } from '@/components/pipeline/ProgramReference'
 import type { JsonMap } from '@/lib/api'
 import { REPORTS_DOCS_URL } from '@/lib/docs'
 import { reportIn } from '@/lib/pipeline-document'
@@ -107,6 +108,7 @@ export function ReportPane({
                 <WindowedPane
                     name={TEMPLATE_LABEL}
                     className="overflow-hidden rounded-md border border-border"
+                    aside={<ProgramReference mediaType={TEMPLATE_MEDIA_TYPE} />}
                     windowed={
                         <CodePane
                             value={section.template ?? ''}
