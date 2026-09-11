@@ -94,7 +94,7 @@ def _entry(plugin: str, path: str, node: Traversable) -> ExampleEntry | None:
         logger.warning("plugin %s carries %s, which does not parse; it is passed over", plugin, path)
         return None
     if not isinstance(parsed, dict) or not is_document(cast("JsonMap", parsed)):
-        logger.warning("plugin %s carries %s, which is not a dirigent document; it is passed over", plugin, path)
+        logger.debug("plugin %s carries %s, which is not a dirigent document; it is passed over", plugin, path)
         return None
     raw = cast("JsonMap", parsed)
     code = raw.get("code")

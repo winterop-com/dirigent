@@ -115,9 +115,8 @@ def test_a_file_that_does_not_parse_is_passed_over_with_one_warning(
     with caplog.at_level(logging.WARNING, logger="dirigent_core.examples"):
         host.examples()
     passed_over = [record.getMessage() for record in caplog.records]
-    assert len(passed_over) == 2
-    assert any("queues/broken.yaml" in message and "shelves" in message for message in passed_over)
-    assert any("connections.yaml" in message for message in passed_over)
+    assert len(passed_over) == 1
+    assert "queues/broken.yaml" in passed_over[0] and "shelves" in passed_over[0]
 
 
 def test_two_plugins_may_carry_the_same_code_and_the_lookup_says_which(shelves: Path) -> None:
