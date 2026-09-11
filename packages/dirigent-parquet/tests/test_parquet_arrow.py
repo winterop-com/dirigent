@@ -37,22 +37,22 @@ async def to_parquet(ctx: FakeContext, storage: FakeStorage, text: str, source_f
     storage.path_for("file://in.txt").write_text(text)
     output = await call_block(
         ArrowConverter(),
-        {"input_uri": "file://in.txt", "from": source_format, "to": "parquet", "save_to": "file://out.parquet"},
+        {"source": "file://in.txt", "target": "file://out.parquet", "from": source_format, "to": "parquet"},
         ctx,
     )
-    assert output.model_dump()["output_uri"] == "file://out.parquet"
+    assert output.model_dump()["target"] == "file://out.parquet"
     return storage.path_for("file://out.parquet").read_bytes()
 
 
 async def from_parquet(ctx: FakeContext, storage: FakeStorage, payload: bytes, target_format: str) -> str:
     """Convert parquet bytes in storage to one text payload."""
     storage.path_for("file://in.parquet").write_bytes(payload)
-    output = await call_block(
-        ArrowConverter(), {"input_uri": "file://in.parquet", "from": "parquet", "to": target_format}, ctx
+    await call_block(
+        ArrowConverter(),
+        {"source": "file://in.parquet", "target": "file://out.txt", "from": "parquet", "to": target_format},
+        ctx,
     )
-    text = output.model_dump()["text"]
-    assert isinstance(text, str)
-    return text
+    return storage.path_for("file://out.txt").read_text()
 
 
 def test_the_engine_is_convert_arrow_and_needs_no_allowlist_entry() -> None:
@@ -131,7 +131,7 @@ async def test_a_column_whose_rows_disagree_is_refused_naming_it(ctx: FakeContex
     with pytest.raises(BlockFailure) as raised:
         await call_block(
             ArrowConverter(),
-            {"input_uri": "file://in.txt", "from": "json", "to": "parquet", "save_to": "file://out.parquet"},
+            {"source": "file://in.txt", "target": "file://out.parquet", "from": "json", "to": "parquet"},
             ctx,
         )
 
@@ -145,7 +145,7 @@ async def test_a_nested_value_is_refused_naming_the_row_and_the_key(ctx: FakeCon
     with pytest.raises(BlockFailure) as raised:
         await call_block(
             ArrowConverter(),
-            {"input_uri": "file://in.txt", "from": "json", "to": "parquet", "save_to": "file://out.parquet"},
+            {"source": "file://in.txt", "target": "file://out.parquet", "from": "json", "to": "parquet"},
             ctx,
         )
 
@@ -158,7 +158,7 @@ async def test_a_row_that_is_not_an_object_has_no_parquet_spelling(ctx: FakeCont
     with pytest.raises(BlockFailure) as raised:
         await call_block(
             ArrowConverter(),
-            {"input_uri": "file://in.txt", "from": "json", "to": "parquet", "save_to": "file://out.parquet"},
+            {"source": "file://in.txt", "target": "file://out.parquet", "from": "json", "to": "parquet"},
             ctx,
         )
 
@@ -199,7 +199,11 @@ async def test_a_nested_parquet_column_is_refused_naming_it(ctx: FakeContext, st
     storage.path_for("file://in.parquet").write_bytes(parquet_bytes(table))
 
     with pytest.raises(BlockFailure) as raised:
-        await call_block(ArrowConverter(), {"input_uri": "file://in.parquet", "from": "parquet", "to": "json"}, ctx)
+        await call_block(
+            ArrowConverter(),
+            {"source": "file://in.parquet", "target": "file://out.json", "from": "parquet", "to": "json"},
+            ctx,
+        )
 
     assert "column 'position'" in raised.value.message
     assert "flatten it before converting" in raised.value.message
@@ -212,7 +216,11 @@ async def test_a_binary_parquet_column_is_refused_naming_it(ctx: FakeContext, st
     storage.path_for("file://in.parquet").write_bytes(parquet_bytes(table))
 
     with pytest.raises(BlockFailure) as raised:
-        await call_block(ArrowConverter(), {"input_uri": "file://in.parquet", "from": "parquet", "to": "json"}, ctx)
+        await call_block(
+            ArrowConverter(),
+            {"source": "file://in.parquet", "target": "file://out.json", "from": "parquet", "to": "json"},
+            ctx,
+        )
 
     assert "column 'raw' holds raw bytes" in raised.value.message
 
@@ -221,7 +229,11 @@ async def test_bytes_that_are_not_parquet_are_refused_as_such(ctx: FakeContext, 
     storage.path_for("file://in.parquet").write_bytes(b"not parquet at all")
 
     with pytest.raises(BlockFailure) as raised:
-        await call_block(ArrowConverter(), {"input_uri": "file://in.parquet", "from": "parquet", "to": "json"}, ctx)
+        await call_block(
+            ArrowConverter(),
+            {"source": "file://in.parquet", "target": "file://out.json", "from": "parquet", "to": "json"},
+            ctx,
+        )
 
     assert "the input is not parquet" in raised.value.message
 
@@ -232,7 +244,7 @@ async def test_text_that_is_not_utf8_is_refused_at_the_byte_that_is_not(ctx: Fak
     with pytest.raises(BlockFailure) as raised:
         await call_block(
             ArrowConverter(),
-            {"input_uri": "file://in.txt", "from": "csv", "to": "parquet", "save_to": "file://out.parquet"},
+            {"source": "file://in.txt", "target": "file://out.parquet", "from": "csv", "to": "parquet"},
             ctx,
         )
 
@@ -245,44 +257,21 @@ async def test_a_json_value_that_is_not_an_array_is_refused(ctx: FakeContext, st
     with pytest.raises(BlockFailure) as raised:
         await call_block(
             ArrowConverter(),
-            {"input_uri": "file://in.txt", "from": "json", "to": "parquet", "save_to": "file://out.parquet"},
+            {"source": "file://in.txt", "target": "file://out.parquet", "from": "json", "to": "parquet"},
             ctx,
         )
 
     assert "has to be a JSON array" in raised.value.message
 
 
-async def test_a_parquet_target_without_save_to_is_refused_when_run(ctx: FakeContext, storage: FakeStorage) -> None:
-    storage.path_for("file://in.txt").write_text(READINGS_JSON)
-
-    with pytest.raises(BlockFailure) as raised:
-        await call_block(ArrowConverter(), {"input_uri": "file://in.txt", "from": "json", "to": "parquet"}, ctx)
-
-    assert raised.value.error_class is ErrorClass.REJECTED
-    assert "needs save_to" in raised.value.message
-
-
-async def test_a_parquet_source_written_inline_is_refused_when_run(ctx: FakeContext) -> None:
-    with pytest.raises(BlockFailure) as raised:
-        await call_block(ArrowConverter(), {"input": "PAR1...", "from": "parquet", "to": "json"}, ctx)
-
-    assert "read from input_uri" in raised.value.message
-
-
-def test_the_uri_rules_are_refused_at_apply_too() -> None:
-    from dirigent_plugin import ConvertConfig
-
-    refusals = ArrowConverter().check_config(
-        ConvertConfig.model_validate({"input": "[]", "from": "json", "to": "parquet"})
-    )
-    assert len(refusals) == 1
-    assert "needs save_to" in refusals[0]
-
-
 def test_a_pair_this_engine_does_not_convert_is_refused_naming_the_six() -> None:
     from dirigent_plugin import ConvertConfig
 
-    refusals = ArrowConverter().check_config(ConvertConfig.model_validate({"input": "[]", "from": "json", "to": "csv"}))
+    config = ConvertConfig.model_validate(
+        {"source": "file://in.json", "target": "file://out.csv", "from": "json", "to": "csv"}
+    )
+
+    refusals = ArrowConverter().check_config(config)
     assert len(refusals) == 1
     assert "convert.arrow does not convert json to csv" in refusals[0]
     assert "parquet to json" in refusals[0]

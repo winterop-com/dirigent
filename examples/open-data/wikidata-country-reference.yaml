@@ -22,16 +22,17 @@
 #             JSON by the Accept header.
 #   table     the unwrapping: `.results.bindings` mapped to flat rows, each `.value` pulled
 #             out of its little envelope, the numeric code turned into an actual number, and
-#             the Wikidata entity URI cut down to its Q-id. Written to storage as json,
-#             because a reference table is a thing other runs read rather than a value this
-#             run carries onward.
-#   summary   the same file read back through input_uri, counted. A step with save_to hands
-#             on no value, so this is what the run reports -- and it is the read another
-#             pipeline would do against the same path.
+#             the Wikidata entity URI cut down to its Q-id.
+#   publish   storage.write, the table as json. A reference table is a thing other runs read
+#             rather than a value this run carries onward, and a value leaves the run here.
+#   recalled  storage.read of that object: the read another pipeline would do against the same
+#             path, which is the only way a value comes back in.
+#   summary   what the run reports, counted off what came back rather than off what was held
+#             in memory upstream.
 #
 # To make it yours: change the query. Swapping wd:Q3624078 for wd:Q6256 widens it from
 # sovereign states to countries, and adding `?item wdt:P1082 ?population` gives every row a
-# population without another request. The two save_to paths are the run's own scratch, which is
+# population without another request. The table is written into the run's own scratch, which is
 # deleted with the run; on an instance, writing to s3:// or to a stable prefix is what makes the
 # table outlive the run that built it. A reference is not a parameter with a default, because a
 # parameter default is literal text: ${run.scratch} means nothing until a step resolves it.
@@ -52,6 +53,8 @@ requires:
   blocks:
     - http.request
     - transform.jq
+    - storage.write
+    - storage.read
 
 params:
   type: object
@@ -97,7 +100,7 @@ steps:
     block: transform.jq
     depends_on: [fetch]
     config:
-      input: ${steps.fetch.output.json_body}
+      input: ${steps.fetch.output.body}
       # Every binding is {type, value} and every value is a string, so the numeric code is
       # converted here rather than being carried as "454" for the rest of its life. An
       # OPTIONAL that matched nothing has no binding at all, which is why each read is
@@ -112,14 +115,28 @@ steps:
              iso_numeric: (if .isoNumeric then (.isoNumeric.value | tonumber) else null end)
            }]
         | unique_by(.iso3)
-      save_to: ${run.scratch}/countries.json
+
+  publish:
+    block: storage.write
+    depends_on: [table]
+    config:
+      target: ${run.scratch}/countries.json
+      value: ${steps.table.output.value}
+
+  recalled:
+    block: storage.read
+    depends_on: [publish]
+    config:
+      # The read another pipeline would do: the table by its path, and the count below is off
+      # the object rather than off the value upstream.
+      source: ${steps.publish.output.uri}
+      max_size: 4mb
 
   summary:
     block: transform.jq
-    depends_on: [table]
+    depends_on: [recalled]
     config:
-      # The read another pipeline would do: the table by its path, not by this run's outputs.
-      input_uri: ${run.scratch}/countries.json
+      input: ${steps.recalled.output.value}
       program: |
         {
           countries: length,

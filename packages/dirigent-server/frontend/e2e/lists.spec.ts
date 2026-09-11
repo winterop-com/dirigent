@@ -23,7 +23,7 @@ const RAN = {
 }
 
 /** The opening line of that example's description, which the pane renders as markdown. */
-const DESCRIPTION = 'Re-encode an inline csv as json'
+const DESCRIPTION = 'Store an inline csv, re-encode it as json'
 const IDLE = { file: 'examples/transform/jq-reshape.yaml', code: 'jq-reshape', title: 'Reshape with jq' }
 
 /** A document with no name, whose row is therefore headed by its code. */

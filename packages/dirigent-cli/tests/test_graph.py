@@ -19,8 +19,9 @@ def drawn(name: str) -> list[str]:
 def test_a_chain_is_drawn_as_a_chain() -> None:
     assert drawn("graph/linear.yaml") == [
         "fetch  (http.request)",
-        "  archive  (storage.copy)",
-        "    report  (shell.run)",
+        "  store  (storage.write)",
+        "    archive  (storage.copy)",
+        "      report  (shell.run)",
     ]
 
 

@@ -1,9 +1,13 @@
 # A csv report, written where a person can fetch it.
 #
-# The chain that turns records into a file: a fixed value stands in for whatever produced
-# the records, a jq program shapes them into flat rows, and convert.std writes the rows as
-# csv into the run's scratch -- so the run's Output tab lists a report.csv somebody can
-# read back. Nothing here is on the allowlist.
+# Four hops turn records into a file: a fixed value stands in for whatever produced the
+# records, a jq program shapes them into flat rows, storage.write puts those rows in the
+# run's scratch as json, and convert.std re-encodes that object as csv -- so the run's
+# Output tab lists a report.csv somebody can read back. Nothing here is on the allowlist.
+#
+# convert.std works on storage objects, the way storage.copy does: it names a source uri
+# and a target uri and never carries a value. The write is how the rows a step is holding
+# become an object it can read.
 #
 # The rows must be flat: a nested value has no csv spelling and is refused naming the row
 # and the key, so the jq step is where a list becomes one joined cell.
@@ -14,7 +18,7 @@ format: dirigent/v1
 kind: pipeline
 code: csv-report
 name: A report as csv
-description: Shape records into flat rows, write them as a csv artifact.
+description: Shape records into flat rows, store them as json, and re-encode that as a csv artifact.
 
 tags: [transform, storage]
 
@@ -32,14 +36,20 @@ steps:
     config:
       input: ${steps.readings.output.value}
       # Flatten for the codec: the tag list becomes one joined cell, because only this
-      # program knows what the separator should mean. tojson because a codec takes text.
+      # program knows what the separator should mean.
       program: |
-        [.[] | {station, region, celsius, tags: (.tags | join(" "))}] | tojson
-  report:
-    block: convert.std
+        [.[] | {station, region, celsius, tags: (.tags | join(" "))}]
+  store:
+    block: storage.write
     depends_on: [rows]
     config:
-      input: "${steps.rows.output.value}"
+      target: ${run.scratch}/rows.json
+      value: ${steps.rows.output.value}
+  report:
+    block: convert.std
+    depends_on: [store]
+    config:
+      source: ${steps.store.output.uri}
+      target: ${run.scratch}/report.csv
       from: json
       to: csv
-      save_to: ${run.scratch}/report.csv

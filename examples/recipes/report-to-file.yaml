@@ -3,7 +3,7 @@
 # In:  three readings written inline.
 # Out: a markdown page at ${run.scratch}/report.md, and its text on the run's own timeline.
 #
-# report.render has no save_to and never will: it renders text and hands it on. Sending it
+# report.render renders text and hands it on; it writes nothing itself. Sending it
 # somewhere is a step of its own, and which step that is decides where the page goes -- a
 # file here, a bucket in examples/s3/report-to-s3.yaml, a queue in the two under
 # examples/queues/. The template does not change between them.

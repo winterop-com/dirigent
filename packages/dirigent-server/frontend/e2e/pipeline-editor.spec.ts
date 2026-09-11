@@ -18,7 +18,7 @@ import {
 /**
  * The pipeline editor, against documents this suite really applied to a real `dg dev`.
  *
- * TWO EXAMPLES, EACH FOR WHAT IT HAS. `transform/std-convert-fan-out.yaml` is five steps with a
+ * TWO EXAMPLES, EACH FOR WHAT IT HAS. `transform/std-convert-fan-out.yaml` is eight steps with a
  * config worth generating a form from, and `params-showcase.yaml` is the parameter schema the
  * run dialog is built from -- a required string, an enum, an integer with bounds, a boolean.
  * Neither is run here: applying writes a version and starts nothing, so this spec touches no
@@ -35,7 +35,7 @@ const PARAMS_EXAMPLE = 'examples/demo/params-showcase.yaml'
 const PARAMS_PIPELINE = 'params-showcase'
 
 /** Every step the transform example declares, which is what the graph has to draw. */
-const STEPS = ['parse', 'active', 'per_region', 'report', 'as_csv']
+const STEPS = ['source', 'parse', 'rows', 'active', 'per_region', 'report', 'store', 'as_csv']
 
 /**
  * Two steps and nothing between them, which is the one shape no shipped example has and the one
@@ -184,10 +184,11 @@ test('the stored document reads as its graph, and a step reads as its own config
     await expect(panel.getByRole('tab', { name: 'Source' })).toBeVisible()
     await expect(panel.getByText('convert.std', { exact: true })).toBeVisible()
 
-    // `from` and `to` are convert.std's required fields, and `input` is its optional one.
+    // convert.std's four fields: the pair of formats, and the two uris it reads and writes.
     await expect(panel.getByLabel('from', { exact: true })).toHaveValue('csv')
     await expect(panel.getByLabel('to', { exact: true })).toHaveValue('json')
-    await expect(panel.getByLabel('input', { exact: true })).toBeVisible()
+    await expect(panel.getByLabel('source', { exact: true })).toBeVisible()
+    await expect(panel.getByLabel('target', { exact: true })).toBeVisible()
 })
 
 test('a config field the schema calls a program is edited as one, and every other string is not', async ({
@@ -226,7 +227,7 @@ test('a config field the schema calls a program is edited as one, and every othe
     await expect(panel.locator('[data-uri$="config/input.json"] .view-lines')).toContainText('region')
 
     // A BLOCK WITH NEITHER A PROGRAM NOR A STRUCTURED FIELD GETS NO EDITOR. convert.std has
-    // a from, a to and an input, and the schema says every one is a plain string.
+    // a from, a to, a source and a target, and the schema says every one is a plain string.
     await page.locator('.react-flow__node').getByText('parse', { exact: true }).click()
     await expect(panel.getByLabel('from', { exact: true })).toHaveValue('csv')
     await expect(panel.getByTestId('code-editor')).toHaveCount(0)

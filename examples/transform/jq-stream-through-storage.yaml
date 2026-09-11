@@ -1,26 +1,25 @@
-# The large-payload path: a result written to storage, and the next step reading it from
-# there instead of carrying it between the two.
+# A value leaving the run and coming back: storage.write out, storage.read in.
 #
-# Every transform takes save_to, and every transform takes input_uri, so a chain of them
-# can pass values through storage rather than through step outputs. That is the whole
-# mechanism here: generate writes its list to the run's scratch space, cold reads it back
-# with input_uri and writes its own smaller result the same way, and summary reads that.
+# A transform works on a value and answers with one, so a list that should survive as a
+# file leaves through storage.write and returns through storage.read. Those two blocks are
+# the only doors, and this document walks through both of them: generate builds a list,
+# store puts it in the run's scratch space, reload reads it back as a value, cold keeps the
+# readings below zero, keep writes those out as their own file, and summary folds what cold
+# produced down to the handful of fields the run answers with.
 #
-# When to reach for a URI over an inline value:
+# What each hop hands the next:
 #
-#   - An output above inline_artifact_max (16KB by default) is spilled to an artifact
-#     anyway, so a large inline value costs an artifact write and an artifact read without
-#     ever saying so in the document. save_to says so, and names the file.
-#   - input_uri streams: max_input (32MB by default) bounds what is read into memory, and
-#     an input above it is refused rather than truncated.
-#   - The step's output changes shape with save_to. Without it the output carries value;
-#     with it the output carries output_uri and output_bytes, and nothing else. That is
-#     what a downstream step references, which is why every step below reads
-#     ${steps.<name>.output.output_uri}.
+#   - a transform's output is value, which is what the next transform's input reads
+#   - a write's output is uri, bytes_written and content_type, so the read that follows
+#     names ${steps.store.output.uri} rather than repeating the path
+#   - a read's output is value for the json family and text otherwise, decided by what the
+#     object says it is; readings.json says application/json by its extension
+#
+# A read holds the object whole, so max_size bounds it and an object past that is refused
+# rather than truncated. Bytes nobody has to look at move with storage.copy instead.
 #
 # The list is built in jq from range, so the example needs no network and no fixture file.
-# In a real pipeline generate is an http.request that already wrote its body to storage,
-# and the chain starts at ${steps.fetch.output.body_uri}.
+# In a real pipeline generate is an http.request and its body goes straight to store.
 #
 # What it prints, and the arithmetic to check it against: celsius is (i % 40) - 10, so ten
 # of every forty stations are below zero, and 2000 stations give 500 cold ones. The coldest
@@ -32,14 +31,16 @@
 format: dirigent/v1
 kind: pipeline
 code: jq-stream-through-storage
-name: Stream through storage with jq
-description: Write a generated list to storage, read it back by URI, and pass the result on the same way.
+name: A value through storage
+description: Write a generated list to storage, read it back as a value, and write the smaller result out the same way.
 
 tags: [transform, storage]
 
 requires:
   blocks:
     - transform.jq
+    - storage.read
+    - storage.write
 
 params:
   type: object
@@ -58,32 +59,53 @@ steps:
     config:
       input:
         count: ${params.stations}
-      # About 100KB at the default count, which is well past the 16KB an output inlines.
+      # About 100KB at the default count.
       program: |
         [range(.count) as $i
          | {station: "st-\($i)",
             region: ["east", "west", "north"][$i % 3],
             celsius: ($i % 40) - 10}]
-      save_to: ${run.scratch}/readings.json
+
+  store:
+    block: storage.write
+    depends_on: [generate]
+    config:
+      target: ${run.scratch}/readings.json
+      value: ${steps.generate.output.value}
+
+  reload:
+    block: storage.read
+    depends_on: [store]
+    config:
+      source: ${steps.store.output.uri}
+      # The default is 1mb, and the generated list is well under it at every station count
+      # this document allows.
+      max_size: 8mb
 
   cold:
     block: transform.jq
-    depends_on: [generate]
+    depends_on: [reload]
     config:
-      # The list is never held by this document: it is streamed out of storage, reshaped,
-      # and streamed back, and only the URI crosses the edge between the two steps.
-      input_uri: ${steps.generate.output.output_uri}
+      # readings.json is application/json, so the read decoded it and the value is the list
+      # itself rather than its text.
+      input: ${steps.reload.output.value}
       program: |
         [.[] | select(.celsius < 0) | {station, region, celsius}]
-      save_to: ${run.scratch}/cold.json
+
+  keep:
+    block: storage.write
+    depends_on: [cold]
+    config:
+      target: ${run.scratch}/cold.json
+      value: ${steps.cold.output.value}
 
   summary:
     block: transform.jq
     depends_on: [cold]
     config:
-      input_uri: ${steps.cold.output.output_uri}
-      # No save_to, because a handful of fields is not worth a file: this output is small,
-      # so it inlines, and it is the run's readable answer.
+      # No second read: the cold list is already a value in this run, and a write is for
+      # what leaves it. This output is small, so it inlines, and it is the run's answer.
+      input: ${steps.cold.output.value}
       program: |
         {cold_stations: length,
          coldest: (min_by(.celsius) | .station),

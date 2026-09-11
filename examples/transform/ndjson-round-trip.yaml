@@ -1,19 +1,24 @@
 # One record per line, which is what a consumer that streams wants.
 #
 # ndjson is the spelling for a sequence that is appended to or read without parsing the
-# whole: each line is one complete JSON record. This converts a JSON array into that form
-# and back, and the round trip is the point -- the three formats say the same thing, so
-# converting is re-spelling, never reshaping.
+# whole: each line is one complete JSON record. This writes an array to storage, converts
+# that object to ndjson and back, and reads the result in again -- and the round trip is
+# the point, because the three formats say the same thing, so converting is re-spelling,
+# never reshaping.
 #
-#   dg run --local examples/transform/ndjson-round-trip.yaml
+# A conversion is a storage-object operation: source uri in, target uri out, no value in
+# between. storage.write is what turns the records this run holds into an object to convert,
+# and storage.read is what brings the last one back as a value the run can show.
+#
+#   dg run --local examples/transform/ndjson-round-trip.yaml --keep
 
 format: dirigent/v1
 kind: pipeline
 code: ndjson-round-trip
 name: One record per line
-description: Re-spell a JSON array as ndjson, and read it back.
+description: Re-spell a stored JSON array as ndjson, convert it back, and read the result in as a value.
 
-tags: [transform]
+tags: [transform, storage]
 
 steps:
   records:
@@ -22,24 +27,30 @@ steps:
       value:
         - { station: st-1, celsius: 4.5 }
         - { station: st-3, celsius: 1.2 }
-  as_text:
-    block: transform.jq
+  store:
+    block: storage.write
     depends_on: [records]
     config:
-      input: ${steps.records.output.value}
-      # tojson because a codec takes text: the records leave here as one JSON string.
-      program: tojson
+      target: ${run.scratch}/records.json
+      value: ${steps.records.output.value}
   as_lines:
     block: convert.std
-    depends_on: [as_text]
+    depends_on: [store]
     config:
-      input: "${steps.as_text.output.value}"
+      source: ${steps.store.output.uri}
+      target: ${run.scratch}/records.ndjson
       from: json
       to: ndjson
   back:
     block: convert.std
     depends_on: [as_lines]
     config:
-      input: "${steps.as_lines.output.text}"
+      source: ${steps.as_lines.output.target}
+      target: ${run.scratch}/round-trip.json
       from: ndjson
       to: json
+  read_back:
+    block: storage.read
+    depends_on: [back]
+    config:
+      source: ${steps.back.output.target}

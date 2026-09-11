@@ -133,8 +133,8 @@ steps:
     depends_on: [named, carried, absolute]
     config:
       input:
-        named: "${steps.named.output.json_body.args.via}"
-        carried: "${steps.carried.output.json_body.args.via}"
-        absolute: "${steps.absolute.output.json_body.args.via}"
+        named: "${steps.named.output.body.args.via}"
+        carried: "${steps.carried.output.body.args.via}"
+        absolute: "${steps.absolute.output.body.args.via}"
       program: |
         {named, carried, absolute, note: "three ways to say where; one thing done"}

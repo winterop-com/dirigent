@@ -25,7 +25,9 @@
 #             compiled once and never has a value spliced into its text.
 #   nearby    filter.jq, comparing each row's own numbers against the limits it carries.
 #   digest    map.jq drops the limits again, leaving the row a person reads.
-#   as_text   tojson, because the codec below takes text and a transform hands on a value.
+#   ordered   the digest, biggest magnitude first, which is the order the file below holds.
+#   staged    storage.write, that list as one json object. A converter reads one URI and writes
+#             another, so a value the run is holding is put down before it is re-encoded.
 #   written   json to ndjson. ndjson is what makes the gate work: an empty list encodes as an
 #             empty file, where an empty json array would still be two bytes.
 #   matched   the gate. Three seconds is plenty when the file is already there; on a quiet
@@ -61,6 +63,7 @@ requires:
     - filter.jq
     - map.jq
     - transform.jq
+    - storage.write
     - convert.std
     - storage.exists
     - webhook.post
@@ -108,7 +111,7 @@ steps:
       # Everything the program needs arrives as data: the features, the point, and the two
       # limits. Nothing about this input is spliced into the program's text.
       input:
-        features: ${steps.feed.output.json_body.features}
+        features: ${steps.feed.output.body.features}
         latitude: ${params.latitude}
         longitude: ${params.longitude}
         radius_km: ${params.radius_km}
@@ -154,22 +157,29 @@ steps:
       program: |
         del(.radius_km, .min_magnitude)
 
-  as_text:
+  ordered:
     block: transform.jq
     depends_on: [digest]
     config:
       input: ${steps.digest.output.value}
       program: |
-        sort_by(-.magnitude) | tojson
+        sort_by(-.magnitude)
+
+  staged:
+    block: storage.write
+    depends_on: [ordered]
+    config:
+      target: ${run.scratch}/matched.json
+      value: ${steps.ordered.output.value}
 
   written:
     block: convert.std
-    depends_on: [as_text]
+    depends_on: [staged]
     config:
-      input: ${steps.as_text.output.value}
+      source: ${steps.staged.output.uri}
+      target: ${run.scratch}/matched.ndjson
       from: json
       to: ndjson
-      save_to: ${run.scratch}/matched.ndjson
 
   matched:
     block: storage.exists
@@ -179,13 +189,13 @@ steps:
     # The whole point: nothing matched is not a failure, it is a run with nothing to say.
     on_timeout: skip
     config:
-      uri: ${run.scratch}/matched.ndjson
+      uri: ${steps.written.output.target}
       # One byte is the difference between an empty digest and a digest.
       min_size: 1b
 
   notify:
     block: webhook.post
-    depends_on: [matched]
+    depends_on: [digest, matched]
     config:
       url: ${params.webhook_url}
       body:

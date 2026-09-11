@@ -30,7 +30,8 @@
 #   rows      the flattening: Central's metadata renamed into stable columns, the named
 #             questions read with a path so a grouped question is reachable as "group/field",
 #             and every row given the same keys.
-#   as_text   tojson for the codec.
+#   staged    storage.write, the rows as json, because a converter reads a URI rather than a
+#             value the run is holding.
 #   report    csv in storage, named for the form.
 #
 # To make it yours: set project and form_id, list the questions you report on, and add a
@@ -56,6 +57,7 @@ requires:
   blocks:
     - http.request
     - transform.jq
+    - storage.write
     - convert.std
   connections:
     - odk-central
@@ -105,7 +107,7 @@ steps:
     depends_on: [submissions]
     config:
       input:
-        payload: ${steps.submissions.output.json_body}
+        payload: ${steps.submissions.output.body}
         columns: ${params.columns}
       # getpath is what makes a grouped question reachable: "hh/members" is a path into a
       # nested object, and splitting on "/" turns the column name into that path.
@@ -127,18 +129,18 @@ steps:
              + (reduce $questions[] as $q
                   ({}; .[$q] = ($row | getpath($q | split("/")) // null)))]
 
-  as_text:
-    block: transform.jq
+  staged:
+    block: storage.write
     depends_on: [rows]
     config:
-      input: ${steps.rows.output.value}
-      program: tojson
+      target: ${run.scratch}/odk/${params.form_id}.json
+      value: ${steps.rows.output.value}
 
   report:
     block: convert.std
-    depends_on: [as_text]
+    depends_on: [staged]
     config:
-      input: ${steps.as_text.output.value}
+      source: ${steps.staged.output.uri}
+      target: ${run.scratch}/odk/${params.form_id}.csv
       from: json
       to: csv
-      save_to: ${run.scratch}/odk/${params.form_id}.csv

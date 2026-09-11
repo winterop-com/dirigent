@@ -240,7 +240,7 @@ check:
   block: validate.schema
   depends_on: [fetch]
   config:
-    input: ${steps.fetch.output.json_body}
+    input: ${steps.fetch.output.body}
     schema: acme-sites
 ```
 
@@ -269,7 +269,7 @@ steps:
     block: validate.schema
     depends_on: [fetch]
     config:
-      input: ${steps.fetch.output.json_body}
+      input: ${steps.fetch.output.body}
       schema: site-record
 ```
 

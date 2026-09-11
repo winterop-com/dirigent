@@ -101,7 +101,7 @@ steps:
     config:
       input:
         status: ${steps.call.output.status}
-        body: ${steps.call.output.json_body}
+        body: ${steps.call.output.body}
       program: |
         # /basic-auth answers {"authenticated": true}; /get echoes the request instead, and
         # its .headers shows the Authorization header the connection contributed.

@@ -17,7 +17,6 @@ files a statement names by binding their storage URIs as parameters.
 """
 
 import asyncio
-import json
 import time
 from collections.abc import AsyncGenerator, AsyncIterator, Callable, Sequence
 from contextlib import asynccontextmanager
@@ -42,7 +41,6 @@ from dirigent_common import (
     HealthReport,
     JsonList,
     JsonMap,
-    StorageUri,
     spelled,
 )
 from dirigent_plugin import (
@@ -214,7 +212,7 @@ class SqlConnectionKind(ConnectionKind):
 
 
 class SqlQueryConfig(BlockModel):
-    """One statement, the values bound into it, and where its rows go."""
+    """One statement, and the values bound into it."""
 
     connection: ConnectionRef
     """The ``sql`` connection naming the database and holding its password."""
@@ -241,13 +239,7 @@ class SqlQueryConfig(BlockModel):
 
     A result past this fails the step rather than being truncated: half an answer is not a
     smaller answer, and a step acting on it would be acting on something the database never
-    said. ``save_to`` streams instead, and is bounded by the storage rather than by this."""
-
-    save_to: StorageUri | None = None
-    """A storage URI the rows are streamed to as NDJSON, one JSON object per line.
-
-    Given, the rows are never held whole, the output carries ``saved_to`` and ``row_count``
-    instead of ``rows``, and ``max_rows`` does not apply."""
+    said. Rows that belong in a file are handed to ``storage.write``."""
 
     timeout: Duration = timedelta(minutes=5)
     """How long the statement may run.
@@ -263,19 +255,16 @@ class SqlQueryConfig(BlockModel):
 
 
 class SqlQueryOutput(BlockModel):
-    """What one query returned, or where it was put."""
+    """What one query returned."""
 
-    rows: JsonList | None = None
-    """The rows as objects keyed by column name, or null when they were saved instead."""
+    rows: JsonList
+    """The rows as objects keyed by column name, which a later step reads or writes out."""
 
     row_count: int
-    """How many rows the query returned, inline or saved."""
+    """How many rows the query returned."""
 
     columns: list[str]
     """The column names, in the order the query selected them."""
-
-    saved_to: str | None = None
-    """Where the NDJSON was written, when ``save_to`` asked for it."""
 
     duration_ms: int
 
@@ -292,11 +281,10 @@ class SqlQueryOperator(Operator[SqlQueryConfig, SqlQueryOutput]):
     output_model: ClassVar[type[BaseModel]] = SqlQueryOutput
 
     async def execute(self, config: SqlQueryConfig, ctx: StepContext) -> SqlQueryOutput | RemoteHandle:
-        """Open a session, run the statement, and hand the rows on inline or through storage."""
+        """Open a session, run the statement, and hand the rows on as the step's output."""
         settings = ctx.connection(config.connection, SqlConnectionConfig)
         params = _bound(config.params, settings, ctx)
         started = time.monotonic()
-        rows: JsonList | None = None
         async with _session(settings, ctx, s3=addresses_s3(params, [config.sql])) as connection:
             await _limit(connection, settings, config.timeout)
             # The deadline covers running the statement and reading the rows out of it, because
@@ -304,24 +292,18 @@ class SqlQueryOperator(Operator[SqlQueryConfig, SqlQueryOutput]):
             async with asyncio.timeout(config.timeout.total_seconds()):
                 result = await connection.stream(sqlalchemy.text(config.sql), params)
                 columns = list(result.keys())
-                if config.save_to:
-                    count = await _save(result, config.save_to, ctx)
-                else:
-                    rows = await _inline(result, config.max_rows)
-                    count = len(rows)
+                rows = await _inline(result, config.max_rows)
         duration = round((time.monotonic() - started) * 1000)
         ctx.log.info(
             "query ran",
             connection=config.connection,
-            row_count=count,
-            saved_to=config.save_to,
+            row_count=len(rows),
             duration_ms=duration,
         )
         return SqlQueryOutput(
             rows=rows,
-            row_count=count,
+            row_count=len(rows),
             columns=columns,
-            saved_to=config.save_to,
             duration_ms=duration,
         )
 
@@ -820,27 +802,10 @@ async def _inline(result: Any, max_rows: int) -> JsonList:
         rows.extend(spelled_row(one) for one in batch)
         if len(rows) > max_rows:
             raise BlockFailure(
-                f"the query returned more than max_rows ({max_rows}) rows and is not being saved; "
-                f"raise max_rows, narrow the query, or give save_to a URI to stream it to",
+                f"the query returned more than max_rows ({max_rows}) rows; raise max_rows, or narrow the query",
                 error_class=ErrorClass.REJECTED,
             )
     return rows
-
-
-async def _save(result: Any, uri: str, ctx: StepContext) -> int:
-    """Stream the rows to storage as NDJSON and say how many there were.
-
-    A batch at a time, so a result larger than the worker's memory is a file rather than a
-    dead worker.
-    """
-    count = 0
-    async with ctx.storage.open_write(uri) as sink:
-        async for batch in _batches(result):
-            payload = "".join(f"{json.dumps(spelled_row(one), separators=(',', ':'))}\n" for one in batch)
-            await sink.write(payload.encode())
-            count += len(batch)
-    ctx.log.info("rows saved", uri=uri, row_count=count)
-    return count
 
 
 async def _batches(result: Any) -> AsyncIterator[Sequence[Any]]:

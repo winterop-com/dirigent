@@ -33,6 +33,7 @@ from dirigent_blocks.rabbitmq import (
     RabbitConsumeConfig,
     RabbitConsumeSensor,
 )
+from dirigent_blocks.storage import StorageReadConfig, StorageReadOperator, StorageReadOutput
 from dirigent_plugin import BlockFailure, ConnectionKind, ErrorClass, NotYet
 from dirigent_testing import FakeContext, FakeStorage
 
@@ -293,11 +294,16 @@ async def test_what_the_producer_published_is_what_the_sensor_reads_back(ctx: Fa
     assert output.messages[1].headers == {"source": "till"}
 
 
-async def test_ndjson_out_of_storage_reaches_the_topic(ctx: FakeContext, storage: FakeStorage, topic: str) -> None:
-    (storage.root / "orders.ndjson").write_text('{"id": 1}\n{"id": 2}\n{"id": 3}\n')
+async def test_records_read_out_of_storage_reach_the_topic(ctx: FakeContext, storage: FakeStorage, topic: str) -> None:
+    """The composed path: storage.read takes the records in, and the publish sends what it read."""
+    (storage.root / "orders.json").write_text('[{"id": 1}, {"id": 2}, {"id": 3}]')
+
+    read = await StorageReadOperator().execute(StorageReadConfig(source="file://orders.json"), ctx.as_context())
+    assert isinstance(read, StorageReadOutput)
+    assert isinstance(read.value, list)
 
     published = await KafkaProduceOperator().execute(
-        KafkaProduceConfig(connection="cluster", topic=topic, records_from="file://orders.ndjson"),
+        KafkaProduceConfig(connection="cluster", topic=topic, records=read.value),
         kafka_ctx(ctx).as_context(),
     )
 

@@ -201,7 +201,7 @@ async def test_a_three_step_pipeline_runs_to_completion(
     settled = await attempts(sessions, run.id)
     assert settled["fetch"].output is not None
     assert settled["fetch"].output["status"] == 200
-    assert settled["fetch"].output["json_body"] == {"rows": 42}
+    assert settled["fetch"].output["body"] == {"rows": 42}
     assert settled["stage"].output is not None
     assert settled["stage"].output["bytes_copied"] == 12
     assert settled["report"].output is not None

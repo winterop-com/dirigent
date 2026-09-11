@@ -118,10 +118,11 @@ shape common enough to deserve a frame rather than a family of unrelated blocks,
 transform block's id is `<verb>.<kind>`: the verb is the contract and its semantic promise
 (`transform` reshapes a whole value, `convert` re-encodes it x to y, `map` is element-wise
 and length-preserving, `filter` returns a subset with elements unmodified), and the kind is
-the engine that keeps it. The frame owns what every engine shares -- input as an inline value
-or a storage URI, the same size bound `http.request` uses, output inlined or streamed to
-`save_to`, and an apply-time check -- and an engine supplies only compiling and applying a
-program, or declaring and running a codec. Safety is per kind through the gates that already
+the engine that keeps it. The frame owns what every engine shares -- where the input comes
+from, where the result goes, and an apply-time check -- and an engine supplies only compiling
+and applying a program, or declaring and running a codec. A program verb takes a value and
+answers with one; `convert` is the exception, because its operand is a storage object rather
+than a value, so it reads one URI and writes another the way `storage.copy` does. Safety is per kind through the gates that already
 exist: an engine that evaluates a program without executing code needs no allowlist entry,
 while one that runs a language runtime declares `local_execution` and goes behind
 `enabled_unsafe_blocks` like `shell.run`. [The transform page](transforms.md) has the whole
@@ -921,6 +922,14 @@ Dirigent standardizes the reference, not the format or the backend:
   attempt row carries one of the copies, so the cap does not bound what a run costs the
   database. Bounding that is a block's job: `shell.run` and `docker.run` keep only a tail of a
   stream in their output and put the whole thing behind a URI.
+- **A value moves through step outputs, and storage has two doors.** `storage.read` is the
+  only way a value comes in from storage and `storage.write` the only way one goes out; no
+  block reads or writes storage for a value of its own. A step that has a value hands it to a
+  write, and a step that needs one takes it from a read. The blocks whose operation *is* a
+  storage object keep their URIs, because nothing about them is a value: `storage.copy`,
+  `storage.exists`, and the converters, which read one URI and write another. What bounds a
+  value carried this way is the cap above: the attempt keeps it whole, and
+  `inline_artifact_max` decides only where the artifact copy lives.
 - **A write is all or nothing, whatever the backend.** The mechanism differs and the contract
   does not: `file://` stages beside the target and renames on close, and `s3://` buffers until
   the multipart threshold, uploads parts as they fill, completes on a clean exit, and aborts

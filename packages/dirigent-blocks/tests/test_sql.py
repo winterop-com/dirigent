@@ -1,7 +1,6 @@
 """Tests for the sql family, against a SQLite and a duckdb file in the run's work directory."""
 
 import base64
-import json
 from datetime import timedelta
 from pathlib import Path
 from types import SimpleNamespace
@@ -59,7 +58,6 @@ async def query(
     *,
     params: JsonMap | None = None,
     max_rows: int = 1000,
-    save_to: str | None = None,
     timeout: timedelta = timedelta(minutes=5),
 ) -> SqlQueryOutput:
     """Run one query through the real operator."""
@@ -69,7 +67,6 @@ async def query(
             sql=sql,
             params=params or {},
             max_rows=max_rows,
-            save_to=save_to,
             timeout=timeout,
         ),
         ctx.as_context(),
@@ -95,7 +92,6 @@ async def test_a_query_binds_its_parameters_rather_than_interpolating_them(seede
     assert output.rows == [{"id": 1, "site": "north"}]
     assert output.columns == ["id", "site"]
     assert output.row_count == 1
-    assert output.saved_to is None
 
 
 async def test_a_parameter_that_reads_as_sql_is_still_only_a_value(seeded: FakeContext) -> None:
@@ -112,21 +108,6 @@ async def test_a_result_past_max_rows_fails_the_step_rather_than_being_truncated
         await query(seeded, "SELECT * FROM reading", max_rows=1)
     assert "max_rows" in str(raised.value)
     assert raised.value.error_class is ErrorClass.REJECTED
-
-
-async def test_saving_streams_the_rows_as_ndjson_and_carries_no_rows_inline(seeded: FakeContext) -> None:
-    uri = f"{seeded.scratch}/rows.ndjson"
-    output = await query(seeded, "SELECT id, site FROM reading ORDER BY id", save_to=uri, max_rows=1)
-    assert output.rows is None
-    assert output.row_count == 2
-    assert output.saved_to == uri
-    lines = _read(seeded, uri).splitlines()
-    assert [json.loads(line) for line in lines] == [{"id": 1, "site": "north"}, {"id": 2, "site": "south"}]
-
-
-async def test_a_saved_result_ignores_max_rows(seeded: FakeContext) -> None:
-    output = await query(seeded, "SELECT * FROM reading", save_to=f"{seeded.scratch}/all.ndjson", max_rows=1)
-    assert output.row_count == 2
 
 
 @pytest.mark.parametrize(
@@ -341,11 +322,6 @@ async def test_a_run_relative_database_lands_in_the_work_directory(ctx: FakeCont
     assert list(ctx.work.rglob("*.db")), "the database was made under the run's work directory"
 
 
-def _read(ctx: FakeContext, uri: str) -> str:
-    """Read back what the step wrote, through the same storage the block used."""
-    return ctx.storage.path_for(uri).read_text()
-
-
 #: The duckdb database the engine's tests build, relative the way a document writes it.
 DUCKDB = "duckdb:///demo.duckdb"
 
@@ -380,18 +356,6 @@ async def test_duckdb_in_memory_needs_no_file_at_all(local_ctx: FakeContext) -> 
     duck(local_ctx, "duckdb:///:memory:")
     output = await query(local_ctx, "SELECT :n * 2 AS doubled", params={"n": 21})
     assert output.rows == [{"doubled": 42}]
-
-
-async def test_duckdb_saves_a_result_to_storage_as_ndjson(ducked: FakeContext) -> None:
-    uri = f"{ducked.scratch}/reading.ndjson"
-    output = await query(ducked, "SELECT id, site FROM reading ORDER BY id", save_to=uri, max_rows=1)
-    assert output.rows is None
-    assert output.row_count == 2
-    assert output.saved_to == uri
-    assert [json.loads(line) for line in _read(ducked, uri).splitlines()] == [
-        {"id": 1, "site": "north"},
-        {"id": 2, "site": "south"},
-    ]
 
 
 async def test_a_read_only_duckdb_connection_reads_and_refuses_to_write(ducked: FakeContext) -> None:

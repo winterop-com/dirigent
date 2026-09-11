@@ -209,9 +209,9 @@ SERVICE_EXAMPLES: Final = {
         """\
 # A greeting written to the stack's own bucket and read back, through the s3:// scheme.
 #
-# There is no S3 block: storage.copy moves bytes between schemes, and the stack's `migrate`
-# service bootstraps the `artifacts` connection that serves s3://. The bucket comes from the
-# URI, so this one is the stack's:
+# There is no S3 block: storage.write puts text in an object, storage.copy moves bytes between
+# schemes, and the stack's `migrate` service bootstraps the `artifacts` connection that serves
+# s3://. The bucket comes from the URI, so this one is the stack's:
 #
 #   dg run s3-hello --watch
 
@@ -223,7 +223,7 @@ description: Write a greeting to the bucket and copy it back, through s3://.
 
 requires:
   blocks:
-    - value.const
+    - storage.write
     - storage.copy
   connections:
     - artifacts
@@ -232,10 +232,10 @@ requires:
 
 steps:
   greet:
-    block: value.const
+    block: storage.write
     config:
-      value: "hello from object storage"
-      save_to: "${run.scratch}/hello.txt"
+      target: "${run.scratch}/hello.txt"
+      text: "hello from object storage"
 
   upload:
     block: storage.copy

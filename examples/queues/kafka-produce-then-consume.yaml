@@ -49,9 +49,9 @@
 # wrote, which is already on the topic by the time the sensor pokes, so it starts at the oldest
 # record instead. On a topic something else is also writing to, that would replay the lot.
 #
-# TO MAKE IT YOURS: point the connection at your own cluster, change the topic, and replace the
-# inline `records` with `records_from`, a storage URI of NDJSON -- an export written by an
-# earlier step is then streamed to the broker a line at a time rather than held in memory.
+# TO MAKE IT YOURS: point the connection at your own cluster, change the topic, and feed
+# `records` from an earlier step instead of writing them inline -- an export in storage reaches
+# the publish through a storage.read, which is the one door a value comes in by.
 
 format: dirigent/v1
 kind: pipeline

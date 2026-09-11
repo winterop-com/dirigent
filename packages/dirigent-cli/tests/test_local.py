@@ -620,11 +620,10 @@ code: local-writer
 description: One file written at a path that outlives the run.
 steps:
   mark:
-    block: transform.jq
+    block: storage.write
     config:
-      input: {seen: [alpha]}
-      program: .
-      save_to: "file://MARKER"
+      target: "file://MARKER"
+      value: {seen: [alpha]}
 """
 
 READER = """
@@ -640,11 +639,16 @@ steps:
     on_timeout: skip
     config:
       uri: "file://MARKER"
-  previous:
-    block: transform.jq
+  read:
+    block: storage.read
     depends_on: [seen]
     config:
-      input_uri: "file://MARKER"
+      source: "file://MARKER"
+  previous:
+    block: transform.jq
+    depends_on: [read]
+    config:
+      input: "${steps.read.output.value}"
       program: .seen
 """
 

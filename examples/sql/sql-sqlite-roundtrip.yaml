@@ -98,7 +98,7 @@ steps:
         # the statement above, which is what makes it safe to let somebody else set it.
         site: "${params.site}"
       # Two rows fit comfortably; a query that could return more than this fails the step
-      # rather than truncating, and save_to is the answer when it should.
+      # rather than truncating, so a wider result is one to narrow or to raise this for.
       max_rows: 10
 
   report:

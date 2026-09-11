@@ -22,9 +22,11 @@
 #             year, or the first year, has no growth to report, and gets null rather than
 #             zero: zero would mean the population did not change.
 #   gate      validate.schema against the shape written below. The gate passes the value
-#             through, so the report reads the gate rather than the trend, and the document
+#             through, so the step below reads the gate rather than the trend, and the document
 #             itself records that nothing reached the csv without being checked.
-#   report    json to csv, streamed to storage.
+#   checked   storage.write, the checked rows as json. A converter reads one URI and writes
+#             another, so the only object the csv can be made from is the one the gate passed.
+#   report    json to csv, from that object.
 #
 # To make it yours: change country to any ISO3 code and indicator to any World Bank series code
 # -- SP.DYN.LE00.IN for life expectancy, NY.GDP.PCAP.CD for GDP per head -- and widen the
@@ -51,6 +53,7 @@ requires:
     - http.request
     - transform.jq
     - validate.schema
+    - storage.write
     - convert.std
 
 # Carried in the document so the gate needs nothing handed to it. The bounds are not
@@ -104,7 +107,7 @@ steps:
     block: transform.jq
     depends_on: [fetch]
     config:
-      input: ${steps.fetch.output.json_body}
+      input: ${steps.fetch.output.body}
       # The envelope, checked and then dropped: everything below works on the observations.
       program: |
         .[0] as $meta
@@ -144,20 +147,20 @@ steps:
       input: ${steps.trend.output.value}
       schema: population-trend-row
 
-  as_text:
-    block: transform.jq
+  checked:
+    block: storage.write
     depends_on: [gate]
     config:
       # Reading the gate rather than the trend is what proves, in the document, that only a
-      # checked value reaches the csv. tojson because a codec takes text, not a value.
-      input: ${steps.gate.output.value}
-      program: tojson
+      # checked value reaches the csv.
+      target: ${run.scratch}/${params.country}-${params.indicator}.json
+      value: ${steps.gate.output.value}
 
   report:
     block: convert.std
-    depends_on: [as_text]
+    depends_on: [checked]
     config:
-      input: ${steps.as_text.output.value}
+      source: ${steps.checked.output.uri}
+      target: ${run.scratch}/${params.country}-${params.indicator}.csv
       from: json
       to: csv
-      save_to: ${run.scratch}/${params.country}-${params.indicator}.csv

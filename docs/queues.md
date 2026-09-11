@@ -1,11 +1,12 @@
 # Queues
 
 The queue family lets a run start from a message, and lets a run put one there. It is two
-sensors and an operator:
+sensors and two operators:
 
 - [`kafka.consume`](blocks.md#kafkaconsume) waits for messages on a Kafka topic.
 - [`rabbitmq.consume`](blocks.md#rabbitmqconsume) waits for messages on a RabbitMQ queue.
 - [`kafka.produce`](blocks.md#kafkaproduce) publishes records to a Kafka topic.
+- [`rabbitmq.publish`](blocks.md#rabbitmqpublish) publishes one message to an exchange.
 
 A queue and a webhook are the same intent arriving by different transport, and a run should not
 care which. A webhook trigger is somebody pushing work at this instance; a queue sensor is this
@@ -150,17 +151,15 @@ read per partition, one past the last message taken.
 The other direction on the same connection kind. A step names a topic and the records to put on
 it, and succeeds once the broker has acknowledged every one.
 
-The records come from one of two places. `records` is a list held in the document or handed over
-by an earlier step. `records_from` is a storage URI of NDJSON, one record per line, streamed to
-the broker as the bytes arrive: an export larger than the worker's memory is a publish rather
-than a dead worker, and a URI holding nothing is **rejected** before anything is sent. Writing
-both, or neither, is refused when the document is applied.
+`records` is the one input: a list held in the document, or a list an earlier step produced.
+A publish takes a value like any other step, so an NDJSON export held in storage gets there
+the way every value comes in from storage -- `convert.std` re-spells the object as json and
+`storage.read` hands the array to the step, whose `max_size` is what bounds it.
 
-An element -- inline or a line of NDJSON -- is read as an **envelope** when it is an object
-carrying `value` and nothing besides `key`, `value` and `headers`; every other element is itself
-the value. Two shapes rather than one because most topics carry values alone, so a list of
-documents from an earlier step publishes unchanged, while a key or a header has to be written
-somewhere. An object that means to be a value and would read as an envelope is written
+An element is read as an **envelope** when it is an object carrying `value` and nothing
+besides `key`, `value` and `headers`; every other element is itself the value. Two shapes
+rather than one because most topics carry values alone, so a list of documents from an earlier
+step publishes unchanged, while a key or a header has to be written somewhere. An object that means to be a value and would read as an envelope is written
 `{"value": {...}}`. A string value is sent as UTF-8 text and anything else as compact JSON, so a
 topic of JSON documents and a topic of plain lines are both writable; a null value is a record
 with no value at all, which is what a compacted topic reads as a tombstone.
@@ -226,9 +225,9 @@ the message rather than waiting forever on nothing.
 
 ## The limits
 
-- **Nothing publishes to RabbitMQ.** There is no `rabbitmq.publish`. Kafka got the write side
-  first because a topic is where a pipeline's output is most often expected; a queue publisher
-  waits until a pipeline needs it.
+- **A publish to RabbitMQ is one message.** `rabbitmq.publish` sends the one `message` it is
+  given, where `kafka.produce` sends a list of `records`; a run with several messages to send
+  fans the step out over them.
 - **One topic, one queue.** A step names one of each. A pipeline reading three uses three steps.
 - **No consumer-group rebalancing across pokes.** Each poke opens a connection, reads, and
   closes it, which is what makes a poke cheap and any worker able to run it. A long-lived

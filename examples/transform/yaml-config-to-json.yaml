@@ -6,39 +6,47 @@
 # document per ndjson line -- is the other half, and examples/transform/ndjson-round-trip.yaml
 # is where the sequence side lives.
 #
+# The config is an object in storage from the first hop, because a conversion reads a uri
+# and writes a uri and never holds a value. storage.read is what brings the parsed config
+# into the run for jq, and storage.write is what puts the answer back where the last
+# conversion can pick it up.
+#
 # The one thing to know before pointing this at a real file: YAML says things JSON cannot.
 # An unquoted 2026-03-01 is a date, not a string, and the codec refuses it naming its path
 # rather than guessing what text it meant. That is why the retention date below is quoted.
 #
-#   dg run --local examples/transform/yaml-config-to-json.yaml
+#   dg run --local examples/transform/yaml-config-to-json.yaml --keep
 
 format: dirigent/v1
 kind: pipeline
 code: yaml-config-to-json
 name: A config as an object
 description: |
-  Read a YAML config as the JSON object it describes, take what a run needs out of it,
-  and write the answer back as YAML.
+  Read a stored YAML config as the JSON object it describes, take what a run needs out of
+  it, and write the answer back out as YAML.
 
   `convert.std` reads `yaml` two ways. This document uses the first:
 
   1. one **document** is one value, traded with `json`
   2. one **stream** of documents is one line each, traded with `ndjson`
 
-tags: [transform]
+tags: [transform, storage]
 
 requires:
   blocks:
     - convert.std
     - transform.jq
+    - storage.read
+    - storage.write
 
 steps:
-  settings:
-    block: convert.std
+  config:
+    block: storage.write
     config:
-      # Written inline so the example needs no network. In a real pipeline this is
-      # input_uri, pointing at the config a git.checkout or an http.request put in storage.
-      input: |
+      target: ${run.scratch}/settings.yaml
+      # Written inline so the example needs no network. In a real pipeline this object is
+      # the config a git.checkout or an http.request put in storage, and parse starts there.
+      text: |
         name: daily-load
         schedule: 0 3 * * *
         # Quoted, because an unquoted date is a YAML date and JSON has no date: the codec
@@ -50,28 +58,47 @@ steps:
             enabled: true
           - code: archive
             enabled: false
+      content_type: application/yaml
+
+  parse:
+    block: convert.std
+    depends_on: [config]
+    config:
+      source: ${steps.config.output.uri}
+      target: ${run.scratch}/settings.json
       from: yaml
       to: json
+
+  settings:
+    block: storage.read
+    depends_on: [parse]
+    config:
+      source: ${steps.parse.output.target}
 
   enabled:
     block: transform.jq
     depends_on: [settings]
     config:
-      # A codec's output is text, so the program parses it first. What comes back is the
-      # config as an object: keys are keys, and true is a boolean rather than the word.
-      input: "${steps.settings.output.text}"
+      # What the read handed over is the config as a value: keys are keys, and true is a
+      # boolean rather than the word.
+      input: ${steps.settings.output.value}
       program: |
-        fromjson
-        | {name, schedule, before: .retention.before,
-           targets: [.targets[] | select(.enabled) | .code]}
-        | tojson
+        {name, schedule, before: .retention.before,
+         targets: [.targets[] | select(.enabled) | .code]}
+
+  store:
+    block: storage.write
+    depends_on: [enabled]
+    config:
+      target: ${run.scratch}/enabled.json
+      value: ${steps.enabled.output.value}
 
   as_yaml:
     block: convert.std
-    depends_on: [enabled]
+    depends_on: [store]
     config:
-      # Back the way it came: one JSON value, one YAML document, keys in the order the
-      # program built them.
-      input: "${steps.enabled.output.value}"
+      # Back the way it came: one JSON value, one YAML document.
+      source: ${steps.store.output.uri}
+      target: ${run.scratch}/enabled.yaml
       from: json
       to: yaml

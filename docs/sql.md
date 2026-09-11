@@ -2,8 +2,8 @@
 
 The `sql.*` family reads from and writes to a database. It is two blocks:
 
-- [`sql.query`](blocks.md#sqlquery) runs one statement and hands its rows on, inline or as an
-  NDJSON object in storage.
+- [`sql.query`](blocks.md#sqlquery) runs one statement and hands its rows on as the step's
+  output.
 - [`sql.execute`](blocks.md#sqlexecute) runs a list of statements as one transaction.
 
 Reading a table and writing a table are the two most common things a pipeline does, and until
@@ -11,10 +11,10 @@ these blocks the answer was `shell.run` with `psql`: an unsafe block, a credenti
 line, and a result that arrives as text somebody has to parse.
 
 The blocks' fields are the generated [block reference](blocks.md); this page is the family: the
-connection kind that holds the database, how a value reaches a statement, what happens to a
-result too large to carry, and which engines are covered. The engine is the connection's URL
-and nothing else: PostgreSQL and SQLite over an async driver, and DuckDB, where a table may be
-a parquet or csv file rather than a table at all.
+connection kind that holds the database, how a value reaches a statement, what `max_rows`
+bounds and how a result becomes a file, and which engines are covered. The engine is the
+connection's URL and nothing else: PostgreSQL and SQLite over an async driver, and DuckDB,
+where a table may be a parquet or csv file rather than a table at all.
 
 ## These are ordinary blocks
 
@@ -107,17 +107,22 @@ statements go, one per entry, and they run in one transaction.
     the driver before it reaches the server. Cast it in the statement --
     `CAST(CAST(:seen AS text) AS date)` -- and let PostgreSQL do the conversion it knows.
 
-## A result that does not fit is a file
+## A query hands rows on, and a file is one more hop
+
+`sql.query` has one answer: `rows`, an array of objects keyed by column name, in the step's
+output. A transform maps them, a `validate.schema` checks them, and a reference names them,
+all without a URI anywhere.
 
 `max_rows` is `1000` by default, and a query returning more than that **fails the step**. It is
 not truncated: half an answer is not a smaller answer, and a step acting on it would be acting
-on something the database never said.
+on something the database never said. The bound is about memory, and it applies whatever
+becomes of the rows afterwards: an output is stored with the run and read back whole, so a
+hundred thousand rows in one is a hundred thousand rows in the database and in every read of
+that run. A result too large to carry is one the query narrows -- with a `GROUP BY`, a
+`LIMIT`, or a `WHERE` the database evaluates instead of the worker.
 
-`save_to` is the other answer. Given a storage URI, the rows are streamed to it as NDJSON --
-one JSON object per line, keyed by column name -- through the same storage backend
-[`http.request`](blocks.md#httprequest) streams a body to, a batch at a time and never held
-whole. `max_rows` does not apply, the output's `rows` is null, and `saved_to` and `row_count`
-are what a downstream step reads:
+Rows that belong in a file go to `storage.write`, which is the only way a value leaves a run,
+and a conversion reads the object that step wrote:
 
 ```yaml
 steps:
@@ -126,21 +131,30 @@ steps:
     config:
       connection: warehouse
       sql: SELECT * FROM reading
-      save_to: "${run.scratch}/reading.ndjson"
+      max_rows: 5000
+
+  save:
+    block: storage.write
+    depends_on: [extract]
+    config:
+      target: "${run.scratch}/reading.json"
+      value: "${steps.extract.output.rows}"
 
   to_parquet:
     block: convert.arrow
-    depends_on: [extract]
+    depends_on: [save]
     config:
-      input_uri: "${steps.extract.output.saved_to}"
-      from: ndjson
+      source: "${steps.save.output.uri}"
+      from: json
       to: parquet
-      save_to: "${run.scratch}/reading.parquet"
+      target: "${run.scratch}/reading.parquet"
 ```
 
-The line between the two: inline when the next step reads the rows as a value, saved when the
-next step reads them as a file. A few hundred rows a transform maps is the first; a table an
-export writes is the second.
+The line between the two shapes: the rows stay in the output when the next step reads them as
+a value, and get a write of their own when something outside the run reads them as a file. A
+few hundred rows a transform maps is the first; a table an export produces is the second.
+[`examples/sql/sql-query-to-storage.yaml`](https://github.com/winterop-com/dirigent/tree/main/examples/sql)
+is the second, hop by hop.
 
 ## SQL over files: DuckDB
 
@@ -178,7 +192,7 @@ the same way a `WHERE` clause takes a value, so the family's one rule holds here
         SELECT region, COUNT(*) AS stations, ROUND(AVG(celsius), 2) AS mean_celsius
         FROM read_parquet(:source) GROUP BY region ORDER BY region
       params:
-        source: "${steps.store.output.output_uri}"
+        source: "${steps.store.output.target}"
 ```
 
 **Writing a file.** `COPY ... TO` names its target the same way, and the answer becomes an
@@ -193,7 +207,7 @@ artifact rather than rows. It writes, so it is `sql.execute`:
       statements:
         - COPY (SELECT * FROM read_parquet(:source)) TO :target (FORMAT csv, HEADER)
       params:
-        source: "${steps.store.output.output_uri}"
+        source: "${steps.store.output.target}"
         target: "${run.scratch}/regions.csv"
 ```
 
@@ -333,8 +347,11 @@ connection promises, and the role's grants are what the database enforces.
 
 - **No schema introspection.** There is no block that lists tables or describes a column. A
   pipeline that needs the shape of a table queries the catalog like anything else.
-- **No result set larger than storage.** `save_to` streams, so the bound is the bucket rather
-  than the worker, but the rows still pass through the worker.
+- **No result set larger than `max_rows`.** The rows are carried in the step's output, so the
+  bound is the worker's memory and the run's own database, and writing them to a file
+  afterwards does not raise it. A bigger table is read in narrower queries, or by the engine
+  that already holds it -- a DuckDB `COPY ... TO` never brings the rows through the worker at
+  all.
 - **`sql.execute` is not idempotent.** Two attempts run the statements twice. A step that must
   survive a retry writes statements that can: `INSERT ... ON CONFLICT DO NOTHING`, a `MERGE`,
   an idempotent `UPDATE`.

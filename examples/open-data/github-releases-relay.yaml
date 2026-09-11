@@ -24,14 +24,18 @@
 #   fresh     filter.jq: published after the floor, not a draft, and not a prerelease unless
 #             the run asked for them. Three comparisons, each between two fields of the row.
 #   digest    the rows a person would read, with the carried limits dropped again.
+#   ordered   the digest in publication order, which is the order the file below holds.
+#   staged    storage.write, the digest as one json object. A converter reads a URI and writes
+#             a URI, so a value the run is holding is put down before it can be converted.
 #   written   json to ndjson, because an empty list has to encode as an empty file for the
 #             gate below to see the difference.
 #   matched   the gate: nothing new is a skip, not a failure, and the relay skips with it.
 #   relay     the digest, posted. Postman Echo by default so this runs for real.
-#   marker    the newest stamp seen, plus what the rate limit had left, written under
+#   marker    the newest stamp seen, plus what the rate limit had left, computed under
 #             rule: all_done so a quiet run still records where it got to. GitHub reports the
 #             remaining budget in a response header, which is worth keeping beside the stamp:
 #             when the relay goes quiet, that number says whether it is the repo or the quota.
+#   remember  that marker written to storage, which is the half the next firing would read.
 #
 # To make it yours: set repo, move `since` forward to when you started caring, and point
 # webhook_url at your receiver. For a private repository or a heavier cadence, put a token in
@@ -60,6 +64,7 @@ requires:
     - filter.jq
     - map.jq
     - convert.std
+    - storage.write
     - storage.exists
     - webhook.post
 
@@ -106,7 +111,7 @@ steps:
     depends_on: [releases]
     config:
       input:
-        releases: ${steps.releases.output.json_body}
+        releases: ${steps.releases.output.body}
         since: ${params.since}
         include_prereleases: ${params.include_prereleases}
       # A draft has no published_at at all, so the null is replaced with a stamp that loses
@@ -145,22 +150,29 @@ steps:
       program: |
         del(.since, .include_prereleases)
 
-  as_text:
+  ordered:
     block: transform.jq
     depends_on: [digest]
     config:
       input: ${steps.digest.output.value}
       program: |
-        sort_by(.published_at) | tojson
+        sort_by(.published_at)
+
+  staged:
+    block: storage.write
+    depends_on: [ordered]
+    config:
+      target: ${run.scratch}/fresh.json
+      value: ${steps.ordered.output.value}
 
   written:
     block: convert.std
-    depends_on: [as_text]
+    depends_on: [staged]
     config:
-      input: ${steps.as_text.output.value}
+      source: ${steps.staged.output.uri}
+      target: ${run.scratch}/fresh.ndjson
       from: json
       to: ndjson
-      save_to: ${run.scratch}/fresh.ndjson
 
   matched:
     block: storage.exists
@@ -169,12 +181,12 @@ steps:
     deadline: 3s
     on_timeout: skip
     config:
-      uri: ${run.scratch}/fresh.ndjson
+      uri: ${steps.written.output.target}
       min_size: 1b
 
   relay:
     block: webhook.post
-    depends_on: [matched]
+    depends_on: [digest, matched]
     config:
       url: ${params.webhook_url}
       body:
@@ -185,7 +197,7 @@ steps:
 
   marker:
     block: transform.jq
-    depends_on: [matched]
+    depends_on: [releases, digest, matched]
     # all_done: a run that relayed nothing still saw the repository, and still knows what the
     # budget had left.
     rule: all_done
@@ -204,4 +216,10 @@ steps:
           relayed: (.releases | length),
           newest_published_at: ([.releases[].published_at] | max)
         }
-      save_to: ${run.scratch}/markers/releases.json
+
+  remember:
+    block: storage.write
+    depends_on: [marker]
+    config:
+      target: ${run.scratch}/markers/releases.json
+      value: ${steps.marker.output.value}

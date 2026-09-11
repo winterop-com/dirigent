@@ -24,14 +24,13 @@ import base64
 import json
 import ssl
 import time
-from collections.abc import AsyncGenerator, Awaitable
-from contextlib import aclosing
+from collections.abc import Awaitable, Iterator
 from datetime import UTC, datetime, timedelta
 from typing import Any, ClassVar, Literal, Protocol, cast
 
 from pydantic import BaseModel, Field, JsonValue, SecretStr, ValidationError, model_validator
 
-from dirigent_common import BlockModel, Duration, HealthReport, StorageUri
+from dirigent_common import BlockModel, Duration, HealthReport
 from dirigent_plugin import (
     BlockFailure,
     ConnectionKind,
@@ -492,23 +491,16 @@ class KafkaProduceConfig(BlockModel):
     A name the cluster's metadata does not carry is rejected before a record is sent, on a
     cluster that would have auto-created it as much as on one that would not."""
 
-    records: list[JsonValue] | None = None
-    """The records to publish, held inline.
+    records: list[JsonValue]
+    """The records to publish, written inline or referenced from an earlier step's output.
 
     An element is read as an **envelope** when it is an object carrying ``value`` and nothing
     besides ``key``, ``value`` and ``headers``; every other element is itself the value. Two
     shapes rather than one because most topics carry values alone -- a list of JSON documents
     an earlier step produced is publishable unchanged -- while a key or a header has to be
     written somewhere, and the envelope is that place. An object that means to be a value and
-    would read as an envelope is written ``{"value": {...}}``."""
-
-    records_from: StorageUri | None = None
-    """A storage URI of NDJSON to publish, one record per line, streamed rather than held.
-
-    Each line is read the way an element of ``records`` is: a JSON value, or an envelope. The
-    lines go from storage to the broker as the bytes arrive and the object is never held whole,
-    so an export larger than the worker's memory is a publish rather than a dead worker. A URI
-    naming nothing is refused before anything is sent."""
+    would read as an envelope is written ``{"value": {...}}``. Records held in storage reach
+    this through ``storage.read``."""
 
     key: str | None = None
     """The name of a field of each record's value whose content becomes the message key.
@@ -527,17 +519,6 @@ class KafkaProduceConfig(BlockModel):
     timeout: Duration = timedelta(seconds=30)
     """How long the whole publish may take, such as ``30s``, counted from the first send to the
     last acknowledgement. How the records are batched inside it is the client's own."""
-
-    @model_validator(mode="after")
-    def _check_shape(self) -> "KafkaProduceConfig":
-        """Refuse a config that names no records, or names them in both places."""
-        named = [name for name in ("records", "records_from") if getattr(self, name) is not None]
-        if len(named) != 1:
-            raise ValueError(
-                "a publish takes its records from one place: write records or records_from, "
-                f"{'not both' if named else 'as this step names neither'}"
-            )
-        return self
 
 
 class KafkaProduceOutput(BlockModel):
@@ -581,7 +562,7 @@ class KafkaProduceOperator(Operator[KafkaProduceConfig, KafkaProduceOutput]):
     output_model: ClassVar[type[BaseModel]] = KafkaProduceOutput
 
     async def execute(self, config: KafkaProduceConfig, ctx: StepContext) -> KafkaProduceOutput:
-        """Publish every record, inline or streamed, and wait for the acknowledgements."""
+        """Publish every record and wait for the acknowledgements."""
         settings = ctx.connection(config.connection, KafkaConnectionConfig)
         started = time.monotonic()
         producer = producer_for(settings, acks=config.acks)
@@ -598,7 +579,7 @@ class KafkaProduceOperator(Operator[KafkaProduceConfig, KafkaProduceOutput]):
             async with asyncio.timeout(config.timeout.total_seconds()):
                 await _check_topic(producer, config.topic)
                 pending: list[Awaitable[Any]] = []
-                async for record in _outgoing(config, ctx):
+                for record in _outgoing(config):
                     sent, size = await _publish(producer, config.topic, record)
                     pending.append(sent)
                     sent_bytes += size
@@ -639,40 +620,10 @@ async def _check_topic(producer: Producer, topic: str) -> None:
         raise BlockFailure(f"the cluster has no topic {topic!r}", error_class=ErrorClass.REJECTED)
 
 
-async def _outgoing(config: KafkaProduceConfig, ctx: StepContext) -> AsyncGenerator[OutgoingRecord]:
-    """Yield the records to publish, from the config or a line at a time out of storage."""
-    if config.records is not None:
-        for element in config.records:
-            yield _keyed(_envelope(element), config.key)
-        return
-    uri = cast("str", config.records_from)
-    found = await ctx.storage.stat(uri)
-    if found is None:
-        raise BlockFailure(f"there is nothing at {uri} to publish", error_class=ErrorClass.REJECTED)
-    async for line in _lines(ctx, uri):
-        yield _keyed(_envelope(_parsed(line, uri)), config.key)
-
-
-async def _lines(ctx: StepContext, uri: str) -> AsyncGenerator[bytes]:
-    """Cut the object into lines as its bytes arrive, holding one line rather than the object."""
-    held = b""
-    async with aclosing(ctx.storage.open_read(uri)) as stream:
-        async for chunk in stream:
-            held += chunk
-            while (break_at := held.find(b"\n")) >= 0:
-                line, held = held[:break_at], held[break_at + 1 :]
-                if line.strip():
-                    yield line
-    if held.strip():
-        yield held
-
-
-def _parsed(line: bytes, uri: str) -> JsonValue:
-    """Read one NDJSON line, refusing an object that is not the NDJSON it was named as."""
-    try:
-        return cast("JsonValue", json.loads(line))
-    except (UnicodeDecodeError, json.JSONDecodeError) as error:
-        raise BlockFailure(f"a line of {uri} is not JSON: {error}", error_class=ErrorClass.REJECTED) from error
+def _outgoing(config: KafkaProduceConfig) -> Iterator[OutgoingRecord]:
+    """Read each configured element as the record it means, keyed as the step asked."""
+    for element in config.records:
+        yield _keyed(_envelope(element), config.key)
 
 
 def _envelope(element: JsonValue) -> OutgoingRecord:

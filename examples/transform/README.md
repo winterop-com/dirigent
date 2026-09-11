@@ -22,7 +22,7 @@ dg run --local examples/transform/jq-reshape.yaml
 | [jq-filter-and-map.yaml](jq-filter-and-map.yaml) | The two element-wise verbs against the whole-value one: a subset, a list of the same length, and a reshape. |
 | [jq-group-and-aggregate.yaml](jq-group-and-aggregate.yaml) | `group_by` and arithmetic: per-group sums and means with a total beside them. |
 | [jq-join-two-sources.yaml](jq-join-two-sources.yaml) | Two upstream outputs composed into one inline input, joined with `INDEX`, unmatched rows kept with a null name. |
-| [jq-stream-through-storage.yaml](jq-stream-through-storage.yaml) | The large-payload path: `save_to` and `input_uri`, and the `output_uri` a step carries instead of a value. |
+| [jq-stream-through-storage.yaml](jq-stream-through-storage.yaml) | The two doors on storage: `storage.write` puts a value in an object and `storage.read` brings one back, with the reshape between them. |
 | [std-convert-fan-out.yaml](std-convert-fan-out.yaml) | The codec: csv to json, reshaped with jq, fanned out over the regions, and written back as csv. |
 | [csv-report.yaml](csv-report.yaml) | Records shaped into flat rows and written as a csv artifact, with nothing on the allowlist. |
 | [ndjson-round-trip.yaml](ndjson-round-trip.yaml) | ndjson: a JSON array re-spelled one record per line, and read back. |

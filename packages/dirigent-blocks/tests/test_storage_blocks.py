@@ -1,5 +1,7 @@
 """Tests for the generic storage blocks: everything addressed by URI, never by path."""
 
+import json
+
 import pytest
 from pydantic import ValidationError
 
@@ -15,7 +17,8 @@ from dirigent_blocks.storage import (
     StorageWriteOperator,
     StorageWriteOutput,
 )
-from dirigent_plugin import BlockFailure, ErrorClass, NotYet
+from dirigent_blocks.transform_jq import JqTransformer
+from dirigent_plugin import BlockFailure, ErrorClass, NotYet, TransformOutput
 from dirigent_testing import FakeContext, FakeStorage, call_block
 
 
@@ -178,6 +181,19 @@ async def test_the_extension_is_what_a_backend_that_records_nothing_is_read_by(
     assert output.value == {"count": 2}
 
 
+async def test_the_extension_is_read_off_a_uri_whose_only_segment_is_its_name(
+    ctx: FakeContext, storage: FakeStorage
+) -> None:
+    # file://orders.json puts the name where a host would sit, so the URL has no path at all
+    # and the extension is only there in the last segment.
+    put(storage, "file://orders.json", b'{"count": 2}')
+
+    output = await call_block(StorageReadOperator(), {"source": "file://orders.json"}, ctx)
+
+    assert isinstance(output, StorageReadOutput)
+    assert (output.content_type, output.value) == ("application/json", {"count": 2})
+
+
 async def test_the_override_decides_what_an_object_is_read_as(ctx: FakeContext, storage: FakeStorage) -> None:
     put(storage, "file://drops/batch.dat", b'{"count": 2}')
 
@@ -218,3 +234,35 @@ async def test_reading_nothing_is_rejected_rather_than_retried(ctx: FakeContext)
 
 def test_the_write_and_read_operators_declare_themselves_idempotent() -> None:
     assert (StorageWriteOperator.spec.idempotent, StorageReadOperator.spec.idempotent) == (True, True)
+
+
+# -- the composed path -----------------------------------------------------------
+
+
+async def test_a_value_comes_in_through_a_read_and_goes_out_through_a_write(
+    ctx: FakeContext, storage: FakeStorage
+) -> None:
+    """The three hops a pipeline writes now: read the object, reshape the value, write it back."""
+    put(storage, "file://drops/readings.json", b'[{"id": "r1", "c": 4}, {"id": "r2", "c": -3}]')
+
+    read = await call_block(StorageReadOperator(), {"source": "file://drops/readings.json"}, ctx)
+    assert isinstance(read, StorageReadOutput)
+
+    reshaped = await call_block(
+        JqTransformer(),
+        {"input": read.value, "program": "[.[] | {id, fahrenheit: (.c * 9 / 5 + 32 | round)}]"},
+        ctx,
+    )
+    assert isinstance(reshaped, TransformOutput)
+
+    written = await call_block(
+        StorageWriteOperator(),
+        {"target": "file://out/fahrenheit.json", "value": reshaped.value},
+        ctx,
+    )
+    assert isinstance(written, StorageWriteOutput)
+
+    landed = storage.path_for("file://out/fahrenheit.json").read_bytes()
+    assert json.loads(landed) == [{"fahrenheit": 39, "id": "r1"}, {"fahrenheit": 27, "id": "r2"}]
+    assert written.content_type == "application/json"
+    assert written.bytes_written == len(landed)

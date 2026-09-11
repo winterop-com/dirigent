@@ -125,7 +125,7 @@ steps:
       input:
         shown: ${params.rows_shown}
         status: ${steps.publish.output.status}
-        echoed: ${steps.publish.output.json_body}
+        echoed: ${steps.publish.output.body}
       program: |
         . as {$shown, $status, $echoed}
         | ($echoed.json.readings | map(.celsius)) as $values

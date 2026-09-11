@@ -6,9 +6,10 @@ import { applyDocument, applyExample, everyNodeIsInView, graphZoom, signIn, star
  * The run detail screen, against a run this suite really started on a real `dg dev`.
  *
  * THE EXAMPLE IS CHOSEN FOR WHAT IT COSTS. `examples/transform/std-convert-fan-out.yaml` is
- * five steps, one of them a fan-out over three regions, and every block in it is a pure
- * transform: no network, no allowlisted block, and the whole run settles in under a second. So
- * this spec asserts on a settled run without polling a remote or waiting on a sleep.
+ * eight steps, one of them a fan-out over three regions, and every block in it is a transform,
+ * a codec or a hop through the run's own scratch space: no network, no allowlisted block, and
+ * the whole run settles in under a second. So this spec asserts on a settled run without
+ * polling a remote or waiting on a sleep.
  *
  * ONE THING HERE NEEDS A RUN THAT LASTS. A graph redrawn while its stream is still delivering is
  * what `sleep-race` below is for: three waits and a step that joins them, written in this file
@@ -19,7 +20,7 @@ const EXAMPLE = 'examples/transform/std-convert-fan-out.yaml'
 const PIPELINE = 'std-convert-fan-out'
 
 /** Every step the example declares, which is what the graph has to draw. */
-const STEPS = ['parse', 'active', 'per_region', 'report', 'as_csv']
+const STEPS = ['source', 'parse', 'rows', 'active', 'per_region', 'report', 'store', 'as_csv']
 
 /** Apply the example and start a run of it, answering with the run's id. */
 async function runOfTheExample(request: APIRequestContext): Promise<string> {
@@ -68,10 +69,10 @@ test('choosing a step on the graph opens it in the panel', async ({ page }) => {
     // What the step produced is on its tab, which is where somebody inspecting the data
     // flowing between nodes finds it.
     await expect(panel.getByRole('heading', { name: 'Output', exact: true })).toBeVisible()
-    await expect(panel.locator('pre').filter({ hasText: '"text"' }).first()).toBeVisible()
+    await expect(panel.locator('pre').filter({ hasText: '"target"' }).first()).toBeVisible()
 
-    // A large output opens in a window: the read-only editor, which is a chunk of its own
-    // and is fetched when first asked for.
+    // An output opens in a window: the read-only editor, which is a chunk of its own and is
+    // fetched when first asked for.
     await panel.getByLabel('Open parse · output in a window').click()
     const window = page.getByRole('dialog')
     await expect(window.locator('.monaco-editor')).toBeVisible({ timeout: 30_000 })

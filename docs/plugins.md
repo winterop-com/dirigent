@@ -292,7 +292,7 @@ steps:
     block: validate.schema
     depends_on: [sites]
     config:
-      input: ${steps.sites.output.json_body}
+      input: ${steps.sites.output.value}
       schema: acme-sites
   export:
     block: acme.orders
@@ -302,7 +302,12 @@ steps:
       site: NO-BRGN-01
       period: 2026-01
       measure: TEMPERATURE
-      save_to: "${run.scratch}/orders.json"
+  store:
+    block: storage.write
+    depends_on: [export]
+    config:
+      target: "${run.scratch}/orders.json"
+      value: ${steps.export.output.orders}
 ```
 
 Apply it, then run it:

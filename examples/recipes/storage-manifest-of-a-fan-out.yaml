@@ -2,7 +2,7 @@
 #
 # In:  a list of regions, as a parameter.
 # Out: one JSON file per region in the run's scratch space, and a manifest naming every file
-#      with its byte count and row count.
+#      with its byte count.
 #
 # A fan-out is `for_each` on a step: the run gets one item per element, each with its own
 # status, error, retry budget and output. Two things about it shape this recipe:
@@ -12,10 +12,14 @@
 #   result of an upstream read: the item grid exists from the moment the run is visible.
 #   A fan-out step's output is the list of its items' outputs, in item order. So the step
 #   after the fan reads the whole batch at once, and it reads ${steps.<step>.output} --
-#   the list -- rather than ${steps.<step>.output.value}, which is a field of one item's
+#   the list -- rather than ${steps.<step>.output.uri}, which is a field of one item's
 #   output and not of the list.
 #
-# ${item} is the element, and it goes into the file name as well as into the data, which is
+# The fanned step is the storage.write itself, because there is no item-wise wiring between
+# two fanned steps: an item of one step cannot reach the matching item of another, only the
+# whole list. A fan that writes files therefore does its writing in the step that fans.
+#
+# ${item} is the element, and it goes into the target as well as into the value, which is
 # what keeps two items from writing the same key. Items run concurrently, so a shared target
 # would be a race with a winner nobody chose.
 #
@@ -38,12 +42,13 @@ format: dirigent/v1
 kind: pipeline
 code: storage-manifest-of-a-fan-out
 name: A manifest of a fan-out
-description: Write one file per item with for_each, then read the whole fan back as one list and record every file in a manifest.
+description: Write one file per item with for_each, then read the fan's outputs back as one list and record every file in a manifest.
 
 tags: [recipes, storage, transform, graph]
 
 requires:
   blocks:
+    - storage.write
     - transform.jq
 
 params:
@@ -63,28 +68,28 @@ params:
 
 steps:
   per_region:
-    block: transform.jq
+    block: storage.write
     for_each: ${params.regions}
     # items: continue would let one bad region be recorded against its own item instead of
     # failing the step; the default, fail_fast, is right when a missing region is an outage.
     items: fail_fast
     config:
-      input:
+      # The item is in the key, so two items never write the same file.
+      target: ${run.scratch}/regions/${params.day}/${item}.json
+      value:
         region: ${item}
         day: ${params.day}
-      program: |
-        . as {$region, $day}
-        | {region: $region, day: $day,
-           rows: [range(6) | {station: "\($region)-st-\(.)", celsius: (. * 3) - 4}]}
-      # The item is in the key, so two items never write the same file.
-      save_to: ${run.scratch}/regions/${params.day}/${item}.json
+        rows:
+          - { station: "${item}-st-0", celsius: -4 }
+          - { station: "${item}-st-1", celsius: -1 }
+          - { station: "${item}-st-2", celsius: 2 }
 
   manifest:
     block: transform.jq
     depends_on: [per_region]
     config:
       # The fan-out's output is the list of its items' outputs, so this reads .output and
-      # not .output.value.
+      # not .output.uri.
       input:
         items: ${steps.per_region.output}
         day: ${params.day}
@@ -92,8 +97,6 @@ steps:
         . as {$items, $day}
         | {day: $day,
            files: ($items | length),
-           total_bytes: ([$items[].output_bytes] | add),
-           # Every item wrote to storage, so each output carries a uri and a size rather
-           # than a value.
-           entries: [$items[] | {uri: .output_uri, bytes: .output_bytes}],
-           empty: [$items[] | select(.output_bytes == 0) | .output_uri]}
+           total_bytes: ([$items[].bytes_written] | add),
+           entries: [$items[] | {uri, bytes: .bytes_written}],
+           empty: [$items[] | select(.bytes_written == 0) | .uri]}

@@ -16,9 +16,9 @@
 # value, several are the list of them, and none at all is refused, because a step has to
 # produce something for the next one to read.
 #
-# The input is written inline so the example needs no network. In a real pipeline it is
-# input_uri, pointing at the body an upstream http.request already put in storage, and
-# save_to streams a large result back to storage instead of carrying it in the output.
+# The input is written inline so the example needs no network. In a real pipeline it is a
+# reference to an upstream step's output: an http.request's body, or the value a storage.read
+# brought in. The result travels the same way, and reaches a file through a storage.write.
 #
 #   dg run --local examples/transform/jq-reshape.yaml
 #   dg run --local examples/transform/jq-reshape.yaml -p regions='["east"]'

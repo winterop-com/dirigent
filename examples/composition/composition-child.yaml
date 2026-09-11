@@ -46,13 +46,19 @@ steps:
       body:
         region: "${params.region}"
         day: "${params.day}"
+
+  store:
+    block: storage.write
+    depends_on: [fetch]
+    config:
       # The child writes under its own run's scratch, so two children of the same parent
       # never write to the same place, whatever region they were given.
-      save_to: "${run.scratch}/regions/${params.region}.json"
+      target: "${run.scratch}/regions/${params.region}.json"
+      value: "${steps.fetch.output.body}"
 
   archive:
     block: storage.copy
-    depends_on: [fetch]
+    depends_on: [store]
     config:
-      source: "${steps.fetch.output.body_uri}"
+      source: "${steps.store.output.uri}"
       target: "${run.scratch}/archive/${params.day}/${params.region}.json"

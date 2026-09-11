@@ -4,6 +4,10 @@
 # Out: {read, written, header} -- the ragged csv read into records, and records written back
 #      out as a csv whose header covers every key any of them has.
 #
+# A convert step reads one URI and writes another, so each half below is three hops: the
+# document is put in storage, converted, and read back out. The two conversions are the
+# middle hop of each half, and the csv rules are what they keep.
+#
 # Reading, two rules:
 #
 #   The header names the columns, and every cell is a string. A row with fewer cells than
@@ -47,13 +51,15 @@ code: csv-header-rules
 name: CSV header rules
 description: How the csv codec reads a ragged file and writes a union header, and the two headers it refuses to read at all.
 
-tags: [recipes, transform]
+tags: [recipes, storage, transform]
 
 requires:
   blocks:
     - value.const
     - transform.jq
+    - storage.write
     - convert.std
+    - storage.read
 
 params:
   type: object
@@ -72,13 +78,29 @@ steps:
       program: |
         . + "\nst-1,2026-01-01,4.5\nst-2,2026-01-01\nst-3,2026-01-01,7\n"
 
-  read:
-    block: convert.std
+  ragged_file:
+    block: storage.write
     depends_on: [ragged]
     config:
-      input: ${steps.ragged.output.value}
+      target: ${run.scratch}/ragged.csv
+      text: ${steps.ragged.output.value}
+      content_type: text/csv
+
+  read:
+    block: convert.std
+    depends_on: [ragged_file]
+    config:
+      source: ${steps.ragged_file.output.uri}
+      target: ${run.scratch}/ragged.json
       from: csv
       to: json
+
+  records:
+    block: storage.read
+    depends_on: [read]
+    config:
+      # The converted object is application/json, so it comes back as a value.
+      source: ${steps.read.output.target}
 
   uneven:
     block: value.const
@@ -89,29 +111,37 @@ steps:
         - { station: st-2, celsius: -1, battery: 96 }
         - { station: st-3, note: replaced sensor }
 
-  as_text:
-    block: transform.jq
+  uneven_file:
+    block: storage.write
     depends_on: [uneven]
     config:
-      input: ${steps.uneven.output.value}
-      program: tojson
+      target: ${run.scratch}/uneven.json
+      # Canonical JSON: the keys reach the codec sorted, whatever order they were typed in.
+      value: ${steps.uneven.output.value}
 
   write:
     block: convert.std
-    depends_on: [as_text]
+    depends_on: [uneven_file]
     config:
-      input: ${steps.as_text.output.value}
+      source: ${steps.uneven_file.output.uri}
+      target: ${run.scratch}/uneven.csv
       from: json
       to: csv
 
+  written:
+    block: storage.read
+    depends_on: [write]
+    config:
+      source: ${steps.write.output.target}
+
   report:
     block: transform.jq
-    depends_on: [read, write]
+    depends_on: [records, written]
     config:
       input:
-        read: ${steps.read.output.text}
-        written: ${steps.write.output.text}
+        read: ${steps.records.output.value}
+        written: ${steps.written.output.text}
       program: |
-        {read: (.read | fromjson),
+        {read: .read,
          written: .written,
          header: (.written | split("\n")[0] | split(","))}

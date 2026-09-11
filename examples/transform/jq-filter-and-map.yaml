@@ -16,8 +16,9 @@
 # program answering 0 or "" is refused rather than read as false: jq's truthiness is not
 # applied, so a program meaning "has readings" writes .count > 0.
 #
-# The input is written inline so the example needs no network. In a real pipeline it is
-# input_uri, pointing at the body an upstream http.request already put in storage.
+# The input is written inline so the example needs no network. In a real pipeline it is a
+# reference to an upstream step's output, which is how a value that lives in storage arrives:
+# through a storage.read of its own.
 #
 #   dg run --local examples/transform/jq-filter-and-map.yaml
 

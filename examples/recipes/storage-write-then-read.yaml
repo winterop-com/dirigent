@@ -1,20 +1,20 @@
-# Write a result to storage and read it back in the next step, which is how a big payload
-# travels between steps.
+# Hand work from one step to the next through storage, which is how a big payload travels.
 #
 # In:  a list built inline.
 # Out: two files in the run's scratch space and a summary read back out of the second one.
 #
-# Every transform takes save_to and every transform takes input_uri, so a chain of them can
-# hand work along through storage instead of through step outputs. The mechanism is worth
-# seeing once because nothing in the document announces it except those two fields:
+# A value flows through step outputs. storage.write is the only way one goes out and
+# storage.read the only way one comes back in, so a chain that wants to hand work along
+# through storage is written as that pair, twice:
 #
-#   save_to      the result is streamed to that URI and the step's output changes shape.
-#                There is no `value` any more: the output carries output_uri and
-#                output_bytes, and a downstream step that reads .value gets null.
-#   input_uri    the input is streamed from a URI rather than written inline. max_input
-#                bounds what is read into memory -- 32mb by default -- and an input larger
-#                than the bound is refused rather than truncated, because half a document
-#                is not a smaller input, it is a wrong one.
+#   storage.write   target, and exactly one of text or value. Output: uri, bytes_written,
+#                   content_type. A value is written as canonical JSON -- sorted keys, no
+#                   spaces -- so the same value writes the same bytes every run.
+#   storage.read    source, and max_size: how much of the object this step will hold, 1mb
+#                   unless it says otherwise. An object above the cap is refused rather than
+#                   truncated, because half a document is not a smaller one, it is a wrong
+#                   one. The object comes back as `value` when it is JSON and as `text`
+#                   otherwise, and a type it cannot decode it refuses instead of guessing.
 #
 # ${run.scratch} is the run's own prefix in whatever storage the instance is configured
 # with. On a --local run that is a directory under a temporary tree that is deleted when the
@@ -22,11 +22,11 @@
 # the scheme it is a bucket. The document says none of that: it names a scheme-agnostic
 # prefix, and where the bytes land is an instance setting.
 #
-# The second write is the reason the read is spelled ${steps.<step>.output.output_uri}
-# rather than the same path typed twice: one place decides where a file went, and a rename
-# is a one-line change.
+# Every read below is spelled ${steps.<step>.output.uri} rather than the same path typed
+# twice: one place decides where a file went, and a rename is a one-line change.
 #
-# To change it: point save_to at s3://<bucket>/... and nothing else in the document moves.
+# To change it: point the targets at s3://<bucket>/... and nothing else in the document
+# moves.
 #
 #   dg run --local examples/recipes/storage-write-then-read.yaml
 #   dg run --local examples/recipes/storage-write-then-read.yaml -p day=2026-02-01
@@ -35,13 +35,15 @@ format: dirigent/v1
 kind: pipeline
 code: storage-write-then-read
 name: Write to storage, then read it back
-description: Stream a transform's result to the run's scratch space with save_to, then read it in the next step with input_uri.
+description: Put a transform's result in the run's scratch space with storage.write, read it into the next step with storage.read, and do it again with what that step produced.
 
 tags: [recipes, storage, transform]
 
 requires:
   blocks:
     - transform.jq
+    - storage.write
+    - storage.read
 
 params:
   type: object
@@ -70,24 +72,48 @@ steps:
            | {station: "st-\(.)", day: $day,
               celsius: (. % 17) - 5,
               active: (. % 5 != 0)}]
-      # The output is a file rather than a value: this step's output carries no `value`.
-      save_to: ${run.scratch}/readings-${params.day}.json
+
+  save:
+    block: storage.write
+    depends_on: [generate]
+    config:
+      target: ${run.scratch}/readings-${params.day}.json
+      value: ${steps.generate.output.value}
+
+  back:
+    block: storage.read
+    depends_on: [save]
+    config:
+      # Where the write said the object landed, not the same path typed twice.
+      source: ${steps.save.output.uri}
+      max_size: 8mb
 
   cold:
     block: transform.jq
-    depends_on: [generate]
+    depends_on: [back]
     config:
-      # Streamed in from where the write said it landed, not from a path written twice.
-      input_uri: ${steps.generate.output.output_uri}
-      max_input: 8mb
+      # The rows as they came off storage, not as they were held in memory upstream.
+      input: ${steps.back.output.value}
       program: |
         [.[] | select(.celsius < 0)]
-      save_to: ${run.scratch}/cold-${params.day}.json
+
+  save_cold:
+    block: storage.write
+    depends_on: [cold]
+    config:
+      target: ${run.scratch}/cold-${params.day}.json
+      value: ${steps.cold.output.value}
+
+  back_cold:
+    block: storage.read
+    depends_on: [save_cold]
+    config:
+      source: ${steps.save_cold.output.uri}
 
   summary:
     block: transform.jq
-    depends_on: [generate, cold]
+    depends_on: [back_cold]
     config:
-      input_uri: ${steps.cold.output.output_uri}
+      input: ${steps.back_cold.output.value}
       program: |
         {cold_rows: length, coldest: (min_by(.celsius) | .station)}

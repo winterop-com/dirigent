@@ -1,11 +1,11 @@
-# A three-step chain, and how one step reads another's output.
+# A four-step chain, and how one step reads another's output.
 #
 # depends_on draws the edge; ${steps.<name>.output.<field>} reads across it. A step may
 # only read from a step it depends on, transitively, and apply checks that: the reference
 # language has no way to reach sideways into an unrelated branch.
 #
-# http.request writes its response body to the run's scratch space with save_to, so the
-# copy step has a real object to move.
+# The answer travels as a value in the fetch step's output, and storage.write is what puts
+# it in the run's scratch space, so the copy step has a real object to move.
 #
 # report uses shell.run, which executes code on the worker and is refused unless the
 # instance allowlists it:
@@ -18,7 +18,7 @@ format: dirigent/v1
 kind: pipeline
 code: linear
 name: A straight line of steps
-description: Fetch a payload, archive what came back, then report what was archived.
+description: Fetch a payload, store it, archive the object, then report what was archived.
 
 tags: [graph, execute, http, storage]
 
@@ -38,17 +38,23 @@ steps:
       method: GET
       query:
         day: "${params.day}"
-      # The body goes to storage rather than into the step's output: a response of any
-      # size is then a URI the next step reads, and the run record stays small.
-      save_to: "${run.scratch}/incoming/${params.day}.json"
+
+  store:
+    block: storage.write
+    depends_on: [fetch]
+    config:
+      # storage.write is the only way a value leaves the run, so the answer the fetch
+      # carries becomes an object here and nowhere else.
+      target: "${run.scratch}/incoming/${params.day}.json"
+      value: "${steps.fetch.output.body}"
 
   archive:
     block: storage.copy
     # depends_on is what orders the run; nothing infers an edge from one step reading
     # another's output, so the dependency is stated even though the reference implies it.
-    depends_on: [fetch]
+    depends_on: [store]
     config:
-      source: "${steps.fetch.output.body_uri}"
+      source: "${steps.store.output.uri}"
       target: "${run.scratch}/archive/${params.day}.json"
 
   report:

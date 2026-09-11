@@ -22,9 +22,10 @@
 #             each of these tolerates failure: continue_on_failure means a name that cannot be
 #             resolved leaves a row with no coordinates instead of ending the run.
 #   pause_*   one second, which is the whole point of the chain.
-#   table     the join. Each result is read back, the first candidate taken, and the strings
-#             Nominatim returns for lat and lon turned into numbers -- a coordinate that has
-#             to be parsed before it can be compared is not a coordinate.
+#   table     the join. The three answers arrive as one list in this step's input, the first
+#             candidate of each is taken, and the strings Nominatim returns for lat and lon are
+#             turned into numbers -- a coordinate that has to be parsed before it can be
+#             compared is not a coordinate.
 #
 # To make it yours: replace the value.const list, and set user_agent to something that says who
 # you are. Any name that resolves ambiguously is worth sending with more context in `query`:
@@ -107,7 +108,7 @@ steps:
 
   lookup_2:
     block: http.request
-    depends_on: [pause_1]
+    depends_on: [facilities, pause_1]
     continue_on_failure: true
     config:
       url: https://nominatim.openstreetmap.org/search
@@ -127,7 +128,7 @@ steps:
 
   lookup_3:
     block: http.request
-    depends_on: [pause_2]
+    depends_on: [facilities, pause_2]
     continue_on_failure: true
     config:
       url: https://nominatim.openstreetmap.org/search
@@ -141,14 +142,14 @@ steps:
 
   table:
     block: transform.jq
-    depends_on: [lookup_3]
+    depends_on: [facilities, lookup_1, lookup_2, lookup_3]
     config:
       input:
         facilities: ${steps.facilities.output.value}
         answers:
-          - ${steps.lookup_1.output.json_body}
-          - ${steps.lookup_2.output.json_body}
-          - ${steps.lookup_3.output.json_body}
+          - ${steps.lookup_1.output.body}
+          - ${steps.lookup_2.output.body}
+          - ${steps.lookup_3.output.body}
       # lat and lon arrive as strings; tonumber here is what stops every later consumer from
       # guessing. A name with no candidate keeps its row, with nulls where the coordinate
       # would be, so the gap is countable.

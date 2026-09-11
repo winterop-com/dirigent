@@ -46,24 +46,21 @@ frame keeps for it.
 
 ## What every transform takes
 
-The frame owns the config every engine shares, so the fields below mean the same thing
-whatever the verb and whatever the kind:
+A program verb -- `transform`, `map`, `filter` -- works on a value and answers with one, so
+the frame owns exactly two fields:
 
 | Field | What it is |
 | --- | --- |
-| `input` | The value to work on, written inline in the document. |
-| `input_uri` | A storage URI to read it from instead. |
-| `save_to` | A storage URI to stream the result to, instead of carrying it inline. |
-| `max_input` | How much of `input_uri` is read into memory. Defaults to 32mb, the same bound `http.request` puts on a body it holds. |
+| `input` | The value to work on, written inline or referenced from an earlier step's output. |
+| `program` | The text the engine's kind compiles. |
 
-Exactly one of `input` and `input_uri` is required. Writing both, or neither, is refused at
-apply rather than on the first run.
+The output is one field, `value`, and a later step reads it with
+`${steps.<name>.output.value}`.
 
-`examples/transform/` is the worked corpus for all of it: eleven documents, each prefixed with
-the engine kind that stars in it, every one of them running with no network and nothing on the
-allowlist. The README in that directory says which teaches what.
-
-A worked step, with `transform.<kind>` standing in for the engine you name:
+**A value flows through step outputs.** `storage.read` is the only way one comes in from
+storage and `storage.write` the only way one goes out, so a transform never names a URI: a
+stored document reaches a program through a read, and a reshaped value that should outlive
+the run leaves through a write.
 
 ```yaml
 steps:
@@ -71,41 +68,45 @@ steps:
     block: transform.<kind>
     depends_on: [fetch]
     config:
-      # The upstream step's body, already in storage: it is streamed in rather than
-      # inlined into this step's config, so a large document costs nothing to reference.
-      input_uri: ${steps.fetch.output.body_uri}
+      input: ${steps.fetch.output.body}
       program: |
         .features | map({id: .id, value: .properties.value})
-      # Without save_to the reshaped value is the step's output, and the engine spills a
-      # large one to an artifact on its own. With it, the output carries the URI instead.
-      save_to: ${run.scratch}/reshaped.json
+
+  keep:
+    block: storage.write
+    depends_on: [reshape]
+    config:
+      target: ${run.scratch}/reshaped.json
+      value: ${steps.reshape.output.value}
 ```
 
-Each verb adds the fields its own contract needs, and nothing else: `transform` adds
-`program`, the text the engine's kind compiles, and `convert` adds `from` and `to`, the two
-format names the engine trades between. A `convert` step therefore has no program at all:
+An output too large to inline needs no write of its own: the engine spills it to the run's
+scratch space, the instance setting [`inline_artifact_max`](settings.md) decides at what
+size, and the attempt row records where it went. What a `storage.write` step is for is a file
+the run means to produce -- one a later run, another system, or a person reads.
+
+`examples/transform/` is the worked corpus for all of it: eleven documents, each prefixed with
+the engine kind that stars in it, every one of them running with no network and nothing on the
+allowlist. The README in that directory says which teaches what.
+
+`convert` is the exception, because its operand is a storage object rather than a value. It
+reads one URI and writes another, the way `storage.copy` does, and it has no program at all:
 
 ```yaml
 steps:
   as_csv:
     block: convert.<kind>
-    depends_on: [reshape]
+    depends_on: [keep]
     config:
-      input_uri: ${steps.reshape.output.output_uri}
+      source: ${steps.keep.output.uri}
       from: json
       to: csv
-      save_to: ${run.scratch}/rows.csv
+      target: ${run.scratch}/rows.csv
 ```
 
-The output is one of two shapes, and which one it is depends only on `save_to`:
-
-- Without it, the reshaped value is the output (`value` for `transform`, `text` for
-  `convert`), and downstream steps reference it directly.
-- With it, the output carries `output_uri` and `output_bytes`, and a downstream step reads
-  from storage. A result worth saving is a result the next step reads from storage.
-
-An input larger than `max_input` is refused rather than truncated: half a document is not a
-smaller input, it is a wrong one.
+Its output is `source`, `target` and `bytes_written`, so a step after it addresses the result
+by `${steps.as_csv.output.target}` -- a `storage.copy` to where the file belongs, or a
+`storage.read` when the run itself has to look at what was produced.
 
 ## `transform.jq`
 
@@ -119,7 +120,7 @@ steps:
     block: transform.jq
     depends_on: [fetch]
     config:
-      input_uri: ${steps.fetch.output.body_uri}
+      input: ${steps.fetch.output.body}
       program: |
         [.readings[] | select(.status == "active") | {station, region, celsius}]
 ```
@@ -225,8 +226,9 @@ The program is run once per element and answers one question about it: keep it, 
 steps:
   active:
     block: filter.jq
+    depends_on: [fetch]
     config:
-      input_uri: ${steps.fetch.output.body_uri}
+      input: ${steps.fetch.output.body}
       program: |
         .status == "active"
 ```
@@ -299,12 +301,22 @@ is not. Encoding is UTF-8 in both directions.
 steps:
   parse:
     block: convert.std
-    depends_on: [fetch]
     config:
-      input_uri: ${steps.fetch.output.body_uri}
+      source: ${run.scratch}/readings.csv
       from: csv
       to: json
+      target: ${run.scratch}/readings.json
+
+  reload:
+    block: storage.read
+    depends_on: [parse]
+    config:
+      source: ${steps.parse.output.target}
 ```
+
+The `reload` step is there only when the run itself has to look at the records. A conversion
+whose result the pipeline just passes on -- to another conversion, to a copy, to a load that
+reads the URI -- names `${steps.parse.output.target}` and never holds the bytes.
 
 **Every cell read out of a csv is a string.** A csv carries no types: `4.5` in a cell is the
 three characters, and a codec that decided it was a number would be guessing, on a column
@@ -417,9 +429,11 @@ number. A csv source carries no types, so csv to parquet writes string columns. 
 gives every value its JSON spelling: timestamps, dates and times come back as ISO strings,
 decimals as strings, and a float that is NaN or infinite as null.
 
-Parquet is bytes rather than text, so it always travels by uri: `input_uri` in, and
-`save_to` required when parquet is the target. A config that writes a parquet payload
-inline, or asks for one back inline, is refused at apply.
+Parquet is a columnar file rather than a document: the bytes are laid out by column, with a
+schema and a footer, and there is no text spelling of them a step could hold as a value. That
+costs the block nothing, because every conversion is a storage-object operation anyway --
+`source` in, `target` out. A run that wants to read the records converts to one of the three
+text spellings first and hands that object to `storage.read`.
 
 ## Safety is per kind
 
@@ -436,9 +450,9 @@ ones that already exist.
 - A `convert` kind is a codec rather than a language, so the question does not arise. It
   declares the format pairs it supports and nothing else.
 
-Whatever the kind, an engine is handed a value and returns a value. It touches no HTTP, no
-file outside storage, and nothing in the environment: reading the input and writing the
-output are the frame's job, not the engine's.
+Whatever the kind, an engine is handed a value and returns one -- bytes and bytes, for a
+codec. It touches no HTTP, no file outside storage, and nothing in the environment: reading
+the input and writing the output are the frame's job, not the engine's.
 
 ## A bad program is refused at apply
 
