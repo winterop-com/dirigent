@@ -158,5 +158,5 @@ def test_the_shelves_are_not_walked_until_something_asks(shelves: Path) -> None:
 
 def test_the_installed_corpus_is_discovered_through_the_entry_point() -> None:
     host = load_plugin_host()
-    codes = {entry.code for entry in host.examples() if entry.plugin == "dirigent-examples"}
+    codes = {entry.code for entry in host.examples() if entry.plugin == "examples"}
     assert "hello-world" in codes
