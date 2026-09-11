@@ -16,7 +16,10 @@ const FORM_COLUMN = 526
 const seamOf = (page: Page) => page.getByRole('separator', { name: 'Resize the brand pane' })
 
 const paneWidth = async (page: Page) =>
-    (await page.locator('aside').boundingBox().then((box) => box?.width)) ?? 0
+    (await page
+        .locator('aside')
+        .boundingBox()
+        .then((box) => box?.width)) ?? 0
 
 async function openLogin(page: Page, width: number, height: number): Promise<void> {
     await page.setViewportSize({ width, height })
@@ -34,9 +37,7 @@ async function dragSeam(page: Page, by: number): Promise<void> {
     await page.mouse.up()
 }
 
-test('the seam drags, and what it was dragged to comes back with the browser', async ({
-    page,
-}) => {
+test('the seam drags, and what it was dragged to comes back with the browser', async ({ page }) => {
     await openLogin(page, 1440, 900)
     const before = await paneWidth(page)
 

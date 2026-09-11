@@ -32,7 +32,9 @@ export default defineConfig({
         baseURL: SHOTS_BASE_URL,
         viewport: { width: 1440, height: 900 },
     },
-    projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } } }],
+    projects: [
+        { name: 'chromium', use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } } },
+    ],
     webServer: {
         command: `uv run python scripts/seed_dev.py --root ${scratchRoot} --host 127.0.0.1 --port ${String(SHOTS_PORT)}`,
         cwd: repositoryRoot,

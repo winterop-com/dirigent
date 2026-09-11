@@ -138,7 +138,9 @@ test('the pipelines listing wears its tags and a chip on a row narrows to that t
     await expect(page).not.toHaveURL(/tag=/)
 })
 
-test('two tags narrow the pipelines listing, and the address carries what they narrowed to', async ({ page }) => {
+test('two tags narrow the pipelines listing, and the address carries what they narrowed to', async ({
+    page,
+}) => {
     await signIn(page)
     await applyExample(page.request, RAN.file)
     await applyExample(page.request, IDLE.file)
@@ -162,7 +164,9 @@ test('two tags narrow the pipelines listing, and the address carries what they n
  * The runs listing asks the pipeline, so this is the join a Node test cannot reach: the rows it
  * leaves out are runs whose pipeline does not wear the tag, not runs missing a field.
  */
-test('the runs listing narrows by the tags the runs pipeline wears, and no row repeats them', async ({ page }) => {
+test('the runs listing narrows by the tags the runs pipeline wears, and no row repeats them', async ({
+    page,
+}) => {
     await signIn(page)
     await applyExample(page.request, RAN.file)
     await applyDocument(page.request, NAMELESS)
@@ -227,9 +231,7 @@ test('a file picked on the listing lands in the new-document editor, and applyin
     // on the source pane a tab away.
     await expect(page).toHaveURL(/\/pipelines\/\$new$/)
     await page.locator('aside').getByRole('tab', { name: 'Source' }).click()
-    await expect(page.getByTestId('code-editor').locator('.view-lines')).toContainText(
-        'typed-in-the-browser',
-    )
+    await expect(page.getByTestId('code-editor').locator('.view-lines')).toContainText('typed-in-the-browser')
 
     await page.getByRole('button', { name: 'Apply', exact: true }).click()
     const dialog = page.getByRole('dialog')
@@ -412,7 +414,11 @@ test.describe('a row filed under more words than the column can hold', () => {
         // What does not fit folds into one chip, which says how many and spells them on hover.
         const fold = foldOf(page, FIFTEEN.name)
         const hidden = await foldedWords(fold)
-        const drawn = await row.locator('td').nth(1).getByRole('button', { name: /^Filter by / }).count()
+        const drawn = await row
+            .locator('td')
+            .nth(1)
+            .getByRole('button', { name: /^Filter by / })
+            .count()
         expect(drawn + hidden.length).toBe(FIFTEEN.tags.length)
 
         // The ten-tag row folds its own count, so what a fold says is what it is holding.

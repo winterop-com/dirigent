@@ -109,7 +109,10 @@ export async function applyExample(request: APIRequestContext, reference: string
  * For a shape no shipped example has -- two steps with nothing between them is not a pipeline
  * anybody would ship, and it is exactly what a spec about drawing an edge needs.
  */
-export async function applyDocument(request: APIRequestContext, document: Record<string, unknown>): Promise<void> {
+export async function applyDocument(
+    request: APIRequestContext,
+    document: Record<string, unknown>,
+): Promise<void> {
     const prefix = await apiPrefix(request)
     const applied = await request.post(`${prefix}/pipelines/$apply`, { data: { document } })
     expect(applied.ok(), await applied.text()).toBe(true)
@@ -204,14 +207,13 @@ export async function writeInEditor(page: Page, editor: Locator, text: string): 
         await expect(editor.locator('.selected-text').first()).toBeVisible()
         await page.keyboard.press('Backspace')
     }
-    await input
-        .evaluate((node, written) => {
-            const carried = new DataTransfer()
-            carried.setData('text/plain', written)
-            node.dispatchEvent(
-                new ClipboardEvent('paste', { clipboardData: carried, bubbles: true, cancelable: true }),
-            )
-        }, text)
+    await input.evaluate((node, written) => {
+        const carried = new DataTransfer()
+        carried.setData('text/plain', written)
+        node.dispatchEvent(
+            new ClipboardEvent('paste', { clipboardData: carried, bubbles: true, cancelable: true }),
+        )
+    }, text)
 }
 
 /**

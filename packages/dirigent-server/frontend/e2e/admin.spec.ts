@@ -116,9 +116,7 @@ test('a tile counts the states that occurred and spends no clause on the ones th
     await expect(tile(page, 'Right now')).not.toContainText('0 running')
 
     // The run that failed is in the table the tiles sit above.
-    await expect(
-        page.getByRole('main').getByRole('row').filter({ hasText: 'failed' }).first(),
-    ).toBeVisible()
+    await expect(page.getByRole('main').getByRole('row').filter({ hasText: 'failed' }).first()).toBeVisible()
 })
 
 test('an account is made, and then turned off', async ({ page }) => {
@@ -277,9 +275,7 @@ test('the password form expands under its row and states the refusal there', asy
     await expect(dialog.getByRole('button', { name: 'Change', exact: true })).toBeVisible()
 })
 
-test('an email is carried into the panel, changed there, and is unique across accounts', async ({
-    page,
-}) => {
+test('an email is carried into the panel, changed there, and is unique across accounts', async ({ page }) => {
     await signIn(page)
     const username = someone()
     const email = `${username}@example.test`
@@ -311,9 +307,7 @@ test('an email is carried into the panel, changed there, and is unique across ac
     await dialog.getByRole('button', { name: 'Cancel' }).click()
 })
 
-test('a password is reset from the panel, and the account signs in with the new one', async ({
-    page,
-}) => {
+test('a password is reset from the panel, and the account signs in with the new one', async ({ page }) => {
     await signIn(page)
     const username = someone()
 
@@ -341,9 +335,7 @@ test('a password is reset from the panel, and the account signs in with the new 
     await signInAs(page, username, changed)
 })
 
-test('a token is minted for another account, and the tokens table says whose it is', async ({
-    page,
-}) => {
+test('a token is minted for another account, and the tokens table says whose it is', async ({ page }) => {
     await signIn(page)
     const username = someone()
     const token = `tok-${username}`
@@ -367,7 +359,9 @@ test('a token is minted for another account, and the tokens table says whose it 
     await expect(tokenRowOf(page, token)).toContainText(username)
 
     // Revoking reaches that account's token: the row stays, says so, and offers no second press.
-    await tokenRowOf(page, token).getByRole('button', { name: `Revoke ${token}` }).click()
+    await tokenRowOf(page, token)
+        .getByRole('button', { name: `Revoke ${token}` })
+        .click()
     await expect(page.getByRole('main').getByRole('alert')).toHaveCount(0)
     await expect(tokenRowOf(page, token)).toContainText('revoked')
     await expect(tokenRowOf(page, token).getByRole('button', { name: `Revoke ${token}` })).toHaveCount(0)

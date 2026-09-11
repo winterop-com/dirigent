@@ -14,9 +14,13 @@ async function shot(page: Page, mode: string, name: string): Promise<void> {
     // The corner identity fills over its reads after every full load; a picture of the
     // asking state would put the wrong topbar in every frame.
     await page
-        .waitForFunction(() => /\d+\.\d+\.\d+/.test(document.querySelector('header')?.textContent ?? ''), undefined, {
-            timeout: 8000,
-        })
+        .waitForFunction(
+            () => /\d+\.\d+\.\d+/.test(document.querySelector('header')?.textContent ?? ''),
+            undefined,
+            {
+                timeout: 8000,
+            },
+        )
         .catch(() => undefined)
     await page.waitForTimeout(800)
     await page.screenshot({ path: path.join(OUT, `${name}--${mode}.png`) })
@@ -54,9 +58,11 @@ test('the gallery', async ({ page }) => {
         const pipelines = (await (await page.request.get('/api/v1/pipelines?limit=50')).json()) as {
             items: unknown[]
         }
-        items = ((await (await page.request.get('/api/v1/runs?limit=50')).json()) as {
-            items: { status: string; id: string }[]
-        }).items
+        items = (
+            (await (await page.request.get('/api/v1/runs?limit=50')).json()) as {
+                items: { status: string; id: string }[]
+            }
+        ).items
         const settled =
             items.length > 0 && items.every((run) => !['running', 'queued', 'pending'].includes(run.status))
         quiet = settled && pipelines.items.length === count && count > 0 ? quiet + 1 : 0
@@ -96,7 +102,10 @@ test('the gallery', async ({ page }) => {
         // The overlays: the palette, the settings dialog, and the run terminal.
         await page.goto('/pipelines')
         await page.keyboard.press('ControlOrMeta+k')
-        await page.getByPlaceholder(/run, pipeline|go to/i).or(page.locator('[cmdk-input]')).first()
+        await page
+            .getByPlaceholder(/run, pipeline|go to/i)
+            .or(page.locator('[cmdk-input]'))
+            .first()
             .waitFor({ timeout: 4000 })
             .catch(() => undefined)
         await shot(page, mode, 'palette')

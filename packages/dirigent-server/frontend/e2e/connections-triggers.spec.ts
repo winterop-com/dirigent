@@ -86,7 +86,10 @@ function rowOf(page: Page, code: string) {
     return page.getByRole('row').filter({ hasText: code })
 }
 
-test('a connection says its kind and that its secret is set, and never what it is', async ({ page, baseURL }) => {
+test('a connection says its kind and that its secret is set, and never what it is', async ({
+    page,
+    baseURL,
+}) => {
     await signIn(page)
     await seedConnection(page.request, baseURL ?? '')
 
@@ -120,7 +123,10 @@ test('checking a connection moves its own row', async ({ page, baseURL }) => {
     await expect(row).not.toContainText('never checked')
 })
 
-test('a connection opens a form whose secret box is empty and whose kind is fixed', async ({ page, baseURL }) => {
+test('a connection opens a form whose secret box is empty and whose kind is fixed', async ({
+    page,
+    baseURL,
+}) => {
     await signIn(page)
     await seedConnection(page.request, baseURL ?? '')
 

@@ -169,7 +169,11 @@ test("download raw saves the run's whole log as NDJSON", async ({ page }) => {
     const text = await readFile(path, 'utf8')
     const lines = text.split('\n').filter((line) => line !== '')
     expect(lines).toHaveLength(3)
-    expect(lines.map((line) => (JSON.parse(line) as { step_name: string }).step_name)).toEqual(['generate', 'cold', 'summary'])
+    expect(lines.map((line) => (JSON.parse(line) as { step_name: string }).step_name)).toEqual([
+        'generate',
+        'cold',
+        'summary',
+    ])
 })
 
 test('opening the terminal opens no second stream', async ({ page }) => {

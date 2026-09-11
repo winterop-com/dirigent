@@ -41,8 +41,14 @@ test('the root is the home screen rather than a redirect to a listing', async ({
     // that owns what it lists.
     const main = page.getByRole('main')
     await expect(main.getByRole('link', { name: 'Right now', exact: true })).toHaveAttribute('href', '/runs')
-    await expect(main.getByRole('link', { name: 'Needs a look', exact: true })).toHaveAttribute('href', '/runs')
-    await expect(main.getByRole('link', { name: 'Next fires', exact: true })).toHaveAttribute('href', '/triggers')
+    await expect(main.getByRole('link', { name: 'Needs a look', exact: true })).toHaveAttribute(
+        'href',
+        '/runs',
+    )
+    await expect(main.getByRole('link', { name: 'Next fires', exact: true })).toHaveAttribute(
+        'href',
+        '/triggers',
+    )
 
     // The rail leads with it, and the corner mark goes to it.
     await expect(page.getByRole('link', { name: 'Dashboard', exact: true })).toBeVisible()
@@ -68,7 +74,10 @@ test('a run that failed is under needs a look, and the row opens it', async ({ p
     await expect(page).toHaveURL(new RegExp(`/runs/${runId}$`))
 })
 
-test('the last day is counted by what settled, and a state at zero is not written', async ({ page, baseURL }) => {
+test('the last day is counted by what settled, and a state at zero is not written', async ({
+    page,
+    baseURL,
+}) => {
     await signIn(page)
     await applyDocument(page.request, refusedDocument(baseURL ?? '', REFUSED))
     const runId = await startRun(page.request, REFUSED)
@@ -134,5 +143,7 @@ test('the day is drawn by the hour, and what this instance depends on is beside 
     // The panel beside it lists the workers and the connections, and says in one line what is
     // not perfect. `dg dev` runs a worker of its own, so this instance has one to list.
     await expect(page.getByRole('heading', { name: 'Health' })).toBeVisible()
-    await expect(page.getByRole('main')).toContainText(/worker · \d+ slots?|has gone quiet|No worker has registered/i)
+    await expect(page.getByRole('main')).toContainText(
+        /worker · \d+ slots?|has gone quiet|No worker has registered/i,
+    )
 })
