@@ -179,9 +179,28 @@ export function createRule(payload: AlertRuleIn): Promise<AlertRuleOut> {
     return apiSend<AlertRuleOut>('/alert-rules', 'POST', payload)
 }
 
+/**
+ * What may be changed on a rule that already exists. `AlertRuleUpdate`.
+ *
+ * Every member is optional, and one left out is one the server leaves as it stands -- so a
+ * patch carries what changed and nothing else.
+ */
+export interface AlertRuleUpdate {
+    paused?: boolean
+    /** The subject, or null to send this rule with the built-in one. */
+    template?: string | null
+    /** The body, or null to send this rule with none. */
+    body?: string | null
+}
+
+/** Change what a rule says or whether it delivers. */
+export function updateRule(code: string, patch: AlertRuleUpdate): Promise<AlertRuleOut> {
+    return apiSend<AlertRuleOut>(`/alert-rules/${encodeURIComponent(code)}`, 'PATCH', patch)
+}
+
 /** Hold a rule's deliveries, or let them resume. The rule itself is left as declared. */
 export function setRulePaused(code: string, paused: boolean): Promise<AlertRuleOut> {
-    return apiSend<AlertRuleOut>(`/alert-rules/${encodeURIComponent(code)}`, 'PATCH', { paused })
+    return updateRule(code, { paused })
 }
 
 /** Remove a rule; the notifications it already raised are kept. */
