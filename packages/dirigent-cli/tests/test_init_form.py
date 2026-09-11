@@ -108,4 +108,4 @@ async def test_the_form_says_what_it_will_write_before_creating() -> None:
         await pilot.pause()
         listed = str(app.query_one("#files").render())
         assert "compose.yaml" in listed
-        assert "pipelines/s3-hello.yaml" in listed
+        assert "pipelines/" not in listed, "a stack writes no pipeline unless one was chosen"

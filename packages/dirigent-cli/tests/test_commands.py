@@ -193,12 +193,12 @@ def latest_run() -> str:
 
 
 def test_init_scaffolds_a_project_that_finds_itself(tmp_path: Path) -> None:
-    result = invoke("init", str(tmp_path / "project"), "--template", "documents")
+    result = invoke("init", str(tmp_path / "project"), "--template", "documents", "--pipeline", "report-to-file")
     assert result.exit_code == 0
     assert "dirigent.yaml" in result.output
     project = find_project(tmp_path / "project")
     assert project is not None
-    assert [path.name for path in project.documents()] == ["hello-world.yaml"]
+    assert [path.name for path in project.documents()] == ["report-to-file.yaml"]
     assert (tmp_path / "project" / ".dirigent" / "profiles.yaml").is_file()
 
 
@@ -277,9 +277,9 @@ def test_an_unknown_template_is_refused(tmp_path: Path) -> None:
     assert "local, compose and documents" in result.output
 
 
-def test_the_scaffolded_example_validates_offline(tmp_path: Path) -> None:
-    scaffold(tmp_path / "project", InitChoices())
-    result = machine("validate", str(tmp_path / "project" / "pipelines" / "hello-world.yaml"))
+def test_a_copied_starter_validates_offline(tmp_path: Path) -> None:
+    scaffold(tmp_path / "project", InitChoices(pipelines=("report-to-file",)))
+    result = machine("validate", str(tmp_path / "project" / "pipelines" / "report-to-file.yaml"))
     assert result.exit_code == 0
     assert only(result.stdout, "validation")["message"] == "valid"
     closed = closing(result.stdout)
@@ -473,11 +473,11 @@ def test_schema_create_refuses_a_body_that_is_not_a_schema(tmp_path: Path, serve
 
 
 def test_apply_in_a_project_applies_every_document(tmp_path: Path, server: str) -> None:
-    scaffold(tmp_path, InitChoices())
+    scaffold(tmp_path, InitChoices(pipelines=("report-to-file",)))
     (tmp_path / "pipelines" / "second.yaml").write_text(DOCUMENT)
     result = machine("apply")
     assert result.exit_code == 0
-    assert {applied["plan"]["code"] for applied in rows(result.stdout, "apply")} == {"hello-world", "cli-demo"}
+    assert {applied["plan"]["code"] for applied in rows(result.stdout, "apply")} == {"report-to-file", "cli-demo"}
 
 
 def test_apply_in_a_project_applies_pipelines_before_the_documents_that_schedule_them(
@@ -1210,12 +1210,12 @@ def test_init_initialises_an_instance_that_dg_dev_can_run(tmp_path: Path) -> Non
     """The default is an instance: a migrated database with an admin, beside the documents."""
     root = tmp_path / "instance"
 
-    result = invoke("init", str(root), "--password", "a test password")
+    result = invoke("init", str(root), "--password", "a test password", "--pipeline", "report-to-file")
 
     assert result.exit_code == 0, result.output
     state = root / ".dirigent" / "state"
     assert (state / "dirigent.db").is_file(), "no database was created"
-    assert (root / "pipelines" / "hello-world.yaml").is_file(), "the documents were not written"
+    assert (root / "pipelines" / "report-to-file.yaml").is_file(), "the documents were not written"
     assert "admin" in result.output and "token" in result.output
 
 
@@ -1275,7 +1275,7 @@ def test_init_refuses_to_clobber_an_instance_that_is_already_there(tmp_path: Pat
     """
     root = tmp_path / "instance"
     assert invoke("init", str(root), "--password", "a test password").exit_code == 0
-    for path in (root / "dirigent.yaml", root / "dirigent.example.yaml", root / "pipelines" / "hello-world.yaml"):
+    for path in (root / "dirigent.yaml", root / "dirigent.example.yaml"):
         path.unlink()
     (root / ".dirigent" / "profiles.yaml").unlink()
     (root / ".dirigent" / ".gitignore").unlink()
@@ -1290,11 +1290,11 @@ def test_documents_only_writes_no_database(tmp_path: Path) -> None:
     """The old behaviour is still available, and it is what the flag now names."""
     root = tmp_path / "documents"
 
-    result = invoke("init", str(root), "--template", "documents")
+    result = invoke("init", str(root), "--template", "documents", "--pipeline", "report-to-file")
 
     assert result.exit_code == 0, result.output
     assert not (root / ".dirigent" / "state" / "dirigent.db").exists()
-    assert (root / "pipelines" / "hello-world.yaml").is_file()
+    assert (root / "pipelines" / "report-to-file.yaml").is_file()
 
 
 def test_init_refuses_when_it_has_no_password_and_cannot_ask(tmp_path: Path) -> None:

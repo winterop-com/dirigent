@@ -12,7 +12,14 @@ from typer.testing import CliRunner
 
 from clisupport import of_kind, records, refusal
 from dirigent_cli.main import app, hoist_globals
-from dirigent_cli.project import InitChoices, compose_document, project_name, scaffold, write_token_env
+from dirigent_cli.project import (
+    InitChoices,
+    ProjectError,
+    compose_document,
+    project_name,
+    scaffold,
+    write_token_env,
+)
 
 runner = CliRunner()
 
@@ -196,17 +203,10 @@ def test_every_service_combination_is_a_stack_compose_accepts(tmp_path: Path, se
     assert ("DOCKER_HOST" in worker) == ("docker" in services)
 
 
-def test_a_service_brings_its_hello_and_the_stack_bootstraps_what_it_needs(tmp_path: Path) -> None:
+def test_the_stack_bootstraps_what_its_services_need(tmp_path: Path) -> None:
     choices = InitChoices(template="compose", services=("s3", "docker", "kafka", "rabbitmq"), password="x" * 12)
     made = scaffold(tmp_path / "all", choices, version="1.2.3")
-    pipelines = {path.name for path in made.files if path.parent.name == "pipelines"}
-    assert pipelines == {
-        "hello-world.yaml",
-        "s3-hello.yaml",
-        "docker-hello.yaml",
-        "kafka-hello.yaml",
-        "rabbitmq-hello.yaml",
-    }
+    assert not [path for path in made.files if path.parent.name == "pipelines"], "a stack writes no pipeline of its own"
     compose = (tmp_path / "all" / "compose.yaml").read_text()
     assert "dg connection ensure kafka kafka" in compose
     assert "dg connection ensure rabbitmq rabbitmq" in compose
@@ -308,3 +308,26 @@ def test_the_token_env_file_is_readable_by_its_owner_alone(tmp_path: Path) -> No
     assert path == tmp_path / "plain" / ".env"
     assert "DG_TOKEN=a-minted-token" in path.read_text().splitlines()
     assert path.stat().st_mode & 0o777 == 0o600
+
+
+def test_a_chosen_starter_is_copied_into_the_project(tmp_path: Path) -> None:
+    choices = InitChoices(template="documents", pipelines=("report-to-file",))
+    made = scaffold(tmp_path / "with-a-starter", choices, version="1.2.3")
+    written = tmp_path / "with-a-starter" / "pipelines" / "report-to-file.yaml"
+    assert written in made.files
+    text = written.read_text()
+    assert "code: report-to-file" in text
+    assert "starter" not in text.split("steps:")[0]
+
+
+def test_a_starter_nobody_ships_is_refused_before_anything_is_written(tmp_path: Path) -> None:
+    with pytest.raises(ProjectError, match="no starter named"):
+        scaffold(tmp_path / "nope", InitChoices(template="documents", pipelines=("no-such-starter",)))
+    assert not (tmp_path / "nope").exists()
+
+
+def test_a_project_with_no_starter_gets_an_empty_pipelines_directory(tmp_path: Path) -> None:
+    scaffold(tmp_path / "empty", InitChoices(template="documents"), version="1.2.3")
+    pipelines = tmp_path / "empty" / "pipelines"
+    assert pipelines.is_dir()
+    assert not list(pipelines.iterdir())

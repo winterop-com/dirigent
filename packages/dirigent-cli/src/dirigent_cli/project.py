@@ -3,13 +3,17 @@
 import base64
 import os
 import re
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Final, cast
+from typing import TYPE_CHECKING, Any, Final, cast
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
 from dirigent_core.configdocs import example_document, project_document
+
+if TYPE_CHECKING:
+    from dirigent_core.examples import ExampleEntry
 
 #: The one file a project hand-edits: where its documents are, and what this instance sets.
 PROJECT_FILE: Final = "dirigent.yaml"
@@ -157,28 +161,6 @@ jobs:
           DG_TOKEN: ${{ secrets.DG_TOKEN }}
 """
 
-EXAMPLE_TEMPLATE = """\
-# The smallest thing dirigent can run: one step, one block, no parameters.
-#
-# value.const emits its configured value and touches nothing, so this runs with nothing
-# on the unsafe allowlist:
-#
-#   dg apply
-#   dg run hello-world --watch
-
-format: dirigent/v1
-kind: pipeline
-code: hello-world
-name: Hello world
-description: Emit a greeting, and nothing else.
-
-steps:
-  greet:
-    block: value.const
-    config:
-      value: "hello from dirigent"
-"""
-
 
 class Service(BaseModel):
     """One optional service of the container stack, as the form and the flag name it."""
@@ -201,184 +183,6 @@ SERVICES: Final = (
 
 DEFAULT_SERVICES: Final = ("s3",)
 
-#: The example each service brings into `pipelines/`, so a stack with the service has one
-#: document that uses it the day it is made.
-SERVICE_EXAMPLES: Final = {
-    "s3": (
-        "s3-hello.yaml",
-        """\
-# A greeting written to the stack's own bucket and read back, through the s3:// scheme.
-#
-# There is no S3 block: storage.write puts text in an object, storage.copy moves bytes between
-# schemes, and the stack's `migrate` service bootstraps the `artifacts` connection that serves
-# s3://. The bucket comes from the URI, so this one is the stack's:
-#
-#   dg run s3-hello --watch
-
-format: dirigent/v1
-kind: pipeline
-code: s3-hello
-name: Hello, object storage
-description: Write a greeting to the bucket and copy it back, through s3://.
-
-requires:
-  blocks:
-    - storage.write
-    - storage.copy
-  connections:
-    - artifacts
-  storage:
-    - s3
-
-steps:
-  greet:
-    block: storage.write
-    config:
-      target: "${run.scratch}/hello.txt"
-      text: "hello from object storage"
-
-  upload:
-    block: storage.copy
-    depends_on: [greet]
-    config:
-      source: "${steps.greet.output.uri}"
-      target: "s3://dirigent/hello/${run.id}.txt"
-
-  download:
-    block: storage.copy
-    depends_on: [upload]
-    config:
-      source: "s3://dirigent/hello/${run.id}.txt"
-      target: "${run.scratch}/hello-back.txt"
-""",
-    ),
-    "docker": (
-        "docker-hello.yaml",
-        """\
-# A command run in a container on the workers' own daemon, the `docker` service.
-#
-# docker.run is on the stack's allowlist (DIRIGENT_ENABLED_UNSAFE_BLOCKS in .env) because the
-# daemon it reaches is the sidecar, never the host's. The image is pulled first, gets no
-# network, and is capped in memory and processes:
-#
-#   dg run docker-hello --watch
-
-format: dirigent/v1
-kind: pipeline
-code: docker-hello
-name: Hello from a container
-description: Run a command in a container, with no network and the image pulled first.
-
-requires:
-  blocks:
-    - docker.run
-  workers:
-    - docker
-
-steps:
-  greet:
-    block: docker.run
-    deadline: 5m
-    config:
-      image: alpine:3
-      pull: true
-      network: none
-      argv: [echo, "hello from a container"]
-      memory: 64mb
-      pids_limit: 64
-""",
-    ),
-    "kafka": (
-        "kafka-hello.yaml",
-        """\
-# Three records published to the stack's Kafka broker and read back off the topic.
-#
-# The `migrate` service bootstraps the `kafka` connection and the `kafka-topic` service
-# creates the `hello` topic, so nothing has to be arranged first:
-#
-#   dg run kafka-hello --watch
-
-format: dirigent/v1
-kind: pipeline
-code: kafka-hello
-name: Hello, Kafka
-description: Publish records to a topic and consume the same batch back.
-
-requires:
-  blocks:
-    - kafka.produce
-    - kafka.consume
-  connections:
-    - kafka
-
-steps:
-  publish:
-    block: kafka.produce
-    config:
-      connection: kafka
-      topic: hello
-      records:
-        - {greeting: hello, n: 1}
-        - {greeting: hello, n: 2}
-        - {greeting: hello, n: 3}
-      timeout: 30s
-
-  consume:
-    block: kafka.consume
-    depends_on: [publish]
-    poll: 5s
-    deadline: 5m
-    config:
-      connection: kafka
-      topic: hello
-      start: earliest
-      min_messages: 3
-      max_messages: 50
-      poll_timeout: 5s
-      value_format: json
-""",
-    ),
-    "rabbitmq": (
-        "rabbitmq-hello.yaml",
-        """\
-# A run that waits for a message on the stack's RabbitMQ queue, then hands the batch on.
-#
-# The `migrate` service bootstraps the `rabbitmq` connection and the `rabbitmq-queue`
-# service declares the `hello` queue. Publish something to it from the management UI at
-# http://127.0.0.1:15672 (dirigent / dirigent), and the run that is waiting takes it:
-#
-#   dg run rabbitmq-hello --watch
-
-format: dirigent/v1
-kind: pipeline
-code: rabbitmq-hello
-name: Hello, RabbitMQ
-description: Wait for a message on a queue and hand the batch on.
-
-requires:
-  blocks:
-    - rabbitmq.consume
-  connections:
-    - rabbitmq
-
-steps:
-  wait:
-    block: rabbitmq.consume
-    poll: 10s
-    deadline: 1h
-    on_timeout: skip
-    config:
-      connection: rabbitmq
-      queue: hello
-      min_messages: 1
-      max_messages: 50
-      poll_timeout: 5s
-      ack: on_success
-      value_format: json
-""",
-    ),
-}
-
 
 class Pack(BaseModel):
     """One published pack the form and the flag can add to a project."""
@@ -400,6 +204,26 @@ TEMPLATES: Final = ("local", "compose", "documents")
 COMPOSE_TEMPLATE_NAME: Final = "compose"
 
 
+def installed_starters() -> "list[ExampleEntry]":
+    """List the starters installed beside ``dg`` itself, which is what a new project may copy.
+
+    ``dg init`` writes the ``pyproject.toml`` that installs the packs, so a pack's own
+    starters are not installed yet when it runs; those arrive with ``dg pipeline new``.
+    """
+    from dirigent_core.examples import STARTER_TAG
+    from dirigent_core.plugins import load_plugin_host
+
+    return [entry for entry in load_plugin_host().examples() if STARTER_TAG in entry.tags]
+
+
+def starter_documents(codes: Sequence[str]) -> dict[str, str]:
+    """Read each chosen starter as the text a copy of it writes, keyed by its code."""
+    from dirigent_cli.starters import instantiate
+
+    held = {entry.code: entry for entry in installed_starters()}
+    return {code: instantiate(held[code].source, code) for code in codes if code in held}
+
+
 class InitChoices(BaseModel):
     """Everything ``dg init`` decides, from the form or from the flags, before it writes."""
 
@@ -409,6 +233,9 @@ class InitChoices(BaseModel):
     services: tuple[str, ...] = DEFAULT_SERVICES
     workflow: bool = False
     packs: tuple[str, ...] = ()
+    pipelines: tuple[str, ...] = ()
+    """The starters this project opens with, copied from the corpus installed beside ``dg``."""
+
     admin: str = "admin"
     password: str = ""
 
@@ -441,6 +268,13 @@ def check_choices(choices: InitChoices) -> None:
             raise ProjectError(f"no pack named {pack!r}; the packs are {', '.join(sorted(packs))}")
     if choices.services != DEFAULT_SERVICES and not choices.stack:
         raise ProjectError("--service applies to the compose template alone; the other two run no stack")
+    starters = {entry.code for entry in installed_starters()}
+    for code in choices.pipelines:
+        if code not in starters:
+            raise ProjectError(
+                f"no starter named {code!r}; a document is copyable only when it wears the 'starter' tag, "
+                f"and `dg examples list --starter` names the ones installed here"
+            )
 
 
 COMPOSE_HEAD = """\
@@ -1030,20 +864,20 @@ README_RUN: Final = {
     "local": (
         "uv sync",
         "uv run dg dev",
+        "uv run dg pipeline new <starter>",
         "uv run dg apply",
-        "uv run dg run hello-world --watch",
     ),
     "documents": (
         "uv sync",
+        "uv run dg pipeline new <starter>",
         "uv run dg apply --dry-run",
         "uv run dg apply",
-        "uv run dg run hello-world --watch",
     ),
     "compose": (
         "uv sync",
         "docker compose up -d",
         "uv run dg auth login --username admin",
-        "uv run dg run hello-world --watch",
+        "uv run dg pipeline new <starter>",
     ),
 }
 
@@ -1070,11 +904,9 @@ def scaffold(directory: Path, choices: InitChoices, *, version: str = "0.0.0") -
     skipped: list[Path] = []
     directory.mkdir(parents=True, exist_ok=True)
     written.append(_write(directory / PROJECT_FILE, PROJECT_TEMPLATE + "\n" + project_document()))
-    written.append(_write(directory / DEFAULT_PIPELINES_DIR / "hello-world.yaml", EXAMPLE_TEMPLATE))
-    if choices.stack:
-        for code in choices.services:
-            filename, document = SERVICE_EXAMPLES[code]
-            written.append(_write(directory / DEFAULT_PIPELINES_DIR / filename, document))
+    (directory / DEFAULT_PIPELINES_DIR).mkdir(parents=True, exist_ok=True)
+    for code, document in starter_documents(choices.pipelines).items():
+        written.append(_write(directory / DEFAULT_PIPELINES_DIR / f"{code}.yaml", document))
     written.append(_write(directory / ".dirigent" / "profiles.yaml", PROFILES_TEMPLATE))
     written.append(_write(directory / ".dirigent" / ".gitignore", STATE_IGNORE_TEMPLATE))
     written.append(_write(directory / EXAMPLE_CONFIG_FILE, example_document()))
