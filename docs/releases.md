@@ -15,6 +15,16 @@ package and uploads it to PyPI through trusted publishing, then builds the image
 commit and pushes it as `<version>` and `latest`. The two sibling repositories then relock
 against the tag and bump.
 
+## 0.14.1
+
+Released 2026-09-11. Every package in the workspace moves to 0.14.1 together.
+
+Nothing in dirigent changed since 0.14.0. The number exists so that `dirigent-dhis2` 0.14.1 can
+ship in lockstep: its `dhis2.data_value_set_import` block lost `source_uri`, the last field on
+which a pack block read storage for a value on its own. A document that imported from a stored
+object now composes `storage.read` into the import's `data_values`, as the pack's
+import-from-storage example does.
+
 ## 0.14.0
 
 Released 2026-09-11. Every package in the workspace moves to 0.14.0 together.
