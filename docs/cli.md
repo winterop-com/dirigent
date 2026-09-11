@@ -165,6 +165,22 @@ Run the instance it made with `uv run dg dev`, in its own terminal in the projec
 it keeps running, and serves the UI at `http://127.0.0.1:3333`. `dg dev --wipe-state` would
 empty `.dirigent/state/` first, taking the admin and the token `dg init` just created with it.
 
+`dg dev --seed DIR` fills the instance the moment its API answers: every `dirigent/v1`
+document under the directory, recursively and in path order, applied with its schedules
+paused. The connections a `connections.yaml` declares go in first, and a document that
+carries its own `connections:` or `schemas:` -- so that it also runs under `dg run --local`
+-- has those created and is then applied without the section, which is the only form an
+instance stores. A document this instance will not store is reported and passed over: a
+corpus holds those on purpose. Name `--seed` more than once to seed one directory after
+another, in the order given, which is how a directory holding a connection a later document
+names goes in first. It seeds whatever instance is there, so without `--wipe-state` every
+apply is an `unchanged`.
+
+```bash
+dg dev --wipe-state --seed examples            # a fresh instance with the whole corpus in it
+dg dev --seed examples --seed ../pack/examples # two corpora, in that order
+```
+
 What it makes is one person's instance on one machine -- SQLite on this disk, and no secret
 key, so a connection carrying a credential cannot be stored until `DIRIGENT_SECRET_KEY` is
 set. A real server is the compose stack.
@@ -547,6 +563,10 @@ rather than being able to change what a parser reads the record by.
 | `log` | A block writes a line | Whatever the block bound to it |
 | `output` | A step settles, from `-v` up; the message is its status | The output's own fields, or `artifact` and `bytes` when it went to storage |
 | `process` | A long-running process starts, when it is ready, and when `dg dev --wipe-state` clears its state | `process`, and for `dg dev` the `api`, `docs`, `state`, `admin`, `token` and `migrated` it would otherwise have printed; a `state cleared` carries the `state` it deleted and the `hint` that keeps it |
+| `seed.connection` | `dg dev --seed` creates a connection a file or a document declares | `connection`, `connection_kind`, `action` of `created` or `updated`, and the `origin` file it was read from |
+| `seed.applied` | `dg dev --seed` stores one document | `document`, `pipeline`, `action`, and the `schedules_paused` this apply brought into being |
+| `seed.refused` | `dg dev --seed` meets something the instance will not take | `document` and the `reason` it gave |
+| `seed.done` | `dg dev --seed` finishes | The `directories` it walked, and the `pipelines`, `refused` and `connections` it ended with |
 
 **Verbosity chooses events, never shapes.** The default writes `run`, `step` and every `log`
 line at `info` and above. `-v` adds the `output` event. `-d` adds the `log` lines a block
@@ -893,7 +913,7 @@ dg alerts queue
 dg alerts retry NOTIFICATION
 
 # Processes (container entry points)
-dg dev [--host H] [--port 3333] [--ui/--no-ui] [--wipe-state]  # standalone: SQLite, API + worker
+dg dev [--host H] [--port 3333] [--ui/--no-ui] [--wipe-state] [--seed DIR]...  # standalone: SQLite, API + worker
 dg server [--host H] [--port 3333] [--reload] [--no-scheduler] [--ui/--no-ui]  # dg serve works too
 dg worker [--concurrency N] [--tag T] [--name NAME]   # --tag is what this worker advertises
 dg scheduler                            # the clock on its own; PostgreSQL only

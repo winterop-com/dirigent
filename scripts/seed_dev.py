@@ -1,19 +1,26 @@
-"""Boot a `dg dev` instance with the example corpus already in it, for looking at by hand.
+"""Boot a `dg dev --seed examples` and give it the demo half: an object store and some runs.
+
+`dg dev --seed` is what applies the corpus and creates the connections it declares. What is
+left here is what only the demo wants: the throwaway object store `s3-round-trip.yaml` names,
+a document pointed at a connection nothing holds, a handful of runs so a fresh UI has every
+colour, and one health check per connection. `make dev-seeded` is the target that runs this.
 
 The instance this leaves behind is not a clean one, and that is the point: schedules land
-paused, some documents are refused, and some runs fail. `make dev-seeded` is the target that
-runs this.
+paused, some documents are refused, and some runs fail.
 """
 
 import argparse
+import json
 import os
 import signal
 import subprocess
 import sys
+import threading
 import time
 from collections.abc import Callable, Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from types import FrameType
 from typing import Any, Final
 
@@ -22,7 +29,7 @@ from cryptography.fernet import Fernet
 from pydantic import BaseModel
 
 from dirigent_cli.main import DEV_ADMIN, DEV_PASSWORD
-from dirigent_client import BlockingDirigent, DirigentError, PlanAction
+from dirigent_client import BlockingDirigent, DirigentError
 from dirigent_core.config import STATE_DIR
 from dirigent_core.protocol import Record, as_json, make
 
@@ -50,8 +57,14 @@ ABSENT_CONNECTION: Final = "warehouse-nobody-created"
 #: How long the API is given to come up before the seed gives up on it.
 BOOT_SECONDS: Final = 60.0
 
+#: How long the instance's own seeding is given to reach its closing record.
+SEED_SECONDS: Final = 600.0
+
 #: How long one seeded run is given to settle before it is reported as it stands.
 SETTLE_SECONDS: Final = 90.0
+
+#: The record `dg dev --seed` closes with, which is what says the corpus is in.
+DONE_KIND: Final = "seed.done"
 
 
 class SeedRun(BaseModel):
@@ -112,37 +125,24 @@ def instance_env(root: Path) -> dict[str, str]:
     }
 
 
-def documents(examples: Path) -> list[Path]:
-    """Find every `dirigent/v1` document under a directory, in a stable order.
+def demo_corpus(directory: Path, examples: Path) -> Path:
+    """Write the demo's own seed directory: the object store, and a document nothing satisfies.
 
-    Discovery rather than a list: a file that is not a document -- `connections.yaml` is the
-    one there is -- has no `format` key and is passed over without being named a skip.
+    Neither belongs in `examples/`, which is the set that runs, so they are written here and
+    handed to `--seed` ahead of the corpus: the object store has to exist before the document
+    that names it is applied.
     """
-    found: list[Path] = []
-    for path in sorted(examples.rglob("*.yaml")):
-        parsed = yaml.safe_load(path.read_text())
-        if isinstance(parsed, dict) and parsed.get("format") == "dirigent/v1":
-            found.append(path)
-    return found
-
-
-def declared_connections(examples: Path) -> dict[str, dict[str, Any]]:
-    """Read the connections the example corpus carries, plus the object store it names.
-
-    The corpus keeps its credentials in one file for `dg run --local`; an instance needs the
-    same ones created against it, so this is the same source read a second way.
-    """
-    carried = yaml.safe_load((examples / "connections.yaml").read_text())
-    declared: dict[str, dict[str, Any]] = dict(carried.get("connections", {}))
-    declared["artifacts"] = {"kind": "s3", "config": S3_CONNECTION}
-    return declared
+    directory.mkdir(parents=True, exist_ok=True)
+    connections = {"connections": {"artifacts": {"kind": "s3", "config": S3_CONNECTION}}}
+    (directory / "connections.yaml").write_text(yaml.safe_dump(connections, sort_keys=False))
+    (directory / "unmet-needs.yaml").write_text(yaml.safe_dump(unmet_needs(examples), sort_keys=False))
+    return directory
 
 
 def unmet_needs(examples: Path) -> dict[str, Any]:
     """Build a document naming a connection nothing holds, to see what an apply does with it.
 
-    A copy of the corpus's connection example, recoded and repointed. It is built here rather
-    than added to `examples/`, which is the set that runs.
+    A copy of the corpus's connection example, recoded and repointed.
     """
     text = (examples / "demo" / "requires.yaml").read_text().replace("postman-echo", ABSENT_CONNECTION)
     document: dict[str, Any] = yaml.safe_load(text)
@@ -172,55 +172,23 @@ def connect(url: str) -> BlockingDirigent:
         return client
 
 
-def seed_connections(client: BlockingDirigent, examples: Path) -> list[str]:
-    """Create the connections the corpus names, replacing any this instance already holds."""
-    codes: list[str] = []
-    for code, declared in sorted(declared_connections(examples).items()):
-        config = dict(declared.get("config", {}))
+def relay(process: subprocess.Popen[str], seeded: threading.Event) -> None:
+    """Pass the instance's stream on to this one, and say when its seeding closed.
+
+    The instance writes to a pipe, so it writes records; this reads them for the one that
+    says the corpus is in, and everything goes on to this process's own stream unchanged.
+    """
+    assert process.stdout is not None
+    for line in process.stdout:
+        sys.stdout.write(line)
+        sys.stdout.flush()
         try:
-            client.call(client.connections.create(code, kind=str(declared["kind"]), config=config))
-            action = "created"
-        except DirigentError:
-            client.call(client.connections.update(code, config=config))
-            action = "updated"
-        codes.append(code)
-        seed_record("connection", connection=code, connection_kind=declared["kind"], action=action)
-    return codes
-
-
-def apply_one(client: BlockingDirigent, document: Any, origin: str) -> str | None:
-    """Apply one document paused, and name the pipeline it stored or the refusal it drew."""
-    try:
-        result = client.call(client.pipelines.apply(document, pause_schedules=True))
-    except DirigentError as error:
-        seed_record("refused", document=origin, reason="; ".join(error.problems) or error.message)
-        return None
-    if result.plan.action is PlanAction.INVALID:
-        seed_record("refused", document=origin, reason="; ".join(str(issue) for issue in result.plan.issues))
-        return None
-    seed_record(
-        "applied",
-        document=origin,
-        pipeline=result.plan.code,
-        action=result.plan.action.value,
-        schedules_paused=result.triggers.schedules_created,
-    )
-    return result.plan.code
-
-
-def seed_documents(client: BlockingDirigent, examples: Path) -> tuple[list[str], int]:
-    """Apply every document in the corpus paused, carrying on past each refusal."""
-    stored: list[str] = []
-    refused = 0
-    for path in documents(examples):
-        code = apply_one(client, path, str(path))
-        if code is None:
-            refused += 1
-        else:
-            stored.append(code)
-    if apply_one(client, unmet_needs(examples), "unmet-needs (built here, not in examples/)") is None:
-        refused += 1
-    return stored, refused
+            record = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(record, dict) and record.get("kind") == DONE_KIND:
+            seeded.set()
+    seeded.set()
 
 
 def seed_runs(client: BlockingDirigent, stored: set[str]) -> dict[str, str]:
@@ -273,6 +241,18 @@ def pages(read: Callable[..., Any]) -> Iterator[Any]:
         after = page.next
 
 
+def held_connections(client: BlockingDirigent) -> list[str]:
+    """Name every connection the seeded instance ended up holding."""
+    rows = pages(lambda after: client.call(client.connections.list(after=after)))
+    return sorted(row.code for row in rows)
+
+
+def held_pipelines(client: BlockingDirigent) -> set[str]:
+    """Name every pipeline the seeding stored, which is what a seeded run can be started on."""
+    rows = pages(lambda after: client.call(client.pipelines.list(after=after)))
+    return {row.code for row in rows}
+
+
 def count_schedules(client: BlockingDirigent) -> tuple[int, int]:
     """Count the clocks the instance holds, and how many of them are stopped."""
     total = 0
@@ -285,19 +265,17 @@ def count_schedules(client: BlockingDirigent) -> tuple[int, int]:
     return total, paused
 
 
-def seed(url: str, examples: Path) -> None:
-    """Put the corpus, its connections, and a handful of settled runs into a live instance."""
+def seed(url: str, seeded: threading.Event) -> None:
+    """Wait for the instance's own seeding, then start the demo's runs and check its health."""
     client = connect(url)
     try:
-        connections = seed_connections(client, examples)
-        stored, refused = seed_documents(client, examples)
-        outcomes = seed_runs(client, set(stored))
-        health = check_connections(client, connections)
+        if not seeded.wait(SEED_SECONDS):
+            seed_record("seeding unfinished", waited_seconds=SEED_SECONDS, hint="the runs below start anyway")
+        outcomes = seed_runs(client, held_pipelines(client))
+        health = check_connections(client, held_connections(client))
         clocks, stopped = count_schedules(client)
         seed_record(
             "seeded",
-            pipelines=len(stored),
-            refused=refused,
             schedules=clocks,
             schedules_paused=stopped,
             runs=outcomes,
@@ -319,32 +297,56 @@ def parse(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Start `dg dev`, seed it, and then stay out of its way until it stops.
+    """Start `dg dev --seed`, add the demo's own half, and then stay out of its way.
 
-    The instance is a child in this process group and writes to this stdout, so one ctrl-c
-    reaches both processes and one NDJSON stream carries both.
+    The instance is a child in this process group, so one ctrl-c reaches both processes; its
+    stream is read here for the record that says the corpus is in, and relayed on unchanged,
+    so one NDJSON stream still carries both.
     """
     options = parse(argv)
-    command = ["dg", "dev", "--wipe-state", "--host", options.host, "--port", str(options.port)]
-    process = subprocess.Popen(command, env=instance_env(options.root))
+    with TemporaryDirectory(prefix="dirigent-seed-") as scratch:
+        demo = demo_corpus(Path(scratch) / "demo", options.examples)
+        command = [
+            "dg",
+            "dev",
+            "--wipe-state",
+            "--host",
+            options.host,
+            "--port",
+            str(options.port),
+            "--seed",
+            str(demo),
+            "--seed",
+            str(options.examples),
+        ]
+        process = subprocess.Popen(
+            command,
+            env=instance_env(options.root),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
 
-    def relay(number: int, _frame: FrameType | None) -> None:
-        """Pass a termination signal on to the instance, which owns the shutdown."""
-        process.send_signal(number)
+        def relay_signal(number: int, _frame: FrameType | None) -> None:
+            """Pass a termination signal on to the instance, which owns the shutdown."""
+            process.send_signal(number)
 
-    signal.signal(signal.SIGTERM, relay)
-    try:
-        seed(f"http://{options.host}:{options.port}", options.examples)
-    except BaseException:
-        process.terminate()
-        process.wait()
-        raise
-    while True:
+        signal.signal(signal.SIGTERM, relay_signal)
+        seeded = threading.Event()
+        threading.Thread(target=relay, args=(process, seeded), daemon=True).start()
         try:
-            return process.wait()
-        except KeyboardInterrupt:
-            # The interrupt reached the instance too; this only waits for it to finish.
-            continue
+            seed(f"http://{options.host}:{options.port}", seeded)
+        except BaseException:
+            process.terminate()
+            process.wait()
+            raise
+        while True:
+            try:
+                return process.wait()
+            except KeyboardInterrupt:
+                # The interrupt reached the instance too; this only waits for it to finish.
+                continue
 
 
 if __name__ == "__main__":

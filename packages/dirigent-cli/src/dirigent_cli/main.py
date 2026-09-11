@@ -192,6 +192,10 @@ DEV_ADMIN = "dev"
 DEV_PASSWORD = "dirigent-dev"  # noqa: S105
 DEV_TOKEN_NAME = "dev"
 
+#: The credential `dg dev --seed` authenticates its own applies with, and how long it lasts.
+SEED_TOKEN_NAME = "dev seed"
+SEED_TOKEN_LIFETIME = timedelta(hours=1)
+
 SCHEDULER_ENV = "DIRIGENT_SCHEDULER_ENABLED"
 
 UI_ENV = "DIRIGENT_UI_ENABLED"
@@ -812,6 +816,14 @@ def dev(
             help="Delete the state directory before starting, instead of running the instance that is there.",
         ),
     ] = False,
+    seed: Annotated[
+        list[Path] | None,
+        typer.Option(
+            "--seed",
+            help="Apply every dirigent/v1 document under this directory once the API answers, "
+            "with its schedules paused; name it more than once to seed one directory after another.",
+        ),
+    ] = None,
 ) -> None:
     """Run the API and an embedded worker in one process, on SQLite, with no dependencies.
 
@@ -819,6 +831,11 @@ def dev(
     starting this somewhere else means a different instance, with none of the same runs.
     An instance that is there, made by dg init or by an earlier start, is the one that runs;
     --wipe-state deletes it first, and only a directory dirigent named itself is removed.
+
+    --seed fills the instance from a directory of documents the moment it answers: the
+    connections a file or a document declares are created first, then every document is
+    applied with its schedules paused. A document an instance will not store is reported
+    and passed over, because a corpus holds those on purpose.
     """
     import asyncio
     import os
@@ -848,9 +865,13 @@ def dev(
             emit(state_cleared(cleared))
     migrated = _migrate_quietly(settings)
     admin, token = asyncio.run(dev_admin(settings))
-    bound = f"http://{host or settings.host}:{port or settings.port}"
+    address = host or settings.host
+    listening = port or settings.port
+    bound = f"http://{address}:{listening}"
     emit(dev_started(settings, bound=bound, admin=admin, token=token, migrated=migrated))
-    asyncio.run(_dev(settings, host or settings.host, port or settings.port))
+    directories = seed or []
+    bearer = token or (asyncio.run(seed_token(settings)) if directories else None)
+    asyncio.run(_dev(settings, address, listening, seed=directories, bearer=bearer))
 
 
 def clear_state(settings: Settings) -> Path | None:
@@ -980,10 +1001,46 @@ async def dev_admin(settings: Settings) -> tuple[str | None, str | None]:
         await engine.dispose()
 
 
-async def _dev(settings: Settings, host: str, port: int) -> None:
-    """Run the API, the scheduler, and a worker as tasks in one event loop.
+async def seed_token(settings: Settings) -> str:
+    """Mint the short-lived admin token the seeding authenticates with.
 
-    The scheduler is started by the application's own lifespan, not here.
+    The seeding goes through the API rather than the database, so it needs a bearer even
+    though it runs inside the process that is serving. A --keep-state instance kept its own
+    admin and handed its token over long ago, so one is minted here for the seeding alone.
+    """
+    from dirigent_core.auth import issue_token, list_users
+    from dirigent_core.database import create_engine, create_session_factory, session_scope
+
+    engine = create_engine(settings)
+    try:
+        async with session_scope(create_session_factory(engine)) as session:
+            admins = [user for user in await list_users(session) if user.role is UserRole.ADMIN and user.active]
+            if not admins:
+                refuse(
+                    "dg dev --seed has no admin account to seed as",
+                    status=commands.GUARD_EXIT,
+                    title="No admin",
+                    problems=["create one with dg admin user create --role admin"],
+                )
+                raise typer.Exit(code=commands.GUARD_EXIT)
+            issued = await issue_token(session, admins[0], name=SEED_TOKEN_NAME, lifetime=SEED_TOKEN_LIFETIME)
+            return issued.secret.get_secret_value()
+    finally:
+        await engine.dispose()
+
+
+async def _dev(
+    settings: Settings,
+    host: str,
+    port: int,
+    *,
+    seed: Sequence[Path] = (),
+    bearer: str | None = None,
+) -> None:
+    """Run the API, the scheduler, a worker, and any seeding as tasks in one event loop.
+
+    The scheduler is started by the application's own lifespan, not here. The seeding is a
+    task rather than a step before the loop, because it talks to the API this loop serves.
     """
     import asyncio
 
@@ -997,13 +1054,22 @@ async def _dev(settings: Settings, host: str, port: int) -> None:
     api = uvicorn.Server(server_config)
     worker_task = asyncio.create_task(worker.run())
     ready = asyncio.create_task(_announce_ready(api))
+    seeding = asyncio.create_task(_seed(api, local_url(host, port), bearer, seed)) if seed else None
     try:
         await api.serve()
     finally:
         ready.cancel()
+        if seeding is not None:
+            seeding.cancel()
         worker.request_stop()
         await worker_task
         await engine.dispose()
+
+
+def local_url(host: str, port: int) -> str:
+    """Address the instance this process serves, however widely it is bound."""
+    wildcards = {"0.0.0.0", "::", ""}  # noqa: S104 - naming the bind-all addresses, not binding one
+    return f"http://{'127.0.0.1' if host in wildcards else host}:{port}"
 
 
 async def _announce_ready(api: "uvicorn.Server") -> None:
@@ -1013,6 +1079,23 @@ async def _announce_ready(api: "uvicorn.Server") -> None:
     while not api.started:
         await asyncio.sleep(0.05)
     emit(make("process", at=datetime.now(UTC), message="ready", process="dev"))
+
+
+async def _seed(api: "uvicorn.Server", url: str, bearer: str | None, directories: Sequence[Path]) -> None:
+    """Apply what --seed named, once the port is accepting, and write a record for each."""
+    import asyncio
+
+    from dirigent_cli.seeding import seed_directories
+    from dirigent_client import Dirigent, DirigentError
+
+    while not api.started:
+        await asyncio.sleep(0.05)
+    try:
+        async with Dirigent(url=url, token=bearer) as client:
+            async for record in seed_directories(client, directories):
+                emit(record)
+    except DirigentError as error:
+        emit(make("error", at=datetime.now(UTC), level="error", message=f"seeding stopped: {error.message}"))
 
 
 @app.command(rich_help_panel=PROCESS_PANEL)

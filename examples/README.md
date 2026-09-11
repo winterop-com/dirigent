@@ -248,12 +248,14 @@ together: apply the pipeline, then apply its clocks.
 
 ## Putting the whole corpus into one instance
 
-`make dev-seeded` boots a `dg dev` with everything on this page already applied, so there is
-something to look at without applying forty documents by hand. It walks this directory
-for `dirigent/v1` documents, applies each one with `--paused`, creates the connections
-[connections.yaml](connections.yaml) carries plus the object store `s3-round-trip.yaml` names,
-starts five runs, and checks every connection once. Then it hands the terminal to `dg dev`;
-one ctrl-c ends both.
+`make dev-seeded` boots a `dg dev --seed examples` with everything on this page already
+applied, so there is something to look at without applying forty documents by hand. The
+instance walks this directory for `dirigent/v1` documents, creates the connections
+[connections.yaml](connections.yaml) carries, applies each document with its schedules
+paused, and creates what a document carries for its own standalone run before applying it
+without that section. The target adds what only the demo wants: the object store
+`s3-round-trip.yaml` names, a document pointed at a connection nothing holds, six runs, and
+one health check per connection. Then it hands the terminal to `dg dev`; one ctrl-c ends both.
 
 ```bash
 make dev-seeded | dg format
@@ -264,11 +266,11 @@ what a failure looks like, so the seeded one is deliberately mixed:
 
 | What lands | How many | Why |
 | --- | --- | --- |
-| Pipelines stored | 138 | Every document here that an instance will hold |
-| Documents refused | 39 | Fourteen carry their own connections and eight their own schemas, which an instance will not store, so they run standalone instead: the three in [git/](git), the three in [sql/](sql), and the [recipes/](recipes), [patterns/](patterns), [open-data/](open-data) and [validate/](validate) files that carry one; two name a schema no instance here holds; six name a connection that does not exist, one of them (`warehouse-nobody-created`) built by the seed on purpose; two require a pipeline applied after them; and seven in [docker/](docker) name a compose or a build block the seed does not allowlist, two of those also naming a connection it does not create |
+| Pipelines stored | 159 | Every document here that an instance will hold, including the ones that carry their own connections or schemas: the seed creates what they carry and applies the rest, which is the only form an instance stores |
+| Documents refused | 18 | Nine in [docker/](docker) and two in [git/](git) name a compose or a build block the seed does not allowlist, some of them also a connection it does not create; four name a connection that does not exist, one of them (`warehouse-nobody-created`) built by the seed on purpose; one names a schema no instance here holds; and two require a pipeline or a target applied after them |
 | Schedules | 17, all paused | `--paused` is what stops seventeen clocks starting to fire at somebody who has not looked at them |
 | Runs | 3 succeeded, 1 with errors, 2 failed | `hello-world`, `transform/jq-reshape.yaml` and `triggers/cron-windowed.yaml` settle green; `optional-step.yaml` settles `completed_with_errors`, which is a third status rather than a shade of failed; `error-handler.yaml` fails by design, and `s3-round-trip.yaml` cannot reach an object store nobody started |
-| Connections | 1 healthy, 3 red | `postman-echo` answers; `artifacts` points at `127.0.0.1:9000`, and `orders-topic` and `shop-queue` at the two brokers in `infra/compose.queues.yaml`, where nothing is listening unless you started what their headers document |
+| Connections | 10 healthy, 4 red | The ten that answer are `postman-echo` and the public endpoints the documents carry for their own standalone runs; `artifacts` points at `127.0.0.1:9000`, `work-db` at a database nobody started, and `orders-topic` and `shop-queue` at the two brokers in `infra/compose.queues.yaml`, where nothing is listening unless you started what their headers document |
 
 The refusals are reported by code with the reason the instance gave, and the seeding carries
 on past each one -- a refusal is a thing to look at, not an error to fix.
