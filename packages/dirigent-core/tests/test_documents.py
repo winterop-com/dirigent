@@ -628,6 +628,66 @@ def test_a_declared_parameter_in_a_for_each_is_accepted(host: PluginHost) -> Non
     assert validate_against_catalog(definition, host.catalog()) == []
 
 
+def adopting(collect: str, spread: str = "for_each: [oslo, bergen], config: {value: '${item}'}") -> Any:
+    """A two-step document where ``collect`` is written by the test and ``spread`` fans out."""
+    return load_text(
+        "format: dirigent/v1\ncode: adopting\nsteps:\n"
+        f"  spread: {{ block: test.echo, {spread} }}\n"
+        f"  collect: {{ block: test.echo, {collect} }}\n"
+    )
+
+
+def test_a_for_each_may_adopt_a_direct_prerequisites_grid(host: PluginHost) -> None:
+    definition = adopting(
+        "depends_on: [spread], for_each: '${steps.spread.items}', config: {value: '${steps.spread.item.output.value}'}"
+    )
+    assert validate_against_catalog(definition, host.catalog()) == []
+
+
+def test_adopting_the_grid_of_a_step_that_does_not_fan_out_is_refused(host: PluginHost) -> None:
+    definition = adopting("depends_on: [spread], for_each: '${steps.spread.items}'", spread="config: {value: hi}")
+    issues = validate_against_catalog(definition, host.catalog())
+    assert [issue.location for issue in issues] == ["steps.collect.for_each"]
+    assert "has no for_each" in issues[0].message
+
+
+def test_adopting_a_grid_that_is_not_a_direct_prerequisite_is_refused(host: PluginHost) -> None:
+    definition = adopting("for_each: '${steps.spread.items}'")
+    issues = validate_against_catalog(definition, host.catalog())
+    assert [issue.location for issue in issues] == ["steps.collect.for_each"]
+    assert "add it to depends_on" in issues[0].message
+
+
+def test_an_adopting_step_may_not_fire_on_one_failed(host: PluginHost) -> None:
+    definition = adopting("depends_on: [spread], rule: one_failed, for_each: '${steps.spread.items}'")
+    issues = validate_against_catalog(definition, host.catalog())
+    assert [issue.location for issue in issues] == ["steps.collect.rule"]
+    assert "cannot use one_failed" in issues[0].message
+
+
+def test_reading_a_matching_item_without_adopting_the_grid_is_refused(host: PluginHost) -> None:
+    definition = adopting("depends_on: [spread], for_each: [a], config: {value: '${steps.spread.item.output.value}'}")
+    issues = validate_against_catalog(definition, host.catalog())
+    assert [issue.location for issue in issues] == ["steps.collect.config"]
+    assert "write for_each: ${steps.spread.items}" in issues[0].message
+
+
+def test_a_grid_read_inside_config_points_at_the_matching_item(host: PluginHost) -> None:
+    definition = adopting("depends_on: [spread], config: {value: '${steps.spread.items}'}")
+    issues = validate_against_catalog(definition, host.catalog())
+    assert [issue.location for issue in issues] == ["steps.collect.config"]
+    assert "only for_each reads" in issues[0].message
+
+
+def test_a_matching_item_that_is_not_an_output_is_malformed(host: PluginHost) -> None:
+    definition = adopting(
+        "depends_on: [spread], for_each: '${steps.spread.items}', config: {value: '${steps.spread.item.value}'}"
+    )
+    issues = validate_against_catalog(definition, host.catalog())
+    assert [issue.location for issue in issues] == ["steps.collect.config"]
+    assert "steps.<name>.item.output.<field>" in issues[0].message
+
+
 BAD_PROGRAM = (
     "format: dirigent/v1\ncode: recase\nsteps:\n"
     "  a: { block: transform.upper, config: {input: ada, program: sideways} }\n"

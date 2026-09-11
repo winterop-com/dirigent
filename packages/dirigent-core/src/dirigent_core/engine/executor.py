@@ -210,12 +210,29 @@ class Engine:
 
         item = await session.get(RunItem, attempt.run_item_id) if attempt.run_item_id else None
         item_value, has_item = item_value_of(item)
+        family = definition.grid_family(attempt.step_name)
+        item_outputs: dict[str, JsonValue] = {}
+        if item is not None and family:
+            # The step this one adopted its grid from owes this item a match. Without one there
+            # is nothing to run over, so the item is skipped rather than failed.
+            unpaired = await _pair_refusal(session, run.id, family[0], item.item_index)
+            if unpaired is not None:
+                attempt.status = AttemptStatus.SKIPPED
+                attempt.finished_at = now
+                attempt.error = unpaired
+                _release(attempt)
+                await self._advance(session, run, definition, now)
+                return None
+            item_outputs = await collect_item_outputs(session, run.id, item.item_index, family)
         scratch = scratch_prefix(self.services.settings.artifact_root, run.id)
         scope = ReferenceScope(
             params=dict(run.params),
             outputs=await collect_outputs(session, run.id, definition),
             item=item_value,
             has_item=has_item,
+            item_index=item.item_index if item is not None else None,
+            item_outputs=item_outputs,
+            paired=frozenset(family),
             scratch=scratch,
             run_id=run.id,
             window_start=run.window_start,
@@ -1039,3 +1056,42 @@ async def collect_outputs(session: AsyncSession, run_id: UUID, definition: Pipel
             collected[attempt.step_name] = attempt.output
     collected.update(fanned)
     return collected
+
+
+async def collect_item_outputs(
+    session: AsyncSession, run_id: UUID, item_index: int, steps: Sequence[str]
+) -> dict[str, JsonValue]:
+    """Gather what the steps sharing a grid produced for one position in it.
+
+    One entry per named step that has a succeeded attempt at ``item_index``, its latest.
+    """
+    if not steps:
+        return {}
+    rows = await session.execute(
+        sa.select(StepAttempt)
+        .join(RunItem, RunItem.id == StepAttempt.run_item_id)
+        .where(
+            StepAttempt.run_id == run_id,
+            StepAttempt.status == AttemptStatus.SUCCEEDED,
+            StepAttempt.step_name.in_(steps),
+            RunItem.item_index == item_index,
+        )
+        .order_by(StepAttempt.attempt)
+    )
+    return {attempt.step_name: attempt.output for attempt in rows.scalars()}
+
+
+async def _pair_refusal(session: AsyncSession, run_id: UUID, parent: str, item_index: int) -> str | None:
+    """Say why an adopted item cannot run, or nothing when its match succeeded."""
+    rows = await session.execute(
+        sa.select(StepAttempt, RunItem)
+        .join(RunItem, RunItem.id == StepAttempt.run_item_id)
+        .where(StepAttempt.run_id == run_id, StepAttempt.step_name == parent, RunItem.item_index == item_index)
+        .order_by(StepAttempt.attempt.desc())
+        .limit(1)
+    )
+    pair = rows.first()
+    if pair is not None and pair[0].status is AttemptStatus.SUCCEEDED:
+        return None
+    key = pair[1].item_key if pair is not None else str(item_index)
+    return f"item {item_index} ({key!r}) of step {parent!r} did not succeed, so this item is skipped"

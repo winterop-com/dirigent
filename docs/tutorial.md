@@ -196,8 +196,8 @@ Worth reading before you run it:
 
 - **`for_each` on `push` is the fan-out.** One run item per region, each with its own status
   and its own retry. It is expanded when the run is created, which is why it may read
-  `params.*`, `item`, and `run.*` but not another step's output: the cardinality has to be
-  known before anything executes.
+  `params.*`, `run.*`, and an upstream fan-out's grid as `${steps.<name>.items}`, but not a
+  step's output: the cardinality has to be known before anything executes.
 
   `items: continue` says a region that refuses does not stop the others. Under the default,
   `fail_fast`, any failed item fails the step.
@@ -207,8 +207,8 @@ Worth reading before you run it:
   rules -- `all_success` (the default), `all_done`, `one_failed`, `always` -- are the whole
   vocabulary, and a reader can see the failure path by looking at the graph.
 
-- **`${...}` is the whole reference language.** `params.*`, `steps.<name>.output.*`, `item`,
-  `run.*`, `trigger.*`. No expressions, no loops, no conditionals -- logic lives in blocks and
+- **`${...}` is the whole reference language.** `params.*`, `steps.<name>.output.*`,
+  `steps.<name>.items`, `steps.<name>.item.output.*`, `item`, `run.*`, `trigger.*`. No expressions, no loops, no conditionals -- logic lives in blocks and
   in edge rules, which is what keeps a document reviewable. There is nothing to trim or format
   with either, so a captured stream arrives exactly as the command wrote it: `${steps.x.output.stdout}`
   from an `echo` carries its trailing newline. Where that matters, print without one --

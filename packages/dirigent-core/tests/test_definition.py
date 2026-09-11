@@ -4,7 +4,7 @@ from datetime import timedelta
 from typing import Any
 
 import pytest
-from pydantic import ValidationError
+from pydantic import JsonValue, ValidationError
 
 from dirigent_common import base_format_checker, format_checker_with
 from dirigent_core.engine.definition import (
@@ -305,3 +305,49 @@ def test_a_template_that_does_not_compile_is_refused_where_it_was_written() -> N
 def test_a_key_the_report_section_does_not_define_is_refused() -> None:
     with pytest.raises(ValidationError, match="extra"):
         reported({"extra": 1})
+
+
+# -- adopted grids ---------------------------------------------------------------
+
+
+def _fanned(**for_each: str | list[JsonValue]) -> PipelineDefinition:
+    """A pipeline whose steps chain, each mapping over whatever it was handed."""
+    ordered = list(for_each)
+    return PipelineDefinition(
+        code="grids",
+        steps={
+            name: StepDefinition(
+                block="test.echo",
+                for_each=for_each[name],
+                depends_on=[ordered[index - 1]] if index else [],
+            )
+            for index, name in enumerate(ordered)
+        },
+    )
+
+
+def test_a_for_each_naming_another_steps_items_adopts_its_grid() -> None:
+    definition = _fanned(a=["no", "se"], b="${steps.a.items}")
+    assert definition.steps["a"].adopted_grid is None
+    assert definition.steps["b"].adopted_grid == "a"
+
+
+def test_only_a_whole_reference_adopts_a_grid() -> None:
+    definition = _fanned(a=["no"], b="prefix ${steps.a.items}")
+    assert definition.steps["b"].adopted_grid is None
+
+
+def test_spaces_inside_the_braces_still_adopt() -> None:
+    assert _fanned(a=["no"], b="${ steps.a.items }").steps["b"].adopted_grid == "a"
+
+
+def test_a_grid_family_names_the_chain_a_step_fans_with() -> None:
+    definition = _fanned(a=["no"], b="${steps.a.items}", c="${steps.b.items}")
+    assert definition.grid_family("c") == ["b", "a"]
+    assert definition.grid_family("b") == ["a"]
+    assert definition.grid_family("a") == []
+
+
+def test_a_step_that_does_not_fan_out_shares_no_grid() -> None:
+    definition = PipelineDefinition(code="plain", steps={"a": StepDefinition(block="test.echo")})
+    assert definition.grid_family("a") == []

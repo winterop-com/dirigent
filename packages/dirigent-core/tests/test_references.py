@@ -251,3 +251,47 @@ def test_everything_that_resolved_before_the_escape_resolves_identically(scope: 
     assert resolve("$5 and 100%", scope) == "$5 and 100%"
     assert resolve("{not a reference}", scope) == "{not a reference}"
     assert resolve_config({"command": "echo ${item}"}, scope, shell_fields={"command"})["command"] == "echo oslo"
+
+
+@pytest.fixture
+def paired_scope() -> ReferenceScope:
+    """A scope for an item of a step that maps over another fan-out's grid."""
+    return ReferenceScope(
+        item="oslo",
+        has_item=True,
+        item_index=1,
+        grids={"spread": ["bergen", "oslo"]},
+        item_outputs={"spread": {"path": "s3://bucket/oslo.json"}},
+        paired=frozenset({"spread"}),
+    )
+
+
+def test_a_step_reads_its_matching_item_in_a_step_it_shares_a_grid_with(paired_scope: ReferenceScope) -> None:
+    assert resolve("${steps.spread.item.output.path}", paired_scope) == "s3://bucket/oslo.json"
+    assert resolve("${steps.spread.item.output}", paired_scope) == {"path": "s3://bucket/oslo.json"}
+
+
+def test_a_grid_resolves_to_the_list_the_step_maps_over(paired_scope: ReferenceScope) -> None:
+    assert resolve("${steps.spread.items}", paired_scope) == ["bergen", "oslo"]
+
+
+def test_a_matching_item_outside_the_grid_family_names_the_for_each_that_would_pair_them() -> None:
+    scope = ReferenceScope(item_index=0)
+    with pytest.raises(UnknownReference, match=r"write for_each: \$\{steps.spread.items\}"):
+        resolve("${steps.spread.item.output.path}", scope)
+
+
+def test_a_matching_item_that_did_not_succeed_says_which_item(paired_scope: ReferenceScope) -> None:
+    scope = paired_scope.model_copy(update={"item_outputs": {}})
+    with pytest.raises(UnknownReference, match="'spread'.s item 1 did not succeed"):
+        resolve("${steps.spread.item.output.path}", scope)
+
+
+def test_a_grid_nothing_holds_says_only_for_each_reads_it(scope: ReferenceScope) -> None:
+    with pytest.raises(UnknownReference, match="only for_each reads it"):
+        resolve("${steps.fetch.items}", scope)
+
+
+def test_a_malformed_step_reference_lists_the_three_forms(scope: ReferenceScope) -> None:
+    with pytest.raises(UnknownReference, match="steps.<name>.item.output.<field>"):
+        resolve("${steps.fetch.body}", scope)

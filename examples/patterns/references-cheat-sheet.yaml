@@ -9,6 +9,8 @@
 #   steps.<key>.output           a step's whole output
 #   steps.<key>.output.<field>   one field of it
 #   steps.<key>.output.<index>   one element of a fan-out step's output list
+#   steps.<key>.items            the grid a fan-out maps over, and only for_each reads it
+#   steps.<key>.item.output      the matching item's output, in a step that shares its grid
 #   item                         this run item's element, inside a step that fans out
 #   item.<path>                  a field of it, when the element is an object
 #   run.id                       this run's uuid
@@ -125,6 +127,22 @@ steps:
       program: |
         {region, day}
 
+  paired_region:
+    block: transform.jq
+    depends_on: [per_region]
+    # steps.<key>.items is the grid per_region maps over, so this step gets that grid rather
+    # than one of its own and the two are paired by item position.
+    for_each: "${steps.per_region.items}"
+    config:
+      input:
+        # ...which is what lets this read the MATCHING item's output instead of the whole
+        # list. fan-out-item-wise.yaml is this on its own.
+        region: "${steps.per_region.item.output.value.region}"
+        # ${item} is the same element it was in per_region.
+        element: "${item}"
+      program: |
+        {region, element}
+
   per_feed:
     block: transform.jq
     # A literal list of objects, so item.<path> has somewhere to reach.
@@ -145,7 +163,7 @@ steps:
 
   collect:
     block: transform.jq
-    depends_on: [per_region, per_feed, namespaces]
+    depends_on: [per_region, paired_region, per_feed, namespaces]
     config:
       input:
         # A fan-out step's whole output: a JSON array of the items' outputs, in item order.
@@ -153,12 +171,14 @@ steps:
         # One element of it, by index. Under items: continue a failed item is absent from the
         # list, so index 0 is the first item that WORKED rather than the first one asked for.
         first_item: "${steps.per_region.output.0.value.region}"
+        paired: "${steps.paired_region.output}"
         feeds: "${steps.per_feed.output}"
         # A whole step output, unindexed, so the object arrives intact.
         namespaces: "${steps.namespaces.output.value}"
       program: |
         {
           regions: [.every_item[].value.region],
+          paired: [.paired[].value.region],
           feeds: [.feeds[].value.feed],
           first_item,
           covered: "\(.namespaces.window_start)..\(.namespaces.window_end)",

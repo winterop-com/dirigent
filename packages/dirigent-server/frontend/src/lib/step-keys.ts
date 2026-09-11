@@ -52,8 +52,9 @@ const STEP_SCHEMA: JsonMap = {
         },
         for_each: {
             anyOf: [{ type: 'string' }, { type: 'array', items: {} }],
-            description: 'A reference to a list, or a literal list: one run item per element.',
-            examples: ['${params.regions}'],
+            description:
+                "A reference to a list, or a literal list: one run item per element. A reference may read params, run, and an upstream fan-out's grid as ${steps.<name>.items}, which maps this step over that step's items.",
+            examples: ['${params.regions}', '${steps.spread.items}'],
         },
         items: {
             type: 'string',

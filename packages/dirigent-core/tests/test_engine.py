@@ -912,6 +912,221 @@ async def test_a_fan_out_over_a_non_list_is_refused(sessions: Any, services: Eng
         await start(sessions, services, definition)
 
 
+# -- adopted grids ---------------------------------------------------------------
+
+
+def _paired(after: StepDefinition | None = None, **overrides: Any) -> PipelineDefinition:
+    """Two fan-outs over the same grid: ``spread`` produces, ``collect`` reads its match."""
+    collect = StepDefinition(
+        block="test.echo",
+        depends_on=["spread"],
+        for_each="${steps.spread.items}",
+        config={"value": "paired-${steps.spread.item.output.value}"},
+        **overrides,
+    )
+    built = steps(
+        spread=StepDefinition(
+            block="test.echo",
+            for_each=["no", "se", "dk"],
+            config={"value": "${item}"},
+        ),
+        collect=collect,
+    )
+    if after is not None:
+        built["after"] = after
+    return PipelineDefinition(code="paired", steps=built)
+
+
+async def test_an_adopting_step_pairs_each_item_with_its_match(
+    engine: Engine, sessions: Any, services: EngineServices
+) -> None:
+    run = await start(sessions, services, _paired())
+    async with sessions() as session:
+        rows = await session.execute(
+            sa.select(RunItem)
+            .where(RunItem.run_id == run.id, RunItem.step_name == "collect")
+            .order_by(RunItem.item_index)
+        )
+        assert [item.item_key for item in rows.scalars()] == ["no", "se", "dk"]
+
+    await drain(engine)
+    assert sorted(EchoOperator.calls) == ["dk", "no", "paired-dk", "paired-no", "paired-se", "se"]
+    assert (await reload(sessions, run.id)).status is RunStatus.SUCCEEDED
+
+
+async def test_an_adopting_step_joins_the_whole_grid_afterwards(
+    engine: Engine, sessions: Any, services: EngineServices
+) -> None:
+    after = StepDefinition(
+        block="test.echo", depends_on=["collect"], config={"value": "${steps.collect.output.0.value}"}
+    )
+    run = await start(sessions, services, _paired(after))
+    await drain(engine)
+    assert (await reload(sessions, run.id)).status is RunStatus.SUCCEEDED
+    assert EchoOperator.calls[-1] == "paired-no", "the join reads the adopted grid in item order"
+
+
+async def test_an_item_whose_match_failed_is_skipped_rather_than_run(
+    engine: Engine, sessions: Any, services: EngineServices
+) -> None:
+    definition = PipelineDefinition(
+        code="half-paired",
+        steps=steps(
+            spread=StepDefinition(
+                block="test.fail",
+                for_each=["good", "bad"],
+                config={"fail_times": 1, "key": "${item}"},
+                items=ItemPolicy.CONTINUE,
+            ),
+            collect=StepDefinition(
+                block="test.echo",
+                depends_on=["spread"],
+                for_each="${steps.spread.items}",
+                config={"value": "after ${steps.spread.item.output.attempts} attempts"},
+            ),
+        ),
+    )
+    run = await start(sessions, services, definition)
+    FailOperator.attempts["good"] = 1
+    await drain(engine)
+
+    assert (await statuses(sessions, run.id))["collect"] == [AttemptStatus.SUCCEEDED, AttemptStatus.SKIPPED]
+    async with sessions() as session:
+        rows = await session.execute(
+            sa.select(StepAttempt).where(StepAttempt.run_id == run.id, StepAttempt.step_name == "collect")
+        )
+        skipped = [attempt for attempt in rows.scalars() if attempt.status is AttemptStatus.SKIPPED]
+    assert skipped[0].error == "item 1 ('bad') of step 'spread' did not succeed, so this item is skipped"
+    assert (await reload(sessions, run.id)).status is RunStatus.COMPLETED_WITH_ERRORS
+
+
+async def test_an_adopting_step_under_all_done_still_pairs(
+    engine: Engine, sessions: Any, services: EngineServices
+) -> None:
+    run = await start(sessions, services, _paired(rule=TriggerRule.ALL_DONE))
+    await drain(engine)
+    assert (await statuses(sessions, run.id))["collect"] == [AttemptStatus.SUCCEEDED] * 3
+
+
+async def test_adoption_chains_through_a_third_step(engine: Engine, sessions: Any, services: EngineServices) -> None:
+    definition = PipelineDefinition(
+        code="chained-grid",
+        steps=steps(
+            spread=StepDefinition(block="test.echo", for_each=["no", "se"], config={"value": "${item}"}),
+            middle=StepDefinition(
+                block="test.echo",
+                depends_on=["spread"],
+                for_each="${steps.spread.items}",
+                config={"value": "${steps.spread.item.output.value}", "upper": True},
+            ),
+            last=StepDefinition(
+                block="test.echo",
+                depends_on=["middle"],
+                for_each="${steps.middle.items}",
+                config={"value": "${steps.spread.item.output.value}${steps.middle.item.output.value}"},
+            ),
+        ),
+    )
+    run = await start(sessions, services, definition)
+    await drain(engine)
+    assert (await reload(sessions, run.id)).status is RunStatus.SUCCEEDED
+    assert sorted(call for call in EchoOperator.calls if len(call) == 4) == ["noNO", "seSE"]
+
+
+async def test_retrying_a_match_runs_the_item_that_was_skipped_behind_it(
+    engine: Engine, sessions: Any, services: EngineServices
+) -> None:
+    definition = PipelineDefinition(
+        code="retried-grid",
+        steps=steps(
+            spread=StepDefinition(
+                block="test.fail",
+                for_each=["good", "bad"],
+                config={"fail_times": 1, "key": "${item}"},
+                items=ItemPolicy.CONTINUE,
+            ),
+            collect=StepDefinition(
+                block="test.echo",
+                depends_on=["spread"],
+                for_each="${steps.spread.items}",
+                config={"value": "paired-${item}"},
+            ),
+        ),
+    )
+    run = await start(sessions, services, definition)
+    FailOperator.attempts["good"] = 1
+    await drain(engine)
+    assert (await statuses(sessions, run.id))["collect"] == [AttemptStatus.SUCCEEDED, AttemptStatus.SKIPPED]
+
+    async with session_scope(sessions) as session:
+        stored = await session.get(Run, run.id)
+        assert stored is not None
+        rows = await session.execute(
+            sa.select(RunItem).where(RunItem.run_id == run.id, RunItem.step_name == "spread", RunItem.item_index == 1)
+        )
+        item = rows.scalar_one()
+        await retry_step(session, services, stored, "spread", idempotency_key="rerun-bad", run_item_id=item.id)
+    await drain(engine)
+
+    assert "paired-bad" in EchoOperator.calls
+    assert (await statuses(sessions, run.id))["collect"][-1] is AttemptStatus.SUCCEEDED
+
+
+async def test_adopting_an_empty_grid_creates_no_items(engine: Engine, sessions: Any, services: EngineServices) -> None:
+    definition = PipelineDefinition(
+        code="empty-grid",
+        steps=steps(
+            spread=StepDefinition(block="test.echo", for_each=[]),
+            collect=StepDefinition(block="test.echo", depends_on=["spread"], for_each="${steps.spread.items}"),
+        ),
+    )
+    run = await start(sessions, services, definition)
+    await drain(engine)
+    assert (await statuses(sessions, run.id)) == {}
+    assert (await reload(sessions, run.id)).status is RunStatus.SUCCEEDED
+
+
+async def test_adopting_a_step_that_does_not_fan_out_is_refused_at_creation(
+    sessions: Any, services: EngineServices
+) -> None:
+    definition = PipelineDefinition(
+        code="grid-from-nothing",
+        steps=steps(
+            plain=StepDefinition(block="test.echo"),
+            collect=StepDefinition(block="test.echo", depends_on=["plain"], for_each="${steps.plain.items}"),
+        ),
+    )
+    with pytest.raises(FanOutError, match="does not fan out"):
+        await start(sessions, services, definition)
+
+
+async def test_reading_a_match_without_adopting_the_grid_is_rejected_at_the_attempt(
+    engine: Engine, sessions: Any, services: EngineServices
+) -> None:
+    definition = PipelineDefinition(
+        code="unpaired-read",
+        steps=steps(
+            spread=StepDefinition(block="test.echo", for_each=["no"], config={"value": "${item}"}),
+            collect=StepDefinition(
+                block="test.echo",
+                depends_on=["spread"],
+                for_each=["own"],
+                config={"value": "${steps.spread.item.output.value}"},
+            ),
+        ),
+    )
+    run = await start(sessions, services, definition)
+    await drain(engine)
+    async with sessions() as session:
+        rows = await session.execute(
+            sa.select(StepAttempt).where(StepAttempt.run_id == run.id, StepAttempt.step_name == "collect")
+        )
+        rejected = rows.scalar_one()
+    assert rejected.status is AttemptStatus.FAILED
+    assert rejected.error is not None
+    assert "does not fan over step 'spread'" in rejected.error
+
+
 # -- sensors ---------------------------------------------------------------------
 
 

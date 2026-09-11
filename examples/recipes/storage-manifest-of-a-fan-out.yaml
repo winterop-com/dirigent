@@ -7,17 +7,19 @@
 # A fan-out is `for_each` on a step: the run gets one item per element, each with its own
 # status, error, retry budget and output. Two things about it shape this recipe:
 #
-#   for_each is expanded when the run is created, so it reads params.*, item and run.* --
-#   never another step's output. That is why the regions are a parameter here and not the
-#   result of an upstream read: the item grid exists from the moment the run is visible.
+#   for_each is expanded when the run is created, so it reads params.*, run.*, and another
+#   fan-out's grid as ${steps.<step>.items} -- never a step's output. That is why the regions
+#   are a parameter here and not the result of an upstream read: the item grid exists from the
+#   moment the run is visible.
 #   A fan-out step's output is the list of its items' outputs, in item order. So the step
 #   after the fan reads the whole batch at once, and it reads ${steps.<step>.output} --
 #   the list -- rather than ${steps.<step>.output.uri}, which is a field of one item's
 #   output and not of the list.
 #
-# The fanned step is the storage.write itself, because there is no item-wise wiring between
-# two fanned steps: an item of one step cannot reach the matching item of another, only the
-# whole list. A fan that writes files therefore does its writing in the step that fans.
+# The fanned step is the storage.write itself, which is the shortest form when one step is
+# doing the work and the writing. Where they are two steps, the second maps over the first's
+# grid with for_each: ${steps.<step>.items} and reads its match -- that is
+# examples/patterns/fan-out-item-wise.yaml.
 #
 # ${item} is the element, and it goes into the target as well as into the value, which is
 # what keeps two items from writing the same key. Items run concurrently, so a shared target
