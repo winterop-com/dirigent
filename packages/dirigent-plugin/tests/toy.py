@@ -1,8 +1,10 @@
 """A minimal plugin used across the contract tests: one operator, one sensor, one of each surface."""
 
-from collections.abc import AsyncGenerator, AsyncIterator
+from collections.abc import AsyncGenerator, AsyncIterator, Sequence
 from contextlib import AbstractAsyncContextManager
 from datetime import UTC, datetime, timedelta
+from importlib.abc import Traversable
+from pathlib import Path
 
 from pydantic import BaseModel
 
@@ -178,6 +180,19 @@ class ToyPlugin:
             notifiers=[NullNotifier()],
             connection_kinds=[ToyConnectionKind()],
         )
+
+
+class ShelvesPlugin:
+    """A plugin that carries example shelves and contributes nothing else."""
+
+    def __init__(self, root: Path) -> None:
+        """Hold the one directory this plugin's shelves live in."""
+        self.root = root
+
+    @extension
+    def examples(self) -> Sequence[Traversable]:
+        """Answer with the directory the shelves live in."""
+        return [self.root]
 
 
 plugin = ToyPlugin()
