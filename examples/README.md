@@ -41,7 +41,8 @@ reader filters by: `schedule`, `fan-out`, `graph`, `failure`, `retry`, `timeout`
 `concurrency`, `params`, `references`, `rules`, `priority`, `window`, `composition`,
 `credential`, `outputs`, `filter`, `map`, `relay`, `csv`, `parquet`, `jq`, `sparql`,
 `geocode`, `briefing`, `observability`, `conventions`, and `report` for a document that
-declares a `report:` section, so every run of it writes its own account of itself. A source's
+declares a `report:` section, so every run of it writes its own account of itself, or renders
+a page of its own with `report.render`. A source's
 name is never a tag: the pipeline's `code` and `name` already say it is USGS or WHO GHO, and a
 word one document wears is a filter nobody can use.
 
@@ -177,7 +178,7 @@ dg run --local examples/recipes/schema-refuses-then-rule.yaml   # fails, by desi
 Two of them end `failed` on purpose and say so in their headers:
 `recipes/schema-refuses-then-rule.yaml`, where a gate refuses and the error branch runs, and
 `recipes/reconcile-two-sources.yaml`, where the two sources disagree past the tolerance the
-run was given. [recipes/README.md](recipes/README.md) indexes all forty-five by the question
+run was given. [recipes/README.md](recipes/README.md) indexes all forty-seven by the question
 each one answers.
 
 ## The examples
@@ -263,8 +264,8 @@ what a failure looks like, so the seeded one is deliberately mixed:
 
 | What lands | How many | Why |
 | --- | --- | --- |
-| Pipelines stored | 134 | Every document here that an instance will hold |
-| Documents refused | 38 | Thirteen carry their own connections and eight their own schemas, which an instance will not store, so they run standalone instead: the three in [git/](git), the three in [sql/](sql), and the [recipes/](recipes), [patterns/](patterns), [open-data/](open-data) and [validate/](validate) files that carry one; two name a schema no instance here holds; six name a connection that does not exist, one of them (`warehouse-nobody-created`) built by the seed on purpose; two require a pipeline applied after them; and seven in [docker/](docker) name a compose or a build block the seed does not allowlist, two of those also naming a connection it does not create |
+| Pipelines stored | 138 | Every document here that an instance will hold |
+| Documents refused | 39 | Fourteen carry their own connections and eight their own schemas, which an instance will not store, so they run standalone instead: the three in [git/](git), the three in [sql/](sql), and the [recipes/](recipes), [patterns/](patterns), [open-data/](open-data) and [validate/](validate) files that carry one; two name a schema no instance here holds; six name a connection that does not exist, one of them (`warehouse-nobody-created`) built by the seed on purpose; two require a pipeline applied after them; and seven in [docker/](docker) name a compose or a build block the seed does not allowlist, two of those also naming a connection it does not create |
 | Schedules | 17, all paused | `--paused` is what stops seventeen clocks starting to fire at somebody who has not looked at them |
 | Runs | 3 succeeded, 1 with errors, 2 failed | `hello-world`, `transform/jq-reshape.yaml` and `triggers/cron-windowed.yaml` settle green; `optional-step.yaml` settles `completed_with_errors`, which is a third status rather than a shade of failed; `error-handler.yaml` fails by design, and `s3-round-trip.yaml` cannot reach an object store nobody started |
 | Connections | 1 healthy, 3 red | `postman-echo` answers; `artifacts` points at `127.0.0.1:9000`, and `orders-topic` and `shop-queue` at the two brokers in `infra/compose.queues.yaml`, where nothing is listening unless you started what their headers document |

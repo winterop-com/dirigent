@@ -648,7 +648,9 @@ test('the search box narrows the menu to breadcrumbed results, and the return ke
     await expect(menu.getByRole('menuitem', { name: 'sensors', exact: true })).toHaveCount(0)
 
     // Results are in id order: docker.run, filter.jq, git.checkout (its summary names the
-    // run's work directory), pipeline.run, then shell.run.
+    // run's work directory), log.write (its summary names the run's log), pipeline.run, then
+    // shell.run.
+    await page.keyboard.press('ArrowDown')
     await page.keyboard.press('ArrowDown')
     await page.keyboard.press('ArrowDown')
     await page.keyboard.press('ArrowDown')

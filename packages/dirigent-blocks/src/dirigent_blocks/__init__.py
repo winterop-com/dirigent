@@ -52,6 +52,7 @@ from dirigent_blocks.kafka import (
     KafkaProduceOperator,
     KafkaProduceOutput,
 )
+from dirigent_blocks.logging import LogLevel, LogWriteConfig, LogWriteOperator, LogWriteOutput
 from dirigent_blocks.notifiers import (
     EmailConnectionKind,
     EmailNotifier,
@@ -73,7 +74,11 @@ from dirigent_blocks.rabbitmq import (
     RabbitConsumeOutput,
     RabbitConsumeSensor,
     RabbitMessage,
+    RabbitPublishConfig,
+    RabbitPublishOperator,
+    RabbitPublishOutput,
 )
+from dirigent_blocks.report import ReportRenderConfig, ReportRenderOperator, ReportRenderOutput
 from dirigent_blocks.shell import ShellRunConfig, ShellRunOperator, ShellRunOutput
 from dirigent_blocks.sql import (
     SqlConnectionConfig,
@@ -92,6 +97,12 @@ from dirigent_blocks.storage import (
     StorageExistsConfig,
     StorageExistsOutput,
     StorageExistsSensor,
+    StorageReadConfig,
+    StorageReadOperator,
+    StorageReadOutput,
+    StorageWriteConfig,
+    StorageWriteOperator,
+    StorageWriteOutput,
 )
 from dirigent_blocks.transform_jq import JqFilterer, JqMapper, JqTransformer
 from dirigent_blocks.validate import ValidateSchemaConfig, ValidateSchemaOperator, ValidateSchemaOutput
@@ -110,6 +121,8 @@ class BuiltinBlocks:
             operators=[
                 HttpRequestOperator(),
                 StorageCopyOperator(),
+                StorageReadOperator(),
+                StorageWriteOperator(),
                 ShellRunOperator(),
                 DockerRunOperator(),
                 DockerComposeUpOperator(),
@@ -120,12 +133,15 @@ class BuiltinBlocks:
                 SqlExecuteOperator(),
                 PipelineRunOperator(),
                 KafkaProduceOperator(),
+                RabbitPublishOperator(),
                 WebhookPostOperator(),
                 JqTransformer(),
                 JqMapper(),
                 JqFilterer(),
                 StdConverter(),
                 ValueConstOperator(),
+                ReportRenderOperator(),
+                LogWriteOperator(),
                 ValidateSchemaOperator(),
             ],
             sensors=[
@@ -197,8 +213,12 @@ __all__ = [
     "KafkaProduceConfig",
     "KafkaProduceOperator",
     "KafkaProduceOutput",
+    "LogLevel",
     "LogNotifier",
     "LogNotifierConfig",
+    "LogWriteConfig",
+    "LogWriteOperator",
+    "LogWriteOutput",
     "PipelineRunConfig",
     "PipelineRunOperator",
     "PipelineRunOutput",
@@ -208,6 +228,12 @@ __all__ = [
     "RabbitConsumeOutput",
     "RabbitConsumeSensor",
     "RabbitMessage",
+    "RabbitPublishConfig",
+    "RabbitPublishOperator",
+    "RabbitPublishOutput",
+    "ReportRenderConfig",
+    "ReportRenderOperator",
+    "ReportRenderOutput",
     "ShellRunConfig",
     "ShellRunOperator",
     "ShellRunOutput",
@@ -229,6 +255,12 @@ __all__ = [
     "StorageExistsConfig",
     "StorageExistsOutput",
     "StorageExistsSensor",
+    "StorageReadConfig",
+    "StorageReadOperator",
+    "StorageReadOutput",
+    "StorageWriteConfig",
+    "StorageWriteOperator",
+    "StorageWriteOutput",
     "TimeSleepConfig",
     "TimeSleepOutput",
     "TimeSleepSensor",

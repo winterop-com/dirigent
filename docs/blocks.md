@@ -45,14 +45,19 @@ Two properties are worth reading before a block is used:
 | [`http.request`](#httprequest) | operator | http | Call an HTTP endpoint. | `builtin` |
 | [`kafka.consume`](#kafkaconsume) | sensor | kafka | Wait for messages on a Kafka topic. | `builtin` |
 | [`kafka.produce`](#kafkaproduce) | operator | kafka | Publish records to a Kafka topic. | `builtin` |
+| [`log.write`](#logwrite) | operator | log | Write a line to the run's log. | `builtin` |
 | [`map.jq`](#mapjq) | operator | transform | Replace every element of a list with what a jq program makes of it. | `builtin` |
 | [`pipeline.run`](#pipelinerun) | operator | execute | Run another pipeline on this instance. | `builtin` |
 | [`rabbitmq.consume`](#rabbitmqconsume) | sensor | rabbitmq | Wait for messages on a RabbitMQ queue. | `builtin` |
+| [`rabbitmq.publish`](#rabbitmqpublish) | operator | rabbitmq | Publish one message to an exchange. | `builtin` |
+| [`report.render`](#reportrender) | operator | report | Render text from a Jinja template. | `builtin` |
 | [`shell.run`](#shellrun) | operator | execute | Run a command on the worker. | `builtin` |
 | [`sql.execute`](#sqlexecute) | operator | sql | Run SQL statements against a database in one transaction. | `builtin` |
 | [`sql.query`](#sqlquery) | operator | sql | Run one SQL statement and return its rows. | `builtin` |
 | [`storage.copy`](#storagecopy) | operator | storage | Copy an object from one URI to another. | `builtin` |
 | [`storage.exists`](#storageexists) | sensor | storage | Wait for an object to appear at a URI. | `builtin` |
+| [`storage.read`](#storageread) | operator | storage | Read an object from a storage URI as a value. | `builtin` |
+| [`storage.write`](#storagewrite) | operator | storage | Write a value or text to a storage URI. | `builtin` |
 | [`time.sleep`](#timesleep) | sensor | time | Wait a fixed duration. | `builtin` |
 | [`time.window`](#timewindow) | sensor | time | Wait until the local clock is inside a time window. | `builtin` |
 | [`transform.jq`](#transformjq) | operator | transform | Reshape a value with a jq program. | `builtin` |
@@ -392,6 +397,26 @@ Contributed by `builtin`. Not idempotent.
 | `duration_ms` | `integer` | yes |  | -- |
 | `sent_bytes` | `integer` | yes |  | How many bytes of keys and values were handed to the client. |
 
+### `log.write`
+
+Write a line to the run's log.
+
+Contributed by `builtin`. Idempotent.
+
+**Config**
+
+| Field | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `message` | `string` | yes |  | The line the run's log carries. |
+| `level` | `"debug" or "info" or "warning" or "error"` |  | `"info"` | Which level the entry is written at, which is what a log filter selects on. |
+| `value` | `any` |  | `null` | A value recorded as a field of the entry, and passed on as this step's output. |
+
+**Output**
+
+| Field | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `value` | `any` |  | `null` | -- |
+
 ### `map.jq`
 
 Replace every element of a list with what a jq program makes of it.
@@ -439,6 +464,54 @@ Contributed by `builtin`. Not idempotent. Polls every 5s unless the step says ot
 | `pipeline` | `string` | yes |  | -- |
 | `run_id` | `string or null` |  | `null` | The child run, or None when its concurrency policy meant no run was created. |
 | `status` | `string` | yes |  | The child's run status, `started` when this step did not wait, or `skipped`. |
+
+### `rabbitmq.publish`
+
+Publish one message to an exchange.
+
+Contributed by `builtin`. Not idempotent.
+
+**Config**
+
+| Field | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `connection` | `string` | yes |  | The `rabbitmq` connection naming the broker and holding its password. |
+| `exchange` | `string` |  | `""` | The exchange to publish to; empty is the default exchange, where a routing key is a queue. |
+| `routing_key` | `string` | yes |  | What the broker routes the message by, which on the default exchange is a queue name. |
+| `message` | `any` | yes |  | The body: a string is sent as UTF-8 text, anything else as canonical JSON. |
+| `content_type` | `string or null` |  | `null` | What the body is, sent with the message. |
+| `persistent` | `boolean` |  | `true` | Whether the broker writes the message to disk, so a durable queue keeps it across a restart. |
+| `timeout` | `string (humane-duration)` |  | `"30s"` | How long the whole publish may take, such as `30s`. |
+
+**Output**
+
+| Field | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `published` | `integer` | yes |  | How many messages the broker took, which is one. |
+| `message_bytes` | `integer` | yes |  | -- |
+
+### `report.render`
+
+Render text from a Jinja template.
+
+Contributed by `builtin`. Idempotent.
+
+**Config**
+
+| Field | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `template` | `string` | yes |  | The Jinja template, rendered against `values`. |
+| `values` | `object` |  |  | What the template sees, each key a name in it. |
+| `content_type` | `string` |  | `"text/markdown"` | What the rendered text is, passed on for a sink to record. |
+| `max_size` | `string or integer` |  | `"1mb"` | How much text this step will build, such as `256kb`. |
+
+**Output**
+
+| Field | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `text` | `string` | yes |  | -- |
+| `content_type` | `string` | yes |  | -- |
+| `text_bytes` | `integer` | yes |  | -- |
 
 ### `shell.run`
 
@@ -540,6 +613,52 @@ Contributed by `builtin`. Idempotent.
 | `source` | `string` | yes |  | -- |
 | `target` | `string` | yes |  | -- |
 | `bytes_copied` | `integer` | yes |  | -- |
+
+### `storage.read`
+
+Read an object from a storage URI as a value.
+
+Contributed by `builtin`. Idempotent.
+
+**Config**
+
+| Field | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `source` | `string (storage-uri)` | yes |  | The URI the object is read from. |
+| `content_type` | `string or null` |  | `null` | What to read the object as, overriding what the backend and the extension say. |
+| `max_size` | `string or integer` |  | `"1mb"` | How much of an object this step will hold, such as `8mb`. |
+
+**Output**
+
+| Field | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `content_type` | `string` | yes |  | -- |
+| `text` | `string or null` |  | `null` | -- |
+| `value` | `any or null` |  | `null` | -- |
+| `bytes_read` | `integer` | yes |  | -- |
+
+### `storage.write`
+
+Write a value or text to a storage URI.
+
+Contributed by `builtin`. Idempotent.
+
+**Config**
+
+| Field | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `target` | `string (storage-uri)` | yes |  | The URI the object is written to, replacing whatever is there. |
+| `text` | `string or null` |  | `null` | A string written as UTF-8, for a report, a csv, or any document that is already text. |
+| `value` | `any or null` |  | `null` | A value written as canonical JSON, for what an earlier step produced as structure. |
+| `content_type` | `string or null` |  | `null` | What the object is, recorded where the backend can record it. |
+
+**Output**
+
+| Field | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `uri` | `string` | yes |  | -- |
+| `bytes_written` | `integer` | yes |  | -- |
+| `content_type` | `string` | yes |  | -- |
 
 ### `transform.jq`
 

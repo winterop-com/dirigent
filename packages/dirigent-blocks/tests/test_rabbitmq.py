@@ -1,9 +1,10 @@
-"""Tests for rabbitmq.consume, against a fake broker rather than a real one."""
+"""Tests for the rabbitmq blocks, against a fake broker rather than a real one."""
 
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
+from aio_pika import DeliveryMode
 from pydantic import SecretStr, ValidationError
 
 from dirigent_blocks import rabbitmq
@@ -12,10 +13,12 @@ from dirigent_blocks.rabbitmq import (
     RabbitConnectionKind,
     RabbitConsumeConfig,
     RabbitConsumeSensor,
+    RabbitPublishOperator,
+    RabbitPublishOutput,
     classify,
 )
 from dirigent_plugin import BlockFailure, ErrorClass, NotYet
-from dirigent_testing import FakeContext
+from dirigent_testing import FakeContext, call_block
 
 #: When every fake delivery says it was published.
 STAMPED = datetime(2026, 6, 1, 12, tzinfo=UTC)
@@ -48,7 +51,9 @@ class FakeBroker:
         """Start with an empty queue and nothing taken from it."""
         self.queued: list[FakeDelivery] = []
         self.known = {"orders"}
+        self.exchanges = {"shop"}
         self.taken: list[FakeDelivery] = []
+        self.published: list[tuple[str, Any]] = []
         self.closed = False
         self.dsn: str | None = None
         self.fail_on_connect: Exception | None = None
@@ -63,6 +68,18 @@ class FakeBroker:
         if name not in self.known:
             raise RuntimeError(f"NOT_FOUND - no queue '{name}'")
         return self
+
+    @property
+    def default_exchange(self) -> "FakeBroker":
+        return self
+
+    async def get_exchange(self, name: str, *, ensure: bool = True) -> "FakeBroker":
+        if name not in self.exchanges:
+            raise RuntimeError(f"NOT_FOUND - no exchange '{name}'")
+        return self
+
+    async def publish(self, message: Any, routing_key: str) -> None:
+        self.published.append((routing_key, message))
 
     async def get(self, *, fail: bool = False, no_ack: bool = False) -> FakeDelivery | None:
         if not self.queued:
@@ -297,3 +314,109 @@ async def test_the_connection_is_closed_however_the_poke_left(ctx: FakeContext, 
 
 def test_a_poll_timeout_is_written_as_a_duration() -> None:
     assert config(poll_timeout="2s").poll_timeout == timedelta(seconds=2)
+
+
+# -- the publish operator --------------------------------------------------------
+
+
+async def test_a_publish_puts_one_message_on_the_default_exchange(ctx: FakeContext, broker: FakeBroker) -> None:
+    output = await call_block(
+        RabbitPublishOperator(),
+        {"connection": "broker", "routing_key": "shop-orders", "message": {"order": 1}},
+        connected(ctx),
+    )
+
+    assert isinstance(output, RabbitPublishOutput)
+    assert (output.published, output.message_bytes) == (1, 11)
+    routing_key, message = broker.published[0]
+    assert (routing_key, message.body) == ("shop-orders", b'{"order":1}')
+    assert (message.content_type, message.delivery_mode) == ("application/json", DeliveryMode.PERSISTENT)
+    assert broker.closed
+
+
+async def test_a_string_is_sent_as_text_and_anything_else_as_json(ctx: FakeContext, broker: FakeBroker) -> None:
+    await call_block(
+        RabbitPublishOperator(),
+        {"connection": "broker", "routing_key": "shop-orders", "message": "# a report\n"},
+        connected(ctx),
+    )
+
+    _, message = broker.published[0]
+    assert (message.body, message.content_type) == (b"# a report\n", "text/plain")
+
+
+async def test_a_content_type_the_step_names_wins(ctx: FakeContext, broker: FakeBroker) -> None:
+    await call_block(
+        RabbitPublishOperator(),
+        {
+            "connection": "broker",
+            "routing_key": "shop-orders",
+            "message": "# a report",
+            "content_type": "text/markdown",
+        },
+        connected(ctx),
+    )
+
+    _, message = broker.published[0]
+    assert message.content_type == "text/markdown"
+
+
+async def test_a_message_the_broker_need_not_keep_says_so(ctx: FakeContext, broker: FakeBroker) -> None:
+    await call_block(
+        RabbitPublishOperator(),
+        {"connection": "broker", "routing_key": "shop-orders", "message": "hi", "persistent": False},
+        connected(ctx),
+    )
+
+    _, message = broker.published[0]
+    assert message.delivery_mode is DeliveryMode.NOT_PERSISTENT
+
+
+async def test_a_named_exchange_is_the_one_the_message_goes_to(ctx: FakeContext, broker: FakeBroker) -> None:
+    await call_block(
+        RabbitPublishOperator(),
+        {"connection": "broker", "exchange": "shop", "routing_key": "orders.new", "message": {"order": 1}},
+        connected(ctx),
+    )
+
+    assert broker.published[0][0] == "orders.new"
+
+
+async def test_an_exchange_the_broker_does_not_have_is_rejected_by_name(ctx: FakeContext, broker: FakeBroker) -> None:
+    with pytest.raises(BlockFailure, match="no exchange 'missing'") as raised:
+        await call_block(
+            RabbitPublishOperator(),
+            {"connection": "broker", "exchange": "missing", "routing_key": "orders.new", "message": {}},
+            connected(ctx),
+        )
+
+    assert raised.value.error_class is ErrorClass.REJECTED
+
+
+async def test_a_broker_that_refuses_the_publish_connection_is_classified_as_the_sensor_classifies_it(
+    ctx: FakeContext, broker: FakeBroker
+) -> None:
+    broker.fail_on_connect = RuntimeError("ACCESS_REFUSED - Login was refused")
+
+    with pytest.raises(BlockFailure) as raised:
+        await call_block(
+            RabbitPublishOperator(),
+            {"connection": "broker", "routing_key": "shop-orders", "message": {}},
+            connected(ctx),
+        )
+
+    assert raised.value.error_class is ErrorClass.REJECTED
+
+    broker.fail_on_connect = ConnectionError("connection refused")
+    with pytest.raises(BlockFailure) as unreachable:
+        await call_block(
+            RabbitPublishOperator(),
+            {"connection": "broker", "routing_key": "shop-orders", "message": {}},
+            connected(ctx),
+        )
+
+    assert unreachable.value.error_class is ErrorClass.TRANSIENT
+
+
+def test_a_publish_declares_itself_not_idempotent() -> None:
+    assert RabbitPublishOperator.spec.idempotent is False

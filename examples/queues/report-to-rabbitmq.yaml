@@ -1,0 +1,103 @@
+# A rendered page published to a RabbitMQ queue, for whatever consumes the queue to deliver.
+#
+# NEEDS A BROKER, and a queue to publish to:
+#   docker compose -f infra/compose.queues.yaml up -d --wait
+#   open http://127.0.0.1:15672   # dirigent / dirigent; declare a queue named `shop-reports`
+#   dg connection create rabbitmq shop-queue \
+#     --set url=amqp://dirigent@127.0.0.1:5672/ --set password=dirigent
+#   dg run examples/queues/report-to-rabbitmq.yaml
+# On the compose stack the broker is the infra/compose.brokers.yaml overlay and the
+# connection names it `amqp://dirigent@rabbitmq:5672/`; docs/queues.md is the family's home.
+#
+# Two hops, and what each one hands on:
+#   page      report.render, the markdown. Output: text, content_type, text_bytes.
+#   publish   rabbitmq.publish, one message carrying that text. Output: published, which is
+#             one, and message_bytes.
+#
+# THE DEFAULT EXCHANGE IS THE ONE WITH NO NAME, and on it a routing key is a queue name. So
+# `exchange: ""` with `routing_key: shop-reports` puts the message on that queue and nowhere
+# else. Naming an exchange instead routes by whatever bindings the broker holds, and an
+# exchange the broker does not have is rejected by name rather than published into the void.
+#
+# WHAT THE MESSAGE CARRIES. A string message is sent as UTF-8 text and anything else as
+# canonical JSON, and the content type follows -- `text/plain` or `application/json` unless
+# the step names one. This one sends the page itself and says it is markdown, so a consumer
+# reads the body rather than unwrapping an envelope first.
+#
+# PERSISTENT: TRUE is the default, and it is what makes a durable queue keep the message
+# across a broker restart. A publish is not idempotent either way: a retry of this step puts
+# a second copy on the queue, so a pipeline that must not do that either does not retry it or
+# gives the consumer something to settle duplicates by.
+#
+# TO MAKE IT YOURS: change the template, change the queue, and point the connection at your
+# own broker.
+
+format: dirigent/v1
+kind: pipeline
+code: report-to-rabbitmq
+name: Publish a rendered report to a RabbitMQ queue
+description: Render a markdown page from a Jinja template and publish it as one message on a RabbitMQ queue.
+
+tags: [queues, report, rabbitmq, transform]
+
+requires:
+  blocks:
+    - transform.jq
+    - report.render
+    - rabbitmq.publish
+  connections:
+    - shop-queue
+
+params:
+  type: object
+  properties:
+    day:
+      type: string
+      format: date
+      default: "2026-01-01"
+      description: The day the report is about.
+
+steps:
+  summary:
+    block: transform.jq
+    config:
+      input:
+        day: ${params.day}
+        orders:
+          - {order: 1, status: shipped}
+          - {order: 2, status: held}
+          - {order: 3, status: shipped}
+      program: |
+        {day: .day,
+         orders: (.orders | length),
+         held: [.orders[] | select(.status == "held") | .order]}
+
+  page:
+    block: report.render
+    depends_on: [summary]
+    config:
+      values:
+        summary: ${steps.summary.output.value}
+      content_type: text/markdown
+      template: |
+        # Shop report for {{ summary.day }}
+
+        {{ summary.orders }} orders, {{ summary.held | length }} held.
+
+        {% for order in summary.held %}
+        - order {{ order }} is held
+        {% endfor %}
+
+  publish:
+    block: rabbitmq.publish
+    depends_on: [page]
+    config:
+      connection: shop-queue
+      # The default exchange, where the routing key is the queue's own name.
+      exchange: ""
+      routing_key: shop-reports
+      message: ${steps.page.output.text}
+      content_type: ${steps.page.output.content_type}
+      # The default, written out because it is what a durable queue needs to survive a restart.
+      persistent: true
+      timeout: 30s

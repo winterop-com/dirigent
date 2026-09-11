@@ -43,7 +43,9 @@ On the compose stack the brokers are the `infra/compose.brokers.yaml` overlay in
 | --- | --- |
 | [kafka-consume-then-transform.yaml](kafka-consume-then-transform.yaml) | Waiting on a topic: `min_messages` and `max_messages`, why the cursor rather than a consumer group holds the offsets, and the batch read by a downstream transform. |
 | [kafka-produce-then-consume.yaml](kafka-produce-then-consume.yaml) | Publishing: the two shapes an element of `records` may take, where a message key comes from, what `acks: all` and an idempotent producer do and do not promise, and why this one consumes from `earliest`. |
+| [report-to-kafka.yaml](report-to-kafka.yaml) | Publishing a rendered page: `report.render` hands its text on, and `kafka.produce` puts it on the topic as one keyed record. |
 | [rabbitmq-consume-ack-on-success.yaml](rabbitmq-consume-ack-on-success.yaml) | When a message is acknowledged: why `ack: on_success` is the default, what a poke that parks does with the messages it took, and what `always` gives up in exchange. |
+| [report-to-rabbitmq.yaml](report-to-rabbitmq.yaml) | Publishing one message: the default exchange, where a routing key is a queue name, and what `persistent` buys. |
 
 ## The cursor, in one paragraph
 

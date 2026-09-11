@@ -1,0 +1,105 @@
+# A rendered page published to a Kafka topic, for whatever reads the topic to deliver.
+#
+# NEEDS A BROKER, and a topic to write to:
+#   docker compose -f infra/compose.queues.yaml up -d --wait
+#   docker exec -it dirigent-queues-redpanda-1 rpk topic create orders
+#   dg connection create kafka orders-topic --set bootstrap_servers='["127.0.0.1:9092"]'
+#   dg run examples/queues/report-to-kafka.yaml
+# On the compose stack the broker is the infra/compose.brokers.yaml overlay and the
+# connection names it `redpanda:9092`; docs/queues.md is the family's home.
+#
+# Two hops, and what each one hands on:
+#   page      report.render, the markdown. Output: text, content_type, text_bytes.
+#   publish   kafka.produce, one record carrying the page. Output: produced, the topic, the
+#             last offset per partition, duration_ms and sent_bytes.
+#
+# THE RENDER IS A STEP, THE SENDING IS ANOTHER. report.render has no destination of its own:
+# it renders text and hands it on, and the step below it decides where the text goes. The
+# same template writes a file in examples/recipes/report-to-file.yaml, an object in
+# examples/s3/report-to-s3.yaml, and a queue message in report-to-rabbitmq.yaml.
+#
+# WHY THE RECORD CARRIES A CODE. A consumer reading this topic gets one JSON record whose
+# `text` is the whole page, so `code` is what tells it which report arrived without parsing
+# the markdown. It is the record's key too, so every day's page for one report lands on one
+# partition and the days stay in order relative to each other.
+#
+# A PUBLISH IS NOT IDEMPOTENT ACROSS A RETRY: a retried step opens a new producer session and
+# publishes the record again. This document does not retry it, which is the simplest way to
+# mean that.
+#
+# TO MAKE IT YOURS: change the template, change the topic, and give the record whatever
+# envelope the consumer on the other side expects.
+
+format: dirigent/v1
+kind: pipeline
+code: report-to-kafka
+name: Publish a rendered report to a Kafka topic
+description: Render a markdown page from a Jinja template and publish it as one record on a Kafka topic.
+
+tags: [queues, report, kafka, transform]
+
+requires:
+  blocks:
+    - transform.jq
+    - report.render
+    - kafka.produce
+  connections:
+    - orders-topic
+
+params:
+  type: object
+  properties:
+    day:
+      type: string
+      format: date
+      default: "2026-01-01"
+      description: The day the report is about.
+
+steps:
+  summary:
+    block: transform.jq
+    config:
+      input:
+        day: ${params.day}
+        orders:
+          - {order: 1, region: north, total: 240}
+          - {order: 2, region: south, total: 95}
+          - {order: 3, region: north, total: 610}
+      program: |
+        {day: .day,
+         orders: (.orders | length),
+         total: (.orders | map(.total) | add),
+         by_region: (.orders | group_by(.region)
+                     | map({region: .[0].region, total: map(.total) | add}))}
+
+  page:
+    block: report.render
+    depends_on: [summary]
+    config:
+      values:
+        summary: ${steps.summary.output.value}
+      content_type: text/markdown
+      template: |
+        # Orders for {{ summary.day }}
+
+        {{ summary.orders }} orders, {{ summary.total }} in total.
+
+        {% for row in summary.by_region %}
+        - {{ row.region }}: {{ row.total }}
+        {% endfor %}
+
+  publish:
+    block: kafka.produce
+    depends_on: [page]
+    config:
+      connection: orders-topic
+      topic: orders
+      # The record's key, so one report's days share a partition and keep their order.
+      key: code
+      records:
+        - code: daily-orders
+          day: ${params.day}
+          text: ${steps.page.output.text}
+          content_type: ${steps.page.output.content_type}
+      acks: all
+      timeout: 30s

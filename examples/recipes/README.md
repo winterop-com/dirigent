@@ -86,6 +86,7 @@ and a parameter away in the others:
 | [storage-exists-gate.yaml](storage-exists-gate.yaml) | How do I wait for an object, and what stops me reading a half-written one? |
 | [large-output-to-storage.yaml](large-output-to-storage.yaml) | What happens to a payload past the inline threshold, and what should I do about it? |
 | [storage-manifest-of-a-fan-out.yaml](storage-manifest-of-a-fan-out.yaml) | How do I write one file per item and then say, in the run, what landed? |
+| [report-to-file.yaml](report-to-file.yaml) | How do I render a page, write it to a file, and read it back to see that it landed? |
 
 ## HTTP and webhooks
 
@@ -101,6 +102,7 @@ and a parameter away in the others:
 | [http-timeout-override.yaml](http-timeout-override.yaml) | Which of the three deadlines around a call am I actually setting? |
 | [webhook-post-hmac.yaml](webhook-post-hmac.yaml) | What exactly gets signed, with what, and what does a receiver check? |
 | [webhook-post-summary.yaml](webhook-post-summary.yaml) | What belongs in a notification body somebody has to act on? |
+| [report-to-webhook.yaml](report-to-webhook.yaml) | How do I POST a rendered page to a receiver, and what travels beside it? |
 
 ## Whole small pipelines
 

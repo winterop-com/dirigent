@@ -94,6 +94,26 @@ reaches for something refused leaves `the run's report was not rendered` in the 
 timeline, with the reason in the entry's fields, and the run's status is exactly what it
 would have been. A report is never worth the run it describes.
 
+## Sending a report somewhere
+
+A page a pipeline writes for somebody else is a step: `report.render` renders text from a
+Jinja template over the values it is given and hands that text on, and the step after it is
+what sends it anywhere -- a value travels through step outputs, `storage.write` is the only
+way one leaves the run and `storage.read` the only way one comes back in.
+
+| Example | Where the page goes |
+| --- | --- |
+| [recipes/report-to-file.yaml](https://github.com/winterop-com/dirigent/blob/main/examples/recipes/report-to-file.yaml) | A file under the run's scratch prefix, read back and logged with `log.write` |
+| [s3/report-to-s3.yaml](https://github.com/winterop-com/dirigent/blob/main/examples/s3/report-to-s3.yaml) | An object in a bucket, its content type stored with it |
+| [queues/report-to-kafka.yaml](https://github.com/winterop-com/dirigent/blob/main/examples/queues/report-to-kafka.yaml) | One keyed record on a Kafka topic |
+| [queues/report-to-rabbitmq.yaml](https://github.com/winterop-com/dirigent/blob/main/examples/queues/report-to-rabbitmq.yaml) | One message on a RabbitMQ queue, through the default exchange |
+| [recipes/report-to-webhook.yaml](https://github.com/winterop-com/dirigent/blob/main/examples/recipes/report-to-webhook.yaml) | A receiver, as one field of a webhook body |
+
+The block's own bounds are its own: `max_size` (1mb by default) cuts the text as it is
+generated, and a template that overflows or fails to render fails the step as `rejected`
+rather than leaving a warning -- a step that was asked for a page and produced none has
+produced nothing for the step below it.
+
 ## Reading one
 
 ```bash

@@ -1,4 +1,4 @@
-"""``rabbitmq.consume``: wait for messages on a queue, as a sensor.
+"""The RabbitMQ blocks: wait for messages on a queue, and put one on an exchange.
 
 A queue and a webhook are the same intent arriving by different transport, so a queue starts a
 run the way a clock or a POST does: each poke takes what is there and succeeds the moment
@@ -12,7 +12,10 @@ is left for the next poke or another consumer rather than swallowed. The cursor 
 nothing the sensor needs, only what a reader wants -- how many messages have gone past and the
 last delivery tag seen.
 
-It is an **ordinary** block: it reaches its connection's broker and nothing else.
+``rabbitmq.publish`` goes the other way, and is the sink an upstream step hands a value to: it
+puts one message on an exchange, or on the default exchange where a routing key is a queue name.
+
+They are **ordinary** blocks: each reaches its connection's broker and nothing else.
 """
 
 import asyncio
@@ -32,10 +35,18 @@ from dirigent_plugin import (
     ConnectionRef,
     ErrorClass,
     NotYet,
+    Operator,
+    OperatorSpec,
     Sensor,
     SensorSpec,
     StepContext,
 )
+
+#: What a string body is sent as when the step names no content type.
+TEXT_CONTENT_TYPE = "text/plain"
+
+#: What any other body is sent as when the step names no content type.
+JSON_CONTENT_TYPE = "application/json"
 
 #: The two schemes an AMQP URL is written with: plain, and TLS.
 AMQP_SCHEMES = ("amqp", "amqps")
@@ -116,11 +127,26 @@ class Queue(Protocol):
         ...
 
 
+class Exchange(Protocol):
+    """The part of an exchange this block uses."""
+
+    async def publish(self, message: Any, routing_key: str) -> Any:
+        """Put one message on the exchange under a routing key."""
+        ...
+
+
 class Channel(Protocol):
     """The part of a channel this block uses."""
 
+    default_exchange: Exchange
+    """The nameless exchange, where a routing key is a queue name."""
+
     async def get_queue(self, name: str, *, ensure: bool = True) -> Queue:
         """Look a queue up, declaring passively so a missing one is an error rather than a creation."""
+        ...
+
+    async def get_exchange(self, name: str, *, ensure: bool = True) -> Exchange:
+        """Look an exchange up, declaring passively so a missing one is an error rather than a creation."""
         ...
 
 
@@ -363,6 +389,135 @@ def decode(raw: bytes, form: Payload) -> JsonValue:
             f"a message body is not the json this step reads: {error}",
             error_class=ErrorClass.REJECTED,
         ) from error
+
+
+class RabbitPublishConfig(BlockModel):
+    """What to publish, where to put it, and how durably."""
+
+    connection: ConnectionRef
+    """The ``rabbitmq`` connection naming the broker and holding its password."""
+
+    exchange: str = ""
+    """The exchange to publish to; empty is the default exchange, where a routing key is a queue."""
+
+    routing_key: str = Field(min_length=1)
+    """What the broker routes the message by, which on the default exchange is a queue name."""
+
+    message: JsonValue
+    """The body: a string is sent as UTF-8 text, anything else as canonical JSON."""
+
+    content_type: str | None = None
+    """What the body is, sent with the message.
+
+    Unset, it is ``text/plain`` for a string and ``application/json`` for anything else; an
+    explicit one wins, which is how a markdown page or a csv says what it is."""
+
+    persistent: bool = True
+    """Whether the broker writes the message to disk, so a durable queue keeps it across a restart."""
+
+    timeout: Duration = timedelta(seconds=30)
+    """How long the whole publish may take, such as ``30s``."""
+
+    def payload(self) -> bytes:
+        """The bytes this step sends, in the encoding its content type promises."""
+        if isinstance(self.message, str):
+            return self.message.encode()
+        # The engine's canonical JSON: sorted keys and no spaces, written as UTF-8.
+        return json.dumps(self.message, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+
+    def declared_content_type(self) -> str:
+        """What the body is: the step's own answer, or the default for what it carries."""
+        if self.content_type is not None:
+            return self.content_type
+        return TEXT_CONTENT_TYPE if isinstance(self.message, str) else JSON_CONTENT_TYPE
+
+
+class RabbitPublishOutput(BlockModel):
+    """What one publish put on the broker."""
+
+    published: int
+    """How many messages the broker took, which is one."""
+
+    message_bytes: int
+
+
+class RabbitPublishOperator(Operator[RabbitPublishConfig, RabbitPublishOutput]):
+    """Publishes one message to an exchange and reports what it sent.
+
+    A publish is not idempotent: the broker has no way to tell a message from the same message
+    sent again, so a retry of this step puts a second copy on the queue. A pipeline that must
+    not publish twice either does not retry it, or gives the consumer a key to settle the
+    duplicates by.
+
+    It is an **ordinary** block: it reaches its connection's broker and nothing else.
+    """
+
+    spec = OperatorSpec(id="rabbitmq.publish", summary="Publish one message to an exchange.", idempotent=False)
+    config_model: ClassVar[type[BaseModel]] = RabbitPublishConfig
+    output_model: ClassVar[type[BaseModel]] = RabbitPublishOutput
+
+    async def execute(self, config: RabbitPublishConfig, ctx: StepContext) -> RabbitPublishOutput:
+        """Open a channel, put one message on the exchange, and wait for the broker to take it."""
+        settings = ctx.connection(config.connection, RabbitConnectionConfig)
+        try:
+            connection = await connect(settings)
+        except Exception as error:
+            raise BlockFailure(
+                f"the rabbitmq broker refused the connection: {error}", error_class=classify(error)
+            ) from error
+        body = config.payload()
+        content_type = config.declared_content_type()
+        try:
+            async with asyncio.timeout(config.timeout.total_seconds()):
+                channel = await connection.channel()
+                exchange = await _exchange(channel, config)
+                await exchange.publish(_message(body, content_type, persistent=config.persistent), config.routing_key)
+        except BlockFailure:
+            raise
+        except TimeoutError as error:
+            raise BlockFailure(
+                f"publishing to {config.routing_key!r} did not finish within {config.timeout}",
+                error_class=ErrorClass.TRANSIENT,
+            ) from error
+        except Exception as error:
+            raise BlockFailure(
+                f"publishing to {config.routing_key!r} failed: {error}", error_class=classify(error)
+            ) from error
+        finally:
+            await connection.close()
+        ctx.log.info(
+            "published",
+            exchange=config.exchange,
+            routing_key=config.routing_key,
+            message_bytes=len(body),
+            content_type=content_type,
+        )
+        return RabbitPublishOutput(published=1, message_bytes=len(body))
+
+    def classify_error(self, error: Exception) -> ErrorClass:
+        """A broker that could not be reached is transient; one that said no is not."""
+        return classify(error)
+
+
+async def _exchange(channel: Channel, config: RabbitPublishConfig) -> Exchange:
+    """Resolve the exchange, saying which one is missing when the broker has no such exchange."""
+    if not config.exchange:
+        return channel.default_exchange
+    try:
+        return await channel.get_exchange(config.exchange, ensure=True)
+    except Exception as error:
+        raise BlockFailure(
+            f"the broker has no exchange {config.exchange!r}: {error}",
+            error_class=ErrorClass.REJECTED,
+        ) from error
+
+
+def _message(body: bytes, content_type: str, *, persistent: bool) -> Any:
+    """Build the message the client sends, stamped with what the body is and how durable it is."""
+    import aio_pika
+
+    delivery = aio_pika.DeliveryMode.PERSISTENT if persistent else aio_pika.DeliveryMode.NOT_PERSISTENT
+    return aio_pika.Message(body=body, content_type=content_type, delivery_mode=delivery)
 
 
 def classify(error: Exception) -> ErrorClass:

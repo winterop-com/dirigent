@@ -1,0 +1,136 @@
+# Render a page and POST it to a receiver, which is how a report reaches a chat client or a
+# ticket without anything on this side storing it.
+#
+# In:  a batch of load results, some of them rejected.
+# Out: a markdown page delivered to Postman Echo, and what the receiver echoed back.
+#
+# Three hops, and what each one hands on:
+#   summary   transform.jq, the counts and the identifiers, computed before anything is
+#             worded, so the prose can never disagree with the numbers.
+#   page      report.render, the markdown. Output: text, content_type, text_bytes.
+#   deliver   webhook.post, a JSON body carrying that text. Output: status, signed,
+#             duration_ms, and the receiver's answer.
+#
+# THE BODY IS AN OBJECT, NOT THE PAGE ALONE. webhook.post sends JSON, so the page travels as
+# one field of a small envelope beside the facts a receiver routes on: the pipeline, the day,
+# the severity, and the content type of the text. A receiver that renders markdown reads
+# `text`; one that only routes reads the fields beside it and never parses the page.
+#
+# WHY report.render RATHER THAN A jq STRING. A page built by string concatenation in jq is a
+# page nobody can read in the document. The template is text, indented as it will be
+# rendered, and the numbers in it come from `values` -- and a name that is not there renders
+# empty rather than failing the delivery.
+#
+# THE DELIVERY IS A STEP IN THE DAG, so a rule decides when it runs. This one is `all_done`,
+# so the report is sent whether the work above it succeeded or not: a report that only goes
+# out on success is one that goes quiet exactly when somebody needs it.
+#
+# TO CHANGE IT: -p failures=0 sends the green version, and the severity and the wording both
+# follow from the numbers without another branch in the document.
+#
+#   dg run --local examples/recipes/report-to-webhook.yaml
+#   dg run --local examples/recipes/report-to-webhook.yaml -p failures=0
+
+format: dirigent/v1
+kind: pipeline
+code: report-to-webhook
+name: Render a report and POST it
+description: Render a markdown page from a Jinja template and deliver it to a receiver as one field of a webhook body.
+
+tags: [recipes, report, transform, webhook]
+
+requires:
+  blocks:
+    - transform.jq
+    - report.render
+    - webhook.post
+
+connections:
+  echo-webhook:
+    kind: http
+    config:
+      base_url: https://postman-echo.com
+      timeout: 30s
+      health_path: /get
+
+params:
+  type: object
+  properties:
+    day:
+      type: string
+      format: date
+      default: "2026-01-01"
+      description: The day the load reports on.
+    rows:
+      type: integer
+      minimum: 1
+      default: 12
+      description: How many records the load handled.
+    failures:
+      type: integer
+      minimum: 0
+      default: 3
+      description: How many of them were rejected; 0 sends the green version.
+
+steps:
+  summary:
+    block: transform.jq
+    config:
+      input:
+        rows: ${params.rows}
+        failures: ${params.failures}
+        day: ${params.day}
+      program: |
+        . as {$rows, $failures, $day}
+        | [range($rows)
+           | {key: "\($day)/rec-\(.)",
+              status: (if . < $failures then "rejected" else "loaded" end)}]
+        | {day: $day,
+           rows: length,
+           loaded: ([.[] | select(.status == "loaded")] | length),
+           rejected: ([.[] | select(.status == "rejected")] | length),
+           # The keys, so a reader can look them up; not a count of them, which nobody can act on.
+           rejected_keys: [.[] | select(.status == "rejected") | .key]}
+        | . + {severity: (if .rejected == 0 then "info"
+                          elif .rejected < (.rows / 2) then "warning"
+                          else "error" end)}
+
+  page:
+    block: report.render
+    depends_on: [summary]
+    config:
+      values:
+        summary: ${steps.summary.output.value}
+      content_type: text/markdown
+      template: |
+        # Load for {{ summary.day }}
+
+        {{ summary.loaded }} of {{ summary.rows }} records loaded, {{ summary.rejected }} rejected.
+
+        {% if summary.rejected_keys %}
+        Rejected:
+        {% for key in summary.rejected_keys %}
+        - `{{ key }}`
+        {% endfor %}
+        {% else %}
+        Nothing was rejected.
+        {% endif %}
+
+  deliver:
+    block: webhook.post
+    depends_on: [page]
+    # Sent whether the work above passed or failed.
+    rule: all_done
+    config:
+      connection: echo-webhook
+      path: /post
+      body:
+        pipeline: report-to-webhook
+        day: ${params.day}
+        severity: ${steps.summary.output.value.severity}
+        content_type: ${steps.page.output.content_type}
+        text: ${steps.page.output.text}
+      headers:
+        # Routing the receiver can dispatch on without reading the page.
+        x-severity: ${steps.summary.output.value.severity}
+      success_status: [200, 202, 204]
