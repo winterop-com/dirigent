@@ -1,7 +1,7 @@
 """Plugin markers and the collecting extension points a dirigent plugin implements."""
 
 from collections.abc import Sequence
-from importlib.abc import Traversable
+from importlib.resources.abc import Traversable
 from typing import TYPE_CHECKING
 
 from pluginkit import Extension, ExtensionPoint
