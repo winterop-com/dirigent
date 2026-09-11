@@ -130,7 +130,7 @@ class Queue(Protocol):
 class Exchange(Protocol):
     """The part of an exchange this block uses."""
 
-    async def publish(self, message: Any, routing_key: str) -> Any:
+    async def publish(self, message: Any, routing_key: str, *, mandatory: bool = False) -> Any:
         """Put one message on the exchange under a routing key."""
         ...
 
@@ -458,6 +458,8 @@ class RabbitPublishOperator(Operator[RabbitPublishConfig, RabbitPublishOutput]):
 
     async def execute(self, config: RabbitPublishConfig, ctx: StepContext) -> RabbitPublishOutput:
         """Open a channel, put one message on the exchange, and wait for the broker to take it."""
+        from aio_pika.exceptions import DeliveryError
+
         settings = ctx.connection(config.connection, RabbitConnectionConfig)
         try:
             connection = await connect(settings)
@@ -471,9 +473,19 @@ class RabbitPublishOperator(Operator[RabbitPublishConfig, RabbitPublishOutput]):
             async with asyncio.timeout(config.timeout.total_seconds()):
                 channel = await connection.channel()
                 exchange = await _exchange(channel, config)
-                await exchange.publish(_message(body, content_type, persistent=config.persistent), config.routing_key)
+                # Mandatory: a routing key no queue answers to is refused by the broker rather
+                # than dropped, which on the default exchange is a queue that does not exist.
+                await exchange.publish(
+                    _message(body, content_type, persistent=config.persistent), config.routing_key, mandatory=True
+                )
         except BlockFailure:
             raise
+        except DeliveryError as error:
+            raise BlockFailure(
+                f"nothing on exchange {config.exchange!r} takes routing key {config.routing_key!r}: "
+                "declare the queue, or name an exchange it is bound to",
+                error_class=ErrorClass.REJECTED,
+            ) from error
         except TimeoutError as error:
             raise BlockFailure(
                 f"publishing to {config.routing_key!r} did not finish within {config.timeout}",
