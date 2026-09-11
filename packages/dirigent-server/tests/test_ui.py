@@ -231,3 +231,19 @@ def test_the_static_directory_is_the_installed_one_before_the_checkout(
     monkeypatch.setattr(ui, "PACKAGED_STATIC", tmp_path / "absent")
     assert ui.static_dir(settings) == checkout
     assert ui.static_dir(settings.model_copy(update={"ui_enabled": False})) is None
+
+
+def test_a_configured_ui_dir_is_served_before_anything_installed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, settings: Settings
+) -> None:
+    installed = tmp_path / "installed"
+    named = tmp_path / "named"
+    for directory in (installed, named):
+        directory.mkdir()
+        (directory / "index.html").write_text(SHELL)
+    monkeypatch.setattr(ui, "PACKAGED_STATIC", installed)
+    monkeypatch.setattr(ui, "CHECKOUT_STATIC", tmp_path / "absent")
+    assert ui.static_dir(settings.model_copy(update={"ui_dir": named})) == named
+    assert ui.static_dir(settings.model_copy(update={"ui_dir": tmp_path / "empty"})) is None, (
+        "a named directory with no bundle serves nothing rather than falling back"
+    )

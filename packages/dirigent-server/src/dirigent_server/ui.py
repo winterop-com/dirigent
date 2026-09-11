@@ -109,10 +109,13 @@ class UiStaticFiles(StaticFiles):
 def static_dir(settings: Settings) -> Path | None:
     """The built bundle this instance serves, or None when it has none to serve.
 
-    The installed package's own ``static/`` wins over a checkout's ``frontend/dist``.
+    A configured ``ui_dir`` wins; else the installed package's own ``static/`` over a
+    checkout's ``frontend/dist``.
     """
     if not settings.ui_enabled:
         return None
+    if settings.ui_dir is not None:
+        return settings.ui_dir if (settings.ui_dir / INDEX_FILENAME).is_file() else None
     for candidate in (PACKAGED_STATIC, CHECKOUT_STATIC):
         if (candidate / INDEX_FILENAME).is_file():
             return candidate
