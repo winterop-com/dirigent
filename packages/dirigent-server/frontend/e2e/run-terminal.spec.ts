@@ -8,18 +8,21 @@ import { applyExample, ranToCompletion, signIn, startRun } from './support.ts'
  * The run terminal, against a run this suite really started on a real `dg dev`.
  *
  * THE EXAMPLE IS CHOSEN FOR WHAT IT WRITES. `examples/transform/jq-stream-through-storage.yaml`
- * is three pure transforms -- no network, no allowlisted block, settled in under a second -- and
- * two of them save their result to storage, which is a log line each. So a settled run of it has
- * lines from more than one step, in an order the document fixes: `generate` writes before `cold`
- * can read what it wrote.
+ * is six steps that touch nothing but the run's own scratch space -- no network, no allowlisted
+ * block, settled in under a second -- and every one of them writes a line: three transforms say
+ * they finished, two writes say what they wrote, and the read between them says what it read. So
+ * a settled run of it has lines from six steps, in an order the document mostly fixes: `store`
+ * writes before `reload` can read what it wrote.
  */
 
 const EXAMPLE = 'examples/transform/jq-stream-through-storage.yaml'
 const PIPELINE = 'jq-stream-through-storage'
 
-/** What each of the two writing steps says, which is one line apiece; `summary` saves
- * nothing, so its one line is the engine's own settlement trace. */
-const SAVED = 'transform result saved'
+/** Every step writes one line, and these are the six of them. */
+const LINES = 6
+
+/** What each of the two storage.write steps says, which is one line apiece. */
+const WROTE = 'wrote'
 
 /** The labels this screen's own controls carry, spelled as the components export them. */
 const TOGGLE = "Show or hide this run's terminal"
@@ -58,13 +61,16 @@ test('the terminal draws every step of a run, interleaved in the order it wrote 
     await openTerminal(page)
 
     const terminal = page.getByRole('region', { name: 'Run terminal' })
-    await expect(terminal.getByText(SAVED).first()).toBeVisible({ timeout: 30_000 })
-    await expect(terminal.locator('[data-log-line]')).toHaveCount(3)
+    await expect(terminal.getByText(WROTE).first()).toBeVisible({ timeout: 30_000 })
+    await expect(terminal.locator('[data-log-line]')).toHaveCount(LINES)
 
-    // MORE THAN ONE STEP, IN THE RUN'S OWN ORDER. generate writes the file cold reads, so the
-    // order on screen is the order the run happened in rather than a grouping by step.
-    expect(await stepsOnScreen(page)).toEqual(['generate', 'cold', 'summary'])
-    await expect(terminal.getByText('3 of 3 lines')).toBeVisible()
+    // MORE THAN ONE STEP, IN THE RUN'S OWN ORDER. store writes the object reload reads, so the
+    // chain is drawn in the order the run happened in rather than grouped by step. keep and
+    // summary both hang off cold, so only their order between the two of them is free.
+    const steps = await stepsOnScreen(page)
+    expect(steps.slice(0, 4)).toEqual(['generate', 'store', 'reload', 'cold'])
+    expect(steps.slice(4).toSorted()).toEqual(['keep', 'summary'])
+    await expect(terminal.getByText(`${String(LINES)} of ${String(LINES)} lines`)).toBeVisible()
 })
 
 test('the three filters narrow the lines, and the count says how far', async ({ page }) => {
@@ -74,14 +80,14 @@ test('the three filters narrow the lines, and the count says how far', async ({ 
     await page.goto(`/runs/${runId}`)
     await openTerminal(page)
     const terminal = page.getByRole('region', { name: 'Run terminal' })
-    await expect(terminal.locator('[data-log-line]')).toHaveCount(3)
+    await expect(terminal.locator('[data-log-line]')).toHaveCount(LINES)
 
     // ONE STEP.
     await page.getByLabel(STEP_FILTER).click()
     await page.getByRole('option', { name: 'cold', exact: true }).click()
     await expect(terminal.locator('[data-log-line]')).toHaveCount(1)
     expect(await stepsOnScreen(page)).toEqual(['cold'])
-    await expect(terminal.getByText('1 of 3 lines')).toBeVisible()
+    await expect(terminal.getByText(`1 of ${String(LINES)} lines`)).toBeVisible()
 
     // AND A MATCH ON TOP OF IT, because the three compose rather than replace one another.
     await page.getByLabel(MATCH_FILTER).fill('nothing writes this')
@@ -102,7 +108,7 @@ test("a line's step prefix opens that step in the panel", async ({ page }) => {
 
     await page.goto(`/runs/${runId}`)
     await openTerminal(page)
-    await expect(page.locator('[data-log-line]')).toHaveCount(3)
+    await expect(page.locator('[data-log-line]')).toHaveCount(LINES)
 
     // Put the reader on another tab first, so what is asserted is the prefix moving them rather
     // than the panel happening to open on its first tab.
@@ -154,26 +160,24 @@ test("download raw saves the run's whole log as NDJSON", async ({ page }) => {
 
     await page.goto(`/runs/${runId}`)
     await openTerminal(page)
-    await expect(page.locator('[data-log-line]')).toHaveCount(3)
+    await expect(page.locator('[data-log-line]')).toHaveCount(LINES)
 
     // FETCHED AND BLOBBED, NOT LINKED. `$logs` answers a page of JSON with no
     // content-disposition, so the pages are walked and written out here -- which is why this
     // asserts on what arrives rather than on where an anchor points.
     const saving = page.waitForEvent('download')
     await page.getByRole('button', { name: 'Download every line as NDJSON' }).click()
-    await expect(page.getByText('3 lines saved')).toBeVisible()
+    await expect(page.getByText(`${String(LINES)} lines saved`)).toBeVisible()
     const saved = await saving
 
     expect(saved.suggestedFilename()).toBe(`dirigent-run-${runId}.ndjson`)
     const path = await saved.path()
     const text = await readFile(path, 'utf8')
     const lines = text.split('\n').filter((line) => line !== '')
-    expect(lines).toHaveLength(3)
-    expect(lines.map((line) => (JSON.parse(line) as { step_name: string }).step_name)).toEqual([
-        'generate',
-        'cold',
-        'summary',
-    ])
+    expect(lines).toHaveLength(LINES)
+    const steps = lines.map((line) => (JSON.parse(line) as { step_name: string }).step_name)
+    expect(steps.slice(0, 4)).toEqual(['generate', 'store', 'reload', 'cold'])
+    expect(steps.slice(4).toSorted()).toEqual(['keep', 'summary'])
 })
 
 test('opening the terminal opens no second stream', async ({ page }) => {
@@ -190,7 +194,7 @@ test('opening the terminal opens no second stream', async ({ page }) => {
     const streamsBefore = asked.filter((url) => url.includes('%24events') || url.includes('$events')).length
 
     await openTerminal(page)
-    await expect(page.locator('[data-log-line]')).toHaveCount(3)
+    await expect(page.locator('[data-log-line]')).toHaveCount(LINES)
 
     // THE ONE STREAM IS THE ONE STREAM. The drawer draws the run's whole log off the connection
     // the screen already holds, so opening it costs neither a second event stream nor a log tail.
@@ -211,7 +215,7 @@ test('the bare `t` shows and hides the drawer, and never out of a box being type
 
     await page.locator('body').press('t')
     await expect(terminal).toBeVisible()
-    await expect(terminal.locator('[data-log-line]')).toHaveCount(3)
+    await expect(terminal.locator('[data-log-line]')).toHaveCount(LINES)
 
     await page.locator('body').press('t')
     await expect(terminal).toBeHidden()

@@ -202,7 +202,9 @@ class StorageReadOperator(Operator[StorageReadConfig, StorageReadOutput]):
 
 def _content_type(config: StorageReadConfig, found: StatResult) -> str:
     """What the object is: the step's override, the backend's answer, the extension, or bytes."""
-    guessed = mimetypes.guess_type(config.source)[0]
+    # Guessed from the last path segment: guess_type reads a URL's path, and a URI whose only
+    # segment sits where a host would (file://orders.json) has none.
+    guessed = mimetypes.guess_type(config.source.rsplit("/", 1)[-1])[0]
     resolved = config.content_type or found.content_type or guessed or OCTET_STREAM
     if _is_json(resolved) or resolved.startswith("text/") or resolved in TEXT_TYPES:
         return resolved

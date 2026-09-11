@@ -181,6 +181,19 @@ async def test_the_extension_is_what_a_backend_that_records_nothing_is_read_by(
     assert output.value == {"count": 2}
 
 
+async def test_the_extension_is_read_off_a_uri_whose_only_segment_is_its_name(
+    ctx: FakeContext, storage: FakeStorage
+) -> None:
+    # file://orders.json puts the name where a host would sit, so the URL has no path at all
+    # and the extension is only there in the last segment.
+    put(storage, "file://orders.json", b'{"count": 2}')
+
+    output = await call_block(StorageReadOperator(), {"source": "file://orders.json"}, ctx)
+
+    assert isinstance(output, StorageReadOutput)
+    assert (output.content_type, output.value) == ("application/json", {"count": 2})
+
+
 async def test_the_override_decides_what_an_object_is_read_as(ctx: FakeContext, storage: FakeStorage) -> None:
     put(storage, "file://drops/batch.dat", b'{"count": 2}')
 
