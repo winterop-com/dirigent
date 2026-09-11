@@ -36,7 +36,20 @@ from dirigent_core.protocol import Record
 #: Fields a record carries for what is drawn beneath its line rather than for the line. A
 #: line carries whole values, and a run's every step is not a line's worth of them.
 BULKY: Final = frozenset(
-    {"steps", "failures", "windows", "packages", "settings", "history", "problems", "issues", "files", "token"}
+    {
+        "steps",
+        "failures",
+        "windows",
+        "packages",
+        "settings",
+        "history",
+        "problems",
+        "issues",
+        "files",
+        "token",
+        "preflight",
+        "requires",
+    }
 )
 
 
@@ -299,11 +312,28 @@ def _initialised(record: Record) -> RenderableType | None:
         "\n  [bold]uv sync[/]"
         "\n  [bold]uv run dg dev[/]"
         f"\nThe UI is at http://127.0.0.1:3333 and {admin} logs in with the password you gave."
-        "\n\nThen, in this directory, apply the example and run it:"
+        "\n\nThen pick a first pipeline out of the corpus, apply it and run it:"
+        "\n  [bold]uv run dg examples list --starter[/]"
+        "\n  [bold]uv run dg pipeline new <starter>[/]"
         "\n  [bold]uv run dg apply[/]"
-        "\n  [bold]uv run dg run hello-world --watch[/]"
         "\n\n[dim]No DIRIGENT_SECRET_KEY is set, so a connection carrying a credential cannot be stored until it is.[/]"
     )
+    return Group(*parts)
+
+
+def _created(record: Record) -> RenderableType | None:
+    """Render a copied starter: where it landed, and what the instance must hold first."""
+    path = record.get("path")
+    if not path:
+        return None
+    parts: list[RenderableType] = [
+        f"Copied [bold]{escape(str(record.get('starter')))}[/] to [bold]{escape(str(path))}[/]."
+    ]
+    steps = _texts(record, "preflight")
+    if steps:
+        parts.append("\nIt will not apply until the instance holds what it needs:")
+        parts.extend(f"  [yellow]-[/] {escape(step)}" for step in steps)
+    parts.append(f"\nThen:\n  [bold]dg apply {escape(str(record.get('code')))}[/]")
     return Group(*parts)
 
 
@@ -411,4 +441,5 @@ RENDERERS: Final[Mapping[str, Callable[[Record], RenderableType | None]]] = {
     "process": _issued,
     "project.scaffolded": _scaffolded,
     "instance.initialised": _initialised,
+    "pipeline.created": _created,
 }

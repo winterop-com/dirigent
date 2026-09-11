@@ -87,6 +87,7 @@ docker_app = typer.Typer(name="docker", help="The docker daemon this host's work
 app.add_typer(commands.runs_app, rich_help_panel=RUN_PANEL)
 app.add_typer(commands.pipeline_app, rich_help_panel=DEFINE_PANEL)
 app.add_typer(commands.blocks_app, rich_help_panel=DEFINE_PANEL)
+app.add_typer(commands.examples_app, rich_help_panel=DEFINE_PANEL)
 app.add_typer(commands.schema_app, rich_help_panel=DEFINE_PANEL)
 app.add_typer(commands.connection_app, rich_help_panel=CONNECT_PANEL)
 app.add_typer(triggers.schedule_app, rich_help_panel=TRIGGER_PANEL)
@@ -824,6 +825,13 @@ def dev(
             "with its schedules paused; name it more than once to seed one directory after another.",
         ),
     ] = None,
+    seed_installed: Annotated[
+        bool,
+        typer.Option(
+            "--seed-installed",
+            help="Apply every document of every installed corpus, naming no directory at all.",
+        ),
+    ] = False,
 ) -> None:
     """Run the API and an embedded worker in one process, on SQLite, with no dependencies.
 
@@ -831,6 +839,9 @@ def dev(
     starting this somewhere else means a different instance, with none of the same runs.
     An instance that is there, made by dg init or by an earlier start, is the one that runs;
     --wipe-state deletes it first, and only a directory dirigent named itself is removed.
+
+    --seed-installed does the same with the corpus every installed plugin ships, so a
+    checkout is not needed; both may be given, and the directories go in first.
 
     --seed fills the instance from a directory of documents the moment it answers: the
     connections a file or a document declares are created first, then every document is
@@ -870,8 +881,8 @@ def dev(
     bound = f"http://{address}:{listening}"
     emit(dev_started(settings, bound=bound, admin=admin, token=token, migrated=migrated))
     directories = seed or []
-    bearer = token or (asyncio.run(seed_token(settings)) if directories else None)
-    asyncio.run(_dev(settings, address, listening, seed=directories, bearer=bearer))
+    bearer = token or (asyncio.run(seed_token(settings)) if directories or seed_installed else None)
+    asyncio.run(_dev(settings, address, listening, seed=directories, installed=seed_installed, bearer=bearer))
 
 
 def clear_state(settings: Settings) -> Path | None:
@@ -1035,6 +1046,7 @@ async def _dev(
     port: int,
     *,
     seed: Sequence[Path] = (),
+    installed: bool = False,
     bearer: str | None = None,
 ) -> None:
     """Run the API, the scheduler, a worker, and any seeding as tasks in one event loop.
@@ -1054,7 +1066,9 @@ async def _dev(
     api = uvicorn.Server(server_config)
     worker_task = asyncio.create_task(worker.run())
     ready = asyncio.create_task(_announce_ready(api))
-    seeding = asyncio.create_task(_seed(api, local_url(host, port), bearer, seed)) if seed else None
+    seeding = (
+        asyncio.create_task(_seed(api, local_url(host, port), bearer, seed, installed)) if seed or installed else None
+    )
     try:
         await api.serve()
     finally:
@@ -1081,19 +1095,29 @@ async def _announce_ready(api: "uvicorn.Server") -> None:
     emit(make("process", at=datetime.now(UTC), message="ready", process="dev"))
 
 
-async def _seed(api: "uvicorn.Server", url: str, bearer: str | None, directories: Sequence[Path]) -> None:
-    """Apply what --seed named, once the port is accepting, and write a record for each."""
+async def _seed(
+    api: "uvicorn.Server",
+    url: str,
+    bearer: str | None,
+    directories: Sequence[Path],
+    installed: bool = False,
+) -> None:
+    """Apply what the seeding flags named, once the port is accepting, and record each document."""
     import asyncio
 
-    from dirigent_cli.seeding import seed_directories
+    from dirigent_cli.seeding import seed_directories, seed_installed
     from dirigent_client import Dirigent, DirigentError
 
     while not api.started:
         await asyncio.sleep(0.05)
     try:
         async with Dirigent(url=url, token=bearer) as client:
-            async for record in seed_directories(client, directories):
-                emit(record)
+            if directories:
+                async for record in seed_directories(client, directories):
+                    emit(record)
+            if installed:
+                async for record in seed_installed(client):
+                    emit(record)
     except DirigentError as error:
         emit(make("error", at=datetime.now(UTC), level="error", message=f"seeding stopped: {error.message}"))
 

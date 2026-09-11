@@ -13,7 +13,7 @@ import typer
 import yaml
 from rich.markup import escape
 
-from dirigent_cli import schemas
+from dirigent_cli import schemas, starters
 from dirigent_cli.context import CliState, Session, client_for, state_of
 from dirigent_cli.graph import GraphStep, render_graph, steps_of_document
 from dirigent_cli.local import (
@@ -56,6 +56,7 @@ from dirigent_cli.output import (
 )
 from dirigent_cli.params import ParamError, build_params
 from dirigent_cli.project import (
+    DEFAULT_PIPELINES_DIR,
     InitChoices,
     ProjectError,
     check_choices,
@@ -76,6 +77,8 @@ from dirigent_client import (
     BlockKind,
     Catalog,
     DocumentKind,
+    ExampleDetail,
+    ExampleOut,
     ItemOut,
     LogEntryOut,
     LogLevel,
@@ -103,6 +106,7 @@ from dirigent_core.documents import (
 from dirigent_core.engine.definition import PipelineDefinition, TriggersDefinition, load_definition
 from dirigent_core.engine.runs import RunWindow
 from dirigent_core.engine.state import in_execution_order
+from dirigent_core.examples import STARTER_TAG, ExampleEntry
 from dirigent_core.schemas import code_from_id
 
 RUNS_PAGE = 50
@@ -121,6 +125,7 @@ connection_app = typer.Typer(
 )
 schema_app = typer.Typer(name="schema", help="Named JSON Schemas the instance holds.", no_args_is_help=True)
 blocks_app = typer.Typer(name="blocks", help="The block catalog every plugin contributes to.", no_args_is_help=True)
+examples_app = typer.Typer(name="examples", help="The documents every installed plugin ships.", no_args_is_help=True)
 token_app = typer.Typer(name="token", help="API tokens.", no_args_is_help=True)
 user_app = typer.Typer(name="user", help="Local accounts.", no_args_is_help=True)
 auth_app = typer.Typer(name="auth", help="Logging in, and which identity the CLI holds.", no_args_is_help=True)
@@ -492,6 +497,13 @@ def init_command(
     pack: Annotated[
         list[str] | None, typer.Option("--pack", help="A pack to add, such as dirigent-dhis2. Repeatable.")
     ] = None,
+    pipeline: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--pipeline",
+            help="A starter to copy into pipelines/, as `dg examples list --starter` names it. Repeatable.",
+        ),
+    ] = None,
     admin: Annotated[str, typer.Option(help="The first admin account's username.")] = "admin",
     password: Annotated[str | None, typer.Option(help="Its password; asked for when omitted.")] = None,
 ) -> None:
@@ -511,7 +523,7 @@ def init_command(
 
     root = directory.resolve()
     version = cli_version()
-    unasked = template is None and service is None and pack is None and not workflow
+    unasked = template is None and service is None and pack is None and pipeline is None and not workflow
     asked = unasked and sys.stdin.isatty() and sys.stdout.isatty()
     # Refusing happens before anything is written or asked for, so a run that cannot finish
     # has not half-created a project, and nobody fills a form for a command that was going
@@ -533,6 +545,7 @@ def init_command(
             services=tuple(service) if service is not None else InitChoices().services,
             workflow=workflow,
             packs=tuple(pack or ()),
+            pipelines=tuple(pipeline or ()),
             admin=admin,
             password=password or os.environ.get(BOOTSTRAP_PASSWORD_ENV) or "",
         )
@@ -557,6 +570,7 @@ def init_command(
         **({"services": list(choices.services)} if choices.stack else {}),
         **({"workflow": True} if choices.workflow else {}),
         **({"packs": list(choices.packs)} if choices.packs else {}),
+        **({"pipelines": list(choices.pipelines)} if choices.pipelines else {}),
     }
     if not choices.instance:
         starting = [
@@ -2597,4 +2611,159 @@ def auth_status(ctx: typer.Context) -> None:
         username=me.username,
         role=me.role.value,
         via=me.via.value if me.via else "-",
+    )
+
+
+def installed_examples() -> list[ExampleDetail]:
+    """Read the corpus installed beside this `dg`, without addressing any server."""
+    from dirigent_core.plugins import load_plugin_host
+
+    return [as_detail(entry) for entry in load_plugin_host().examples()]
+
+
+def as_detail(entry: ExampleEntry) -> ExampleDetail:
+    """Render one entry of the installed catalogue the way the API renders one."""
+    return ExampleDetail(**entry.model_dump())
+
+
+def _example_rows(
+    state: CliState,
+    *,
+    local: bool,
+    tags: Sequence[str] = (),
+    shelf: str | None = None,
+    plugin: str | None = None,
+    starter: bool | None = None,
+) -> list[ExampleOut]:
+    """List the catalogue, from the installed corpus or from the instance's own."""
+    if local:
+        wanted = set(tags)
+        return [
+            row
+            for row in installed_examples()
+            if wanted <= set(row.tags)
+            and (shelf is None or row.shelf == shelf)
+            and (plugin is None or row.plugin == plugin)
+            and (starter is None or row.starter is starter)
+        ]
+    with client_for(state) as dg:
+        return list(
+            paged(
+                lambda after, size: dg.call(
+                    dg.examples.list(tags=tags, shelf=shelf, plugin=plugin, starter=starter, after=after, limit=size)
+                ),
+                None,
+            )
+        )
+
+
+def _example(state: CliState, code: str, *, local: bool) -> ExampleDetail:
+    """Resolve one example by code, from the installed corpus or from the instance's own."""
+    if not local:
+        with client_for(state) as dg:
+            return dg.call(dg.examples.get(code))
+    from dirigent_core.plugins import UnknownExample, load_plugin_host
+
+    try:
+        return as_detail(load_plugin_host().example(code))
+    except UnknownExample as error:
+        refuse(str(error), title="No such example")
+        raise typer.Exit(code=1) from error
+
+
+LOCAL_CATALOGUE = "Read the corpus installed beside dg, instead of the instance's own."
+
+
+@examples_app.command("list")
+def examples_list(
+    ctx: typer.Context,
+    tag: Annotated[
+        list[str] | None, typer.Option("--tag", help="Only documents wearing this tag; repeat it to name more.")
+    ] = None,
+    shelf: Annotated[str | None, typer.Option("--shelf", help="Only documents on this shelf.")] = None,
+    plugin: Annotated[str | None, typer.Option("--plugin", help="Only documents this distribution ships.")] = None,
+    starter: Annotated[bool, typer.Option("--starter", help="Only the documents dg pipeline new may copy.")] = False,
+    local: Annotated[bool, typer.Option("--local", help=LOCAL_CATALOGUE)] = False,
+) -> None:
+    """List the documents every installed plugin ships, and which of them are starters."""
+    state = state_of(ctx)
+    rows = _example_rows(
+        state, local=local, tags=tag or [], shelf=shelf, plugin=plugin, starter=True if starter else None
+    )
+    if state.json_output:
+        return emit_records("example", rows)
+    table(
+        "examples",
+        ["code", "name", "tags", "plugin", "starter", "needs"],
+        [
+            [
+                row.code,
+                row.name or "-",
+                " ".join(one for one in row.tags if one != STARTER_TAG) or "-",
+                row.plugin,
+                "[green]*[/]" if row.starter else "",
+                starters.summary(row.requires),
+            ]
+            for row in rows
+        ],
+    )
+
+
+@examples_app.command("show")
+def examples_show(
+    ctx: typer.Context,
+    code: Annotated[str, typer.Argument(help="The example to read.")],
+    local: Annotated[bool, typer.Option("--local", help=LOCAL_CATALOGUE)] = False,
+) -> None:
+    """Print one example's document, verbatim, as the shelf holds it."""
+    state = state_of(ctx)
+    entry = _example(state, code, local=local)
+    if state.json_output:
+        return emit_fact("example.source", message="example", **entry.model_dump(mode="json"))
+    console.print(entry.source, end="", highlight=False, markup=False)
+
+
+@pipeline_app.command("new")
+def pipeline_new(
+    ctx: typer.Context,
+    starter: Annotated[str, typer.Argument(help="The starter to copy, as `dg examples list --starter` names it.")],
+    code: Annotated[
+        str | None, typer.Option("--code", help="Register the copy under this code; the starter's own when omitted.")
+    ] = None,
+    directory: Annotated[Path, typer.Option("--dir", help="Where to write it; pipelines/ when omitted.")] = Path(
+        DEFAULT_PIPELINES_DIR
+    ),
+    local: Annotated[bool, typer.Option("--local", help=LOCAL_CATALOGUE)] = False,
+) -> None:
+    """Copy a starter into this project as a pipeline of its own.
+
+    The copy is the starter's text verbatim, with the top-level `code:` rewritten and the
+    `starter` tag dropped, so every teaching comment in it survives. What it needs from the
+    instance is the copy's own `requires`, which this prints as the list to work through.
+    """
+    entry = _example(state_of(ctx), starter, local=local)
+    if not entry.starter:
+        refuse(
+            f"{entry.code!r} is an example, not a starter",
+            title="Not a starter",
+            problems=[f"a document is copyable only when it wears the {STARTER_TAG!r} tag"],
+        )
+        raise typer.Exit(code=1)
+    new_code = code or entry.code
+    path = directory / f"{new_code}.yaml"
+    if path.exists():
+        refuse(f"{path} is already there", title="Already there", problems=["name another code with --code"])
+        raise typer.Exit(code=1)
+    text = starters.instantiate(entry.source, new_code)
+    directory.mkdir(parents=True, exist_ok=True)
+    path.write_text(text)
+    copied = load_pipeline_text(text).requires
+    emit_fact(
+        "pipeline.created",
+        message="created",
+        path=str(path),
+        code=new_code,
+        starter=entry.code,
+        requires=copied.model_dump(mode="json"),
+        preflight=starters.preflight(copied),
     )
