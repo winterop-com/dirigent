@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { needsConnection, unreadyRule, unreadyTest } from '@/lib/alert-form'
+import { given, needsConnection, unreadyRule, unreadyTest } from '@/lib/alert-form'
 import type { RuleDraft } from '@/lib/alert-form'
 
 function aDraft(over: Partial<RuleDraft> = {}): RuleDraft {
@@ -89,5 +89,20 @@ describe('why a test cannot be sent yet', () => {
             'The email channel delivers through a connection, and this one names none.',
         )
         expect(unreadyTest('email', 'ops-mail')).toBeUndefined()
+    })
+})
+
+describe('what a box left empty sends', () => {
+    test('a box nobody typed in is null on the wire rather than an empty string', () => {
+        expect(given('')).toBeNull()
+        expect(given('   \n  ')).toBeNull()
+    })
+
+    test('a template is sent as it was written, less the whitespace around it', () => {
+        expect(given('  {{ run.status }}  ')).toBe('{{ run.status }}')
+    })
+
+    test('a body keeps the lines it was written on', () => {
+        expect(given('{{ run.pipeline }}\n\n{{ report }}\n')).toBe('{{ run.pipeline }}\n\n{{ report }}')
     })
 })

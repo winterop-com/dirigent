@@ -20,6 +20,19 @@ export const SUBJECT_REFERENCES = 'pipeline, status, id, error, trigger, duratio
 /** The hint under the subject box: what a template may reach for, and nothing else. */
 export const SUBJECT_HINT = `A Jinja template: {{ run.* }} reads the run's ${SUBJECT_REFERENCES}.`
 
+/** The help under the body's label: the same facts, and the report document beside them. */
+export const BODY_HINT =
+    "A Jinja template over the run's facts; report is the run's report document when it has one."
+
+/** What a subject and a body are written in. `TEMPLATE_MEDIA_TYPE` in dirigent_common. */
+export const TEMPLATE_MEDIA_TYPE = 'text/x-jinja'
+
+/** A box left empty is a field nobody set, which is null on the wire rather than "". */
+export function given(typed: string): string | null {
+    const trimmed = typed.trim()
+    return trimmed === '' ? null : trimmed
+}
+
 /** The two scopes, in the order the control offers them. */
 export const SCOPES: readonly { value: AlertScope; label: string }[] = [
     { value: 'global', label: 'Every pipeline' },

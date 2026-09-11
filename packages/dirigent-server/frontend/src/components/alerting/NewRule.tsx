@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react'
 
 import { ConnectionPicker, Field, NotifierPicker } from '@/components/alerting/fields'
+import { CodePane } from '@/components/pipeline/CodePane'
+import { ProgramReference } from '@/components/pipeline/ProgramReference'
 import { Picker } from '@/components/Picker'
 import { Refusable } from '@/components/Refusable'
 import { Refusal } from '@/components/Refusal'
 import { Segmented } from '@/components/Segmented'
+import { WindowedPane } from '@/components/WindowedPane'
 import { Button } from '@/components/ui/button'
 import {
     Dialog,
@@ -16,7 +19,16 @@ import {
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { useMayWrite } from '@/hooks/use-may-write'
-import { EVENT_LABELS, needsConnection, SCOPES, SUBJECT_HINT, unreadyRule } from '@/lib/alert-form'
+import {
+    BODY_HINT,
+    EVENT_LABELS,
+    given,
+    needsConnection,
+    SCOPES,
+    SUBJECT_HINT,
+    TEMPLATE_MEDIA_TYPE,
+    unreadyRule,
+} from '@/lib/alert-form'
 import { ALERT_EVENTS, createRule, type AlertEvent, type AlertScope } from '@/lib/alerting'
 import type { Problem } from '@/lib/api'
 import { headingOf } from '@/lib/identity'
@@ -27,6 +39,10 @@ import { firstShut } from '@/lib/roles'
 
 /** What a rule is declared with when nobody says otherwise: no window at all. */
 const NO_THROTTLE = '0s'
+
+/** Which buffer the body pane edits, and what a screen reader and a test call it. */
+const BODY_PATH = 'alert-rule/new/body'
+const BODY_LABEL = 'body'
 
 /**
  * Declare one rule: an event, at a scope, through a channel.
@@ -60,6 +76,7 @@ export function NewRule({
     const [notifier, setNotifier] = useState('')
     const [connection, setConnection] = useState('')
     const [template, setTemplate] = useState('')
+    const [body, setBody] = useState('')
     const [throttle, setThrottle] = useState(NO_THROTTLE)
     const [problem, setProblem] = useState<Problem | null>(null)
     const [busy, setBusy] = useState(false)
@@ -81,7 +98,7 @@ export function NewRule({
             pipeline: scope === 'pipeline' ? pipeline : null,
             connection: needsConnection(notifier) ? connection : null,
             template: given(template),
-            body: null,
+            body: given(body),
             throttle: throttle.trim(),
         })
             .then(
@@ -91,6 +108,7 @@ export function NewRule({
                     setNamed('')
                     setDescription('')
                     setTemplate('')
+                    setBody('')
                     onOpenChange(false)
                 },
                 (error: unknown) => {
@@ -104,113 +122,150 @@ export function NewRule({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-xl" showCloseButton={false}>
+            <DialogContent
+                className="flex max-h-[calc(100vh-4rem)] flex-col sm:max-w-3xl"
+                showCloseButton={false}
+            >
                 <DialogHeader>
                     <DialogTitle>New rule</DialogTitle>
                 </DialogHeader>
 
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <Field
-                        id="rule-code"
-                        label="Code"
-                        value={code}
-                        onChange={setCode}
-                        placeholder="ops-slack-failed"
-                        mono
-                    />
-                    <Field
-                        id="rule-name"
-                        label="Name"
-                        value={named}
-                        onChange={setNamed}
-                        placeholder="Tell the ops channel"
-                    />
-                </div>
-
-                <Field
-                    id="rule-description"
-                    label="Description"
-                    value={description}
-                    onChange={setDescription}
-                    placeholder="What this rule is for"
-                />
-
-                <div className="space-y-2">
-                    <Label>Event</Label>
-                    <Segmented
-                        label="Event"
-                        size="md"
-                        value={event}
-                        options={ALERT_EVENTS.map((one) => ({ value: one, label: EVENT_LABELS[one] }))}
-                        onChoose={setEvent}
-                    />
-                </div>
-
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <div className="space-y-2">
-                        <Label>Scope</Label>
-                        <Segmented
-                            label="Scope"
-                            size="md"
-                            value={scope}
-                            options={SCOPES}
-                            onChoose={setScope}
+                {/* The form scrolls and the footer does not: a dialog with a pane in it is
+                    taller than a short screen, and Create is what somebody reaches for. */}
+                <div className="-mx-1 min-h-0 flex-1 space-y-4 overflow-y-auto px-1">
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <Field
+                            id="rule-code"
+                            label="Code"
+                            value={code}
+                            onChange={setCode}
+                            placeholder="ops-slack-failed"
+                            mono
+                        />
+                        <Field
+                            id="rule-name"
+                            label="Name"
+                            value={named}
+                            onChange={setNamed}
+                            placeholder="Tell the ops channel"
                         />
                     </div>
-                    {scope === 'pipeline' && (
+
+                    <Field
+                        id="rule-description"
+                        label="Description"
+                        value={description}
+                        onChange={setDescription}
+                        placeholder="What this rule is for"
+                    />
+
+                    <div className="space-y-2">
+                        <Label>Event</Label>
+                        <Segmented
+                            label="Event"
+                            size="md"
+                            value={event}
+                            options={ALERT_EVENTS.map((one) => ({ value: one, label: EVENT_LABELS[one] }))}
+                            onChoose={setEvent}
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                         <div className="space-y-2">
-                            <Label htmlFor="rule-pipeline">Pipeline</Label>
-                            <Picker
-                                id="rule-pipeline"
-                                label="Pipeline"
-                                value={pipeline}
-                                options={pipelines}
-                                placeholder="Search by name or code"
-                                onChange={setPipeline}
+                            <Label>Scope</Label>
+                            <Segmented
+                                label="Scope"
+                                size="md"
+                                value={scope}
+                                options={SCOPES}
+                                onChoose={setScope}
                             />
                         </div>
-                    )}
-                </div>
+                        {scope === 'pipeline' && (
+                            <div className="space-y-2">
+                                <Label htmlFor="rule-pipeline">Pipeline</Label>
+                                <Picker
+                                    id="rule-pipeline"
+                                    label="Pipeline"
+                                    value={pipeline}
+                                    options={pipelines}
+                                    placeholder="Search by name or code"
+                                    onChange={setPipeline}
+                                />
+                            </div>
+                        )}
+                    </div>
 
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <NotifierPicker
-                        id="rule-notifier"
-                        notifiers={notifiers}
-                        value={notifier}
-                        onChange={(picked) => {
-                            setNotifier(picked)
-                            setConnection('')
-                        }}
-                    />
-                    {needsConnection(notifier) && (
-                        <ConnectionPicker
-                            id="rule-connection"
-                            kind={notifier}
-                            value={connection}
-                            onChange={setConnection}
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <NotifierPicker
+                            id="rule-notifier"
+                            notifiers={notifiers}
+                            value={notifier}
+                            onChange={(picked) => {
+                                setNotifier(picked)
+                                setConnection('')
+                            }}
                         />
-                    )}
-                </div>
+                        {needsConnection(notifier) && (
+                            <ConnectionPicker
+                                id="rule-connection"
+                                kind={notifier}
+                                value={connection}
+                                onChange={setConnection}
+                            />
+                        )}
+                    </div>
 
-                <Field
-                    id="rule-subject"
-                    label="Subject"
-                    value={template}
-                    onChange={setTemplate}
-                    placeholder="{{ run.pipeline }} run {{ run.status }}"
-                    mono
-                    hint={SUBJECT_HINT}
-                />
-
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                     <Field
-                        id="rule-throttle"
-                        label="Throttle"
-                        value={throttle}
-                        onChange={setThrottle}
-                        placeholder="15m"
+                        id="rule-subject"
+                        label="Subject"
+                        value={template}
+                        onChange={setTemplate}
+                        placeholder="{{ run.pipeline }} run {{ run.status }}"
                         mono
+                        hint={SUBJECT_HINT}
                     />
+
+                    <div className="space-y-2">
+                        <Label>Body</Label>
+                        <p className="text-xs text-faint">{BODY_HINT}</p>
+                        <WindowedPane
+                            name={BODY_LABEL}
+                            className="overflow-hidden rounded-md border border-border"
+                            aside={<ProgramReference mediaType={TEMPLATE_MEDIA_TYPE} />}
+                            windowed={
+                                <CodePane
+                                    value={body}
+                                    mediaType={TEMPLATE_MEDIA_TYPE}
+                                    path={BODY_PATH}
+                                    label={`${BODY_LABEL}, in a window`}
+                                    className="min-h-0 flex-1"
+                                    onChange={setBody}
+                                />
+                            }
+                        >
+                            <CodePane
+                                value={body}
+                                mediaType={TEMPLATE_MEDIA_TYPE}
+                                path={BODY_PATH}
+                                label={BODY_LABEL}
+                                placeholder="{{ run.pipeline }} ended {{ run.status }}: {{ run.url }}"
+                                className="h-40 min-h-32"
+                                onChange={setBody}
+                            />
+                        </WindowedPane>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <Field
+                            id="rule-throttle"
+                            label="Throttle"
+                            value={throttle}
+                            onChange={setThrottle}
+                            placeholder="15m"
+                            mono
+                        />
+                    </div>
                 </div>
 
                 {problem !== null && <Refusal problem={problem} />}
@@ -229,12 +284,6 @@ export function NewRule({
             </DialogContent>
         </Dialog>
     )
-}
-
-/** A box left empty is a field nobody set, which is null on the wire rather than "". */
-function given(typed: string): string | null {
-    const trimmed = typed.trim()
-    return trimmed === '' ? null : trimmed
 }
 
 /** The pipelines a scoped rule may watch, read once when the dialog opens. */

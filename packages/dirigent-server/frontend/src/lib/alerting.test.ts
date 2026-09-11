@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vitest'
 
 import {
     channelsOf,
@@ -7,7 +7,9 @@ import {
     notificationsPath,
     ruleLive,
     scopeNote,
+    setRulePaused,
     throttleNote,
+    updateRule,
     type AlertRuleOut,
 } from '@/lib/alerting'
 import type { ConnectionOut } from '@/lib/connections'
@@ -182,5 +184,43 @@ describe('the channels an alert can leave by', () => {
             ],
         )
         expect(channelView(channel)).toMatchObject({ tone: 'good', label: 'checked' })
+    })
+})
+
+describe('what a patch of a rule sends', () => {
+    afterEach(() => {
+        vi.unstubAllGlobals()
+    })
+
+    /** Stub `fetch`, answering the configuration document and then the patched rule. */
+    function stubFetch(): { url: string; init: RequestInit }[] {
+        const calls: { url: string; init: RequestInit }[] = []
+        vi.stubGlobal('fetch', (url: string, init: RequestInit = {}) => {
+            calls.push({ url, init })
+            const body = url === '/config.json' ? { api_prefix: '/api/v1', version: '0.13.0' } : aRule()
+            return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) } as Response)
+        })
+        return calls
+    }
+
+    test('only what changed rides on the patch, and the rule is addressed by its code', async () => {
+        const calls = stubFetch()
+        await updateRule('page ops', { body: 'Run {{ run.status }}' })
+        const patch = calls[calls.length - 1]
+        expect(patch.url).toBe('/api/v1/alert-rules/page%20ops')
+        expect(patch.init.method).toBe('PATCH')
+        expect(patch.init.body).toBe(JSON.stringify({ body: 'Run {{ run.status }}' }))
+    })
+
+    test('a template taken off the rule is sent as null rather than left out', async () => {
+        const calls = stubFetch()
+        await updateRule('page-ops', { template: null, body: null })
+        expect(calls[calls.length - 1].init.body).toBe(JSON.stringify({ template: null, body: null }))
+    })
+
+    test('pausing is the same patch, carrying nothing the rule says', async () => {
+        const calls = stubFetch()
+        await setRulePaused('page-ops', true)
+        expect(calls[calls.length - 1].init.body).toBe(JSON.stringify({ paused: true }))
     })
 })

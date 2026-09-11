@@ -3,12 +3,18 @@ import { Link } from 'react-router'
 
 import { Description } from '@/components/Description'
 import { Instant } from '@/components/Instant'
+import { CodePane } from '@/components/pipeline/CodePane'
+import { ProgramReference } from '@/components/pipeline/ProgramReference'
 import { Refusable } from '@/components/Refusable'
-import { sayRefusal } from '@/components/Refusal'
+import { Refusal, sayRefusal } from '@/components/Refusal'
 import { StatusChip } from '@/components/run/StatusChip'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { WindowedPane } from '@/components/WindowedPane'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { usePaged } from '@/hooks/use-paged'
+import { BODY_HINT, given, SUBJECT_HINT, TEMPLATE_MEDIA_TYPE } from '@/lib/alert-form'
 import {
     deleteRule,
     eventLabel,
@@ -18,10 +24,14 @@ import {
     scopeNote,
     setRulePaused,
     throttleNote,
+    updateRule,
     type AlertRuleOut,
+    type AlertRuleUpdate,
     type NotificationOut,
 } from '@/lib/alerting'
+import type { Problem } from '@/lib/api'
 import { headingOf, type Addressable } from '@/lib/identity'
+import { refusalOf } from '@/lib/refusal'
 
 /**
  * One rule beside the listing: what it says, what it has said lately, and what may be done to it.
@@ -49,6 +59,11 @@ export function RulePanel({
     onTest: () => void
 }) {
     const [busy, setBusy] = useState(false)
+    // Which rule the form is open on rather than whether it is: this panel is one component
+    // the listing re-renders with whichever rule is chosen, so a form left open would other-
+    // wise open on the next rule with the last one's text in it.
+    const [editingCode, setEditingCode] = useState<string | null>(null)
+    const editing = editingCode === rule.code
     const write = useMayWrite()
 
     const read = useCallback((after: string | null) => readNotifications(NO_FILTERS, after), [])
@@ -88,10 +103,50 @@ export function RulePanel({
                     <Channel notifier={rule.notifier} connection={rule.connection} />
                 </Fact>
                 <Fact label="Throttle">{throttleNote(rule.throttle)}</Fact>
-                {rule.template !== null && (
-                    <Fact label="Subject">
-                        <span className="font-mono text-xs break-all">{rule.template}</span>
-                    </Fact>
+                {editing ? (
+                    <RuleText
+                        key={rule.code}
+                        rule={rule}
+                        onDone={() => {
+                            setEditingCode(null)
+                        }}
+                        onSaved={(saved) => {
+                            onChanged(saved)
+                            setEditingCode(null)
+                        }}
+                    />
+                ) : (
+                    <>
+                        <Fact label="Subject">
+                            <span className="flex flex-wrap items-baseline gap-2">
+                                {rule.template === null ? (
+                                    <span className="text-muted-foreground">none</span>
+                                ) : (
+                                    <span className="font-mono text-xs break-all">{rule.template}</span>
+                                )}
+                                <Refusable why={write.why}>
+                                    <Button
+                                        variant="ghost"
+                                        size="xs"
+                                        disabled={!write.may}
+                                        title={write.why}
+                                        onClick={() => {
+                                            setEditingCode(rule.code)
+                                        }}
+                                    >
+                                        Edit
+                                    </Button>
+                                </Refusable>
+                            </span>
+                        </Fact>
+                        {rule.body !== null && (
+                            <Fact label="Body">
+                                <span className="line-clamp-3 font-mono text-xs break-words whitespace-pre-wrap">
+                                    {rule.body}
+                                </span>
+                            </Fact>
+                        )}
+                    </>
                 )}
                 <Fact label="Last sent">
                     {rule.last_sent_at === null ? (
@@ -152,6 +207,115 @@ export function RulePanel({
                         </li>
                     ))}
                 </ul>
+            </div>
+        </div>
+    )
+}
+
+/**
+ * A rule's subject and body, edited where they are read.
+ *
+ * IT EXPANDS UNDER THE FACTS RATHER THAN OPENING A DIALOG over the panel that is already about
+ * this rule. The refusal is `Refusal` beside the two controls, because a template the server
+ * cannot compile is refused by field and by line and that sentence belongs next to the field it
+ * names; nothing closes on one.
+ *
+ * A PATCH CARRIES WHAT CHANGED. The wire leaves out what it is not sent, so a subject nobody
+ * touched is not resent with the body -- and a form saved with neither changed asks nothing.
+ */
+function RuleText({
+    rule,
+    onDone,
+    onSaved,
+}: {
+    rule: AlertRuleOut
+    onDone: () => void
+    onSaved: (rule: AlertRuleOut) => void
+}) {
+    const [template, setTemplate] = useState(rule.template ?? '')
+    const [body, setBody] = useState(rule.body ?? '')
+    const [problem, setProblem] = useState<Problem | null>(null)
+    const [busy, setBusy] = useState(false)
+
+    const path = `alert-rule/${rule.code}/body`
+    const subjectId = `rule-${rule.code}-subject`
+
+    const save = () => {
+        const patch: AlertRuleUpdate = {}
+        if (given(template) !== rule.template) patch.template = given(template)
+        if (given(body) !== rule.body) patch.body = given(body)
+        if (Object.keys(patch).length === 0) {
+            onDone()
+            return
+        }
+        setBusy(true)
+        setProblem(null)
+        void updateRule(rule.code, patch)
+            .then(onSaved, (error: unknown) => {
+                setProblem(refusalOf(error))
+            })
+            .finally(() => {
+                setBusy(false)
+            })
+    }
+
+    return (
+        <div className="space-y-3 rounded-lg border border-border bg-secondary/30 p-3">
+            <div className="space-y-2">
+                <Label htmlFor={subjectId}>Subject</Label>
+                <Input
+                    id={subjectId}
+                    className="font-mono"
+                    spellCheck={false}
+                    autoComplete="off"
+                    value={template}
+                    placeholder="{{ run.pipeline }} run {{ run.status }}"
+                    onChange={(event) => {
+                        setTemplate(event.target.value)
+                    }}
+                />
+                <p className="text-xs text-faint">{SUBJECT_HINT}</p>
+            </div>
+
+            <div className="space-y-2">
+                <Label>Body</Label>
+                <p className="text-xs text-faint">{BODY_HINT}</p>
+                <WindowedPane
+                    name="body"
+                    className="overflow-hidden rounded-md border border-border bg-background"
+                    aside={<ProgramReference mediaType={TEMPLATE_MEDIA_TYPE} />}
+                    windowed={
+                        <CodePane
+                            value={body}
+                            mediaType={TEMPLATE_MEDIA_TYPE}
+                            path={path}
+                            label="body, in a window"
+                            className="min-h-0 flex-1"
+                            onChange={setBody}
+                        />
+                    }
+                >
+                    <CodePane
+                        value={body}
+                        mediaType={TEMPLATE_MEDIA_TYPE}
+                        path={path}
+                        label="body"
+                        placeholder="{{ run.pipeline }} ended {{ run.status }}: {{ run.url }}"
+                        className="h-40 min-h-32"
+                        onChange={setBody}
+                    />
+                </WindowedPane>
+            </div>
+
+            {problem !== null && <Refusal problem={problem} />}
+
+            <div className="flex justify-end gap-2">
+                <Button variant="ghost" size="sm" onClick={onDone}>
+                    Cancel
+                </Button>
+                <Button size="sm" disabled={busy} onClick={save}>
+                    {busy ? 'Saving' : 'Save'}
+                </Button>
             </div>
         </div>
     )

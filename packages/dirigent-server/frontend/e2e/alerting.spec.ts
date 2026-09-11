@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 
-import { apiPrefix, signIn } from './support.ts'
+import { apiPrefix, signIn, writeInEditor } from './support.ts'
 
 /**
  * The alerting screen: the channels, the rules, and the queue.
@@ -76,6 +76,49 @@ test('a rule is declared from the screen, and appears in the listing it was decl
     await expect(row).toContainText('every pipeline')
     await expect(row).toContainText('15m')
     await expect(row).toContainText('active')
+})
+
+test("a rule's body is written in the dialog and edited in its panel", async ({ page }) => {
+    await page.getByRole('button', { name: 'New rule' }).click()
+    const dialog = page.getByRole('dialog')
+
+    await dialog.getByLabel('Code').fill(RULE.code)
+    await dialog.getByLabel('Name').fill(RULE.name)
+    await dialog.getByLabel('Notifier').click()
+    await page.getByRole('option', { name: 'log', exact: true }).click()
+    await dialog.getByLabel('Subject').fill('{{ run.pipeline }} failed')
+
+    // The body is a Jinja pane rather than a box: it is written on the lines it was written on,
+    // and the window beside it carries the reference for what a template may read.
+    const pane = dialog.getByTestId('code-editor').first()
+    await writeInEditor(page, pane, 'The run of {{ run.pipeline }} ended {{ run.status }}.')
+    await dialog.getByLabel('Open body in a window').click()
+    const window = page.getByRole('dialog').filter({ hasText: 'Jinja reference' })
+    await expect(window).toBeVisible()
+    await page.keyboard.press('Escape')
+
+    await dialog.getByRole('button', { name: 'Create' }).click()
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+
+    // The panel says what the rule sends, subject and body both.
+    await ruleRow(page).getByText(RULE.name, { exact: true }).click()
+    const panel = page.getByRole('tabpanel')
+    await expect(panel).toContainText('{{ run.pipeline }} failed')
+    await expect(panel).toContainText('The run of {{ run.pipeline }} ended {{ run.status }}.')
+
+    // Editing happens under the facts it is about rather than in a second dialog.
+    await panel.getByRole('button', { name: 'Edit' }).click()
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    await writeInEditor(page, panel.getByTestId('code-editor').first(), 'Rewritten for {{ run.status }}.')
+    await panel.getByRole('button', { name: 'Save' }).click()
+
+    await expect(panel).toContainText('Rewritten for {{ run.status }}.')
+    await expect(panel.getByRole('button', { name: 'Edit' })).toBeVisible()
+
+    // It is the rule that changed, not the screen: a re-read finds the body as it was saved.
+    await page.reload()
+    await ruleRow(page).getByText(RULE.name, { exact: true }).click()
+    await expect(page.getByRole('tabpanel')).toContainText('Rewritten for {{ run.status }}.')
 })
 
 test('a rule is paused from its panel, and the row says so', async ({ page }) => {
