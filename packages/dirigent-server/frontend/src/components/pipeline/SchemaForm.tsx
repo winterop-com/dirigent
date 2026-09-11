@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { WindowedPane } from '@/components/WindowedPane'
+import { ProgramReference } from '@/components/pipeline/ProgramReference'
 import type { JsonMap } from '@/lib/api'
 import {
     effectiveValue,
@@ -315,6 +316,7 @@ function TextControl({
                 name={field.name}
                 className="overflow-hidden rounded-md border border-border"
                 onBlur={onTouch}
+                aside={field.kind === 'code' ? <ProgramReference mediaType={mediaType} /> : undefined}
                 windowed={
                     <CodePane
                         value={text}

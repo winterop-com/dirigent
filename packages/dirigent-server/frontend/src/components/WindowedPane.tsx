@@ -13,6 +13,10 @@ import { cn } from '@/lib/utils'
  * prose and a table in a column 360px wide -- so every pane holding one offers the window, and
  * the button is the whole of that gesture.
  *
+ * THE WINDOW IS THE VIEWPORT. A program's window is where the whole program is read, so it
+ * takes all the screen there is, less a gutter; a reference for the language sits beside the
+ * editor when the caller has one, and stacks below it on a narrow screen.
+ *
  * THE BUTTON SITS WHERE NO TEXT DOES. The bottom-right corner of a pane is where its two
  * scrollbars meet and a document's last line ends early, so the button there covers nothing a
  * reader needs; at the top right it covered the tail of a program's first line.
@@ -28,6 +32,7 @@ export function WindowedPane({
     onBlur,
     children,
     windowed,
+    aside,
 }: {
     /** What the content is called: the window's title, and what the button names. */
     name: string
@@ -38,6 +43,8 @@ export function WindowedPane({
     children: ReactNode
     /** The same buffer's pane, as the window draws it. */
     windowed: ReactNode
+    /** What sits beside the pane in the window: a reference for what is being written. */
+    aside?: ReactNode
 }) {
     const [wide, setWide] = useState(false)
     return (
@@ -57,10 +64,17 @@ export function WindowedPane({
             <Dialog open={wide} onOpenChange={setWide}>
                 <DialogContent
                     finalFocus={false}
-                    className="flex h-[85vh] w-[min(64rem,90vw)] max-w-[min(64rem,90vw)] flex-col gap-3 sm:max-w-[min(64rem,90vw)]"
+                    className="flex h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-none flex-col gap-3 sm:max-w-none"
                 >
                     <DialogTitle className="font-mono text-sm">{name}</DialogTitle>
-                    {windowed}
+                    <div className="flex min-h-0 flex-1 flex-col gap-4 md:flex-row">
+                        <div className="flex min-h-0 min-w-0 flex-1 flex-col">{windowed}</div>
+                        {aside !== undefined && (
+                            <aside className="max-h-48 shrink-0 overflow-y-auto border-t border-border pt-3 md:max-h-none md:w-80 md:border-t-0 md:border-l md:pt-0 md:pl-4">
+                                {aside}
+                            </aside>
+                        )}
+                    </div>
                 </DialogContent>
             </Dialog>
         </div>
