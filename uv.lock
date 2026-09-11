@@ -14,6 +14,7 @@ members = [
     "dirigent-client",
     "dirigent-common",
     "dirigent-core",
+    "dirigent-examples",
     "dirigent-parquet",
     "dirigent-plugin",
     "dirigent-server",
@@ -973,6 +974,7 @@ dependencies = [
     { name = "dirigent-client" },
     { name = "dirigent-common" },
     { name = "dirigent-core" },
+    { name = "dirigent-examples" },
     { name = "dirigent-plugin" },
     { name = "dirigent-server" },
     { name = "httpx2" },
@@ -991,6 +993,7 @@ requires-dist = [
     { name = "dirigent-client", editable = "packages/dirigent-client" },
     { name = "dirigent-common", editable = "packages/dirigent-common" },
     { name = "dirigent-core", editable = "packages/dirigent-core" },
+    { name = "dirigent-examples", editable = "packages/dirigent-examples" },
     { name = "dirigent-plugin", editable = "packages/dirigent-plugin" },
     { name = "dirigent-server", editable = "packages/dirigent-server" },
     { name = "httpx2", specifier = ">=2.12.0" },
@@ -1090,6 +1093,17 @@ requires-dist = [
 provides-extras = ["otlp"]
 
 [[package]]
+name = "dirigent-examples"
+version = "0.14.0"
+source = { editable = "packages/dirigent-examples" }
+dependencies = [
+    { name = "dirigent-plugin" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "dirigent-plugin", editable = "packages/dirigent-plugin" }]
+
+[[package]]
 name = "dirigent-parquet"
 version = "0.14.1"
 source = { editable = "packages/dirigent-parquet" }
@@ -1133,6 +1147,7 @@ dependencies = [
     { name = "dirigent-client" },
     { name = "dirigent-common" },
     { name = "dirigent-core" },
+    { name = "dirigent-examples" },
     { name = "fastapi" },
 ]
 
@@ -1141,6 +1156,7 @@ requires-dist = [
     { name = "dirigent-client", editable = "packages/dirigent-client" },
     { name = "dirigent-common", editable = "packages/dirigent-common" },
     { name = "dirigent-core", editable = "packages/dirigent-core" },
+    { name = "dirigent-examples", editable = "packages/dirigent-examples" },
     { name = "fastapi", specifier = ">=0.141.1" },
 ]
 

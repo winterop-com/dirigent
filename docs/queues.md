@@ -247,7 +247,7 @@ make test-queues    # the `queues` pytest marker: every block here against both 
 make queues-down
 ```
 
-The [`examples/queues/`](https://github.com/winterop-com/dirigent/tree/main/examples/queues)
+The [`examples/queues/`](https://github.com/winterop-com/dirigent/tree/main/packages/dirigent-examples/src/dirigent_examples/shelves/queues)
 shelf is written against that stack, and each document's header says what to put on the topic
 or the queue first.
 

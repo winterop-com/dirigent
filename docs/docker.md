@@ -118,7 +118,7 @@ leaves, on success, on failure and on cancellation.
 was told to create it, so a `docker.compose.up` on one daemon and a `docker.compose.down` on
 another tear down nothing. The `up`, the `docker.run` that drives it and the `down` all carry
 the same `connection:`, and
-[`examples/docker/docker-remote-daemon.yaml`](https://github.com/winterop-com/dirigent/blob/main/examples/docker/docker-remote-daemon.yaml)
+[`examples/docker/docker-remote-daemon.yaml`](https://github.com/winterop-com/dirigent/blob/main/packages/dirigent-examples/src/dirigent_examples/shelves/docker/docker-remote-daemon.yaml)
 is that document.
 
 A connection names the daemon; it does not name the worker. A compose file and a build context
@@ -202,7 +202,7 @@ steps:
 ```
 
 The full example is
-[`examples/docker/docker-compose-stack.yaml`](https://github.com/winterop-com/dirigent/blob/main/examples/docker/docker-compose-stack.yaml).
+[`examples/docker/docker-compose-stack.yaml`](https://github.com/winterop-com/dirigent/blob/main/packages/dirigent-examples/src/dirigent_examples/shelves/docker/docker-compose-stack.yaml).
 
 ## Building an image
 
@@ -237,7 +237,7 @@ and `digests`, the digest the registry gave each of them where the CLI reported 
 be moved and a digest cannot, so the digest is the only exact name for what was pushed. The
 password is scrubbed out of every log line and every failure message.
 
-[`examples/docker/docker-build-push.yaml`](https://github.com/winterop-com/dirigent/blob/main/examples/docker/docker-build-push.yaml)
+[`examples/docker/docker-build-push.yaml`](https://github.com/winterop-com/dirigent/blob/main/packages/dirigent-examples/src/dirigent_examples/shelves/docker/docker-build-push.yaml)
 is the worked document.
 
 ## The orphan reaper

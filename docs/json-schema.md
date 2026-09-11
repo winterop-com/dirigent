@@ -313,7 +313,7 @@ Draft 2020-12 is the full language; the working set, by what a keyword is doing:
 | Reuse | `$defs`, `$ref` (a JSON Pointer, `#/$defs/name`) |
 | Identity | `$id` (-> code), `title` (-> name), `description` (-> body), `$schema`, `$comment` |
 
-[`examples/schemas/`](https://github.com/winterop-com/dirigent/tree/main/examples/schemas) and
-[`examples/validate/`](https://github.com/winterop-com/dirigent/tree/main/examples/validate) are
+[`examples/schemas/`](https://github.com/winterop-com/dirigent/tree/main/packages/dirigent-examples/src/dirigent_examples/shelves/schemas) and
+[`examples/validate/`](https://github.com/winterop-com/dirigent/tree/main/packages/dirigent-examples/src/dirigent_examples/shelves/validate) are
 this language exercised end to end: a schema applied with `dg schema create` and no pipeline in
 sight, a document that carries the same shape itself, and a payload refused at the gate.

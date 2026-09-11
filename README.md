@@ -187,10 +187,12 @@ clock is two lines: set `DIRIGENT_SCHEDULER_ENABLED=false` and add a service who
 
 ## Examples
 
-[`examples/`](examples) holds one runnable document per concept -- a linear chain, a diamond,
-fan-out, a sensor gate, retry policy, an error-handler branch, triggers, a scheduled pipeline
-with a webhook, the `requires` preflight, and a rich parameter schema. The HTTP ones call a
-public echo service, so every one of them runs for real:
+[The corpus](packages/dirigent-examples/src/dirigent_examples/shelves) holds one runnable
+document per concept -- a linear chain, a diamond, fan-out, a sensor gate, retry policy, an
+error-handler branch, triggers, a scheduled pipeline with a webhook, the `requires` preflight,
+and a rich parameter schema. It ships as `dirigent-examples`, which `dg` and an instance both
+install, and the root `examples/` is a symlink to it, so the paths below read from a checkout.
+The HTTP ones call a public echo service, so every one of them runs for real:
 
 ```bash
 dg run --local examples/graph/linear.yaml -p day=2026-01-01 --enable-unsafe shell.run
@@ -214,12 +216,13 @@ dirigent/
     dirigent-client/       # the API contract: wire schemas, and the async Python SDK
     dirigent-core/         # engine, schema, document format, plugin host, storage, auth
     dirigent-blocks/       # built-in generic operators and sensors
+    dirigent-examples/     # the example corpus, contributed through the examples() hook
     dirigent-server/       # FastAPI app, authentication, the REST surface, and frontend/
     dirigent-cli/          # `dirigent` and the short alias `dg`
     dirigent-storage-s3/   # the s3:// storage backend, registering its own scheme
     dirigent-parquet/      # the parquet format pack: the convert.arrow codec
     dirigent-testing/      # test doubles and pytest fixtures for writing blocks
-  examples/                # one runnable dirigent/v1 document per concept, plus python/ scripts
+  examples/                # a symlink to dirigent-examples' shelves, so `dg run --local examples/...` reads
   docs/                    # mkdocs-material site; design.md is the in-repo spec
   infra/                   # compose files and the one image the three process roles share
 ```

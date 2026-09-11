@@ -7,6 +7,7 @@ dirigent-plugin = { workspace = true }
 dirigent-client = { workspace = true }
 dirigent-core = { workspace = true }
 dirigent-blocks = { workspace = true }
+dirigent-examples = { workspace = true }
 dirigent-server = { workspace = true }
 dirigent-cli = { workspace = true }
 dirigent-parquet = { workspace = true }
@@ -71,6 +72,7 @@ mypy_path = [
     "packages/dirigent-client/src",
     "packages/dirigent-core/src",
     "packages/dirigent-blocks/src",
+    "packages/dirigent-examples/src",
     "packages/dirigent-server/src",
     "packages/dirigent-cli/src",
     "packages/dirigent-parquet/src",
@@ -87,13 +89,20 @@ ignore_missing_imports = true
 pythonVersion = "3.13"
 typeCheckingMode = "strict"
 include = ["packages"]
-exclude = ["**/__pycache__", "**/.venv", "**/alembic/versions"]
+# The shelves are the example corpus, which is data the package carries rather than source.
+exclude = [
+    "**/__pycache__",
+    "**/.venv",
+    "**/alembic/versions",
+    "packages/dirigent-examples/src/dirigent_examples/shelves",
+]
 extraPaths = [
     "packages/dirigent-common/src",
     "packages/dirigent-plugin/src",
     "packages/dirigent-client/src",
     "packages/dirigent-core/src",
     "packages/dirigent-blocks/src",
+    "packages/dirigent-examples/src",
     "packages/dirigent-server/src",
     "packages/dirigent-cli/src",
     "packages/dirigent-parquet/src",

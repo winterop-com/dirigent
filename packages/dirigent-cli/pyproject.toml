@@ -11,6 +11,7 @@ dependencies = [
     "dirigent-client",
     "dirigent-common",
     "dirigent-core",
+    "dirigent-examples",
     "dirigent-plugin",
     "dirigent-server",
     "httpx2>=2.12.0",
@@ -35,5 +36,6 @@ build-backend = "uv_build"
 dirigent-blocks = { workspace = true }
 dirigent-client = { workspace = true }
 dirigent-core = { workspace = true }
+dirigent-examples = { workspace = true }
 dirigent-plugin = { workspace = true }
 dirigent-server = { workspace = true }
