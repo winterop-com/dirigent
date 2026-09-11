@@ -152,7 +152,10 @@ export function rankDepth(shape: LayoutShape): number {
         if (held !== undefined) return held
         if (path.has(id)) return 1
         const onward = new Set([...path, id])
-        const deepest = (after.get(id) ?? []).reduce((most, next) => Math.max(most, depthFrom(next, onward)), 0)
+        const deepest = (after.get(id) ?? []).reduce(
+            (most, next) => Math.max(most, depthFrom(next, onward)),
+            0,
+        )
         const depth = deepest + 1
         depths.set(id, depth)
         return depth
@@ -323,7 +326,9 @@ export function steppedZoom(zoom: number, direction: 'in' | 'out'): number {
  * NOT THE STATE ON THEM. A step going from running to succeeded moves nothing, so the view it
  * is read in must not jump; adding a step to a document moves everything, so it must.
  */
-export function viewportSignature(nodes: readonly { id: string; position?: { x: number; y: number } }[]): string {
+export function viewportSignature(
+    nodes: readonly { id: string; position?: { x: number; y: number } }[],
+): string {
     return nodes
         .map((node) => `${node.id}@${String(node.position?.x ?? 0)},${String(node.position?.y ?? 0)}`)
         .join('|')

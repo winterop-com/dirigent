@@ -36,7 +36,7 @@ export function RefreshControl({ onRefresh }: { onRefresh: () => void }) {
                             variant="outline"
                             size="sm"
                             aria-label={CADENCE_LABEL}
-                            className="text-muted-foreground rounded-l-none px-2 font-mono text-xs"
+                            className="rounded-l-none px-2 font-mono text-xs text-muted-foreground"
                         >
                             {refreshLabel(seconds)}
                             <ChevronDown aria-hidden />

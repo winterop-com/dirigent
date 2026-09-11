@@ -68,7 +68,10 @@ export function identityLine(status: Pick<ServerStatus, 'name' | 'environment'>)
 }
 
 /** What one readiness body means, independent of who fetched it. */
-export function statusOf(body: { status?: string; checks?: Record<string, { status: string; detail?: string | null }> }): {
+export function statusOf(body: {
+    status?: string
+    checks?: Record<string, { status: string; detail?: string | null }>
+}): {
     state: ServerState
     checks: CheckView[]
 } {
@@ -76,7 +79,9 @@ export function statusOf(body: { status?: string; checks?: Record<string, { stat
         .map(([name, check]) => ({ name, status: check.status, detail: check.detail ?? null }))
         .toSorted((a, b) => a.name.localeCompare(b.name))
     const state: ServerState =
-        body.status === 'healthy' || body.status === 'degraded' || body.status === 'unhealthy' ? body.status : 'unknown'
+        body.status === 'healthy' || body.status === 'degraded' || body.status === 'unhealthy'
+            ? body.status
+            : 'unknown'
     return { state, checks }
 }
 

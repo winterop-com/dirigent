@@ -1,11 +1,6 @@
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 
-import {
-    PANE_BIG_STEP,
-    PANE_STEP,
-    clampPaneWidth,
-    paneBounds,
-} from '@/components/login/pane-width'
+import { PANE_BIG_STEP, PANE_STEP, clampPaneWidth, paneBounds } from '@/components/login/pane-width'
 
 /** What the separator says it is, for a reader who reaches it by key rather than by pointer. */
 export const SEAM_LABEL = 'Resize the brand pane'
@@ -115,8 +110,10 @@ export function SeamHandle({
             onKeyDown={onKeyDown}
         >
             <div
-                className={`bg-terminal-node-edge mx-auto h-full w-px ${
-                    dragging ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100'
+                className={`mx-auto h-full w-px bg-terminal-node-edge ${
+                    dragging
+                        ? 'opacity-100'
+                        : 'opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100'
                 }`}
             />
         </div>

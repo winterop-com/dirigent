@@ -51,7 +51,13 @@ const SEARCH_LABEL = 'Search blocks by id, summary or kind'
  * Enter or Space like every other menu in the app, and the popup is anchored to it rather than
  * to a point -- which is what keeps the menu inside the viewport with no arithmetic here.
  */
-export function AddStepButton({ blocks, onChoose }: { blocks: BlockEntry[]; onChoose: (block: string) => void }) {
+export function AddStepButton({
+    blocks,
+    onChoose,
+}: {
+    blocks: BlockEntry[]
+    onChoose: (block: string) => void
+}) {
     const [open, setOpen] = useState(false)
 
     return (
@@ -183,8 +189,8 @@ function AddStepMenuContent({
 
     return (
         <DropdownMenuContent className="w-80 p-0" align="start">
-            <div className="bg-popover sticky top-0 z-10 flex flex-col gap-1.5 p-2">
-                <p className="text-faint text-xs font-semibold tracking-wide uppercase">
+            <div className="sticky top-0 z-10 flex flex-col gap-1.5 bg-popover p-2">
+                <p className="text-xs font-semibold tracking-wide text-faint uppercase">
                     {after === null ? ADD_STEP_LABEL : `${ADD_STEP_LABEL} after ${after}`}
                 </p>
                 <Input
@@ -217,7 +223,9 @@ function AddStepMenuContent({
                                 <DropdownMenuSubContent className="w-72">
                                     {shelf.blocks.map((entry) => (
                                         <BlockRow key={entry.id} entry={entry} onChoose={choose}>
-                                            <span className="font-mono text-sm font-semibold">{entry.id}</span>
+                                            <span className="font-mono text-sm font-semibold">
+                                                {entry.id}
+                                            </span>
                                         </BlockRow>
                                     ))}
                                 </DropdownMenuSubContent>
@@ -241,7 +249,7 @@ function Results({
     onChoose: (block: string) => void
 }) {
     if (found.length === 0) {
-        return <p className="text-muted-foreground px-1.5 py-2 text-sm">No block matches that.</p>
+        return <p className="px-1.5 py-2 text-sm text-muted-foreground">No block matches that.</p>
     }
     return (
         <>
@@ -294,7 +302,7 @@ function BlockRow({
                 {children}
                 {entry.kind === 'sensor' && <KindChip kind={entry.kind} className="ml-auto" />}
             </span>
-            <span className="text-muted-foreground text-xs">{entry.summary}</span>
+            <span className="text-xs text-muted-foreground">{entry.summary}</span>
         </DropdownMenuItem>
     )
 }

@@ -165,7 +165,9 @@ describe('the lines the drawer draws', () => {
     })
 
     test('narrow to what a line says, without case', () => {
-        expect(visibleLines(state.logs, { ...EVERY_LINE, match: 'REFUSED' }, NO_ITEMS).map((line) => line.id)).toEqual([4])
+        expect(
+            visibleLines(state.logs, { ...EVERY_LINE, match: 'REFUSED' }, NO_ITEMS).map((line) => line.id),
+        ).toEqual([4])
     })
 
     test('match a step name and a field as well as a message', () => {
@@ -173,8 +175,12 @@ describe('the lines the drawer draws', () => {
             entry({ id: 20, step_name: 'archive', message: 'copied', fields: { uri: 'file:///cold.json' } }),
             entry({ id: 21, step_name: 'report', message: 'done', fields: null }),
         ])
-        expect(visibleLines(held.logs, { ...EVERY_LINE, match: 'cold.json' }, NO_ITEMS).map((line) => line.id)).toEqual([20])
-        expect(visibleLines(held.logs, { ...EVERY_LINE, match: 'archive' }, NO_ITEMS).map((line) => line.id)).toEqual([20])
+        expect(
+            visibleLines(held.logs, { ...EVERY_LINE, match: 'cold.json' }, NO_ITEMS).map((line) => line.id),
+        ).toEqual([20])
+        expect(
+            visibleLines(held.logs, { ...EVERY_LINE, match: 'archive' }, NO_ITEMS).map((line) => line.id),
+        ).toEqual([20])
     })
 
     test('match the item label the pane draws on the line', () => {
@@ -188,7 +194,9 @@ describe('the lines the drawer draws', () => {
             ['a-north', 'north'],
             ['a-south', 'south'],
         ])
-        expect(visibleLines(held.logs, { ...EVERY_LINE, match: 'north' }, labels).map((line) => line.id)).toEqual([30])
+        expect(
+            visibleLines(held.logs, { ...EVERY_LINE, match: 'north' }, labels).map((line) => line.id),
+        ).toEqual([30])
         expect(visibleLines(held.logs, { ...EVERY_LINE, match: 'north' }, NO_ITEMS)).toEqual([])
     })
 
@@ -204,7 +212,11 @@ describe('the lines the drawer draws', () => {
     })
 
     test('ignore the whitespace somebody typed either side of a match', () => {
-        expect(visibleLines(state.logs, { ...EVERY_LINE, match: '  retrying  ' }, NO_ITEMS).map((line) => line.id)).toEqual([3])
+        expect(
+            visibleLines(state.logs, { ...EVERY_LINE, match: '  retrying  ' }, NO_ITEMS).map(
+                (line) => line.id,
+            ),
+        ).toEqual([3])
     })
 })
 
@@ -295,7 +307,11 @@ describe("a line's step prefix", () => {
 
 describe('the step select', () => {
     test('offers every step of the run graph, in the order it was laid out', () => {
-        expect(stepChoices(withLines([], ['parse', 'active', 'report']))).toEqual(['parse', 'active', 'report'])
+        expect(stepChoices(withLines([], ['parse', 'active', 'report']))).toEqual([
+            'parse',
+            'active',
+            'report',
+        ])
     })
 
     test('offers a step that has written nothing, because somebody may be looking for it', () => {
@@ -311,7 +327,9 @@ describe("a line's fields", () => {
     })
 
     test('read as key=value, a string unquoted and everything else as JSON', () => {
-        expect(fieldsText({ uri: 'file:///a.json', bytes: 12, ok: true })).toBe('uri=file:///a.json bytes=12 ok=true')
+        expect(fieldsText({ uri: 'file:///a.json', bytes: 12, ok: true })).toBe(
+            'uri=file:///a.json bytes=12 ok=true',
+        )
     })
 })
 
@@ -361,7 +379,7 @@ describe("the drawer's height", () => {
 })
 
 describe('the line the console ends on', () => {
-    test('states the outcome in the run\'s own word', () => {
+    test("states the outcome in the run's own word", () => {
         expect(endNote('succeeded')).toBe('run succeeded')
         expect(endNote('failed')).toBe('run failed')
         expect(endNote('completed_with_errors')).toBe('run completed with errors')

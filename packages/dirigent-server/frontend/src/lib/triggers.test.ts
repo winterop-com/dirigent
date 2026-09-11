@@ -101,7 +101,10 @@ describe('the moment a one-time schedule names', () => {
     const ONCE = { ...SCHEDULE, kind: 'one_time' as const, cron: null, at: '2026-06-01T09:00:00Z' }
 
     test('is the instant, unfired, while nothing has fired it', () => {
-        expect(oneTimeView({ ...ONCE, last_fired_at: null })).toEqual({ at: '2026-06-01T09:00:00Z', fired: false })
+        expect(oneTimeView({ ...ONCE, last_fired_at: null })).toEqual({
+            at: '2026-06-01T09:00:00Z',
+            fired: false,
+        })
     })
 
     test('says it fired once it has, which is what the row states instead of a stale future', () => {
@@ -202,9 +205,9 @@ describe('what one delivery came to', () => {
     })
 
     test('a delivery the concurrency policy dropped is quiet', () => {
-        expect(deliveryView(delivery({ outcome: 'skipped', reason: 'one run is already in flight' })).tone).toBe(
-            'quiet',
-        )
+        expect(
+            deliveryView(delivery({ outcome: 'skipped', reason: 'one run is already in flight' })).tone,
+        ).toBe('quiet')
     })
 })
 

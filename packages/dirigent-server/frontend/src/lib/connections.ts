@@ -209,7 +209,9 @@ export interface HealthView {
 }
 
 /** What the health cell draws, from the three fields the row carries about its last check. */
-export function healthOf(row: Pick<ConnectionOut, 'last_check_at' | 'last_check_healthy' | 'last_check_detail'>): HealthView {
+export function healthOf(
+    row: Pick<ConnectionOut, 'last_check_at' | 'last_check_healthy' | 'last_check_detail'>,
+): HealthView {
     if (row.last_check_at === null || row.last_check_healthy === null) {
         return { state: 'unchecked', tone: null, label: 'never checked', detail: null, checkedAt: null }
     }

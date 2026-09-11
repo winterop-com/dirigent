@@ -127,39 +127,42 @@ function Users() {
 
     useEffect(() => {
         if (chosen === null) return
-        return fillPanel([
-            {
-                id: 'account',
-                label: 'Account',
-                render: () => (
-                    <AccountPanel
-                        user={chosen}
-                        draft={draft}
-                        busy={busy}
-                        refusal={refusal}
-                        onDraft={setDraft}
-                        onSave={() => {
-                            change(
-                                updateUser(chosen.username, {
-                                    name: draft.name.trim() === '' ? null : draft.name.trim(),
-                                    email: draft.email.trim() === '' ? null : draft.email.trim(),
-                                    role: draft.role,
-                                }),
-                            )
-                        }}
-                        onActive={(active) => {
-                            change(setUserActive(chosen.username, active))
-                        }}
-                        onResetPassword={() => {
-                            setResetting(chosen.username)
-                        }}
-                        onMintToken={() => {
-                            setMintingFor(chosen.username)
-                        }}
-                    />
-                ),
-            },
-        ], { screen: 'users' })
+        return fillPanel(
+            [
+                {
+                    id: 'account',
+                    label: 'Account',
+                    render: () => (
+                        <AccountPanel
+                            user={chosen}
+                            draft={draft}
+                            busy={busy}
+                            refusal={refusal}
+                            onDraft={setDraft}
+                            onSave={() => {
+                                change(
+                                    updateUser(chosen.username, {
+                                        name: draft.name.trim() === '' ? null : draft.name.trim(),
+                                        email: draft.email.trim() === '' ? null : draft.email.trim(),
+                                        role: draft.role,
+                                    }),
+                                )
+                            }}
+                            onActive={(active) => {
+                                change(setUserActive(chosen.username, active))
+                            }}
+                            onResetPassword={() => {
+                                setResetting(chosen.username)
+                            }}
+                            onMintToken={() => {
+                                setMintingFor(chosen.username)
+                            }}
+                        />
+                    ),
+                },
+            ],
+            { screen: 'users' },
+        )
     }, [busy, change, chosen, draft, refusal])
 
     useEffect(() => {
@@ -265,7 +268,7 @@ function Users() {
                 <div className="flex items-center justify-between gap-4">
                     <div className="space-y-1">
                         <h2 className="text-sm font-semibold">Tokens</h2>
-                        <p className="text-muted-foreground text-sm">A session is never listed here.</p>
+                        <p className="text-sm text-muted-foreground">A session is never listed here.</p>
                     </div>
                     <Button
                         variant="outline"
@@ -335,7 +338,7 @@ function userColumns(choose: (user: UserOut) => void): Column<UserOut>[] {
             cell: (user) => (
                 <button
                     type="button"
-                    className="hover:text-primary text-left text-sm font-medium underline-offset-4 hover:underline"
+                    className="text-left text-sm font-medium underline-offset-4 hover:text-primary hover:underline"
                     onClick={() => {
                         choose(user)
                     }}
@@ -359,9 +362,9 @@ function userColumns(choose: (user: UserOut) => void): Column<UserOut>[] {
             header: 'Active',
             cell: (user) =>
                 user.active ? (
-                    <span className="text-good text-xs">active</span>
+                    <span className="text-xs text-good">active</span>
                 ) : (
-                    <span className="text-muted-foreground text-xs">deactivated</span>
+                    <span className="text-xs text-muted-foreground">deactivated</span>
                 ),
         },
         {
@@ -445,7 +448,7 @@ function tokenRows(revoke: (token: TokenOut) => void): Column<TokenOut>[] {
                         Revoke
                     </Button>
                 ) : (
-                    <span className="text-muted-foreground text-xs" title={formatInstant(token.revoked_at)}>
+                    <span className="text-xs text-muted-foreground" title={formatInstant(token.revoked_at)}>
                         revoked
                     </span>
                 ),
@@ -489,24 +492,26 @@ function AccountPanel({
     onMintToken: () => void
 }) {
     const changed =
-        (user.name ?? '') !== draft.name ||
-        (user.email ?? '') !== draft.email ||
-        user.role !== draft.role
+        (user.name ?? '') !== draft.name || (user.email ?? '') !== draft.email || user.role !== draft.role
     const heading = accountHeading(user)
     return (
         <div className="space-y-4 p-4">
             <div className="space-y-1">
                 <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <span className={heading.named ? 'text-sm font-semibold' : 'font-mono text-sm font-semibold'}>
+                    <span
+                        className={
+                            heading.named ? 'text-sm font-semibold' : 'font-mono text-sm font-semibold'
+                        }
+                    >
                         {heading.title}
                     </span>
                     <Badge variant="outline">{user.role}</Badge>
                     {heading.code !== null && (
-                        <span className="text-muted-foreground font-mono text-xs">{heading.code}</span>
+                        <span className="font-mono text-xs text-muted-foreground">{heading.code}</span>
                     )}
-                    {!user.active && <span className="text-muted-foreground text-xs">deactivated</span>}
+                    {!user.active && <span className="text-xs text-muted-foreground">deactivated</span>}
                 </p>
-                <p className="text-faint text-xs">
+                <p className="text-xs text-faint">
                     Created <Instant at={user.created_at} /> ·{' '}
                     {user.last_login_at === null ? (
                         'never signed in'
@@ -529,9 +534,9 @@ function AccountPanel({
                         onDraft({ ...draft, name: event.target.value })
                     }}
                 />
-                <p className="text-faint text-xs">
-                    Display only. This account signs in as {user.username}, and that is what every
-                    reference to it is by.
+                <p className="text-xs text-faint">
+                    Display only. This account signs in as {user.username}, and that is what every reference
+                    to it is by.
                 </p>
             </div>
 
@@ -546,7 +551,7 @@ function AccountPanel({
                         onDraft({ ...draft, email: event.target.value })
                     }}
                 />
-                <p className="text-faint text-xs">Unique across accounts.</p>
+                <p className="text-xs text-faint">Unique across accounts.</p>
             </div>
 
             <fieldset className="space-y-2">
@@ -556,7 +561,7 @@ function AccountPanel({
                         <input
                             type="radio"
                             name="panel-role"
-                            className="accent-primary mt-1"
+                            className="mt-1 accent-primary"
                             checked={draft.role === role}
                             onChange={() => {
                                 onDraft({ ...draft, role })
@@ -564,7 +569,7 @@ function AccountPanel({
                         />
                         <span>
                             {role}
-                            <span className="text-muted-foreground block text-xs">{ROLE_HINTS[role]}</span>
+                            <span className="block text-xs text-muted-foreground">{ROLE_HINTS[role]}</span>
                         </span>
                     </label>
                 ))}

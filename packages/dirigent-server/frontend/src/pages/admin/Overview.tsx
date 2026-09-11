@@ -80,12 +80,7 @@ function Overview() {
         workerId,
     )
 
-    const {
-        again: readDayAgain,
-        value: dayValue,
-        problem: dayProblem,
-        read: dayRead,
-    } = day
+    const { again: readDayAgain, value: dayValue, problem: dayProblem, read: dayRead } = day
     const { again: readFailedAgain } = failed
     const { again: readMessyAgain } = messy
     const { again: readConnectionsAgain } = connections
@@ -99,7 +94,14 @@ function Overview() {
         readConnectionsAgain()
         readPipelinesAgain()
         reloadWorkers()
-    }, [readConnectionsAgain, readDayAgain, readFailedAgain, readMessyAgain, readPipelinesAgain, reloadWorkers])
+    }, [
+        readConnectionsAgain,
+        readDayAgain,
+        readFailedAgain,
+        readMessyAgain,
+        readPipelinesAgain,
+        reloadWorkers,
+    ])
 
     const navigate = useNavigate()
     useHeartbeat(again, useStore(refreshSeconds))
@@ -130,7 +132,9 @@ function Overview() {
         { id: 'now', tile: dayValue === null ? null : nowTile(dayValue) },
         {
             id: 'workers',
-            tile: workers.state.read ? workersTile({ items: workers.state.rows, next: workers.state.next }) : null,
+            tile: workers.state.read
+                ? workersTile({ items: workers.state.rows, next: workers.state.next })
+                : null,
         },
         { id: 'connections', tile: connections.value === null ? null : connectionsTile(connections.value) },
         { id: 'schedules', tile: pipelines.value === null ? null : schedulesTile(pipelines.value) },
@@ -155,7 +159,11 @@ function Overview() {
 
             <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
                 {tiles.map((slot) =>
-                    slot.tile === null ? <TilePlaceholder key={slot.id} /> : <TileCard key={slot.id} tile={slot.tile} />,
+                    slot.tile === null ? (
+                        <TilePlaceholder key={slot.id} />
+                    ) : (
+                        <TileCard key={slot.id} tile={slot.tile} />
+                    ),
                 )}
             </div>
 
@@ -168,7 +176,7 @@ function Overview() {
             <section className="mb-6 space-y-2">
                 <div className="space-y-1">
                     <h2 className="text-sm font-semibold">Needs a look</h2>
-                    <p className="text-muted-foreground text-sm">
+                    <p className="text-sm text-muted-foreground">
                         Every run that failed or finished with errors, newest first.
                     </p>
                 </div>

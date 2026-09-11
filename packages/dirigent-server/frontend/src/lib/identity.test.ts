@@ -90,7 +90,9 @@ test('no type and no fixture still carries the field the rename took away', () =
 
 describe('a row says the opening', () => {
     test('the first sentence of the first paragraph, and nothing after it', () => {
-        expect(oneLine('Echo a greeting. This is the smallest document.\n\nMore prose here.')).toBe('Echo a greeting.')
+        expect(oneLine('Echo a greeting. This is the smallest document.\n\nMore prose here.')).toBe(
+            'Echo a greeting.',
+        )
     })
 
     test('list markers go with the rest of the syntax', () => {

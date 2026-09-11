@@ -106,19 +106,19 @@ export function CreateToken({
                                 setName(event.target.value)
                             }}
                         />
-                        <p className="text-muted-foreground text-xs">
+                        <p className="text-xs text-muted-foreground">
                             Lower case, digits and single hyphens. It is what the token is revoked by.
                         </p>
                     </div>
                 ) : (
-                    <div className="border-border bg-secondary/40 space-y-2 rounded-lg border p-3">
+                    <div className="space-y-2 rounded-lg border border-border bg-secondary/40 p-3">
                         <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
                             <span className="text-sm font-medium">{issued.name}</span>
-                            <span className="text-muted-foreground font-mono text-xs">{issued.username}</span>
+                            <span className="font-mono text-xs text-muted-foreground">{issued.username}</span>
                         </p>
-                        <p className="text-warning text-xs">{TOKEN_ONCE}</p>
+                        <p className="text-xs text-warning">{TOKEN_ONCE}</p>
                         <div className="flex items-center gap-2">
-                            <code className="bg-background border-border flex-1 overflow-x-auto rounded-md border p-2 font-mono text-xs break-all">
+                            <code className="flex-1 overflow-x-auto rounded-md border border-border bg-background p-2 font-mono text-xs break-all">
                                 {issued.token}
                             </code>
                             <Button

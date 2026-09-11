@@ -107,9 +107,7 @@ export function dayTile(runs: Page<RunOut>): Tile {
     const count = (status: RunStatus) => buckets[status] ?? 0
     const settled = summarise(SETTLED.map(([status, noun]) => [count(status), noun] as const))
     const note =
-        runs.items.length === 0
-            ? 'Nothing has run in the last day.'
-            : (settled ?? 'Nothing has finished.')
+        runs.items.length === 0 ? 'Nothing has run in the last day.' : (settled ?? 'Nothing has finished.')
     const tone: TileTone =
         runs.items.length === 0
             ? 'neutral'

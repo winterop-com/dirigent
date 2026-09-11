@@ -66,10 +66,7 @@ export function NewRule({
 
     const pipelines = usePipelines(open)
     const write = useMayWrite()
-    const shut = firstShut(
-        write.why,
-        unreadyRule({ code, scope, pipeline, notifier, connection, throttle }),
-    )
+    const shut = firstShut(write.why, unreadyRule({ code, scope, pipeline, notifier, connection, throttle }))
 
     const send = () => {
         setBusy(true)
@@ -121,7 +118,13 @@ export function NewRule({
                         placeholder="ops-slack-failed"
                         mono
                     />
-                    <Field id="rule-name" label="Name" value={named} onChange={setNamed} placeholder="Tell the ops channel" />
+                    <Field
+                        id="rule-name"
+                        label="Name"
+                        value={named}
+                        onChange={setNamed}
+                        placeholder="Tell the ops channel"
+                    />
                 </div>
 
                 <Field
@@ -146,7 +149,13 @@ export function NewRule({
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                     <div className="space-y-2">
                         <Label>Scope</Label>
-                        <Segmented label="Scope" size="md" value={scope} options={SCOPES} onChoose={setScope} />
+                        <Segmented
+                            label="Scope"
+                            size="md"
+                            value={scope}
+                            options={SCOPES}
+                            onChoose={setScope}
+                        />
                     </div>
                     {scope === 'pipeline' && (
                         <div className="space-y-2">
@@ -207,7 +216,7 @@ export function NewRule({
                 {problem !== null && <Refusal problem={problem} />}
 
                 <DialogFooter>
-                    <p className="text-muted-foreground mr-auto self-center text-xs">
+                    <p className="mr-auto self-center text-xs text-muted-foreground">
                         A rule fires when a run settles. Nothing is sent now.
                     </p>
                     <DialogClose render={<Button variant="ghost" />}>Close</DialogClose>

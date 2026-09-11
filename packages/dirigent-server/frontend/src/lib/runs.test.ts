@@ -39,9 +39,9 @@ describe('the runs listing path', () => {
     })
 
     test('carries only the four parameters this listing takes', () => {
-        expect(runsPath({ pipeline: 'nightly-etl', status: 'failed', since: '24h', tags: ['climate'] }, null)).toBe(
-            '/runs?limit=50&pipeline=nightly-etl&status=failed&since=24h&tag=climate',
-        )
+        expect(
+            runsPath({ pipeline: 'nightly-etl', status: 'failed', since: '24h', tags: ['climate'] }, null),
+        ).toBe('/runs?limit=50&pipeline=nightly-etl&status=failed&since=24h&tag=climate')
     })
 
     test('repeats the tag parameter, so two tags narrow the runs the way they narrow pipelines', () => {
@@ -72,7 +72,9 @@ describe('the address of the listing a number links to', () => {
     })
 
     test('carries the filters the number was counted under', () => {
-        expect(runsLink({ ...EVERY_RUN, status: 'failed', since: '24h' })).toBe('/runs?status=failed&since=24h')
+        expect(runsLink({ ...EVERY_RUN, status: 'failed', since: '24h' })).toBe(
+            '/runs?status=failed&since=24h',
+        )
     })
 
     test('carries every tag, so "every nightly run that failed" is one address', () => {
@@ -82,7 +84,9 @@ describe('the address of the listing a number links to', () => {
     })
 
     test('escapes a pipeline code rather than composing an address by hand', () => {
-        expect(runsLink({ ...EVERY_RUN, pipeline: 'a name/with slash' })).toBe('/runs?pipeline=a+name%2Fwith+slash')
+        expect(runsLink({ ...EVERY_RUN, pipeline: 'a name/with slash' })).toBe(
+            '/runs?pipeline=a+name%2Fwith+slash',
+        )
     })
 })
 
@@ -141,11 +145,14 @@ describe('what started a run', () => {
     })
 
     test('names a backfill, which is a kind of its own and not a firing', () => {
-        const filled = { ...RUN, triggered_by_kind: 'backfill' as const, triggered_by_label: 'backfill nightly' }
+        const filled = {
+            ...RUN,
+            triggered_by_kind: 'backfill' as const,
+            triggered_by_label: 'backfill nightly',
+        }
         expect(triggerSummary(filled)).toEqual({ kind: 'backfill', who: 'backfill nightly' })
     })
 })
-
 
 describe('what an empty runs listing says', () => {
     test('names a way in that is not on this screen when nothing was asked of the listing', () => {

@@ -60,8 +60,8 @@ it happens once, and the login screen is outside the shell and asks for none of 
 **oxfmt owns whitespace, quotes, semicolons and the order of Tailwind classes**, at four spaces,
 single quotes outside JSX, no semicolons and a print width of 110. Nothing about that is worth an
 opinion in review: run `make ui-fmt`. The generated files in `src/components/ui/` and
-`components.json` are ignored, as they are in oxlint. The check that gates it lands with the pass
-that formats the tree.
+`components.json` are ignored, as they are in oxlint. `make ui-lint` runs the check first, so an
+unformatted file fails the gate before anything else is read.
 
 `make ui` builds the bundle, `make ui-dev` serves it with hot reload against a running `dg dev`,
 `make ui-lint` and `make ui-test` are the gate, and `make ui-e2e` drives a real server in a

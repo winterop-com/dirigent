@@ -66,7 +66,7 @@ export function TagFilter({
                 <button
                     key={tag}
                     type="button"
-                    className="border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground flex cursor-pointer items-center gap-1 rounded-sm border px-1.5 py-0.5 font-mono text-xs"
+                    className="flex cursor-pointer items-center gap-1 rounded-sm border border-border px-1.5 py-0.5 font-mono text-xs text-muted-foreground hover:border-foreground/40 hover:text-foreground"
                     aria-label={`Stop filtering by ${tag}`}
                     onClick={() => {
                         onChange(chosen.filter((one) => one !== tag))

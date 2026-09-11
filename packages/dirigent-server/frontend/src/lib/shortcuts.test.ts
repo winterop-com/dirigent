@@ -10,7 +10,10 @@ import {
     togglesTerminal,
 } from '@/lib/shortcuts'
 
-function press(key: string, modifiers: Partial<{ ctrlKey: boolean; metaKey: boolean; altKey: boolean }> = {}) {
+function press(
+    key: string,
+    modifiers: Partial<{ ctrlKey: boolean; metaKey: boolean; altKey: boolean }> = {},
+) {
     return { key, ctrlKey: false, metaKey: false, altKey: false, ...modifiers }
 }
 
@@ -83,7 +86,7 @@ describe('the terminal key', () => {
         expect(togglesTerminal(press('t'), PROSE)).toBe(false)
     })
 
-    test('refuses every modifier, each of which is somebody else\'s binding', () => {
+    test("refuses every modifier, each of which is somebody else's binding", () => {
         expect(togglesTerminal(press('t', { metaKey: true }), null)).toBe(false)
         expect(togglesTerminal(press('t', { ctrlKey: true }), null)).toBe(false)
         expect(togglesTerminal(press('t', { altKey: true }), null)).toBe(false)

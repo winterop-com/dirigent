@@ -9,7 +9,7 @@ function block(id: string, kind: BlockEntry['kind'], summary: string, group?: st
         id,
         kind,
         summary,
-        group: group ?? (id.split('.')[0] ?? id),
+        group: group ?? id.split('.')[0] ?? id,
         plugin: 'builtin',
         idempotent: true,
         local_execution: false,
@@ -50,10 +50,9 @@ describe('blockShelves', () => {
     test('a block shelves where it says it belongs, not where the half of its id reads', () => {
         const shelves = blockShelves(DECLARED)
 
-        expect(shelves.find((shelf) => shelf.shelf === 'transform')?.blocks.map((entry) => entry.id)).toEqual([
-            'map.jq',
-            'transform.jq',
-        ])
+        expect(shelves.find((shelf) => shelf.shelf === 'transform')?.blocks.map((entry) => entry.id)).toEqual(
+            ['map.jq', 'transform.jq'],
+        )
         expect(shelves.map((shelf) => shelf.shelf)).not.toContain('map')
     })
 
@@ -72,7 +71,10 @@ describe('blockShelves', () => {
 
 describe('crumbOf', () => {
     test('splits an id at its first dot', () => {
-        expect(crumbOf(block('transform.jq', 'operator', ''))).toMatchObject({ family: 'transform', rest: 'jq' })
+        expect(crumbOf(block('transform.jq', 'operator', ''))).toMatchObject({
+            family: 'transform',
+            rest: 'jq',
+        })
     })
 
     test('an id with no dot is its own family and its own remainder', () => {
@@ -106,8 +108,14 @@ describe('searchBlocks', () => {
     })
 
     test('the word sensor matches by kind, in the singular and the plural', () => {
-        expect(searchBlocks(CATALOG, 'sensor').map((crumb) => crumb.entry.id)).toEqual(['file.wait', 'http.poll'])
-        expect(searchBlocks(CATALOG, 'sensors').map((crumb) => crumb.entry.id)).toEqual(['file.wait', 'http.poll'])
+        expect(searchBlocks(CATALOG, 'sensor').map((crumb) => crumb.entry.id)).toEqual([
+            'file.wait',
+            'http.poll',
+        ])
+        expect(searchBlocks(CATALOG, 'sensors').map((crumb) => crumb.entry.id)).toEqual([
+            'file.wait',
+            'http.poll',
+        ])
     })
 
     test('the word operator matches by kind, and no sensor with it', () => {

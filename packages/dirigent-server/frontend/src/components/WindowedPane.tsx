@@ -47,7 +47,7 @@ export function WindowedPane({
                 variant="ghost"
                 size="icon"
                 aria-label={`Open ${name} in a window`}
-                className="text-faint border-border bg-background/90 absolute right-3.5 bottom-1.5 size-6 rounded-md border"
+                className="absolute right-3.5 bottom-1.5 size-6 rounded-md border border-border bg-background/90 text-faint"
                 onClick={() => {
                     setWide(true)
                 }}

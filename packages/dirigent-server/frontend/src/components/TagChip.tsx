@@ -25,12 +25,15 @@ export function TagChip({
     /** What clicking it is called, for the pointer and for a screen reader. */
     label?: string
 }) {
-    const face = cn('border-border text-muted-foreground rounded-sm border px-1.5 font-mono text-xs', className)
+    const face = cn(
+        'rounded-sm border border-border px-1.5 font-mono text-xs text-muted-foreground',
+        className,
+    )
     if (onSelect === undefined) return <span className={face}>{tag}</span>
     return (
         <button
             type="button"
-            className={cn(face, 'hover:border-foreground/40 hover:text-foreground cursor-pointer')}
+            className={cn(face, 'cursor-pointer hover:border-foreground/40 hover:text-foreground')}
             aria-label={label ?? `Filter by ${tag}`}
             title={label ?? `Filter by ${tag}`}
             onClick={(event) => {

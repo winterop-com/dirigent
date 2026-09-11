@@ -118,8 +118,9 @@ ui-dev: ## Serve the UI with hot reload, proxying the API to a running `dg dev`
 ui-fmt: ## Format the UI sources (mutating)
 	$(FRONTEND_INSTALL) && bun run fmt
 
-ui-lint: ## Read-only UI gate: oxlint, the type checker, and the type scale
-	$(FRONTEND_INSTALL) && bun run lint
+ui-lint: ## Read-only UI gate: the formatter, oxlint, the type checker, and the type scale
+	$(FRONTEND_INSTALL) && bun run fmt:check
+	cd $(FRONTEND) && bun run lint
 	# tsc is the only thing that catches a type error: vite strips types without checking
 	# them, and oxlint cannot see them either.
 	cd $(FRONTEND) && bunx tsc -b

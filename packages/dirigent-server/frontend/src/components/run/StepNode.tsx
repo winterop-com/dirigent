@@ -62,20 +62,20 @@ export function StepNode({ data, selected }: NodeProps<StepNode>) {
                     {heading.title}
                 </span>
                 {view.node.fan_out && view.node.items_total > 0 && (
-                    <span className="text-faint ml-auto shrink-0 font-mono text-xs">
+                    <span className="ml-auto shrink-0 font-mono text-xs text-faint">
                         {view.node.items_total} items
                     </span>
                 )}
             </div>
-            <span data-testid="step-line" className="text-muted-foreground truncate font-mono text-xs">
+            <span data-testid="step-line" className="truncate font-mono text-xs text-muted-foreground">
                 {heading.code === null ? view.node.block : `${heading.code} · ${view.node.block}`}
             </span>
             <div className="flex items-baseline gap-2">
-                <span className="text-faint min-w-0 truncate text-xs" title={view.detail ?? undefined}>
+                <span className="min-w-0 truncate text-xs text-faint" title={view.detail ?? undefined}>
                     {view.detail ?? ' '}
                 </span>
                 {view.duration_ms !== null && (
-                    <span className="text-faint ml-auto shrink-0 font-mono text-xs">
+                    <span className="ml-auto shrink-0 font-mono text-xs text-faint">
                         {formatDuration(view.duration_ms)}
                     </span>
                 )}
@@ -88,11 +88,11 @@ export function StepNode({ data, selected }: NodeProps<StepNode>) {
 /** The elements of a fan-out step: named while they fit, counted once they do not. */
 function ItemStrip({ view }: { view: StepView }) {
     if (view.strip.kind === 'empty') {
-        return <span className="text-faint truncate text-xs">fans out</span>
+        return <span className="truncate text-xs text-faint">fans out</span>
     }
     if (view.strip.kind === 'counts') {
         return (
-            <span className="text-muted-foreground truncate text-xs">
+            <span className="truncate text-xs text-muted-foreground">
                 {view.strip.counts.map((count) => `${String(count.count)} ${count.status}`).join(' · ')}
             </span>
         )
@@ -100,7 +100,7 @@ function ItemStrip({ view }: { view: StepView }) {
     return (
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 overflow-hidden">
             {view.strip.items.map((item) => (
-                <span key={item.id} className="text-muted-foreground flex items-center gap-1 text-xs">
+                <span key={item.id} className="flex items-center gap-1 text-xs text-muted-foreground">
                     <StatusDot status={item.status} />
                     <span className="max-w-20 truncate font-mono">{item.key}</span>
                     {item.retry !== null && <span className="text-faint">{item.retry}</span>}

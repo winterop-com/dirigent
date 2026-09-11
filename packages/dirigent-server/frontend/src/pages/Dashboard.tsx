@@ -147,7 +147,11 @@ export function Dashboard() {
 
             <div className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
                 {tiles.map((slot) =>
-                    slot.tile === null ? <TilePlaceholder key={slot.id} /> : <StatTile key={slot.id} tile={slot.tile} />,
+                    slot.tile === null ? (
+                        <TilePlaceholder key={slot.id} />
+                    ) : (
+                        <StatTile key={slot.id} tile={slot.tile} />
+                    ),
                 )}
             </div>
 
@@ -170,10 +174,7 @@ export function Dashboard() {
                 )}
             </div>
 
-            <Section
-                title="Right now"
-                to="/runs"
-            >
+            <Section title="Right now" to="/runs">
                 <PageState
                     loading={!running.read || !queued.read}
                     problem={running.problem ?? queued.problem}
@@ -194,10 +195,7 @@ export function Dashboard() {
                 </PageState>
             </Section>
 
-            <Section
-                title="Needs a look"
-                to="/runs"
-            >
+            <Section title="Needs a look" to="/runs">
                 <PageState
                     loading={!failed.read || !messy.read}
                     problem={failed.problem ?? messy.problem}
@@ -284,7 +282,7 @@ const LIVE_COLUMNS: Column<RunOut>[] = [
         id: 'since',
         header: 'Since',
         className: 'text-right',
-        cell: (run) => <Instant className="text-faint text-xs" at={run.started_at ?? run.created_at} />,
+        cell: (run) => <Instant className="text-xs text-faint" at={run.started_at ?? run.created_at} />,
     },
 ]
 
@@ -302,11 +300,15 @@ const FIRE_COLUMNS: Column<NextFire>[] = [
             const schedule = headingOf(fire.schedule)
             return (
                 <span className="flex min-w-0 items-baseline gap-2">
-                    <span className={cn('truncate text-xs', schedule.named ? 'text-foreground' : 'font-mono')}>
+                    <span
+                        className={cn('truncate text-xs', schedule.named ? 'text-foreground' : 'font-mono')}
+                    >
                         {schedule.title}
                     </span>
                     {schedule.code !== null && (
-                        <span className="text-muted-foreground shrink-0 font-mono text-xs">{schedule.code}</span>
+                        <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                            {schedule.code}
+                        </span>
                     )}
                 </span>
             )
@@ -316,6 +318,6 @@ const FIRE_COLUMNS: Column<NextFire>[] = [
         id: 'fires',
         header: 'Fires',
         className: 'text-right',
-        cell: (fire) => <Instant className="text-faint text-xs" at={fire.at} />,
+        cell: (fire) => <Instant className="text-xs text-faint" at={fire.at} />,
     },
 ]

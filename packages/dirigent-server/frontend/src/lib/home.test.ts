@@ -126,7 +126,10 @@ function tileOf(slots: ReturnType<typeof statTiles>, id: string) {
 
 describe('what is running or waiting', () => {
     test('holds both states in one list', () => {
-        const rows = liveRuns([run('running', '2026-01-01T02:00:00Z')], [run('queued', '2026-01-01T01:00:00Z')])
+        const rows = liveRuns(
+            [run('running', '2026-01-01T02:00:00Z')],
+            [run('queued', '2026-01-01T01:00:00Z')],
+        )
         expect(rows.map((row) => row.status)).toEqual(['running', 'queued'])
     })
 
@@ -139,7 +142,9 @@ describe('what is running or waiting', () => {
     })
 
     test('stops at the rows the screen has space for', () => {
-        const many = Array.from({ length: 9 }, (_, index) => run('running', `2026-01-0${String(index + 1)}T00:00:00Z`))
+        const many = Array.from({ length: 9 }, (_, index) =>
+            run('running', `2026-01-0${String(index + 1)}T00:00:00Z`),
+        )
         expect(liveRuns(many, [], 3)).toHaveLength(3)
     })
 
@@ -341,7 +346,10 @@ describe('the last day of runs, by the hour', () => {
 
     test('puts a run created exactly on a boundary in the hour that boundary begins', () => {
         const buckets = hourlyRuns(
-            [run('succeeded', '2026-03-04T11:00:00.000Z', 'on'), run('failed', '2026-03-04T10:59:59.999Z', 'before')],
+            [
+                run('succeeded', '2026-03-04T11:00:00.000Z', 'on'),
+                run('failed', '2026-03-04T10:59:59.999Z', 'before'),
+            ],
             NOW,
             0,
         )
@@ -358,7 +366,10 @@ describe('the last day of runs, by the hour', () => {
 
     test('drops a run older than the window and one that has not happened yet', () => {
         const buckets = hourlyRuns(
-            [run('succeeded', '2026-03-03T12:59:00Z', 'old'), run('succeeded', '2026-03-04T13:00:00Z', 'ahead')],
+            [
+                run('succeeded', '2026-03-03T12:59:00Z', 'old'),
+                run('succeeded', '2026-03-04T13:00:00Z', 'ahead'),
+            ],
             NOW,
             0,
         )
@@ -396,7 +407,11 @@ describe('the last day of runs, by the hour', () => {
 
     test('says what it drew, for a reader who is hearing it rather than seeing it', () => {
         const summary = chartSummary(
-            hourlyRuns([run('succeeded', '2026-03-04T12:01:00Z'), run('failed', '2026-03-04T11:01:00Z', 'b')], NOW, 0),
+            hourlyRuns(
+                [run('succeeded', '2026-03-04T12:01:00Z'), run('failed', '2026-03-04T11:01:00Z', 'b')],
+                NOW,
+                0,
+            ),
         )
         expect(summary).toContain('2 runs')
         expect(summary).toContain('1 succeeded')
@@ -458,7 +473,10 @@ describe('the line along the foot of the panel', () => {
 
     // REVERT-PROOF. "3 of 3 connections healthy" spends a clause saying nothing happened.
     test('leaves out a half that is entirely well', () => {
-        const note = healthNote([worker('alpha'), worker('beta', { stale: true })], [connection('acme', true)])
+        const note = healthNote(
+            [worker('alpha'), worker('beta', { stale: true })],
+            [connection('acme', true)],
+        )
         expect(note).toBe('1 of 2 workers healthy.')
     })
 

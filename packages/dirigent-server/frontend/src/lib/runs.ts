@@ -147,7 +147,8 @@ export interface RunDetailOut {
  */
 export function waitingForWorkers(tags: readonly string[] | null | undefined): string | null {
     if (tags === null || tags === undefined || tags.length === 0) return null
-    const carried = tags.length === 1 ? tags[0] : `${tags.slice(0, -1).join(', ')} and ${tags[tags.length - 1]}`
+    const carried =
+        tags.length === 1 ? tags[0] : `${tags.slice(0, -1).join(', ')} and ${tags[tags.length - 1]}`
     return `waiting for a worker carrying ${carried}`
 }
 
@@ -234,7 +235,11 @@ export function logsPath(runId: string, after: string | null, limit: number = LO
  * event stream and holds a tail of them; this is the paged listing behind it, and the only
  * caller is the download, which wants everything the run wrote rather than the tail that fits.
  */
-export function readLogs(runId: string, after: string | null, limit: number = LOG_PAGE): Promise<Page<LogEntryOut>> {
+export function readLogs(
+    runId: string,
+    after: string | null,
+    limit: number = LOG_PAGE,
+): Promise<Page<LogEntryOut>> {
     return apiJson<Page<LogEntryOut>>(logsPath(runId, after, limit))
 }
 
@@ -348,4 +353,3 @@ export function emptyNote(filters: RunFilters): string {
     if (narrowed(filters)) return 'No run matches these filters.'
     return 'No runs. A pipeline is run from its own page, or by a schedule or a webhook.'
 }
-

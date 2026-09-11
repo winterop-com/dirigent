@@ -84,7 +84,7 @@ export function CommandPalette() {
                         </CommandGroup>
                     ))}
                 </CommandList>
-                <div className="border-border text-faint flex h-11 shrink-0 items-center justify-between gap-3 border-t px-3">
+                <div className="flex h-11 shrink-0 items-center justify-between gap-3 border-t border-border px-3 text-faint">
                     <KbdGroup>
                         <Kbd>↑↓</Kbd>
                         <span className="text-xs">choose</span>
@@ -111,7 +111,7 @@ function Row({ action, onChoose }: { action: PaletteAction; onChoose: () => void
     const Icon = action.icon ?? Dot
     return (
         <CommandItem value={action.id} onSelect={onChoose} className="h-11 gap-3 rounded-md px-2">
-            <span className="bg-muted text-muted-foreground flex size-7 shrink-0 items-center justify-center rounded-md">
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
                 <Icon className="size-4" aria-hidden />
             </span>
             <span className="truncate text-sm">{action.title}</span>

@@ -76,10 +76,13 @@ export function LogPane({
                 const room = element.scrollHeight - element.scrollTop - element.clientHeight
                 setScrolledAway(room > TAIL_SLACK)
             }}
-            className={cn('bg-background border-border overflow-y-auto rounded-lg border p-2 font-mono', className)}
+            className={cn(
+                'overflow-y-auto rounded-lg border border-border bg-background p-2 font-mono',
+                className,
+            )}
         >
             {entries.length === 0 ? (
-                <p className="text-faint text-xs">
+                <p className="text-xs text-faint">
                     {settled === true ? 'This step wrote nothing.' : 'This step has written nothing.'}
                 </p>
             ) : (
@@ -92,7 +95,9 @@ export function LogPane({
                         <p key={entry.id} className="text-xs break-words whitespace-pre-wrap">
                             <span className="text-faint">{formatClock(entry.created_at)} </span>
                             {item !== null && <span className="text-faint">[{item}] </span>}
-                            <span className={LEVEL[entry.level] ?? 'text-muted-foreground'}>{entry.message}</span>
+                            <span className={LEVEL[entry.level] ?? 'text-muted-foreground'}>
+                                {entry.message}
+                            </span>
                             {fields !== null && <span className="text-faint"> {fields}</span>}
                         </p>
                     )

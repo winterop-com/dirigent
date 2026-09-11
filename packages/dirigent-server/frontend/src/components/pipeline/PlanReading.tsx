@@ -14,17 +14,17 @@ import type { PlanView } from '@/lib/pipeline-plan'
 export function PlanReading({ view }: { view: PlanView }) {
     return (
         <div className="space-y-3">
-            <p className={view.tone === 'critical' ? 'text-critical text-sm' : 'text-sm'}>{view.headline}</p>
+            <p className={view.tone === 'critical' ? 'text-sm text-critical' : 'text-sm'}>{view.headline}</p>
             {view.changes.length > 0 && (
-                <ul className="text-muted-foreground list-disc space-y-0.5 pl-4 text-xs">
+                <ul className="list-disc space-y-0.5 pl-4 text-xs text-muted-foreground">
                     {view.changes.map((line) => (
                         <li key={line}>{line}</li>
                     ))}
                 </ul>
             )}
             {view.issues.length > 0 && (
-                <div className="border-critical/40 space-y-1 rounded-md border p-2" role="alert">
-                    <p className="text-critical text-xs font-medium">
+                <div className="space-y-1 rounded-md border border-critical/40 p-2" role="alert">
+                    <p className="text-xs font-medium text-critical">
                         {view.issues.length} issue{view.issues.length === 1 ? '' : 's'} — apply will refuse
                     </p>
                     <ul className="space-y-0.5 text-xs">
@@ -38,7 +38,7 @@ export function PlanReading({ view }: { view: PlanView }) {
                 </div>
             )}
             {view.issues.length === 0 && view.changes.length === 0 && view.tone !== 'critical' && (
-                <p className="text-muted-foreground text-xs">No changes from the stored version.</p>
+                <p className="text-xs text-muted-foreground">No changes from the stored version.</p>
             )}
         </div>
     )

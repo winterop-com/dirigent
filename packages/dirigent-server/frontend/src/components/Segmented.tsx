@@ -34,7 +34,7 @@ export function Segmented<T extends string>({
     return (
         <div
             className={cn(
-                'border-border flex overflow-hidden rounded-md border',
+                'flex overflow-hidden rounded-md border border-border',
                 // What a finger lands on is 40px tall, which is the rule every control here
                 // grows to below the breakpoint.
                 size === 'md' ? 'h-10 w-full md:h-8' : 'min-h-10 md:min-h-0',
@@ -51,7 +51,7 @@ export function Segmented<T extends string>({
                     className={cn(
                         size === 'md' ? 'flex-1 px-3 text-sm whitespace-nowrap' : 'px-2 py-1 text-xs',
                         option.value === value
-                            ? 'bg-primary text-primary-foreground font-medium'
+                            ? 'bg-primary font-medium text-primary-foreground'
                             : 'text-muted-foreground hover:bg-accent',
                         disabled && 'opacity-50',
                     )}

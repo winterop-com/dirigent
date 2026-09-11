@@ -86,7 +86,13 @@ export function statTiles(
             to: runsLink({ ...EVERY_RUN, status, since: DAY }),
         }
     }
-    const live = (status: RunStatus, label: string, tone: TileTone, note: string, page: Page<RunOut> | null) => {
+    const live = (
+        status: RunStatus,
+        label: string,
+        tone: TileTone,
+        note: string,
+        page: Page<RunOut> | null,
+    ) => {
         if (page === null) return null
         const count = page.items.length
         return {
@@ -201,7 +207,8 @@ export function tallest(buckets: readonly HourBucket[]): number {
 
 /** What the chart amounts to, for the reader who is hearing it rather than seeing it. */
 export function chartSummary(buckets: readonly HourBucket[]): string {
-    const settled = (pick: (bucket: HourBucket) => number) => buckets.reduce((sum, bucket) => sum + pick(bucket), 0)
+    const settled = (pick: (bucket: HourBucket) => number) =>
+        buckets.reduce((sum, bucket) => sum + pick(bucket), 0)
     const total = settled((bucket) => bucket.total)
     if (total === 0) return 'No run was started in the last 24 hours.'
     const parts = [
@@ -313,7 +320,11 @@ export const FIRE_ROWS = 6
  * a read that asked for the last day -- which is the one run somebody opening this screen most
  * wants to see.
  */
-export function liveRuns(running: readonly RunOut[], queued: readonly RunOut[], rows: number = LIVE_ROWS): RunOut[] {
+export function liveRuns(
+    running: readonly RunOut[],
+    queued: readonly RunOut[],
+    rows: number = LIVE_ROWS,
+): RunOut[] {
     return [...running, ...queued]
         .toSorted((left, right) => Date.parse(right.created_at) - Date.parse(left.created_at))
         .slice(0, rows)
@@ -370,8 +381,10 @@ export async function readPipelineSchedules(pipelines: readonly PipelineOut[]): 
 }
 
 /** The pipelines listing, and every schedule hanging off it, which is one read on this screen. */
-export async function readSchedulesAhead(): Promise<{ pipelines: PipelineOut[]; schedules: PipelineSchedule[] }> {
+export async function readSchedulesAhead(): Promise<{
+    pipelines: PipelineOut[]
+    schedules: PipelineSchedule[]
+}> {
     const pipelines = await readPipelines(null)
     return { pipelines: pipelines.items, schedules: await readPipelineSchedules(pipelines.items) }
 }
-

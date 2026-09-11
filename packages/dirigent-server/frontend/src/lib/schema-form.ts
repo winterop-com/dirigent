@@ -249,7 +249,14 @@ function placeholderOf(schema: JsonMap, kind: FieldKind, fallback: unknown): str
 
 function boundsOf(schema: JsonMap): Bounds {
     const bounds: Bounds = {}
-    for (const key of ['minLength', 'maxLength', 'minimum', 'maximum', 'exclusiveMinimum', 'exclusiveMaximum'] as const) {
+    for (const key of [
+        'minLength',
+        'maxLength',
+        'minimum',
+        'maximum',
+        'exclusiveMinimum',
+        'exclusiveMaximum',
+    ] as const) {
         const value = numberAt(schema, key)
         if (value !== undefined) bounds[key] = value
     }
@@ -334,7 +341,9 @@ function shapeProblem(field: FieldDescriptor, shape: BranchShape, value: unknown
             return typeof value === 'boolean' ? null : `${field.name} is true or false`
         case 'text':
         case 'code':
-            return typeof value === 'string' ? textProblem(field, shape.bounds, value) : `${field.name} is text`
+            return typeof value === 'string'
+                ? textProblem(field, shape.bounds, value)
+                : `${field.name} is text`
         case 'number':
         case 'integer':
             return typeof value === 'number' && Number.isFinite(value)

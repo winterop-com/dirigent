@@ -130,9 +130,7 @@ describe('the login graph', () => {
         const x1 = from.x + NODE_W / 2
         const x2 = to.x - NODE_W / 2
         const mid = x1 + (x2 - x1) / 2
-        expect(edgePath(from, to)).toBe(
-            `M${x1} ${from.y} C${mid} ${from.y}, ${mid} ${to.y}, ${x2} ${to.y}`,
-        )
+        expect(edgePath(from, to)).toBe(`M${x1} ${from.y} C${mid} ${from.y}, ${mid} ${to.y}, ${x2} ${to.y}`)
     })
 })
 

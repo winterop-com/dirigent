@@ -58,7 +58,8 @@ export interface RuleDraft {
 export function unreadyRule(draft: RuleDraft): string | undefined {
     if (draft.code.trim() === '') return 'A rule is addressed by its code, and this one has none.'
     if (!CODE.test(draft.code.trim())) return 'A code is lowercase words joined by - or _.'
-    if (draft.scope === 'pipeline' && draft.pipeline === '') return 'A rule watching one pipeline names that pipeline, and this one names none.'
+    if (draft.scope === 'pipeline' && draft.pipeline === '')
+        return 'A rule watching one pipeline names that pipeline, and this one names none.'
     if (draft.notifier === '') return 'A rule delivers through a channel, and this one names none.'
     if (needsConnection(draft.notifier) && draft.connection === '') {
         return `The ${draft.notifier} channel delivers through a connection, and this one names none.`

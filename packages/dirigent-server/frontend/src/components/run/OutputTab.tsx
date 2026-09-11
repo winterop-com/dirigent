@@ -58,9 +58,9 @@ export function OutputTab({ state, runId }: { state: RunDetailState; runId: stri
         <div className="flex flex-col gap-4 p-4">
             <Section title={artifacts === null ? 'Artifacts' : countedHeading('Artifacts', rows.length)}>
                 {artifacts === null ? (
-                    <p className="text-muted-foreground text-xs">Reading the artifacts.</p>
+                    <p className="text-xs text-muted-foreground">Reading the artifacts.</p>
                 ) : rows.length === 0 ? (
-                    <p className="text-muted-foreground text-xs">No step of this run wrote an output.</p>
+                    <p className="text-xs text-muted-foreground">No step of this run wrote an output.</p>
                 ) : (
                     <ul className="space-y-2">
                         {rows.map((row) => (
@@ -70,7 +70,7 @@ export function OutputTab({ state, runId }: { state: RunDetailState; runId: stri
                                         <span className="truncate text-sm">{row.step_name ?? 'the run'}</span>
                                     ) : (
                                         <a
-                                            className="text-primary-ink truncate text-sm hover:underline"
+                                            className="truncate text-sm text-primary-ink hover:underline"
                                             href={artifactUrl(prefix, row.id)}
                                             download
                                             rel="noopener"
@@ -79,9 +79,11 @@ export function OutputTab({ state, runId }: { state: RunDetailState; runId: stri
                                         </a>
                                     )}
                                     {row.uri !== null && items.get(row.uri) !== undefined && (
-                                        <span className="text-faint font-mono text-xs">{items.get(row.uri)}</span>
+                                        <span className="font-mono text-xs text-faint">
+                                            {items.get(row.uri)}
+                                        </span>
                                     )}
-                                    <span className="text-muted-foreground ml-auto shrink-0 text-xs">
+                                    <span className="ml-auto shrink-0 text-xs text-muted-foreground">
                                         {formatBytes(row.size_bytes)}
                                     </span>
                                 </div>

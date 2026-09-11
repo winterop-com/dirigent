@@ -25,7 +25,12 @@ export function JsonBlock({ title, text, className }: { title: string; text: str
     const tokens = useMemo(() => tokenizeJson(text), [text])
     return (
         <div className="relative">
-            <pre className={cn('bg-background border-border overflow-auto rounded-lg border p-2 font-mono text-xs', className)}>
+            <pre
+                className={cn(
+                    'overflow-auto rounded-lg border border-border bg-background p-2 font-mono text-xs',
+                    className,
+                )}
+            >
                 {tokens.map((token, at) => (
                     // The list is stable for a given text, so the position is the identity.
                     // oxlint-disable-next-line no-array-index-key

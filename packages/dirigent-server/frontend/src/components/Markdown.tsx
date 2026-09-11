@@ -67,7 +67,7 @@ function draw(block: Block, index: number): ReactNode {
             return (
                 <pre
                     key={index}
-                    className="bg-secondary/50 overflow-x-auto rounded-md p-2 font-mono text-xs"
+                    className="overflow-x-auto rounded-md bg-secondary/50 p-2 font-mono text-xs"
                     data-language={block.language ?? undefined}
                 >
                     {block.text}
@@ -85,7 +85,10 @@ function draw(block: Block, index: number): ReactNode {
             )
         case 'quote':
             return (
-                <blockquote key={index} className="border-border text-muted-foreground space-y-2 border-l-2 pl-3">
+                <blockquote
+                    key={index}
+                    className="space-y-2 border-l-2 border-border pl-3 text-muted-foreground"
+                >
                     {block.children.map((one, at) => draw(one, at))}
                 </blockquote>
             )
@@ -93,10 +96,10 @@ function draw(block: Block, index: number): ReactNode {
             // A table is as wide as its columns need, and a description is drawn in a panel that
             // is often narrower than that: it scrolls inside its own box rather than the page.
             return (
-                <div key={index} className="border-border overflow-x-auto rounded-md border">
+                <div key={index} className="overflow-x-auto rounded-md border border-border">
                     <table className="w-full border-collapse text-xs">
                         <thead>
-                            <tr className="border-border bg-secondary/40 border-b">
+                            <tr className="border-b border-border bg-secondary/40">
                                 {headCells(block.header, block.align)}
                             </tr>
                         </thead>
@@ -126,17 +129,29 @@ function items(rows: readonly Inline[][]): ReactNode {
  */
 function bodyRows(body: readonly Inline[][][], align: readonly Align[]): ReactNode {
     // oxlint-disable-next-line react/no-array-index-key
-    return body.map((row, at) => <tr key={at} className={ROW}>{bodyCells(row, align)}</tr>)
+    return body.map((row, at) => (
+        <tr key={at} className={ROW}>
+            {bodyCells(row, align)}
+        </tr>
+    ))
 }
 
 function headCells(row: readonly Inline[][], align: readonly Align[]): ReactNode {
     // oxlint-disable-next-line react/no-array-index-key
-    return row.map((cell, at) => <th key={at} className={cn(HEAD, setting(align[at]))}>{runs(cell)}</th>)
+    return row.map((cell, at) => (
+        <th key={at} className={cn(HEAD, setting(align[at]))}>
+            {runs(cell)}
+        </th>
+    ))
 }
 
 function bodyCells(row: readonly Inline[][], align: readonly Align[]): ReactNode {
     // oxlint-disable-next-line react/no-array-index-key
-    return row.map((cell, at) => <td key={at} className={cn(CELL, setting(align[at]))}>{runs(cell)}</td>)
+    return row.map((cell, at) => (
+        <td key={at} className={cn(CELL, setting(align[at]))}>
+            {runs(cell)}
+        </td>
+    ))
 }
 
 function runs(inlines: readonly Inline[]): ReactNode {
@@ -153,7 +168,7 @@ function run(inline: Inline, index: number): ReactNode {
             return <strong key={index}>{runs(inline.children)}</strong>
         case 'code':
             return (
-                <code key={index} className="bg-secondary/50 rounded-sm px-1 font-mono text-[0.85em]">
+                <code key={index} className="rounded-sm bg-secondary/50 px-1 font-mono text-[0.85em]">
                     {inline.text}
                 </code>
             )

@@ -41,7 +41,7 @@ export function CodePane({ className, ...rest }: ComponentProps<typeof Editor>) 
     return (
         <Suspense
             fallback={
-                <p className={cn('text-muted-foreground h-full min-h-64 w-full p-4 text-sm', className)}>
+                <p className={cn('h-full min-h-64 w-full p-4 text-sm text-muted-foreground', className)}>
                     Loading the editor.
                 </p>
             }

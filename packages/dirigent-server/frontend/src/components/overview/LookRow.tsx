@@ -30,9 +30,13 @@ export const LOOK_COLUMNS: Column<LookEntry>[] = [
             const heading = headingOf({ code: entry.run.pipeline, name: entry.name })
             return (
                 <span className="flex min-w-0 items-baseline gap-2">
-                    <span className={cn('truncate text-sm', !heading.named && 'font-mono')}>{heading.title}</span>
+                    <span className={cn('truncate text-sm', !heading.named && 'font-mono')}>
+                        {heading.title}
+                    </span>
                     {heading.code !== null && (
-                        <span className="text-muted-foreground shrink-0 font-mono text-xs">{heading.code}</span>
+                        <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                            {heading.code}
+                        </span>
                     )}
                 </span>
             )
@@ -50,7 +54,10 @@ export const LOOK_COLUMNS: Column<LookEntry>[] = [
         className: 'hidden lg:table-cell',
         cell: (entry) =>
             entry.run.error === null ? null : (
-                <span className="text-muted-foreground block max-w-80 truncate text-xs" title={entry.run.error}>
+                <span
+                    className="block max-w-80 truncate text-xs text-muted-foreground"
+                    title={entry.run.error}
+                >
                     {entry.run.error}
                 </span>
             ),
@@ -59,6 +66,8 @@ export const LOOK_COLUMNS: Column<LookEntry>[] = [
         id: 'when',
         header: 'When',
         className: 'text-right',
-        cell: (entry) => <Instant className="text-faint text-xs" at={entry.run.started_at ?? entry.run.created_at} />,
+        cell: (entry) => (
+            <Instant className="text-xs text-faint" at={entry.run.started_at ?? entry.run.created_at} />
+        ),
     },
 ]

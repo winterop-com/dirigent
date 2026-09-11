@@ -28,7 +28,11 @@ export function Dot({ tone }: { tone: OutcomeTone }) {
 
 /** A word a trigger wears: where it came from, and whether it is running. */
 export function Chip({ children }: { children: ReactNode }) {
-    return <span className="border-border text-muted-foreground rounded-sm border px-1.5 text-xs">{children}</span>
+    return (
+        <span className="rounded-sm border border-border px-1.5 text-xs text-muted-foreground">
+            {children}
+        </span>
+    )
 }
 
 /**
@@ -54,7 +58,7 @@ export function Clock({ schedule }: { schedule: ScheduleOut }) {
     if (once !== null) {
         return (
             <span className="flex flex-wrap items-baseline gap-1.5 text-sm">
-                {once.fired && <span className="text-muted-foreground text-xs">fired</span>}
+                {once.fired && <span className="text-xs text-muted-foreground">fired</span>}
                 <Instant at={once.at} />
             </span>
         )

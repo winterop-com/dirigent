@@ -160,8 +160,12 @@ function Named({ row }: { row: SchemaOut }) {
     const heading = headingOf(row)
     return (
         <span className="flex items-center gap-2">
-            <span className={heading.named ? 'font-semibold' : 'font-mono font-semibold'}>{heading.title}</span>
-            {heading.code !== null && <span className="text-muted-foreground font-mono text-xs">{heading.code}</span>}
+            <span className={heading.named ? 'font-semibold' : 'font-mono font-semibold'}>
+                {heading.title}
+            </span>
+            {heading.code !== null && (
+                <span className="font-mono text-xs text-muted-foreground">{heading.code}</span>
+            )}
         </span>
     )
 }
@@ -171,7 +175,7 @@ function Said({ description }: { description: string | null }) {
     const text = description === null ? '' : oneLine(description)
     if (text === '') return null
     return (
-        <p className="text-muted-foreground max-w-64 truncate text-xs" title={text}>
+        <p className="max-w-64 truncate text-xs text-muted-foreground" title={text}>
             {text}
         </p>
     )
@@ -192,7 +196,11 @@ function SchemaPanel({ schema, onDeleted }: { schema: SchemaOut; onDeleted: () =
     return (
         <div className="flex min-h-0 flex-col gap-4 p-4">
             <Description text={schema.description} />
-            <JsonBlock title={`${schema.code} · schema`} text={JSON.stringify(schema.body, null, 2)} className="max-h-[60vh]" />
+            <JsonBlock
+                title={`${schema.code} · schema`}
+                text={JSON.stringify(schema.body, null, 2)}
+                className="max-h-[60vh]"
+            />
             <Refusable why={write.why}>
                 <Button
                     variant="outline"

@@ -35,7 +35,9 @@ describe('what a document names', () => {
     })
 
     test('reads a connection a step reaches even where the document forgot to require it', () => {
-        const forgot: JsonMap = { steps: { push: { block: 'acme.orders', config: { connection: 'sneaky' } } } }
+        const forgot: JsonMap = {
+            steps: { push: { block: 'acme.orders', config: { connection: 'sneaky' } } },
+        }
         expect(connectionsNamed(forgot)).toEqual(['sneaky'])
     })
 

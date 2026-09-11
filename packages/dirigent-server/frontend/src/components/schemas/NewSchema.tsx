@@ -90,7 +90,7 @@ export function NewSchema({
                         <code>title</code> and <code>description</code>.
                     </DialogDescription>
                 </DialogHeader>
-                <div className="border-border min-h-0 flex-1 overflow-hidden rounded-md border">
+                <div className="min-h-0 flex-1 overflow-hidden rounded-md border border-border">
                     <CodePane
                         value={text}
                         mediaType="application/json"

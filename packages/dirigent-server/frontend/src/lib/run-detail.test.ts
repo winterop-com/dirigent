@@ -159,7 +159,9 @@ function fed(attempts: AttemptEvent[], base: RunDetailState = initialState(detai
 
 describe('reading a frame off the stream', () => {
     test('names each of the four the server sends', () => {
-        expect(decodeFrame({ event: 'attempt', data: JSON.stringify(attempt()), id: null }).kind).toBe('attempt')
+        expect(decodeFrame({ event: 'attempt', data: JSON.stringify(attempt()), id: null }).kind).toBe(
+            'attempt',
+        )
         expect(decodeFrame({ event: 'log', data: JSON.stringify(entry()), id: '7' }).kind).toBe('log')
         expect(decodeFrame({ event: 'run', data: JSON.stringify(run()), id: null }).kind).toBe('run')
         expect(decodeFrame({ event: 'end', data: '{}', id: null }).kind).toBe('end')
@@ -236,7 +238,12 @@ describe('an attempt that moved', () => {
 
     test('does not let an earlier try overwrite a later one under the same id', () => {
         const second = attempt({ id: 'a-1', attempt: 2, status: 'running' })
-        const first = attempt({ id: 'a-1', attempt: 1, status: 'running', started_at: '2026-03-01T11:00:00Z' })
+        const first = attempt({
+            id: 'a-1',
+            attempt: 1,
+            status: 'running',
+            started_at: '2026-03-01T11:00:00Z',
+        })
         const state = fed([second, first])
         expect(state.attempts['a-1']?.attempt).toBe(2)
     })
@@ -262,7 +269,10 @@ describe('a log frame', () => {
     test('filters to the step that wrote it, which is how one stream fills a step pane', () => {
         let state = initialState(detail())
         state = applyFrame(state, { kind: 'log', entry: entry({ id: 1, step_name: 'fetch', message: 'a' }) })
-        state = applyFrame(state, { kind: 'log', entry: entry({ id: 2, step_name: 'archive', message: 'b' }) })
+        state = applyFrame(state, {
+            kind: 'log',
+            entry: entry({ id: 2, step_name: 'archive', message: 'b' }),
+        })
         state = applyFrame(state, { kind: 'log', entry: entry({ id: 3, step_name: null, message: 'c' }) })
 
         expect(logsForStep(state.logs, 'fetch').map((one) => one.message)).toEqual(['a'])
@@ -385,7 +395,9 @@ describe('the screen reducer', () => {
         const empty = reduce(first, { kind: 'reset' })
 
         expect(reduce(empty, { kind: 'frame', frame: { kind: 'log', entry: entry({ id: 42 }) } })).toBeNull()
-        expect(reduce(empty, { kind: 'frame', frame: { kind: 'run', run: run({ status: 'succeeded' }) } })).toBeNull()
+        expect(
+            reduce(empty, { kind: 'frame', frame: { kind: 'run', run: run({ status: 'succeeded' }) } }),
+        ).toBeNull()
         expect(reduce(empty, { kind: 'stream', stream: 'live' })).toBeNull()
 
         const second = reduce(empty, { kind: 'loaded', detail: detail({ run: run({ id: 'r-2' }) }) })
@@ -460,7 +472,12 @@ describe("a fan-out step's item strip", () => {
         expect(strip.kind).toBe('chips')
         if (strip.kind !== 'chips') return
         expect(strip.items).toHaveLength(ITEM_STRIP_LIMIT)
-        expect(strip.items[0]).toEqual({ id: 'item-region-0', key: 'region-0', status: 'succeeded', retry: null })
+        expect(strip.items[0]).toEqual({
+            id: 'item-region-0',
+            key: 'region-0',
+            status: 'succeeded',
+            retry: null,
+        })
     })
 
     test('counts them instead the moment there is one more than fits', () => {
@@ -550,7 +567,10 @@ describe("a retrying element's story", () => {
 
 describe('the nodes the graph draws', () => {
     const dag = {
-        nodes: [node({ code: 'fetch' }), node({ code: 'push', fan_out: true, items_total: 3, depends_on: ['fetch'] })],
+        nodes: [
+            node({ code: 'fetch' }),
+            node({ code: 'push', fan_out: true, items_total: 3, depends_on: ['fetch'] }),
+        ],
         edges: [['fetch', 'push']] as [string, string][],
     }
 
@@ -610,9 +630,15 @@ describe('a whole connect, replayed', () => {
 
     test('lands in the same state whether it is read once or three times', () => {
         const frames = [
-            { kind: 'attempt' as const, attempt: attempt({ id: 'a-1', status: 'succeeded' as AttemptStatus }) },
+            {
+                kind: 'attempt' as const,
+                attempt: attempt({ id: 'a-1', status: 'succeeded' as AttemptStatus }),
+            },
             { kind: 'log' as const, entry: entry({ id: 1 }) },
-            { kind: 'attempt' as const, attempt: attempt({ id: 'a-2', step_name: 'push', status: 'running' }) },
+            {
+                kind: 'attempt' as const,
+                attempt: attempt({ id: 'a-2', step_name: 'push', status: 'running' }),
+            },
             { kind: 'log' as const, entry: entry({ id: 2, step_name: 'push' }) },
             { kind: 'run' as const, run: run({ status, finished_at: '2026-03-01T12:00:00Z' }) },
         ]
@@ -627,7 +653,6 @@ describe('a whole connect, replayed', () => {
     })
 })
 
-
 describe('how a run titles a step', () => {
     test('is the name the document gave it, with the key kept in mono beneath', () => {
         expect(headingOf(node({ code: 'quick', name: 'The quick one' }))).toEqual({
@@ -638,11 +663,15 @@ describe('how a run titles a step', () => {
     })
 
     test('is the key itself where the document named none, and the key is not drawn twice', () => {
-        expect(headingOf(node({ code: 'quick', name: null }))).toEqual({ title: 'quick', code: null, named: false })
+        expect(headingOf(node({ code: 'quick', name: null }))).toEqual({
+            title: 'quick',
+            code: null,
+            named: false,
+        })
     })
 })
 
-describe('where a step\'s time went', () => {
+describe("where a step's time went", () => {
     test('queued runs from a try becoming claimable to a worker taking it up', () => {
         const held = attempt({
             created_at: '2026-03-01T11:59:00Z',
@@ -668,7 +697,12 @@ describe('where a step\'s time went', () => {
     test('elements of a fan-out run beside each other, so the longest speaks for the step', () => {
         const tries = [
             attempt({ item: 'east', created_at: '2026-03-01T11:59:00Z', started_at: '2026-03-01T11:59:01Z' }),
-            attempt({ id: 'a-2', item: 'west', created_at: '2026-03-01T11:59:00Z', started_at: '2026-03-01T11:59:05Z' }),
+            attempt({
+                id: 'a-2',
+                item: 'west',
+                created_at: '2026-03-01T11:59:00Z',
+                started_at: '2026-03-01T11:59:05Z',
+            }),
         ]
         expect(queuedOf(tries)).toBe(5000)
     })
@@ -739,7 +773,12 @@ describe('how long a step took', () => {
     test('runs from the first try starting to the last one finishing', () => {
         const tries = [
             attempt({ id: 'a-1', started_at: '2026-03-01T11:59:00Z', finished_at: '2026-03-01T11:59:02Z' }),
-            attempt({ id: 'a-2', attempt: 2, started_at: '2026-03-01T11:59:20Z', finished_at: '2026-03-01T11:59:30Z' }),
+            attempt({
+                id: 'a-2',
+                attempt: 2,
+                started_at: '2026-03-01T11:59:20Z',
+                finished_at: '2026-03-01T11:59:30Z',
+            }),
         ]
         expect(durationOf(tries, 'succeeded', NOW)).toBe(30_000)
     })
@@ -748,8 +787,16 @@ describe('how long a step took', () => {
         // A fan-out's elements settle in whatever order the workers free up, so arrival order is
         // not clock order. This is the span the run report measures, and the two say one number.
         const tries = [
-            attempt({ id: 'a-1', started_at: '2026-03-01T11:59:00.100Z', finished_at: '2026-03-01T11:59:00.450Z' }),
-            attempt({ id: 'a-2', started_at: '2026-03-01T11:59:00.050Z', finished_at: '2026-03-01T11:59:00.421Z' }),
+            attempt({
+                id: 'a-1',
+                started_at: '2026-03-01T11:59:00.100Z',
+                finished_at: '2026-03-01T11:59:00.450Z',
+            }),
+            attempt({
+                id: 'a-2',
+                started_at: '2026-03-01T11:59:00.050Z',
+                finished_at: '2026-03-01T11:59:00.421Z',
+            }),
         ]
         expect(durationOf(tries, 'succeeded', NOW)).toBe(400)
         expect(durationOf(tries.toReversed(), 'succeeded', NOW)).toBe(400)
@@ -770,7 +817,12 @@ describe('how long a step took', () => {
 
     test('is on every node the graph draws', () => {
         const state = fed([
-            attempt({ id: 'a-1', status: 'succeeded', started_at: '2026-03-01T11:59:00Z', finished_at: '2026-03-01T11:59:01Z' }),
+            attempt({
+                id: 'a-1',
+                status: 'succeeded',
+                started_at: '2026-03-01T11:59:00Z',
+                finished_at: '2026-03-01T11:59:01Z',
+            }),
         ])
         expect(stepViews(state, NOW)[0]?.duration_ms).toBe(1000)
     })
@@ -801,9 +853,9 @@ describe('the state a node is drawn in', () => {
     })
 
     test('is not tolerated where no element failed at all', () => {
-        expect(toleratedFanOut(drawn({ node: node({ fan_out: true, outcome: 'succeeded', items_total: 3 }) }))).toBe(
-            false,
-        )
+        expect(
+            toleratedFanOut(drawn({ node: node({ fan_out: true, outcome: 'succeeded', items_total: 3 }) })),
+        ).toBe(false)
     })
 
     test('leaves a fan-out that is still going in its live state', () => {
@@ -851,60 +903,108 @@ describe('what an edge is carrying while a run is live', () => {
     const moving = { handing: new Set<string>(), reduced: false }
 
     test('moves out of a step that has produced into one still reading it', () => {
-        const motion = edgeMotion(step('parse', { outcome: 'succeeded' }), step('report', { outcome: 'running' }), moving)
-        expect(motion).toBe('flowing')
-        expect(edgeClasses(step('parse', { outcome: 'succeeded' }), step('report', { outcome: 'running' }), moving)).toBe(
-            'dg-edge-good dg-edge-flowing',
+        const motion = edgeMotion(
+            step('parse', { outcome: 'succeeded' }),
+            step('report', { outcome: 'running' }),
+            moving,
         )
+        expect(motion).toBe('flowing')
+        expect(
+            edgeClasses(
+                step('parse', { outcome: 'succeeded' }),
+                step('report', { outcome: 'running' }),
+                moving,
+            ),
+        ).toBe('dg-edge-good dg-edge-flowing')
     })
 
     test('moves out of a fan-out whose failures were tolerated, which produced a short batch', () => {
         const tolerated = step('per_region', {
-            node: node({ name: 'per_region', fan_out: true, outcome: 'succeeded', items_total: 3, items_failed: 1 }),
+            node: node({
+                name: 'per_region',
+                fan_out: true,
+                outcome: 'succeeded',
+                items_total: 3,
+                items_failed: 1,
+            }),
             outcome: 'failed',
         })
         expect(edgeMotion(tolerated, step('report', { outcome: 'running' }), moving)).toBe('flowing')
     })
 
     test('is still out of a step that failed, was skipped, or has not produced anything yet', () => {
-        expect(edgeMotion(step('parse', { outcome: 'failed' }), step('report', { outcome: 'running' }), moving)).toBe('still')
-        expect(edgeMotion(step('parse', { outcome: 'skipped' }), step('report', { outcome: 'running' }), moving)).toBe('still')
-        expect(edgeMotion(step('parse', { outcome: 'running' }), step('report', { outcome: 'pending' }), moving)).toBe('still')
+        expect(
+            edgeMotion(step('parse', { outcome: 'failed' }), step('report', { outcome: 'running' }), moving),
+        ).toBe('still')
+        expect(
+            edgeMotion(step('parse', { outcome: 'skipped' }), step('report', { outcome: 'running' }), moving),
+        ).toBe('still')
+        expect(
+            edgeMotion(step('parse', { outcome: 'running' }), step('report', { outcome: 'pending' }), moving),
+        ).toBe('still')
     })
 
     test('is still where both ends have settled, which is every edge of a terminal run', () => {
-        expect(edgeMotion(step('parse', { outcome: 'succeeded' }), step('report', { outcome: 'succeeded' }), moving)).toBe(
-            'still',
-        )
+        expect(
+            edgeMotion(
+                step('parse', { outcome: 'succeeded' }),
+                step('report', { outcome: 'succeeded' }),
+                moving,
+            ),
+        ).toBe('still')
         expect(edgeMotion(undefined, undefined, moving)).toBe('still')
     })
 
     test('plays one handover into a step that can still read what just landed', () => {
         const handing = { handing: new Set(['parse']), reduced: false }
-        expect(edgeMotion(step('parse', { outcome: 'succeeded' }), step('report', { outcome: 'pending' }), handing)).toBe(
-            'handover',
-        )
+        expect(
+            edgeMotion(
+                step('parse', { outcome: 'succeeded' }),
+                step('report', { outcome: 'pending' }),
+                handing,
+            ),
+        ).toBe('handover')
         // A handover comes first where a dependent is already running: one moment, then the flow.
-        expect(edgeMotion(step('parse', { outcome: 'succeeded' }), step('report', { outcome: 'running' }), handing)).toBe(
-            'handover',
-        )
+        expect(
+            edgeMotion(
+                step('parse', { outcome: 'succeeded' }),
+                step('report', { outcome: 'running' }),
+                handing,
+            ),
+        ).toBe('handover')
         // Into a step that will never read it there is nothing to hand over.
-        expect(edgeMotion(step('parse', { outcome: 'succeeded' }), step('report', { outcome: 'skipped' }), handing)).toBe(
-            'still',
-        )
+        expect(
+            edgeMotion(
+                step('parse', { outcome: 'succeeded' }),
+                step('report', { outcome: 'skipped' }),
+                handing,
+            ),
+        ).toBe('still')
     })
 
     test('lights rather than moves for somebody who asked for less motion', () => {
         const reduced = { handing: new Set(['parse']), reduced: true }
-        expect(edgeMotion(step('parse', { outcome: 'succeeded' }), step('report', { outcome: 'running' }), reduced)).toBe(
-            'lit',
-        )
-        expect(edgeMotion(step('parse', { outcome: 'succeeded' }), step('report', { outcome: 'pending' }), reduced)).toBe(
-            'still',
-        )
-        expect(edgeClasses(step('parse', { outcome: 'succeeded' }), step('report', { outcome: 'running' }), reduced)).toBe(
-            'dg-edge-good dg-edge-lit',
-        )
+        expect(
+            edgeMotion(
+                step('parse', { outcome: 'succeeded' }),
+                step('report', { outcome: 'running' }),
+                reduced,
+            ),
+        ).toBe('lit')
+        expect(
+            edgeMotion(
+                step('parse', { outcome: 'succeeded' }),
+                step('report', { outcome: 'pending' }),
+                reduced,
+            ),
+        ).toBe('still')
+        expect(
+            edgeClasses(
+                step('parse', { outcome: 'succeeded' }),
+                step('report', { outcome: 'running' }),
+                reduced,
+            ),
+        ).toBe('dg-edge-good dg-edge-lit')
     })
 })
 
@@ -960,7 +1060,7 @@ describe('the order a step lists its tries in', () => {
     })
 })
 
-describe("what a fan-out step produced", () => {
+describe('what a fan-out step produced', () => {
     function element(key: string, index: number, over: Partial<AttemptEvent> = {}): AttemptEvent {
         return attempt({ id: `a-${key}`, run_item_id: `item-${key}`, item: key, item_index: index, ...over })
     }
@@ -983,7 +1083,7 @@ describe("what a fan-out step produced", () => {
         ])
     })
 
-    test("takes the newest try that produced anything, not the newest try", () => {
+    test('takes the newest try that produced anything, not the newest try', () => {
         const produced = element('north', 0, { id: 'a-north-1', attempt: 1, output: { rows: 3 } })
         const retry = element('north', 0, { id: 'a-north-2', attempt: 2, status: 'running' })
         expect(itemOutputs([produced, retry])[0]?.produced?.id).toBe('a-north-1')
@@ -1014,7 +1114,9 @@ describe("an attempt's output, read", () => {
     })
 
     test('is where it went when the block wrote it to storage instead', () => {
-        const saved = attempt({ output: { value: null, output_uri: 's3://bucket/out.json', output_bytes: 4096 } })
+        const saved = attempt({
+            output: { value: null, output_uri: 's3://bucket/out.json', output_bytes: 4096 },
+        })
         expect(outputReading(saved)).toEqual({ value: null, uri: 's3://bucket/out.json', bytes: 4096 })
     })
 
@@ -1029,6 +1131,10 @@ describe("an attempt's output, read", () => {
 
     test('leaves an output that is not the envelope exactly as the block wrote it', () => {
         const plain = attempt({ output: { status_code: 200, body: 'ok' } })
-        expect(outputReading(plain)).toEqual({ value: { status_code: 200, body: 'ok' }, uri: null, bytes: null })
+        expect(outputReading(plain)).toEqual({
+            value: { status_code: 200, body: 'ok' },
+            uri: null,
+            bytes: null,
+        })
     })
 })

@@ -105,7 +105,7 @@ export function ApplyDialog({
 
                 {problem !== null && <Refusal problem={problem} />}
                 {problem === null && view === null && (
-                    <p className="text-muted-foreground text-sm">Checking the document.</p>
+                    <p className="text-sm text-muted-foreground">Checking the document.</p>
                 )}
                 {view !== null && <PlanReading view={view} />}
 
@@ -114,7 +114,11 @@ export function ApplyDialog({
                         {mode === 'apply' ? 'Cancel' : 'Close'}
                     </Button>
                     {mode === 'apply' && (
-                        <Confirm why={firstShut(write.why, unapplicable(view))} busy={applying} onApply={apply} />
+                        <Confirm
+                            why={firstShut(write.why, unapplicable(view))}
+                            busy={applying}
+                            onApply={apply}
+                        />
                     )}
                 </DialogFooter>
             </DialogContent>

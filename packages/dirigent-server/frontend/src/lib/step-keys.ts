@@ -21,7 +21,16 @@ import { stepsIn } from '@/lib/pipeline-document'
 import { fieldsOf, sameJson, type FieldDescriptor } from '@/lib/schema-form'
 
 /** The step members this form edits, in the order `StepDefinition` declares them. */
-export const STEP_KEYS = ['rule', 'for_each', 'items', 'timeout', 'poll', 'deadline', 'on_timeout', 'continue_on_failure'] as const
+export const STEP_KEYS = [
+    'rule',
+    'for_each',
+    'items',
+    'timeout',
+    'poll',
+    'deadline',
+    'on_timeout',
+    'continue_on_failure',
+] as const
 
 /** A duration as somebody writes it, which is the shape `Duration` accepts. */
 const DURATION: JsonMap = { type: 'string', format: 'duration' }
@@ -56,7 +65,10 @@ const STEP_SCHEMA: JsonMap = {
             ...DURATION,
             description: 'How long one attempt may take.',
         },
-        poll: { ...DURATION, description: "How often a sensor checks. Defaults to the sensor's own cadence." },
+        poll: {
+            ...DURATION,
+            description: "How often a sensor checks. Defaults to the sensor's own cadence.",
+        },
         deadline: {
             ...DURATION,
             description: 'How long the step may wait before the timeout applies.',
@@ -88,7 +100,13 @@ const RETRY_SCHEMA: JsonMap = {
         },
         backoff: { ...DURATION, default: '30s', description: 'The delay after the first failure.' },
         max_backoff: { ...DURATION, default: '1h', description: 'The longest delay between attempts.' },
-        multiplier: { type: 'number', minimum: 1, maximum: 10, default: 2, description: 'What each delay is multiplied by.' },
+        multiplier: {
+            type: 'number',
+            minimum: 1,
+            maximum: 10,
+            default: 2,
+            description: 'What each delay is multiplied by.',
+        },
         jitter: {
             type: 'number',
             minimum: 0,
@@ -152,7 +170,8 @@ export function forEachValue(value: unknown): unknown {
 export function withStepKey(document: JsonMap, step: string, name: string, value: unknown): JsonMap {
     const field = stepFields.find((one) => one.name === name)
     const written = name === 'for_each' ? forEachValue(value) : value
-    const spare = written === undefined || written === null || written === '' || sameJson(written, field?.fallback)
+    const spare =
+        written === undefined || written === null || written === '' || sameJson(written, field?.fallback)
     return writeMember(document, step, name, spare ? undefined : written)
 }
 
@@ -161,7 +180,8 @@ export function withRetryKey(document: JsonMap, step: string, name: string, valu
     const field = retryFields.find((one) => one.name === name)
     const held = retryValues(document, step)
     const next: JsonMap = { ...held }
-    if (value === undefined || value === null || value === '' || sameJson(value, field?.fallback)) delete next[name]
+    if (value === undefined || value === null || value === '' || sameJson(value, field?.fallback))
+        delete next[name]
     else next[name] = value
     return writeMember(document, step, 'retry', Object.keys(next).length === 0 ? undefined : next)
 }

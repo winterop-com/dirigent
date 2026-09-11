@@ -225,7 +225,11 @@ describe('the document as YAML', () => {
 
     test('says what the document is before anything else, even when the stored one did not', () => {
         const stored: JsonMap = { code: 'review-dag', kind: 'pipeline', tags: ['review'], steps: {} }
-        expect(toYaml(stored).split('\n').slice(0, 3)).toEqual(['format: dirigent/v1', 'kind: pipeline', 'code: review-dag'])
+        expect(toYaml(stored).split('\n').slice(0, 3)).toEqual([
+            'format: dirigent/v1',
+            'kind: pipeline',
+            'code: review-dag',
+        ])
     })
 
     test('writes the top-level keys in the order the examples use', () => {
@@ -309,7 +313,11 @@ describe('the store the whole screen reads', () => {
         loadDocument('convert-one', document())
         writeSource('steps:\n  parse: [')
         expect(changeDocument((current) => withStepConfig(current, 'parse', { from: 'csv' }))).toBe(false)
-        expect(configOf(documentStore.get().local, 'parse')).toEqual({ from: 'json', to: 'yaml', input: '{}' })
+        expect(configOf(documentStore.get().local, 'parse')).toEqual({
+            from: 'json',
+            to: 'yaml',
+            input: '{}',
+        })
     })
 
     test('a parse error is cleared by text that parses, and editing resumes', () => {
@@ -374,7 +382,9 @@ describe('a document nothing has applied', () => {
 
     test('is edited like any other: the source pane writes it and the graph reads it', () => {
         startDocument()
-        writeSource('format: dirigent/v1\nkind: pipeline\ncode: mine\nsteps:\n  one:\n    block: transform.jq\n')
+        writeSource(
+            'format: dirigent/v1\nkind: pipeline\ncode: mine\nsteps:\n  one:\n    block: transform.jq\n',
+        )
         const state = documentStore.get()
         expect(state.local?.code).toBe('mine')
         expect(stepNames(state.local)).toEqual(['one'])

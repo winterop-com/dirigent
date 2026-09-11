@@ -31,12 +31,12 @@ export function RunTab({ run }: { run: RunOut }) {
         <div className="flex flex-col gap-4 p-4">
             <div className="flex items-center gap-2">
                 <StatusChip status={run.status} />
-                <span className="text-muted-foreground text-xs">
+                <span className="text-xs text-muted-foreground">
                     {formatDuration(elapsedBetween(run.started_at, run.finished_at))}
                 </span>
             </div>
 
-            {run.error !== null && <p className="text-critical text-xs break-words">{run.error}</p>}
+            {run.error !== null && <p className="text-xs break-words text-critical">{run.error}</p>}
 
             <Section title="Trigger">
                 <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
@@ -65,11 +65,15 @@ export function RunTab({ run }: { run: RunOut }) {
 
             <Section title="Parameters">
                 {params.length === 0 ? (
-                    <p className="text-muted-foreground text-xs">This run was started with no parameters.</p>
+                    <p className="text-xs text-muted-foreground">This run was started with no parameters.</p>
                 ) : (
                     <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
                         {params.map(([name, value]) => (
-                            <Fact key={name} term={name} detail={<span className="font-mono">{asJson(value)}</span>} />
+                            <Fact
+                                key={name}
+                                term={name}
+                                detail={<span className="font-mono">{asJson(value)}</span>}
+                            />
                         ))}
                     </dl>
                 )}
@@ -88,7 +92,10 @@ export function RunTab({ run }: { run: RunOut }) {
                     <Fact term="version" detail={run.pipeline_version} />
                     <Fact term="run" detail={<Copyable value={run.id} label={COPY_RUN_LABEL} />} />
                     {run.trace_id !== null && (
-                        <Fact term="trace" detail={<Copyable value={run.trace_id} label={COPY_TRACE_LABEL} />} />
+                        <Fact
+                            term="trace"
+                            detail={<Copyable value={run.trace_id} label={COPY_TRACE_LABEL} />}
+                        />
                     )}
                 </dl>
             </Section>

@@ -38,7 +38,6 @@ const TYPING_MS = 300
 
 const runId = (run: RunOut) => run.id
 
-
 /**
  * Every run this instance has, newest first.
  *
@@ -238,10 +237,10 @@ function runColumns(names: ReadonlyMap<string, string | null> | null): Column<Ru
                     <StatusChip status={run.status} />
                     <PriorityMark run={run} />
                     {run.failed_step !== null && (
-                        <span className="text-muted-foreground truncate text-xs">at {run.failed_step}</span>
+                        <span className="truncate text-xs text-muted-foreground">at {run.failed_step}</span>
                     )}
                     {run.error !== null && (
-                        <span className="text-muted-foreground max-w-64 truncate text-xs" title={run.error}>
+                        <span className="max-w-64 truncate text-xs text-muted-foreground" title={run.error}>
                             {run.error}
                         </span>
                     )}
@@ -266,7 +265,10 @@ function runColumns(names: ReadonlyMap<string, string | null> | null): Column<Ru
             header: 'Started',
             className: 'text-xs',
             cell: (run) => (
-                <span className="text-muted-foreground" title={formatInstant(run.started_at ?? run.created_at)}>
+                <span
+                    className="text-muted-foreground"
+                    title={formatInstant(run.started_at ?? run.created_at)}
+                >
                     {formatRelative(run.started_at ?? run.created_at)}
                 </span>
             ),
@@ -303,13 +305,13 @@ function PipelineCell({ run, name }: { run: RunOut; name: string | null }) {
     return (
         <span className="flex min-w-0 flex-col">
             <Link
-                className={cn('hover:text-primary truncate', !heading.named && 'font-mono')}
+                className={cn('truncate hover:text-primary', !heading.named && 'font-mono')}
                 to={`/pipelines/${encodeURIComponent(run.pipeline)}`}
             >
                 {heading.title}
             </Link>
             {heading.code !== null && (
-                <span className="text-muted-foreground truncate font-mono text-xs">{heading.code}</span>
+                <span className="truncate font-mono text-xs text-muted-foreground">{heading.code}</span>
             )}
         </span>
     )

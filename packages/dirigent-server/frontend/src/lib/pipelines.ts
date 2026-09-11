@@ -146,7 +146,9 @@ export function byTitle(left: PipelineOut, right: PipelineOut): number {
  * the table say is what the request asked for.
  */
 export function tagsFromQuery(query: URLSearchParams): string[] {
-    return [...new Set(query.getAll('tag').map((tag) => tag.trim().toLowerCase()))].filter((tag) => tag !== '')
+    return [...new Set(query.getAll('tag').map((tag) => tag.trim().toLowerCase()))].filter(
+        (tag) => tag !== '',
+    )
 }
 
 /**
@@ -156,7 +158,11 @@ export function tagsFromQuery(query: URLSearchParams): string[] {
  * takes `tag` and repeats it to mean and, so choosing a second one narrows the listing and
  * pages through what it narrowed to rather than through everything.
  */
-export function pipelinesPath(after: string | null, tags: readonly string[] = [], limit: number = PAGE): string {
+export function pipelinesPath(
+    after: string | null,
+    tags: readonly string[] = [],
+    limit: number = PAGE,
+): string {
     const query = new URLSearchParams({ limit: String(limit) })
     if (after !== null) query.set('after', after)
     for (const tag of tags) query.append('tag', tag)
@@ -240,7 +246,8 @@ export async function readTagsOffered(): Promise<string[]> {
  */
 export function paramsOf(document: JsonMap | null): JsonMap | null {
     const params = document?.params
-    if (params === null || params === undefined || typeof params !== 'object' || Array.isArray(params)) return null
+    if (params === null || params === undefined || typeof params !== 'object' || Array.isArray(params))
+        return null
     return params as JsonMap
 }
 
@@ -308,7 +315,9 @@ export function applyPipeline(document: JsonMap, dryRun: boolean): Promise<Apply
 
 /** What fires a pipeline on its own, in words, which is what the glyphs are titled with. */
 export function triggerSummary(row: Pick<PipelineOut, 'schedules' | 'webhooks'>): string {
-    const parts = [count(row.schedules, 'schedule'), count(row.webhooks, 'webhook')].filter((part) => part !== null)
+    const parts = [count(row.schedules, 'schedule'), count(row.webhooks, 'webhook')].filter(
+        (part) => part !== null,
+    )
     if (parts.length === 0) return 'nothing fires this on its own'
     return parts.join(' and ')
 }

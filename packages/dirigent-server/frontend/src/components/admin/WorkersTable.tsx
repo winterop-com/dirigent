@@ -33,7 +33,12 @@ export function WorkersTable({
     empty: string
 }) {
     return (
-        <PageState loading={!state.read} problem={state.problem} empty={state.rows.length === 0} emptyMessage={empty}>
+        <PageState
+            loading={!state.read}
+            problem={state.problem}
+            empty={state.rows.length === 0}
+            emptyMessage={empty}
+        >
             <ListTable
                 columns={columnsFor(state.rows)}
                 rows={state.rows}
@@ -82,12 +87,15 @@ const COLUMNS: Column<WorkerOut>[] = [
             <span className="flex flex-wrap items-center gap-2">
                 <StatusChip status={worker.status} />
                 {worker.stale && (
-                    <span className="text-warning text-xs" title={formatInstant(worker.last_seen_at)}>
+                    <span className="text-xs text-warning" title={formatInstant(worker.last_seen_at)}>
                         last seen {formatRelative(worker.last_seen_at)}
                     </span>
                 )}
                 {!worker.code_matches_server && (
-                    <Badge variant="destructive" title={worker.catalog_digest ?? 'no catalog digest reported'}>
+                    <Badge
+                        variant="destructive"
+                        title={worker.catalog_digest ?? 'no catalog digest reported'}
+                    >
                         different catalog
                     </Badge>
                 )}

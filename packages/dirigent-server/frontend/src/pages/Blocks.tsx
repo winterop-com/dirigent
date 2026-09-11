@@ -96,15 +96,16 @@ export function Blocks() {
 
     useEffect(() => {
         if (open !== null) {
-            return fillPanel([
-                { id: 'block', label: 'Block', render: () => <BlockPanel entry={open} /> },
-            ], { screen: 'blocks' })
+            return fillPanel([{ id: 'block', label: 'Block', render: () => <BlockPanel entry={open} /> }], {
+                screen: 'blocks',
+            })
         }
         if (openEntry !== null) {
             const { registry, entry } = openEntry
-            return fillPanel([
-                { id: 'entry', label: registry.title, render: () => <EntryPanel entry={entry} /> },
-            ], { screen: 'blocks' })
+            return fillPanel(
+                [{ id: 'entry', label: registry.title, render: () => <EntryPanel entry={entry} /> }],
+                { screen: 'blocks' },
+            )
         }
         return
     }, [open, openEntry])
@@ -116,10 +117,7 @@ export function Blocks() {
 
     return (
         <>
-            <PageHeader
-                title="Blocks"
-                aside={<ApiChip tag="blocks" />}
-            />
+            <PageHeader title="Blocks" aside={<ApiChip tag="blocks" />} />
 
             <div className="mb-4 flex flex-wrap items-center gap-2">
                 <Input
@@ -136,7 +134,12 @@ export function Blocks() {
             <PageState
                 loading={!read}
                 problem={problem}
-                empty={shown.length === 0 && schemes.length === 0 && notifiers.length === 0 && connectionKinds.length === 0}
+                empty={
+                    shown.length === 0 &&
+                    schemes.length === 0 &&
+                    notifiers.length === 0 &&
+                    connectionKinds.length === 0
+                }
                 emptyMessage={
                     blocks.length === 0
                         ? 'No blocks installed — plugins contribute them.'
@@ -146,7 +149,7 @@ export function Blocks() {
                 <div className="flex flex-col gap-6">
                     {groups.map(([group, members]) => (
                         <section key={group}>
-                            <h2 className="text-faint mb-1.5 font-mono text-xs font-semibold tracking-wide uppercase">
+                            <h2 className="mb-1.5 font-mono text-xs font-semibold tracking-wide text-faint uppercase">
                                 {group}
                             </h2>
                             <ListTable
@@ -170,7 +173,7 @@ export function Blocks() {
                         if (rows.length === 0) return null
                         return (
                             <section key={registry.key}>
-                                <h2 className="text-faint mb-1.5 font-mono text-xs font-semibold tracking-wide uppercase">
+                                <h2 className="mb-1.5 font-mono text-xs font-semibold tracking-wide text-faint uppercase">
                                     {registry.title}
                                 </h2>
                                 <ListTable
@@ -209,7 +212,7 @@ const COLUMNS: Column<BlockEntry>[] = [
             <div className="min-w-0">
                 {/* A block has no name, so the title is the id and wears the mono face itself. */}
                 <span className="font-mono text-sm font-semibold">{entry.id}</span>
-                <p className="text-muted-foreground truncate text-xs" title={entry.summary}>
+                <p className="truncate text-xs text-muted-foreground" title={entry.summary}>
                     {entry.summary}
                 </p>
             </div>
@@ -239,47 +242,49 @@ function entryColumns(kind: Registry['key']): Column<CatalogEntry>[] {
     // storage schemes is storage; "scheme" is the URI mechanics, not the kind.
     const worn = kind === 'scheme' ? 'storage' : kind
     return [
-    {
-        id: 'entry',
-        header: 'Entry',
-        className: 'w-full max-w-0',
-        cell: (entry) => {
-            const summary = typeof entry.config_schema.description === 'string' ? entry.config_schema.description : ''
-            return (
-                <div className="min-w-0">
-                    <span className="font-mono text-sm font-semibold">{entry.id}</span>
-                    <p className="text-muted-foreground truncate text-xs" title={summary}>
-                        {summary}
-                    </p>
-                </div>
-            )
+        {
+            id: 'entry',
+            header: 'Entry',
+            className: 'w-full max-w-0',
+            cell: (entry) => {
+                const summary =
+                    typeof entry.config_schema.description === 'string' ? entry.config_schema.description : ''
+                return (
+                    <div className="min-w-0">
+                        <span className="font-mono text-sm font-semibold">{entry.id}</span>
+                        <p className="truncate text-xs text-muted-foreground" title={summary}>
+                            {summary}
+                        </p>
+                    </div>
+                )
+            },
         },
-    },
-    {
-        id: 'kind',
-        header: 'Kind',
-        className: 'w-32 whitespace-nowrap',
-        cell: () => <KindChip kind={worn} />,
-    },
-    {
-        id: 'plugin',
-        header: 'Plugin',
-        className: 'w-36 font-mono text-xs whitespace-nowrap',
-        cell: (entry) => <span className="text-muted-foreground">{entry.plugin}</span>,
-    },
+        {
+            id: 'kind',
+            header: 'Kind',
+            className: 'w-32 whitespace-nowrap',
+            cell: () => <KindChip kind={worn} />,
+        },
+        {
+            id: 'plugin',
+            header: 'Plugin',
+            className: 'w-36 font-mono text-xs whitespace-nowrap',
+            cell: (entry) => <span className="text-muted-foreground">{entry.plugin}</span>,
+        },
     ]
 }
 
 /** One supporting entry: what it is, and the config its kind takes. */
 function EntryPanel({ entry }: { entry: CatalogEntry }) {
     const fields = useMemo(() => fieldsOf(entry.config_schema), [entry])
-    const summary = typeof entry.config_schema.description === 'string' ? entry.config_schema.description : null
+    const summary =
+        typeof entry.config_schema.description === 'string' ? entry.config_schema.description : null
 
     return (
         <div className="flex flex-col gap-4 p-4">
             <div className="space-y-1">
                 <h2 className="font-mono text-sm font-semibold">{entry.id}</h2>
-                {summary !== null && <p className="text-muted-foreground text-sm">{summary}</p>}
+                {summary !== null && <p className="text-sm text-muted-foreground">{summary}</p>}
                 <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
                     <Fact term="plugin" detail={entry.plugin} />
                 </dl>
@@ -287,7 +292,7 @@ function EntryPanel({ entry }: { entry: CatalogEntry }) {
 
             <Section title="Config">
                 {fields.length === 0 ? (
-                    <p className="text-muted-foreground text-sm">This takes no configuration.</p>
+                    <p className="text-sm text-muted-foreground">This takes no configuration.</p>
                 ) : (
                     <div className="flex flex-col gap-4">
                         {fields.map((field) => (
@@ -318,7 +323,7 @@ function BlockPanel({ entry }: { entry: BlockEntry }) {
                 <p>
                     <KindChip kind={entry.kind} />
                 </p>
-                <p className="text-muted-foreground text-sm">{entry.summary}</p>
+                <p className="text-sm text-muted-foreground">{entry.summary}</p>
             </div>
 
             <Section title="Facts">
@@ -331,7 +336,7 @@ function BlockPanel({ entry }: { entry: BlockEntry }) {
 
             <Section title="Config">
                 {fields.length === 0 ? (
-                    <p className="text-muted-foreground text-sm">This block takes no configuration.</p>
+                    <p className="text-sm text-muted-foreground">This block takes no configuration.</p>
                 ) : (
                     <div className="flex flex-col gap-4">
                         {fields.map((field) => (
@@ -357,16 +362,18 @@ function FieldReference({ field }: { field: FieldDescriptor }) {
         <div className="flex flex-col gap-1">
             <div className="flex flex-wrap items-baseline gap-x-2">
                 <span className="font-mono text-sm font-medium">{field.name}</span>
-                <span className="text-muted-foreground text-xs">{typeLabel(field)}</span>
-                {field.required && <span className="text-primary text-xs">required</span>}
-                {field.hint !== null && <span className="text-faint text-xs">{field.hint}</span>}
-                {fallback !== null && <span className="text-faint text-xs">default {fallback}</span>}
+                <span className="text-xs text-muted-foreground">{typeLabel(field)}</span>
+                {field.required && <span className="text-xs text-primary">required</span>}
+                {field.hint !== null && <span className="text-xs text-faint">{field.hint}</span>}
+                {fallback !== null && <span className="text-xs text-faint">default {fallback}</span>}
             </div>
             {field.options.length > 0 && (
-                <p className="text-muted-foreground font-mono text-xs">{field.options.map((option) => option.label).join(' · ')}</p>
+                <p className="font-mono text-xs text-muted-foreground">
+                    {field.options.map((option) => option.label).join(' · ')}
+                </p>
             )}
             {field.help !== null && (
-                <p className="text-muted-foreground text-xs">
+                <p className="text-xs text-muted-foreground">
                     <MarkdownLine text={field.help} />
                 </p>
             )}

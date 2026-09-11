@@ -17,12 +17,7 @@ import {
 } from '@/components/ui/dialog'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { needsConnection, unreadyTest } from '@/lib/alert-form'
-import {
-    deliverySettled,
-    readNotification,
-    sendTest,
-    type NotificationOut,
-} from '@/lib/alerting'
+import { deliverySettled, readNotification, sendTest, type NotificationOut } from '@/lib/alerting'
 import type { Problem } from '@/lib/api'
 import { refusalOf } from '@/lib/refusal'
 import { firstShut } from '@/lib/roles'
@@ -189,7 +184,7 @@ export function SendTest({
 function Delivery({ row }: { row: NotificationOut }) {
     return (
         <div
-            className="border-border bg-secondary/40 space-y-2 rounded-lg border p-3"
+            className="space-y-2 rounded-lg border border-border bg-secondary/40 p-3"
             data-testid="test-delivery"
             aria-live="polite"
         >
@@ -197,7 +192,7 @@ function Delivery({ row }: { row: NotificationOut }) {
                 <StatusChip status={row.status} />
                 <span className="text-sm">{row.subject}</span>
             </p>
-            <p className="text-muted-foreground text-xs">
+            <p className="text-xs text-muted-foreground">
                 {row.status === 'sent' ? (
                     <>
                         Delivered <Instant at={row.sent_at} />.
@@ -210,11 +205,12 @@ function Delivery({ row }: { row: NotificationOut }) {
                     'Queued for the next worker pass.'
                 ) : (
                     <>
-                        Attempt {row.attempt} of {row.max_attempts}, next try <Instant at={row.available_at} />.
+                        Attempt {row.attempt} of {row.max_attempts}, next try{' '}
+                        <Instant at={row.available_at} />.
                     </>
                 )}
             </p>
-            {row.error !== null && <p className="text-critical text-xs break-words">{row.error}</p>}
+            {row.error !== null && <p className="text-xs break-words text-critical">{row.error}</p>}
         </div>
     )
 }

@@ -64,7 +64,7 @@ export function SourceTab({
 
     if (document === null) {
         return (
-            <p className="text-muted-foreground p-4 text-sm">
+            <p className="p-4 text-sm text-muted-foreground">
                 This pipeline has no version, so there is no document to read.
             </p>
         )
@@ -73,7 +73,7 @@ export function SourceTab({
     return (
         <div className="flex h-full min-h-0 flex-col">
             {parseError !== null && (
-                <div className="text-critical border-border border-b p-2 text-xs" role="alert">
+                <div className="border-b border-border p-2 text-xs text-critical" role="alert">
                     <pre className="overflow-x-auto font-mono whitespace-pre-wrap">{parseError}</pre>
                     <p className="mt-1">The other tabs are showing the last document that parsed.</p>
                 </div>

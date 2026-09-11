@@ -39,7 +39,9 @@ describe('the pipelines listing path', () => {
 
     test('carries a chosen tag, because the server is what narrows the listing', () => {
         expect(pipelinesPath(null, ['climate'])).toBe('/pipelines?limit=50&tag=climate')
-        expect(pipelinesPath('nightly-etl', ['climate'])).toBe('/pipelines?limit=50&after=nightly-etl&tag=climate')
+        expect(pipelinesPath('nightly-etl', ['climate'])).toBe(
+            '/pipelines?limit=50&after=nightly-etl&tag=climate',
+        )
     })
 
     test('repeats the parameter for a second tag, which is how the server is asked to narrow', () => {
@@ -175,7 +177,13 @@ describe('the last run of a pipeline', () => {
 
     test('reads from when it started while it is still running', () => {
         const view = lastRunView(
-            { id: 'r3', status: 'running', started_at: '2026-03-04T11:58:00Z', finished_at: null, failed_step: null },
+            {
+                id: 'r3',
+                status: 'running',
+                started_at: '2026-03-04T11:58:00Z',
+                finished_at: null,
+                failed_step: null,
+            },
             now,
         )
         expect(view?.when).toBe('2m ago')
@@ -218,12 +226,16 @@ describe('the order the pipelines listing reads in', () => {
     })
 
     test('titles a row with no name by its code, and sorts it there', () => {
-        const sorted = [row('m-code', null), row('a-code', 'Zebra')].toSorted(byTitle).map((found) => found.code)
+        const sorted = [row('m-code', null), row('a-code', 'Zebra')]
+            .toSorted(byTitle)
+            .map((found) => found.code)
         expect(sorted).toEqual(['m-code', 'a-code'])
     })
 
     test('breaks a tie on the code, which is the one thing no two rows share', () => {
-        const sorted = [row('second', 'Same'), row('first', 'Same')].toSorted(byTitle).map((found) => found.code)
+        const sorted = [row('second', 'Same'), row('first', 'Same')]
+            .toSorted(byTitle)
+            .map((found) => found.code)
         expect(sorted).toEqual(['first', 'second'])
     })
 })

@@ -43,38 +43,54 @@ export function HealthPanel({ rows, note, reading }: { rows: HealthRow[]; note: 
             <CardContent className="flex h-full flex-col p-0">
                 <div className="space-y-1 px-3 py-3">
                     <h2 className="text-sm font-semibold">Health</h2>
-                    <p className="text-muted-foreground text-xs">
-                        {reading ? 'Reading from the server' : 'The workers claiming work, and every connection.'}
+                    <p className="text-xs text-muted-foreground">
+                        {reading
+                            ? 'Reading from the server'
+                            : 'The workers claiming work, and every connection.'}
                     </p>
                 </div>
 
                 <ul className="max-h-64 grow overflow-y-auto">
                     {rows.map((row) => {
-                        const to = row.kind === 'connection' ? '/connections' : role === 'admin' ? '/admin/workers' : null
+                        const to =
+                            row.kind === 'connection'
+                                ? '/connections'
+                                : role === 'admin'
+                                  ? '/admin/workers'
+                                  : null
                         const body = (
                             <>
-                                <span className={cn('size-2 shrink-0 rounded-full', DOTS[row.tone])} aria-hidden />
-                                <span className="max-w-[55%] shrink-0 truncate font-mono text-xs" title={row.label}>
+                                <span
+                                    className={cn('size-2 shrink-0 rounded-full', DOTS[row.tone])}
+                                    aria-hidden
+                                />
+                                <span
+                                    className="max-w-[55%] shrink-0 truncate font-mono text-xs"
+                                    title={row.label}
+                                >
                                     {row.label}
                                 </span>
                                 <span className="ml-auto flex min-w-0 items-baseline gap-2">
-                                    <span className="text-muted-foreground truncate text-xs" title={row.detail}>
+                                    <span
+                                        className="truncate text-xs text-muted-foreground"
+                                        title={row.detail}
+                                    >
                                         {row.detail}
                                     </span>
                                     {row.at !== null && (
-                                        <Instant className="text-faint shrink-0 text-xs" at={row.at} />
+                                        <Instant className="shrink-0 text-xs text-faint" at={row.at} />
                                     )}
                                 </span>
                             </>
                         )
                         return (
-                            <li key={`${row.kind}:${row.id}`} className="border-border border-t">
+                            <li key={`${row.kind}:${row.id}`} className="border-t border-border">
                                 {to === null ? (
                                     <span className="flex items-center gap-3 px-3 py-1.5">{body}</span>
                                 ) : (
                                     <Link
                                         to={to}
-                                        className="hover:bg-accent/60 flex items-center gap-3 px-3 py-1.5"
+                                        className="flex items-center gap-3 px-3 py-1.5 hover:bg-accent/60"
                                     >
                                         {body}
                                     </Link>
@@ -84,7 +100,7 @@ export function HealthPanel({ rows, note, reading }: { rows: HealthRow[]; note: 
                     })}
                 </ul>
 
-                <p className="text-muted-foreground border-border border-t px-3 py-2 text-xs">{note}</p>
+                <p className="border-t border-border px-3 py-2 text-xs text-muted-foreground">{note}</p>
             </CardContent>
         </Card>
     )

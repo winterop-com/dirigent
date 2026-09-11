@@ -33,7 +33,8 @@ export function useDragSize(
     const beginResize = useCallback(
         (event: ReactPointerEvent<HTMLDivElement>) => {
             event.preventDefault()
-            const along = (point: { clientX: number; clientY: number }) => (axis === 'x' ? point.clientX : point.clientY)
+            const along = (point: { clientX: number; clientY: number }) =>
+                axis === 'x' ? point.clientX : point.clientY
             start.current = { at: along(event), size }
             setDragging(true)
             let latest = size

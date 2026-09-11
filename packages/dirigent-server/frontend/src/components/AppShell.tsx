@@ -24,7 +24,9 @@ import { useStore } from '@/hooks/use-store'
 import { ApiError, onUnauthorized, type Problem } from '@/lib/api'
 import { authStore, refreshIdentity, signOut } from '@/lib/auth'
 import { entriesFor, LOGIN_PATH } from '@/lib/nav'
-import { APPEARANCE_GROUP,GO_GROUP,
+import {
+    APPEARANCE_GROUP,
+    GO_GROUP,
     paletteOpen,
     registerActions,
     SESSION_GROUP,
@@ -224,7 +226,7 @@ export function AppShell() {
                 <div className="flex min-h-0 min-w-0 flex-1 flex-col">
                     <header
                         data-shell-strip="top"
-                        className="bg-sidebar flex h-shell-top shrink-0 items-center gap-2 px-3"
+                        className="flex h-shell-top shrink-0 items-center gap-2 bg-sidebar px-3"
                     >
                         {/* The rail is not drawn below the breakpoint, so this is the way to it. */}
                         <Button
@@ -247,7 +249,7 @@ export function AppShell() {
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        className="text-muted-foreground px-2 font-mono text-xs"
+                                        className="px-2 font-mono text-xs text-muted-foreground"
                                         onClick={() => {
                                             paletteOpen.set(true)
                                         }}
@@ -294,7 +296,7 @@ export function AppShell() {
                 <RightPanel />
                 <div
                     data-shell-rule="top"
-                    className="bg-border-strong pointer-events-none absolute inset-x-0 top-shell-top z-20 h-px"
+                    className="pointer-events-none absolute inset-x-0 top-shell-top z-20 h-px bg-border-strong"
                     aria-hidden
                 />
             </div>

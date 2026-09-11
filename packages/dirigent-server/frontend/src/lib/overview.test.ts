@@ -253,13 +253,17 @@ describe('the workers tile states the worst fact', () => {
     // and will run something other than what it was asked for. Drop `code_matches_server` from
     // `concernOf` and this fails.
     test('a mismatched catalog outranks a stopped worker', () => {
-        const tile = workersTile(whole([worker('a', { status: 'stopped' }), worker('b', { code_matches_server: false })]))
+        const tile = workersTile(
+            whole([worker('a', { status: 'stopped' }), worker('b', { code_matches_server: false })]),
+        )
         expect(tile.note).toBe('b is running a different catalog from this server.')
         expect(tile.tone).toBe('critical')
     })
 
     test('a silent worker still outranks a mismatched one', () => {
-        const tile = workersTile(whole([worker('a', { code_matches_server: false }), worker('b', { stale: true })]))
+        const tile = workersTile(
+            whole([worker('a', { code_matches_server: false }), worker('b', { stale: true })]),
+        )
         expect(tile.note).toBe('b has gone quiet.')
     })
 
@@ -272,7 +276,9 @@ describe('the workers tile states the worst fact', () => {
 
 describe('the connections tile', () => {
     test('names the one that did not answer, with what it said', () => {
-        const tile = connectionsTile(whole([connection('ok', true), connection('dhis', false, 'connection refused')]))
+        const tile = connectionsTile(
+            whole([connection('ok', true), connection('dhis', false, 'connection refused')]),
+        )
         expect(tile.value).toBe('1 of 2')
         expect(tile.note).toBe('dhis did not answer: connection refused')
         expect(tile.tone).toBe('critical')
@@ -297,7 +303,9 @@ describe('the schedules tile', () => {
     })
 
     test('says nothing fires on its own rather than showing a bare zero', () => {
-        expect(schedulesTile(whole([pipeline('a', 0)])).note).toBe('Nothing on this instance fires on its own.')
+        expect(schedulesTile(whole([pipeline('a', 0)])).note).toBe(
+            'Nothing on this instance fires on its own.',
+        )
     })
 })
 
@@ -315,7 +323,9 @@ describe('what needs a look', () => {
     })
 
     test('shows no more rows than a feed has room for', () => {
-        const many = Array.from({ length: 20 }, (_, index) => run('failed', `2026-01-0${String((index % 9) + 1)}T00:00:00Z`, `run-${String(index)}`))
+        const many = Array.from({ length: 20 }, (_, index) =>
+            run('failed', `2026-01-0${String((index % 9) + 1)}T00:00:00Z`, `run-${String(index)}`),
+        )
         expect(needsALook(many, [], 6)).toHaveLength(6)
     })
 })

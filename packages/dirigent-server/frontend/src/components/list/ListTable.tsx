@@ -1,4 +1,10 @@
-import { Fragment, useEffect, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
+import {
+    Fragment,
+    useEffect,
+    useState,
+    type KeyboardEvent as ReactKeyboardEvent,
+    type ReactNode,
+} from 'react'
 
 import { ListWidthProvider } from '@/components/list/ListWidth'
 import { Button } from '@/components/ui/button'
@@ -153,112 +159,121 @@ export function ListTable<T>({
 
     return (
         <ListWidthProvider width={width}>
-        <div className="border-border-strong bg-card flex min-h-0 flex-col overflow-hidden rounded-md border">
-            {/* The container the columns' shares are taken of, and the box that is measured:
+            <div className="flex min-h-0 flex-col overflow-hidden rounded-md border border-border-strong bg-card">
+                {/* The container the columns' shares are taken of, and the box that is measured:
                 the table's own width, inside the card's border rather than across it. */}
-            <div ref={setBox} className="list-scroll @container min-h-0 flex-1 overflow-auto">
-                {/* THE SAME ROWS AS CARDS BELOW `lg`. A table of six columns in the 500px the
+                <div ref={setBox} className="list-scroll @container min-h-0 flex-1 overflow-auto">
+                    {/* THE SAME ROWS AS CARDS BELOW `lg`. A table of six columns in the 500px the
                     content column has beside the rail is either a horizontal scroll or one
                     cell drawn over another, so the first column becomes the card's head and
                     every other one a labelled fact under it -- labelled by the header that
                     names it in the table. */}
-                {cards && head !== undefined ? (
-                    <ul className="divide-border divide-y">
-                        {rows.map((row) => (
-                            <li
-                                key={rowKey(row)}
-                                {...chooses(row)}
-                                className={cn(
-                                    'row-hover flex min-h-10 flex-col justify-center gap-2 px-3 py-3',
-                                    selected?.(row) === true && 'bg-accent/70',
-                                    onSelect !== undefined && 'cursor-pointer',
-                                    rowClassName?.(row),
-                                )}
-                            >
-                                <div className="min-w-0">{head.cell(row)}</div>
-                                {facts.some((column) => said(column.cell(row))) && (
-                                    <dl className="grid grid-cols-[7rem_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs">
-                                        {facts.map((column) => {
-                                            const cell = column.cell(row)
-                                            if (!said(cell)) return null
-                                            const label = labelOf(column)
-                                            return (
-                                                <Fragment key={column.id}>
-                                                    <dt className="text-faint">{label}</dt>
-                                                    <dd className="min-w-0">{cell}</dd>
-                                                </Fragment>
-                                            )
-                                        })}
-                                    </dl>
-                                )}
-                            </li>
-                        ))}
-                    </ul>
-                ) : (
-                <Table containerClassName="overflow-x-visible" className={cn(fixed && 'table-fixed')}>
-                {chrome?.header !== false && (
-                <TableHeader className="bg-card sticky top-0 z-10">
-                    <TableRow className="border-border-strong hover:bg-transparent">
-                        {columns.map((column) => (
-                            <TableHead
-                                key={column.id}
-                                className={cn('text-muted-foreground px-3 text-xs font-medium', column.className)}
-                            >
-                                {column.header}
-                            </TableHead>
-                        ))}
-                    </TableRow>
-                </TableHeader>
-                )}
-                <TableBody>
-                    {rows.map((row) => (
-                        <TableRow
-                            key={rowKey(row)}
-                            className={cn(
-                                'row-hover border-border',
-                                // The stripe steps aside for the selection: `even:` carries a
-                                // pseudo-class, so left in place it would outrank the tint and
-                                // every even row would look unselected.
-                                selected?.(row) === true
-                                    ? 'bg-accent/70 even:bg-accent/70 hover:bg-accent/70'
-                                    : cn('even:bg-secondary/30', onSelect !== undefined && 'hover:bg-accent/60'),
-                                onSelect !== undefined && 'cursor-pointer',
-                                rowClassName?.(row),
-                            )}
-                            {...chooses(row)}
-                        >
-                            {columns.map((column) => (
-                                <TableCell key={column.id} className={cn('px-3 py-2', column.className)}>
-                                    {column.cell(row)}
-                                </TableCell>
+                    {cards && head !== undefined ? (
+                        <ul className="divide-y divide-border">
+                            {rows.map((row) => (
+                                <li
+                                    key={rowKey(row)}
+                                    {...chooses(row)}
+                                    className={cn(
+                                        'row-hover flex min-h-10 flex-col justify-center gap-2 px-3 py-3',
+                                        selected?.(row) === true && 'bg-accent/70',
+                                        onSelect !== undefined && 'cursor-pointer',
+                                        rowClassName?.(row),
+                                    )}
+                                >
+                                    <div className="min-w-0">{head.cell(row)}</div>
+                                    {facts.some((column) => said(column.cell(row))) && (
+                                        <dl className="grid grid-cols-[7rem_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs">
+                                            {facts.map((column) => {
+                                                const cell = column.cell(row)
+                                                if (!said(cell)) return null
+                                                const label = labelOf(column)
+                                                return (
+                                                    <Fragment key={column.id}>
+                                                        <dt className="text-faint">{label}</dt>
+                                                        <dd className="min-w-0">{cell}</dd>
+                                                    </Fragment>
+                                                )
+                                            })}
+                                        </dl>
+                                    )}
+                                </li>
                             ))}
-                        </TableRow>
-                    ))}
-                </TableBody>
-                </Table>
-                )}
+                        </ul>
+                    ) : (
+                        <Table containerClassName="overflow-x-visible" className={cn(fixed && 'table-fixed')}>
+                            {chrome?.header !== false && (
+                                <TableHeader className="sticky top-0 z-10 bg-card">
+                                    <TableRow className="border-border-strong hover:bg-transparent">
+                                        {columns.map((column) => (
+                                            <TableHead
+                                                key={column.id}
+                                                className={cn(
+                                                    'px-3 text-xs font-medium text-muted-foreground',
+                                                    column.className,
+                                                )}
+                                            >
+                                                {column.header}
+                                            </TableHead>
+                                        ))}
+                                    </TableRow>
+                                </TableHeader>
+                            )}
+                            <TableBody>
+                                {rows.map((row) => (
+                                    <TableRow
+                                        key={rowKey(row)}
+                                        className={cn(
+                                            'row-hover border-border',
+                                            // The stripe steps aside for the selection: `even:` carries a
+                                            // pseudo-class, so left in place it would outrank the tint and
+                                            // every even row would look unselected.
+                                            selected?.(row) === true
+                                                ? 'bg-accent/70 even:bg-accent/70 hover:bg-accent/70'
+                                                : cn(
+                                                      'even:bg-secondary/30',
+                                                      onSelect !== undefined && 'hover:bg-accent/60',
+                                                  ),
+                                            onSelect !== undefined && 'cursor-pointer',
+                                            rowClassName?.(row),
+                                        )}
+                                        {...chooses(row)}
+                                    >
+                                        {columns.map((column) => (
+                                            <TableCell
+                                                key={column.id}
+                                                className={cn('px-3 py-2', column.className)}
+                                            >
+                                                {column.cell(row)}
+                                            </TableCell>
+                                        ))}
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    )}
 
-                {next !== null && (
-                    <div ref={setSentinel} className="border-border border-t p-1.5">
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-muted-foreground w-full"
-                        onClick={onMore}
-                        disabled={reading}
-                    >
-                            {reading ? 'Reading' : `Load ${String(PAGE)} more`}
-                        </Button>
+                    {next !== null && (
+                        <div ref={setSentinel} className="border-t border-border p-1.5">
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="w-full text-muted-foreground"
+                                onClick={onMore}
+                                disabled={reading}
+                            >
+                                {reading ? 'Reading' : `Load ${String(PAGE)} more`}
+                            </Button>
+                        </div>
+                    )}
+                </div>
+
+                {chrome?.footer !== false && (
+                    <div className="shrink-0 border-t border-border px-3 py-2 text-xs text-faint">
+                        {rowsRead(rows.length, noun, next !== null)}
                     </div>
                 )}
             </div>
-
-            {chrome?.footer !== false && (
-                <div className="border-border text-faint shrink-0 border-t px-3 py-2 text-xs">
-                    {rowsRead(rows.length, noun, next !== null)}
-                </div>
-            )}
-        </div>
         </ListWidthProvider>
     )
 }

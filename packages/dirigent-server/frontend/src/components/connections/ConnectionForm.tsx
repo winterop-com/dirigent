@@ -83,7 +83,12 @@ export function ConnectionForm({
     )
 
     const send = () => {
-        const body = patchBody(connection, editsOf(connection, values, secrets), given(named), given(description))
+        const body = patchBody(
+            connection,
+            editsOf(connection, values, secrets),
+            given(named),
+            given(description),
+        )
         if (body === null) {
             setSaved(true)
             return
@@ -110,15 +115,19 @@ export function ConnectionForm({
         <div className="space-y-4 p-4">
             <div className="space-y-1">
                 <p className="flex items-center gap-2">
-                    <span className={heading.named ? 'text-sm font-semibold' : 'font-mono text-sm font-semibold'}>
+                    <span
+                        className={
+                            heading.named ? 'text-sm font-semibold' : 'font-mono text-sm font-semibold'
+                        }
+                    >
                         {heading.title}
                     </span>
                     <KindChip kind={connection.kind} />
                     {heading.code !== null && (
-                        <span className="text-muted-foreground font-mono text-xs">{heading.code}</span>
+                        <span className="font-mono text-xs text-muted-foreground">{heading.code}</span>
                     )}
                 </p>
-                <p className="text-faint text-xs">
+                <p className="text-xs text-faint">
                     Created <Instant at={connection.created_at} />
                     {separatelyUpdated(connection.created_at, connection.updated_at) && (
                         <>
@@ -141,7 +150,7 @@ export function ConnectionForm({
                     }}
                     placeholder="What to call this on screen"
                 />
-                <p className="text-faint text-xs">
+                <p className="text-xs text-faint">
                     Display only. Every reference to this credential is by its code, {connection.code}.
                 </p>
             </div>
@@ -161,7 +170,7 @@ export function ConnectionForm({
             </div>
 
             <div className="space-y-3">
-                <p className="text-faint text-xs font-semibold tracking-wide uppercase">Settings</p>
+                <p className="text-xs font-semibold tracking-wide text-faint uppercase">Settings</p>
                 <SchemaForm
                     fields={fields}
                     values={values}
@@ -197,7 +206,7 @@ export function ConnectionForm({
                         {busy ? 'Saving' : 'Save'}
                     </Button>
                 </Refusable>
-                {saved && <span className="text-muted-foreground text-xs">Saved.</span>}
+                {saved && <span className="text-xs text-muted-foreground">Saved.</span>}
             </div>
         </div>
     )

@@ -202,7 +202,12 @@ describe('following one run', () => {
 })
 
 /** One log entry as the stream carries one. */
-function logEntry(id: number, step: string | null, level: LogEntryOut['level'], message: string): LogEntryOut {
+function logEntry(
+    id: number,
+    step: string | null,
+    level: LogEntryOut['level'],
+    message: string,
+): LogEntryOut {
     return {
         id,
         run_id: 'r-1',
@@ -302,8 +307,12 @@ describe('the terminal drawer costs no connection', () => {
         // The whole of what the drawer reads: the lines, each filter over them, the step select,
         // and the step a prefix opens. None of it reaches the network.
         expect(visibleLines(state.logs, EVERY_LINE, NO_ITEMS).map((line) => line.id)).toEqual([1, 2, 3])
-        expect(visibleLines(state.logs, { ...EVERY_LINE, step: 'fetch' }, NO_ITEMS).map((line) => line.id)).toEqual([1, 3])
-        expect(visibleLines(state.logs, { ...EVERY_LINE, level: 'error' }, NO_ITEMS).map((line) => line.id)).toEqual([3])
+        expect(
+            visibleLines(state.logs, { ...EVERY_LINE, step: 'fetch' }, NO_ITEMS).map((line) => line.id),
+        ).toEqual([1, 3])
+        expect(
+            visibleLines(state.logs, { ...EVERY_LINE, level: 'error' }, NO_ITEMS).map((line) => line.id),
+        ).toEqual([3])
         expect(stepChoices(state)).toEqual(['fetch', 'shape'])
         expect(stepOf(visibleLines(state.logs, EVERY_LINE, NO_ITEMS)[0] as LogEntryOut)).toBe('fetch')
 
@@ -333,7 +342,12 @@ function raced(): RunDetailOut {
     return {
         ...opened(),
         dag: {
-            nodes: [dagNode('slow'), dagNode('middling'), dagNode('quick'), dagNode('report', ['slow', 'middling', 'quick'])],
+            nodes: [
+                dagNode('slow'),
+                dagNode('middling'),
+                dagNode('quick'),
+                dagNode('report', ['slow', 'middling', 'quick']),
+            ],
             edges: [
                 ['slow', 'report'],
                 ['middling', 'report'],
@@ -353,9 +367,15 @@ describe('the graph a run was read with', () => {
         const read = raced()
         const source = recorder([
             [
-                frame('attempt', JSON.stringify({ id: 'a-1', step_name: 'quick', attempt: 1, status: 'running' })),
+                frame(
+                    'attempt',
+                    JSON.stringify({ id: 'a-1', step_name: 'quick', attempt: 1, status: 'running' }),
+                ),
                 frame('log', JSON.stringify(logEntry(1, 'quick', 'info', 'waiting')), '1'),
-                frame('attempt', JSON.stringify({ id: 'a-1', step_name: 'quick', attempt: 1, status: 'succeeded' })),
+                frame(
+                    'attempt',
+                    JSON.stringify({ id: 'a-1', step_name: 'quick', attempt: 1, status: 'succeeded' }),
+                ),
                 frame('run', JSON.stringify({ ...read.run, status: 'succeeded' })),
                 frame('end'),
             ],

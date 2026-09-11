@@ -3,11 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type 
 import { useNavigate } from 'react-router'
 
 import { BrandPane } from '@/components/login/BrandPane'
-import {
-    clampPaneWidth,
-    rememberPaneWidth,
-    rememberedPaneWidth,
-} from '@/components/login/pane-width'
+import { clampPaneWidth, rememberPaneWidth, rememberedPaneWidth } from '@/components/login/pane-width'
 import { rememberUsername, rememberedUsername } from '@/components/login/remembered'
 import { SeamHandle } from '@/components/login/SeamHandle'
 import { revealOf } from '@/components/login/reveal'
@@ -156,7 +152,7 @@ export function Login() {
         // holds its floor and the form column takes what is left, which at lg is still the
         // form and its padding; below lg the two stack and the pane is a strip.
         <div
-            className="bg-background flex min-h-svh flex-col lg:grid lg:grid-cols-[var(--login-pane,minmax(35rem,45%))_1fr] xl:grid-cols-[var(--login-pane,clamp(35rem,52vw,66rem))_1fr]"
+            className="flex min-h-svh flex-col bg-background lg:grid lg:grid-cols-[var(--login-pane,minmax(35rem,45%))_1fr] xl:grid-cols-[var(--login-pane,clamp(35rem,52vw,66rem))_1fr]"
             style={chosen === null ? undefined : ({ '--login-pane': `${String(chosen)}px` } as CSSProperties)}
         >
             <BrandPane version={version} ref={pane} />
@@ -165,7 +161,7 @@ export function Login() {
                 between the two would not be there at all. The form is centred in it at every
                 width, so what a wider window gives this column is spent evenly either side of
                 the one question it asks. */}
-            <main className="dark:bg-card relative flex flex-1 items-center justify-center p-6 lg:p-12">
+            <main className="relative flex flex-1 items-center justify-center p-6 lg:p-12 dark:bg-card">
                 <SeamHandle width={drawn} onChange={choose} onReset={forget} />
                 <form
                     className="relative grid w-full max-w-xs gap-5 xl:w-[26.875rem] xl:max-w-none"
@@ -174,21 +170,17 @@ export function Login() {
                     }}
                 >
                     <div className="grid gap-2">
-                        <p className="text-primary-ink text-sm tracking-[0.18em] uppercase">
+                        <p className="text-sm tracking-[0.18em] text-primary-ink uppercase">
                             Welcome to dirigent
                         </p>
-                        <h2 className="text-display font-semibold tracking-tight">
-                            {SIGN_IN_LABEL}
-                        </h2>
-                        <p className="text-muted-foreground text-sm">
-                            Enter your credentials to continue.
-                        </p>
+                        <h2 className="text-display font-semibold tracking-tight">{SIGN_IN_LABEL}</h2>
+                        <p className="text-sm text-muted-foreground">Enter your credentials to continue.</p>
                     </div>
                     <div className="grid gap-1.5">
                         <Label htmlFor="username">{USERNAME_LABEL}</Label>
                         <div className="relative">
                             <User
-                                className="text-muted-foreground pointer-events-none absolute top-1/2 left-4 size-4.5 -translate-y-1/2"
+                                className="pointer-events-none absolute top-1/2 left-4 size-4.5 -translate-y-1/2 text-muted-foreground"
                                 aria-hidden
                             />
                             <Input
@@ -210,7 +202,7 @@ export function Login() {
                         <Label htmlFor="password">{PASSWORD_LABEL}</Label>
                         <div className="relative">
                             <Lock
-                                className="text-muted-foreground pointer-events-none absolute top-1/2 left-4 size-4.5 -translate-y-1/2"
+                                className="pointer-events-none absolute top-1/2 left-4 size-4.5 -translate-y-1/2 text-muted-foreground"
                                 aria-hidden
                             />
                             <Input
@@ -233,7 +225,7 @@ export function Login() {
                                 onClick={() => {
                                     setShown(!shown)
                                 }}
-                                className="text-muted-foreground hover:text-foreground focus-visible:ring-ring/50 absolute top-1/2 right-3 -translate-y-1/2 rounded-md p-1 outline-none focus-visible:ring-3"
+                                className="absolute top-1/2 right-3 -translate-y-1/2 rounded-md p-1 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
                             >
                                 {shown ? (
                                     <EyeOff className="size-4.5" aria-hidden />
@@ -255,7 +247,7 @@ export function Login() {
                     {auth.problem !== null && (
                         <p
                             role="alert"
-                            className="border-critical/40 bg-critical/10 text-critical absolute inset-x-0 top-[calc(100%+1.5rem)] flex h-12 items-center gap-3 rounded-lg border px-4 text-sm"
+                            className="absolute inset-x-0 top-[calc(100%+1.5rem)] flex h-12 items-center gap-3 rounded-lg border border-critical/40 bg-critical/10 px-4 text-sm text-critical"
                         >
                             <CircleAlert className="size-4 shrink-0" aria-hidden />
                             <span className="truncate">{auth.problem.detail}</span>

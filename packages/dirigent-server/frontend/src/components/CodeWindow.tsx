@@ -34,7 +34,7 @@ export function CodeWindow({
                 variant="ghost"
                 size="icon"
                 aria-label={`Open ${title} in a window`}
-                className="text-faint border-border bg-background/90 absolute top-1.5 right-3.5 size-6 rounded-md border"
+                className="absolute top-1.5 right-3.5 size-6 rounded-md border border-border bg-background/90 text-faint"
                 onClick={() => {
                     setOpen(true)
                 }}

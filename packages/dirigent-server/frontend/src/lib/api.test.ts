@@ -1,6 +1,15 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
-import { ApiError, apiFetch, apiJson, apiUrl, appConfig, forgetConfig, onUnauthorized, problemOf } from '@/lib/api'
+import {
+    ApiError,
+    apiFetch,
+    apiJson,
+    apiUrl,
+    appConfig,
+    forgetConfig,
+    onUnauthorized,
+    problemOf,
+} from '@/lib/api'
 
 /** One canned answer, in the shape `fetch` hands back. */
 function answer(status: number, body: unknown, ok = status < 400): Response {
@@ -106,7 +115,9 @@ describe('a refusal', () => {
                 false,
             ),
         )
-        const failure = await apiJson('/pipelines/$apply', { method: 'POST' }).catch((error: unknown) => error)
+        const failure = await apiJson('/pipelines/$apply', { method: 'POST' }).catch(
+            (error: unknown) => error,
+        )
         expect(failure).toBeInstanceOf(ApiError)
         const error = failure as ApiError
         expect(error.status).toBe(422)

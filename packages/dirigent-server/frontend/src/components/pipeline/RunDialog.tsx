@@ -159,7 +159,9 @@ export function RunDialog({
                                 })
                             }}
                             onTouch={(name) => {
-                                setTouched((current) => (current.has(name) ? current : new Set(current).add(name)))
+                                setTouched((current) =>
+                                    current.has(name) ? current : new Set(current).add(name),
+                                )
                             }}
                             onUnreadable={(name, message) => {
                                 setUnreadable((current) => withUnreadable(current, name, message))
@@ -172,17 +174,27 @@ export function RunDialog({
                     <div className="space-y-2">
                         <div className="flex flex-wrap items-baseline gap-x-2">
                             <Label>Window</Label>
-                            <span className="text-faint font-mono text-xs">{zoneLabel(mode)}</span>
+                            <span className="font-mono text-xs text-faint">{zoneLabel(mode)}</span>
                         </div>
                         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                            <WindowField id="run-window-start" label="Start" value={windowStart} onChange={setWindowStart} />
-                            <WindowField id="run-window-end" label="End" value={windowEnd} onChange={setWindowEnd} />
+                            <WindowField
+                                id="run-window-start"
+                                label="Start"
+                                value={windowStart}
+                                onChange={setWindowStart}
+                            />
+                            <WindowField
+                                id="run-window-end"
+                                label="End"
+                                value={windowEnd}
+                                onChange={setWindowEnd}
+                            />
                         </div>
                     </div>
                 ) : (
                     <Button
                         variant="link"
-                        className="text-primary-ink w-fit px-0"
+                        className="w-fit px-0 text-primary-ink"
                         onClick={() => {
                             setWindowAsked(true)
                         }}
@@ -192,9 +204,9 @@ export function RunDialog({
                 )}
 
                 {warnings.length > 0 && (
-                    <div className="border-warning/40 bg-warning/10 space-y-0.5 rounded-md border p-2">
+                    <div className="space-y-0.5 rounded-md border border-warning/40 bg-warning/10 p-2">
                         {warnings.map((line) => (
-                            <p key={line} className="text-warning-ink text-xs">
+                            <p key={line} className="text-xs text-warning-ink">
                                 {line}
                             </p>
                         ))}
@@ -202,13 +214,13 @@ export function RunDialog({
                 )}
 
                 {problem !== null && (
-                    <p className="text-critical text-xs" role="alert">
+                    <p className="text-xs text-critical" role="alert">
                         {problem.detail}
                     </p>
                 )}
 
                 <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground text-xs">log</span>
+                    <span className="text-xs text-muted-foreground">log</span>
                     <Select
                         value={level}
                         onValueChange={(chosen) => {
@@ -225,7 +237,7 @@ export function RunDialog({
                     </Select>
                 </div>
 
-                <p className="text-faint text-xs">runs as {username ?? 'this session'} · adhoc</p>
+                <p className="text-xs text-faint">runs as {username ?? 'this session'} · adhoc</p>
 
                 <DialogFooter>
                     <Button variant="outline" onClick={() => onOpenChange(false)}>
@@ -234,7 +246,12 @@ export function RunDialog({
                     <Refusable why={shut}>
                         <Button
                             ref={runNow}
-                            disabled={starting || !write.may || !maySubmit(problems, unreadable) || shut !== undefined}
+                            disabled={
+                                starting ||
+                                !write.may ||
+                                !maySubmit(problems, unreadable) ||
+                                shut !== undefined
+                            }
                             title={shut}
                             onClick={start}
                         >

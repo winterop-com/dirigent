@@ -12,7 +12,11 @@ import { cn } from '@/lib/utils'
  */
 export function KindChip({ kind, className }: { kind: string; className?: string }) {
     return (
-        <span className={cn('kind-chip', className)} data-kind={kind} style={kindTokens(kind) as CSSProperties}>
+        <span
+            className={cn('kind-chip', className)}
+            data-kind={kind}
+            style={kindTokens(kind) as CSSProperties}
+        >
             {kindLabel(kind)}
         </span>
     )

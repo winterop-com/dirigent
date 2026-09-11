@@ -75,7 +75,11 @@ export function ReportTab({
             },
             (error: unknown) => {
                 if (!cancelled) {
-                    setRead({ of: runId, document: null, refusal: error instanceof ApiError ? error.problem : null })
+                    setRead({
+                        of: runId,
+                        document: null,
+                        refusal: error instanceof ApiError ? error.problem : null,
+                    })
                 }
             },
         )
@@ -88,16 +92,16 @@ export function ReportTab({
 
     if (!settled) {
         return (
-            <p className="text-muted-foreground p-4 text-sm">The report is written when this run settles.</p>
+            <p className="p-4 text-sm text-muted-foreground">The report is written when this run settles.</p>
         )
     }
 
     if (found !== null && found.refusal !== null) {
-        return <p className="text-muted-foreground p-4 text-sm">{found.refusal.detail}</p>
+        return <p className="p-4 text-sm text-muted-foreground">{found.refusal.detail}</p>
     }
 
     if (found === null) {
-        return <p className="text-muted-foreground p-4 text-sm">Reading the report.</p>
+        return <p className="p-4 text-sm text-muted-foreground">Reading the report.</p>
     }
 
     if (found.document === null) return <Summary report={report} problem={problem} />
@@ -116,7 +120,7 @@ export function ReportTab({
             <Description text={markdown} ink="body" />
             {prefix !== null && (
                 <a
-                    className="text-primary-ink w-fit text-xs hover:underline"
+                    className="w-fit text-xs text-primary-ink hover:underline"
                     href={artifactUrl(prefix, found.document.id)}
                     download={DOCUMENT_NAME}
                     rel="noopener"
@@ -138,14 +142,14 @@ function Summary({ report, problem }: { report: RunReport | null; problem: Probl
     const items = report === null ? null : itemsNote(report.items_total, report.items_failed)
     return (
         <div className="flex flex-col gap-4 p-4">
-            <p className="text-muted-foreground text-sm">
+            <p className="text-sm text-muted-foreground">
                 This run rendered no report document. A pipeline document declares one under its report key.
             </p>
             <Section title="Summary">
                 {problem !== null ? (
-                    <p className="text-muted-foreground text-xs">{problem.detail}</p>
+                    <p className="text-xs text-muted-foreground">{problem.detail}</p>
                 ) : report === null ? (
-                    <p className="text-muted-foreground text-xs">Reading the summary.</p>
+                    <p className="text-xs text-muted-foreground">Reading the summary.</p>
                 ) : (
                     <>
                         <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
@@ -158,9 +162,9 @@ function Summary({ report, problem }: { report: RunReport | null; problem: Probl
                                     <StatusChip status={step.outcome} />
                                     <span className="truncate text-sm">{step.step}</span>
                                     {step.warnings > 0 && (
-                                        <span className="text-warning text-xs">{step.warnings} warned</span>
+                                        <span className="text-xs text-warning">{step.warnings} warned</span>
                                     )}
-                                    <span className="text-faint ml-auto shrink-0 text-xs">
+                                    <span className="ml-auto shrink-0 text-xs text-faint">
                                         {formatDuration(step.duration_ms)}
                                     </span>
                                 </li>

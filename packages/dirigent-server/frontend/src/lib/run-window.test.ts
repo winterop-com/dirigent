@@ -50,7 +50,9 @@ describe('whether a document needs a window', () => {
     })
 
     it('finds one written inside a list', () => {
-        expect(referencesWindow({ steps: { fan: { config: { items: ['${run.window.start}'] } } } })).toBe(true)
+        expect(referencesWindow({ steps: { fan: { config: { items: ['${run.window.start}'] } } } })).toBe(
+            true,
+        )
     })
 })
 

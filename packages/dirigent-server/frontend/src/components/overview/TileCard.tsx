@@ -22,12 +22,12 @@ const TONES: Record<TileTone, string> = {
  */
 export function TileCard({ tile }: { tile: Tile }) {
     return (
-        <Card className="hover:bg-accent/40 p-0 transition-colors">
+        <Card className="p-0 transition-colors hover:bg-accent/40">
             <CardContent className="p-0">
                 <Link to={tile.to} className="block space-y-1 p-3 outline-none focus-visible:underline">
-                    <p className="text-muted-foreground text-xs">{tile.label}</p>
+                    <p className="text-xs text-muted-foreground">{tile.label}</p>
                     <p className={`text-base font-semibold ${TONES[tile.tone]}`}>{tile.value}</p>
-                    <p className="text-muted-foreground line-clamp-2 text-xs" title={tile.note}>
+                    <p className="line-clamp-2 text-xs text-muted-foreground" title={tile.note}>
                         {tile.note}
                     </p>
                 </Link>
@@ -49,13 +49,13 @@ export function TileCard({ tile }: { tile: Tile }) {
  */
 export function StatTile({ tile }: { tile: Tile }) {
     return (
-        <Card className="hover:bg-accent/40 h-full p-0 transition-colors">
+        <Card className="h-full p-0 transition-colors hover:bg-accent/40">
             <CardContent className="p-0">
                 <Link to={tile.to} className="block space-y-0.5 p-3 outline-none focus-visible:underline">
-                    <p className="text-muted-foreground text-xs">{tile.label}</p>
+                    <p className="text-xs text-muted-foreground">{tile.label}</p>
                     <p className={`text-stat ${TONES[tile.tone]}`}>{tile.value}</p>
                     {tile.note !== '' && (
-                        <p className="text-muted-foreground truncate text-xs" title={tile.note}>
+                        <p className="truncate text-xs text-muted-foreground" title={tile.note}>
                             {tile.note}
                         </p>
                     )}
@@ -69,7 +69,7 @@ export function StatTile({ tile }: { tile: Tile }) {
 export function TilePlaceholder() {
     return (
         <Card className="h-full">
-            <CardContent className="text-faint p-3 text-xs">Reading</CardContent>
+            <CardContent className="p-3 text-xs text-faint">Reading</CardContent>
         </Card>
     )
 }
