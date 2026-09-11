@@ -1097,11 +1097,15 @@ name = "dirigent-examples"
 version = "0.14.0"
 source = { editable = "packages/dirigent-examples" }
 dependencies = [
+    { name = "dirigent-client" },
     { name = "dirigent-plugin" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "dirigent-plugin", editable = "packages/dirigent-plugin" }]
+requires-dist = [
+    { name = "dirigent-client", editable = "packages/dirigent-client" },
+    { name = "dirigent-plugin", editable = "packages/dirigent-plugin" },
+]
 
 [[package]]
 name = "dirigent-parquet"
