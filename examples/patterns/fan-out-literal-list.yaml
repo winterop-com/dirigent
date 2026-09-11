@@ -9,9 +9,10 @@
 # What a fan-out actually is: one step definition, N run items, one attempt each, all of them
 # claimable at once. The item grid exists from the moment the run is visible, because
 # for_each is expanded when the run is CREATED. That has a consequence worth knowing before
-# you reach for it: for_each may read params, run and item, but never another step's output,
-# because the cardinality has to be known before anything executes. A fan-out over a list
-# fetched at run time is not expressible, and that is deliberate rather than missing.
+# you reach for it: for_each may read params, run, and another fan-out's grid as
+# ${steps.<step>.items}, but never a step's output, because the cardinality has to be known
+# before anything executes. A fan-out over a list fetched at run time is not expressible, and
+# that is deliberate rather than missing.
 #
 # Hop by hop:
 #
@@ -24,7 +25,8 @@
 # on the worker, so it needs no allowlist and no connection.
 #
 # To change it: fan-out-from-params.yaml is the same shape with the list supplied by the
-# caller, and fan-out-nested-objects.yaml is the same shape with objects as elements.
+# caller, fan-out-nested-objects.yaml is the same shape with objects as elements, and
+# fan-out-item-wise.yaml is a second step mapping over this one's grid instead of joining it.
 #
 #   dg run --local examples/patterns/fan-out-literal-list.yaml
 

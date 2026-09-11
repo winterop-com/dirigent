@@ -20,6 +20,7 @@ from dirigent_core.engine.definition import (
     KIND_TRIGGERS,
     Document,
     PipelineDefinition,
+    TriggerRule,
     TriggersDefinition,
     canonical_document,
 )
@@ -723,11 +724,13 @@ def _reference_issues(definition: PipelineDefinition) -> list[ValidationIssue]:
     for name in sorted(definition.steps):
         step = definition.steps[name]
         upstream = _ancestors(definition, name)
+        family = set(definition.grid_family(name))
         for reference in sorted(set(references_in(cast("JsonValue", step.config)))):
-            problem = _reference_problem(reference.strip(), definition, name, upstream, declared)
+            problem = _reference_problem(reference.strip(), definition, name, upstream, declared, family)
             if problem is not None:
                 issues.append(ValidationIssue(location=f"steps.{name}.config", message=problem))
         issues.extend(_fan_out_literal_issues(name, step.for_each))
+        issues.extend(_adoption_issues(definition, name))
         # for_each carries one extra rule: cardinality is fixed when the run is created, so
         # it cannot read a step's output.
         for reference in sorted(set(references_in(cast("JsonValue", step.for_each)))):
@@ -752,6 +755,25 @@ def _fan_out_literal_issues(step: str, for_each: str | list[JsonValue] | None) -
     ]
 
 
+def _adoption_issues(definition: PipelineDefinition, step: str) -> list[ValidationIssue]:
+    """Refuse ``rule: one_failed`` on a step that maps over another fan-out's grid.
+
+    That rule fires as soon as one prerequisite has failed, while the rest are still running,
+    so the step it belongs to would be claimed before the grid it pairs with has settled.
+    """
+    if definition.steps[step].adopted_grid is None or definition.steps[step].rule is not TriggerRule.ONE_FAILED:
+        return []
+    return [
+        ValidationIssue(
+            location=f"steps.{step}.rule",
+            message=(
+                "a step that maps over another fan-out's items cannot use one_failed, which is ready "
+                "before that fan-out has finished producing them"
+            ),
+        )
+    ]
+
+
 def _for_each_problem(
     reference: str,
     definition: PipelineDefinition,
@@ -760,14 +782,33 @@ def _for_each_problem(
 ) -> str | None:
     """Say what is wrong with a reference inside ``for_each``, or nothing when it will resolve."""
     parts = [part for part in reference.split(".") if part]
-    if parts and parts[0] == "steps":
+    match parts:
+        case ["steps", target, "items"] if definition.steps[step].adopted_grid == target:
+            return _adopted_grid_problem(reference, definition, step, target)
+        case ["steps", *_]:
+            return (
+                f"${{{reference}}} reads a step's output, and fan-out is expanded when the run is created: "
+                "for_each may read params, run, and an upstream fan-out's grid as ${steps.<name>.items}, "
+                "but not a step's output"
+            )
+        case ["item", *_]:
+            return f"${{{reference}}} reads the fan-out item, which does not exist yet inside for_each itself"
+        case _:
+            return _reference_problem(reference, definition, step, set(), declared, set())
+
+
+def _adopted_grid_problem(reference: str, definition: PipelineDefinition, step: str, target: str) -> str | None:
+    """Say why a step cannot map over the grid it named, or nothing when it may."""
+    if target not in definition.steps:
+        return f"${{{reference}}} names step {target!r}, which this pipeline does not have"
+    if not definition.steps[target].is_fan_out:
+        return f"${{{reference}}} maps over step {target!r}'s items, but {target!r} has no for_each"
+    if target not in definition.steps[step].depends_on:
         return (
-            f"${{{reference}}} reads a step's output, and fan-out is expanded when the run is created: "
-            "for_each may read params and run, but not another step's output"
+            f"${{{reference}}} maps over step {target!r}'s items, so {target!r} must be a direct "
+            f"prerequisite of {step!r}; add it to depends_on"
         )
-    if parts and parts[0] == "item":
-        return f"${{{reference}}} reads the fan-out item, which does not exist yet inside for_each itself"
-    return _reference_problem(reference, definition, step, set(), declared)
+    return None
 
 
 def _reference_problem(
@@ -776,8 +817,13 @@ def _reference_problem(
     step: str,
     upstream: set[str],
     declared: set[str] | None,
+    family: set[str],
 ) -> str | None:
-    """Say what is wrong with one reference, or nothing when it will resolve."""
+    """Say what is wrong with one reference, or nothing when it will resolve.
+
+    ``family`` names the fan-outs this step shares a grid with, which are the only steps whose
+    matching item it may read.
+    """
     parts = [part for part in reference.split(".") if part]
     match parts:
         case []:
@@ -800,8 +846,27 @@ def _reference_problem(
                     f"add it to depends_on"
                 )
             return None
+        case ["steps", target, "items"]:
+            return (
+                f"${{{reference}}} names the list step {target!r} maps over, which only for_each reads; "
+                f"inside config, read the matching item with ${{steps.{target}.item.output.<field>}}"
+            )
+        case ["steps", target, "item", "output", *_]:
+            if target not in definition.steps:
+                return f"${{{reference}}} names step {target!r}, which this pipeline does not have"
+            if target not in family:
+                return (
+                    f"${{{reference}}} reads step {target!r}'s matching item, but {step!r} does not fan over "
+                    f"{target!r}'s items; write for_each: ${{steps.{target}.items}}"
+                )
+            return None
+        case ["steps", _, "item", *_]:
+            return f"${{{reference}}} is malformed: a matching item reads steps.<name>.item.output.<field>"
         case ["steps", *_]:
-            return f"${{{reference}}} is malformed: a step reference reads steps.<name>.output.<field>"
+            return (
+                f"${{{reference}}} is malformed: a step reference reads steps.<name>.output.<field>, "
+                "steps.<name>.items, or steps.<name>.item.output.<field>"
+            )
         case ["run", "scratch"] | ["run", "id"] | ["run", "window", "start"] | ["run", "window", "end"]:
             return None
         case ["run", *_]:

@@ -97,7 +97,8 @@ steps:
     block: pipeline.run
     depends_on: [plan]
     # The fan-out reads params, not the plan step's output: cardinality is fixed when the run
-    # is created, so a for_each may never name an upstream step.
+    # is created, so a for_each names params, run, or another fan-out's grid -- never a step's
+    # output.
     for_each: "${params.regions}"
     # One region refusing is not a reason to abandon the others; the join below counts what
     # actually landed.

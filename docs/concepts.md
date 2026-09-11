@@ -193,9 +193,18 @@ Also called a **RunItem**. When a step declares `for_each`, the run gets one ite
 of that list, each with its own status, its own error, and its own retry.
 
 Fan-out cardinality is fixed when the run is created, not while it executes, which is why
-`for_each` may read `params.*`, `item`, and `run.*` but not another step's output. The
-practical payoff is that the item grid exists from the moment a run is visible: a run over
-five hundred inputs reads as a grid of five hundred outcomes rather than one opaque failure.
+`for_each` may read `params.*` and `run.*` but not another step's output. The practical
+payoff is that the item grid exists from the moment a run is visible: a run over five hundred
+inputs reads as a grid of five hundred outcomes rather than one opaque failure.
+
+A step may also map over a grid another fan-out already has, by writing
+`for_each: ${steps.spread.items}` where `spread` is a fan-out it depends on directly. The two
+steps then share one grid: item 3 of one is item 3 of the other, `${item}` is the same
+element in both, and the second reads its match with
+`${steps.spread.item.output.<field>}` -- one file per district written from the district's own
+export, rather than the whole batch handed over as a list. An item whose match did not succeed
+is skipped, not failed, so the rest of the grid carries on. Adoption chains: a third step may
+map over the second's items and still read the first's.
 
 The step's `items` policy decides what one bad element means. Under the default, `fail_fast`,
 any failed item fails the step. Under `continue`, the step succeeds as long as one item did,
@@ -223,6 +232,10 @@ gaps below are as load-bearing as the features.
 - **Fan-in as a list.** A fan-out step's output is the list of its items' outputs, in item
   order, and the step after it runs once and reads the whole batch. Only items that succeeded
   are in that list. See `examples/graph/fan-in.yaml`.
+- **Fan-out pairing.** A fan-out whose `for_each` is `${steps.<name>.items}` maps over another
+  fan-out's grid and reads its matching item with `${steps.<name>.item.output.<field>}`,
+  which is how one item's value reaches one item of the next step rather than the whole list.
+  See `examples/patterns/fan-out-item-wise.yaml`.
 - **Parallelism.** Every step whose prerequisites are met is claimable, so the graph's width
   is the parallelism. What bounds it is worker concurrency, not anything in the document. See
   `examples/graph/parallel-branches.yaml`.

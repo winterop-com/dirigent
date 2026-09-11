@@ -594,6 +594,9 @@ semantics instead of writing error-handling code:
   `fail_fast` any failed item fails the step; under `continue` the step succeeds as long as
   one item did, the failures are recorded per item, and the run reports
   `completed_with_errors`. A step mapped over an empty list is skipped, because nothing ran.
+  A step whose `for_each` is `${steps.<name>.items}` maps over that fan-out's grid instead of
+  one of its own, pairs with it by item position, and reads its match as
+  `${steps.<name>.item.output.<field>}`. An item whose match did not succeed is skipped.
 - **Run level: what do we tell the operator?** Run status derives mechanically from the
   leaves: all succeeded; some failed but tolerated (`completed_with_errors`); a required path
   failed (`failed`); `cancelled`. Alert rules key off exactly these.
@@ -1197,9 +1200,11 @@ Reading guide for the choices above:
 - `params` is checked at apply time to be a JSON Schema itself, so `type: objcet` is refused
   with the document rather than at the first run.
 - `for_each` is expanded when the run is created, so the item grid exists from the moment a
-  run is visible. It may therefore read `params.*`, `item`, and `run.*`, but not another
-  step's output; a fan-out whose cardinality depends on upstream work is a later milestone.
-- `${...}` is the whole reference language (`params.*`, `steps.<name>.output.*`, `item`,
+  run is visible. It may therefore read `params.*`, `run.*`, and an upstream fan-out's grid as
+  `${steps.<name>.items}`, but not a step's output; a fan-out whose cardinality depends on
+  upstream work is a later milestone.
+- `${...}` is the whole reference language (`params.*`, `steps.<name>.output.*`,
+  `steps.<name>.items`, `steps.<name>.item.output.*`, `item`,
   `run.scratch`, `run.id`, `run.window.start`, `run.window.end`, `trigger.*`). There are no
   expressions, loops, or conditionals in v1; logic lives in blocks and trigger rules, which is
   what keeps documents reviewable. `$${...}` is the escape: it yields the literal `${...}`,

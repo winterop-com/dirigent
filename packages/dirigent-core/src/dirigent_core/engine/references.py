@@ -1,8 +1,13 @@
 """``${...}`` reference resolution: the whole reference language, and nothing more.
 
 There are no expressions, loops, or conditionals, and four namespaces: ``params.*``,
-``steps.<name>.output.*``, ``item``, and ``run.scratch`` / ``run.id`` /
-``run.window.start`` / ``run.window.end``.
+``steps.*``, ``item``, and ``run.scratch`` / ``run.id`` / ``run.window.start`` /
+``run.window.end``.
+
+``steps`` has three forms: ``steps.<name>.output.*`` is a step's stored output,
+``steps.<name>.items`` is the list a fan-out maps over and only ``for_each`` reads it, and
+``steps.<name>.item.output.*`` is the matching item's output in a step this one shares a
+grid with.
 
 A reference that stands alone resolves to the typed value, so ``"${params.count}"`` is an
 integer downstream; one inside a larger string interpolates. An unknown reference raises
@@ -16,7 +21,7 @@ import re
 import shlex
 from collections.abc import Callable, Container
 from datetime import datetime
-from typing import Final
+from typing import Final, cast
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue
@@ -60,6 +65,18 @@ class ReferenceScope(BaseModel):
 
     has_item: bool = False
     """Whether ``item`` is meaningful, so a null item is distinguishable from no item."""
+
+    item_index: int | None = None
+    """This run item's position in the grid, which is what pairs it with another fan-out's."""
+
+    grids: dict[str, list[JsonValue]] = Field(default_factory=dict)
+    """The lists fan-out steps map over, keyed by step name, as ``for_each`` expands them."""
+
+    item_outputs: dict[str, JsonValue] = Field(default_factory=dict)
+    """Outputs of the matching item in each step this one shares a grid with, by step name."""
+
+    paired: frozenset[str] = frozenset()
+    """The steps whose grid this one shares, and whose matching item it may therefore read."""
 
     scratch: str = ""
     run_id: UUID | None = None
@@ -180,14 +197,37 @@ def lookup(reference: str, scope: ReferenceScope) -> JsonValue:
 
 
 def _step_output(reference: str, parts: list[str], scope: ReferenceScope) -> JsonValue:
-    """Resolve ``steps.<name>.output.<path>`` against the stored upstream outputs."""
-    if len(parts) < 3 or parts[2] != "output":
-        raise UnknownReference(reference, "a step reference reads steps.<name>.output.<field>")
-    name = parts[1]
-    if name not in scope.outputs:
-        available = ", ".join(sorted(scope.outputs)) or "no step has produced output yet"
-        raise UnknownReference(reference, f"step {name!r} has no stored output ({available})")
-    return _walk(reference, scope.outputs[name], parts[3:], f"steps.{name}.output")
+    """Resolve the ``steps`` namespace: a step's output, its grid, or its matching item."""
+    match parts[1:]:
+        case [name, "output", *path]:
+            if name not in scope.outputs:
+                available = ", ".join(sorted(scope.outputs)) or "no step has produced output yet"
+                raise UnknownReference(reference, f"step {name!r} has no stored output ({available})")
+            return _walk(reference, scope.outputs[name], path, f"steps.{name}.output")
+        case [name, "items"]:
+            if name not in scope.grids:
+                raise UnknownReference(
+                    reference,
+                    f"step {name!r} has no grid here; steps.{name}.items is the list a fan-out maps over, "
+                    "and only for_each reads it",
+                )
+            return cast("JsonValue", scope.grids[name])
+        case [name, "item", "output", *path]:
+            if name not in scope.paired:
+                raise UnknownReference(
+                    reference,
+                    f"this step does not fan over step {name!r}'s items; "
+                    f"write for_each: ${{steps.{name}.items}} to map over them",
+                )
+            if name not in scope.item_outputs:
+                raise UnknownReference(reference, f"step {name!r}'s item {scope.item_index} did not succeed")
+            return _walk(reference, scope.item_outputs[name], path, f"steps.{name}.item.output")
+        case _:
+            raise UnknownReference(
+                reference,
+                "a step reference reads steps.<name>.output.<field>, steps.<name>.items, "
+                "or steps.<name>.item.output.<field>",
+            )
 
 
 def _run_value(reference: str, parts: list[str], scope: ReferenceScope) -> JsonValue:

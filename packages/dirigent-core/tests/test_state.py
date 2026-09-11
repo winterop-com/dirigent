@@ -81,6 +81,13 @@ def test_terminal_outcomes_are_exactly_the_four_that_cannot_change() -> None:
         ([SUCCEEDED, FAILED], ItemPolicy.CONTINUE, SUCCEEDED),
         ([FAILED, FAILED], ItemPolicy.CONTINUE, FAILED),
         ([SKIPPED, SKIPPED], ItemPolicy.CONTINUE, SKIPPED),
+        # An item skipped because the item it pairs with did not succeed leaves the rest of
+        # the batch as it found them, under either policy.
+        ([SUCCEEDED, SKIPPED], ItemPolicy.FAIL_FAST, SUCCEEDED),
+        ([SUCCEEDED, SKIPPED], ItemPolicy.CONTINUE, SUCCEEDED),
+        ([SKIPPED, SKIPPED], ItemPolicy.FAIL_FAST, SKIPPED),
+        ([FAILED, SKIPPED], ItemPolicy.FAIL_FAST, FAILED),
+        ([FAILED, SKIPPED], ItemPolicy.CONTINUE, FAILED),
         ([SUCCEEDED, CANCELLED], ItemPolicy.CONTINUE, CANCELLED),
     ],
 )

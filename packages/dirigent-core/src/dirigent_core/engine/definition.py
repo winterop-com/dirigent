@@ -39,6 +39,10 @@ MAX_TAGS: Final = 16
 
 _TAG = re.compile(TAG_PATTERN)
 
+#: A ``for_each`` that maps over another fan-out's grid, written as that step's ``items`` and
+#: nothing else: an adoption is the whole value, never a fragment of a larger string.
+ADOPTED_GRID: Final = re.compile(r"^\$\{\s*steps\.([a-z][a-z0-9_]*)\.items\s*\}$")
+
 
 class ParameterError(ValueError):
     """Supplied run parameters did not satisfy the pipeline's parameter schema."""
@@ -120,7 +124,13 @@ class StepDefinition(BaseModel):
     rule: TriggerRule = TriggerRule.ALL_SUCCESS
 
     for_each: str | list[JsonValue] | None = None
-    """A reference to a list, or a literal list: one run item per element."""
+    """A reference to a list, or a literal list: one run item per element.
+
+    A reference may read params, run, and an upstream fan-out's grid as
+    ``${steps.<name>.items}``, which maps this step over that step's items so each of them
+    reads its match with ``${steps.<name>.item.output}``. Cardinality is fixed when the run
+    is created either way.
+    """
 
     items: ItemPolicy = ItemPolicy.FAIL_FAST
 
@@ -147,6 +157,14 @@ class StepDefinition(BaseModel):
     def is_fan_out(self) -> bool:
         """Report whether this step maps over a list rather than running once."""
         return self.for_each is not None
+
+    @property
+    def adopted_grid(self) -> str | None:
+        """Name the fan-out whose grid this step maps over, or None when it has its own."""
+        if not isinstance(self.for_each, str):
+            return None
+        adopted = ADOPTED_GRID.match(self.for_each)
+        return adopted.group(1) if adopted is not None else None
 
 
 def anchor_naive_moment(moment: datetime | None, timezone: str) -> datetime | None:
@@ -380,6 +398,20 @@ class PipelineDefinition(BaseModel):
             seen.add(current)
             frontier.extend(self.dependents_of(current))
         return sorted(seen)
+
+    def grid_family(self, name: str) -> list[str]:
+        """List the fan-outs whose grid a step shares, nearest first.
+
+        The first element is the step this one adopted from, then the one that adopted from,
+        and so on; a step with its own grid, or none, shares with nobody.
+        """
+        family: list[str] = []
+        step = self.steps.get(name)
+        current = step.adopted_grid if step is not None else None
+        while current is not None and current in self.steps and current not in family:
+            family.append(current)
+            current = self.steps[current].adopted_grid
+        return family
 
     def topological_order(self) -> list[str]:
         """Order the steps so every prerequisite precedes its dependents."""

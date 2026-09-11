@@ -231,7 +231,16 @@ async def create_run(
             window_start=window.start if window is not None else None,
             window_end=window.end if window is not None else None,
         )
-        expanded = [(name, resolve_fan_out(name, step, scope)) for name, step in definition.steps.items()]
+        # Topological order, because a step may map over an upstream fan-out's grid and that
+        # grid has to be expanded before the step adopting it is.
+        grids: dict[str, list[JsonValue]] = {}
+        expanded: list[tuple[str, list[JsonValue]]] = []
+        for name in definition.topological_order():
+            step = definition.steps[name]
+            elements = resolve_fan_out(name, step, scope.model_copy(update={"grids": grids}))
+            expanded.append((name, elements))
+            if step.is_fan_out:
+                grids[name] = elements
 
         # A run is many rows written in sequence, and a database error refuses once some of
         # them are flushed. The savepoint discards the half-written run while the caller's
@@ -339,8 +348,8 @@ def _new_attempt(
 def resolve_fan_out(name: str, step: StepDefinition, scope: ReferenceScope) -> list[JsonValue]:
     """Expand a step's ``for_each`` into the list of elements it maps over.
 
-    Cardinality is fixed when the run is created, so a ``for_each`` may read parameters and
-    the run, but not an upstream step's output.
+    Cardinality is fixed when the run is created, so a ``for_each`` may read parameters, the
+    run, and an upstream fan-out's already expanded grid, but not a step's output.
     """
     expression = step.for_each
     if isinstance(expression, list):
@@ -348,10 +357,17 @@ def resolve_fan_out(name: str, step: StepDefinition, scope: ReferenceScope) -> l
         return list(cast("list[JsonValue]", resolved_elements))
     if expression is None:
         return []
+    adopted = step.adopted_grid
+    if adopted is not None:
+        grid = scope.grids.get(adopted)
+        if grid is None:
+            raise FanOutError(f"step {name!r} maps over step {adopted!r}'s items, but {adopted!r} does not fan out")
+        return list(grid)
     if "steps." in expression:
         raise FanOutError(
-            f"step {name!r} maps over {expression!r}: fan-out is expanded when the run is created, "
-            f"so for_each may read params, item, and run, but not another step's output"
+            f"step {name!r} maps over {expression!r}: fan-out is expanded when the run is created, so for_each "
+            f"may read params, run, and an upstream fan-out's grid as ${{steps.<name>.items}}, "
+            f"but not a step's output"
         )
     resolved = resolve(expression, scope)
     if not isinstance(resolved, list):
