@@ -82,6 +82,15 @@ CONNECTION = {
     "created_at": WHEN,
     "updated_at": WHEN,
 }
+EXAMPLE = {
+    "code": "open-meteo-weekly-report",
+    "name": "Weekly weather report",
+    "tags": ["open-data", "starter"],
+    "requires": {"blocks": ["http.request"]},
+    "plugin": "examples",
+    "shelf": "open-data",
+    "starter": True,
+}
 USER = {"id": ID, "username": "tester", "role": "admin", "active": True, "created_at": WHEN}
 ALERT_RULE = {
     "id": ID,
@@ -121,6 +130,8 @@ PAYLOADS: dict[str, Any] = {
     "/connections/warehouse": CONNECTION,
     "/connections/warehouse/$check": {"healthy": True, "detail": "200 OK"},
     "/blocks": {"api_version": 1, "blocks": []},
+    "/examples": {"items": [EXAMPLE], "next": None},
+    "/examples/open-meteo-weekly-report": {**EXAMPLE, "source": "format: dirigent/v1\n", "path": "open-data/x.yaml"},
     "/blocks/shell.run": {
         "id": "shell.run",
         "kind": "operator",
@@ -259,6 +270,18 @@ ACCESSORS: list[tuple[str, Callable[[Dirigent], Awaitable[object]], str, str]] =
     ("connections.update", lambda dg: dg.connections.update("warehouse", config={}), "PATCH", "/connections/warehouse"),
     ("connections.delete", lambda dg: dg.connections.delete("warehouse"), "DELETE", "/connections/warehouse"),
     ("connections.check", lambda dg: dg.connections.check("warehouse"), "POST", "/connections/warehouse/$check"),
+    (
+        "examples.list",
+        lambda dg: dg.examples.list(tags=["starter"], shelf="open-data", starter=True),
+        "GET",
+        "/examples",
+    ),
+    (
+        "examples.get",
+        lambda dg: dg.examples.get("open-meteo-weekly-report"),
+        "GET",
+        "/examples/open-meteo-weekly-report",
+    ),
     ("blocks.catalog", lambda dg: dg.blocks.catalog(kind=BlockKind.SENSOR), "GET", "/blocks"),
     ("blocks.get", lambda dg: dg.blocks.get("shell.run"), "GET", "/blocks/shell.run"),
     ("schedules.list", lambda dg: dg.schedules.list("demo"), "GET", "/pipelines/demo/triggers/schedules"),

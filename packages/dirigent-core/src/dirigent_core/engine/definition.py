@@ -10,6 +10,7 @@ from jsonschema import ValidationError as SchemaValidationError
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator, model_validator
 
 from dirigent_client.enums import RunPriority
+from dirigent_client.schemas import Requirements
 from dirigent_common import TEMPLATE_MEDIA_TYPE, EntityName, JsonMap, StepName, TemplateError, compile_template
 from dirigent_common.durations import Duration
 from dirigent_plugin import BLOCK_ID_PATTERN
@@ -238,33 +239,6 @@ class TriggerSpecs(BaseModel):
     def empty(self) -> bool:
         """Report whether this document declares no triggers at all."""
         return not self.schedules and not self.webhooks
-
-
-class Requirements(BaseModel):
-    """What a shared document needs from the instance before it can be applied."""
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    blocks: list[str] = Field(default_factory=list[str])
-    connections: list[EntityName] = Field(default_factory=list[str])
-    pipelines: list[EntityName] = Field(default_factory=list[str])
-    """Pipelines this one starts with ``pipeline.run``, and therefore cannot run without."""
-
-    storage: list[str] = Field(default_factory=list[str])
-    """Storage this document writes through, named by scheme, such as ``s3``; some backend
-    on the instance must claim each one."""
-
-    schemas: list[EntityName] = Field(default_factory=list[str])
-    """Named JSON Schemas this document references, by code; the instance must hold each one."""
-
-    workers: list[EntityName] = Field(default_factory=list[str])
-    """Capability tags a worker must carry to claim this pipeline's work, such as ``docker``.
-    A run pins the list at creation, and only a worker carrying every tag claims it."""
-
-    @property
-    def empty(self) -> bool:
-        """Report whether this document requires nothing in particular."""
-        return not (self.blocks or self.connections or self.pipelines or self.storage or self.schemas or self.workers)
 
 
 class ReportSpec(BaseModel):

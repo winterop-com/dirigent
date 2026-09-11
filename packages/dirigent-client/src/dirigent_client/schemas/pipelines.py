@@ -4,11 +4,38 @@ from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
 
-from pydantic import AliasChoices, BaseModel, Field, field_validator, model_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from dirigent_client.enums import DocumentKind, LogLevel, ProvenanceSource, RunPriority, RunStatus
 from dirigent_client.schemas.common import WireModel
-from dirigent_common import JsonMap
+from dirigent_common import EntityName, JsonMap
+
+
+class Requirements(WireModel):
+    """What a shared document needs from the instance before it can be applied."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    blocks: list[str] = Field(default_factory=list[str])
+    connections: list[EntityName] = Field(default_factory=list[str])
+    pipelines: list[EntityName] = Field(default_factory=list[str])
+    """Pipelines this one starts with ``pipeline.run``, and therefore cannot run without."""
+
+    storage: list[str] = Field(default_factory=list[str])
+    """Storage this document writes through, named by scheme, such as ``s3``; some backend
+    on the instance must claim each one."""
+
+    schemas: list[EntityName] = Field(default_factory=list[str])
+    """Named JSON Schemas this document references, by code; the instance must hold each one."""
+
+    workers: list[EntityName] = Field(default_factory=list[str])
+    """Capability tags a worker must carry to claim this pipeline's work, such as ``docker``.
+    A run pins the list at creation, and only a worker carrying every tag claims it."""
+
+    @property
+    def empty(self) -> bool:
+        """Report whether this document requires nothing in particular."""
+        return not (self.blocks or self.connections or self.pipelines or self.storage or self.schemas or self.workers)
 
 
 class LastRun(WireModel):
