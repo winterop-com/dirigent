@@ -3,6 +3,7 @@
 import difflib
 import hashlib
 from collections.abc import Iterable, Mapping
+from pathlib import Path
 from typing import Any, Final, cast, get_args, get_origin
 
 import yaml
@@ -29,6 +30,15 @@ from dirigent_core.engine.references import has_reference, references_in
 #: High enough that the canonical dump never folds a line, which would shift the digest.
 YAML_WIDTH: Final = 10_000
 
+#: The file endings a directory of documents is read through. Anything else is passed over,
+#: and so is a file of one of these that does not parse as a mapping.
+SUFFIXES: Final = (".yaml", ".yml", ".json")
+
+#: The sections a document may carry so that it runs alone under ``dg run --local``. An
+#: instance refuses to store a document carrying one, so a seed creates what they declare and
+#: applies the document without them.
+CARRIED: Final = ("connections", "schemas")
+
 
 class PlainLoader(yaml.SafeLoader):
     """A safe loader that leaves a date written as a date alone.
@@ -47,6 +57,24 @@ PlainLoader.yaml_implicit_resolvers = {
 def safe_load(text: str) -> object:
     """Read YAML (or JSON) the one way dirigent reads it, with dates left as strings."""
     return yaml.load(text, Loader=PlainLoader)  # noqa: S506 - PlainLoader is SafeLoader minus a resolver
+
+
+def is_document(raw: JsonMap) -> bool:
+    """Say whether a parsed file is a document this instance reads."""
+    return raw.get("format") == FORMAT_V1
+
+
+def readable(directory: Path) -> list[tuple[Path, JsonMap]]:
+    """Read every file under a directory that parses as a mapping, in a stable order."""
+    found: list[tuple[Path, JsonMap]] = []
+    for path in sorted(one for one in directory.rglob("*") if one.suffix in SUFFIXES and one.is_file()):
+        try:
+            parsed = safe_load(path.read_text())
+        except (OSError, UnicodeDecodeError, yaml.YAMLError):
+            continue
+        if isinstance(parsed, dict):
+            found.append((path, cast("JsonMap", parsed)))
+    return found
 
 
 class CanonicalDumper(yaml.SafeDumper):
