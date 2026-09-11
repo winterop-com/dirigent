@@ -232,7 +232,9 @@ test('a config field the schema calls a program is edited as one, and every othe
     await expect(panel.getByTestId('code-editor')).toHaveCount(0)
 })
 
-test('editing a config field is unapplied until it is applied, and the topbar counts it', async ({ page }) => {
+test('editing a config field is unapplied until it is applied, and the topbar counts it', async ({
+    page,
+}) => {
     await signIn(page)
     await applyExample(page.request, DOCUMENT_EXAMPLE)
 
@@ -336,11 +338,15 @@ test('a document that reads a window is not run until it is given one', async ({
 
     // The run is the pipeline's, and what it carried is a fact about it: the Run tab says so.
     await expect(page).toHaveURL(/\/runs\//)
-    await expect(page.locator('.status-chip[data-status="succeeded"]').first()).toBeVisible({ timeout: 30_000 })
+    await expect(page.locator('.status-chip[data-status="succeeded"]').first()).toBeVisible({
+        timeout: 30_000,
+    })
     await expect((await runFacts(page)).getByText('window', { exact: true })).toBeVisible()
 })
 
-test('a document that reads no window keeps its window behind a link and runs without one', async ({ page }) => {
+test('a document that reads no window keeps its window behind a link and runs without one', async ({
+    page,
+}) => {
     await signIn(page)
     await applyDocument(page.request, PLAIN)
 
@@ -362,7 +368,9 @@ test('a document that reads no window keeps its window behind a link and runs wi
     await runNow.click()
 
     await expect(page).toHaveURL(/\/runs\//)
-    await expect(page.locator('.status-chip[data-status="succeeded"]').first()).toBeVisible({ timeout: 30_000 })
+    await expect(page.locator('.status-chip[data-status="succeeded"]').first()).toBeVisible({
+        timeout: 30_000,
+    })
     const panel = await runFacts(page)
     await expect(panel.getByText('created', { exact: true })).toBeVisible()
     await expect(panel.getByText('window', { exact: true })).toHaveCount(0)
@@ -387,7 +395,9 @@ test('a pipeline this instance does not have is refused in the server own words'
     await expect(page.getByText(/no pipeline/)).toBeVisible()
 })
 
-test('the editor opens with the whole graph in view, at a zoom that does not blow it up', async ({ page }) => {
+test('the editor opens with the whole graph in view, at a zoom that does not blow it up', async ({
+    page,
+}) => {
     await signIn(page)
     await applyExample(page.request, DOCUMENT_EXAMPLE)
 
@@ -407,7 +417,6 @@ test('a graph of two steps is fully visible rather than filling the canvas', asy
     await everyNodeIsInView(page)
     expect(await graphZoom(page)).toBeLessThanOrEqual(1.25)
 })
-
 
 test('the editor draws a port on every step, and a run graph draws none', async ({ page }) => {
     await signIn(page)
@@ -500,7 +509,11 @@ test('a box stays where it was dragged, across a reload, until Re-layout gives i
     // Re-layout is how it is given back: elk decides again, and storage holds nothing.
     await page.keyboard.press('ControlOrMeta+k')
     await page.getByPlaceholder('Go to a screen, or run something').fill('re-layout')
-    await page.getByRole('option').filter({ hasText: /^Re-layout/ }).first().click()
+    await page
+        .getByRole('option')
+        .filter({ hasText: /^Re-layout/ })
+        .first()
+        .click()
     await expect.poll(async () => (await nodeAt(page, 'fetch')).x).toBeCloseTo(placed.x, 0)
     expect(await page.evaluate((key) => localStorage.getItem(key), APART_LAYOUT_KEY)).toBeNull()
     await everyNodeIsInView(page)
@@ -730,13 +743,19 @@ test('only a sensor wears a kind chip in its group shelf', async ({ page }) => {
     // The palette is the keyboard way in, and reaches the same menu.
     await page.keyboard.press('ControlOrMeta+k')
     await page.getByPlaceholder('Go to a screen, or run something').fill('add step')
-    await page.getByRole('option').filter({ hasText: /^Add step/ }).first().click()
+    await page
+        .getByRole('option')
+        .filter({ hasText: /^Add step/ })
+        .first()
+        .click()
     await page.getByRole('menuitem', { name: 'http', exact: true }).click()
     const operator = page.getByRole('menuitem', { name: 'http.request', exact: false })
     await expect(operator).toBeVisible()
     await expect(operator.locator('.kind-chip')).toHaveCount(0)
     await expect(
-        page.getByRole('menuitem', { name: 'http.ready', exact: false }).locator('.kind-chip[data-kind="sensor"]'),
+        page
+            .getByRole('menuitem', { name: 'http.ready', exact: false })
+            .locator('.kind-chip[data-kind="sensor"]'),
     ).toHaveCount(1)
 })
 

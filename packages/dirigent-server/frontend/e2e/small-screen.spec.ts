@@ -73,7 +73,9 @@ test.describe('a tablet', () => {
         await expect(page.getByRole('link', { name: 'Pipelines' })).toBeVisible()
         await expect(page.getByRole('button', { name: 'Open navigation' })).toHaveCount(0)
         await expect(page.getByRole('table')).toHaveCount(0)
-        await expect(page.getByRole('listitem').filter({ hasText: PIPELINE }).getByRole('link', { name: TITLE })).toBeVisible()
+        await expect(
+            page.getByRole('listitem').filter({ hasText: PIPELINE }).getByRole('link', { name: TITLE }),
+        ).toBeVisible()
     })
 })
 
@@ -110,7 +112,9 @@ test('a dialog fills the screen, with its verbs at the foot', async ({ page }) =
     await expect
         .poll(async () => {
             const box = await dialog.boundingBox()
-            return box === null ? null : [Math.round(box.width), Math.round(box.height), Math.round(box.x), Math.round(box.y)]
+            return box === null
+                ? null
+                : [Math.round(box.width), Math.round(box.height), Math.round(box.x), Math.round(box.y)]
         })
         .toEqual([window?.width, window?.height, 0, 0])
 })

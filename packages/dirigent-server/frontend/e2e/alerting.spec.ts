@@ -40,7 +40,9 @@ test('the channel strip says what an alert can leave by, and that log needs noth
     await expect(strip.getByText('no connection').first()).toBeVisible()
 })
 
-test('a rule is declared from the screen, and appears in the listing it was declared on', async ({ page }) => {
+test('a rule is declared from the screen, and appears in the listing it was declared on', async ({
+    page,
+}) => {
     await page.getByRole('button', { name: 'New rule' }).click()
 
     const dialog = page.getByRole('dialog')
@@ -97,7 +99,9 @@ test('a rule is paused from its panel, and the row says so', async ({ page }) =>
     await expect(ruleRow(page)).toContainText('active')
 })
 
-test('a test stays open until the row settles, and reaches sent through the log channel', async ({ page }) => {
+test('a test stays open until the row settles, and reaches sent through the log channel', async ({
+    page,
+}) => {
     await page.getByRole('button', { name: 'Send a test' }).click()
 
     const dialog = page.getByRole('dialog')
@@ -126,7 +130,7 @@ test('a test stays open until the row settles, and reaches sent through the log 
     await expect(panel.getByText('a test, not a rule')).toBeVisible()
 })
 
-test("a delivered notification is put back on the queue, and its attempts start over", async ({ page }) => {
+test('a delivered notification is put back on the queue, and its attempts start over', async ({ page }) => {
     const subject = `e2e retry ${String(Date.now())}`
     await sendTest(page, subject)
 
@@ -147,9 +151,12 @@ test("a delivered notification is put back on the queue, and its attempts start 
 test('the queue narrows by status and by notifier', async ({ page }) => {
     const subject = `e2e filter ${String(Date.now())}`
     await sendTest(page, subject)
-    await expect(page.getByRole('row').filter({ hasText: subject }).locator('.status-chip')).toContainText('sent', {
-        timeout: 30_000,
-    })
+    await expect(page.getByRole('row').filter({ hasText: subject }).locator('.status-chip')).toContainText(
+        'sent',
+        {
+            timeout: 30_000,
+        },
+    )
 
     await page.getByRole('button', { name: /^Status:/ }).click()
     await page.getByRole('menuitemradio', { name: /failed/ }).click()

@@ -138,18 +138,20 @@ test('a selected row wears the same tint on either side of the stripe', async ({
         await rowOf(page, id).first().click()
         await page.mouse.move(4, 4)
         // The tint arrives over transition-colors, so the read waits for two frames to agree.
-        return rowOf(page, id).first().evaluate(async (row) => {
-            const paint = () => getComputedStyle(row).backgroundColor
-            const settle = () => new Promise((done) => setTimeout(done, 100))
-            let seen = paint()
-            for (let tries = 0; tries < 20; tries += 1) {
-                await settle()
-                const now = paint()
-                if (now === seen) return now
-                seen = now
-            }
-            return seen
-        })
+        return rowOf(page, id)
+            .first()
+            .evaluate(async (row) => {
+                const paint = () => getComputedStyle(row).backgroundColor
+                const settle = () => new Promise((done) => setTimeout(done, 100))
+                let seen = paint()
+                for (let tries = 0; tries < 20; tries += 1) {
+                    await settle()
+                    const now = paint()
+                    if (now === seen) return now
+                    seen = now
+                }
+                return seen
+            })
     }
 
     // convert.std is transform's first row and transform.jq its fourth, so one sits on

@@ -43,7 +43,9 @@ test('a run reads as its graph, its steps, and the state it settled in', async (
     await expect(page.locator('.react-flow__node')).toHaveCount(STEPS.length)
 
     // THE STATE IT SETTLED IN, on the chip in the topbar strip.
-    await expect(page.locator('.status-chip[data-status="succeeded"]').first()).toBeVisible({ timeout: 30_000 })
+    await expect(page.locator('.status-chip[data-status="succeeded"]').first()).toBeVisible({
+        timeout: 30_000,
+    })
 })
 
 test('choosing a step on the graph opens it in the panel', async ({ page }) => {
@@ -218,7 +220,9 @@ async function liveFlow(page: Parameters<typeof signIn>[0]): Promise<string> {
     return startRun(page.request, 'live-flow')
 }
 
-test('an edge moves while its downstream step is reading, and stills when the run settles', async ({ page }) => {
+test('an edge moves while its downstream step is reading, and stills when the run settles', async ({
+    page,
+}) => {
     await signIn(page)
     const runId = await liveFlow(page)
 
@@ -229,7 +233,9 @@ test('an edge moves while its downstream step is reading, and stills when the ru
     await expect(page.locator('.react-flow__edge.dg-edge-flowing')).toHaveCount(2, { timeout: 30_000 })
 
     // A terminal run has no motion anywhere on it, and neither has one opened again.
-    await expect(page.locator('.status-chip[data-status="succeeded"]').first()).toBeVisible({ timeout: 30_000 })
+    await expect(page.locator('.status-chip[data-status="succeeded"]').first()).toBeVisible({
+        timeout: 30_000,
+    })
     await expect(page.locator('.react-flow__edge.dg-edge-flowing')).toHaveCount(0)
     await expect(page.locator('.react-flow__edge.dg-edge-handover')).toHaveCount(0)
     await page.reload()
@@ -279,7 +285,9 @@ test('an edge is lit rather than moving for somebody who asked for less motion',
     await expect(page.locator('.react-flow__edge.dg-edge-flowing')).toHaveCount(0)
 })
 
-test('a graph is laid out in the order its steps were written, in flight and once settled', async ({ page }) => {
+test('a graph is laid out in the order its steps were written, in flight and once settled', async ({
+    page,
+}) => {
     // A run read while it is going and the same run read again are one shape, and elk is told to
     // respect the order it is given -- so an order that depended on which step started first
     // would move every box the moment the page was opened again.
@@ -290,7 +298,9 @@ test('a graph is laid out in the order its steps were written, in flight and onc
     await expect(page.locator('.react-flow__node')).toHaveCount(RACE_STEPS.length)
     expect(await drawnOrder(page)).toEqual(RACE_STEPS)
 
-    await expect(page.locator('.status-chip[data-status="succeeded"]').first()).toBeVisible({ timeout: 30_000 })
+    await expect(page.locator('.status-chip[data-status="succeeded"]').first()).toBeVisible({
+        timeout: 30_000,
+    })
     await page.reload()
     await expect(page.locator('.react-flow__node')).toHaveCount(RACE_STEPS.length)
     expect(await drawnOrder(page)).toEqual(RACE_STEPS)
