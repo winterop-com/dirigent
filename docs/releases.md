@@ -15,6 +15,56 @@ package and uploads it to PyPI through trusted publishing, then builds the image
 commit and pushes it as `<version>` and `latest`. The two sibling repositories then relock
 against the tag and bump.
 
+## 0.15.0
+
+Released 2026-09-12. Every package in the workspace moves to 0.15.0 together, and the workspace
+gains one: `dirigent-examples`.
+
+### Before you upgrade
+
+**`dg init` writes no hello pipelines.** The hello-world and the per-service hello documents
+that `dg init` used to write from string constants are gone. A new project starts from a
+starter instead: `dg init --pipeline <starter>` (repeatable), the same choice in the init form,
+or `dg pipeline new <starter>` inside the project. With none chosen, `pipelines/` is created
+empty and the closing line points at `dg examples list`.
+
+**The examples corpus moved inside a package.** The documents live at
+`packages/dirigent-examples/src/dirigent_examples/shelves/`; the repository root `examples/` is
+a symlink to it, so `dg run --local examples/...` and every documented path keep working, and
+links into the corpus on GitHub now name the package path.
+
+**The compose stack pulls `mc` from quay.io.** MinIO's Docker Hub repositories are gone; the
+`s3-bucket` service in `infra/compose.yaml` and in the stack `dg init` writes uses
+`quay.io/minio/mc` at the same pinned tag.
+
+### Examples and starters
+
+- **The corpus is a plugin contribution.** A third extension point, `examples()`, beside
+  `contribute()` and `formatters()`, returns the directories a distribution's shelves live in.
+  The host walks them once, on first use, never at a worker's startup, and attributes every
+  document to the plugin that shipped it. The core corpus ships as `dirigent-examples`, a
+  distribution `dirigent-server` and `dirigent-cli` depend on, so every instance and every `dg`
+  has it installed; `dirigent-dhis2` and `dirigent-integration` ship their shelves the same way.
+- **A starter is an example that opted in.** The tag vocabulary gains `starter` in the
+  behaviour group. A document earns it by being a real multi-step flow on a real source with
+  nothing carried; 21 core documents carry it in this release. Copying a starter copies the
+  source text verbatim, rewriting only the `code:` line and dropping `starter` from `tags:`, so
+  the teaching comments survive and no template language appears; the copy's `requires` is the
+  to-do.
+- **Surfaces.** `GET /examples` (filters `tag`, `shelf`, `plugin`, `starter`) and
+  `GET /examples/{code}` with the source; `dg examples list [--tag T] [--shelf S] [--plugin P]
+  [--starter]` and `dg examples show <code>`; `dg pipeline new <starter> [--code X] [--dir D]`,
+  which refuses a document that is not a starter and never overwrites; `dg init --pipeline`;
+  `dg dev --seed-installed`, seeding every installed corpus with no path named.
+- **The Examples screen.** A new screen beside Blocks lists the instance's corpus as the
+  quartet with tags, plugin, a Starter mark and the requirements checked against the instance:
+  which connections and schemas exist, which blocks are installed. A row opens the shipped
+  document read-only with its requirements item by item and, for a starter, **Use as starter**.
+  The New pipeline menu and the editor's empty state gain **From a starter**, a searchable
+  picker grouped by plugin and shelf; choosing one opens the editor on the copy with the unmet
+  requirements shown. Each block on the Blocks page says how many examples use it and links to
+  them.
+
 ## 0.14.1
 
 Released 2026-09-11. Every package in the workspace moves to 0.14.1 together.
