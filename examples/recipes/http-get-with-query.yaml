@@ -17,12 +17,11 @@
 # `false`, because that is what a query string is -- and a reference resolves before the
 # encoding happens, so ${params.day} is a value and never a fragment of URL.
 #
-# The response arrives three ways and only one of them is usually right:
-#
-#   json_body   the parsed body, when the answer is JSON. This is what a reshape reads.
-#   text        the raw body, for a format nothing parsed.
-#   body_uri    where the body was streamed, when save_to asked for it. See
-#               http-save-body-to-storage.yaml.
+# The answer is one field. body carries the parsed document when the service answered JSON
+# and the text when it answered anything else, and body_bytes says how big it was.
+# max_response bounds what the step will hold: a body past it is refused rather than read
+# half way. A body worth keeping is handed to a storage.write step, which is what
+# http-save-body-to-storage.yaml does with this same call.
 #
 # duration_ms is on every response, so a pipeline can report what a call cost without
 # timing it itself.
@@ -88,7 +87,7 @@ steps:
         status: ${steps.fetch.output.status}
         duration_ms: ${steps.fetch.output.duration_ms}
         # The parsed body. The echo service puts what it received under .args.
-        body: ${steps.fetch.output.json_body}
+        body: ${steps.fetch.output.body}
       program: |
         {status, duration_ms,
          url: .body.url,

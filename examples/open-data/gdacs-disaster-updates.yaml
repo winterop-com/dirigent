@@ -25,11 +25,14 @@
 #             this API's own convention rather than a general one.
 #   today     the events flattened to rows, carried as a value because the comparison needs them
 #             as data.
-#   record    this day's list, written before anything is compared, so tomorrow's run has
-#             something to read even if the post below fails.
+#   record    storage.write, this day's list, put down before anything is compared so tomorrow's
+#             run has something to read even if the post below fails.
 #   seen      yesterday's list, if there is one. Five seconds, then skip: an absent file is the
 #             expected answer on day one and after any gap in the schedule.
-#   previous  yesterday's ids, read back from that file.
+#   recalled  storage.read, yesterday's file brought back into the run as a value. A value
+#             goes out to storage only through a write and comes in only through a read, so
+#             the marker costs a step at each end.
+#   previous  yesterday's ids, taken out of what that read produced.
 #   fresh     the difference. The comparison is over ids alone, because a revised event keeps
 #             its id and moves its date.
 #   notify    what is actually new, posted. Postman Echo by default so the shape of the post is
@@ -65,7 +68,9 @@ requires:
   blocks:
     - transform.jq
     - http.request
+    - storage.write
     - storage.exists
+    - storage.read
     - webhook.post
 
 params:
@@ -139,10 +144,9 @@ steps:
     block: transform.jq
     depends_on: [fetch]
     config:
-      input: ${steps.fetch.output.json_body}
+      input: ${steps.fetch.output.body}
       # GeoJSON, so the event is under properties. The id is the type and the number together:
       # GDACS's own detail URL takes both, and the number alone is a sequence per event type.
-      # Carried as a value rather than saved, because the comparison below needs it as data.
       program: |
         [.features[]
          | .properties as $p
@@ -158,18 +162,17 @@ steps:
            }]
 
   record:
-    block: transform.jq
-    depends_on: [today]
+    block: storage.write
+    depends_on: [dates, today]
     config:
-      input: ${steps.today.output.value}
-      program: .
       # Written before anything is compared, so tomorrow's run has a list to read even if the
       # post below fails. The day names the file, which is what makes "yesterday" a path.
-      save_to: ${steps.dates.output.value.store}/${steps.dates.output.value.day}.json
+      target: ${steps.dates.output.value.store}/${steps.dates.output.value.day}.json
+      value: ${steps.today.output.value}
 
   seen:
     block: storage.exists
-    depends_on: [record]
+    depends_on: [dates, record]
     poll: 1s
     deadline: 5s
     # No file for yesterday means no previous run, or a gap in the schedule. Both are quiet
@@ -178,11 +181,18 @@ steps:
     config:
       uri: ${steps.dates.output.value.store}/${steps.dates.output.value.previous_day}.json
 
-  previous:
-    block: transform.jq
+  recalled:
+    block: storage.read
     depends_on: [seen]
     config:
-      input_uri: ${steps.dates.output.value.store}/${steps.dates.output.value.previous_day}.json
+      # The path the sensor above just found, read as the value yesterday's run wrote.
+      source: ${steps.seen.output.uri}
+
+  previous:
+    block: transform.jq
+    depends_on: [recalled]
+    config:
+      input: ${steps.recalled.output.value}
       # Only the ids: the comparison is about identity, and yesterday's alert levels are
       # yesterday's problem.
       program: |
@@ -190,7 +200,7 @@ steps:
 
   fresh:
     block: transform.jq
-    depends_on: [previous]
+    depends_on: [today, previous]
     config:
       input:
         today: ${steps.today.output.value}
@@ -203,7 +213,7 @@ steps:
 
   notify:
     block: webhook.post
-    depends_on: [fresh]
+    depends_on: [dates, fresh]
     config:
       url: ${params.webhook_url}
       body:

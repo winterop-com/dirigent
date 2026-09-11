@@ -98,9 +98,9 @@ steps:
             feeds: [
               .measured[]
               | {
-                  feed: .json_body.json.feed,
+                  feed: .body.json.feed,
                   duration_ms,
-                  budget_ms: (.json_body.json.max_ms + $tolerance)
+                  budget_ms: (.body.json.max_ms + $tolerance)
                 }
               | .verdict = (if .duration_ms <= .budget_ms then "within budget" else "slow" end)
             ]

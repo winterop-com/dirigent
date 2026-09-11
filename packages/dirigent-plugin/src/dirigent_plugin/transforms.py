@@ -7,19 +7,24 @@ content-preserving re-encoding from one format to another; ``map``, whose output
 same length as its input; and ``filter``, whose output is a subset of its input with the
 elements unmodified.
 
-The frame owns everything an engine would otherwise repeat: where the input comes from and
-how much of it may be read, where the result goes, the catalog entry, and the apply-time
-check that refuses a bad program or an unsupported format pair before a document is stored.
-An engine supplies only the part that is specific to it.
+The frame owns everything an engine would otherwise repeat: where the input comes from,
+where the result goes, the catalog entry, and the apply-time check that refuses a bad
+program or an unsupported format pair before a document is stored. An engine supplies only
+the part that is specific to it.
+
+A program verb works on a value and answers with one, so its input is a value an earlier
+step produced and its output is read by a later one; a value comes in from storage through
+``storage.read`` and goes out through ``storage.write``. ``convert`` is the exception,
+because its operand is a storage object rather than a value: it reads one URI and writes
+another, the way ``storage.copy`` does.
 """
 
-import json
 from abc import ABC, abstractmethod
 from typing import Any, ClassVar, Final, cast
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
+from pydantic import BaseModel, Field, JsonValue
 
-from dirigent_common import BlockModel, Size, StorageUri
+from dirigent_common import BlockModel, StorageUri
 from dirigent_plugin.blocks import (
     BlockFailure,
     ErrorClass,
@@ -28,9 +33,6 @@ from dirigent_plugin.blocks import (
     RemoteHandle,
     StepContext,
 )
-
-#: The same bound ``http.request`` puts on a body it holds in memory.
-MAX_INPUT_DEFAULT: Final = 32 * 1024 * 1024
 
 #: How much is handed to a storage sink at a time.
 CHUNK_BYTES: Final = 64 * 1024
@@ -53,40 +55,11 @@ class TransformError(Exception):
 class TransformConfig(BlockModel):
     """The half of a transform's config the frame owns, whatever the verb or the engine."""
 
-    model_config = ConfigDict(
-        use_attribute_docstrings=True,
-        # The published schema carries the exactly-one rule, so a document that breaks it is
-        # refused where every other config mistake is, rather than on the first run.
-        json_schema_extra={"oneOf": [{"required": ["input"]}, {"required": ["input_uri"]}]},
-    )
+    input: JsonValue
+    """The value to work on, written inline or referenced from an earlier step's output.
 
-    input: JsonValue | None = None
-    """The value to work on, written inline in the document.
-
-    A ``null`` written here is read as no input at all, which is the one value that cannot
-    be passed inline."""
-
-    input_uri: StorageUri | None = None
-    """A storage URI to read the input from instead of writing it inline."""
-
-    save_to: StorageUri | None = None
-    """A storage URI to stream the result to, instead of carrying it inline.
-
-    The step's output then carries ``output_uri`` and ``output_bytes``: a result worth
-    saving is one the next step reads from storage."""
-
-    max_input: Size = MAX_INPUT_DEFAULT
-    """How much of ``input_uri`` is read into memory.
-
-    A value has to be whole to be reshaped, so one too large to hold is refused rather than
-    truncated: half a document is not a smaller input, it is a wrong one."""
-
-    @model_validator(mode="after")
-    def _require_one_input(self) -> "TransformConfig":
-        """Reject a config that gives both an inline value and a URI, or neither."""
-        if (self.input is None) == (self.input_uri is None):
-            raise ValueError("a transform reads either input or input_uri, and needs exactly one of the two")
-        return self
+    An object held in storage reaches a transform through ``storage.read``, whose ``value``
+    this reads."""
 
 
 class ProgramConfig(TransformConfig):
@@ -97,42 +70,34 @@ class ProgramConfig(TransformConfig):
 
 
 class TransformOutput(BlockModel):
-    """What one reshape produced: the value itself, or where it was written."""
+    """What one reshape produced."""
 
-    value: JsonValue | None = None
-    """The reshaped value, when it was not streamed to storage."""
-
-    output_uri: str | None = None
-    """Where the result was written, when ``save_to`` asked for it."""
-
-    output_bytes: int | None = None
-    """How many bytes were written there."""
+    value: JsonValue = None
+    """The reshaped value, which a later step reads or hands to ``storage.write``."""
 
 
-class ConvertConfig(TransformConfig):
-    """What one re-encoding is told: where the bytes come from, and the pair of formats."""
+class ConvertConfig(BlockModel):
+    """What one re-encoding is told: which object to read, where to put it, and the pair of formats."""
 
-    input: str | None = None  # pyright: ignore[reportIncompatibleVariableOverride] - a codec reads text, not JSON
-    """The text to re-encode, written inline in the document."""
+    source: StorageUri = Field(min_length=1)
+    """The URI the bytes to re-encode are read from."""
+
+    target: StorageUri = Field(min_length=1)
+    """The URI the re-encoded bytes are written to, replacing whatever is there."""
 
     from_format: str = Field(alias="from", min_length=1)
-    """The format the input is in, named as the engine names it."""
+    """The format the source is in, named as the engine names it."""
 
     to_format: str = Field(alias="to", min_length=1)
     """The format to produce."""
 
 
 class ConvertOutput(BlockModel):
-    """What one re-encoding produced: the text itself, or where it was written."""
+    """Where the re-encoding read from and wrote to, so a later step can address the result."""
 
-    text: str | None = None
-    """The re-encoded text, when it was not streamed to storage."""
-
-    output_uri: str | None = None
-    """Where the result was written, when ``save_to`` asked for it."""
-
-    output_bytes: int | None = None
-    """How many bytes were written there."""
+    source: str
+    target: str
+    bytes_written: int
 
 
 class Transformer(Operator[ProgramConfig, TransformOutput], ABC):
@@ -140,8 +105,8 @@ class Transformer(Operator[ProgramConfig, TransformOutput], ABC):
 
     An engine names its kind, summarises itself in one line, and supplies the two halves of
     running a program: compiling it, which is also what the apply-time check runs, and
-    applying it to a value. The frame derives the catalog entry, resolves the input, and
-    disposes of the result.
+    applying it to a value. The frame derives the catalog entry and hands the result on as
+    the step's output.
 
     An engine touches no HTTP, no file outside storage, and nothing in the environment. It
     is handed a value and returns a value; everything that reaches the world is the frame's.
@@ -183,16 +148,12 @@ class Transformer(Operator[ProgramConfig, TransformOutput], ABC):
         ...
 
     async def execute(self, config: ProgramConfig, ctx: StepContext) -> TransformOutput | RemoteHandle:
-        """Resolve the input, run the program over it, and inline or store the result."""
-        value = await _read_value(config, ctx)
+        """Run the program over the input value and hand the result on as the step's output."""
         try:
-            result = self.apply(self.compile(config.program), value)
+            result = self.apply(self.compile(config.program), config.input)
         except TransformError as error:
             raise BlockFailure(str(error), error_class=ErrorClass.REJECTED) from error
-        if config.save_to is None:
-            return TransformOutput(value=result)
-        written = await _write(ctx, config.save_to, json.dumps(result, separators=(",", ":")).encode())
-        return TransformOutput(output_uri=config.save_to, output_bytes=written)
+        return TransformOutput(value=result)
 
     def check_config(self, config: BaseModel) -> list[str]:
         """Compile the program at apply, so a bad one is refused before the document is stored."""
@@ -210,8 +171,8 @@ class Mapper(Operator[ProgramConfig, TransformOutput], ABC):
 
     An engine names its kind, summarises itself in one line, and supplies compiling a
     program and applying it -- to one element at a time, not to the whole list. The frame
-    derives the catalog entry, resolves the input, refuses an input that is not an array,
-    runs the loop, and disposes of the result.
+    derives the catalog entry, refuses an input that is not an array, runs the loop, and
+    hands the list on as the step's output.
 
     The promise is length: the output has one element for every element of the input, in
     input order. The frame builds it one element at a time, so the promise holds by
@@ -259,8 +220,8 @@ class Mapper(Operator[ProgramConfig, TransformOutput], ABC):
         ...
 
     async def execute(self, config: ProgramConfig, ctx: StepContext) -> TransformOutput | RemoteHandle:
-        """Resolve the input, replace every element, and inline or store the list."""
-        elements = _elements(await _read_value(config, ctx), self.spec.id, MAP_PROMISE)
+        """Replace every element of the input list and hand the list on as the step's output."""
+        elements = _elements(config.input, self.spec.id, MAP_PROMISE)
         try:
             compiled = self.compile(config.program)
         except TransformError as error:
@@ -269,10 +230,7 @@ class Mapper(Operator[ProgramConfig, TransformOutput], ABC):
         assert len(mapped) == len(elements), (
             f"{self.spec.id} produced {len(mapped)} elements from {len(elements)}, breaking the map promise"
         )
-        if config.save_to is None:
-            return TransformOutput(value=mapped)
-        written = await _write(ctx, config.save_to, json.dumps(mapped, separators=(",", ":")).encode())
-        return TransformOutput(output_uri=config.save_to, output_bytes=written)
+        return TransformOutput(value=mapped)
 
     def _map_each(self, compiled: object, elements: list[JsonValue]) -> list[JsonValue]:
         """Apply the engine once per element, in order, naming the element it refused."""
@@ -300,8 +258,8 @@ class Filterer(Operator[ProgramConfig, TransformOutput], ABC):
 
     An engine names its kind, summarises itself in one line, supplies compiling a program,
     and answers one question about one element: keep it, or not. The frame derives the
-    catalog entry, resolves the input, refuses an input that is not an array, runs the loop,
-    and disposes of the result.
+    catalog entry, refuses an input that is not an array, runs the loop, and hands the kept
+    elements on as the step's output.
 
     The promise is a subset with the elements unmodified. The frame keeps the element it was
     given rather than anything the engine produced, so an engine has no way to change an
@@ -349,8 +307,8 @@ class Filterer(Operator[ProgramConfig, TransformOutput], ABC):
         ...
 
     async def execute(self, config: ProgramConfig, ctx: StepContext) -> TransformOutput | RemoteHandle:
-        """Resolve the input, keep the elements the engine answers true for, and inline or store them."""
-        elements = _elements(await _read_value(config, ctx), self.spec.id, FILTER_PROMISE)
+        """Keep the elements the engine answers true for and hand them on as the step's output."""
+        elements = _elements(config.input, self.spec.id, FILTER_PROMISE)
         try:
             compiled = self.compile(config.program)
         except TransformError as error:
@@ -358,10 +316,7 @@ class Filterer(Operator[ProgramConfig, TransformOutput], ABC):
         # The element the frame was given, never anything the engine returned: what a filter
         # keeps is what arrived.
         kept = [element for index, element in enumerate(elements) if self._verdict(compiled, element, index)]
-        if config.save_to is None:
-            return TransformOutput(value=kept)
-        written = await _write(ctx, config.save_to, json.dumps(kept, separators=(",", ":")).encode())
-        return TransformOutput(output_uri=config.save_to, output_bytes=written)
+        return TransformOutput(value=kept)
 
     def _verdict(self, compiled: object, element: JsonValue, index: int) -> bool:
         """Ask the engine about one element, refusing an answer that is not a boolean."""
@@ -394,8 +349,8 @@ class Converter(Operator[ConvertConfig, ConvertOutput], ABC):
 
     A converter is a codec, not a language: there is no program. An engine names its kind,
     declares the ``(from, to)`` format pairs it supports, and re-encodes bytes. The frame
-    derives the catalog entry, resolves the input, refuses an unsupported pair at apply, and
-    disposes of the result.
+    derives the catalog entry, reads the source object, refuses an unsupported pair at apply,
+    and writes the target.
 
     An engine touches no HTTP, no file outside storage, and nothing in the environment. It
     is handed bytes and returns bytes; everything that reaches the world is the frame's.
@@ -435,19 +390,17 @@ class Converter(Operator[ConvertConfig, ConvertOutput], ABC):
         ...
 
     async def execute(self, config: ConvertConfig, ctx: StepContext) -> ConvertOutput | RemoteHandle:
-        """Refuse an unsupported pair, then re-encode the input and inline or store the result."""
+        """Refuse an unsupported pair, then re-encode the source object onto the target."""
         unsupported = self._pair_refusal(config.from_format, config.to_format)
         if unsupported is not None:
             raise BlockFailure(unsupported, error_class=ErrorClass.REJECTED)
-        source = await _read_bytes(config, ctx)
+        source = await _read(ctx, config.source)
         try:
             produced = self.convert(source, source_format=config.from_format, target_format=config.to_format)
         except TransformError as error:
             raise BlockFailure(str(error), error_class=ErrorClass.REJECTED) from error
-        if config.save_to is None:
-            return ConvertOutput(text=produced.decode("utf-8", errors="replace"))
-        written = await _write(ctx, config.save_to, produced)
-        return ConvertOutput(output_uri=config.save_to, output_bytes=written)
+        written = await _write(ctx, config.target, produced)
+        return ConvertOutput(source=config.source, target=config.target, bytes_written=written)
 
     def check_config(self, config: BaseModel) -> list[str]:
         """Refuse a format pair this engine has no codec for, at apply."""
@@ -489,43 +442,12 @@ def _named(value: JsonValue) -> str:
     return "a number"
 
 
-async def _read_value(config: ProgramConfig, ctx: StepContext) -> JsonValue:
-    """Resolve a program engine's input: the inline value, or the JSON stored at a URI."""
-    if config.input_uri is None:
-        return config.input
-    payload = await _read_bounded(ctx, config.input_uri, config.max_input)
-    try:
-        parsed: JsonValue = json.loads(payload)
-    except ValueError as error:
-        raise BlockFailure(
-            f"{config.input_uri} does not hold JSON: {error}", error_class=ErrorClass.REJECTED
-        ) from error
-    return parsed
-
-
-async def _read_bytes(config: ConvertConfig, ctx: StepContext) -> bytes:
-    """Resolve a codec engine's input: the inline text, or the bytes stored at a URI."""
-    if config.input_uri is None:
-        return (config.input or "").encode()
-    return await _read_bounded(ctx, config.input_uri, config.max_input)
-
-
-async def _read_bounded(ctx: StepContext, uri: str, limit: int) -> bytes:
-    """Read a stored object whole, refusing one larger than the step said it would hold.
-
-    Counted as it arrives rather than trusted from a stat, because a recorded size is the
-    backend's claim and this is the worker's memory.
-    """
+async def _read(ctx: StepContext, uri: str) -> bytes:
+    """Read the object whole, refusing a URI that holds nothing."""
+    if await ctx.storage.stat(uri) is None:
+        raise BlockFailure(f"there is nothing at {uri} to convert", error_class=ErrorClass.REJECTED)
     chunks: list[bytes] = []
-    total = 0
     async for chunk in ctx.storage.open_read(uri):
-        total += len(chunk)
-        if total > limit:
-            raise BlockFailure(
-                f"{uri} is larger than max_input ({limit} bytes) and is not being read; "
-                f"raise max_input, or transform it in pieces",
-                error_class=ErrorClass.REJECTED,
-            )
         chunks.append(chunk)
     return b"".join(chunks)
 
@@ -536,5 +458,5 @@ async def _write(ctx: StepContext, uri: str, payload: bytes) -> int:
     async with ctx.storage.open_write(uri) as sink:
         for start in range(0, len(payload), CHUNK_BYTES):
             written += await sink.write(payload[start : start + CHUNK_BYTES])
-    ctx.log.info("transform result saved", uri=uri, bytes=written)
+    ctx.log.info("conversion written", uri=uri, bytes=written)
     return written

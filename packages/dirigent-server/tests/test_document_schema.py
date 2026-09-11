@@ -16,6 +16,9 @@ PATH = f"{PREFIX}/schema/document"
 #: A block every instance ships, whose config has a required field and a closed object.
 BLOCK = "convert.std"
 
+#: One valid config for that block, which several documents in these tests carry.
+CONVERT_CONFIG = {"source": "file://in.json", "target": "file://out.yaml", "from": "json", "to": "yaml"}
+
 
 def read(client: TestClient) -> dict[str, Any]:
     """Read the schema, insisting the route answered with one."""
@@ -63,7 +66,7 @@ def test_the_schema_is_itself_valid_draft_2020_12(client: TestClient) -> None:
 def test_a_step_config_is_the_named_block_own_schema(client: TestClient) -> None:
     config = case_for(read(client), BLOCK)["then"]["properties"]["config"]
     assert config["additionalProperties"] is False
-    assert set(config["required"]) == {"from", "to"}
+    assert set(config["required"]) == {"source", "target", "from", "to"}
     assert config["properties"]["from"]["type"] == "string"
 
 
@@ -78,10 +81,10 @@ def test_every_installed_block_gets_a_case_and_the_step_enumerates_them(client: 
 def test_a_block_own_definitions_are_lifted_under_names_only_it_uses(client: TestClient) -> None:
     # Several blocks contribute a `Size`, and a shared `$defs` has room for one of them.
     schema = read(client)
-    config = case_for(schema, BLOCK)["then"]["properties"]["config"]
+    config = case_for(schema, "storage.read")["then"]["properties"]["config"]
     assert "$defs" not in config
-    assert config["properties"]["max_input"]["$ref"] == f"#/$defs/{BLOCK}.Size"
-    assert f"{BLOCK}.Size" in schema["$defs"]
+    assert config["properties"]["max_size"]["$ref"] == "#/$defs/storage.read.Size"
+    assert "storage.read.Size" in schema["$defs"]
 
 
 def test_the_schema_accepts_a_document_and_refuses_a_config_key_no_block_takes(client: TestClient) -> None:
@@ -90,7 +93,7 @@ def test_the_schema_accepts_a_document_and_refuses_a_config_key_no_block_takes(c
         "format": "dirigent/v1",
         "kind": "pipeline",
         "code": "convert-one",
-        "steps": {"parse": {"block": BLOCK, "config": {"from": "json", "to": "yaml", "input": "{}"}}},
+        "steps": {"parse": {"block": BLOCK, "config": dict(CONVERT_CONFIG)}},
     }
     assert list(validator.iter_errors(document)) == []  # pyright: ignore[reportUnknownMemberType]
 
@@ -109,7 +112,7 @@ def test_the_schema_squiggles_a_tag_the_format_would_refuse(client: TestClient) 
         "kind": "pipeline",
         "code": "labelled",
         "tags": ["climate", "Bad Tag"],
-        "steps": {"parse": {"block": BLOCK, "config": {"from": "json", "to": "yaml", "input": "{}"}}},
+        "steps": {"parse": {"block": BLOCK, "config": dict(CONVERT_CONFIG)}},
     }
     # The other branch fails on `kind` alone, which is how the two are told apart at all.
     paths = [list(problem.absolute_path) for problem in deepest(validator.iter_errors(document))]  # pyright: ignore[reportUnknownMemberType]
@@ -181,7 +184,7 @@ def test_a_document_declaring_a_report_validates_against_the_published_schema(cl
         "format": "dirigent/v1",
         "kind": "pipeline",
         "code": "reported",
-        "steps": {"parse": {"block": BLOCK, "config": {"from": "json", "to": "yaml", "input": "{}"}}},
+        "steps": {"parse": {"block": BLOCK, "config": dict(CONVERT_CONFIG)}},
         "report": {"template": "# {{ run.status }}"},
     }
     assert validator.is_valid(document), deep_messages(validator.iter_errors(document))  # pyright: ignore[reportUnknownMemberType]

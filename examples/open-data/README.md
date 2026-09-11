@@ -25,7 +25,7 @@ waiting is a sensor.
 | File | What it teaches |
 | --- | --- |
 | [open-meteo-weekly-report.yaml](open-meteo-weekly-report.yaml) | A windowed weekly schedule, a columnar API transposed to rows, and csv written under the window's start |
-| [who-gho-indicators-to-parquet.yaml](who-gho-indicators-to-parquet.yaml) | A fan-out whose per-item pairing travels through storage paths, one parquet file per country, and a manifest that counts what landed |
+| [who-gho-indicators-to-parquet.yaml](who-gho-indicators-to-parquet.yaml) | A fan-out read back as one list, flattened into one table, written as one parquet file, and a manifest that counts what landed |
 | [world-bank-population-trend.yaml](world-bank-population-trend.yaml) | Paging made visible: an envelope checked with `error()`, year-on-year arithmetic in jq, and a carried schema gating the rows |
 | [usgs-earthquakes-alert.yaml](usgs-earthquakes-alert.yaml) | Haversine in jq, thresholds carried as data rather than spliced into a program, and posting **only** when something matched |
 | [overpass-health-facilities.yaml](overpass-health-facilities.yaml) | A query language in a query parameter, nodes and ways reconciled to one shape, and the same rows written as csv and as parquet |

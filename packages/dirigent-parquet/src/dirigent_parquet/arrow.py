@@ -7,28 +7,16 @@ from typing import Final
 
 import pyarrow as pa
 import pyarrow.parquet as pq
-from pydantic import BaseModel, JsonValue
+from pydantic import JsonValue
 
 from dirigent_common import spelled
-from dirigent_plugin import (
-    BlockFailure,
-    ConvertConfig,
-    Converter,
-    ConvertOutput,
-    ErrorClass,
-    RemoteHandle,
-    StepContext,
-    TransformError,
-)
+from dirigent_plugin import Converter, TransformError
 
 #: The text spellings this engine trades parquet with.
 TEXT_FORMATS: Final = ("json", "ndjson", "csv")
 
 #: What a target format calls one element of the sequence it writes.
 UNIT: Final = {"json": "element", "ndjson": "line", "csv": "row", "parquet": "row"}
-
-#: Why parquet only ever travels by URI, said once and reused by both refusals.
-BYTES_BY_URI: Final = "parquet is bytes, and bytes travel by uri"
 
 
 class ArrowConverter(Converter):
@@ -43,32 +31,11 @@ class ArrowConverter(Converter):
     other words for them.
 
     A csv carries no types, so csv to parquet writes string columns and nothing else.
-
-    Parquet is bytes rather than text, so it always travels by uri: the parquet side of a
-    conversion is ``input_uri`` in and ``save_to`` out, never the inline ``input`` field.
     """
 
     kind = "arrow"
     summary = "Convert between parquet and the text formats."
     pairs = frozenset({("parquet", text) for text in TEXT_FORMATS} | {(text, "parquet") for text in TEXT_FORMATS})
-
-    def check_config(self, config: BaseModel) -> list[str]:
-        """Refuse the pair, and a parquet side asked to travel inline, at apply."""
-        issues = super().check_config(config)
-        if isinstance(config, ConvertConfig):
-            issues.extend(_inline_refusals(config))
-        return issues
-
-    async def execute(self, config: ConvertConfig, ctx: StepContext) -> ConvertOutput | RemoteHandle:
-        """Guard the uri rule again at run time, then let the frame do its work.
-
-        A config whose formats arrived through references is checked here for the first
-        time, because apply deferred it.
-        """
-        refused = _inline_refusals(config)
-        if refused:
-            raise BlockFailure(refused[0], error_class=ErrorClass.REJECTED)
-        return await super().execute(config, ctx)
 
     def convert(self, source: bytes, *, source_format: str, target_format: str) -> bytes:
         """Read the records out of the source format and write them in the target format."""
@@ -79,16 +46,6 @@ class ArrowConverter(Converter):
         if target_format == "parquet":
             return _write_parquet(records)
         return _write_text(records, target_format).encode()
-
-
-def _inline_refusals(config: ConvertConfig) -> list[str]:
-    """Word the refusals of a parquet payload written or asked for inline."""
-    issues: list[str] = []
-    if config.from_format == "parquet" and config.input is not None:
-        issues.append(f"a parquet input is read from input_uri, not written inline: {BYTES_BY_URI}")
-    if config.to_format == "parquet" and config.save_to is None:
-        issues.append(f"a parquet result needs save_to, because it cannot inline: {BYTES_BY_URI}")
-    return issues
 
 
 def _read_parquet(source: bytes, target_format: str) -> list[dict[str, JsonValue]]:

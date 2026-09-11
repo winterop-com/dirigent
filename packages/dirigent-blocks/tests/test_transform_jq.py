@@ -1,13 +1,11 @@
 """Tests for the jq engines: the transform, map and filter a pipeline used to shell out to jq for."""
 
-import json
-
 import pytest
 
 from dirigent_blocks.transform_jq import JqFilterer, JqMapper, JqProgramConfig, JqTransformer
 from dirigent_common import JQ_MEDIA_TYPE
 from dirigent_plugin import BlockFailure, ErrorClass, Filterer, Mapper, Transformer
-from dirigent_testing import FakeContext, FakeStorage, call_block
+from dirigent_testing import FakeContext, call_block
 
 READINGS = [
     {"id": "r1", "status": "active", "meta": {"region": "east"}},
@@ -32,33 +30,7 @@ def test_the_engine_is_transform_jq_and_needs_no_allowlist_entry() -> None:
 async def test_a_program_selects_and_reshapes_an_inline_value(ctx: FakeContext) -> None:
     output = await call_block(JqTransformer(), {"input": READINGS, "program": SELECT_ACTIVE}, ctx)
 
-    assert output.model_dump() == {"value": RESHAPED, "output_uri": None, "output_bytes": None}
-
-
-async def test_the_same_reshape_reads_its_input_from_storage(ctx: FakeContext, storage: FakeStorage) -> None:
-    storage.path_for("file://readings.json").write_bytes(json.dumps(READINGS).encode())
-
-    output = await call_block(JqTransformer(), {"input_uri": "file://readings.json", "program": SELECT_ACTIVE}, ctx)
-
-    assert output.model_dump()["value"] == RESHAPED
-
-
-async def test_save_to_streams_the_result_and_the_output_names_where_it_went(
-    ctx: FakeContext, storage: FakeStorage
-) -> None:
-    output = await call_block(
-        JqTransformer(),
-        {"input": READINGS, "program": SELECT_ACTIVE, "save_to": "file://out/reshaped.json"},
-        ctx,
-    )
-
-    written = storage.path_for("file://out/reshaped.json").read_bytes()
-    assert json.loads(written) == RESHAPED
-    assert output.model_dump() == {
-        "value": None,
-        "output_uri": "file://out/reshaped.json",
-        "output_bytes": len(written),
-    }
+    assert output.model_dump() == {"value": RESHAPED}
 
 
 async def test_a_program_with_several_outputs_produces_the_list_of_them(ctx: FakeContext) -> None:

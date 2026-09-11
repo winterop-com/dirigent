@@ -89,7 +89,7 @@ steps:
         unfollowed_status: ${steps.unfollowed.output.status}
         unfollowed_headers: ${steps.unfollowed.output.headers}
         followed_status: ${steps.followed.output.status}
-        followed_body: ${steps.followed.output.json_body}
+        followed_body: ${steps.followed.output.body}
       program: |
         {unfollowed: {status: .unfollowed_status,
                       # Where it pointed: the thing a pipeline can report or refuse.

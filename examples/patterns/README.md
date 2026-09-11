@@ -110,7 +110,7 @@ local run is handed with `--also-apply examples/patterns/pipeline-run-child.yaml
 | File | What it shows | Ends as |
 | --- | --- | --- |
 | [step-names-and-keys.yaml](step-names-and-keys.yaml) | The map key addresses; `name` describes and identifies nothing | `succeeded` |
-| [outputs-inline-vs-storage.yaml](outputs-inline-vs-storage.yaml) | The 16KB inline threshold, and `save_to` as the document's own choice | `succeeded` |
+| [outputs-inline-vs-storage.yaml](outputs-inline-vs-storage.yaml) | The 16KB inline threshold the engine decides on its own, against `storage.write` and `storage.read` as the document's own choice | `succeeded` |
 | [references-cheat-sheet.yaml](references-cheat-sheet.yaml) | Every `${...}` form, each used once; needs `--window` | `succeeded` |
 | [sensor-http-ready.yaml](sensor-http-ready.yaml) | A 503 as "not yet" rather than as an error | `succeeded` |
 | [sensor-storage-exists.yaml](sensor-storage-exists.yaml) | A glob, a size floor, and a drop that actually lands | `succeeded` |

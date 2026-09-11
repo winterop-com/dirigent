@@ -1,6 +1,6 @@
 """The parquet format pack: the ``convert.arrow`` codec, on pyarrow."""
 
-from dirigent_parquet.arrow import BYTES_BY_URI, TEXT_FORMATS, UNIT, ArrowConverter
+from dirigent_parquet.arrow import TEXT_FORMATS, UNIT, ArrowConverter
 from dirigent_plugin import Contribution, extension
 
 
@@ -16,7 +16,6 @@ class ParquetPlugin:
 plugin = ParquetPlugin()
 
 __all__ = [
-    "BYTES_BY_URI",
     "TEXT_FORMATS",
     "UNIT",
     "ArrowConverter",

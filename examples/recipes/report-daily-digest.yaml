@@ -12,13 +12,16 @@
 #              clock, so a rerun for last Tuesday reports last Tuesday. A pipeline that
 #              reads `now` cannot be rerun, and being rerunnable is most of what makes an
 #              incident survivable.
-#   readings   stands in for the source read. Replacing it with an http.request that writes
-#              to storage changes this step and nothing below it.
+#   readings   stands in for the source read. Replacing it with an http.request whose body
+#              this step reads changes this step and nothing below it.
 #   aggregate  the numbers, computed once, in one place. Everything below reads them rather
 #              than recomputing, so the csv, the digest line and the notification can never
 #              disagree.
-#   csv        the artifact somebody actually opens, written to the run's scratch space with
-#              a dated name.
+#   rows_file  the per-region numbers as an object in the run's scratch space. A conversion
+#              reads a URI and writes a URI, so the value goes out through storage.write
+#              before the codec sees it.
+#   csv        the artifact somebody actually opens, converted from that object under a
+#              dated name.
 #   digest     the human sentence, derived from the aggregate.
 #   notify     the delivery, on rule all_done so a failed report still says something.
 #
@@ -35,13 +38,14 @@ format: dirigent/v1
 kind: pipeline
 code: report-daily-digest
 name: A daily digest report
-description: Compute a day's numbers once, write them as a csv artifact, derive a digest line, and post the summary to a receiver.
+description: Compute a day's numbers once, write them to storage and convert them into a csv artifact, derive a digest line, and post the summary to a receiver.
 
 tags: [recipes, storage, transform, webhook]
 
 requires:
   blocks:
     - transform.jq
+    - storage.write
     - convert.std
     - webhook.post
 
@@ -86,7 +90,7 @@ steps:
     depends_on: [window]
     config:
       input: ${steps.window.output.value}
-      # Stands in for the source read: an http.request with save_to, and an input_uri here.
+      # Stands in for the source read: an http.request, or a storage.read of yesterday's drop.
       # north is absent on purpose, so the digest has something to not know.
       program: |
         . as {$day}
@@ -123,21 +127,21 @@ steps:
            # this pipeline knows which happened.
            empty_regions: ($regions - [$per_region[].region])}
 
-  as_text:
-    block: transform.jq
+  rows_file:
+    block: storage.write
     depends_on: [aggregate]
     config:
-      input: ${steps.aggregate.output.value}
-      program: .regions | tojson
+      target: ${run.scratch}/digest-${params.day}.json
+      value: ${steps.aggregate.output.value.regions}
 
   csv:
     block: convert.std
-    depends_on: [as_text]
+    depends_on: [rows_file]
     config:
-      input: ${steps.as_text.output.value}
+      source: ${steps.rows_file.output.uri}
+      target: ${run.scratch}/digest-${params.day}.csv
       from: json
       to: csv
-      save_to: ${run.scratch}/digest-${params.day}.csv
 
   digest:
     block: transform.jq
@@ -145,7 +149,7 @@ steps:
     config:
       input:
         summary: ${steps.aggregate.output.value}
-        file: ${steps.csv.output.output_uri}
+        file: ${steps.csv.output.target}
       program: |
         .summary as $s
         | {day: $s.day,

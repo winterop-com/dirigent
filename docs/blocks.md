@@ -77,20 +77,18 @@ Contributed by `parquet`. Idempotent.
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `input` | `string or null` |  | `null` | The text to re-encode, written inline in the document. |
-| `input_uri` | `string (storage-uri) or null` |  | `null` | A storage URI to read the input from instead of writing it inline. |
-| `save_to` | `string (storage-uri) or null` |  | `null` | A storage URI to stream the result to, instead of carrying it inline. |
-| `max_input` | `string or integer` |  | `"32mb"` | How much of `input_uri` is read into memory. |
-| `from` | `string` | yes |  | The format the input is in, named as the engine names it. |
+| `source` | `string (storage-uri)` | yes |  | The URI the bytes to re-encode are read from. |
+| `target` | `string (storage-uri)` | yes |  | The URI the re-encoded bytes are written to, replacing whatever is there. |
+| `from` | `string` | yes |  | The format the source is in, named as the engine names it. |
 | `to` | `string` | yes |  | The format to produce. |
 
 **Output**
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `text` | `string or null` |  | `null` | The re-encoded text, when it was not streamed to storage. |
-| `output_uri` | `string or null` |  | `null` | Where the result was written, when `save_to` asked for it. |
-| `output_bytes` | `integer or null` |  | `null` | How many bytes were written there. |
+| `source` | `string` | yes |  | -- |
+| `target` | `string` | yes |  | -- |
+| `bytes_written` | `integer` | yes |  | -- |
 
 ### `convert.std`
 
@@ -102,20 +100,18 @@ Contributed by `builtin`. Idempotent.
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `input` | `string or null` |  | `null` | The text to re-encode, written inline in the document. |
-| `input_uri` | `string (storage-uri) or null` |  | `null` | A storage URI to read the input from instead of writing it inline. |
-| `save_to` | `string (storage-uri) or null` |  | `null` | A storage URI to stream the result to, instead of carrying it inline. |
-| `max_input` | `string or integer` |  | `"32mb"` | How much of `input_uri` is read into memory. |
-| `from` | `string` | yes |  | The format the input is in, named as the engine names it. |
+| `source` | `string (storage-uri)` | yes |  | The URI the bytes to re-encode are read from. |
+| `target` | `string (storage-uri)` | yes |  | The URI the re-encoded bytes are written to, replacing whatever is there. |
+| `from` | `string` | yes |  | The format the source is in, named as the engine names it. |
 | `to` | `string` | yes |  | The format to produce. |
 
 **Output**
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `text` | `string or null` |  | `null` | The re-encoded text, when it was not streamed to storage. |
-| `output_uri` | `string or null` |  | `null` | Where the result was written, when `save_to` asked for it. |
-| `output_bytes` | `integer or null` |  | `null` | How many bytes were written there. |
+| `source` | `string` | yes |  | -- |
+| `target` | `string` | yes |  | -- |
+| `bytes_written` | `integer` | yes |  | -- |
 
 ### `docker.build`
 
@@ -287,19 +283,14 @@ Contributed by `builtin`. Idempotent.
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `input` | `any or null` |  | `null` | The value to work on, written inline in the document. |
-| `input_uri` | `string (storage-uri) or null` |  | `null` | A storage URI to read the input from instead of writing it inline. |
-| `save_to` | `string (storage-uri) or null` |  | `null` | A storage URI to stream the result to, instead of carrying it inline. |
-| `max_input` | `string or integer` |  | `"32mb"` | How much of `input_uri` is read into memory. |
+| `input` | `any` | yes |  | The value to work on, written inline or referenced from an earlier step's output. |
 | `program` | `string` | yes |  | The jq program this step runs. |
 
 **Output**
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `value` | `any or null` |  | `null` | The reshaped value, when it was not streamed to storage. |
-| `output_uri` | `string or null` |  | `null` | Where the result was written, when `save_to` asked for it. |
-| `output_bytes` | `integer or null` |  | `null` | How many bytes were written there. |
+| `value` | `any` |  | `null` | The reshaped value, which a later step reads or hands to `storage.write`. |
 
 ### `git.checkout`
 
@@ -347,14 +338,10 @@ Contributed by `builtin`. Not idempotent.
 | `method` | `"GET" or "POST" or "PUT" or "PATCH" or "DELETE" or "HEAD" or "OPTIONS"` |  | `"GET"` | -- |
 | `query` | `object of string or integer or number or boolean` |  |  | -- |
 | `headers` | `object of string` |  |  | -- |
-| `body` | `any or null` |  | `null` | A value sent as a JSON document, for an endpoint that takes JSON. |
-| `text` | `string or null` |  | `null` | A string sent as the request body verbatim, for an endpoint that takes a raw document. |
-| `form` | `object of string or null` |  | `null` | Fields sent as an HTML form, for an endpoint that takes one. |
-| `body_from` | `string (storage-uri) or null` |  | `null` | A storage URI whose object is sent as the request body, streamed rather than held. |
-| `content_type` | `string or null` |  | `null` | The content type sent with `body_from`, for a backend that stores none. |
+| `body` | `any or null` |  | `null` | What the request sends, usually a reference to what an earlier step produced. |
+| `content_type` | `string or null` |  | `null` | The content type the body is sent with, overriding the default for what it carries. |
 | `success_status` | `integer[]` |  |  | Status codes that count as success; empty means any 2xx. |
-| `max_response` | `string or integer` |  | `"32mb"` | How much of a response is read into memory when it is not streamed to storage. |
-| `save_to` | `string (storage-uri) or null` |  | `null` | A storage URI to stream the response body to, instead of carrying it inline. |
+| `max_response` | `string or integer` |  | `"32mb"` | How much of a response is read into memory. |
 
 **Output**
 
@@ -362,12 +349,9 @@ Contributed by `builtin`. Not idempotent.
 | --- | --- | --- | --- | --- |
 | `status` | `integer` | yes |  | -- |
 | `headers` | `object of string` | yes |  | -- |
-| `json_body` | `any or null` |  | `null` | -- |
-| `text` | `string or null` |  | `null` | -- |
+| `body` | `any` |  | `null` | What the service answered: the parsed document when it is JSON, else the text. |
+| `body_bytes` | `integer` | yes |  | How many bytes the answer was. |
 | `duration_ms` | `integer` | yes |  | -- |
-| `body_uri` | `string or null` |  | `null` | Where the body was written, when `save_to` asked for it. |
-| `body_bytes` | `integer or null` |  | `null` | How many bytes were written there. |
-| `sent_bytes` | `integer or null` |  | `null` | How many bytes of request body were streamed out of `body_from`. |
 
 ### `kafka.produce`
 
@@ -381,8 +365,7 @@ Contributed by `builtin`. Not idempotent.
 | --- | --- | --- | --- | --- |
 | `connection` | `string` | yes |  | The `kafka` connection naming the cluster and holding its credential. |
 | `topic` | `string` | yes |  | The topic to publish to, which must already exist. |
-| `records` | `any[] or null` |  | `null` | The records to publish, held inline. |
-| `records_from` | `string (storage-uri) or null` |  | `null` | A storage URI of NDJSON to publish, one record per line, streamed rather than held. |
+| `records` | `any[]` | yes |  | The records to publish, written inline or referenced from an earlier step's output. |
 | `key` | `string or null` |  | `null` | The name of a field of each record's value whose content becomes the message key. |
 | `acks` | `"all" or "1" or "0"` |  | `"all"` | How many replicas must hold a record before it counts as published. |
 | `timeout` | `string (humane-duration)` |  | `"30s"` | How long the whole publish may take, such as `30s`, counted from the first send to the last acknowledgement. How the records are batched inside it is the client's own. |
@@ -427,19 +410,14 @@ Contributed by `builtin`. Idempotent.
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `input` | `any or null` |  | `null` | The value to work on, written inline in the document. |
-| `input_uri` | `string (storage-uri) or null` |  | `null` | A storage URI to read the input from instead of writing it inline. |
-| `save_to` | `string (storage-uri) or null` |  | `null` | A storage URI to stream the result to, instead of carrying it inline. |
-| `max_input` | `string or integer` |  | `"32mb"` | How much of `input_uri` is read into memory. |
+| `input` | `any` | yes |  | The value to work on, written inline or referenced from an earlier step's output. |
 | `program` | `string` | yes |  | The jq program this step runs. |
 
 **Output**
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `value` | `any or null` |  | `null` | The reshaped value, when it was not streamed to storage. |
-| `output_uri` | `string or null` |  | `null` | Where the result was written, when `save_to` asked for it. |
-| `output_bytes` | `integer or null` |  | `null` | How many bytes were written there. |
+| `value` | `any` |  | `null` | The reshaped value, which a later step reads or hands to `storage.write`. |
 
 ### `pipeline.run`
 
@@ -580,17 +558,15 @@ Contributed by `builtin`. Idempotent.
 | `sql` | `string` | yes |  | One statement, and one only. A document that needs two writes two steps, or uses `sql.execute`, which is the block that runs several as one transaction. |
 | `params` | `object` |  |  | Values bound by name, written `:name` in the statement. |
 | `max_rows` | `integer` |  | `1000` | How many rows may be carried inline in the step's output. |
-| `save_to` | `string (storage-uri) or null` |  | `null` | A storage URI the rows are streamed to as NDJSON, one JSON object per line. |
 | `timeout` | `string (humane-duration)` |  | `"5m"` | How long the statement may run. |
 
 **Output**
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `rows` | `any[] or null` |  | `null` | The rows as objects keyed by column name, or null when they were saved instead. |
-| `row_count` | `integer` | yes |  | How many rows the query returned, inline or saved. |
+| `rows` | `any[]` | yes |  | The rows as objects keyed by column name, which a later step reads or writes out. |
+| `row_count` | `integer` | yes |  | How many rows the query returned. |
 | `columns` | `string[]` | yes |  | The column names, in the order the query selected them. |
-| `saved_to` | `string or null` |  | `null` | Where the NDJSON was written, when `save_to` asked for it. |
 | `duration_ms` | `integer` | yes |  | -- |
 
 ### `storage.copy`
@@ -670,19 +646,14 @@ Contributed by `builtin`. Idempotent.
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `input` | `any or null` |  | `null` | The value to work on, written inline in the document. |
-| `input_uri` | `string (storage-uri) or null` |  | `null` | A storage URI to read the input from instead of writing it inline. |
-| `save_to` | `string (storage-uri) or null` |  | `null` | A storage URI to stream the result to, instead of carrying it inline. |
-| `max_input` | `string or integer` |  | `"32mb"` | How much of `input_uri` is read into memory. |
+| `input` | `any` | yes |  | The value to work on, written inline or referenced from an earlier step's output. |
 | `program` | `string` | yes |  | The jq program this step runs. |
 
 **Output**
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `value` | `any or null` |  | `null` | The reshaped value, when it was not streamed to storage. |
-| `output_uri` | `string or null` |  | `null` | Where the result was written, when `save_to` asked for it. |
-| `output_bytes` | `integer or null` |  | `null` | How many bytes were written there. |
+| `value` | `any` |  | `null` | The reshaped value, which a later step reads or hands to `storage.write`. |
 
 ### `validate.schema`
 

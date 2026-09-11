@@ -11,8 +11,20 @@
 #      dg apply examples/s3/s3-copy-and-verify.yaml
 #      dg run s3-copy-and-verify -p day=2026-01-01 --watch
 #
-# The seed step exists so the example carries its own input: a real pipeline starts at
-# promote, with the incoming object written by whatever produced it.
+# The first two steps exist so the example carries its own input: a real pipeline starts at
+# seed, with the incoming object written by whatever produced it.
+#
+# Hop by hop:
+#
+#   payload   the readings, as a value in the run.
+#   staged    storage.write puts that value in the incoming prefix as json. A value reaches
+#             storage here and nowhere else.
+#   seed      convert.std re-encodes that object into the ndjson a producer would have
+#             dropped. A converter is a storage-object operation: it reads one URI and
+#             writes another, and the bytes never enter the run.
+#   promote   the copy from incoming to published.
+#   landed    the sensor, standing between the copy and the reader.
+#   read_back convert.std again, published ndjson back to json, so the result is readable.
 
 format: dirigent/v1
 kind: pipeline
@@ -24,10 +36,10 @@ tags: [s3, sensor, storage, transform]
 
 requires:
   blocks:
+    - storage.write
     - storage.copy
     - storage.exists
     - value.const
-    - transform.jq
     - convert.std
   connections:
     - artifacts
@@ -55,22 +67,21 @@ steps:
       value:
         - { station: st-1, day: "${params.day}", celsius: 4.5 }
         - { station: st-3, day: "${params.day}", celsius: 1.2 }
-  as_text:
-    block: transform.jq
+  staged:
+    block: storage.write
     depends_on: [payload]
     config:
-      input: ${steps.payload.output.value}
-      # tojson because a codec takes text.
-      program: tojson
+      target: s3://${params.bucket}/incoming/${params.day}.json
+      value: "${steps.payload.output.value}"
   seed:
     # The example's own input: the incoming object a real producer would have written.
     block: convert.std
-    depends_on: [as_text]
+    depends_on: [staged]
     config:
-      input: "${steps.as_text.output.value}"
+      source: "${steps.staged.output.uri}"
+      target: s3://${params.bucket}/incoming/${params.day}.ndjson
       from: json
       to: ndjson
-      save_to: s3://${params.bucket}/incoming/${params.day}.ndjson
   promote:
     block: storage.copy
     depends_on: [seed]
@@ -88,6 +99,7 @@ steps:
     block: convert.std
     depends_on: [landed]
     config:
-      input_uri: s3://${params.bucket}/published/${params.day}.ndjson
+      source: "${steps.landed.output.uri}"
+      target: s3://${params.bucket}/published/${params.day}.json
       from: ndjson
       to: json

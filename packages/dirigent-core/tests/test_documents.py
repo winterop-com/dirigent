@@ -642,15 +642,10 @@ def test_a_block_refuses_its_own_config_at_apply_when_the_live_block_is_availabl
     assert "'sideways' is not a case" in issues[0].message
 
 
-@pytest.mark.parametrize(
-    "config",
-    ["{program: upper}", "{program: upper, input: ada, input_uri: 'file://in.json'}"],
-    ids=["neither", "both"],
-)
-def test_a_transform_naming_no_input_or_two_is_refused_by_the_published_schema(config: str, host: PluginHost) -> None:
-    """The rule is a model validator, and the schema carries it so apply is where it lands."""
+def test_a_transform_naming_no_input_is_refused_by_the_published_schema(host: PluginHost) -> None:
+    """A transform works on a value, so the one it is given is what the schema requires."""
     definition = load_text(
-        f"format: dirigent/v1\ncode: recase\nsteps:\n  a: {{ block: transform.upper, config: {config} }}\n"
+        "format: dirigent/v1\ncode: recase\nsteps:\n  a: { block: transform.upper, config: {program: upper} }\n"
     )
     assert [issue.location for issue in validate_against_catalog(definition, host.catalog())] == ["steps.a.config"]
 
@@ -695,7 +690,8 @@ def test_the_jq_engine_that_ships_refuses_its_own_program_at_apply() -> None:
 
 BAD_CONVERT_PAIR = (
     "format: dirigent/v1\ncode: recode\nsteps:\n"
-    "  a: { block: convert.std, config: {input: 'a,b', from: csv, to: csv} }\n"
+    "  a: { block: convert.std, config: "
+    "{source: 'file://in.csv', target: 'file://out.csv', from: csv, to: csv} }\n"
 )
 
 

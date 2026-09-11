@@ -1,5 +1,7 @@
 """Tests for the generic storage blocks: everything addressed by URI, never by path."""
 
+import json
+
 import pytest
 from pydantic import ValidationError
 
@@ -15,7 +17,8 @@ from dirigent_blocks.storage import (
     StorageWriteOperator,
     StorageWriteOutput,
 )
-from dirigent_plugin import BlockFailure, ErrorClass, NotYet
+from dirigent_blocks.transform_jq import JqTransformer
+from dirigent_plugin import BlockFailure, ErrorClass, NotYet, TransformOutput
 from dirigent_testing import FakeContext, FakeStorage, call_block
 
 
@@ -218,3 +221,35 @@ async def test_reading_nothing_is_rejected_rather_than_retried(ctx: FakeContext)
 
 def test_the_write_and_read_operators_declare_themselves_idempotent() -> None:
     assert (StorageWriteOperator.spec.idempotent, StorageReadOperator.spec.idempotent) == (True, True)
+
+
+# -- the composed path -----------------------------------------------------------
+
+
+async def test_a_value_comes_in_through_a_read_and_goes_out_through_a_write(
+    ctx: FakeContext, storage: FakeStorage
+) -> None:
+    """The three hops a pipeline writes now: read the object, reshape the value, write it back."""
+    put(storage, "file://drops/readings.json", b'[{"id": "r1", "c": 4}, {"id": "r2", "c": -3}]')
+
+    read = await call_block(StorageReadOperator(), {"source": "file://drops/readings.json"}, ctx)
+    assert isinstance(read, StorageReadOutput)
+
+    reshaped = await call_block(
+        JqTransformer(),
+        {"input": read.value, "program": "[.[] | {id, fahrenheit: (.c * 9 / 5 + 32 | round)}]"},
+        ctx,
+    )
+    assert isinstance(reshaped, TransformOutput)
+
+    written = await call_block(
+        StorageWriteOperator(),
+        {"target": "file://out/fahrenheit.json", "value": reshaped.value},
+        ctx,
+    )
+    assert isinstance(written, StorageWriteOutput)
+
+    landed = storage.path_for("file://out/fahrenheit.json").read_bytes()
+    assert json.loads(landed) == [{"fahrenheit": 39, "id": "r1"}, {"fahrenheit": 27, "id": "r2"}]
+    assert written.content_type == "application/json"
+    assert written.bytes_written == len(landed)

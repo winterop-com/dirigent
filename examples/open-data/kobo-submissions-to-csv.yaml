@@ -32,7 +32,8 @@
 #             questions named in `columns` become the rest. Naming the columns is what keeps a
 #             csv rectangular: submissions collected before a question was added simply do not
 #             have that key, and a codec cannot invent a header from a row that lacks it.
-#   as_text   tojson, because the codec takes text.
+#   staged    storage.write, the rows as json. A converter reads one URI and writes another, so
+#             the rows are put down before they can be re-encoded.
 #   report    json to csv in storage, named after the asset so several forms can share a
 #             prefix.
 #
@@ -59,6 +60,7 @@ requires:
   blocks:
     - http.request
     - transform.jq
+    - storage.write
     - convert.std
 
 params:
@@ -108,7 +110,7 @@ steps:
     depends_on: [submissions]
     config:
       input:
-        payload: ${steps.submissions.output.json_body}
+        payload: ${steps.submissions.output.body}
         columns: ${params.columns}
       # The underscore-prefixed keys are Kobo's own and are renamed here; the questions are
       # taken by name so every row has the same shape, which is what a csv requires. A
@@ -130,18 +132,18 @@ steps:
              }
              + (reduce $questions[] as $q ({}; .[$q] = ($row[$q] // null)))]
 
-  as_text:
-    block: transform.jq
+  staged:
+    block: storage.write
     depends_on: [rows]
     config:
-      input: ${steps.rows.output.value}
-      program: tojson
+      target: ${run.scratch}/kobo/${params.asset_uid}.json
+      value: ${steps.rows.output.value}
 
   report:
     block: convert.std
-    depends_on: [as_text]
+    depends_on: [staged]
     config:
-      input: ${steps.as_text.output.value}
+      source: ${steps.staged.output.uri}
+      target: ${run.scratch}/kobo/${params.asset_uid}.csv
       from: json
       to: csv
-      save_to: ${run.scratch}/kobo/${params.asset_uid}.csv

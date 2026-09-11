@@ -1,8 +1,12 @@
 # Keep a dated copy of what a run produced, with the layout decided in the document.
 #
-# In:  a payload built inline and written as a file.
+# In:  a payload built inline and handed to storage.write.
 # Out: that file, plus a copy at a dated archive key, and a manifest naming both with the
 #      byte count the copy reported.
+#
+# The first two hops are the pair every value makes on its way out: transform.jq produces a
+# value, storage.write puts it at a URI, and the copy below works on the URI the write
+# reported rather than on anything the run is still holding.
 #
 # storage.copy moves bytes from one URI to another and knows nothing else. It is not an S3
 # block or a file block: the scheme in the URI decides the backend, so file:// to file://,
@@ -39,6 +43,7 @@ tags: [recipes, storage, transform]
 requires:
   blocks:
     - transform.jq
+    - storage.write
     - storage.copy
 
 params:
@@ -63,7 +68,13 @@ steps:
       program: |
         {day: .day,
          readings: [range(5) | {station: "st-\(.)", celsius: (. * 2) - 3}]}
-      save_to: ${run.scratch}/current/readings.json
+
+  store:
+    block: storage.write
+    depends_on: [build]
+    config:
+      target: ${run.scratch}/current/readings.json
+      value: ${steps.build.output.value}
 
   key:
     block: transform.jq
@@ -80,9 +91,9 @@ steps:
 
   archive:
     block: storage.copy
-    depends_on: [build, key]
+    depends_on: [store, key]
     config:
-      source: ${steps.build.output.output_uri}
+      source: ${steps.store.output.uri}
       # The key comes from the step that built it, so the layout is written once.
       target: ${run.scratch}/${steps.key.output.value.key}
 

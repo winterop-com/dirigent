@@ -59,6 +59,7 @@ tags: [s3, http, sensor, storage]
 requires:
   blocks:
     - http.request
+    - storage.write
     - storage.copy
     - storage.exists
   connections:
@@ -88,13 +89,21 @@ steps:
       method: POST
       body:
         day: "${params.day}"
-      save_to: "${run.scratch}/local/${params.day}.json"
+
+  stage:
+    block: storage.write
+    depends_on: [produce]
+    # The local artifact the round trip is about, written on file:// because that is where
+    # ${run.scratch} lives. The copy below is the only line that mentions s3.
+    config:
+      target: "${run.scratch}/local/${params.day}.json"
+      value: "${steps.produce.output.body}"
 
   upload:
     block: storage.copy
-    depends_on: [produce]
+    depends_on: [stage]
     config:
-      source: "${steps.produce.output.body_uri}"
+      source: "${steps.stage.output.uri}"
       target: "s3://${params.bucket}/daily/${params.day}.json"
 
   wait_for_object:

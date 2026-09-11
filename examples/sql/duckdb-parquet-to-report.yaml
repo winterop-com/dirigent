@@ -14,10 +14,14 @@
 #
 # Five hops, and what each one hands on:
 #   readings    three records as a constant, standing in for whatever produced them.
-#   as_text     tojson, because a codec takes text. Output: one JSON string.
-#   store       convert.arrow writes the parquet artifact. Output: the uri it landed at.
+#   as_json     storage.write puts them in the run's scratch. Output: the uri they landed at.
+#   store       convert.arrow re-encodes that object as parquet. Output: the target uri.
 #   summarise   sql.query reads that parquet FILE and groups it. Output: the rows, inline.
 #   report      sql.execute writes the answer out again as a csv artifact.
+#
+# WHY THE WRITE IS ITS OWN HOP. convert.arrow works on storage objects the way storage.copy
+# does -- a source uri, a target uri, no value -- so records a step is holding become an
+# object through storage.write before a codec can touch them.
 #
 # THE ENGINE IS THE CONNECTION'S URL, AND NOTHING ELSE CHANGES. These are the same two blocks
 # the sqlite and postgres examples use, with the same fields and the same rules. A url naming
@@ -45,7 +49,7 @@
 # -- and sql.query exists to hand rows on. sql.execute is the block that writes, which is also
 # why the connection it names is not read_only.
 #
-# TO MAKE IT YOURS: point store's save_to at a bucket, replace the constant with the step that
+# TO MAKE IT YOURS: point store's target at a bucket, replace the constant with the step that
 # actually produces your rows, and grow the statement. Aggregation, joins across two parquet
 # files, a window function -- it is one query engine over files, so the answer to "how do I
 # join these" is a JOIN.
@@ -61,7 +65,7 @@ tags: [sql, storage, transform, parquet]
 requires:
   blocks:
     - value.const
-    - transform.jq
+    - storage.write
     - convert.arrow
     - sql.query
     - sql.execute
@@ -84,24 +88,22 @@ steps:
         - { station: st-3, region: west, celsius: 1.2 }
         - { station: st-4, region: north, celsius: -3.4 }
 
-  as_text:
-    block: transform.jq
+  as_json:
+    block: storage.write
     depends_on: [readings]
     config:
-      input: ${steps.readings.output.value}
-      # tojson because a codec takes text: the records leave here as one JSON string.
-      program: tojson
+      target: ${run.scratch}/readings.json
+      value: ${steps.readings.output.value}
 
   store:
     block: convert.arrow
-    depends_on: [as_text]
+    depends_on: [as_json]
     config:
-      input: "${steps.as_text.output.value}"
+      source: ${steps.as_json.output.uri}
+      # The parquet file the two SQL steps below read.
+      target: ${run.scratch}/readings.parquet
       from: json
       to: parquet
-      # Parquet is bytes, so it always travels by uri. This one is the file the two SQL
-      # steps below read.
-      save_to: ${run.scratch}/readings.parquet
 
   summarise:
     block: sql.query
@@ -117,7 +119,7 @@ steps:
       params:
         # The artifact the previous step wrote, as a uri. The block resolves it to the path
         # duckdb opens, because this is a duckdb connection.
-        source: "${steps.store.output.output_uri}"
+        source: "${steps.store.output.target}"
         # An ordinary bound value beside the file, to show they are the same mechanism.
         floor: -10
       max_rows: 100
@@ -138,7 +140,7 @@ steps:
             ORDER BY region
           ) TO :target (FORMAT csv, HEADER)
       params:
-        source: "${steps.store.output.output_uri}"
+        source: "${steps.store.output.target}"
         # The write side of the same rule: the target is a uri too, and the csv lands in the
         # run's scratch space where storage.copy or a person can pick it up.
         target: "${run.scratch}/regions.csv"

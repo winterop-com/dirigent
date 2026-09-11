@@ -155,7 +155,7 @@ steps:
       body:
         day: "${params.day}"
         region: "${item}"
-        manifest: "${steps.fetch_manifest.output.body.args.day}"
+        manifest: "${steps.fetch_manifest.output.json_body.args.day}"
 
   notify_failure:
     block: http.request
@@ -312,14 +312,14 @@ item, so a fan-out tells you whether one region is broken or all of them are:
 
 ```text
 push failed  http.request, attempt 1, rejected
-  ${steps.fetch_manifest.output.body.args.day} cannot be resolved: steps.fetch_manifest.output has no 'body'
-(body_bytes, body_uri, duration_ms, headers, json_body, status, text)
+  ${steps.fetch_manifest.output.json_body.args.day} cannot be resolved: steps.fetch_manifest.output has no 'json_body'
+(body, body_bytes, duration_ms, headers, status)
 ```
 
 There are three things in that line, and each is worth stopping on.
 
-**The mistake.** `http.request` does not produce a field called `body`. It produces
-`json_body`, and the error names every field it does produce. Guessing an output field name is
+**The mistake.** `http.request` does not produce a field called `json_body`. It produces
+`body`, and the error names every field it does produce. Guessing an output field name is
 one of the most ordinary mistakes there is, and the reason it survived this far is worth
 stating: an output model is a contract, and the contract belongs to the block. `dg blocks show
 http.request` is where it is written down:
@@ -328,11 +328,9 @@ http.request` is where it is written down:
 output
   * status                 integer
   * headers                object
-    json_body              any (default None)
-    text                   any (default None)
+    body                   any (default None)
+  * body_bytes             integer
   * duration_ms            integer
-    body_uri               any (default None)
-    body_bytes             any (default None)
 ```
 
 The same thing, for every installed block, is [the block reference](blocks.md) -- generated
@@ -340,7 +338,7 @@ from the live catalog, so it cannot go stale.
 
 **Why validation did not catch it.** `dg validate` said `offline` and it meant it. It checked
 that `steps.fetch_manifest` names a real step, because that is in the document. It cannot check
-`.output.body`, because whether an output has a field called `body` is a fact about the block's
+`.output.json_body`, because whether an output has such a field is a fact about the block's
 schema, and offline validation has no catalog. Even the server-side apply does not check it: at
 apply time nothing has produced an output yet, so the check the engine can honestly make is the
 one it makes -- at claim time, when the reference is actually resolved.
@@ -410,10 +408,10 @@ because those outputs are durable artifacts rather than something held in a proc
 
 ## 9. Fix it, and re-apply
 
-One character short of one word. In `push`:
+A prefix too many. In `push`:
 
 ```yaml
-        manifest: "${steps.fetch_manifest.output.json_body.args.day}"
+        manifest: "${steps.fetch_manifest.output.body.args.day}"
 ```
 
 ```bash

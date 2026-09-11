@@ -81,4 +81,4 @@ steps:
     config:
       input: "${steps.fetch.output}"
       program: |
-        {loaded: [.[].json_body.args.region], count: length}
+        {loaded: [.[].body.args.region], count: length}

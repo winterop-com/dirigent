@@ -101,10 +101,10 @@ steps:
       program: |
         . as $items
         | [$items[]
-           | {page: (.json_body.args.page | tonumber),
+           | {page: (.body.args.page | tonumber),
               status: .status,
               duration_ms: .duration_ms,
-              url: .json_body.url}] as $fetched
+              url: .body.url}] as $fetched
         | {pages: ($fetched | length),
            # In item order, which is the order the pages were asked for and not the order
            # they came back in.

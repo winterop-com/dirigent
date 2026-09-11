@@ -2,8 +2,7 @@
 #
 # In:  an API-shaped payload: an envelope around a list of records, each with a nested
 #      object, a list, and a field the report should not carry.
-# Out: a csv in the run's scratch space, one row per record, and the same rows inline for
-#      the run's Output tab.
+# Out: a csv in the run's scratch space, and its text read back for the run's Output tab.
 #
 # A csv row is flat, so this is three decisions rather than a conversion:
 #
@@ -22,9 +21,22 @@
 # whoever reads it, and a program that emits whatever keys it finds changes that header the
 # day the source adds a field.
 #
-# The csv lands in storage with save_to rather than inline, because a file is the artifact
-# somebody wants at the end of a report run; the second, inline copy is what the run's
-# output shows without opening it.
+# Keeping that order is why the rows leave jq as text. storage.write serialises a `value`
+# as canonical JSON, which sorts the keys, and the csv header is the key order of the first
+# record; written as `text`, the bytes are the ones jq produced and the header is the one
+# the projection spells.
+#
+# Five hops, and what each one hands on:
+#   payload   value.const, the envelope a real pipeline would have fetched.
+#   rows      transform.jq, the flat records, serialised in the step. Output: value, a
+#             string of JSON.
+#   stored    storage.write, that text under a name, said to be JSON. Output: uri,
+#             bytes_written.
+#   csv       convert.std, one URI to another. A conversion is a storage-object operation
+#             like storage.copy: it never holds the records as a value, which is why the
+#             rows are written before it and read after it.
+#   preview   storage.read, the csv back as text, so the run's output shows the file
+#             without anybody opening it.
 #
 # To change it: -p separator=, changes what joins a list cell -- and is the fastest way to
 # see why the default is a semicolon in a comma-separated file.
@@ -36,7 +48,7 @@ format: dirigent/v1
 kind: pipeline
 code: json-to-csv-flattening
 name: Nested JSON to a flat csv
-description: Reach into an envelope, flatten the nested fields into named columns, join the list cells, and write a csv artifact.
+description: Reach into an envelope, flatten the nested fields into named columns, join the list cells, and convert the written rows into a csv artifact.
 
 tags: [recipes, storage, transform]
 
@@ -44,7 +56,9 @@ requires:
   blocks:
     - value.const
     - transform.jq
+    - storage.write
     - convert.std
+    - storage.read
 
 params:
   type: object
@@ -96,28 +110,32 @@ steps:
               tags: (.tags | join($separator)),
               readings: .readings.count,
               mean_celsius: .readings.mean_celsius}]
+        | tojson
 
-  as_text:
-    block: transform.jq
+  stored:
+    block: storage.write
     depends_on: [rows]
     config:
-      input: ${steps.rows.output.value}
-      program: tojson
+      target: ${run.scratch}/stations-${params.day}.json
+      # text rather than value: a value is written as canonical JSON, and canonical JSON
+      # sorts the keys the csv header is built from.
+      text: ${steps.rows.output.value}
+      content_type: application/json
 
   csv:
     block: convert.std
-    depends_on: [as_text]
+    depends_on: [stored]
     config:
-      input: ${steps.as_text.output.value}
-      from: json
-      to: csv
+      # Where the write said the rows landed, not the same path typed twice.
+      source: ${steps.stored.output.uri}
       # The file is the point of a report run, so it goes to storage under a dated name.
-      save_to: ${run.scratch}/stations-${params.day}.csv
-
-  inline_copy:
-    block: convert.std
-    depends_on: [as_text]
-    config:
-      input: ${steps.as_text.output.value}
+      target: ${run.scratch}/stations-${params.day}.csv
       from: json
       to: csv
+
+  preview:
+    block: storage.read
+    depends_on: [csv]
+    config:
+      source: ${steps.csv.output.target}
+      max_size: 1mb

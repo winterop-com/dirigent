@@ -80,7 +80,7 @@ def document(url: str) -> str:
 format: dirigent/v1
 kind: pipeline
 code: e2e-demo
-description: One HTTP call, one storage copy, one command on the worker.
+description: One HTTP call, one storage write, one command on the worker.
 
 params:
   type: object
@@ -98,14 +98,13 @@ steps:
       method: GET
       query:
         day: "${{params.day}}"
-      save_to: "${{run.scratch}}/incoming/${{params.day}}.json"
 
   archive:
-    block: storage.copy
+    block: storage.write
     depends_on: [fetch]
     config:
-      source: "${{steps.fetch.output.body_uri}}"
       target: "${{run.scratch}}/archive/${{params.day}}.json"
+      value: "${{steps.fetch.output.body}}"
 
   announce:
     block: shell.run
@@ -113,7 +112,7 @@ steps:
     config:
       argv:
         - echo
-        - "fetched ${{steps.fetch.output.status}}, archived ${{steps.archive.output.bytes_copied}} bytes"
+        - "fetched ${{steps.fetch.output.status}}, archived ${{steps.archive.output.bytes_written}} bytes"
 """
 
 
@@ -310,7 +309,7 @@ def test_a_person_can_scaffold_apply_run_and_read_a_pipeline(project: Path, serv
     for step in ("fetch", "archive", "announce"):
         assert step in shown.stdout
     assert "http.request" in shown.stdout
-    assert "storage.copy" in shown.stdout
+    assert "storage.write" in shown.stdout
     assert "shell.run" in shown.stdout
 
     logs = run(["runs", "logs", run_id], cwd=project, env=env)

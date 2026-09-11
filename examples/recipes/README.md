@@ -81,7 +81,7 @@ and a parameter away in the others:
 
 | File | The question it answers |
 | --- | --- |
-| [storage-write-then-read.yaml](storage-write-then-read.yaml) | How does a payload travel between steps through storage rather than through outputs? |
+| [storage-write-then-read.yaml](storage-write-then-read.yaml) | How do I park a payload in storage and pick it up again a step later? |
 | [storage-copy-dated-archive.yaml](storage-copy-dated-archive.yaml) | How do I keep a dated copy, and what should the key layout be? |
 | [storage-exists-gate.yaml](storage-exists-gate.yaml) | How do I wait for an object, and what stops me reading a half-written one? |
 | [large-output-to-storage.yaml](large-output-to-storage.yaml) | What happens to a payload past the inline threshold, and what should I do about it? |
@@ -95,8 +95,8 @@ and a parameter away in the others:
 | [http-get-with-query.yaml](http-get-with-query.yaml) | How do I build a query without hand-writing a URL, and which field holds the answer? |
 | [http-post-json-echo.yaml](http-post-json-echo.yaml) | How do I POST a body assembled upstream, as structure rather than as text? |
 | [http-headers-and-auth-connection.yaml](http-headers-and-auth-connection.yaml) | Where do credentials live, and what belongs in a header map instead? |
-| [http-save-body-to-storage.yaml](http-save-body-to-storage.yaml) | How do I stream a response body to storage instead of holding it in an output? |
-| [http-post-file-from-storage.yaml](http-post-file-from-storage.yaml) | How do I POST a file that lives in storage without reading it into a step? |
+| [http-save-body-to-storage.yaml](http-save-body-to-storage.yaml) | How do I keep a response body as an object somebody else can fetch? |
+| [http-post-file-from-storage.yaml](http-post-file-from-storage.yaml) | How do I POST a file that lives in storage? |
 | [http-success-status-list.yaml](http-success-status-list.yaml) | How do I accept a non-2xx that is a real answer, without silencing failures? |
 | [http-follow-redirects.yaml](http-follow-redirects.yaml) | Why is a redirect not followed by default, and what do I lose when it is? |
 | [http-timeout-override.yaml](http-timeout-override.yaml) | Which of the three deadlines around a call am I actually setting? |

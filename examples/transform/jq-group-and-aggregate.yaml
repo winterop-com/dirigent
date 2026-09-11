@@ -13,8 +13,8 @@
 # config that carries a reference cannot be compiled early, which is why the data is the
 # input and never spliced into the program.
 #
-# The readings are written inline so the example needs no network. In a real pipeline this
-# is input_uri, pointing at the body an upstream http.request already put in storage.
+# The readings are written inline so the example needs no network. In a real pipeline this is
+# a reference to an upstream step's output: an http.request's body, or a storage.read's value.
 #
 # What it prints, and the arithmetic to check it against:
 #

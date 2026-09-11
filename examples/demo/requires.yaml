@@ -25,6 +25,7 @@ tags: [demo, http, storage]
 requires:
   blocks:
     - http.request
+    - storage.write
     - storage.copy
   connections:
     - postman-echo
@@ -48,11 +49,17 @@ steps:
       method: POST
       body:
         authenticated: "${steps.authenticate.output.status}"
-      save_to: "${run.scratch}/reports/receipt.json"
+
+  receipt:
+    block: storage.write
+    depends_on: [publish]
+    config:
+      target: "${run.scratch}/reports/receipt.json"
+      value: "${steps.publish.output.body}"
 
   archive:
     block: storage.copy
-    depends_on: [publish]
+    depends_on: [receipt]
     config:
-      source: "${steps.publish.output.body_uri}"
+      source: "${steps.receipt.output.uri}"
       target: "${run.scratch}/archive/receipt.json"

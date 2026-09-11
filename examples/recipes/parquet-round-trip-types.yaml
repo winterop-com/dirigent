@@ -2,8 +2,8 @@
 #
 # In:  one record carrying every JSON scalar -- a string, an integer, a float, a boolean, a
 #      null, a numeric string, and a column whose values are integers and floats together.
-# Out: {before, after, changed} plus the same record after a csv round trip, so the two
-#      formats can be compared column by column in one output.
+# Out: {before, after_parquet, after_csv, kinds, changed}, so the two formats can be
+#      compared column by column in one output.
 #
 # Parquet has a schema and csv does not, and that single difference is the whole recipe:
 #
@@ -22,9 +22,14 @@
 # back, so after it every value is a string and the booleans, the numbers and the nulls are
 # indistinguishable from the words that spell them.
 #
+# Both legs are four hops, and they are four rather than two because a conversion is a
+# storage-object operation: it reads one URI and writes another, and never carries a value.
+# The record is written once, converted out, converted back, and read into the run again --
+# so `before` is the value this document wrote and `after` is what came off a disk.
+#
 # The comparison is computed rather than described: `changed` lists the fields whose value
-# is not identical after the round trip, so this recipe stays honest if the codec ever
-# changes under it.
+# is not identical after the round trip, so this recipe stays honest if a codec ever changes
+# under it.
 #
 # A column whose rows disagree in a way that cannot unify is refused by name at the write
 # rather than coerced. Adding {"code": 7} to one of the rows below is the fastest way to see
@@ -37,16 +42,18 @@ format: dirigent/v1
 kind: pipeline
 code: parquet-round-trip-types
 name: What survives a parquet round trip
-description: Write one record of every JSON scalar to parquet and read it back, against a csv round trip of the same record.
+description: Write one record of every JSON scalar, convert it out to parquet and back, and compare it against the same record round-tripped through csv.
 
 tags: [recipes, storage, transform, parquet]
 
 requires:
   blocks:
     - value.const
-    - transform.jq
+    - storage.write
     - convert.std
     - convert.arrow
+    - storage.read
+    - transform.jq
 
 params:
   type: object
@@ -78,45 +85,62 @@ steps:
           # The other value in this column is an integer, so the column unifies to float.
           mixed: 2.5
 
-  as_text:
-    block: transform.jq
+  stored:
+    block: storage.write
     depends_on: [rows]
     config:
-      input: ${steps.rows.output.value}
-      program: tojson
+      target: ${run.scratch}/types-${params.day}.json
+      value: ${steps.rows.output.value}
 
   write_parquet:
     block: convert.arrow
-    depends_on: [as_text]
+    depends_on: [stored]
     config:
-      input: ${steps.as_text.output.value}
+      source: ${steps.stored.output.uri}
+      target: ${run.scratch}/types-${params.day}.parquet
       from: json
       to: parquet
-      save_to: ${run.scratch}/types-${params.day}.parquet
 
-  read_parquet:
+  back_from_parquet:
     block: convert.arrow
     depends_on: [write_parquet]
     config:
-      input_uri: ${steps.write_parquet.output.output_uri}
+      source: ${steps.write_parquet.output.target}
+      target: ${run.scratch}/types-${params.day}-from-parquet.json
       from: parquet
       to: json
 
-  as_csv:
-    block: convert.std
-    depends_on: [as_text]
+  read_parquet:
+    block: storage.read
+    depends_on: [back_from_parquet]
     config:
-      input: ${steps.as_text.output.value}
+      source: ${steps.back_from_parquet.output.target}
+      max_size: 1mb
+
+  write_csv:
+    block: convert.std
+    depends_on: [stored]
+    config:
+      source: ${steps.stored.output.uri}
+      target: ${run.scratch}/types-${params.day}.csv
       from: json
       to: csv
 
-  read_csv:
+  back_from_csv:
     block: convert.std
-    depends_on: [as_csv]
+    depends_on: [write_csv]
     config:
-      input: ${steps.as_csv.output.text}
+      source: ${steps.write_csv.output.target}
+      target: ${run.scratch}/types-${params.day}-from-csv.json
       from: csv
       to: json
+
+  read_csv:
+    block: storage.read
+    depends_on: [back_from_csv]
+    config:
+      source: ${steps.back_from_csv.output.target}
+      max_size: 1mb
 
   compare:
     block: transform.jq
@@ -124,18 +148,16 @@ steps:
     config:
       input:
         before: ${steps.rows.output.value}
-        after_parquet: ${steps.read_parquet.output.text}
-        after_csv: ${steps.read_csv.output.text}
+        after_parquet: ${steps.read_parquet.output.value}
+        after_csv: ${steps.read_csv.output.value}
       program: |
         def kinds: map_values(type);
         . as {$before, $after_parquet, $after_csv}
-        | ($after_parquet | fromjson) as $parquet
-        | ($after_csv | fromjson) as $csv
-        | {before: $before[0], after_parquet: $parquet[0], after_csv: $csv[0],
+        | {before: $before[0], after_parquet: $after_parquet[0], after_csv: $after_csv[0],
            kinds: {before: ($before[0] | kinds),
-                   after_parquet: ($parquet[0] | kinds),
-                   after_csv: ($csv[0] | kinds)},
+                   after_parquet: ($after_parquet[0] | kinds),
+                   after_csv: ($after_csv[0] | kinds)},
            changed: {parquet: [$before[0] | to_entries[]
-                               | select($parquet[0][.key] != .value) | .key],
+                               | select($after_parquet[0][.key] != .value) | .key],
                      csv: [$before[0] | to_entries[]
-                           | select($csv[0][.key] != .value) | .key]}}
+                           | select($after_csv[0][.key] != .value) | .key]}}

@@ -21,9 +21,9 @@ types, and the codec is honest about them in both directions:
   column, or one holding raw bytes, is refused naming it -- flattening is a reshape, and a
   reshape belongs to a jq step that knows what the flattening should mean.
 
-Parquet is bytes rather than text, so it always travels by uri: `input_uri` in, and
-`save_to` required when parquet is the target. The inline `input` field is for text
-sources only, and a config that breaks either rule is refused at apply.
+A conversion is a storage-object operation, like `storage.copy`: it reads the object at
+`source` and writes the one at `target`, and neither side is ever a value the step carries.
+A run that means to look at the records reads them with `storage.read`.
 
 The pack ships separately because `convert.std` is deliberately on the standard library
 and nothing else; this codec stands on [pyarrow](https://arrow.apache.org/docs/python/).

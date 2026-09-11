@@ -1,13 +1,18 @@
 # Records into parquet and back, where the types survive the trip.
 #
 # Parquet is the typed spelling at rest: where csv turns every value into a string, a
-# parquet column knows it holds an integer or a float, and convert.arrow infers that
-# schema from the records as it writes. This writes a batch to a parquet file, reads it
-# back, and the numbers come back numbers rather than strings.
+# parquet column knows it holds an integer or a float, and convert.arrow infers that schema
+# from the records as it writes. This stores a batch as json, converts it to parquet, reads
+# that file back into json, and loads it as a value -- and the numbers come back numbers
+# rather than strings.
 #
-# Parquet is bytes, so it always travels by uri -- input_uri in, save_to out -- which is
-# why the write lands in the run's scratch and the read names that same file. convert.arrow
-# ships in the dirigent-parquet pack; installing it is what puts the block in the catalog.
+# Every convert step here names two uris and carries nothing: parquet is bytes, and a
+# conversion is a storage-object operation either way. storage.write is the hop that puts
+# the records in storage to begin with, and storage.read the hop that brings the result
+# back where a later step, or a person reading the run, can see it.
+#
+# convert.arrow ships in the dirigent-parquet pack; installing it is what puts the block in
+# the catalog.
 #
 #   dg run --local examples/transform/parquet-round-trip.yaml --keep
 
@@ -22,7 +27,8 @@ tags: [transform, storage]
 requires:
   blocks:
     - value.const
-    - transform.jq
+    - storage.read
+    - storage.write
     - convert.arrow
 
 steps:
@@ -33,26 +39,30 @@ steps:
         - { station: st-1, region: east, celsius: 4.5, active: true }
         - { station: st-3, region: west, celsius: 1.2, active: true }
         - { station: st-4, region: north, celsius: -3.4, active: false }
-  as_text:
-    block: transform.jq
+  store:
+    block: storage.write
     depends_on: [readings]
     config:
-      input: ${steps.readings.output.value}
-      # tojson because a codec takes text: the records leave here as one JSON string.
-      program: tojson
+      target: ${run.scratch}/readings.json
+      value: ${steps.readings.output.value}
   write:
     block: convert.arrow
-    depends_on: [as_text]
+    depends_on: [store]
     config:
-      input: "${steps.as_text.output.value}"
+      source: ${steps.store.output.uri}
+      target: ${run.scratch}/readings.parquet
       from: json
       to: parquet
-      # Parquet cannot inline -- it is bytes -- so the target is a uri.
-      save_to: ${run.scratch}/readings.parquet
   read_back:
     block: convert.arrow
     depends_on: [write]
     config:
-      input_uri: ${steps.write.output.output_uri}
+      source: ${steps.write.output.target}
+      target: ${run.scratch}/round-trip.json
       from: parquet
       to: json
+  load:
+    block: storage.read
+    depends_on: [read_back]
+    config:
+      source: ${steps.read_back.output.target}

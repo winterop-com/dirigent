@@ -96,8 +96,8 @@ steps:
     depends_on: [fetch_one, fetch_two]
     config:
       input:
-        one: "${steps.fetch_one.output.json_body.args}"
-        two: "${steps.fetch_two.output.json_body.args}"
+        one: "${steps.fetch_one.output.body.args}"
+        two: "${steps.fetch_two.output.body.args}"
       program: |
         {parts: [.one.part, .two.part], dataset: .one.dataset}
 

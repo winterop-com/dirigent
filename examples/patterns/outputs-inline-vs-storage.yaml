@@ -1,59 +1,55 @@
-# Where a step's output lives: inline in the run, or streamed to storage and referenced.
+# Where a value lives: in a step's output, in the run's scratch space, or in storage.
 #
-# Every step output is stored, and the size decides how. An output whose serialised form is at
-# or below inline_artifact_max (16384 bytes by default) is kept INLINE on the attempt, which
-# is what makes ${steps.x.output.field} cheap to read and what puts a value on the run page
-# without a second fetch. Anything larger becomes a file, and the output carries a reference to
-# it rather than the bytes.
+# A value travels in a step's output. That is the whole of it: a step reads
+# ${steps.x.output.field} from a step it depends on, and no block reads or writes storage to
+# move a value around. The two ends of a run are the exception, and they are blocks of their
+# own -- storage.read is the only way a value comes in from storage, and storage.write the
+# only way one goes out.
 #
-# save_to is the other half, and it is a decision the DOCUMENT makes rather than the engine.
-# A block that supports it -- the codecs, the jq verbs, http.request -- streams its result
-# straight to a URI, never holding the whole thing in memory, and answers with output_uri and
-# output_bytes instead of a value. That is the difference that matters at a gigabyte: the
-# threshold above is about where a result is filed after the fact, and save_to is about never
-# assembling it in the first place.
+# THE ENGINE'S OWN DECISION is separate from both, and it is about size rather than about
+# what a document said. Every successful attempt keeps its output whole, whatever its size,
+# so a reference always resolves. Alongside it the engine files a copy: at or below
+# inline_artifact_max (16384 bytes by default) the copy is inlined, and above it the
+# canonical JSON is streamed to the run's scratch prefix and the attempt records the URI it
+# went to. Nothing in this document chooses that, and nothing downstream has to know which
+# happened.
 #
-# HOW TO CHOOSE, in one line each:
-#
-#   no save_to   the result is small and the next step wants the VALUE. Reference the field.
-#   save_to      the result is large, or the next step reads it by URI anyway, or something
-#                outside this run is meant to pick it up. Reference the URI.
-#
-# A step downstream of save_to reads input_uri rather than input, and never inlines the file to
-# get at it: max_input is that block's guard on how much it will read into memory.
+#   dg runs show <run-id>          the attempt says where its output's copy went
+#   DIRIGENT_INLINE_ARTIFACT_MAX   the instance setting that moves the line
 #
 # WHERE A URI MAY POINT. ${run.scratch} is this run's own directory under the instance's
-# artifact root. file:// URIs are refused outside that root, so a stored pipeline can never be
-# turned into an arbitrary-file read, and a run cannot write over another run's work. An s3://
-# URI goes to whichever connection the instance binds that scheme to.
+# artifact root. file:// URIs are refused outside that root, so a stored pipeline can never
+# be turned into an arbitrary-file read, and a run cannot write over another run's work. An
+# s3:// URI goes to whichever connection the instance binds that scheme to.
 #
 # Hop by hop:
 #
-#   small       an http.request with no save_to. The response is a few hundred bytes, so it is
-#               inline, and the next step reads .json_body straight out of it.
-#   large       the same call with save_to. The body is streamed to scratch and the step's
-#               output carries body_uri and body_bytes -- and json_body is null, because
-#               nothing was held.
-#   read_back   transform.jq reading that file by URI and saving its result to another one.
-#               This is the shape a big result travels in: file to file, with only the
-#               reference passing through the run and no payload ever in an attempt row.
-#   compare     puts the two side by side: one output has a value, the other has a location.
+#   fetch      an http.request. The answer is a few hundred bytes, so its copy is inlined,
+#              and the next step reads .body straight out of the output.
+#   bulk       jq builds four thousand rows from it. The serialised output is far over the
+#              default cap, so the engine spills that copy to the run's scratch.
+#   count      reads ${steps.bulk.output.value} anyway. A spilled copy changes nothing for a
+#              reference: the attempt kept the value whole.
+#   keep       storage.write, the one way out. The rows become an object with a URI.
+#   read_back  storage.read, the one way back in. The object becomes a value again.
+#   compare    the small answer and the round-tripped rows, side by side.
 #
-# EXPECT THIS RUN TO SUCCEED in about three seconds, with small.json_body populated and
-# large.json_body null.
+# EXPECT THIS RUN TO SUCCEED in about three seconds, with bulk's output spilled and every
+# reference to it resolving regardless.
 #
 #   dg run --local examples/patterns/outputs-inline-vs-storage.yaml
 
 format: dirigent/v1
 kind: pipeline
 code: outputs-inline-vs-storage
-name: Inline output, or a file
+name: A value, and the storage on either side of it
 description: |
-  An output at or below `inline_artifact_max` (16KB by default) is kept inline on the
-  attempt; anything larger becomes a file the output references.
+  A value travels in a step's output. `storage.read` is the only way one comes in from
+  storage and `storage.write` the only way one goes out.
 
-  `save_to` is the document's own decision to stream a result to a URI instead of ever
-  assembling it, and the step then answers with a location rather than a value.
+  Where the engine files its copy of an output is a separate question, decided by size:
+  at or below `inline_artifact_max` (16KB by default) it is inlined on the attempt, and
+  above it spilled to the run's scratch space. A reference resolves either way.
 
 tags: [patterns, http, storage, transform, outputs]
 
@@ -61,70 +57,84 @@ requires:
   blocks:
     - http.request
     - transform.jq
+    - storage.write
+    - storage.read
 
 params:
   type: object
   properties:
     dataset:
       type: string
-      description: Echoed back by the endpoint, so both calls have something recognisable in them.
+      description: Echoed back by the endpoint, so the answer has something recognisable in it.
       default: cases
+    rows:
+      type: integer
+      description: How many rows the bulk step builds. Above about three hundred the output spills.
+      default: 4000
+      minimum: 1
 
 steps:
-  small:
+  fetch:
     block: http.request
-    # No save_to, so the answer is held and stored on the attempt. Under the threshold it is
-    # inline; over it the engine files it and the reference below still resolves, because a
-    # stored output is a stored output either way.
     config:
       url: https://postman-echo.com/get
       query:
         dataset: "${params.dataset}"
 
-  large:
-    block: http.request
+  bulk:
+    block: transform.jq
+    depends_on: [fetch]
     config:
-      url: https://postman-echo.com/get
-      query:
-        dataset: "${params.dataset}"
-      # The one line this file is about. The body never lands in memory: it is streamed to
-      # this URI, and the step answers with where it went and how big it was.
-      save_to: "${run.scratch}/responses/${params.dataset}.json"
+      input:
+        dataset: "${steps.fetch.output.body.args.dataset}"
+        rows: "${params.rows}"
+      program: |
+        . as {$dataset, $rows} | [range($rows) | {row: ., dataset: $dataset, seen_at: "postman-echo"}]
+
+  count:
+    block: transform.jq
+    depends_on: [bulk]
+    config:
+      # The reference is the same reference it would be for a four-field output. Whether the
+      # engine inlined the copy or spilled it is not something a document can see.
+      input: "${steps.bulk.output.value}"
+      program: |
+        {rows: length, first: .[0]}
+
+  keep:
+    block: storage.write
+    depends_on: [bulk]
+    config:
+      target: "${run.scratch}/rows/${params.dataset}.json"
+      value: "${steps.bulk.output.value}"
 
   read_back:
-    block: transform.jq
-    depends_on: [large]
+    block: storage.read
+    depends_on: [keep]
     config:
-      # By URI, not by value. A step reading a saved result never inlines it to get at it, and
-      # input and input_uri are alternatives -- a block takes one or the other.
-      input_uri: "${steps.large.output.body_uri}"
-      # This block's own guard on how much of that file it will read into memory. A humane
-      # size, and a file bigger than it fails the step rather than exhausting the worker.
-      max_input: 8mb
-      program: |
-        {dataset: .args.dataset, seen_at: .url}
-      # Saved again rather than returned, so the whole chain stays file to file and the run
-      # carries references and no payload at all.
-      save_to: "${run.scratch}/responses/${params.dataset}-shaped.json"
+      source: "${steps.keep.output.uri}"
+      # This step's own guard on how much it will hold. A humane size, and an object bigger
+      # than it fails the step rather than exhausting the worker; bytes nobody has to look
+      # at move with storage.copy instead, which this does not bound.
+      max_size: 8mb
 
   compare:
     block: transform.jq
-    depends_on: [small, read_back]
+    depends_on: [fetch, count, keep, read_back]
     config:
       input:
-        # A value, read straight out of the inline output.
-        inline_dataset: "${steps.small.output.json_body.args.dataset}"
-        # A location and a size. json_body on that step is null: nothing was held to put there.
-        saved_uri: "${steps.large.output.body_uri}"
-        saved_bytes: "${steps.large.output.body_bytes}"
-        converted_uri: "${steps.read_back.output.output_uri}"
-        converted_bytes: "${steps.read_back.output.output_bytes}"
+        inline_dataset: "${steps.fetch.output.body.args.dataset}"
+        counted: "${steps.count.output.value.rows}"
+        written_uri: "${steps.keep.output.uri}"
+        written_bytes: "${steps.keep.output.bytes_written}"
+        read_bytes: "${steps.read_back.output.bytes_read}"
+        round_tripped: "${steps.read_back.output.value}"
       program: |
         {
           inline_dataset,
-          saved_uri,
-          saved_bytes,
-          converted_uri,
-          converted_bytes,
-          note: "one output carries a value, the other carries a location"
+          counted,
+          written_uri,
+          written_bytes,
+          read_bytes,
+          same: (.counted == (.round_tripped | length))
         }

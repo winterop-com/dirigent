@@ -5,12 +5,17 @@
 # Out: a parquet file in the run's scratch space, written only from rows that passed a
 #      schema gate, plus a report of what was dropped and why.
 #
-# The order of the six steps is the recipe, and every one of them is a different kind of
+# The order of the nine steps is the recipe, and every one of them is a different kind of
 # work that wants its own step:
 #
-#   parse      convert.std csv -> json. Every cell arrives as a string, because a csv has no
-#              types and a codec that guessed would be wrong on the column where 007 is a
-#              code.
+#   source     storage.write, the inline csv at a URI. A conversion reads one URI and writes
+#              another, the way storage.copy does, so the csv it reads has to be an object
+#              first. A real pipeline writes a downloaded body here instead.
+#   parse      convert.std csv -> json. Nothing passes through the step: bytes at one URI,
+#              bytes at another.
+#   rows       storage.read of the parsed object, which is where the records enter the run.
+#              Every cell arrives as a string, because a csv has no types and a codec that
+#              guessed would be wrong on the column where 007 is a code.
 #   clean      the string work: trim, case-fold, and turn the text columns that are really
 #              numbers into numbers. This is where a csv's missing type information is
 #              supplied, by the document that knows what the columns mean.
@@ -21,8 +26,10 @@
 #              statements of the same expectation, and the gate is what makes them agree:
 #              anything the cleaner let through that the schema refuses fails the run here,
 #              at the boundary, rather than inside a parquet file somebody reads next month.
-#   write      convert.arrow json -> parquet, save_to. Types survive here, which is the
-#              reason for doing all of the above before writing rather than after.
+#   checked    storage.write of what the gate passed, because the writer below takes a URI
+#              and not a value. Nothing but the gate's own output is written here.
+#   write      convert.arrow json -> parquet. Types survive here, which is the reason for
+#              doing all of the above before writing rather than after.
 #   report     the run's own account of itself: counts, the rejected keys, and the file.
 #
 # Everything downstream of the gate reads ${steps.gate.output.value}, which is the input
@@ -48,6 +55,8 @@ tags: [recipes, storage, transform, validate, parquet]
 
 requires:
   blocks:
+    - storage.write
+    - storage.read
     - convert.std
     - convert.arrow
     - transform.jq
@@ -81,33 +90,48 @@ params:
       description: Fail on a duplicate station instead of keeping the first row for it.
 
 steps:
-  parse:
-    block: convert.std
+  source:
+    block: storage.write
     config:
-      # Inline so the recipe needs no network. In a real pipeline this is input_uri,
-      # pointing at a body http.request already put in storage.
-      input: |
+      target: ${run.scratch}/readings-${params.day}.csv
+      # Inline so the recipe needs no network. In a real pipeline the body an http.request
+      # answered with is written here, and nothing below moves.
+      text: |
         station,day,celsius,active
           ST-1 ,2026-01-01,4.5,TRUE
         st-2,2026-01-01,-1,false
         st-3,2026-01-01,,true
         st-1,2026-01-01,4.5,true
         st-4,2026-01-01,not-a-number,true
+      content_type: text/csv
+
+  parse:
+    block: convert.std
+    depends_on: [source]
+    config:
+      source: ${steps.source.output.uri}
+      target: ${run.scratch}/readings-${params.day}.json
       from: csv
       to: json
 
-  clean:
-    block: transform.jq
+  rows:
+    block: storage.read
     depends_on: [parse]
     config:
+      source: ${steps.parse.output.target}
+      max_size: 8mb
+
+  clean:
+    block: transform.jq
+    depends_on: [rows]
+    config:
       input:
-        text: ${steps.parse.output.text}
+        rows: ${steps.rows.output.value}
         day: ${params.day}
       program: |
         def trim: sub("^\\s+"; "") | sub("\\s+$"; "");
-        . as {$text, $day}
-        | [$text
-           | fromjson[]
+        . as {$rows, $day}
+        | [$rows[]
            | {station: (.station | trim | ascii_downcase),
               day: (if .day == "" then $day else .day end),
               # An empty cell is not a measurement of zero, so it stays null and is sorted
@@ -149,22 +173,22 @@ steps:
       input: ${steps.sort.output.value.accepted}
       schema: recipe-reading-rows
 
-  as_text:
-    block: transform.jq
+  checked:
+    block: storage.write
     depends_on: [gate]
     config:
+      target: ${run.scratch}/checked-${params.day}.json
       # From the gate, never from the sorter.
-      input: ${steps.gate.output.value}
-      program: tojson
+      value: ${steps.gate.output.value}
 
   write:
     block: convert.arrow
-    depends_on: [as_text]
+    depends_on: [checked]
     config:
-      input: ${steps.as_text.output.value}
+      source: ${steps.checked.output.uri}
+      target: ${run.scratch}/readings-${params.day}.parquet
       from: json
       to: parquet
-      save_to: ${run.scratch}/readings-${params.day}.parquet
 
   report:
     block: transform.jq
@@ -173,8 +197,8 @@ steps:
       input:
         sorted: ${steps.sort.output.value}
         checked: ${steps.gate.output.value}
-        uri: ${steps.write.output.output_uri}
-        bytes: ${steps.write.output.output_bytes}
+        uri: ${steps.write.output.target}
+        bytes: ${steps.write.output.bytes_written}
       program: |
         {file: .uri, file_bytes: .bytes,
          written: (.checked | length),

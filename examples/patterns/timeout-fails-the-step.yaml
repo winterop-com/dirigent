@@ -89,6 +89,6 @@ steps:
     # Skipped. An abandoned attempt is a failure like any other as far as the edge is
     # concerned; there is no separate "timed out" outcome for a rule to branch on.
     config:
-      input: "${steps.slow_read.output.json_body}"
+      input: "${steps.slow_read.output.body}"
       program: |
         {delayed: .}

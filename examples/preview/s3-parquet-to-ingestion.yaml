@@ -6,17 +6,24 @@
 # and every block that takes a URI can address it, including the sensor that waits for the
 # object to appear. Swapping the drop from s3:// to gs:// is a one-word edit in one line.
 #
-# The parquet never becomes a step output. body_from hands http.request the URI instead of
-# the bytes, and the block streams the object from storage onto the wire a chunk at a time,
-# so a drop of any size is a POST rather than a dead worker. What travels between the steps
-# is the address of the file, which is what makes the fan-out below cheap: each region sends
-# the same object, and nothing is copied to do it.
+# The parquet never becomes a step output, and it could not: a value comes into a run only
+# through storage.read, which reads text and json and refuses a format it cannot decode.
+# What travels between the steps is the address of the object, which is what makes the
+# fan-out below cheap: each region is handed the same URI, and nothing is copied to do it.
+# The ingestion endpoint reads the object from the bucket it is already looking at.
+#
+# Hop by hop:
+#
+#   wait_for_drop   the sensor. Its output says which object landed and how big it is.
+#   push            one call per region, each carrying the address and the size rather than
+#                   the bytes.
+#   notify_failure  one_failed, so a region that could not be pushed is heard about.
 
 format: dirigent/v1
 kind: pipeline
 code: s3-parquet-to-ingestion
 name: Parquet from S3 to an ingestion endpoint
-description: Wait for the daily parquet drop, push it per region straight from storage, alert on failure.
+description: Wait for the daily parquet drop, hand each region its address, alert on failure.
 
 tags: [preview, http, sensor, storage]
 
@@ -66,11 +73,13 @@ steps:
       connection: modelling-api
       path: "/v1/ingest/${item}"
       method: POST
-      # The object the sensor found, streamed from storage rather than inlined. S3 stores a
-      # content type per object, but a drop written by somebody else's job rarely carries a
-      # useful one, so this says what the bytes are.
-      body_from: "${steps.wait_for_drop.output.uri}"
-      content_type: application/vnd.apache.parquet
+      # The object the sensor found, named rather than carried. The size is what the
+      # endpoint checks the drop against before it starts reading.
+      body:
+        day: "${params.day}"
+        region: "${item}"
+        source: "${steps.wait_for_drop.output.uri}"
+        source_bytes: "${steps.wait_for_drop.output.size}"
 
   notify_failure:
     block: http.request

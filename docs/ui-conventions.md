@@ -555,7 +555,7 @@ the same `CodePane`, so a jq program is read on the lines it was written on. The
 decides this and nothing else: every other string stays one line, however long a value it holds.
 
 **The label is the key.** What is being edited is a document, and the word an author writes in it
-is `max_input` rather than "Max Input". `description` is the help under the label, and whether a
+is `max_response` rather than "Max Response". `description` is the help under the label, and whether a
 field is required is said beside the label rather than inside it, so the control's accessible
 name stays the key.
 

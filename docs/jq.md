@@ -20,7 +20,7 @@ differences a program author has to know:
 | A program is a stream and may emit any number of outputs. | `transform.jq` makes one value of them: one output is the value, several become a list in emission order, and **none fails the step as rejected** -- a program that means "possibly nothing" says `[]` or `null`, never `empty`. `map.jq` and `filter.jq` demand exactly one output per element. |
 | `env` and `$ENV` read the process environment. | Both read an empty object. The worker's environment is where dirigent's own secrets live, and a parameter or a connection is how a pipeline is handed a value. |
 | A broken program errors when it runs. | A program that does not compile is refused when the document is applied, with jq's own message. One that compiles and meets the wrong data fails the attempt as rejected -- retrying would meet the same data again. |
-| `input`, `--arg`, and the rest of the command line | There is no command line and there are no files: the program's one input is the step's `input` or `input_uri`, and its arguments arrive by composing them into that input (the join example below). |
+| `input`, `--arg`, and the rest of the command line | There is no command line and there are no files: the program's one input is the step's `input`, and its arguments arrive by composing them into that input (the join example below). A document held in storage reaches a program as the `value` a `storage.read` step answers with. |
 
 ## A value in, values out
 

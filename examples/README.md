@@ -23,7 +23,7 @@ The documents live on topic shelves, each with its own README:
 | [`execute/`](execute) | Code on the worker: a shell step behind the allowlist. |
 | [`docker/`](docker) | The container family: run one, watch it live, build an image and push it, and bring a whole compose stack up and down, on the worker's daemon or one a connection names. |
 | [`git/`](git) | An existing project brought into a run: a repository checked out, then built and brought up from what it ships. |
-| [`sql/`](sql) | A database read and written: bound parameters, one transaction, and a result streamed to storage when it is too large to carry. |
+| [`sql/`](sql) | A database read and written: bound parameters, one transaction, and a result handed to storage when it belongs in a file. |
 | [`composition/`](composition) | Pipelines made of pipelines, and the handoff to a second instance. |
 | [`s3/`](s3) | Object storage through the `s3://` scheme, with no S3 block anywhere. |
 | [`demo/`](demo) | Surfaces shown off: the run form, rendered markdown, the requires preflight, the weekly-import shared-name pair. |
@@ -33,8 +33,8 @@ The documents live on topic shelves, each with its own README:
 **The tag rule.** Every document's `tags:` is drawn from one vocabulary of three groups and
 nothing else. The **shelf** is the directory the file sits in, exactly one, and every document
 wears it. The **block families** are what its steps use, read off the block ids: `http`,
-`transform` (the jq verbs and the `convert.std` codec), `storage` (a storage block, or the
-`save_to` and `input_uri` seams), `execute` (shell and docker), `sql`, `git`, `webhook`
+`transform` (the jq verbs and the `convert.std` codec), `storage` (a storage block, or a
+converter's `source` and `target`), `execute` (shell and docker), `sql`, `git`, `webhook`
 (`webhook.post`, or an inbound webhook trigger), `kafka`, `rabbitmq`, `pipeline`, `validate`,
 and `sensor` for any sensor block. The **behaviours** are what the document teaches and what a
 reader filters by: `schedule`, `fan-out`, `graph`, `failure`, `retry`, `timeout`,

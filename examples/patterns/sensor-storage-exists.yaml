@@ -22,8 +22,9 @@
 #
 # Hop by hop:
 #
-#   producer  writes the drop, by saving an HTTP response straight to a URI under this run's
-#             scratch. It stands in for the upstream system that would normally do this.
+#   producer  fetches the payload the drop is made of. It stands in for the upstream system.
+#   drop      writes that payload to a URI under this run's scratch, which is the moment the
+#             sensor is waiting for: storage.write is the only way a value leaves a run.
 #   dropped   the sensor. It matches on a glob, insists on a minimum size, and fires as soon
 #             as the object is there.
 #   archive   copies what landed to its resting place, reading the sensor's answer rather than
@@ -61,6 +62,7 @@ tags: [patterns, http, sensor, storage, transform]
 requires:
   blocks:
     - http.request
+    - storage.write
     - storage.exists
     - storage.copy
     - transform.jq
@@ -81,17 +83,25 @@ params:
 steps:
   producer:
     block: http.request
-    # Stands in for the upstream system. save_to is what makes this a producer rather than a
-    # reader: the response is streamed to a URI instead of being held as a value.
+    # Stands in for the upstream system: it only fetches, and what it fetches is a value in
+    # its output like any other.
     config:
       url: https://postman-echo.com/get
       query:
         day: "${params.day}"
-      save_to: "${run.scratch}/drops/${params.day}/export-0001.json"
+
+  drop:
+    block: storage.write
+    depends_on: [producer]
+    # The write is what the sensor below is waiting for. The producer names the file, which
+    # is why the sensor matches a pattern rather than this exact target.
+    config:
+      target: "${run.scratch}/drops/${params.day}/export-0001.json"
+      value: "${steps.producer.output.body}"
 
   dropped:
     block: storage.exists
-    depends_on: [producer]
+    depends_on: [drop]
     poll: 1s
     deadline: 15s
     config:

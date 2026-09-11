@@ -16,8 +16,9 @@
 #             three variables is a few kilobytes, so nothing needs to go to storage yet.
 #   rows      the transposition. `daily.time` indexes everything, so walking its indices and
 #             reading each variable at the same offset is the whole job.
-#   report    the codec, json to csv, streamed straight to storage. convert.std takes text,
-#             which is why the step above ends in tojson.
+#   staged    storage.write, the rows as one json object. A converter reads one URI and writes
+#             another, so a value the run is holding is put down before it is re-encoded.
+#   report    the codec, json to csv, from that object to the one a person opens.
 #
 # The archive lags real weather by about five days, so a schedule that reads the week that
 # just closed is reading a week the archive already has. That is why the cadence below fires
@@ -48,6 +49,7 @@ requires:
   blocks:
     - transform.jq
     - http.request
+    - storage.write
     - convert.std
 
 params:
@@ -102,7 +104,7 @@ steps:
     block: transform.jq
     depends_on: [fetch]
     config:
-      input: ${steps.fetch.output.json_body}
+      input: ${steps.fetch.output.body}
       # The arrays under daily are parallel, so the index is the join key. reduce over the
       # keys rather than naming the variables keeps this program correct when the `daily`
       # parameter asks for a different set.
@@ -112,18 +114,24 @@ steps:
         | [range($body.daily.time | length) as $i
            | reduce $vars[] as $var
                ({date: $body.daily.time[$i]}; .[$var] = $body.daily[$var][$i])]
-        | tojson
+
+  staged:
+    block: storage.write
+    depends_on: [rows]
+    config:
+      target: ${run.scratch}/weather/${run.window.start}.json
+      value: ${steps.rows.output.value}
 
   report:
     block: convert.std
-    depends_on: [rows]
+    depends_on: [staged]
     config:
-      input: ${steps.rows.output.value}
-      from: json
-      to: csv
+      source: ${steps.staged.output.uri}
       # The window start names the file, so a backfill of ten weeks writes ten objects and
       # overwrites none of them.
-      save_to: ${run.scratch}/weather/${run.window.start}.csv
+      target: ${run.scratch}/weather/${run.window.start}.csv
+      from: json
+      to: csv
 
 triggers:
   schedules:

@@ -20,12 +20,22 @@ READINGS_NDJSON = "".join(f"{json.dumps(row, separators=(',', ':'))}\n" for row 
 READINGS_CSV = "station,region,celsius\nst-1,east,4.5\nst-2,west,-3.0\n"
 
 
+SOURCE_URI = "file://in/source"
+
+TARGET_URI = "file://out/target"
+
+
 async def convert(ctx: FakeContext, source: str, source_format: str, target_format: str) -> str:
-    """Run one conversion and hand back the text it produced."""
-    output = await call_block(StdConverter(), {"input": source, "from": source_format, "to": target_format}, ctx)
-    text = output.model_dump()["text"]
-    assert isinstance(text, str)
-    return text
+    """Run one conversion from one object onto another, and hand back the text it wrote."""
+    async with ctx.storage.open_write(SOURCE_URI) as sink:
+        await sink.write(source.encode())
+    await call_block(
+        StdConverter(),
+        {"source": SOURCE_URI, "target": TARGET_URI, "from": source_format, "to": target_format},
+        ctx,
+    )
+    written = [chunk async for chunk in ctx.storage.open_read(TARGET_URI)]
+    return b"".join(written).decode()
 
 
 def test_the_engine_is_convert_std_and_needs_no_allowlist_entry() -> None:
@@ -144,7 +154,11 @@ async def test_bytes_that_are_not_utf8_are_refused_at_the_byte_that_is_not(
     storage.path_for("file://latin.csv").write_bytes(b"name\nGr\xe6nse\n")
 
     with pytest.raises(BlockFailure) as raised:
-        await call_block(StdConverter(), {"input_uri": "file://latin.csv", "from": "csv", "to": "json"}, ctx)
+        await call_block(
+            StdConverter(),
+            {"source": "file://latin.csv", "target": TARGET_URI, "from": "csv", "to": "json"},
+            ctx,
+        )
 
     assert raised.value.error_class is ErrorClass.REJECTED
     assert "at byte 7" in raised.value.message
@@ -196,24 +210,30 @@ SUPPORTED = (
 
 
 def test_a_pair_that_is_no_conversion_at_all_is_refused_at_apply_naming_the_ones_that_are() -> None:
-    config = StdConverter.config_model.model_validate({"input": "a,b\n", "from": "csv", "to": "csv"})
+    config = StdConverter.config_model.model_validate(
+        {"source": SOURCE_URI, "target": TARGET_URI, "from": "csv", "to": "csv"}
+    )
 
     assert StdConverter().check_config(config) == [f"convert.std does not convert csv to csv ({SUPPORTED})"]
 
 
 def test_a_format_this_engine_never_heard_of_is_refused_the_same_way() -> None:
-    config = StdConverter.config_model.model_validate({"input": "[]", "from": "json", "to": "parquet"})
+    config = StdConverter.config_model.model_validate(
+        {"source": SOURCE_URI, "target": TARGET_URI, "from": "json", "to": "parquet"}
+    )
 
     assert StdConverter().check_config(config) == [f"convert.std does not convert json to parquet ({SUPPORTED})"]
 
 
 def test_a_supported_pair_is_passed_without_comment() -> None:
-    config = StdConverter.config_model.model_validate({"input": "[]", "from": "json", "to": "csv"})
+    config = StdConverter.config_model.model_validate(
+        {"source": SOURCE_URI, "target": TARGET_URI, "from": "json", "to": "csv"}
+    )
 
     assert StdConverter().check_config(config) == []
 
 
-async def test_save_to_streams_a_large_conversion_and_the_output_names_where_it_went(
+async def test_a_conversion_reads_one_object_and_writes_another_saying_how_much_it_wrote(
     ctx: FakeContext, storage: FakeStorage
 ) -> None:
     rows = "".join(f"st-{number},east,{number}.5\n" for number in range(4000))
@@ -221,36 +241,34 @@ async def test_save_to_streams_a_large_conversion_and_the_output_names_where_it_
 
     output = await call_block(
         StdConverter(),
-        {"input_uri": "file://readings.csv", "from": "csv", "to": "ndjson", "save_to": "file://out/readings.ndjson"},
+        {"source": "file://readings.csv", "target": "file://out/readings.ndjson", "from": "csv", "to": "ndjson"},
         ctx,
     )
 
     written = storage.path_for("file://out/readings.ndjson").read_text()
     lines = written.splitlines()
     assert output.model_dump() == {
-        "text": None,
-        "output_uri": "file://out/readings.ndjson",
-        "output_bytes": len(written.encode()),
+        "source": "file://readings.csv",
+        "target": "file://out/readings.ndjson",
+        "bytes_written": len(written.encode()),
     }
     assert len(lines) == 4000
     assert json.loads(lines[0]) == {"station": "st-0", "region": "east", "celsius": "0.5"}
     assert json.loads(lines[-1]) == {"station": "st-3999", "region": "east", "celsius": "3999.5"}
 
 
-async def test_a_source_over_max_input_is_refused_naming_the_cap_rather_than_truncated(
-    ctx: FakeContext, storage: FakeStorage
+async def test_a_source_that_is_not_there_is_refused_rather_than_converted(
+    ctx: FakeContext,
 ) -> None:
-    storage.path_for("file://big.csv").write_text("station\n" + "st-1\n" * 100)
-
     with pytest.raises(BlockFailure) as raised:
         await call_block(
             StdConverter(),
-            {"input_uri": "file://big.csv", "from": "csv", "to": "json", "max_input": "64B"},
+            {"source": "file://missing.csv", "target": TARGET_URI, "from": "csv", "to": "json"},
             ctx,
         )
 
     assert raised.value.error_class is ErrorClass.REJECTED
-    assert "is larger than max_input (64 bytes)" in raised.value.message
+    assert "there is nothing at file://missing.csv to convert" in raised.value.message
 
 
 CONFIG_YAML = """\
@@ -469,12 +487,12 @@ async def test_ten_thousand_records_stream_out_of_a_document_held_only_as_a_file
 
     output = await call_block(
         StdConverter(),
-        {"input_uri": "file://feed.xml", "from": "xml", "to": "ndjson", "save_to": "file://out/feed.ndjson"},
+        {"source": "file://feed.xml", "target": "file://out/feed.ndjson", "from": "xml", "to": "ndjson"},
         ctx,
     )
 
     lines = storage.path_for("file://out/feed.ndjson").read_text().splitlines()
-    assert output.model_dump()["output_uri"] == "file://out/feed.ndjson"
+    assert output.model_dump()["target"] == "file://out/feed.ndjson"
     assert len(lines) == 10_000
     assert json.loads(lines[0]) == {"@station": "st-0", "celsius": "0.5"}
     assert json.loads(lines[-1]) == {"@station": "st-9999", "celsius": "9999.5"}

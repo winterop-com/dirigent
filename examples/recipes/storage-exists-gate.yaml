@@ -29,6 +29,10 @@
 # whichever file arrives; the sensor's output names the one it actually found, which is why
 # the reader below reads ${steps.dropped.output.uri} and not the pattern.
 #
+# The sensor observes, it does not read: it reports a URI, a size and a time, and nothing
+# about what is inside. Turning that into a value is storage.read's job, one hop later, and
+# that hop is where max_size decides how much of the drop this run will hold.
+#
 # To change it: point uri at a drop somebody else writes and raise the deadline; with
 # on_timeout: skip that run ends green having done nothing, which is what a quiet day
 # should look like.
@@ -47,7 +51,9 @@ tags: [recipes, sensor, storage, transform]
 requires:
   blocks:
     - transform.jq
+    - storage.write
     - storage.exists
+    - storage.read
 
 params:
   type: object
@@ -70,11 +76,17 @@ steps:
         day: ${params.day}
       program: |
         {day: .day, readings: [range(8) | {station: "st-\(.)", celsius: (. - 3)}]}
-      save_to: ${run.scratch}/drops/${params.day}.json
+
+  drop:
+    block: storage.write
+    depends_on: [produce]
+    config:
+      target: ${run.scratch}/drops/${params.day}.json
+      value: ${steps.produce.output.value}
 
   dropped:
     block: storage.exists
-    depends_on: [produce]
+    depends_on: [drop]
     poll: 2s
     deadline: 30s
     # A missing drop is a quiet day: the run ends green with this and everything below it
@@ -86,23 +98,30 @@ steps:
       min_size: ${params.min_size}
 
   read:
-    block: transform.jq
+    block: storage.read
     depends_on: [dropped]
     config:
       # The file the sensor found, not the pattern it was given.
-      input_uri: ${steps.dropped.output.uri}
+      source: ${steps.dropped.output.uri}
+      max_size: 1mb
+
+  summary:
+    block: transform.jq
+    depends_on: [read]
+    config:
+      input: ${steps.read.output.value}
       program: |
         {day, rows: (.readings | length),
          warmest: (.readings | max_by(.celsius) | .station)}
 
   receipt:
     block: transform.jq
-    depends_on: [dropped, read]
+    depends_on: [dropped, summary]
     config:
       input:
         uri: ${steps.dropped.output.uri}
         size: ${steps.dropped.output.size}
         modified_at: ${steps.dropped.output.modified_at}
-        summary: ${steps.read.output.value}
+        summary: ${steps.summary.output.value}
       program: |
         {found: .uri, size_bytes: .size, modified_at, summary}

@@ -622,7 +622,7 @@ shape by default, its values at `-v`, the whole document at `-d`.
 
 | Level | An output in the table |
 | --- | --- |
-| default | Shapes. `status=200 headers={12 keys} json_body={3 keys}` |
+| default | Shapes. `status=200 headers={12 keys} body={3 keys}` |
 | `-v` | Values, each collection shown two levels deep and five elements wide, saying how many it left |
 | `-d`, `-vv`, `--debug-all` | The whole value, pretty-printed as JSON |
 
@@ -674,7 +674,7 @@ adds to them:
 | `run` | The run itself, opening and closing. Opening: `pipeline`, `run_id`, `local`, `scratch`. Closing: `exit_code`, `error`, `steps`, `failures`, `kept_at` |
 | `step` | One state an attempt passed through: `block`, `attempt`, and `duration_ms` on the one it settles in |
 | `log` | A line a step wrote, with whatever it bound in `fields` |
-| `output` | What a step produced, at `-v` and above; a block's own shape, so an HTTP call adds `status`, `headers`, `json_body` or `text`, `body_uri`, `body_bytes` |
+| `output` | What a step produced, at `-v` and above; a block's own shape, so an HTTP call adds `status`, `headers`, `body`, `body_bytes` |
 | `error` | A refusal, from the server or from the CLI |
 
 A command that changes one thing writes one record naming the change, whose `message` is the

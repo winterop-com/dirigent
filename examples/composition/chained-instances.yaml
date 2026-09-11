@@ -83,7 +83,7 @@ steps:
       body:
         day: "${params.day}"
         upstream_run: "${run.id}"
-        rows: "${steps.produce.output.json_body.json.rows}"
+        rows: "${steps.produce.output.body.json.rows}"
 
   confirm:
     block: http.request

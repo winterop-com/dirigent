@@ -2,8 +2,6 @@
 
 import json
 import time
-from collections.abc import AsyncGenerator
-from contextlib import aclosing
 from datetime import timedelta
 from typing import ClassVar, Literal
 
@@ -11,7 +9,7 @@ import httpx2
 from pydantic import BaseModel, Field, JsonValue, model_validator
 
 from dirigent_blocks.connections import HttpConnectionConfig
-from dirigent_common import BlockModel, Duration, Size, StorageUri
+from dirigent_common import BlockModel, Duration, Size
 from dirigent_plugin import (
     BlockFailure,
     ErrorClass,
@@ -26,9 +24,9 @@ from dirigent_plugin import (
 
 type HttpMethod = Literal["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]
 
-MAX_TEXT_BYTES = 64 * 1024
-
 DEFAULT_TEXT_CONTENT_TYPE = "text/plain; charset=utf-8"
+
+JSON_CONTENT_TYPE = "application/json"
 
 
 class HttpTarget(BlockModel):
@@ -98,9 +96,15 @@ def decode(response: httpx2.Response, payload: bytes) -> tuple[JsonValue | None,
     return None, _as_text(payload)
 
 
+def body_of(response: httpx2.Response, payload: bytes) -> JsonValue:
+    """The one value an output carries: the parsed JSON when the answer is JSON, else the text."""
+    parsed, text = decode(response, payload)
+    return text if parsed is None else parsed
+
+
 def _as_text(payload: bytes) -> str:
-    """Render a body as the text an output carries, cut to what may be inlined."""
-    return payload[:MAX_TEXT_BYTES].decode("utf-8", errors="replace")
+    """Render a body as the text an output carries."""
+    return payload.decode("utf-8", errors="replace")
 
 
 async def read_bounded(response: httpx2.Response, limit: int) -> bytes:
@@ -115,8 +119,8 @@ async def read_bounded(response: httpx2.Response, limit: int) -> bytes:
         total += len(chunk)
         if total > limit:
             raise BlockFailure(
-                f"the response is larger than max_response ({limit} bytes) and is not being saved; "
-                f"raise max_response, or give save_to a URI to stream it to",
+                f"the response is larger than max_response ({limit} bytes) and is not being read; "
+                f"raise max_response, or ask the endpoint for less",
                 error_class=ErrorClass.REJECTED,
             )
         chunks.append(chunk)
@@ -130,82 +134,51 @@ class HttpRequestConfig(HttpTarget):
     query: dict[str, str | int | float | bool] = Field(default_factory=dict[str, str | int | float | bool])
     headers: dict[str, str] = Field(default_factory=dict[str, str])
     body: JsonValue | None = None
-    """A value sent as a JSON document, for an endpoint that takes JSON.
+    """What the request sends, usually a reference to what an earlier step produced.
 
-    Serialised and sent as ``application/json``. Mutually exclusive with the other body forms.
-    """
-
-    text: str | None = None
-    """A string sent as the request body verbatim, for an endpoint that takes a raw document.
-
-    Sent byte for byte, with the content type the ``headers`` name or
-    ``text/plain; charset=utf-8`` when they name none. This is what a query language, an XML
-    document, or a CSV upload goes in. Mutually exclusive with the other body forms.
-    """
-
-    form: dict[str, str] | None = None
-    """Fields sent as an HTML form, for an endpoint that takes one.
-
-    Encoded and sent as ``application/x-www-form-urlencoded``. Mutually exclusive with the
-    other body forms.
-    """
-
-    body_from: StorageUri | None = None
-    """A storage URI whose object is sent as the request body, streamed rather than held.
-
-    The bytes go from storage onto the wire a chunk at a time and are never held whole, so a
-    file larger than the worker's memory is a POST rather than a dead worker. ``Content-Length``
-    is the size storage reports for the object, and a URI naming nothing is refused before the
-    call is made. The output then carries ``sent_bytes``. Mutually exclusive with the other
-    body forms.
+    A string is sent as it stands, which is what a query language, an XML document or a csv
+    upload goes in; any other value is serialised and sent as JSON. A document held in
+    storage is read by ``storage.read`` first and referenced here.
     """
 
     content_type: str | None = None
-    """The content type sent with ``body_from``, for a backend that stores none.
+    """The content type the body is sent with, overriding the default for what it carries.
 
-    Storage may already know what the object is -- an S3 object carries its content type,
-    a file on disk does not -- and what it reports is used when this is unset. A step whose
-    backend reports none and which names none here is refused, because an endpoint reading
-    a body it was not told the type of is guessing.
+    A string defaults to ``text/plain; charset=utf-8`` and any other value to
+    ``application/json``, so this is where an endpoint that wants ``text/csv`` or
+    ``application/xml`` is told.
     """
 
     success_status: list[int] = Field(default_factory=list[int])
     """Status codes that count as success; empty means any 2xx."""
 
     max_response: Size = 32 * 1024 * 1024
-    """How much of a response is read into memory when it is not streamed to storage.
+    """How much of a response is read into memory.
 
     A body has to be whole to be parsed, so one too large to hold is refused rather than
     truncated: half a JSON document is not a smaller answer, it is a wrong one, and a step
-    that acted on it would be acting on something the service never said. ``save_to`` streams
-    instead, and is bounded by the storage rather than by this.
+    that acted on it would be acting on something the service never said.
     """
 
-    save_to: StorageUri | None = None
-    """A storage URI to stream the response body to, instead of carrying it inline.
+    def request_body(self) -> tuple[dict[str, str], bytes | None]:
+        """The headers and the bytes one request is built with, the body serialised here.
 
-    The body goes to storage a chunk at a time and is never held whole, so a response larger
-    than the worker's memory is a file rather than a dead worker. The step's output then
-    carries ``body_uri`` and ``body_bytes`` rather than ``json_body`` or ``text``: a body
-    worth saving is one the next step reads from storage.
-    """
-
-    @model_validator(mode="after")
-    def _one_payload_at_most(self) -> "HttpRequestConfig":
-        """Reject a config that names more than one way to fill the request body."""
-        named = [name for name in ("body", "text", "form", "body_from") if getattr(self, name) is not None]
-        if len(named) > 1:
-            raise ValueError(f"an HTTP request carries one body: {', '.join(named)} were all configured")
-        return self
-
-    def request_body(self) -> tuple[dict[str, str], bytes | None, dict[str, str] | None, JsonValue | None]:
-        """The headers and the three httpx2 body arguments one request is built with."""
-        headers = dict(self.headers)
-        if self.text is not None:
-            if not any(name.lower() == "content-type" for name in headers):
-                headers["content-type"] = DEFAULT_TEXT_CONTENT_TYPE
-            return headers, self.text.encode("utf-8"), None, None
-        return headers, None, self.form, self.body
+        Serialised by the block rather than by the client, so the content type and the bytes
+        are decided in one place.
+        """
+        if self.body is None:
+            return dict(self.headers), None
+        if isinstance(self.body, str):
+            content, declared = self.body.encode(), DEFAULT_TEXT_CONTENT_TYPE
+        else:
+            content = json.dumps(self.body, separators=(",", ":"), ensure_ascii=False).encode()
+            declared = JSON_CONTENT_TYPE
+        # Rebuilt without the header so one spelling of it reaches the client, whichever
+        # case the document wrote.
+        headers = {name: value for name, value in self.headers.items() if name.lower() != "content-type"}
+        named = next((value for name, value in self.headers.items() if name.lower() == "content-type"), None)
+        headers["content-type"] = self.content_type or named or declared
+        return headers, content
 
 
 class HttpRequestOutput(BlockModel):
@@ -213,76 +186,13 @@ class HttpRequestOutput(BlockModel):
 
     status: int
     headers: dict[str, str]
-    json_body: JsonValue | None = None
-    text: str | None = None
+    body: JsonValue = None
+    """What the service answered: the parsed document when it is JSON, else the text."""
+
+    body_bytes: int
+    """How many bytes the answer was."""
+
     duration_ms: int
-    body_uri: str | None = None
-    """Where the body was written, when ``save_to`` asked for it."""
-
-    body_bytes: int | None = None
-    """How many bytes were written there."""
-
-    sent_bytes: int | None = None
-    """How many bytes of request body were streamed out of ``body_from``."""
-
-
-class StoredBody:
-    """A request body streamed out of storage, counting the bytes it hands the client."""
-
-    def __init__(self, size: int, content_type: str, stream: AsyncGenerator[bytes]) -> None:
-        """Hold one opened storage stream, and what stat said about the object behind it."""
-        self.size = size
-        self.content_type = content_type
-        self.sent = 0
-        self._stream = stream
-
-    def headers_on(self, headers: dict[str, str]) -> dict[str, str]:
-        """Add the content headers this body carries, leaving a named content type alone."""
-        named = {name.lower() for name in headers}
-        if "content-type" not in named:
-            headers["content-type"] = self.content_type
-        headers["content-length"] = str(self.size)
-        return headers
-
-    async def __aiter__(self) -> AsyncGenerator[bytes]:
-        """Hand the client one chunk at a time, the size storage yields them in."""
-        async for chunk in self._stream:
-            self.sent += len(chunk)
-            yield chunk
-
-    async def aclose(self) -> None:
-        """Release the storage stream, whether the request drained it or stopped part way."""
-        await self._stream.aclose()
-
-
-async def open_stored_body(config: HttpRequestConfig, ctx: StepContext) -> StoredBody | None:
-    """Open the object ``body_from`` names, refusing a URI that holds nothing.
-
-    A step whose file is not there is wrong rather than early: the run that was supposed to
-    produce it did not, and retrying the call cannot make it appear.
-    """
-    if not config.body_from:
-        return None
-    found = await ctx.storage.stat(config.body_from)
-    if found is None:
-        raise BlockFailure(
-            f"there is nothing at {config.body_from} to send as the request body",
-            error_class=ErrorClass.REJECTED,
-        )
-    content_type = config.content_type or found.content_type
-    if not content_type:
-        raise BlockFailure(
-            f"storage reports no content type for {config.body_from}, so this request needs content_type",
-            error_class=ErrorClass.REJECTED,
-        )
-    return StoredBody(found.size, content_type, _read(ctx, config.body_from))
-
-
-async def _read(ctx: StepContext, uri: str) -> AsyncGenerator[bytes]:
-    """Yield the object's bytes, closing the storage stream when the reader stops."""
-    async with aclosing(ctx.storage.open_read(uri)) as stream:
-        async for chunk in stream:
-            yield chunk
 
 
 class HttpRequestOperator(Operator[HttpRequestConfig, HttpRequestOutput]):
@@ -295,57 +205,41 @@ class HttpRequestOperator(Operator[HttpRequestConfig, HttpRequestOutput]):
     async def execute(self, config: HttpRequestConfig, ctx: StepContext) -> HttpRequestOutput | RemoteHandle:
         """Send the request, and turn an unsuccessful status into a classified failure."""
         started = time.monotonic()
-        sending = await open_stored_body(config, ctx)
-        try:
-            async with client_for(config, ctx) as client:
-                headers, content, form, body = config.request_body()
-                request = client.build_request(
-                    config.method,
-                    request_url(config),
-                    params=dict(config.query) or None,
-                    headers=sending.headers_on(headers) if sending is not None else (headers or None),
-                    content=sending if sending is not None else content,
-                    data=form,
-                    json=body,
-                    timeout=request_timeout(config, client),
-                )
-                response = await client.send(request, stream=True, follow_redirects=config.follow_redirects)
-                try:
-                    # An unsuccessful answer is never saved: writing it would replace whatever
-                    # ``save_to`` already holds with an error body, and the step then fails.
-                    succeeded = is_success(response.status_code, config.success_status)
-                    written = await _save_body(config, response, ctx) if succeeded else None
-                    payload = b"" if written is not None else await read_bounded(response, config.max_response)
-                finally:
-                    await response.aclose()
-        finally:
-            if sending is not None:
-                await sending.aclose()
+        async with client_for(config, ctx) as client:
+            headers, content = config.request_body()
+            request = client.build_request(
+                config.method,
+                request_url(config),
+                params=dict(config.query) or None,
+                headers=headers or None,
+                content=content,
+                timeout=request_timeout(config, client),
+            )
+            response = await client.send(request, stream=True, follow_redirects=config.follow_redirects)
+            try:
+                payload = await read_bounded(response, config.max_response)
+            finally:
+                await response.aclose()
         duration = round((time.monotonic() - started) * 1000)
         ctx.log.info(
             "http call",
             method=config.method,
             url=request_url(config),
             status=response.status_code,
-            bytes=written if written is not None else len(payload),
-            sent_bytes=sending.sent if sending is not None else None,
+            bytes=len(payload),
             duration_ms=duration,
         )
-        if not succeeded:
+        if not is_success(response.status_code, config.success_status):
             raise BlockFailure(
                 f"{config.method} {request_url(config)} answered {response.status_code}",
                 error_class=status_class(response.status_code),
             )
-        parsed, text = (None, None) if written is not None else decode(response, payload)
         return HttpRequestOutput(
             status=response.status_code,
             headers={name.lower(): value for name, value in response.headers.items()},
-            json_body=parsed,
-            text=text,
+            body=body_of(response, payload),
+            body_bytes=len(payload),
             duration_ms=duration,
-            body_uri=config.save_to if written is not None else None,
-            body_bytes=written,
-            sent_bytes=sending.sent if sending is not None else None,
         )
 
 
@@ -404,23 +298,6 @@ class HttpReadySensor(Sensor[HttpReadyConfig, HttpReadyOutput]):
             ctx.log.debug("endpoint answered but the body does not match yet")
             return NotYet()
         return HttpReadyOutput(status=response.status_code, duration_ms=duration, matched=config.contains is not None)
-
-
-async def _save_body(config: HttpRequestConfig, response: httpx2.Response, ctx: StepContext) -> int | None:
-    """Stream the response body to storage when the step asked for it, and say how much.
-
-    Chunk by chunk, so a response larger than the worker's memory is a file rather than a
-    dead worker. Nothing of it is kept: a body worth saving is one to read from storage, and
-    holding it as well would be the thing this exists to avoid.
-    """
-    if not config.save_to:
-        return None
-    written = 0
-    async with ctx.storage.open_write(config.save_to) as sink:
-        async for chunk in response.aiter_bytes():
-            written += await sink.write(chunk)
-    ctx.log.info("response body saved", uri=config.save_to, bytes=written)
-    return written
 
 
 def status_class(status: int) -> ErrorClass:

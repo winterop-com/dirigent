@@ -93,7 +93,7 @@ steps:
         sent: ${steps.payload.output.value}
         status: ${steps.publish.output.status}
         duration_ms: ${steps.publish.output.duration_ms}
-        echoed: ${steps.publish.output.json_body}
+        echoed: ${steps.publish.output.body}
       program: |
         {status, duration_ms,
          sent_rows: (.sent.readings | length),

@@ -1,23 +1,33 @@
 # A csv turned into ndjson, and the one thing the conversion will not do for you: types.
 #
 # In:  an inline csv with a header row -- station, date, celsius, active.
-# Out: ndjson, one JSON object per line, and beside it the same records with celsius as a
-#      number and active as a boolean.
+# Out: ndjson in the run's scratch space, one JSON object per line, and beside it the same
+#      records with celsius as a number and active as a boolean.
 #
 # All three text formats convert.std knows say the same thing -- a sequence of records --
 # so a conversion is reading that sequence out of one spelling and writing it in another.
 # csv to ndjson is the one a line-oriented sink wants, because a consumer can read one line
 # at a time instead of holding the whole array.
 #
+# A convert step is a storage operation, the way storage.copy is: it reads one URI and
+# writes another, and no record passes through the step itself. So the csv is put at a URI
+# first and the ndjson is read back from one afterwards, which is the three hops below.
+#
+#   source    storage.write, the inline csv at a URI. A real pipeline writes the body an
+#             http.request answered with here instead, and nothing else in the document
+#             moves.
+#   as_ndjson convert.std csv -> ndjson. Output: source, target, bytes_written.
+#   lines     storage.read of the target. Nothing recognises the .ndjson extension, so the
+#             step says what the object is; application/x-ndjson is text rather than the
+#             JSON family, so it comes back as `text`.
+#
 # Every cell read out of a csv is a string. "4.5" comes back as the three characters, not as
 # a number, because a csv carries no types and a codec that guessed would be wrong on the
 # column where 007 is a code and 1-2 is a range. So the typing step is a jq program, in the
 # document that knows what the columns mean, and it is the second half of every csv read.
 #
-# Note where the text lives. A convert step's output is `text`, not `value` -- it is a
-# document in a format, not a JSON value -- so the typing step parses the lines rather than
-# indexing an object. ndjson is one JSON value per line, which is why the program splits on
-# newlines, drops the empty last one, and fromjson each.
+# ndjson is one JSON value per line, which is why the typing program splits on newlines,
+# drops the empty last one, and fromjson each.
 #
 # To change it: -p empty_is_null=true reads an empty cell as null rather than as the empty
 # string, which is the right rule for a numeric column and the wrong one for a text column.
@@ -31,11 +41,13 @@ code: csv-to-ndjson
 name: CSV to ndjson, with the typing that follows
 description: Re-spell a csv as one JSON object per line, then give the string cells the types the columns actually have.
 
-tags: [recipes, transform]
+tags: [recipes, storage, transform]
 
 requires:
   blocks:
+    - storage.write
     - convert.std
+    - storage.read
     - transform.jq
 
 params:
@@ -47,27 +59,39 @@ params:
       description: Read an empty cell as null rather than as an empty string.
 
 steps:
-  as_ndjson:
-    block: convert.std
+  source:
+    block: storage.write
     config:
-      # Written inline so the recipe needs no network. In a real pipeline this is input_uri,
-      # pointing at the body an upstream http.request already put in storage.
-      input: |
+      target: ${run.scratch}/readings.csv
+      text: |
         station,date,celsius,active
         st-1,2026-01-01,4.5,true
         st-2,2026-01-01,-1,false
         st-3,2026-01-01,,true
+      content_type: text/csv
+
+  as_ndjson:
+    block: convert.std
+    depends_on: [source]
+    config:
+      source: ${steps.source.output.uri}
+      target: ${run.scratch}/readings.ndjson
       from: csv
       to: ndjson
 
-  typed:
-    block: transform.jq
+  lines:
+    block: storage.read
     depends_on: [as_ndjson]
     config:
+      source: ${steps.as_ndjson.output.target}
+      content_type: application/x-ndjson
+
+  typed:
+    block: transform.jq
+    depends_on: [lines]
+    config:
       input:
-        # A convert step carries text, so the parsing below is reading a document rather
-        # than walking a value.
-        lines: ${steps.as_ndjson.output.text}
+        lines: ${steps.lines.output.text}
         empty_is_null: ${params.empty_is_null}
       program: |
         . as {$lines, $empty_is_null}

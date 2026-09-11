@@ -20,7 +20,7 @@ from dirigent_blocks.kafka import (
     read_cursor,
 )
 from dirigent_plugin import BlockFailure, ErrorClass, NotYet
-from dirigent_testing import FakeContext, FakeStorage
+from dirigent_testing import FakeContext
 
 #: When every fake record says it was written.
 STAMPED = datetime(2026, 6, 1, 12, tzinfo=UTC)
@@ -615,53 +615,6 @@ async def test_a_record_missing_the_key_field_is_rejected(ctx: FakeContext, brok
     assert raised.value.error_class is ErrorClass.REJECTED
 
 
-async def test_ndjson_is_published_a_line_at_a_time_rather_than_held(
-    ctx: FakeContext, storage: FakeStorage, broker: FakeProducer
-) -> None:
-    """Storage hands the object over in chunks that cut a line in half, and every line still goes."""
-    (storage.root / "orders.ndjson").write_text("".join(f'{{"id": {number}}}\n' for number in range(20)))
-
-    output = await KafkaProduceOperator().execute(
-        produce(records_from="file://orders.ndjson"), connected(ctx).as_context()
-    )
-
-    assert output.produced == 20
-    assert [one.value for one in broker.sent] == [f'{{"id":{number}}}'.encode() for number in range(20)]
-
-
-async def test_a_last_line_without_a_newline_is_still_published(
-    ctx: FakeContext, storage: FakeStorage, broker: FakeProducer
-) -> None:
-    (storage.root / "orders.ndjson").write_text('{"id": 1}\n{"id": 2}')
-
-    output = await KafkaProduceOperator().execute(
-        produce(records_from="file://orders.ndjson"), connected(ctx).as_context()
-    )
-
-    assert output.produced == 2
-
-
-async def test_a_uri_holding_nothing_is_rejected_before_anything_is_sent(
-    ctx: FakeContext, broker: FakeProducer
-) -> None:
-    with pytest.raises(BlockFailure, match="nothing at file://absent.ndjson") as raised:
-        await KafkaProduceOperator().execute(produce(records_from="file://absent.ndjson"), connected(ctx).as_context())
-
-    assert raised.value.error_class is ErrorClass.REJECTED
-    assert broker.sent == []
-
-
-async def test_a_line_that_is_not_json_is_rejected(
-    ctx: FakeContext, storage: FakeStorage, broker: FakeProducer
-) -> None:
-    (storage.root / "orders.ndjson").write_text('{"id": 1}\nnot json at all\n')
-
-    with pytest.raises(BlockFailure, match="is not JSON") as raised:
-        await KafkaProduceOperator().execute(produce(records_from="file://orders.ndjson"), connected(ctx).as_context())
-
-    assert raised.value.error_class is ErrorClass.REJECTED
-
-
 async def test_the_offsets_are_the_last_one_of_every_partition_written_to(
     ctx: FakeContext, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -723,11 +676,9 @@ async def test_a_publish_that_runs_past_its_timeout_is_transient(
     assert raised.value.error_class is ErrorClass.TRANSIENT
 
 
-def test_a_publish_names_its_records_in_exactly_one_place() -> None:
-    with pytest.raises(ValidationError, match="names neither"):
+def test_a_publish_that_names_no_records_is_refused() -> None:
+    with pytest.raises(ValidationError, match="records"):
         produce()
-    with pytest.raises(ValidationError, match="not both"):
-        produce(records=[1], records_from="file://orders.ndjson")
 
 
 def test_a_publish_timeout_is_written_as_a_duration() -> None:
