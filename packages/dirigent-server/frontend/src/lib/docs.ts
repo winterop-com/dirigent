@@ -20,6 +20,7 @@ export type DocsTag =
     | 'triggers'
     | 'connections'
     | 'blocks'
+    | 'examples'
     | 'schemas'
     | 'users'
     | 'workers'

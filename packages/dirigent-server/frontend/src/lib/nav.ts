@@ -14,6 +14,7 @@
 import {
     Bell,
     Blocks,
+    BookOpen,
     CalendarClock,
     Cpu,
     FileJson,
@@ -110,6 +111,12 @@ export const NAV: NavSection[] = [
                 label: 'Blocks',
                 hint: 'What the plugins contribute',
                 icon: Blocks,
+            },
+            {
+                path: '/examples',
+                label: 'Examples',
+                hint: 'The documents the plugins ship, and the starters',
+                icon: BookOpen,
             },
             {
                 path: '/schemas',

@@ -61,6 +61,12 @@ const Triggers = lazy(() => import('@/pages/Triggers').then((module) => ({ defau
 const Blocks = lazy(() => import('@/pages/Blocks').then((module) => ({ default: module.Blocks })))
 
 /**
+ * The examples corpus, which is a reference read the same way the catalog is -- and a heavier
+ * one: the panel behind a row carries the markdown lexer and the door to the editor.
+ */
+const Examples = lazy(() => import('@/pages/Examples').then((module) => ({ default: module.Examples })))
+
+/**
  * The admin section, which most readers of this app are never offered.
  *
  * Four screens, a users table with two dialogs behind it and a dashboard that composes five
@@ -175,6 +181,14 @@ export default function App() {
                     element={
                         <Suspense fallback={<Loading />}>
                             <Blocks />
+                        </Suspense>
+                    }
+                />
+                <Route
+                    path="examples"
+                    element={
+                        <Suspense fallback={<Loading />}>
+                            <Examples />
                         </Suspense>
                     }
                 />

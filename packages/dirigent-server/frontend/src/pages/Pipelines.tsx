@@ -1,4 +1,4 @@
-import { ChevronDown, Clock, FilePlus2, Plus, RefreshCw, Webhook } from 'lucide-react'
+import { BookOpen, ChevronDown, Clock, FilePlus2, Plus, RefreshCw, Webhook } from 'lucide-react'
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 
@@ -52,12 +52,24 @@ const PipelinePreview = lazy(() =>
     import('@/components/pipelines/PipelinePreview').then((module) => ({ default: module.PipelinePreview })),
 )
 
+/**
+ * The picker over the installed starters, mounted only once somebody asks for it.
+ *
+ * It reads the whole corpus and carries the copy rule, and a reader who never starts from a
+ * starter pays for neither.
+ */
+const StarterPicker = lazy(() =>
+    import('@/components/examples/StarterPicker').then((module) => ({ default: module.StarterPicker })),
+)
+
 /** Which tab of the right panel a chosen row opens. */
 const PREVIEW_TAB = 'pipeline'
 
 export const NEW_PIPELINE_LABEL = 'New pipeline'
 
 export const FROM_FILE_LABEL = 'From file…'
+
+export const FROM_STARTER_LABEL = 'From a starter'
 
 /**
  * Every pipeline this instance holds, in the order the titles on screen read in.
@@ -86,6 +98,7 @@ export function Pipelines() {
     const [asked, setAsked] = useSearchParams()
     const filePicker = useRef<HTMLInputElement | null>(null)
     const [chosen, setChosen] = useState<PipelineOut | null>(null)
+    const [picking, setPicking] = useState(false)
 
     // Held against the address, so the read below is asked again only when the filter changed.
     const tags = useMemo(() => tagsFromQuery(asked), [asked])
@@ -135,6 +148,17 @@ export function Pipelines() {
                           keywords: ['create', 'draft', 'start', 'editor'],
                           run: () => {
                               void navigate(NEW_PIPELINE_PATH)
+                          },
+                      },
+                      {
+                          id: 'pipelines:from-starter',
+                          title: 'New pipeline from a starter',
+                          group: LIST_GROUP,
+                          screen: true,
+                          icon: BookOpen,
+                          keywords: ['example', 'copy', 'corpus', 'recipe'],
+                          run: () => {
+                              setPicking(true)
                           },
                       },
                       {
@@ -239,6 +263,14 @@ export function Pipelines() {
                                 <DropdownMenuContent align="end">
                                     <DropdownMenuItem
                                         onClick={() => {
+                                            setPicking(true)
+                                        }}
+                                    >
+                                        <BookOpen aria-hidden />
+                                        {FROM_STARTER_LABEL}
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                        onClick={() => {
                                             filePicker.current?.click()
                                         }}
                                     >
@@ -287,6 +319,18 @@ export function Pipelines() {
                     noun="pipelines"
                 />
             </PageState>
+
+            {picking && (
+                <Suspense fallback={null}>
+                    <StarterPicker
+                        open
+                        onOpenChange={setPicking}
+                        onChoose={(document) => {
+                            void navigate(NEW_PIPELINE_PATH, { state: { document } })
+                        }}
+                    />
+                </Suspense>
+            )}
         </>
     )
 }
