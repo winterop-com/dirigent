@@ -271,6 +271,50 @@ stays clean, and every example stays executable.
   favicon, the README banner, and a dark-background variant, and `docs/assets/logo.png` and
   `banner.png` keep their names so nothing needs rewiring.
 
+- **Starters: the examples corpus as what `dg` copies.** Today `dg init` writes a hello-world
+  and one hello document per compose service from string constants in `project.py`, which
+  duplicate documents the `examples/` corpus already keeps, and `dg` has no way to reach the
+  corpus once it is installed: 22 shelves and some 170 documents, every one validated against
+  the real catalog in CI and runnable with `dg run --local`, plus the dhis2 pack's shelves and
+  dirigent-integration's cross-boundary flows, are files in a repository and nothing else
+  (`dg dev --seed` reads them from a checkout, which is as far as it goes). A person starting a
+  real pipeline, fetch, validate, transform, validate again, post, copies from GitHub or starts
+  from the editor's blank skeleton.
+  Wanted: the corpus itself as an installed catalogue, and a subset of it copyable. An
+  *example* is any document in the shipped corpus; a *starter* is one that opted in to being
+  copied. A starter is a plain `dirigent/v1` document, not a text template. Its knobs are its
+  own `params` with defaults, which already reach every config value including URLs, paths and
+  jq programs, and its preflight is its own `requires`. Instantiation copies the source text
+  verbatim to `pipelines/<code>.yaml`, rewriting only the `code:` line and dropping `starter`
+  from the `tags:` line, so the teaching comments survive and no macro language appears; a
+  knob that `${params.*}` cannot reach, a block id, a cron, a connection code, which must stay
+  literal so `requires.connections` and the apply preflight can see it, is edited in the file
+  afterwards, and the copy's `requires` says what to create first, with the
+  `dg connection create` lines. This keeps the boundary the report templates drew: templating
+  renders text and never resolves step config; a starter resolves nothing at all.
+  Opting in is one word in the tag vocabulary, `starter`, in the behaviour group beside `demo`
+  and `report`: the filter chips, `--tag starter` and the examples CI test already read it. A
+  document earns it by being a real multi-step flow on a real source; what disqualifies one is
+  a carried connection or schema, which an instance refuses at apply, a run that fails by
+  design, a play-server fixture, or a single step, so hello-world and the per-service hellos
+  are not starters, and `project.py`'s constants go away.
+  The corpus ships through the plugin system, the way blocks and formatters do: a second
+  pluginkit hook, `examples()`, returns the package-data directories a distribution carries,
+  and the host walks them once on first use rather than at every worker's startup. The core
+  corpus becomes a distribution of its own, `dirigent-examples`, a workspace member whose
+  module tree is the shelves, registered under `dirigent.plugins.v1` like a pack, with the root
+  `examples/` a symlink into it so every `dg run --local examples/...` path keeps working; the
+  dhis2 pack and dirigent-integration ship their shelves the same way, and `dg dev --seed`
+  gains a form that seeds every installed corpus with no path named. A starter whose blocks are
+  not installed is listed as needing its pack, not hidden. Surfaces: `GET /examples` and
+  `GET /examples/{code}` serving identity, tags, `requires` and source; `dg examples list|show`;
+  `dg pipeline new <starter> [--code X]`, beside `dg blocks new`; the editor's New pipeline menu
+  gaining "From a starter", opening `startDocument(source)` with the unmet-requirements panel.
+  `dg init` offers only starters installed beside `dg` itself, because it writes the
+  `pyproject.toml` that installs the packs; pack starters arrive with `dg pipeline new` inside
+  the project. Reusable step groups, below, is the smaller unit of the same idea: a starter
+  copies a whole document, a group includes part of one.
+
 - **Reusable step groups.** Blocks are the unit below a pipeline and `pipeline.run` composes
   above it, but a repeated five-step idiom has nowhere to live except duplication or its own
   pipeline. Wanted: a named group of steps a document can include with parameters, without
@@ -393,7 +437,9 @@ requires touching the engine. None is near-term.
 - **A storage backend records no content type on write.** `Storage.open_write` takes a URI and
   nothing else, so `storage.write` cannot set `ContentType` on an S3 object; `storage.read`
   recovers the type from the extension instead. Widen the protocol with a metadata argument and
-  have the S3 backend pass it through.
+  have the S3 backend pass it through. An object written with `content_type: text/markdown` on
+  2026-09-11 did come back as `text/markdown`, but that was the S3 server guessing from the
+  `.md` key, not the client saying so.
 - **The capture URIs are the last storage a block writes on its own.** `shell.run`,
   `docker.run`, `git.checkout` and the compose and build blocks spill stdout and stderr to
   `stdout_uri`/`stderr_uri` themselves, and `docker.run` stages `inputs` and `outputs` through
