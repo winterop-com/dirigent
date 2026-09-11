@@ -23,6 +23,7 @@ from dirigent_client.schemas.auth import (
 from dirigent_client.schemas.catalog import BlockEntry, BlockKind, Catalog, SurfaceEntry
 from dirigent_client.schemas.common import Page, Problem
 from dirigent_client.schemas.connections import ConnectionIn, ConnectionOut, ConnectionUpdate
+from dirigent_client.schemas.examples import ExampleDetail, ExampleOut
 from dirigent_client.schemas.pipelines import (
     ApplyRequest,
     ApplyResult,
@@ -39,6 +40,7 @@ from dirigent_client.schemas.pipelines import (
     PlanAction,
     PruneRequest,
     PruneResult,
+    Requirements,
     RunAccepted,
     RunRequest,
     ValidationIssue,
@@ -114,6 +116,8 @@ __all__ = [
     "DagView",
     "DeliveryOut",
     "DiffSummary",
+    "ExampleDetail",
+    "ExampleOut",
     "FiringOut",
     "Health",
     "HookAccepted",
@@ -137,6 +141,7 @@ __all__ = [
     "PlanAction",
     "Problem",
     "Readiness",
+    "Requirements",
     "RunAccepted",
     "RunDetail",
     "RunOut",

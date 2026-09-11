@@ -61,7 +61,6 @@ cd regional
 ```text
 Created a local project in regional:
   + regional/dirigent.yaml
-  + regional/pipelines/hello-world.yaml
   + regional/.dirigent/profiles.yaml
   + regional/.dirigent/.gitignore
   + regional/dirigent.example.yaml
@@ -79,7 +78,8 @@ Then dg apply --dry-run, and dg apply.
 `dirigent.yaml` says where the documents live and which profile to use;
 `.dirigent/profiles.yaml` says which server that profile means and how to get a token for it
 (never a database URL -- a CLI that could reach the database would bypass authentication,
-attribution, and validation entirely); `pipelines/hello-world.yaml` is a working example; and
+attribution, and validation entirely); `pipelines/` is empty, because a first document is
+copied out of the corpus with `dg pipeline new` and this tutorial writes its own; and
 `.dirigent/.gitignore` keeps a local instance's state out of the repository while leaving the
 profiles committable. `dirigent.example.yaml` is every setting dirigent has, commented out,
 with its default and what it does: it is read, never loaded, and generated from the settings
@@ -89,12 +89,6 @@ commands below use the `dg` installed in step 1, against the instance it started
 
 A project is a working set of documents, not the source of truth. The server is where
 definitions actually live; `dg apply` puts them there.
-
-Delete the example, since we are writing our own:
-
-```bash
-rm pipelines/hello-world.yaml
-```
 
 ## 3. Write the document
 

@@ -11,6 +11,7 @@ from dirigent_client.resources.alerts import Alerts
 from dirigent_client.resources.auth import Admin, Auth
 from dirigent_client.resources.blocks import Blocks
 from dirigent_client.resources.connections import Connections
+from dirigent_client.resources.examples import Examples
 from dirigent_client.resources.pipelines import Pipelines
 from dirigent_client.resources.runs import Runs
 from dirigent_client.resources.schedules import Schedules
@@ -52,6 +53,7 @@ class Dirigent:
         self.connections = Connections(self.transport)
         self.schemas = Schemas(self.transport)
         self.blocks = Blocks(self.transport)
+        self.examples = Examples(self.transport)
         self.schedules = Schedules(self.transport)
         self.webhooks = Webhooks(self.transport)
         self.trigger_documents = TriggerDocuments(self.transport)
@@ -94,6 +96,7 @@ class BlockingDirigent:
         self.connections = self.client.connections
         self.schemas = self.client.schemas
         self.blocks = self.client.blocks
+        self.examples = self.client.examples
         self.schedules = self.client.schedules
         self.webhooks = self.client.webhooks
         self.trigger_documents = self.client.trigger_documents

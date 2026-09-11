@@ -415,6 +415,7 @@ def test_every_list_command_answers_to_a_hidden_ls() -> None:
         "runs ls",
         "pipeline ls",
         "blocks ls",
+        "examples ls",
         "connection ls",
         "schedule ls",
         "webhook ls",

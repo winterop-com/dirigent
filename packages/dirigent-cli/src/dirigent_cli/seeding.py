@@ -13,10 +13,10 @@ from typing import Any, cast
 from dirigent_cli.local import ConnectionSpec
 from dirigent_client import Dirigent, DirigentError, PlanAction, ProvenanceSource
 from dirigent_common import JsonMap
-from dirigent_core.documents import CARRIED, SUFFIXES, is_document, readable
+from dirigent_core.documents import CARRIED, SUFFIXES, is_document, readable, safe_load
 from dirigent_core.protocol import Record, make
 
-__all__ = ["CARRIED", "SUFFIXES", "is_document", "readable", "seed_directories", "specs"]
+__all__ = ["CARRIED", "SUFFIXES", "is_document", "readable", "seed_directories", "seed_installed", "specs"]
 
 
 def specs(declared: object) -> list[ConnectionSpec]:
@@ -168,3 +168,40 @@ def _refused(origin: str, reason: str) -> Record:
 def _reason(error: DirigentError) -> str:
     """Read a refusal as the one line a record carries."""
     return "; ".join(error.problems) or error.message
+
+
+async def seed_installed(client: Dirigent) -> AsyncIterator[Record]:
+    """Apply every document of every installed corpus, the way a directory's documents go in.
+
+    The catalogue is what this build ships, so nothing is named on the command line and no
+    checkout has to be present. A document is attributed to the plugin that carries it.
+    """
+    from dirigent_core.plugins import load_plugin_host
+
+    pipelines = 0
+    refused = 0
+    connections: set[str] = set()
+    plugins: set[str] = set()
+    for entry in load_plugin_host().examples():
+        parsed = safe_load(entry.source)
+        if not isinstance(parsed, dict):
+            continue
+        plugins.add(entry.plugin)
+        async for record in _document(client, cast("JsonMap", parsed), f"{entry.plugin}:{entry.path}"):
+            kind = record["kind"]
+            if kind == "seed.applied":
+                pipelines += 1
+            elif kind == "seed.refused":
+                refused += 1
+            elif kind == "seed.connection":
+                connections.add(str(record["connection"]))
+            yield record
+    yield make(
+        "seed.done",
+        at=datetime.now(UTC),
+        message="seeded",
+        plugins=sorted(plugins),
+        pipelines=pipelines,
+        refused=refused,
+        connections=sorted(connections),
+    )

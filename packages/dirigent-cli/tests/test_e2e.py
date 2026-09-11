@@ -251,10 +251,10 @@ def test_a_person_can_scaffold_apply_run_and_read_a_pipeline(project: Path, serv
     url, token = dev
     env = environment(project, url=url, token=token)
 
-    scaffolded = run(["init", "--template", "documents", "."], cwd=project, env=env)
+    scaffolded = run(["init", "--template", "documents", "--pipeline", "report-to-file", "."], cwd=project, env=env)
     assert scaffolded.returncode == 0, scaffolded.stderr or scaffolded.stdout
     assert (project / "dirigent.yaml").is_file()
-    assert (project / "pipelines" / "hello-world.yaml").is_file()
+    assert (project / "pipelines" / "report-to-file.yaml").is_file()
 
     (project / "pipelines" / "e2e-demo.yaml").write_text(document(service))
 
@@ -270,13 +270,13 @@ def test_a_person_can_scaffold_apply_run_and_read_a_pipeline(project: Path, serv
     applied = run(["apply"], cwd=project, env=env)
     assert applied.returncode == 0, applied.stdout + applied.stderr
     assert "e2e-demo" in applied.stdout
-    assert "hello-world" in applied.stdout
+    assert "report-to-file" in applied.stdout
 
     again = run(["apply"], cwd=project, env=env)
     assert "unchanged" in again.stdout, "applying the same documents twice must write nothing"
 
     listed = run(["pipeline", "list", "--json"], cwd=project, env=env)
-    assert {row["code"] for row in rows_of(listed)} == {"e2e-demo", "hello-world"}
+    assert {row["code"] for row in rows_of(listed)} == {"e2e-demo", "report-to-file"}
 
     started = run(["run", "e2e-demo", "-p", "day=2026-01-01", "--watch"], cwd=project, env=env, timeout=RUN_TIMEOUT)
     assert started.returncode == 0, started.stdout + started.stderr

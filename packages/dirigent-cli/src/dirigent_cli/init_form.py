@@ -9,7 +9,7 @@ Nothing here touches the disk.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -20,10 +20,13 @@ from textual.widgets import Button, Checkbox, Input, Label, RadioButton, RadioSe
 from dirigent_cli.project import (
     DEFAULT_SERVICES,
     PACKS,
-    SERVICE_EXAMPLES,
     SERVICES,
     InitChoices,
+    installed_starters,
 )
+
+if TYPE_CHECKING:
+    from dirigent_core.examples import ExampleEntry
 
 MIN_PASSWORD_LENGTH = 8
 
@@ -63,6 +66,24 @@ KINDS = (
 )
 
 
+#: How much of a starter's description fits on the line that offers it.
+DESCRIPTION_WIDTH = 60
+
+
+def starter_label(entry: ExampleEntry) -> str:
+    """Name one starter the way every screen names an addressable thing.
+
+    The title is the name where there is one and the code otherwise, the code is on the line
+    exactly once, and the description is the rest of it.
+    """
+    described = (entry.description or "").strip().splitlines()
+    first = described[0] if described else ""
+    if len(first) > DESCRIPTION_WIDTH:
+        first = first[: DESCRIPTION_WIDTH - 1].rstrip() + "\u2026"
+    trailing = "  ".join(part for part in ([entry.code] if entry.name else []) + ([first] if first else []))
+    return f"{entry.name or entry.code}  [dim]{trailing}[/]" if trailing else entry.name or entry.code
+
+
 class InitForm(App[InitChoices | None]):
     """The scaffolding form: kind, services, packs, workflow, admin, on one screen."""
 
@@ -81,7 +102,7 @@ class InitForm(App[InitChoices | None]):
     Checkbox > .toggle--button { color: $surface; background: $surface; }
     Checkbox.-on > .toggle--button { color: $success; background: $surface; }
     #kind { height: auto; }
-    #services, #packs { height: auto; border: round $border; }
+    #services, #packs, #starters { height: auto; max-height: 12; border: round $border; }
     #admin-block { height: auto; }
     #admin-row { height: auto; }
     #admin-row Input { width: 1fr; margin-right: 2; }
@@ -105,6 +126,7 @@ class InitForm(App[InitChoices | None]):
         self._version = version
         self._admin = admin
         self._password = password
+        self._starters = installed_starters()
 
     def compose(self) -> ComposeResult:
         """Lay the whole form out on one screen."""
@@ -126,6 +148,12 @@ class InitForm(App[InitChoices | None]):
                     for service in SERVICES
                 ),
                 id="services",
+            )
+
+            yield Label("First pipelines  (space toggles; copied from the installed corpus)", classes="section")
+            yield SelectionList[str](
+                *((starter_label(entry), entry.code) for entry in self._starters),
+                id="starters",
             )
 
             yield Label("Packs  (space toggles; pinned at this version)", classes="section")
@@ -185,8 +213,10 @@ class InitForm(App[InitChoices | None]):
         # subscripted generic: the widgets are fetched untyped and narrowed here.
         services = cast("SelectionList[str]", self.query_one("#services"))
         packs = cast("SelectionList[str]", self.query_one("#packs"))
+        chosen = cast("SelectionList[str]", self.query_one("#starters"))
         picked_services: list[str] = list(services.selected)
         picked_packs: list[str] = list(packs.selected)
+        picked_starters: list[str] = list(chosen.selected)
         kind = self.kind
         chosen_services = tuple(code for code in (s.code for s in SERVICES) if code in picked_services)
         return InitChoices(
@@ -194,6 +224,7 @@ class InitForm(App[InitChoices | None]):
             services=chosen_services if kind == "compose" else DEFAULT_SERVICES,
             workflow=self.query_one("#workflow", Checkbox).value,
             packs=tuple(name for name in (p.name for p in PACKS) if name in picked_packs),
+            pipelines=tuple(entry.code for entry in self._starters if entry.code in picked_starters),
             admin=self.query_one("#admin", Input).value.strip() or "admin",
             password=self.query_one("#password", Input).value,
         )
@@ -203,13 +234,12 @@ class InitForm(App[InitChoices | None]):
         choices = self._collect()
         files = [
             "dirigent.yaml",
-            "pipelines/hello-world.yaml",
+            *(f"pipelines/{code}.yaml" for code in choices.pipelines),
             ".dirigent/profiles.yaml",
             "pyproject.toml",
             "README.md",
         ]
         if choices.stack:
-            files += [f"pipelines/{SERVICE_EXAMPLES[code][0]}" for code in choices.services]
             files += ["compose.yaml", "Dockerfile", ".env"]
         elif choices.instance:
             files += [".env", ".dirigent/state/"]
