@@ -157,6 +157,10 @@ jobs:
       - name: Install bun
         uses: oven-sh/setup-bun@v2
 
+      # oxfmt, oxlint and vitest run here and nowhere else in CI: the check job has no bun.
+      - name: UI gate
+        run: make ui-gate
+
       - name: Build the bundle
         run: make ui
 

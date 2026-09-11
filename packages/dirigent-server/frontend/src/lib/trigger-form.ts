@@ -66,9 +66,15 @@ export function mappedPaths(paths: Readonly<Record<string, string>>): Record<str
     return mapping
 }
 
-/** Every IANA zone this browser knows, which is what the timezone picker offers. */
+/**
+ * Every IANA zone this browser knows, which is what the timezone picker offers.
+ *
+ * `UTC` is always on the list: it is what a new schedule starts in when the browser's own zone
+ * is unknown, and an ICU build may spell it only as `Etc/UTC`.
+ */
 export function zonesOffered(): string[] {
-    return [...Intl.supportedValuesOf('timeZone')]
+    const known = [...Intl.supportedValuesOf('timeZone')]
+    return known.includes('UTC') ? known : ['UTC', ...known]
 }
 
 /** The zone this browser is in, which is what a new schedule starts in. */
