@@ -9,7 +9,7 @@ import pytest
 from cryptography.fernet import Fernet
 from pydantic import SecretStr
 
-from dirigent_cli.seeding import seed_directories
+from dirigent_cli.seeding import seed_directories, seed_installed
 from dirigent_client import Dirigent, PlanAction
 from dirigent_client.enums import UserRole
 from dirigent_core.auth import create_user, issue_token
@@ -204,3 +204,15 @@ async def test_seeding_the_same_corpus_twice_changes_nothing(dg: Dirigent, corpu
     assert {record["action"] for record in of_kind(stream, "seed.applied")} == {PlanAction.UNCHANGED.value}
     assert {record["action"] for record in of_kind(stream, "seed.connection")} == {"updated"}
     assert of_kind(stream, "seed.done")[0]["refused"] == 1
+
+
+async def test_the_installed_corpus_is_seeded_with_no_directory_named(dg: Dirigent) -> None:
+    """`dg dev --seed-installed` reads what the build ships, not what a checkout holds."""
+    stream = [record async for record in seed_installed(dg)]
+    applied = of_kind(stream, "seed.applied")
+    assert {record["pipeline"] for record in applied} >= {"hello-world", "report-to-file"}
+    origins = {record["document"] for record in applied}
+    assert all(origin.startswith("examples:") for origin in origins)
+    closing = of_kind(stream, "seed.done")[-1]
+    assert closing["plugins"] == ["examples"]
+    assert closing["pipelines"] == len(applied)
