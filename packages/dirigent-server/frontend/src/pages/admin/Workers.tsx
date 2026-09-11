@@ -66,10 +66,7 @@ function Workers() {
 
     return (
         <>
-            <PageHeader
-                title="Workers"
-                aside={<ApiChip tag="workers" />}
-            />
+            <PageHeader title="Workers" aside={<ApiChip tag="workers" />} />
             <WorkersTable
                 state={workers.state}
                 more={workers.more}

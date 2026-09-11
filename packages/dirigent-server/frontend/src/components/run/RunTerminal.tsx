@@ -104,7 +104,14 @@ export function RunTerminal({
     const wanted = useStore(followTails)
     const drawer = useRef<HTMLElement | null>(null)
     const lines = useRef<HTMLDivElement>(null)
-    const { dragging, beginResize } = useDragSize('y', height, -1, setTerminalHeight, clampTerminalHeight, drawer)
+    const { dragging, beginResize } = useDragSize(
+        'y',
+        height,
+        -1,
+        setTerminalHeight,
+        clampTerminalHeight,
+        drawer,
+    )
 
     const [filters, setFilters] = useState<LineFilters>(EVERY_LINE)
     // What the reader did to this console, and what they set for every log pane: both follow.
@@ -168,7 +175,9 @@ export function RunTerminal({
         })().then(
             (collected) => {
                 setSaving(false)
-                const url = URL.createObjectURL(new Blob([asNdjson(collected)], { type: 'application/x-ndjson' }))
+                const url = URL.createObjectURL(
+                    new Blob([asNdjson(collected)], { type: 'application/x-ndjson' }),
+                )
                 const anchor = document.createElement('a')
                 anchor.href = url
                 anchor.download = downloadName(runId)
@@ -210,11 +219,11 @@ export function RunTerminal({
                 ref={drawer}
                 aria-label="Run terminal"
                 data-run-terminal="true"
-                className="border-border-strong flex shrink-0 flex-col overflow-hidden rounded-md border"
+                className="flex shrink-0 flex-col overflow-hidden rounded-md border border-border-strong"
                 style={{ height }}
             >
-                <div className="bg-sidebar border-border flex flex-wrap items-center gap-2 border-b px-3 py-2">
-                    <span className="text-faint flex items-center gap-1.5 text-xs font-semibold tracking-wide uppercase">
+                <div className="flex flex-wrap items-center gap-2 border-b border-border bg-sidebar px-3 py-2">
+                    <span className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-faint uppercase">
                         <SquareTerminal className="size-4" aria-hidden />
                         Terminal
                     </span>
@@ -244,7 +253,9 @@ export function RunTerminal({
                         }}
                     >
                         <SelectTrigger size="sm" className="w-44" aria-label={STEP_LABEL}>
-                            <SelectValue>{(value) => (value === EVERY_STEP ? 'Every step' : String(value))}</SelectValue>
+                            <SelectValue>
+                                {(value) => (value === EVERY_STEP ? 'Every step' : String(value))}
+                            </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value={EVERY_STEP}>Every step</SelectItem>
@@ -267,7 +278,7 @@ export function RunTerminal({
                         aria-label={MATCH_LABEL}
                     />
 
-                    {counted !== null && <span className="text-muted-foreground text-xs">{counted}</span>}
+                    {counted !== null && <span className="text-xs text-muted-foreground">{counted}</span>}
 
                     <div className="flex-1" />
 
@@ -328,10 +339,12 @@ export function RunTerminal({
                             const room = element.scrollHeight - element.scrollTop - element.clientHeight
                             setScrolledAway(room > TAIL_SLACK)
                         }}
-                        className="bg-terminal text-terminal-foreground h-full overflow-y-auto px-3 py-2 font-mono"
+                        className="h-full overflow-y-auto bg-terminal px-3 py-2 font-mono text-terminal-foreground"
                     >
                         {shown.length === 0 ? (
-                            <p className="text-terminal-muted text-xs">{emptyNote(filters, state.logs.length, runSettled(state.run?.status ?? null))}</p>
+                            <p className="text-xs text-terminal-muted">
+                                {emptyNote(filters, state.logs.length, runSettled(state.run?.status ?? null))}
+                            </p>
                         ) : (
                             shown.map((entry) => (
                                 <Line
@@ -346,7 +359,7 @@ export function RunTerminal({
                             says nothing once a run has settled, and the answer belongs where the
                             lines it is about are. */}
                         {state.stream === 'ended' && (
-                            <p className="text-terminal-faint pt-2 text-xs">
+                            <p className="pt-2 text-xs text-terminal-faint">
                                 {endNote(state.run?.status ?? null)}
                             </p>
                         )}

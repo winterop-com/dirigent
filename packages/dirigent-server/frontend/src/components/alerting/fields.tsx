@@ -40,7 +40,7 @@ export function Field({
                     onChange(event.target.value)
                 }}
             />
-            {hint !== undefined && <p className="text-faint text-xs">{hint}</p>}
+            {hint !== undefined && <p className="text-xs text-faint">{hint}</p>}
         </div>
     )
 }

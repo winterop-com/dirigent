@@ -30,7 +30,10 @@ export function formatDuration(durationMs: number | null | undefined): string {
 }
 
 /** How long between two instants, or nothing when it has not finished. */
-export function elapsedBetween(started: string | null | undefined, finished: string | null | undefined): number | null {
+export function elapsedBetween(
+    started: string | null | undefined,
+    finished: string | null | undefined,
+): number | null {
     if (!started || !finished) return null
     const from = Date.parse(started)
     const to = Date.parse(finished)

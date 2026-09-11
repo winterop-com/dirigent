@@ -56,7 +56,8 @@ export function useRead<T>(read: () => Promise<T>): Reading<T> {
         let wanted = true
         void question.read().then(
             (value) => {
-                if (wanted) setHeld({ asked: question, answer: { value, problem: null, reading: false, read: true } })
+                if (wanted)
+                    setHeld({ asked: question, answer: { value, problem: null, reading: false, read: true } })
             },
             (error: unknown) => {
                 if (!wanted) return

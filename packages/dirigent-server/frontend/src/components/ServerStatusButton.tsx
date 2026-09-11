@@ -10,7 +10,13 @@ import { useStore } from '@/hooks/use-store'
 import { authStore, signOut } from '@/lib/auth'
 import { LOGIN_PATH } from '@/lib/nav'
 import { formatRelative } from '@/lib/format'
-import { RECHECK_INTERVAL_MS, checkServer, identityLine, serverStatus, type ServerState } from '@/lib/server-status'
+import {
+    RECHECK_INTERVAL_MS,
+    checkServer,
+    identityLine,
+    serverStatus,
+    type ServerState,
+} from '@/lib/server-status'
 import { cn } from '@/lib/utils'
 
 export const SERVER_STATUS_LABEL = 'Instance'
@@ -90,7 +96,7 @@ export function ServerStatusButton() {
                     >
                         <Dot state={status.state} />
                         <span className="max-w-64 truncate text-sm font-medium">{identityLine(status)}</span>
-                        <ChevronDown className="text-faint size-3" aria-hidden />
+                        <ChevronDown className="size-3 text-faint" aria-hidden />
                     </Button>
                 }
             />
@@ -99,11 +105,11 @@ export function ServerStatusButton() {
                     <Dot state={status.state} wide />
                     <span className="text-sm font-medium">{TONE[status.state].word}</span>
                     {status.state === 'offline' && (
-                        <span className="text-muted-foreground text-xs">the server did not answer</span>
+                        <span className="text-xs text-muted-foreground">the server did not answer</span>
                     )}
                     <span className="flex-1" />
                     {status.checkedAt !== null && (
-                        <span className="text-faint text-xs">
+                        <span className="text-xs text-faint">
                             checked {formatRelative(new Date(status.checkedAt).toISOString())}
                         </span>
                     )}
@@ -111,11 +117,14 @@ export function ServerStatusButton() {
                 {/* WHAT THIS INSTANCE IS, said once in the app and said here. The status bar
                     used to repeat the version along its right edge, which is a fact appearing
                     twice in one shell. */}
-                <dl className="border-border grid grid-cols-[auto_1fr] gap-x-3 border-t px-0 py-2 text-xs">
+                <dl className="grid grid-cols-[auto_1fr] gap-x-3 border-t border-border px-0 py-2 text-xs">
                     <Fact term="environment" detail={status.environment ?? 'not said'} />
                     <Fact term="version" detail={status.version ?? 'not said'} />
                     {status.checks.map((check) => (
-                        <div key={check.name} className="row-hover col-span-2 grid grid-cols-subgrid px-3 py-0.5">
+                        <div
+                            key={check.name}
+                            className="row-hover col-span-2 grid grid-cols-subgrid px-3 py-0.5"
+                        >
                             <dt className="text-faint">{check.name}</dt>
                             <dd className="flex flex-col">
                                 <span className="flex items-center gap-1.5">
@@ -131,7 +140,9 @@ export function ServerStatusButton() {
                                 {check.detail !== null && (
                                     <span
                                         className={cn(
-                                            check.status === 'healthy' ? 'text-muted-foreground' : 'text-warning-ink',
+                                            check.status === 'healthy'
+                                                ? 'text-muted-foreground'
+                                                : 'text-warning-ink',
                                         )}
                                     >
                                         {check.detail}
@@ -142,7 +153,7 @@ export function ServerStatusButton() {
                     ))}
                 </dl>
                 {auth.identity !== null && (
-                    <div className="border-border flex items-center gap-2 border-t px-3 py-1.5">
+                    <div className="flex items-center gap-2 border-t border-border px-3 py-1.5">
                         <span className="font-mono text-sm">{auth.identity.username}</span>
                         <span className="flex-1" />
                         <Button

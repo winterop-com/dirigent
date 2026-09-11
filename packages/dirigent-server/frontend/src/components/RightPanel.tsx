@@ -95,8 +95,8 @@ export function RightPanel() {
                 ref={aside}
                 inert={!open}
                 className={cn(
-                    'bg-sidebar hidden shrink-0 flex-col overflow-hidden md:flex',
-                    open && 'border-border-strong border-l',
+                    'hidden shrink-0 flex-col overflow-hidden bg-sidebar md:flex',
+                    open && 'border-l border-border-strong',
                     !dragging && 'transition-[width] duration-200',
                 )}
                 style={{ width: open ? width : 0 }}
@@ -104,39 +104,49 @@ export function RightPanel() {
                 {/* The content keeps the committed width while the box slides, so nothing
                     inside reflows on the way. */}
                 <div className="flex min-h-0 flex-1 flex-col" style={{ minWidth: width }}>
-                {tabs.length === 0 ? (
-                    <div className="flex min-h-0 flex-1 flex-col">
-                        <div data-shell-strip="top" className="flex h-shell-top shrink-0 items-center gap-2 px-3">
-                            <span className="text-faint text-xs font-semibold tracking-wide uppercase">
-                                {EMPTY_HEADING}
-                            </span>
+                    {tabs.length === 0 ? (
+                        <div className="flex min-h-0 flex-1 flex-col">
+                            <div
+                                data-shell-strip="top"
+                                className="flex h-shell-top shrink-0 items-center gap-2 px-3"
+                            >
+                                <span className="text-xs font-semibold tracking-wide text-faint uppercase">
+                                    {EMPTY_HEADING}
+                                </span>
+                            </div>
+                            <p className="p-4 text-sm text-muted-foreground">{NOTHING_HERE}</p>
                         </div>
-                        <p className="text-muted-foreground p-4 text-sm">{NOTHING_HERE}</p>
-                    </div>
-                ) : (
-                    <Tabs
-                        value={active}
-                        onValueChange={(value) => {
-                            panelTab.set(String(value))
-                        }}
-                        className="flex min-h-0 flex-1 flex-col gap-0"
-                    >
-                        <div data-shell-strip="top" className="flex h-shell-top shrink-0 items-center gap-2 px-2">
-                            <TabsList>
-                                {tabs.map((tab) => (
-                                    <TabsTrigger key={tab.id} value={tab.id}>
-                                        {tab.label}
-                                    </TabsTrigger>
-                                ))}
-                            </TabsList>
-                        </div>
-                        {tabs.map((tab) => (
-                            <TabsContent key={tab.id} value={tab.id} className="min-h-0 flex-1 overflow-y-auto">
-                                {tab.render()}
-                            </TabsContent>
-                        ))}
-                    </Tabs>
-                )}
+                    ) : (
+                        <Tabs
+                            value={active}
+                            onValueChange={(value) => {
+                                panelTab.set(String(value))
+                            }}
+                            className="flex min-h-0 flex-1 flex-col gap-0"
+                        >
+                            <div
+                                data-shell-strip="top"
+                                className="flex h-shell-top shrink-0 items-center gap-2 px-2"
+                            >
+                                <TabsList>
+                                    {tabs.map((tab) => (
+                                        <TabsTrigger key={tab.id} value={tab.id}>
+                                            {tab.label}
+                                        </TabsTrigger>
+                                    ))}
+                                </TabsList>
+                            </div>
+                            {tabs.map((tab) => (
+                                <TabsContent
+                                    key={tab.id}
+                                    value={tab.id}
+                                    className="min-h-0 flex-1 overflow-y-auto"
+                                >
+                                    {tab.render()}
+                                </TabsContent>
+                            ))}
+                        </Tabs>
+                    )}
                 </div>
             </aside>
         </>

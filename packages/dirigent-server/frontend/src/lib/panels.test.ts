@@ -64,7 +64,7 @@ describe('what the right panel is showing', () => {
 })
 
 describe('which panel tab is open', () => {
-    test('is nobody\'s choice until something makes one', () => {
+    test("is nobody's choice until something makes one", () => {
         panelTab.set(null)
         expect(panelTab.get()).toBeNull()
     })

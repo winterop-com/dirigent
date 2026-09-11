@@ -105,7 +105,10 @@ export function frameParser(): FrameParser {
  * is held too: it may be the first half of a CRLF pair, and splitting there would invent a
  * blank line and dispatch a frame early.
  */
-export async function* readFrames(body: ReadableStream<Uint8Array>, parser: FrameParser): AsyncGenerator<SseFrame> {
+export async function* readFrames(
+    body: ReadableStream<Uint8Array>,
+    parser: FrameParser,
+): AsyncGenerator<SseFrame> {
     const reader = body.getReader()
     const decoder = new TextDecoder()
     let buffer = ''

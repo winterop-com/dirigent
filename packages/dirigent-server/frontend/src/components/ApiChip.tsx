@@ -12,7 +12,7 @@ import { API_LABEL, docsHref, type DocsTag } from '@/lib/docs'
 export function ApiChip({ tag }: { tag: DocsTag }) {
     return (
         <a
-            className="border-border text-muted-foreground hover:bg-secondary hover:text-foreground focus-visible:ring-ring/50 inline-flex items-center gap-1 rounded-sm border px-1.5 py-0.5 text-xs focus-visible:ring-[3px] focus-visible:outline-none"
+            className="inline-flex items-center gap-1 rounded-sm border border-border px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
             href={docsHref(tag)}
             target="_blank"
             rel="noreferrer"

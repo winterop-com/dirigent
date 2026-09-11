@@ -23,7 +23,14 @@ const silent = async () => {
 }
 
 beforeEach(() => {
-    serverStatus.set({ state: 'unknown', version: null, name: null, environment: null, checks: [], checkedAt: null })
+    serverStatus.set({
+        state: 'unknown',
+        version: null,
+        name: null,
+        environment: null,
+        checks: [],
+        checkedAt: null,
+    })
 })
 
 describe('what a readiness body means', () => {
@@ -116,7 +123,14 @@ describe('the line the corner says', () => {
 })
 
 test('a failing version read cannot call an answering instance offline', async () => {
-    serverStatus.set({ state: 'unknown', version: null, name: null, environment: null, checks: [], checkedAt: null })
+    serverStatus.set({
+        state: 'unknown',
+        version: null,
+        name: null,
+        environment: null,
+        checks: [],
+        checkedAt: null,
+    })
     let asked = 0
     const fetcher = (async (path: string) => {
         asked += 1

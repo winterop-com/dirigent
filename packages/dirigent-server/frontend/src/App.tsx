@@ -47,7 +47,9 @@ const PipelineEditor = lazy(() =>
  * dialogs a trigger is declared in, and the panels their histories are read in. None of it is
  * on the way to a run, so none of it is in the chunk every reader pays for.
  */
-const Connections = lazy(() => import('@/pages/Connections').then((module) => ({ default: module.Connections })))
+const Connections = lazy(() =>
+    import('@/pages/Connections').then((module) => ({ default: module.Connections })),
+)
 const Schemas = lazy(() => import('@/pages/Schemas').then((module) => ({ default: module.Schemas })))
 const Triggers = lazy(() => import('@/pages/Triggers').then((module) => ({ default: module.Triggers })))
 
@@ -64,10 +66,18 @@ const Blocks = lazy(() => import('@/pages/Blocks').then((module) => ({ default: 
  * Four screens, a users table with two dialogs behind it and a dashboard that composes five
  * listings, all of it behind a role gate. An operator pays nothing for any of it.
  */
-const AdminOverview = lazy(() => import('@/pages/admin/Overview').then((module) => ({ default: module.AdminOverview })))
-const AdminUsers = lazy(() => import('@/pages/admin/Users').then((module) => ({ default: module.AdminUsers })))
-const AdminWorkers = lazy(() => import('@/pages/admin/Workers').then((module) => ({ default: module.AdminWorkers })))
-const AdminAlerting = lazy(() => import('@/pages/admin/Alerting').then((module) => ({ default: module.AdminAlerting })))
+const AdminOverview = lazy(() =>
+    import('@/pages/admin/Overview').then((module) => ({ default: module.AdminOverview })),
+)
+const AdminUsers = lazy(() =>
+    import('@/pages/admin/Users').then((module) => ({ default: module.AdminUsers })),
+)
+const AdminWorkers = lazy(() =>
+    import('@/pages/admin/Workers').then((module) => ({ default: module.AdminWorkers })),
+)
+const AdminAlerting = lazy(() =>
+    import('@/pages/admin/Alerting').then((module) => ({ default: module.AdminAlerting })),
+)
 
 /** What stands in the content column while a screen's chunk is being fetched. */
 function Loading() {

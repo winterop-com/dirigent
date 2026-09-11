@@ -28,7 +28,10 @@ import {
 /** `$defs` as the catalog writes them, shared by the schemas below. */
 const DEFS: JsonMap = {
     Size: {
-        anyOf: [{ pattern: '^\\d+(?:\\.\\d+)?(?:[TtGgMmKk]?[Ii]?[Bb])?$', type: 'string' }, { minimum: 0, type: 'integer' }],
+        anyOf: [
+            { pattern: '^\\d+(?:\\.\\d+)?(?:[TtGgMmKk]?[Ii]?[Bb])?$', type: 'string' },
+            { minimum: 0, type: 'integer' },
+        ],
         format: 'size',
     },
     HttpMethod: { enum: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'], type: 'string' },
@@ -60,7 +63,14 @@ describe('the shapes the shipped catalog publishes', () => {
     test('a plain string is a text field labelled by its key, helped by its description', () => {
         // convert.std.from
         const field = only(
-            { from: { description: 'The format the input is in.', minLength: 1, title: 'From', type: 'string' } },
+            {
+                from: {
+                    description: 'The format the input is in.',
+                    minLength: 1,
+                    title: 'From',
+                    type: 'string',
+                },
+            },
             ['from'],
         )
         expect(field).toMatchObject({ name: 'from', kind: 'text', help: 'The format the input is in.' })
@@ -69,7 +79,9 @@ describe('the shapes the shipped catalog publishes', () => {
 
     test('a bounded integer is an integer field carrying both bounds', () => {
         // pipeline.run.max_depth
-        const field = only({ max_depth: { default: 5, maximum: 32, minimum: 1, title: 'Max Depth', type: 'integer' } })
+        const field = only({
+            max_depth: { default: 5, maximum: 32, minimum: 1, title: 'Max Depth', type: 'integer' },
+        })
         expect(field.kind).toBe('integer')
         expect(field.fallback).toBe(5)
         expect(field.bounds).toMatchObject({ minimum: 1, maximum: 32 })
@@ -84,7 +96,9 @@ describe('the shapes the shipped catalog publishes', () => {
 
     test('a boolean is a switch, and its default is what the switch starts at', () => {
         // docker.run.pull
-        const field = only({ pull: { default: false, description: 'Pull the image first.', type: 'boolean' } })
+        const field = only({
+            pull: { default: false, description: 'Pull the image first.', type: 'boolean' },
+        })
         expect(field.kind).toBe('switch')
         expect(field.fallback).toBe(false)
     })
@@ -117,7 +131,11 @@ describe('the shapes the shipped catalog publishes', () => {
     test('a $ref keeps the outer description and default rather than the definition alone', () => {
         // convert.std.max_input: a union of two scalars, so it is typed and says what it takes.
         const field = only({
-            max_input: { $ref: '#/$defs/Size', default: '32mb', description: 'How much is read into memory.' },
+            max_input: {
+                $ref: '#/$defs/Size',
+                default: '32mb',
+                description: 'How much is read into memory.',
+            },
         })
         expect(field).toMatchObject({ kind: 'text', fallback: '32mb', help: 'How much is read into memory.' })
         expect(field.hint).toBe('bytes, or a size such as 1mb')
@@ -142,7 +160,9 @@ describe('the shapes the shipped catalog publishes', () => {
 
     test('an optional $ref is followed through to the definition it names', () => {
         // docker.run.memory, and time.sleep.for through Duration.
-        const field = only({ memory: { anyOf: [{ $ref: '#/$defs/Size', ge: 6291456 }, { type: 'null' }], default: null } })
+        const field = only({
+            memory: { anyOf: [{ $ref: '#/$defs/Size', ge: 6291456 }, { type: 'null' }], default: null },
+        })
         expect(field).toMatchObject({ kind: 'text', nullable: true })
     })
 
@@ -202,9 +222,10 @@ describe('the shapes the shipped catalog publishes', () => {
 
     test('a pattern travels to the field so a bad name is refused before the apply is', () => {
         // pipeline.run.pipeline
-        const field = only({ pipeline: { $ref: '#/$defs/EntityName', description: 'The pipeline to run.' } }, [
-            'pipeline',
-        ])
+        const field = only(
+            { pipeline: { $ref: '#/$defs/EntityName', description: 'The pipeline to run.' } },
+            ['pipeline'],
+        )
         expect(field.bounds).toMatchObject({ pattern: '^[a-z](-?[a-z0-9])*$', minLength: 1, maxLength: 63 })
     })
 })
@@ -237,7 +258,9 @@ describe('the shapes no control fits, which are edited as JSON', () => {
 
     test('an optional any-JSON member is nullable JSON', () => {
         // filter.jq.input
-        const field = only({ input: { anyOf: [{ $ref: '#/$defs/JsonValue' }, { type: 'null' }], default: null } })
+        const field = only({
+            input: { anyOf: [{ $ref: '#/$defs/JsonValue' }, { type: 'null' }], default: null },
+        })
         expect(field).toMatchObject({ kind: 'json', nullable: true })
     })
 
@@ -252,7 +275,9 @@ describe('the shapes no control fits, which are edited as JSON', () => {
 
 describe('what an empty control shows', () => {
     test('a list says the shape it takes, because a bare textarea teaches nothing', () => {
-        expect(only({ argv: { items: { type: 'string' }, type: 'array' } }).placeholder).toBe('["one", "two"]')
+        expect(only({ argv: { items: { type: 'string' }, type: 'array' } }).placeholder).toBe(
+            '["one", "two"]',
+        )
     })
 
     test('a map says its shape too', () => {
@@ -263,7 +288,9 @@ describe('what an empty control shows', () => {
 
     test('a declared default is what an empty box submits, so that is what it shows', () => {
         // params-showcase.regions
-        const field = only({ regions: { default: ['east', 'west'], items: { type: 'string' }, type: 'array' } })
+        const field = only({
+            regions: { default: ['east', 'west'], items: { type: 'string' }, type: 'array' },
+        })
         expect(field.placeholder).toBe('["east","west"]')
         expect(fallbackText(field)).toBe('["east","west"]')
     })
@@ -282,7 +309,10 @@ describe('what the schema says is required', () => {
     test('is marked on exactly the fields it lists, and on no others', () => {
         // Breaking this stops a form saying which fields an apply will refuse it without.
         const fields = fieldsOf(
-            schemaOf({ from: { type: 'string' }, to: { type: 'string' }, input: { type: 'string' } }, ['from', 'to']),
+            schemaOf({ from: { type: 'string' }, to: { type: 'string' }, input: { type: 'string' } }, [
+                'from',
+                'to',
+            ]),
         )
         expect(fields.filter((field) => field.required).map((field) => field.name)).toEqual(['from', 'to'])
     })
@@ -304,7 +334,9 @@ describe('a schema with no form in it', () => {
     })
 
     test('the fields come back in the order the schema lists them', () => {
-        const fields = fieldsOf(schemaOf({ from: { type: 'string' }, to: { type: 'string' }, pull: { type: 'boolean' } }))
+        const fields = fieldsOf(
+            schemaOf({ from: { type: 'string' }, to: { type: 'string' }, pull: { type: 'boolean' } }),
+        )
         expect(fields.map((field) => field.name)).toEqual(['from', 'to', 'pull'])
     })
 })
@@ -329,7 +361,9 @@ describe('what is wrong with a value', () => {
     })
 
     test('a value outside an enum is refused, naming what it may be', () => {
-        expect(validateField(method, 'TRACE')).toBe('method is one of GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS')
+        expect(validateField(method, 'TRACE')).toBe(
+            'method is one of GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS',
+        )
         expect(validateField(method, 'POST')).toBeNull()
     })
 
@@ -501,7 +535,10 @@ describe('an enum that is not made of strings', () => {
         // The control matches by JSON, so 1 from an integer enum is not left showing unset.
         expect(retries.options.find((option) => sameJson(option.value, 1))).toEqual({ value: 1, label: '1' })
         expect(retries.options.find((option) => sameJson(option.value, '1'))).toBeUndefined()
-        expect(strict.options.find((option) => sameJson(option.value, false))).toEqual({ value: false, label: 'false' })
+        expect(strict.options.find((option) => sameJson(option.value, false))).toEqual({
+            value: false,
+            label: 'false',
+        })
     })
 
     test('a number the document carries is one of the choices, and its text is not', () => {

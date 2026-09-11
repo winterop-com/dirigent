@@ -113,7 +113,11 @@ describe('whether a connection answered', () => {
 
 describe('the row a check just answered for', () => {
     test('takes the report onto the row rather than reading the listing again', () => {
-        const updated = withCheck(ROW, { healthy: true, detail: 'HTTP 200', version: null }, '2026-03-01T09:00:00Z')
+        const updated = withCheck(
+            ROW,
+            { healthy: true, detail: 'HTTP 200', version: null },
+            '2026-03-01T09:00:00Z',
+        )
         expect(healthOf(updated).state).toBe('healthy')
         expect(updated.last_check_detail).toBe('HTTP 200')
         expect(updated.code).toBe(ROW.code)
@@ -180,7 +184,7 @@ const SCHEMA = {
 }
 
 describe('the fields a connection form has a control for', () => {
-    test('are the schema\'s, minus every field the kind declares secret', () => {
+    test("are the schema's, minus every field the kind declares secret", () => {
         const fields = settingFields(SCHEMA, ['basic_password', 'bearer_token'])
         expect(fields.map((field) => field.name)).toEqual(['base_url', 'basic_username', 'verify_tls'])
         expect(fields.find((field) => field.name === 'base_url')?.required).toBe(true)
@@ -205,7 +209,10 @@ describe('the config a new connection is minted with', () => {
      * empty one -- there is nothing here for a blank box to keep.
      */
     test('sets no credential at all for a box nobody typed into', () => {
-        const config = mintedConfig({ base_url: 'https://example.test' }, { basic_password: '', bearer_token: '' })
+        const config = mintedConfig(
+            { base_url: 'https://example.test' },
+            { basic_password: '', bearer_token: '' },
+        )
         expect(config).toEqual({ base_url: 'https://example.test' })
         expect(Object.values(config)).not.toContain('')
     })
@@ -257,6 +264,6 @@ describe('how a set of connections came out', () => {
     })
 })
 
-    test('says nothing at all about an empty registry', () => {
-        expect(connectionsNote([])).toBeNull()
-    })
+test('says nothing at all about an empty registry', () => {
+    expect(connectionsNote([])).toBeNull()
+})

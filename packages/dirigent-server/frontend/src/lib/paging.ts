@@ -70,7 +70,14 @@ export function prepended<T>(state: Paged<T>, page: Page<T>, idOf: (row: T) => s
     const held = new Set(state.rows.map(idOf))
     const added = page.items.filter((row) => !held.has(idOf(row)))
     const refreshed = state.rows.map((row) => arrived.get(idOf(row)) ?? row)
-    return { ...state, rows: [...added, ...refreshed], reading: false, read: true, problem: null, fresh: added.length }
+    return {
+        ...state,
+        rows: [...added, ...refreshed],
+        reading: false,
+        read: true,
+        problem: null,
+        fresh: added.length,
+    }
 }
 
 /** The server refused. The rows already read stay; the refusal is what the screen shows. */

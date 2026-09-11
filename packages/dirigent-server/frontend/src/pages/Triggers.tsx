@@ -69,31 +69,34 @@ export function Triggers() {
 
     useEffect(() => {
         if (open === null) return
-        return fillPanel([
-            {
-                id: 'trigger',
-                label: open.kind === 'schedule' ? 'Schedule' : 'Webhook',
-                render: () =>
-                    open.kind === 'schedule' ? (
-                        <SchedulePanel
-                            pipeline={open.pipeline}
-                            schedule={open.schedule}
-                            onChanged={(schedule: ScheduleOut) => {
-                                held({ ...open, schedule })
-                            }}
-                        />
-                    ) : (
-                        <WebhookPanel
-                            pipeline={open.pipeline}
-                            webhook={open.webhook}
-                            onChanged={(webhook: WebhookOut) => {
-                                held({ ...open, webhook })
-                            }}
-                            onMinted={setMinted}
-                        />
-                    ),
-            },
-        ], { screen: 'triggers' })
+        return fillPanel(
+            [
+                {
+                    id: 'trigger',
+                    label: open.kind === 'schedule' ? 'Schedule' : 'Webhook',
+                    render: () =>
+                        open.kind === 'schedule' ? (
+                            <SchedulePanel
+                                pipeline={open.pipeline}
+                                schedule={open.schedule}
+                                onChanged={(schedule: ScheduleOut) => {
+                                    held({ ...open, schedule })
+                                }}
+                            />
+                        ) : (
+                            <WebhookPanel
+                                pipeline={open.pipeline}
+                                webhook={open.webhook}
+                                onChanged={(webhook: WebhookOut) => {
+                                    held({ ...open, webhook })
+                                }}
+                                onMinted={setMinted}
+                            />
+                        ),
+                },
+            ],
+            { screen: 'triggers' },
+        )
     }, [held, open])
 
     const write = useMayWrite()
@@ -184,7 +187,7 @@ export function Triggers() {
                     <section className="space-y-2">
                         <h2 className="text-sm font-semibold">Schedules</h2>
                         {schedules.length === 0 ? (
-                            <p className="text-muted-foreground text-sm">
+                            <p className="text-sm text-muted-foreground">
                                 No schedules. A document declares one under its triggers key.
                             </p>
                         ) : (
@@ -205,7 +208,7 @@ export function Triggers() {
                     <section className="space-y-2">
                         <h2 className="text-sm font-semibold">Webhooks</h2>
                         {webhooks.length === 0 ? (
-                            <p className="text-muted-foreground text-sm">No webhooks.</p>
+                            <p className="text-sm text-muted-foreground">No webhooks.</p>
                         ) : (
                             <ListTable
                                 columns={WEBHOOK_COLUMNS}
@@ -271,7 +274,7 @@ const SCHEDULE_COLUMNS: Column<ScheduleRow>[] = [
         header: 'Pipeline',
         cell: (row) => (
             <Link
-                className="hover:text-primary text-sm"
+                className="text-sm hover:text-primary"
                 to={`/pipelines/${encodeURIComponent(row.pipeline)}`}
                 onClick={(event) => {
                     event.stopPropagation()
@@ -321,7 +324,7 @@ const WEBHOOK_COLUMNS: Column<WebhookRow>[] = [
         header: 'Pipeline',
         cell: (row) => (
             <Link
-                className="hover:text-primary text-sm"
+                className="text-sm hover:text-primary"
                 to={`/pipelines/${encodeURIComponent(row.pipeline)}`}
                 onClick={(event) => {
                     event.stopPropagation()
@@ -347,7 +350,9 @@ const WEBHOOK_COLUMNS: Column<WebhookRow>[] = [
         id: 'rate',
         header: 'Rate',
         className: 'text-right font-mono text-xs',
-        cell: (row) => <span className="text-muted-foreground">{String(row.webhook.rate_limit_per_minute)}/min</span>,
+        cell: (row) => (
+            <span className="text-muted-foreground">{String(row.webhook.rate_limit_per_minute)}/min</span>
+        ),
     },
     {
         id: 'last',
@@ -365,9 +370,13 @@ function Titled({ thing, children }: { thing: Addressable; children: ReactNode }
     const heading = headingOf(thing)
     return (
         <span className="flex flex-col gap-1">
-            <span className={heading.named ? 'font-semibold' : 'font-mono font-semibold'}>{heading.title}</span>
+            <span className={heading.named ? 'font-semibold' : 'font-mono font-semibold'}>
+                {heading.title}
+            </span>
             <span className="flex items-center gap-2">
-                {heading.code !== null && <span className="text-muted-foreground font-mono text-xs">{heading.code}</span>}
+                {heading.code !== null && (
+                    <span className="font-mono text-xs text-muted-foreground">{heading.code}</span>
+                )}
                 {children}
             </span>
         </span>
@@ -376,7 +385,7 @@ function Titled({ thing, children }: { thing: Addressable; children: ReactNode }
 
 /** When a schedule last fired, and what came of that firing. */
 function LastFiring({ row }: { row: ScheduleRow }) {
-    if (row.schedule.last_fired_at === null) return <span className="text-faint text-xs">never fired</span>
+    if (row.schedule.last_fired_at === null) return <span className="text-xs text-faint">never fired</span>
     const view = row.latest === null ? null : firingView(row.latest)
     return (
         <span className="flex items-center gap-2 text-xs">
@@ -387,7 +396,7 @@ function LastFiring({ row }: { row: ScheduleRow }) {
             {view !== null && <span>{view.label}</span>}
             {view !== null && view.runId !== null && (
                 <Link
-                    className="text-primary font-mono hover:underline"
+                    className="font-mono text-primary hover:underline"
                     to={`/runs/${view.runId}`}
                     onClick={(event) => {
                         event.stopPropagation()
@@ -397,7 +406,7 @@ function LastFiring({ row }: { row: ScheduleRow }) {
                 </Link>
             )}
             {view !== null && view.detail !== null && (
-                <span className="text-muted-foreground max-w-48 truncate" title={view.detail}>
+                <span className="max-w-48 truncate text-muted-foreground" title={view.detail}>
                     {view.detail}
                 </span>
             )}
@@ -407,7 +416,7 @@ function LastFiring({ row }: { row: ScheduleRow }) {
 
 /** When something last arrived, and what came of it. */
 function LastDelivery({ row }: { row: WebhookRow }) {
-    if (row.webhook.last_delivery_at === null) return <span className="text-faint text-xs">never</span>
+    if (row.webhook.last_delivery_at === null) return <span className="text-xs text-faint">never</span>
     const view = row.latest === null ? null : deliveryView(row.latest)
     return (
         <span className="flex items-center gap-2 text-xs">
@@ -417,7 +426,7 @@ function LastDelivery({ row }: { row: WebhookRow }) {
             </span>
             {view !== null && view.runId !== null && (
                 <Link
-                    className="text-primary font-mono hover:underline"
+                    className="font-mono text-primary hover:underline"
                     to={`/runs/${view.runId}`}
                     onClick={(event) => {
                         event.stopPropagation()
@@ -427,11 +436,10 @@ function LastDelivery({ row }: { row: WebhookRow }) {
                 </Link>
             )}
             {view !== null && view.reason !== null && (
-                <span className="text-muted-foreground max-w-48 truncate" title={view.reason}>
+                <span className="max-w-48 truncate text-muted-foreground" title={view.reason}>
                     {view.reason}
                 </span>
             )}
         </span>
     )
 }
-

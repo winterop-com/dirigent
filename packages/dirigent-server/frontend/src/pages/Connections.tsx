@@ -118,13 +118,18 @@ export function Connections() {
     useEffect(() => {
         if (open === null) return
         const schema = kinds?.find((entry) => entry.id === open.kind)?.config_schema ?? null
-        return fillPanel([
-            {
-                id: 'connection',
-                label: 'Connection',
-                render: () => <ConnectionForm key={open.code} connection={open} schema={schema} onSaved={held} />,
-            },
-        ], { screen: 'connections' })
+        return fillPanel(
+            [
+                {
+                    id: 'connection',
+                    label: 'Connection',
+                    render: () => (
+                        <ConnectionForm key={open.code} connection={open} schema={schema} onSaved={held} />
+                    ),
+                },
+            ],
+            { screen: 'connections' },
+        )
     }, [held, kinds, open])
 
     const write = useMayWrite('admin')
@@ -281,11 +286,15 @@ function Named({ row }: { row: ConnectionOut }) {
     return (
         <div className="min-w-0">
             <span className="flex items-center gap-2">
-                <span className={heading.named ? 'font-semibold' : 'font-mono font-semibold'}>{heading.title}</span>
+                <span className={heading.named ? 'font-semibold' : 'font-mono font-semibold'}>
+                    {heading.title}
+                </span>
                 <KindChip kind={row.kind} />
-                {heading.code !== null && <span className="text-muted-foreground font-mono text-xs">{heading.code}</span>}
+                {heading.code !== null && (
+                    <span className="font-mono text-xs text-muted-foreground">{heading.code}</span>
+                )}
             </span>
-            <p className="text-muted-foreground max-w-md truncate text-xs" title={settingsSummary(row)}>
+            <p className="max-w-md truncate text-xs text-muted-foreground" title={settingsSummary(row)}>
                 {settingsSummary(row)}
             </p>
         </div>
@@ -306,7 +315,7 @@ function Said({ description }: { description: string | null }) {
     const text = description === null ? '' : oneLine(description)
     if (text === '') return null
     return (
-        <p className="text-muted-foreground max-w-64 truncate text-xs" title={text}>
+        <p className="max-w-64 truncate text-xs text-muted-foreground" title={text}>
             {text}
         </p>
     )
@@ -315,13 +324,17 @@ function Said({ description }: { description: string | null }) {
 /** Whether this credential answered the last time anything asked it. */
 function Health({ row }: { row: ConnectionOut }) {
     const view = healthOf(row)
-    if (view.tone === null) return <span className="text-faint text-xs">never checked</span>
+    if (view.tone === null) return <span className="text-xs text-faint">never checked</span>
     return (
         <span className="flex items-center gap-2 text-xs">
-            <span className="status-dot" style={{ '--chip': TONES[view.tone] } as CSSProperties} aria-hidden />
+            <span
+                className="status-dot"
+                style={{ '--chip': TONES[view.tone] } as CSSProperties}
+                aria-hidden
+            />
             <span>{view.label}</span>
             {view.detail !== null && (
-                <span className="text-muted-foreground max-w-64 truncate" title={view.detail}>
+                <span className="max-w-64 truncate text-muted-foreground" title={view.detail}>
                     {view.detail}
                 </span>
             )}

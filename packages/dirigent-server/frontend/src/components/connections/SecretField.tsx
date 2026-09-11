@@ -37,7 +37,9 @@ export function SecretField({
                 onChange={(event) => {
                     onChange(event.target.value)
                 }}
-                placeholder={stored ? 'stored — typing replaces it, blank keeps it' : 'not set — type to set one'}
+                placeholder={
+                    stored ? 'stored — typing replaces it, blank keeps it' : 'not set — type to set one'
+                }
             />
         </div>
     )

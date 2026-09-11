@@ -792,7 +792,7 @@ html.dark[data-theme='contrast'],
         @apply font-sans;
     }
     body {
-        @apply bg-background text-foreground text-sm;
+        @apply bg-background text-sm text-foreground;
     }
 }
 
@@ -1367,7 +1367,6 @@ html.dark[data-theme='contrast'],
     background-clip: content-box;
     border-radius: 999px;
 }
-
 
 /* ---------------------------------------------------------------------------
    A DIALOG IS A SHEET BELOW THE BREAKPOINT.

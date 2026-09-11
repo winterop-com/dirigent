@@ -4,7 +4,15 @@ import { needsConnection, unreadyRule, unreadyTest } from '@/lib/alert-form'
 import type { RuleDraft } from '@/lib/alert-form'
 
 function aDraft(over: Partial<RuleDraft> = {}): RuleDraft {
-    return { code: 'page-ops', scope: 'global', pipeline: '', notifier: 'log', connection: '', throttle: '0s', ...over }
+    return {
+        code: 'page-ops',
+        scope: 'global',
+        pipeline: '',
+        notifier: 'log',
+        connection: '',
+        throttle: '0s',
+        ...over,
+    }
 }
 
 describe('which channels deliver through a credential', () => {
@@ -29,7 +37,9 @@ describe('why a new rule cannot be declared yet', () => {
     })
 
     test('a rule is addressed by a code', () => {
-        expect(unreadyRule(aDraft({ code: '  ' }))).toBe('A rule is addressed by its code, and this one has none.')
+        expect(unreadyRule(aDraft({ code: '  ' }))).toBe(
+            'A rule is addressed by its code, and this one has none.',
+        )
     })
 
     test('a code is the shape every code in this instance is', () => {
@@ -38,16 +48,22 @@ describe('why a new rule cannot be declared yet', () => {
     })
 
     test('a rule watching one pipeline has to name it', () => {
-        expect(unreadyRule(aDraft({ scope: 'pipeline' }))).toBe('A rule watching one pipeline names that pipeline, and this one names none.')
+        expect(unreadyRule(aDraft({ scope: 'pipeline' }))).toBe(
+            'A rule watching one pipeline names that pipeline, and this one names none.',
+        )
         expect(unreadyRule(aDraft({ scope: 'pipeline', pipeline: 'nightly' }))).toBeUndefined()
     })
 
     test('a rule delivers through a channel', () => {
-        expect(unreadyRule(aDraft({ notifier: '' }))).toBe('A rule delivers through a channel, and this one names none.')
+        expect(unreadyRule(aDraft({ notifier: '' }))).toBe(
+            'A rule delivers through a channel, and this one names none.',
+        )
     })
 
     test('a channel that needs a credential says which one is missing', () => {
-        expect(unreadyRule(aDraft({ notifier: 'slack' }))).toBe('The slack channel delivers through a connection, and this one names none.')
+        expect(unreadyRule(aDraft({ notifier: 'slack' }))).toBe(
+            'The slack channel delivers through a connection, and this one names none.',
+        )
         expect(unreadyRule(aDraft({ notifier: 'slack', connection: 'ops-slack' }))).toBeUndefined()
     })
 
@@ -69,7 +85,9 @@ describe('why a test cannot be sent yet', () => {
     })
 
     test('every other channel needs the credential it delivers through', () => {
-        expect(unreadyTest('email', '')).toBe('The email channel delivers through a connection, and this one names none.')
+        expect(unreadyTest('email', '')).toBe(
+            'The email channel delivers through a connection, and this one names none.',
+        )
         expect(unreadyTest('email', 'ops-mail')).toBeUndefined()
     })
 })

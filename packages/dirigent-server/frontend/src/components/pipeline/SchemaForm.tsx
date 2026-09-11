@@ -76,7 +76,7 @@ export function SchemaForm({
     onUnreadable?: (name: string, message: string | null) => void
 }) {
     if (fields.length === 0) {
-        return <p className="text-muted-foreground text-sm">This takes no configuration.</p>
+        return <p className="text-sm text-muted-foreground">This takes no configuration.</p>
     }
     return (
         <div className="flex flex-col gap-4">
@@ -150,9 +150,9 @@ function Field({
                 >
                     {field.name}
                 </Label>
-                {field.required && <span className="text-primary text-xs">required</span>}
-                {field.hint !== null && <span className="text-faint text-xs">{field.hint}</span>}
-                {fallback !== null && <span className="text-faint text-xs">default {fallback}</span>}
+                {field.required && <span className="text-xs text-primary">required</span>}
+                {field.hint !== null && <span className="text-xs text-faint">{field.hint}</span>}
+                {fallback !== null && <span className="text-xs text-faint">default {fallback}</span>}
             </div>
             <Control
                 id={id}
@@ -168,15 +168,15 @@ function Field({
                 onTouch={onTouch}
             />
             {field.help !== null && (
-                <p className="text-muted-foreground text-xs">
+                <p className="text-xs text-muted-foreground">
                     <MarkdownLine text={field.help} />
                 </p>
             )}
             {field.kind === 'json' && fallback !== null && (
-                <p className="text-faint text-xs">An empty box submits the default.</p>
+                <p className="text-xs text-faint">An empty box submits the default.</p>
             )}
             {shown !== null && (
-                <p className="text-critical text-xs" role="alert">
+                <p className="text-xs text-critical" role="alert">
                     {shown}
                 </p>
             )}
@@ -230,7 +230,9 @@ function Control({
                 }}
             >
                 <SelectTrigger id={id} size="sm" className="w-full" aria-invalid={invalid} onBlur={onTouch}>
-                    <SelectValue placeholder={field.fallback === undefined ? 'unset' : String(field.fallback)} />
+                    <SelectValue
+                        placeholder={field.fallback === undefined ? 'unset' : String(field.fallback)}
+                    />
                 </SelectTrigger>
                 <SelectContent>
                     {field.options.map((option) => (
@@ -311,7 +313,7 @@ function TextControl({
         return (
             <WindowedPane
                 name={field.name}
-                className="border-border overflow-hidden rounded-md border"
+                className="overflow-hidden rounded-md border border-border"
                 onBlur={onTouch}
                 windowed={
                     <CodePane

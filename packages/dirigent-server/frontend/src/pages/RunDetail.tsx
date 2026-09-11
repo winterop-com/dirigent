@@ -67,7 +67,10 @@ export function RunDetail() {
     const [state, dispatch] = useReducer(reduce, null)
     const [problem, setProblem] = useState<Problem | null>(null)
     const [selected, setSelected] = useState<string | null>(null)
-    const [document, setDocument] = useState<{ version: number | null; steps: Record<string, JsonMap> } | null>(null)
+    const [document, setDocument] = useState<{
+        version: number | null
+        steps: Record<string, JsonMap>
+    } | null>(null)
     const [report, setReport] = useState<RunReport | null>(null)
     const [reportProblem, setReportProblem] = useState<Problem | null>(null)
     const [now, setNow] = useState(() => Date.now())
@@ -136,7 +139,8 @@ export function RunDetail() {
         let cancelled = false
         void readPipeline(pipeline).then(
             (detail) => {
-                if (!cancelled) setDocument({ version: detail.current_version, steps: stepsOf(detail.document) })
+                if (!cancelled)
+                    setDocument({ version: detail.current_version, steps: stepsOf(detail.document) })
             },
             () => {
                 // The pipeline was deleted, or this account may not read it. Every step still
@@ -210,35 +214,32 @@ export function RunDetail() {
                 ? null
                 : { window_start: run.window_start, window_end: run.window_end }
         return () => {
-            void startRun(run.pipeline, run.params, null, window).then(
-                (accepted) => {
-                    if (accepted.run_id === null) {
-                        toast.warning(accepted.detail ?? `nothing started: ${accepted.status}`)
-                        return
-                    }
-                    void navigate(`/runs/${accepted.run_id}`)
-                },
-                sayRefusal,
-            )
+            void startRun(run.pipeline, run.params, null, window).then((accepted) => {
+                if (accepted.run_id === null) {
+                    toast.warning(accepted.detail ?? `nothing started: ${accepted.status}`)
+                    return
+                }
+                void navigate(`/runs/${accepted.run_id}`)
+            }, sayRefusal)
         }
     }, [navigate, state])
 
     const cancel = useMemo(() => {
         if (state === null || runSettled(state.run.status)) return null
         return () => {
-            void cancelRun(id).then(
-                (run) => {
-                    dispatch({ kind: 'frame', frame: { kind: 'run', run } })
-                },
-                sayRefusal,
-            )
+            void cancelRun(id).then((run) => {
+                dispatch({ kind: 'frame', frame: { kind: 'run', run } })
+            }, sayRefusal)
         }
     }, [id, state])
 
     // The shelf names the run it is scoped to, because the palette lays a screen's own rows
     // out first and a heading saying only "Run" would not say which one. A run is named by
     // its pipeline and when it started; its id is a handle for machines.
-    const shelf = state === null ? RUN_GROUP : `${RUN_GROUP} — ${state.run.pipeline} ${formatInstant(state.run.started_at ?? state.run.created_at)}`
+    const shelf =
+        state === null
+            ? RUN_GROUP
+            : `${RUN_GROUP} — ${state.run.pipeline} ${formatInstant(state.run.started_at ?? state.run.created_at)}`
 
     useEffect(() => {
         return registerActions([
@@ -308,13 +309,16 @@ export function RunDetail() {
                 label: 'Step',
                 render: () =>
                     chosen === null ? (
-                        <p className="text-muted-foreground p-4 text-sm">No step chosen.</p>
+                        <p className="p-4 text-sm text-muted-foreground">No step chosen.</p>
                     ) : (
                         <StepTab
                             state={state}
                             view={chosen}
                             config={document?.steps[chosen.node.code] ?? null}
-                            configVersion={{ shown: document?.version ?? null, pinned: state.run.pipeline_version }}
+                            configVersion={{
+                                shown: document?.version ?? null,
+                                pinned: state.run.pipeline_version,
+                            }}
                         />
                     ),
             },
@@ -369,8 +373,10 @@ export function RunDetail() {
                     ]}
                 />
                 <StatusChip status={state.run.status} />
-                {priority !== null && <span className={cn('text-xs', priority.className)}>{priority.label}</span>}
-                {waiting !== null && <span className="text-warning text-xs">{waiting}</span>}
+                {priority !== null && (
+                    <span className={cn('text-xs', priority.className)}>{priority.label}</span>
+                )}
+                {waiting !== null && <span className="text-xs text-warning">{waiting}</span>}
                 <div className="flex-1" />
                 <Tooltip>
                     <TooltipTrigger
@@ -422,12 +428,12 @@ export function RunDetail() {
             <div className="flex min-h-0 flex-1 flex-col">
                 <div
                     className={cn(
-                        'border-border-strong bg-background flex-1 overflow-hidden rounded-md border',
+                        'flex-1 overflow-hidden rounded-md border border-border-strong bg-background',
                         terminal ? 'min-h-48' : 'min-h-96',
                     )}
                 >
                     {state.dag.nodes.length === 0 ? (
-                        <p className="text-muted-foreground p-4 text-sm">
+                        <p className="p-4 text-sm text-muted-foreground">
                             This run's pinned definition has no steps to draw.
                         </p>
                     ) : (

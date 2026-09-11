@@ -30,7 +30,8 @@ export const screenStatus = createStore<ScreenStatus>(NOTHING)
 /** Say what this screen is doing. Publishes nothing when it is saying the same thing again. */
 export function setScreenStatus(next: ScreenStatus): void {
     const current = screenStatus.get()
-    if (current.note === next.note && current.tone === next.tone && current.identifier === next.identifier) return
+    if (current.note === next.note && current.tone === next.tone && current.identifier === next.identifier)
+        return
     screenStatus.set(next)
 }
 

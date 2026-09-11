@@ -1,10 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import {
-    HIDE_PASSWORD_LABEL,
-    SHOW_PASSWORD_LABEL,
-    revealOf,
-} from '@/components/login/reveal'
+import { HIDE_PASSWORD_LABEL, SHOW_PASSWORD_LABEL, revealOf } from '@/components/login/reveal'
 
 describe('the password reveal toggle', () => {
     test('hides the value and offers to show it', () => {

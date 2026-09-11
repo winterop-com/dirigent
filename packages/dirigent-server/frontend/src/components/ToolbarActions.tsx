@@ -3,7 +3,12 @@ import { MoreHorizontal, type LucideIcon } from 'lucide-react'
 import { Refusable } from '@/components/Refusable'
 import { useSmallScreen } from '@/hooks/use-small-screen'
 import { Button } from '@/components/ui/button'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 export const MORE_ACTIONS_LABEL = 'More actions'
 
@@ -68,7 +73,9 @@ export function ToolbarActions({ actions }: { actions: readonly ToolbarAction[] 
                                     onClick={action.onClick}
                                     variant={action.destructive === true ? 'destructive' : 'default'}
                                 >
-                                    {action.icon !== undefined && <action.icon className="size-4" aria-hidden />}
+                                    {action.icon !== undefined && (
+                                        <action.icon className="size-4" aria-hidden />
+                                    )}
                                     {action.label}
                                 </DropdownMenuItem>
                             ))}

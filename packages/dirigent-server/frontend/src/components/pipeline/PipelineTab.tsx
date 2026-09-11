@@ -76,20 +76,22 @@ export function PipelineTab({
                 <span
                     className={
                         pipeline.active
-                            ? 'border-good text-good rounded-sm border px-1.5 py-0.5 text-xs'
-                            : 'border-border text-muted-foreground rounded-sm border border-dashed px-1.5 py-0.5 text-xs'
+                            ? 'rounded-sm border border-good px-1.5 py-0.5 text-xs text-good'
+                            : 'rounded-sm border border-dashed border-border px-1.5 py-0.5 text-xs text-muted-foreground'
                     }
                 >
                     {pipeline.active ? 'active' : 'deactivated'}
                 </span>
-                <span className="text-faint font-mono text-xs">
-                    {pipeline.current_version === null ? 'no version' : `v${String(pipeline.current_version)}`}
+                <span className="font-mono text-xs text-faint">
+                    {pipeline.current_version === null
+                        ? 'no version'
+                        : `v${String(pipeline.current_version)}`}
                 </span>
                 {heading.code !== null && (
-                    <span className="text-muted-foreground font-mono text-xs">{heading.code}</span>
+                    <span className="font-mono text-xs text-muted-foreground">{heading.code}</span>
                 )}
                 {digest !== null && (
-                    <span className="text-faint font-mono text-xs" title={digest}>
+                    <span className="font-mono text-xs text-faint" title={digest}>
                         {shortDigest(digest)}
                     </span>
                 )}
@@ -102,14 +104,14 @@ export function PipelineTab({
                 </div>
             )}
             {pipeline.description === null ? (
-                <p className="text-muted-foreground text-sm">This pipeline carries no description.</p>
+                <p className="text-sm text-muted-foreground">This pipeline carries no description.</p>
             ) : (
                 <Description text={pipeline.description} />
             )}
 
             <Section title="Parameters">
                 {parameters.length === 0 ? (
-                    <p className="text-muted-foreground text-xs">This pipeline takes no parameters.</p>
+                    <p className="text-xs text-muted-foreground">This pipeline takes no parameters.</p>
                 ) : (
                     <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
                         {parameters.map((field) => (
@@ -131,7 +133,7 @@ export function PipelineTab({
 
             <Section title="Connections">
                 {named.length === 0 ? (
-                    <p className="text-muted-foreground text-xs">This pipeline names no connections.</p>
+                    <p className="text-xs text-muted-foreground">This pipeline names no connections.</p>
                 ) : (
                     <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
                         {named.map((name) => {
@@ -142,8 +144,16 @@ export function PipelineTab({
                                     term={name}
                                     detail={
                                         held === null ? (
-                                            <span className={connectionMissing(unmet, name) ? 'text-critical' : 'text-warning'}>
-                                                {connectionMissing(unmet, name) ? 'not configured' : 'health unread'}
+                                            <span
+                                                className={
+                                                    connectionMissing(unmet, name)
+                                                        ? 'text-critical'
+                                                        : 'text-warning'
+                                                }
+                                            >
+                                                {connectionMissing(unmet, name)
+                                                    ? 'not configured'
+                                                    : 'health unread'}
                                             </span>
                                         ) : (
                                             <span className="text-muted-foreground">
@@ -165,8 +175,8 @@ export function PipelineTab({
                             key={chip.label}
                             className={
                                 chip.met
-                                    ? 'border-border rounded-sm border px-1.5 py-0.5 font-mono text-xs'
-                                    : 'border-critical text-critical rounded-sm border px-1.5 py-0.5 font-mono text-xs'
+                                    ? 'rounded-sm border border-border px-1.5 py-0.5 font-mono text-xs'
+                                    : 'rounded-sm border border-critical px-1.5 py-0.5 font-mono text-xs text-critical'
                             }
                             title={
                                 chip.met
@@ -178,7 +188,7 @@ export function PipelineTab({
                         </span>
                     ))}
                     {requiredChips(document, unmet).length === 0 && (
-                        <span className="text-muted-foreground text-xs">
+                        <span className="text-xs text-muted-foreground">
                             This document requires nothing in particular of an instance.
                         </span>
                     )}
@@ -187,14 +197,16 @@ export function PipelineTab({
 
             <Section title="Triggers">
                 {schedules.length === 0 && webhooks.length === 0 ? (
-                    <p className="text-muted-foreground text-xs">
-                        Nothing fires this pipeline on its own. A document declares them under its triggers key.
+                    <p className="text-xs text-muted-foreground">
+                        Nothing fires this pipeline on its own. A document declares them under its triggers
+                        key.
                     </p>
                 ) : (
-                    <ul className="text-muted-foreground space-y-0.5 text-xs">
+                    <ul className="space-y-0.5 text-xs text-muted-foreground">
                         {schedules.map((schedule, index) => (
                             <li key={`schedule-${String(index)}`}>
-                                schedule <span className="font-mono">{stringAt(schedule, 'code') ?? '--'}</span>{' '}
+                                schedule{' '}
+                                <span className="font-mono">{stringAt(schedule, 'code') ?? '--'}</span>{' '}
                                 {clockOf(schedule)}
                             </li>
                         ))}
@@ -209,7 +221,7 @@ export function PipelineTab({
 
             <Section title="Recent runs">
                 {runs.length === 0 ? (
-                    <p className="text-muted-foreground text-xs">No runs.</p>
+                    <p className="text-xs text-muted-foreground">No runs.</p>
                 ) : (
                     <ul className="space-y-1">
                         {runs.map((run) => (
@@ -229,7 +241,7 @@ export function PipelineTab({
 
             <Section title="Versions">
                 {versions.length === 0 ? (
-                    <p className="text-muted-foreground text-xs">No versions.</p>
+                    <p className="text-xs text-muted-foreground">No versions.</p>
                 ) : (
                     <ul className="space-y-1">
                         {versions.map((version) => (
@@ -313,7 +325,8 @@ function clockOf(schedule: JsonMap): string {
 
 function mapAt(value: JsonMap | null, key: string): JsonMap | null {
     const found = value?.[key]
-    if (found === null || found === undefined || typeof found !== 'object' || Array.isArray(found)) return null
+    if (found === null || found === undefined || typeof found !== 'object' || Array.isArray(found))
+        return null
     return found as JsonMap
 }
 

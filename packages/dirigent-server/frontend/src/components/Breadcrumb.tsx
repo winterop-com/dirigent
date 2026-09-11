@@ -44,7 +44,10 @@ export function Breadcrumb({ trail, code }: { trail: readonly Crumb[]; code?: st
                 return (
                     <Fragment key={`${crumb.label}-${String(index)}`}>
                         {index > 0 && (
-                            <span className={cn('text-faint', !(shown && behind) && 'hidden md:inline')} aria-hidden>
+                            <span
+                                className={cn('text-faint', !(shown && behind) && 'hidden md:inline')}
+                                aria-hidden
+                            >
                                 /
                             </span>
                         )}
@@ -65,7 +68,7 @@ export function Breadcrumb({ trail, code }: { trail: readonly Crumb[]; code?: st
                                 to={crumb.to}
                                 title={crumb.title}
                                 className={cn(
-                                    'text-muted-foreground hover:text-foreground min-w-0 truncate',
+                                    'min-w-0 truncate text-muted-foreground hover:text-foreground',
                                     crumb.mono === true && 'font-mono',
                                     !shown && 'hidden md:inline',
                                 )}
@@ -77,7 +80,7 @@ export function Breadcrumb({ trail, code }: { trail: readonly Crumb[]; code?: st
                 )
             })}
             {code !== undefined && code !== null && (
-                <span className="text-muted-foreground min-w-0 truncate font-mono text-xs">{code}</span>
+                <span className="min-w-0 truncate font-mono text-xs text-muted-foreground">{code}</span>
             )}
         </nav>
     )

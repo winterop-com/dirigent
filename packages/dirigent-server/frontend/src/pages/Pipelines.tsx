@@ -188,7 +188,7 @@ export function Pipelines() {
                     <>
                         <ApiChip tag="pipelines" />
                         {summary(shown.length, state.rows.length) !== null && (
-                            <span className="text-muted-foreground text-xs">
+                            <span className="text-xs text-muted-foreground">
                                 {summary(shown.length, state.rows.length)}
                             </span>
                         )}
@@ -227,7 +227,7 @@ export function Pipelines() {
                                     render={
                                         <Button
                                             size="sm"
-                                            className="border-primary-foreground/20 rounded-l-none border-l px-1.5"
+                                            className="rounded-l-none border-l border-primary-foreground/20 px-1.5"
                                             aria-label="More ways to start a pipeline"
                                             disabled={!write.may}
                                             title={write.why}
@@ -287,7 +287,6 @@ export function Pipelines() {
                     noun="pipelines"
                 />
             </PageState>
-
         </>
     )
 }
@@ -364,7 +363,7 @@ function pipelineColumns(onTag: (tag: string) => void): Column<PipelineOut>[] {
                             </Link>
                             {retired !== null && (
                                 <span
-                                    className="border-border text-faint rounded-sm border px-1.5 text-xs"
+                                    className="rounded-sm border border-border px-1.5 text-xs text-faint"
                                     title="deactivated: its schedules are paused and it cannot be run"
                                 >
                                     {retired}
@@ -372,9 +371,14 @@ function pipelineColumns(onTag: (tag: string) => void): Column<PipelineOut>[] {
                             )}
                         </span>
                         <p className="flex items-center gap-2 text-xs">
-                            {heading.code !== null && <span className="text-muted-foreground font-mono">{heading.code}</span>}
+                            {heading.code !== null && (
+                                <span className="font-mono text-muted-foreground">{heading.code}</span>
+                            )}
                             {row.description !== null && (
-                                <span className="text-muted-foreground min-w-0 flex-1 truncate" title={oneLine(row.description)}>
+                                <span
+                                    className="min-w-0 flex-1 truncate text-muted-foreground"
+                                    title={oneLine(row.description)}
+                                >
                                     {oneLine(row.description)}
                                 </span>
                             )}
@@ -395,7 +399,10 @@ function pipelineColumns(onTag: (tag: string) => void): Column<PipelineOut>[] {
             header: 'Triggers',
             cell: (row) =>
                 row.schedules === 0 && row.webhooks === 0 ? null : (
-                    <span className="text-muted-foreground flex items-center gap-3 text-xs" title={triggerSummary(row)}>
+                    <span
+                        className="flex items-center gap-3 text-xs text-muted-foreground"
+                        title={triggerSummary(row)}
+                    >
                         {row.schedules > 0 && (
                             <span className="flex items-center gap-1">
                                 <Clock className="size-3" aria-hidden />
@@ -438,7 +445,7 @@ function LastRunCell({ row }: { row: PipelineOut }) {
             </span>
         )
     }
-    if (view === null || row.last_run === null) return <span className="text-faint text-xs">never run</span>
+    if (view === null || row.last_run === null) return <span className="text-xs text-faint">never run</span>
     return (
         // Bounded, because half the table is the identity's and this column's own words are
         // what it gives back: the instant stands and what follows it is cut with the whole of
@@ -453,11 +460,11 @@ function LastRunCell({ row }: { row: PipelineOut }) {
                 {view.when}
             </Link>
             {view.failedStep === null ? (
-                <span className="text-faint truncate" title={statusLabel(view.status)}>
+                <span className="truncate text-faint" title={statusLabel(view.status)}>
                     {statusLabel(view.status)}
                 </span>
             ) : (
-                <span className="text-muted-foreground truncate" title={`at ${view.failedStep}`}>
+                <span className="truncate text-muted-foreground" title={`at ${view.failedStep}`}>
                     at {view.failedStep}
                 </span>
             )}

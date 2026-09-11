@@ -65,7 +65,7 @@ export function Picker({
                     screen the moment somebody chose one. */}
                 <InputGroupAddon align="inline-end">
                     {chosen !== null && chosen.aside !== '' && (
-                        <span className="text-muted-foreground font-mono text-xs">{chosen.aside}</span>
+                        <span className="font-mono text-xs text-muted-foreground">{chosen.aside}</span>
                     )}
                     <InputGroupButton size="icon-xs" variant="ghost" render={<ComboboxTrigger />} />
                 </InputGroupAddon>
@@ -77,7 +77,7 @@ export function Picker({
                         <ComboboxItem key={option.value} value={option}>
                             <span className="truncate">{option.label}</span>
                             {option.aside !== '' && (
-                                <span className="text-muted-foreground ml-auto font-mono text-xs whitespace-nowrap">
+                                <span className="ml-auto font-mono text-xs whitespace-nowrap text-muted-foreground">
                                     {option.aside}
                                 </span>
                             )}

@@ -151,13 +151,27 @@ export function readWebhooks(pipeline: string, after: string | null): Promise<Pa
 }
 
 /** Read what a schedule has actually done, newest first, including what it skipped. */
-export function readFirings(pipeline: string, schedule: string, after: string | null, limit = PAGE): Promise<Page<FiringOut>> {
-    return apiJson<Page<FiringOut>>(`${triggersPath(pipeline)}/schedules/${encodeURIComponent(schedule)}/firings${cursor(after, limit)}`)
+export function readFirings(
+    pipeline: string,
+    schedule: string,
+    after: string | null,
+    limit = PAGE,
+): Promise<Page<FiringOut>> {
+    return apiJson<Page<FiringOut>>(
+        `${triggersPath(pipeline)}/schedules/${encodeURIComponent(schedule)}/firings${cursor(after, limit)}`,
+    )
 }
 
 /** Read what has arrived at a webhook, newest first, refusals included. */
-export function readDeliveries(pipeline: string, webhook: string, after: string | null, limit = PAGE): Promise<Page<DeliveryOut>> {
-    return apiJson<Page<DeliveryOut>>(`${triggersPath(pipeline)}/webhooks/${encodeURIComponent(webhook)}/deliveries${cursor(after, limit)}`)
+export function readDeliveries(
+    pipeline: string,
+    webhook: string,
+    after: string | null,
+    limit = PAGE,
+): Promise<Page<DeliveryOut>> {
+    return apiJson<Page<DeliveryOut>>(
+        `${triggersPath(pipeline)}/webhooks/${encodeURIComponent(webhook)}/deliveries${cursor(after, limit)}`,
+    )
 }
 
 /** The query one page of any of these listings is asked for with. */
@@ -170,9 +184,12 @@ function cursor(after: string | null, limit = PAGE): string {
 /** Stop a schedule firing, or start it again, without losing it or its history. */
 export function setSchedulePaused(pipeline: string, schedule: string, paused: boolean): Promise<ScheduleOut> {
     const verb = paused ? '$pause' : '$resume'
-    return apiJson<ScheduleOut>(`${triggersPath(pipeline)}/schedules/${encodeURIComponent(schedule)}/${verb}`, {
-        method: 'POST',
-    })
+    return apiJson<ScheduleOut>(
+        `${triggersPath(pipeline)}/schedules/${encodeURIComponent(schedule)}/${verb}`,
+        {
+            method: 'POST',
+        },
+    )
 }
 
 /** Refuse deliveries, or accept them again, on the token that was already issued. */
@@ -185,9 +202,12 @@ export function setWebhookActive(pipeline: string, webhook: string, active: bool
 
 /** Mint a new token and forget the old one immediately; every caller has to be updated. */
 export function rotateWebhookToken(pipeline: string, webhook: string): Promise<WebhookTokenOut> {
-    return apiJson<WebhookTokenOut>(`${triggersPath(pipeline)}/webhooks/${encodeURIComponent(webhook)}/$rotate-token`, {
-        method: 'POST',
-    })
+    return apiJson<WebhookTokenOut>(
+        `${triggersPath(pipeline)}/webhooks/${encodeURIComponent(webhook)}/$rotate-token`,
+        {
+            method: 'POST',
+        },
+    )
 }
 
 /** A schedule as a caller declares it: exactly one clock, in its own timezone. `ScheduleIn`. */
@@ -273,14 +293,18 @@ async function triggersOf(pipeline: PipelineOut): Promise<TriggerRow[]> {
     const scheduleRows = await Promise.all(
         schedules.items.map(async (schedule): Promise<ScheduleRow> => {
             const latest =
-                schedule.last_fired_at === null ? null : await newest(readFirings(pipeline.code, schedule.code, null, 1))
+                schedule.last_fired_at === null
+                    ? null
+                    : await newest(readFirings(pipeline.code, schedule.code, null, 1))
             return { kind: 'schedule', pipeline: pipeline.code, schedule, latest }
         }),
     )
     const webhookRows = await Promise.all(
         webhooks.items.map(async (webhook): Promise<WebhookRow> => {
             const latest =
-                webhook.last_delivery_at === null ? null : await newest(readDeliveries(pipeline.code, webhook.code, null, 1))
+                webhook.last_delivery_at === null
+                    ? null
+                    : await newest(readDeliveries(pipeline.code, webhook.code, null, 1))
             return { kind: 'webhook', pipeline: pipeline.code, webhook, latest }
         }),
     )
@@ -372,7 +396,8 @@ export interface ClockView {
  */
 export function clockOf(schedule: Pick<ScheduleOut, 'cron' | 'interval' | 'at'>): ClockView {
     if (schedule.cron !== null) return { kind: 'cron', text: schedule.cron, mono: true }
-    if (schedule.interval !== null) return { kind: 'interval', text: `every ${schedule.interval}`, mono: false }
+    if (schedule.interval !== null)
+        return { kind: 'interval', text: `every ${schedule.interval}`, mono: false }
     if (schedule.at !== null) return { kind: 'at', text: schedule.at, mono: false }
     return { kind: 'none', text: 'no clock', mono: false }
 }

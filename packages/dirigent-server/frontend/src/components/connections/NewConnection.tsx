@@ -197,7 +197,7 @@ export function NewConnection({
 
                 {chosen !== null && (
                     <div className="space-y-3">
-                        <p className="text-faint text-xs font-semibold tracking-wide uppercase">Settings</p>
+                        <p className="text-xs font-semibold tracking-wide text-faint uppercase">Settings</p>
                         <div className="max-h-[40vh] space-y-3 overflow-y-auto pr-1">
                             <SchemaForm
                                 fields={fields}
@@ -213,7 +213,9 @@ export function NewConnection({
                                     })
                                 }}
                                 onTouch={(name) => {
-                                    setTouched((current) => (current.has(name) ? current : new Set(current).add(name)))
+                                    setTouched((current) =>
+                                        current.has(name) ? current : new Set(current).add(name),
+                                    )
                                 }}
                                 onUnreadable={(name, message) => {
                                     setUnreadable((current) => withUnreadable(current, name, message))

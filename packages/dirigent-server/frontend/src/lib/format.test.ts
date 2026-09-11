@@ -132,7 +132,7 @@ describe('a timestamp', () => {
 
     // REVERT-PROOF against `toLocaleString`, which spells this `9/2/2026, 11:36:05 AM` in one
     // locale and something else in the next. One spelling, largest field first, everywhere.
-    test('is written largest field first rather than in the reader\'s own locale', () => {
+    test("is written largest field first rather than in the reader's own locale", () => {
         timesMode.set('utc')
         expect(formatInstant('2026-09-02T11:36:05Z')).toBe('2026-09-02 11:36:05 UTC')
     })
@@ -270,7 +270,9 @@ describe('whether a row was written again after it was created', () => {
     const NOW = Date.parse('2026-03-01T12:00:00Z')
 
     test('reads the microseconds a write takes as one instant rather than two', () => {
-        expect(separatelyUpdated('2026-03-01T11:59:00.088230Z', '2026-03-01T11:59:00.088232Z', NOW)).toBe(false)
+        expect(separatelyUpdated('2026-03-01T11:59:00.088230Z', '2026-03-01T11:59:00.088232Z', NOW)).toBe(
+            false,
+        )
     })
 
     test('says an edit is its own fact once it reads differently', () => {

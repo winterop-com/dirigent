@@ -104,12 +104,24 @@ export function RulePanel({
 
             <div className="flex flex-wrap gap-2">
                 <Refusable why={write.why}>
-                    <Button variant="outline" size="sm" disabled={busy || !write.may} title={write.why} onClick={toggle}>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={busy || !write.may}
+                        title={write.why}
+                        onClick={toggle}
+                    >
                         {rule.paused ? 'Resume' : 'Pause'}
                     </Button>
                 </Refusable>
                 <Refusable why={write.why}>
-                    <Button variant="outline" size="sm" disabled={!write.may} title={write.why} onClick={onTest}>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={!write.may}
+                        title={write.why}
+                        onClick={onTest}
+                    >
                         Send a test
                     </Button>
                 </Refusable>
@@ -128,15 +140,15 @@ export function RulePanel({
             </div>
 
             <div className="space-y-2">
-                <p className="text-muted-foreground text-xs">Recent deliveries</p>
-                {!state.read && <p className="text-faint text-xs">Reading from the server</p>}
-                {state.read && mine.length === 0 && <p className="text-faint text-xs">Nothing sent.</p>}
-                <ul className="divide-border divide-y">
+                <p className="text-xs text-muted-foreground">Recent deliveries</p>
+                {!state.read && <p className="text-xs text-faint">Reading from the server</p>}
+                {state.read && mine.length === 0 && <p className="text-xs text-faint">Nothing sent.</p>}
+                <ul className="divide-y divide-border">
                     {mine.map((row) => (
                         <li key={row.id} className="row-hover -mx-4 flex items-center gap-2 px-4 py-2">
                             <StatusChip status={row.status} />
                             <span className="min-w-0 flex-1 truncate text-xs">{row.subject}</span>
-                            <Instant className="text-faint shrink-0 text-xs" at={row.created_at} />
+                            <Instant className="shrink-0 text-xs text-faint" at={row.created_at} />
                         </li>
                     ))}
                 </ul>
@@ -220,9 +232,9 @@ export function NotificationPanel({
 
             {notification.error !== null && (
                 <div className="space-y-1">
-                    <p className="text-muted-foreground text-xs">What the channel said</p>
-                    <p className="text-critical text-xs break-words">{notification.error}</p>
-                    <p className="text-faint text-xs">
+                    <p className="text-xs text-muted-foreground">What the channel said</p>
+                    <p className="text-xs break-words text-critical">{notification.error}</p>
+                    <p className="text-xs text-faint">
                         Only the latest refusal is kept. Earlier attempts are counted, not stored.
                     </p>
                 </div>
@@ -230,7 +242,13 @@ export function NotificationPanel({
 
             <div className="flex flex-wrap gap-2">
                 <Refusable why={write.why}>
-                    <Button variant="outline" size="sm" disabled={busy || !write.may} title={write.why} onClick={again}>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={busy || !write.may}
+                        title={write.why}
+                        onClick={again}
+                    >
                         Retry now
                     </Button>
                 </Refusable>
@@ -251,7 +269,9 @@ export function Channel({ notifier, connection }: { notifier: string; connection
     return (
         <span className="flex flex-wrap items-baseline gap-1.5">
             <span className="text-sm">{notifier}</span>
-            {connection !== null && <span className="text-muted-foreground font-mono text-xs">{connection}</span>}
+            {connection !== null && (
+                <span className="font-mono text-xs text-muted-foreground">{connection}</span>
+            )}
         </span>
     )
 }
@@ -269,7 +289,7 @@ export function Run({ notification }: { notification: NotificationOut }) {
         <Link className="text-primary hover:underline" to={`/runs/${notification.run_id}`}>
             <span className="text-sm">{named}</span>
             {notification.run_started_at !== null && (
-                <Instant className="text-muted-foreground ml-1.5 text-xs" at={notification.run_started_at} />
+                <Instant className="ml-1.5 text-xs text-muted-foreground" at={notification.run_started_at} />
             )}
         </Link>
     )
@@ -277,7 +297,11 @@ export function Run({ notification }: { notification: NotificationOut }) {
 
 /** A word a rule wears about itself. */
 function Chip({ children }: { children: ReactNode }) {
-    return <span className="border-border text-muted-foreground rounded-sm border px-1.5 text-xs">{children}</span>
+    return (
+        <span className="rounded-sm border border-border px-1.5 text-xs text-muted-foreground">
+            {children}
+        </span>
+    )
 }
 
 /** One thing's title over its code, and whatever it is wearing. */
@@ -289,7 +313,9 @@ function Head({ thing, children }: { thing: Addressable; children: ReactNode }) 
                 {heading.title}
             </span>
             {children}
-            {heading.code !== null && <span className="text-muted-foreground font-mono text-xs">{heading.code}</span>}
+            {heading.code !== null && (
+                <span className="font-mono text-xs text-muted-foreground">{heading.code}</span>
+            )}
         </p>
     )
 }
@@ -298,7 +324,7 @@ function Head({ thing, children }: { thing: Addressable; children: ReactNode }) 
 function Fact({ label, children }: { label: string; children: ReactNode }) {
     return (
         <div className="flex flex-wrap items-baseline gap-2">
-            <dt className="text-muted-foreground w-32 shrink-0 text-xs">{label}</dt>
+            <dt className="w-32 shrink-0 text-xs text-muted-foreground">{label}</dt>
             <dd className="min-w-0 text-sm">{children}</dd>
         </div>
     )

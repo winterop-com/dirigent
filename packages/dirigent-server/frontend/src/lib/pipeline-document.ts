@@ -53,7 +53,13 @@ export const NEW_CODE = 'my-pipeline'
 
 /** Take a pipeline's stored document as the document being edited. */
 export function loadDocument(code: string, applied: JsonMap | null): void {
-    documentStore.set({ code, applied, local: applied === null ? null : clone(applied), draft: null, parseError: null })
+    documentStore.set({
+        code,
+        applied,
+        local: applied === null ? null : clone(applied),
+        draft: null,
+        parseError: null,
+    })
 }
 
 /** The smallest document an apply accepts: what it is, what it is called, and room for steps. */
@@ -169,7 +175,8 @@ export function stepHeading(document: JsonMap | null, step: string): Heading {
 /** One step's config, which is the map a block's own form is built over. */
 export function configOf(document: JsonMap | null, step: string): JsonMap {
     const config = stepsIn(document)[step]?.config
-    if (config === null || config === undefined || typeof config !== 'object' || Array.isArray(config)) return {}
+    if (config === null || config === undefined || typeof config !== 'object' || Array.isArray(config))
+        return {}
     return config as JsonMap
 }
 
@@ -308,7 +315,9 @@ export function editsIn(applied: JsonMap | null, local: JsonMap | null): Documen
     const names = [...new Set([...Object.keys(before), ...Object.keys(after)])]
     const steps = names.filter((name) => stable(before[name]) !== stable(after[name]))
 
-    const keys = [...new Set([...Object.keys(applied), ...Object.keys(local)])].filter((key) => key !== 'steps')
+    const keys = [...new Set([...Object.keys(applied), ...Object.keys(local)])].filter(
+        (key) => key !== 'steps',
+    )
     const fields = keys.filter((key) => stable(applied[key]) !== stable(local[key]))
 
     return { steps, fields, count: steps.length + fields.length }
@@ -407,6 +416,10 @@ function stable(value: unknown): string {
     return JSON.stringify(value, (_key, item: unknown) => {
         if (item === null || typeof item !== 'object' || Array.isArray(item)) return item
         const mapping = item as JsonMap
-        return Object.fromEntries(Object.keys(mapping).toSorted().map((key) => [key, mapping[key]]))
+        return Object.fromEntries(
+            Object.keys(mapping)
+                .toSorted()
+                .map((key) => [key, mapping[key]]),
+        )
     })
 }

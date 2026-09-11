@@ -52,10 +52,10 @@ export function SchedulePanel({
 }) {
     const [busy, setBusy] = useState(false)
 
-    const read = useCallback((after: string | null) => readFirings(pipeline, schedule.code, after), [
-        pipeline,
-        schedule.code,
-    ])
+    const read = useCallback(
+        (after: string | null) => readFirings(pipeline, schedule.code, after),
+        [pipeline, schedule.code],
+    )
     const { state, more } = usePaged(read, firingId)
 
     const write = useMayWrite()
@@ -93,7 +93,7 @@ export function SchedulePanel({
                 )}
                 {Object.keys(schedule.params).length > 0 && (
                     <Fact label="Pinned parameters">
-                        <pre className="bg-secondary/50 mt-1 overflow-x-auto rounded-md p-2 font-mono text-xs">
+                        <pre className="mt-1 overflow-x-auto rounded-md bg-secondary/50 p-2 font-mono text-xs">
                             {asJson(schedule.params)}
                         </pre>
                     </Fact>
@@ -101,7 +101,13 @@ export function SchedulePanel({
             </dl>
 
             <Refusable why={write.why}>
-                <Button variant="outline" size="sm" disabled={busy || !write.may} title={write.why} onClick={toggle}>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={busy || !write.may}
+                    title={write.why}
+                    onClick={toggle}
+                >
                     {schedule.paused ? 'Resume' : 'Pause'}
                 </Button>
             </Refusable>
@@ -135,10 +141,10 @@ export function WebhookPanel({
 }) {
     const [busy, setBusy] = useState(false)
 
-    const read = useCallback((after: string | null) => readDeliveries(pipeline, webhook.code, after), [
-        pipeline,
-        webhook.code,
-    ])
+    const read = useCallback(
+        (after: string | null) => readDeliveries(pipeline, webhook.code, after),
+        [pipeline, webhook.code],
+    )
     const { state, more } = usePaged(read, deliveryId)
 
     const write = useMayWrite()
@@ -146,11 +152,9 @@ export function WebhookPanel({
     /** Carry out one verb, leaving the row as it was and saying so if the server would not. */
     function act<T>(work: Promise<T>, taken: (answer: T) => void): void {
         setBusy(true)
-        void work
-            .then(taken, sayRefusal)
-            .finally(() => {
-                setBusy(false)
-            })
+        void work.then(taken, sayRefusal).finally(() => {
+            setBusy(false)
+        })
     }
 
     return (
@@ -177,7 +181,7 @@ export function WebhookPanel({
                 </Fact>
                 {Object.keys(webhook.params_from_payload).length > 0 && (
                     <Fact label="Payload mapping">
-                        <pre className="bg-secondary/50 mt-1 overflow-x-auto rounded-md p-2 font-mono text-xs">
+                        <pre className="mt-1 overflow-x-auto rounded-md bg-secondary/50 p-2 font-mono text-xs">
                             {asJson(webhook.params_from_payload)}
                         </pre>
                     </Fact>
@@ -212,8 +216,9 @@ export function WebhookPanel({
                     </Button>
                 </Refusable>
             </div>
-            <p className="text-faint text-xs">
-                Rotating creates a new token and forgets the old one immediately. Every caller has to be updated.
+            <p className="text-xs text-faint">
+                Rotating creates a new token and forgets the old one immediately. Every caller has to be
+                updated.
             </p>
 
             <History
@@ -255,10 +260,13 @@ function Head({
                 </span>
                 {children}
                 {heading.code !== null && (
-                    <span className="text-muted-foreground font-mono text-xs">{heading.code}</span>
+                    <span className="font-mono text-xs text-muted-foreground">{heading.code}</span>
                 )}
             </p>
-            <Link className="text-muted-foreground hover:text-foreground text-xs" to={`/pipelines/${encodeURIComponent(pipeline)}`}>
+            <Link
+                className="text-xs text-muted-foreground hover:text-foreground"
+                to={`/pipelines/${encodeURIComponent(pipeline)}`}
+            >
                 {pipeline}
             </Link>
             <Description text={description} />
@@ -270,12 +278,11 @@ function Head({
 function Fact({ label, children }: { label: string; children: ReactNode }) {
     return (
         <div className="flex flex-wrap items-baseline gap-2">
-            <dt className="text-muted-foreground w-32 shrink-0 text-xs">{label}</dt>
+            <dt className="w-32 shrink-0 text-xs text-muted-foreground">{label}</dt>
             <dd className="min-w-0 text-sm">{children}</dd>
         </div>
     )
 }
-
 
 /** A trigger's own history, one page at a time, newest first. */
 function History<T>({
@@ -301,10 +308,10 @@ function History<T>({
 }) {
     return (
         <div className="space-y-2">
-            <p className="text-muted-foreground text-xs">{title}</p>
-            {loading && <p className="text-faint text-xs">Reading from the server</p>}
-            {!loading && rows.length === 0 && <p className="text-faint text-xs">{empty}</p>}
-            <ul className="divide-border divide-y">
+            <p className="text-xs text-muted-foreground">{title}</p>
+            {loading && <p className="text-xs text-faint">Reading from the server</p>}
+            {!loading && rows.length === 0 && <p className="text-xs text-faint">{empty}</p>}
+            <ul className="divide-y divide-border">
                 {rows.map((row) => (
                     <li key={keyOf(row)} className="row-hover -mx-4 px-4 py-2">
                         {render(row)}
@@ -312,7 +319,13 @@ function History<T>({
                 ))}
             </ul>
             {next !== null && (
-                <Button variant="ghost" size="sm" className="text-muted-foreground w-full" disabled={reading} onClick={onMore}>
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full text-muted-foreground"
+                    disabled={reading}
+                    onClick={onMore}
+                >
                     {reading ? 'Reading' : 'Load more'}
                 </Button>
             )}
@@ -332,12 +345,14 @@ function Firing({ firing }: { firing: FiringOut }) {
                     due {formatRelative(firing.scheduled_for)}
                 </span>
                 {view.runId !== null && (
-                    <Link className="text-primary font-mono hover:underline" to={`/runs/${view.runId}`}>
+                    <Link className="font-mono text-primary hover:underline" to={`/runs/${view.runId}`}>
                         {shortId(view.runId)}
                     </Link>
                 )}
             </span>
-            {view.detail !== null && <p className="text-muted-foreground text-xs break-words">{view.detail}</p>}
+            {view.detail !== null && (
+                <p className="text-xs break-words text-muted-foreground">{view.detail}</p>
+            )}
         </div>
     )
 }
@@ -354,13 +369,17 @@ function Delivery({ delivery }: { delivery: DeliveryOut }) {
                     {formatRelative(delivery.created_at)}
                 </span>
                 {view.runId !== null && (
-                    <Link className="text-primary font-mono hover:underline" to={`/runs/${view.runId}`}>
+                    <Link className="font-mono text-primary hover:underline" to={`/runs/${view.runId}`}>
                         {shortId(view.runId)}
                     </Link>
                 )}
-                {delivery.source !== null && <span className="text-faint truncate">from {delivery.source}</span>}
+                {delivery.source !== null && (
+                    <span className="truncate text-faint">from {delivery.source}</span>
+                )}
             </span>
-            {view.reason !== null && <p className="text-muted-foreground text-xs break-words">{view.reason}</p>}
+            {view.reason !== null && (
+                <p className="text-xs break-words text-muted-foreground">{view.reason}</p>
+            )}
         </div>
     )
 }

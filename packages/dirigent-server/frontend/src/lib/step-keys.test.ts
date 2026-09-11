@@ -51,16 +51,20 @@ describe('the fields', () => {
     test('offer each enum as a select over the values the definition declares', () => {
         const rule = stepFields.find((field) => field.name === 'rule')
         expect(rule?.kind).toBe('select')
-        expect(rule?.options.map((option) => option.value)).toEqual(['all_success', 'all_done', 'one_failed', 'always'])
+        expect(rule?.options.map((option) => option.value)).toEqual([
+            'all_success',
+            'all_done',
+            'one_failed',
+            'always',
+        ])
         expect(rule?.fallback).toBe('all_success')
         expect(stepFields.find((field) => field.name === 'items')?.options.map((one) => one.value)).toEqual([
             'fail_fast',
             'continue',
         ])
-        expect(stepFields.find((field) => field.name === 'on_timeout')?.options.map((one) => one.value)).toEqual([
-            'fail',
-            'skip',
-        ])
+        expect(
+            stepFields.find((field) => field.name === 'on_timeout')?.options.map((one) => one.value),
+        ).toEqual(['fail', 'skip'])
     })
 
     test('read a duration as the humane text a document carries', () => {
@@ -86,7 +90,10 @@ describe('the fields', () => {
 
 describe('what the controls show', () => {
     test('is only what the step carries', () => {
-        expect(stepKeyValues(document(), 'per_region')).toEqual({ for_each: '${params.regions}', items: 'continue' })
+        expect(stepKeyValues(document(), 'per_region')).toEqual({
+            for_each: '${params.regions}',
+            items: 'continue',
+        })
         expect(stepKeyValues(document(), 'cleanup')).toEqual({ rule: 'all_done' })
     })
 

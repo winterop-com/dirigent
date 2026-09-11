@@ -257,9 +257,9 @@ function Alerting() {
             <section className="mb-6 space-y-2">
                 <h2 className="text-sm font-semibold">Channels</h2>
                 {!channels.read ? (
-                    <p className="text-faint text-sm">Reading from the server</p>
+                    <p className="text-sm text-faint">Reading from the server</p>
                 ) : channels.rows.length === 0 ? (
-                    <p className="text-muted-foreground text-sm">No channel is installed.</p>
+                    <p className="text-sm text-muted-foreground">No channel is installed.</p>
                 ) : (
                     <ChannelStrip channels={channels.rows} />
                 )}
@@ -428,7 +428,7 @@ const RULE_COLUMNS: Column<AlertRuleOut>[] = [
                         {heading.title}
                     </span>
                     {heading.code !== null && (
-                        <span className="text-muted-foreground font-mono text-xs">{heading.code}</span>
+                        <span className="font-mono text-xs text-muted-foreground">{heading.code}</span>
                     )}
                 </span>
             )
@@ -443,7 +443,9 @@ const RULE_COLUMNS: Column<AlertRuleOut>[] = [
         id: 'scope',
         header: 'Scope',
         cell: (rule) => (
-            <span className={rule.scope === 'pipeline' ? 'font-mono text-xs' : 'text-sm'}>{scopeNote(rule)}</span>
+            <span className={rule.scope === 'pipeline' ? 'font-mono text-xs' : 'text-sm'}>
+                {scopeNote(rule)}
+            </span>
         ),
     },
     {
@@ -473,11 +475,11 @@ const RULE_COLUMNS: Column<AlertRuleOut>[] = [
         header: 'State',
         cell: (rule) =>
             rule.paused ? (
-                <span className="text-muted-foreground text-xs">paused</span>
+                <span className="text-xs text-muted-foreground">paused</span>
             ) : rule.active ? (
-                <span className="text-good text-xs">active</span>
+                <span className="text-xs text-good">active</span>
             ) : (
-                <span className="text-muted-foreground text-xs">off</span>
+                <span className="text-xs text-muted-foreground">off</span>
             ),
     },
 ]
@@ -495,7 +497,7 @@ const NOTIFICATION_COLUMNS: Column<NotificationOut>[] = [
             <span className="flex flex-col">
                 <span className="text-sm">{notification.subject}</span>
                 {notification.error !== null && (
-                    <span className="text-critical max-w-96 truncate text-xs" title={notification.error}>
+                    <span className="max-w-96 truncate text-xs text-critical" title={notification.error}>
                         {notification.error}
                     </span>
                 )}
@@ -505,7 +507,9 @@ const NOTIFICATION_COLUMNS: Column<NotificationOut>[] = [
     {
         id: 'delivers',
         header: 'Delivers through',
-        cell: (notification) => <Channel notifier={notification.notifier} connection={notification.connection} />,
+        cell: (notification) => (
+            <Channel notifier={notification.notifier} connection={notification.connection} />
+        ),
     },
     {
         id: 'run',

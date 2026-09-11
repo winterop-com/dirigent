@@ -120,7 +120,6 @@ function count(many: number, thing: string): string {
     return `${String(many)} ${thing}${many === 1 ? '' : 's'}`
 }
 
-
 /** How much config a block takes, for the column that says so at a glance. */
 export function configSummary(fields: readonly FieldDescriptor[]): string {
     if (fields.length === 0) return 'none'

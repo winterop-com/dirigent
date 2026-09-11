@@ -45,7 +45,13 @@ import {
     zoneOffset,
     zonesOffered,
 } from '@/lib/trigger-form'
-import { createSchedule, createWebhook, previewSchedule, type ScheduleIn, type WebhookTokenOut } from '@/lib/triggers'
+import {
+    createSchedule,
+    createWebhook,
+    previewSchedule,
+    type ScheduleIn,
+    type WebhookTokenOut,
+} from '@/lib/triggers'
 
 /** Which clock a new schedule is declared with. Exactly one, which is what the core accepts. */
 type Clock = 'cron' | 'interval' | 'at'
@@ -170,7 +176,14 @@ export function NewSchedule({
                 </div>
 
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <Field id="schedule-code" label="Code" value={code} onChange={setCode} placeholder="nightly" mono />
+                    <Field
+                        id="schedule-code"
+                        label="Code"
+                        value={code}
+                        onChange={setCode}
+                        placeholder="nightly"
+                        mono
+                    />
                     <Field
                         id="schedule-name"
                         label="Name"
@@ -373,20 +386,27 @@ export function NewWebhook({
 
                 <div className="space-y-2">
                     <Label>Payload mapping</Label>
-                    <div className="border-border max-h-[32vh] overflow-y-auto rounded-md border p-3">
+                    <div className="max-h-[32vh] overflow-y-auto rounded-md border border-border p-3">
                         {chosen.fields.length === 0 ? (
-                            <p className="text-muted-foreground text-sm">
-                                {pipeline === '' ? 'No pipeline chosen.' : 'This pipeline takes no parameters.'}
+                            <p className="text-sm text-muted-foreground">
+                                {pipeline === ''
+                                    ? 'No pipeline chosen.'
+                                    : 'This pipeline takes no parameters.'}
                             </p>
                         ) : (
                             <div className="space-y-3">
                                 {chosen.fields.map((field) => (
                                     <div key={field.name} className="grid grid-cols-2 items-start gap-3">
                                         <div className="space-y-0.5">
-                                            <Label htmlFor={`mapping-${field.name}`} className="font-mono text-sm">
+                                            <Label
+                                                htmlFor={`mapping-${field.name}`}
+                                                className="font-mono text-sm"
+                                            >
                                                 {field.name}
                                             </Label>
-                                            {field.required && <p className="text-primary text-xs">required</p>}
+                                            {field.required && (
+                                                <p className="text-xs text-primary">required</p>
+                                            )}
                                         </div>
                                         <Input
                                             id={`mapping-${field.name}`}
@@ -395,7 +415,10 @@ export function NewWebhook({
                                             placeholder="$."
                                             value={paths[field.name] ?? ''}
                                             onChange={(event) => {
-                                                setPaths((held) => ({ ...held, [field.name]: event.target.value }))
+                                                setPaths((held) => ({
+                                                    ...held,
+                                                    [field.name]: event.target.value,
+                                                }))
                                             }}
                                         />
                                     </div>
@@ -403,8 +426,9 @@ export function NewWebhook({
                             </div>
                         )}
                     </div>
-                    <p className="text-faint text-xs">
-                        One JSONPath per parameter the pipeline declares. Anything else in the payload is ignored.
+                    <p className="text-xs text-faint">
+                        One JSONPath per parameter the pipeline declares. Anything else in the payload is
+                        ignored.
                     </p>
                 </div>
 
@@ -453,7 +477,7 @@ export function NewWebhook({
                 {problem !== null && <Refusal problem={problem} />}
 
                 <DialogFooter>
-                    <p className="text-muted-foreground mr-auto self-center text-xs">
+                    <p className="mr-auto self-center text-xs text-muted-foreground">
                         Its token is shown once, after Create.
                     </p>
                     <DialogClose render={<Button variant="ghost" />}>Close</DialogClose>
@@ -506,7 +530,7 @@ export function MintedToken({ token, onClose }: { token: WebhookTokenOut; onClos
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="border-border bg-secondary/40 space-y-2 rounded-lg border p-3">
+                <div className="space-y-2 rounded-lg border border-border bg-secondary/40 p-3">
                     <p className="font-mono text-xs break-all" data-testid="webhook-token">
                         {token.token}
                     </p>
@@ -517,7 +541,7 @@ export function MintedToken({ token, onClose }: { token: WebhookTokenOut; onClos
                 </div>
 
                 <div className="space-y-1">
-                    <p className="text-muted-foreground text-xs">Where to POST</p>
+                    <p className="text-xs text-muted-foreground">Where to POST</p>
                     <p className="font-mono text-xs break-all">{token.url_path}</p>
                 </div>
 
@@ -542,7 +566,7 @@ type Reading =
 function ClockReading({ reading, zone }: { reading: Reading; zone: string }) {
     if (reading.kind === 'blank') return null
     return (
-        <p className="text-muted-foreground flex items-baseline gap-1.5 text-xs" data-testid="clock-reading">
+        <p className="flex items-baseline gap-1.5 text-xs text-muted-foreground" data-testid="clock-reading">
             <Clock3 className="size-3 shrink-0 self-center" aria-hidden />
             {reading.kind === 'refused'
                 ? reading.detail
@@ -768,9 +792,9 @@ function ParamsBox({
                     onChoose={params.show}
                 />
             </div>
-            <div className="border-border max-h-[32vh] overflow-y-auto rounded-md border p-3">
+            <div className="max-h-[32vh] overflow-y-auto rounded-md border border-border p-3">
                 {fields.length === 0 ? (
-                    <p className="text-muted-foreground text-sm">
+                    <p className="text-sm text-muted-foreground">
                         {chosen ? 'This pipeline takes no parameters.' : 'No pipeline chosen.'}
                     </p>
                 ) : params.mode === 'form' ? (
@@ -795,7 +819,7 @@ function ParamsBox({
                             }}
                         />
                         {params.unreadable !== null && (
-                            <p className="text-critical text-xs" role="alert">
+                            <p className="text-xs text-critical" role="alert">
                                 {params.unreadable}
                             </p>
                         )}
@@ -831,7 +855,9 @@ function PriorityField({
                 <SelectTrigger id={id} className="w-full">
                     {/* The trigger draws the row that was chosen, rather than the token it is
                         addressed by, which is what a value with no priority in it would say. */}
-                    <SelectValue>{(chosen: string) => <Priority chosen={chosen} pipeline={pipeline} />}</SelectValue>
+                    <SelectValue>
+                        {(chosen: string) => <Priority chosen={chosen} pipeline={pipeline} />}
+                    </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                     <SelectItem value={INHERITED}>
@@ -854,7 +880,7 @@ function Priority({ chosen, pipeline }: { chosen: string; pipeline: RunPriority 
     return (
         <>
             The pipeline&apos;s
-            {pipeline !== null && <span className="text-muted-foreground font-mono"> {pipeline}</span>}
+            {pipeline !== null && <span className="font-mono text-muted-foreground"> {pipeline}</span>}
         </>
     )
 }

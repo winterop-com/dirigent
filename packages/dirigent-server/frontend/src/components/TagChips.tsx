@@ -35,9 +35,7 @@ export function TagChips({
     const cards = useNarrowTable()
     const table = useListWidth()
     if (tags.length === 0) return null
-    const fold = cards
-        ? { shown: [...tags], folded: [] }
-        : foldTags(tags, roomFor(table), linesFor(table))
+    const fold = cards ? { shown: [...tags], folded: [] } : foldTags(tags, roomFor(table), linesFor(table))
     return (
         <span className={cn('flex flex-wrap items-center gap-1', !cards && 'w-max max-w-[25cqi]')}>
             {fold.shown.map((tag) => (
@@ -75,7 +73,10 @@ function FoldedTags({ tags, onSelect }: { tags: readonly string[]; onSelect?: (t
                 render={
                     <button
                         type="button"
-                        className={cn(face, 'hover:border-foreground/40 hover:text-foreground cursor-pointer')}
+                        className={cn(
+                            face,
+                            'cursor-pointer hover:border-foreground/40 hover:text-foreground',
+                        )}
                         aria-label={label}
                         title={label}
                         onClick={(event) => {

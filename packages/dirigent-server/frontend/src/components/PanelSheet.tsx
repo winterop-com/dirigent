@@ -46,7 +46,7 @@ export function PanelSheet() {
         <>
             <div
                 data-panel-bar
-                className="bg-sidebar border-border-strong flex h-shell-foot shrink-0 items-stretch border-t"
+                className="flex h-shell-foot shrink-0 items-stretch border-t border-border-strong bg-sidebar"
             >
                 {tabs.map((tab) => (
                     <button
@@ -56,8 +56,8 @@ export function PanelSheet() {
                             openPanelTab(tab.id)
                         }}
                         className={cn(
-                            'text-muted-foreground hover:text-foreground min-h-10 flex-1 truncate px-2 text-xs',
-                            open && tab.id === active && 'text-foreground font-medium',
+                            'min-h-10 flex-1 truncate px-2 text-xs text-muted-foreground hover:text-foreground',
+                            open && tab.id === active && 'font-medium text-foreground',
                         )}
                     >
                         {tab.label}
@@ -66,7 +66,7 @@ export function PanelSheet() {
             </div>
 
             {open && (
-                <div data-panel-sheet className="bg-sidebar fixed inset-0 z-40 flex flex-col">
+                <div data-panel-sheet className="fixed inset-0 z-40 flex flex-col bg-sidebar">
                     <Tabs
                         value={active}
                         onValueChange={(value) => {
@@ -74,7 +74,7 @@ export function PanelSheet() {
                         }}
                         className="flex min-h-0 flex-1 flex-col gap-0"
                     >
-                        <div className="border-border-strong flex h-shell-top shrink-0 items-center gap-2 border-b px-2">
+                        <div className="flex h-shell-top shrink-0 items-center gap-2 border-b border-border-strong px-2">
                             <TabsList>
                                 {tabs.map((tab) => (
                                     <TabsTrigger key={tab.id} value={tab.id}>
@@ -87,13 +87,17 @@ export function PanelSheet() {
                                 size="icon"
                                 aria-label={CLOSE_PANEL_LABEL}
                                 onClick={closeSheet}
-                                className="text-muted-foreground ml-auto shrink-0"
+                                className="ml-auto shrink-0 text-muted-foreground"
                             >
                                 <X className="size-4" aria-hidden />
                             </Button>
                         </div>
                         {tabs.map((tab) => (
-                            <TabsContent key={tab.id} value={tab.id} className="min-h-0 flex-1 overflow-y-auto">
+                            <TabsContent
+                                key={tab.id}
+                                value={tab.id}
+                                className="min-h-0 flex-1 overflow-y-auto"
+                            >
                                 {tab.render()}
                             </TabsContent>
                         ))}

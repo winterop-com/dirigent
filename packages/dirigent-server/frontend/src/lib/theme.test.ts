@@ -41,7 +41,8 @@ describe('the palette axis', () => {
 
     test('knows the three palettes this build ships, and nothing else', () => {
         for (const name of ['dirigent', 'paper', 'contrast']) expect(isPaletteName(name)).toBe(true)
-        for (const name of ['light', 'dark', 'Paper', 'high-contrast', '']) expect(isPaletteName(name)).toBe(false)
+        for (const name of ['light', 'dark', 'Paper', 'high-contrast', ''])
+            expect(isPaletteName(name)).toBe(false)
     })
 
     // The order is the setting's order on screen, quiet to loud, and the swatches render the

@@ -65,7 +65,10 @@ export function blockShelves(blocks: readonly BlockEntry[]): BlockShelf[] {
  * block rather than its name.
  */
 export function searchBlocks(blocks: readonly BlockEntry[], needle: string): BlockCrumb[] {
-    const terms = needle.toLowerCase().split(/\s+/).filter((term) => term !== '')
+    const terms = needle
+        .toLowerCase()
+        .split(/\s+/)
+        .filter((term) => term !== '')
     if (terms.length === 0) return []
     return blocks
         .filter((entry) => terms.every((term) => matches(entry, term)))
@@ -98,7 +101,10 @@ export function stepKeyFor(block: string, taken: readonly string[]): string {
 function keyBase(block: string): string {
     const dot = block.indexOf('.')
     const rest = dot === -1 ? block : block.slice(dot + 1)
-    const written = rest.toLowerCase().replaceAll(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
+    const written = rest
+        .toLowerCase()
+        .replaceAll(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '')
     if (written === '' || !STEP_KEY.test(written)) return `step_${written}`.replace(/_$/, '')
     return written
 }

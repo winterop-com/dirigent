@@ -143,9 +143,11 @@ function EditableGraph({
     const [pointer, setPointer] = useState<{ x: number; y: number } | null>(null)
     // A connection let go over empty ground: what it was drawn from, where the menu opens, and
     // where in the graph the step it adds is drawn.
-    const [dropped, setDropped] = useState<{ from: string; at: Placement; over: { x: number; y: number } } | null>(
-        null,
-    )
+    const [dropped, setDropped] = useState<{
+        from: string
+        at: Placement
+        over: { x: number; y: number }
+    } | null>(null)
     // A box that was right-clicked: which step, and where its menu opens.
     const [onNode, setOnNode] = useState<{ step: string; over: { x: number; y: number } } | null>(null)
 
@@ -362,7 +364,7 @@ function StepMenuAt({
                 style={{ left: at.x, top: at.y }}
             />
             <DropdownMenuContent align="start" className="w-56">
-                <p className="text-faint truncate px-2 py-1.5 font-mono text-xs">{step}</p>
+                <p className="truncate px-2 py-1.5 font-mono text-xs text-faint">{step}</p>
                 <DropdownMenuItem onClick={onAddAfter}>{ADD_AFTER_LABEL}</DropdownMenuItem>
                 <DropdownMenuItem className="destructive-action" onClick={onRemove}>
                     {DELETE_STEP_LABEL}

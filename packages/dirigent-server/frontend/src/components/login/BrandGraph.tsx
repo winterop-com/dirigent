@@ -77,12 +77,7 @@ function Drawing({ width, height }: Box) {
     const head = at(HEAD)
 
     return (
-        <svg
-            viewBox={`0 0 ${width} ${height}`}
-            className="size-full"
-            fill="none"
-            aria-hidden
-        >
+        <svg viewBox={`0 0 ${width} ${height}`} className="size-full" fill="none" aria-hidden>
             <defs>
                 {/* Both filter regions are stated rather than left at the default -10%/120%,
                     because a blur that wide off a thin path is clipped by it. */}
@@ -114,12 +109,7 @@ function Drawing({ width, height }: Box) {
                     ))}
                 </g>
 
-                <g
-                    className="stroke-terminal-accent"
-                    strokeWidth={4}
-                    opacity={0.28}
-                    filter={`url(#${GLOW})`}
-                >
+                <g className="stroke-terminal-accent" strokeWidth={4} opacity={0.28} filter={`url(#${GLOW})`}>
                     {LINKS.filter(isLit).map((link) => (
                         <path key={linkKey(link)} d={edgePath(at(link[0]), at(link[1]))} />
                     ))}

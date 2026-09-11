@@ -54,7 +54,12 @@ export const RUN_STATUSES: readonly RunStatus[] = [
 export type AnyStatus = RunStatus | AttemptStatus | ItemStatus | StepOutcome
 
 /** The run states nothing will move a run out of. `TERMINAL_RUN_STATUSES` in the client. */
-const TERMINAL_RUN: ReadonlySet<string> = new Set(['succeeded', 'completed_with_errors', 'failed', 'cancelled'])
+const TERMINAL_RUN: ReadonlySet<string> = new Set([
+    'succeeded',
+    'completed_with_errors',
+    'failed',
+    'cancelled',
+])
 
 /** The outcomes nothing will move a step out of. `StepOutcome`, minus the two live ones. */
 const TERMINAL_STEP: ReadonlySet<string> = new Set(['succeeded', 'failed', 'skipped', 'cancelled'])

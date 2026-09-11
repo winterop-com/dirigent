@@ -20,7 +20,13 @@
 
 import { elapsedBetween, formatDuration } from '@/lib/format'
 import type { SseFrame } from '@/lib/sse'
-import { attemptSettled, runSettled, type AnyStatus, type AttemptStatus, type StepOutcome } from '@/lib/status'
+import {
+    attemptSettled,
+    runSettled,
+    type AnyStatus,
+    type AttemptStatus,
+    type StepOutcome,
+} from '@/lib/status'
 import type { AttemptEvent, DagNode, DagView, LogEntryOut, RunDetailOut, RunOut } from '@/lib/runs'
 
 /** How much of a run's log this screen holds. A tail is a tail; the API pages the whole of it. */
@@ -216,7 +222,8 @@ export function itemLabels(state: RunDetailState): Map<string, string> {
     const labels = new Map<string, string>()
     for (const id of state.order) {
         const attempt = state.attempts[id]
-        if (attempt !== undefined && attempt.item !== null && attempt.item !== '') labels.set(attempt.id, attempt.item)
+        if (attempt !== undefined && attempt.item !== null && attempt.item !== '')
+            labels.set(attempt.id, attempt.item)
     }
     return labels
 }
@@ -338,10 +345,14 @@ export interface OutputReading {
  * the value; the URI and the size are the answer only where the output went to storage, which
  * is either the block writing it there itself or the engine spilling it.
  */
-export function outputReading(attempt: Pick<AttemptEvent, 'output' | 'output_uri' | 'output_bytes'>): OutputReading {
+export function outputReading(
+    attempt: Pick<AttemptEvent, 'output' | 'output_uri' | 'output_bytes'>,
+): OutputReading {
     const map = attempt.output
     const wrapped =
-        map !== null && 'output_uri' in map && Object.keys(map).every((key) => ENVELOPE_KEYS.has(key)) ? map : null
+        map !== null && 'output_uri' in map && Object.keys(map).every((key) => ENVELOPE_KEYS.has(key))
+            ? map
+            : null
     const inner = wrapped?.output_uri
     const uri = attempt.output_uri ?? (typeof inner === 'string' ? inner : null)
     if (uri !== null) {
@@ -419,7 +430,11 @@ export function retryStory(attempt: AttemptEvent, now: number): string | null {
  * threshold is a property of what fits in a node, which is why it is a number here rather than
  * a decision each caller makes.
  */
-export function itemStrip(attempts: readonly AttemptEvent[], now: number, limit: number = ITEM_STRIP_LIMIT): ItemStrip {
+export function itemStrip(
+    attempts: readonly AttemptEvent[],
+    now: number,
+    limit: number = ITEM_STRIP_LIMIT,
+): ItemStrip {
     const latest = [...latestPerItem(attempts).entries()]
     if (latest.length === 0) return { kind: 'empty' }
     if (latest.length <= limit) {
@@ -481,13 +496,26 @@ function detailOf(latest: AttemptEvent | null, node: DagNode): string | null {
  * running step says how long it has been running without a second timer anywhere. A step that
  * has not started says nothing, and neither does one whose tries never finished.
  */
-export function durationOf(attempts: readonly AttemptEvent[], outcome: StepOutcome, now: number): number | null {
-    const started = boundOf(attempts.map((one) => one.started_at), 'earliest')
+export function durationOf(
+    attempts: readonly AttemptEvent[],
+    outcome: StepOutcome,
+    now: number,
+): number | null {
+    const started = boundOf(
+        attempts.map((one) => one.started_at),
+        'earliest',
+    )
     if (outcome === 'running') {
         const from = started === null ? Number.NaN : Date.parse(started)
         return Number.isNaN(from) ? null : Math.max(0, now - from)
     }
-    return elapsedBetween(started, boundOf(attempts.map((one) => one.finished_at), 'latest'))
+    return elapsedBetween(
+        started,
+        boundOf(
+            attempts.map((one) => one.finished_at),
+            'latest',
+        ),
+    )
 }
 
 /**
@@ -518,7 +546,8 @@ export function waitingOf(attempts: readonly AttemptEvent[], now: number): numbe
     return foldedOf(attempts, (attempt) => {
         // Only a retry is written down and then held back; a first attempt becomes claimable
         // when the steps above it finish, and that span is their time rather than its own.
-        const backoff = (attempt.attempt > 1 ? elapsedBetween(attempt.created_at, attempt.available_at) : 0) ?? 0
+        const backoff =
+            (attempt.attempt > 1 ? elapsedBetween(attempt.created_at, attempt.available_at) : 0) ?? 0
         const parked = parkedOf(attempt, now)
         return backoff === 0 && parked === null ? null : backoff + (parked ?? 0)
     })

@@ -83,33 +83,33 @@ export function StepNode({ data, selected }: NodeProps<DocumentNode>) {
                     className={cn(
                         'truncate text-sm',
                         !data.named && 'font-mono',
-                        selected === true ? 'text-foreground font-bold' : 'font-semibold',
+                        selected === true ? 'font-bold text-foreground' : 'font-semibold',
                     )}
                 >
                     {data.title}
                 </span>
                 {data.missing && (
                     <span
-                        className="border-critical text-critical ml-auto shrink-0 rounded-sm border px-1 text-xs"
+                        className="ml-auto shrink-0 rounded-sm border border-critical px-1 text-xs text-critical"
                         title={`${data.block} is not installed on this instance, so this step will fail`}
                     >
                         not installed
                     </span>
                 )}
                 {data.edited && !data.missing && (
-                    <span className="border-primary text-primary ml-auto shrink-0 rounded-sm border px-1 text-xs">
+                    <span className="ml-auto shrink-0 rounded-sm border border-primary px-1 text-xs text-primary">
                         edited
                     </span>
                 )}
             </div>
             <span className="flex items-center gap-2">
-                <span data-testid="step-line" className="text-muted-foreground truncate font-mono text-xs">
+                <span data-testid="step-line" className="truncate font-mono text-xs text-muted-foreground">
                     {data.code === null ? data.block : `${data.code} · ${data.block}`}
                 </span>
                 {data.fanOut && (
                     <span
                         data-testid="step-fan-out"
-                        className="text-faint ml-auto flex shrink-0 items-center gap-1 font-mono text-xs"
+                        className="ml-auto flex shrink-0 items-center gap-1 font-mono text-xs text-faint"
                         title={
                             data.fanOutItems === null
                                 ? 'for_each: runs once per item of the list it is given'

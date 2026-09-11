@@ -54,7 +54,7 @@ export function RunsChart({
                 <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                     <div className="space-y-1">
                         <h2 className="text-sm font-semibold">Runs over time</h2>
-                        <p className="text-muted-foreground text-xs">
+                        <p className="text-xs text-muted-foreground">
                             {reading
                                 ? 'Reading from the server'
                                 : 'Every run started in the last 24 hours, by the hour it started in.'}
@@ -62,7 +62,10 @@ export function RunsChart({
                     </div>
                     <ul className="flex items-center gap-3">
                         {BANDS.map((band) => (
-                            <li key={band.id} className="text-muted-foreground flex items-center gap-1.5 text-xs">
+                            <li
+                                key={band.id}
+                                className="flex items-center gap-1.5 text-xs text-muted-foreground"
+                            >
                                 <span className={cn('size-2 shrink-0 rounded-sm', band.fill)} aria-hidden />
                                 {band.label}
                             </li>
@@ -74,7 +77,7 @@ export function RunsChart({
                     {buckets.map((bucket) => (
                         <div
                             key={bucket.start}
-                            className="hover:bg-accent/40 flex h-full flex-1 flex-col justify-end rounded-sm"
+                            className="flex h-full flex-1 flex-col justify-end rounded-sm hover:bg-accent/40"
                             title={bucketNote(bucket)}
                         >
                             {BANDS.map((band) =>
@@ -82,16 +85,18 @@ export function RunsChart({
                                     <div
                                         key={band.id}
                                         className={cn('min-h-0.5 w-full', band.fill)}
-                                        style={{ height: `${String((bucket[band.id] / Math.max(most, 1)) * 100)}%` }}
+                                        style={{
+                                            height: `${String((bucket[band.id] / Math.max(most, 1)) * 100)}%`,
+                                        }}
                                     />
                                 ),
                             )}
-                            {stackOf(bucket) === 0 && <div className="bg-border h-px w-full" />}
+                            {stackOf(bucket) === 0 && <div className="h-px w-full bg-border" />}
                         </div>
                     ))}
                 </div>
 
-                <div className="text-faint flex gap-px font-mono text-xs" aria-hidden>
+                <div className="flex gap-px font-mono text-xs text-faint" aria-hidden>
                     {buckets.map((bucket, index) => (
                         <span key={bucket.start} className="flex-1 text-center">
                             {index % LABEL_EVERY === 0 ? `${String(bucket.hour).padStart(2, '0')}` : ''}

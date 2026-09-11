@@ -139,7 +139,11 @@ export function PipelineEditor() {
     const [schema, setSchema] = useState<JsonMap | null>(null)
     const [selected, setSelected] = useState<string | null>(null)
     // Keyed by the block it was read for, for the same reason the pipeline read is.
-    const [step, setStep] = useState<{ of: string | null; block: BlockEntry | null; problem: Problem | null }>({
+    const [step, setStep] = useState<{
+        of: string | null
+        block: BlockEntry | null
+        problem: Problem | null
+    }>({
         of: null,
         block: null,
         problem: null,
@@ -428,7 +432,7 @@ export function PipelineEditor() {
                 label: stepTabLabel(selected),
                 render: () =>
                     selected === null || local === null ? (
-                        <p className="text-muted-foreground p-4 text-sm">No step chosen.</p>
+                        <p className="p-4 text-sm text-muted-foreground">No step chosen.</p>
                     ) : (
                         <StepTab
                             key={selected}
@@ -499,10 +503,27 @@ export function PipelineEditor() {
                 ),
             },
         ]
-    }, [connections, disabled, local, pipeline, runs, schema, selected, small, state.parseError, stepRead, unmet, versions])
+    }, [
+        connections,
+        disabled,
+        local,
+        pipeline,
+        runs,
+        schema,
+        selected,
+        small,
+        state.parseError,
+        stepRead,
+        unmet,
+        versions,
+    ])
 
     useEffect(
-        () => fillPanel(tabs, { screen: `editor:${code}`, open: creating && preloaded !== undefined ? 'source' : 'step' }),
+        () =>
+            fillPanel(tabs, {
+                screen: `editor:${code}`,
+                open: creating && preloaded !== undefined ? 'source' : 'step',
+            }),
         [tabs, code, creating, preloaded],
     )
 
@@ -531,7 +552,7 @@ export function PipelineEditor() {
                 {/* The status bar already says which version this is and when it was applied,
                     and a fact appears once on a screen. */}
                 <span
-                    className="border-border hidden shrink-0 rounded-sm border px-1.5 py-0.5 font-mono text-xs md:inline-block"
+                    className="hidden shrink-0 rounded-sm border border-border px-1.5 py-0.5 font-mono text-xs md:inline-block"
                     title={
                         pipeline === null || pipeline.current_version === null
                             ? 'No version of this pipeline has been applied.'
@@ -545,7 +566,7 @@ export function PipelineEditor() {
                 <div className="flex-1" />
                 {/* THE VERBS THAT WRITE ARE NOT DRAWN BELOW THE BREAKPOINT, and the strip says
                     so where the first of them would have been. */}
-                {small && <span className="text-muted-foreground shrink-0 text-xs">{READ_ONLY}</span>}
+                {small && <span className="shrink-0 text-xs text-muted-foreground">{READ_ONLY}</span>}
                 <ToolbarActions
                     actions={
                         // NOTHING THAT WRITES, AND NOTHING THAT ASKS THE SERVER ABOUT WHAT
@@ -590,17 +611,15 @@ export function PipelineEditor() {
                 />
             </div>
 
-            <div className="border-border-strong bg-background relative min-h-96 flex-1 overflow-hidden rounded-md border">
+            <div className="relative min-h-96 flex-1 overflow-hidden rounded-md border border-border-strong bg-background">
                 {steps.length === 0 && local !== null && (
-                    <p className="text-muted-foreground pointer-events-none absolute top-4 left-4 z-10 text-sm">
+                    <p className="pointer-events-none absolute top-4 left-4 z-10 text-sm text-muted-foreground">
                         No steps.
                     </p>
                 )}
                 {local === null ? (
                     <div className="flex flex-col items-start gap-3 p-4">
-                        <p className="text-muted-foreground text-sm">
-                            No version to draw.
-                        </p>
+                        <p className="text-sm text-muted-foreground">No version to draw.</p>
                     </div>
                 ) : (
                     <Suspense

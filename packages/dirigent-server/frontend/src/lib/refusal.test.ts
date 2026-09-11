@@ -42,7 +42,9 @@ describe('which parts of a refusal are worth drawing', () => {
     })
 
     test('failures that say more than the sentence are drawn beside it', () => {
-        const lines = refusalLines(problem({ detail: 'the document was refused', problems: ['steps.a: unknown block'] }))
+        const lines = refusalLines(
+            problem({ detail: 'the document was refused', problems: ['steps.a: unknown block'] }),
+        )
         expect(lines).toEqual({ detail: 'the document was refused', problems: ['steps.a: unknown block'] })
     })
 

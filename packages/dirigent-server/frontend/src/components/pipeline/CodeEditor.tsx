@@ -466,7 +466,10 @@ export function CodeEditor({
     // The rebuild waits for the frame the new class is painted in.
     useEffect(() => {
         const frame = requestAnimationFrame(() => {
-            monaco.editor.defineTheme('dirigent', houseTheme(document.documentElement.classList.contains('dark')))
+            monaco.editor.defineTheme(
+                'dirigent',
+                houseTheme(document.documentElement.classList.contains('dark')),
+            )
             monaco.editor.setTheme('dirigent')
         })
         return () => {

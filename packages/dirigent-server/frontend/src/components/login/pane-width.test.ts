@@ -1,12 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import {
-    FORM_COLUMN,
-    PANE_MAX,
-    PANE_MIN,
-    clampPaneWidth,
-    paneBounds,
-} from '@/components/login/pane-width'
+import { FORM_COLUMN, PANE_MAX, PANE_MIN, clampPaneWidth, paneBounds } from '@/components/login/pane-width'
 
 describe('the login pane width', () => {
     test('holds a chosen width between the pane bounds', () => {

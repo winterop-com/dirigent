@@ -38,7 +38,7 @@ export function PageState({
     if (loading) {
         return (
             <Card>
-                <CardContent className="text-muted-foreground flex items-center gap-2 py-2 text-sm">
+                <CardContent className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
                     <Loader2 className="size-4 animate-spin" aria-hidden />
                     Reading from the server
                 </CardContent>
@@ -50,14 +50,14 @@ export function PageState({
         return (
             <Card>
                 <CardContent className="flex items-start gap-3 py-8">
-                    <ServerCrash className="text-destructive mt-0.5 size-4 shrink-0" aria-hidden />
+                    <ServerCrash className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden />
                     <div className="space-y-1">
                         <p className="text-sm font-medium">{problem.title}</p>
                         {lines.detail !== null && (
-                            <p className="text-muted-foreground text-xs break-words">{lines.detail}</p>
+                            <p className="text-xs break-words text-muted-foreground">{lines.detail}</p>
                         )}
                         {lines.problems.length > 0 && (
-                            <ul className="text-muted-foreground list-disc space-y-0.5 pl-4 text-xs">
+                            <ul className="list-disc space-y-0.5 pl-4 text-xs text-muted-foreground">
                                 {lines.problems.map((one) => (
                                     <li key={one} className="font-mono break-all">
                                         {one}
@@ -73,7 +73,7 @@ export function PageState({
     if (empty) {
         return (
             <Card>
-                <CardContent className="text-muted-foreground py-2 text-sm">{emptyMessage}</CardContent>
+                <CardContent className="py-2 text-sm text-muted-foreground">{emptyMessage}</CardContent>
             </Card>
         )
     }
@@ -104,7 +104,7 @@ export function PageHeader({
         <div className="mb-6 flex flex-nowrap items-start justify-between gap-4">
             <div className="min-w-0 space-y-1">
                 <h1 className="truncate text-base font-semibold tracking-tight">{title}</h1>
-                {description !== undefined && <p className="text-muted-foreground text-sm">{description}</p>}
+                {description !== undefined && <p className="text-sm text-muted-foreground">{description}</p>}
             </div>
             {(aside !== undefined || actions !== undefined) && (
                 <div className="flex shrink-0 items-center gap-2 pt-1">

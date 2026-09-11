@@ -182,7 +182,9 @@ describe('the type a field takes', () => {
     })
 
     test('names the language of a field the schema published as a program', () => {
-        expect(typeLabel(field({ kind: 'code', mediaType: 'application/jq' }))).toBe('string (application/jq)')
+        expect(typeLabel(field({ kind: 'code', mediaType: 'application/jq' }))).toBe(
+            'string (application/jq)',
+        )
     })
 
     test('reads shell.run the way its schema is written', () => {

@@ -94,7 +94,10 @@ export interface RunWindow {
 }
 
 /** What the two boxes amount to: a window, no window, or why no run can start from them. */
-export type WindowReading = { kind: 'none' } | { kind: 'window'; window: RunWindow } | { kind: 'unready'; why: string }
+export type WindowReading =
+    | { kind: 'none' }
+    | { kind: 'window'; window: RunWindow }
+    | { kind: 'unready'; why: string }
 
 /**
  * Read the two boxes as the window a run would carry.
@@ -116,7 +119,8 @@ export function readWindow(
     const from = windowInstant(start, offsetAt(start))
     const to = windowInstant(end, offsetAt(end))
     if (from === null || to === null) {
-        if (from === null && to === null) return needed ? { kind: 'unready', why: WINDOW_NEEDED } : { kind: 'none' }
+        if (from === null && to === null)
+            return needed ? { kind: 'unready', why: WINDOW_NEEDED } : { kind: 'none' }
         return { kind: 'unready', why: needed ? WINDOW_NEEDED : WINDOW_HALF }
     }
     if (Date.parse(from) >= Date.parse(to)) {

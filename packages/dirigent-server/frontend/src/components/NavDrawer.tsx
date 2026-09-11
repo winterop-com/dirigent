@@ -100,7 +100,7 @@ export function NavDrawer({
                 data-nav-drawer
                 aria-label="Navigation"
                 className={cn(
-                    'bg-sidebar text-sidebar-foreground border-border-strong fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col border-r transition-[translate] duration-200',
+                    'fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col border-r border-border-strong bg-sidebar text-sidebar-foreground transition-[translate] duration-200',
                     open ? 'translate-x-0' : 'invisible -translate-x-full',
                 )}
             >
@@ -108,9 +108,9 @@ export function NavDrawer({
                     <NavLink
                         to={DASHBOARD_PATH}
                         aria-label="dirigent"
-                        className="focus-visible:ring-ring/50 flex items-center gap-2 rounded-md focus-visible:ring-[3px] focus-visible:outline-none"
+                        className="flex items-center gap-2 rounded-md focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
                     >
-                        <span className="bg-primary text-primary-foreground flex size-7 shrink-0 items-center justify-center rounded-md">
+                        <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
                             <Waypoints className="size-4" aria-hidden />
                         </span>
                         <span className="text-base font-semibold tracking-tight">dirigent</span>
@@ -121,17 +121,17 @@ export function NavDrawer({
                         size="icon"
                         aria-label={CLOSE_NAV_LABEL}
                         onClick={onClose}
-                        className="text-muted-foreground ml-auto shrink-0"
+                        className="ml-auto shrink-0 text-muted-foreground"
                     >
                         <X className="size-4" aria-hidden />
                     </Button>
                 </div>
 
-                <div className="border-border-strong min-h-0 flex-1 overflow-y-auto border-t pt-1 pb-2">
+                <div className="min-h-0 flex-1 overflow-y-auto border-t border-border-strong pt-1 pb-2">
                     {sections.map((section) => (
                         <nav key={section.id} className="flex flex-col gap-1 px-2 pb-3">
                             {section.label !== null && (
-                                <p className="text-faint px-2 pt-4 pb-1.5 text-xs font-medium tracking-wide uppercase">
+                                <p className="px-2 pt-4 pb-1.5 text-xs font-medium tracking-wide text-faint uppercase">
                                     {section.label}
                                 </p>
                             )}
@@ -142,14 +142,14 @@ export function NavDrawer({
                     ))}
                 </div>
 
-                <div className="border-border-strong shrink-0 border-t p-2">
+                <div className="shrink-0 border-t border-border-strong p-2">
                     <Button
                         variant="ghost"
                         onClick={() => {
                             onClose()
                             onSettings()
                         }}
-                        className="text-muted-foreground hover:text-foreground w-full justify-start gap-3 px-3"
+                        className="w-full justify-start gap-3 px-3 text-muted-foreground hover:text-foreground"
                     >
                         <Settings className="size-4 shrink-0" aria-hidden />
                         {SETTINGS_LABEL}

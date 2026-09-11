@@ -57,7 +57,13 @@ export const SETTINGS_TITLE = 'Settings'
  * SIGN OUT IS STILL IN THE HEADER. This adds a second way to reach it rather than moving it:
  * somebody who knows where it is should keep finding it there.
  */
-export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+export function SettingsDialog({
+    open,
+    onOpenChange,
+}: {
+    open: boolean
+    onOpenChange: (open: boolean) => void
+}) {
     const apple = applePlatform(navigator.userAgent)
     const [query, setQuery] = useState('')
     const [chosen, setChosen] = useState(FIRST_CATEGORY)
@@ -65,18 +71,20 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
     const rows = useMemo(() => settingsRows(apple), [apple])
     const shown = useMemo(() => filterSettings(rows, query), [query, rows])
     const categories = useMemo(() => categoriesWith(shown), [shown])
-    const active = categories.some((category) => category.id === chosen) ? chosen : (categories[0]?.id ?? null)
+    const active = categories.some((category) => category.id === chosen)
+        ? chosen
+        : (categories[0]?.id ?? null)
     const heading = categories.find((category) => category.id === active) ?? null
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="flex h-[32rem] flex-col gap-0 p-0 sm:max-w-3xl">
-                <DialogHeader className="border-border shrink-0 gap-1 border-b px-4 py-3">
+                <DialogHeader className="shrink-0 gap-1 border-b border-border px-4 py-3">
                     <DialogTitle>{SETTINGS_TITLE}</DialogTitle>
                 </DialogHeader>
 
                 <div className="flex min-h-0 flex-1">
-                    <nav className="bg-sidebar border-border flex w-36 shrink-0 flex-col gap-1 overflow-y-auto border-r p-2 md:w-52">
+                    <nav className="flex w-36 shrink-0 flex-col gap-1 overflow-y-auto border-r border-border bg-sidebar p-2 md:w-52">
                         <Input
                             value={query}
                             aria-label="Search the settings"
@@ -91,7 +99,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                             if (inGroup.length === 0) return null
                             return (
                                 <div key={group.id} className="mb-1">
-                                    <p className="text-faint px-2 py-1 text-xs">{group.label}</p>
+                                    <p className="px-2 py-1 text-xs text-faint">{group.label}</p>
                                     {inGroup.map((category) => (
                                         <button
                                             key={category.id}
@@ -100,7 +108,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
                                             className={cn(
                                                 'block w-full rounded-md px-2 py-1 text-left text-sm',
                                                 category.id === active
-                                                    ? 'bg-primary/15 text-foreground font-medium'
+                                                    ? 'bg-primary/15 font-medium text-foreground'
                                                     : 'text-muted-foreground hover:bg-accent',
                                             )}
                                             onClick={() => {
@@ -117,7 +125,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
 
                     <div className="min-h-0 flex-1 overflow-y-auto p-4">
                         {heading === null ? (
-                            <p className="text-muted-foreground text-sm">Nothing matches that.</p>
+                            <p className="text-sm text-muted-foreground">Nothing matches that.</p>
                         ) : (
                             <>
                                 <h2 className="mb-3 text-sm font-semibold">{heading.label}</h2>
@@ -133,7 +141,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
 
 /** Which pane one category is. Each holds its own reads, so a closed pane reads nothing. */
 function Pane({ category, rows, apple }: { category: string; rows: SettingsRow[]; apple: boolean }) {
-    if (rows.length === 0) return <p className="text-muted-foreground text-sm">Nothing matches that.</p>
+    if (rows.length === 0) return <p className="text-sm text-muted-foreground">Nothing matches that.</p>
     switch (category) {
         case 'general':
             return <GeneralPane rows={rows} />
@@ -156,14 +164,14 @@ function Pane({ category, rows, apple }: { category: string; rows: SettingsRow[]
  */
 function Row({ row, children, under }: { row: SettingsRow; children?: ReactNode; under?: ReactNode }) {
     return (
-        <div className="row-hover border-border -mx-2 border-b px-2 py-3 last:border-b-0">
+        <div className="row-hover -mx-2 border-b border-border px-2 py-3 last:border-b-0">
             {/* Below the breakpoint the control sits under what it is called: a label column
                 and a control column on a 390px screen is two words a line. */}
             <div className="flex flex-col items-start gap-2 md:flex-row md:items-start md:justify-between md:gap-4">
                 <div className="min-w-0 space-y-0.5">
                     <p className="text-sm font-medium">{row.label}</p>
                     {row.description !== undefined && (
-                        <p className="text-muted-foreground text-xs">{row.description}</p>
+                        <p className="text-xs text-muted-foreground">{row.description}</p>
                     )}
                 </div>
                 {children !== undefined && <div className="flex shrink-0 items-center gap-1">{children}</div>}
@@ -258,9 +266,9 @@ function PaletteSwatches({ value, onChoose }: { value: PaletteName; onChoose: (n
                         aria-checked={chosen}
                         tabIndex={index === at ? 0 : -1}
                         className={cn(
-                            'flex min-w-0 max-w-32 flex-1 flex-col gap-1.5 rounded-md border p-1.5 text-left',
-                            'focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-2',
-                            chosen ? 'border-primary ring-primary ring-2' : 'border-border hover:bg-accent',
+                            'flex max-w-32 min-w-0 flex-1 flex-col gap-1.5 rounded-md border p-1.5 text-left',
+                            'focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+                            chosen ? 'border-primary ring-2 ring-primary' : 'border-border hover:bg-accent',
                         )}
                         onClick={() => {
                             onChoose(palette.name)
@@ -276,7 +284,7 @@ function PaletteSwatches({ value, onChoose }: { value: PaletteName; onChoose: (n
                     >
                         <span
                             data-palette={palette.name}
-                            className="border-border flex h-8 overflow-hidden rounded-sm border"
+                            className="flex h-8 overflow-hidden rounded-sm border border-border"
                         >
                             {SWATCH_STRIPS.map((strip) => (
                                 <span key={strip} className={cn('flex-1', strip)} />
@@ -284,7 +292,7 @@ function PaletteSwatches({ value, onChoose }: { value: PaletteName; onChoose: (n
                         </span>
                         <span className="flex items-center gap-1 text-xs">
                             {palette.label}
-                            {chosen && <Check className="text-primary size-3" aria-hidden />}
+                            {chosen && <Check className="size-3 text-primary" aria-hidden />}
                         </span>
                     </button>
                 )
@@ -441,7 +449,7 @@ function ChangePassword({ onDone }: { onDone: () => void }) {
     }
 
     return (
-        <div className="border-border bg-secondary/30 space-y-3 rounded-lg border p-3">
+        <div className="space-y-3 rounded-lg border border-border bg-secondary/30 p-3">
             <div className="flex flex-col gap-3 md:flex-row">
                 <div className="min-w-0 flex-1 space-y-1">
                     <Label htmlFor="password-current">Current password</Label>
@@ -484,13 +492,16 @@ function ChangePassword({ onDone }: { onDone: () => void }) {
 }
 
 function ShortcutsPane({ rows, apple }: { rows: SettingsRow[]; apple: boolean }) {
-    const keys = useMemo(() => new Map(shortcuts(apple).map((one) => [`shortcuts:${one.id}`, one.keys])), [apple])
+    const keys = useMemo(
+        () => new Map(shortcuts(apple).map((one) => [`shortcuts:${one.id}`, one.keys])),
+        [apple],
+    )
     return (
         <div>
             {rows.map((row) => (
                 <div
                     key={row.id}
-                    className="row-hover border-border -mx-2 flex min-h-10 items-center justify-between gap-4 border-b px-2 last:border-b-0"
+                    className="row-hover -mx-2 flex min-h-10 items-center justify-between gap-4 border-b border-border px-2 last:border-b-0"
                 >
                     <p className="min-w-0 text-sm font-medium">{row.label}</p>
                     <KbdGroup>
@@ -500,7 +511,7 @@ function ShortcutsPane({ rows, apple }: { rows: SettingsRow[]; apple: boolean })
                     </KbdGroup>
                 </div>
             ))}
-            <p className="text-faint mt-3 text-xs">Anywhere but inside a text box.</p>
+            <p className="mt-3 text-xs text-faint">Anywhere but inside a text box.</p>
         </div>
     )
 }
@@ -538,7 +549,7 @@ function ServerPane({ rows }: { rows: SettingsRow[] }) {
                             <Dot state={status.state} wide />
                             <span className="text-sm">{TONE[status.state].word}</span>
                             {status.checkedAt !== null && (
-                                <span className="text-faint ml-1 text-xs">
+                                <span className="ml-1 text-xs text-faint">
                                     checked {formatRelative(new Date(status.checkedAt).toISOString())}
                                 </span>
                             )}
@@ -558,7 +569,7 @@ function ServerPane({ rows }: { rows: SettingsRow[] }) {
                 return (
                     <Row key={row.id} row={row}>
                         {value === null ? (
-                            <span className="text-faint text-xs">Reading</span>
+                            <span className="text-xs text-faint">Reading</span>
                         ) : (
                             <span className="font-mono text-xs">{factOf(row.id, value)}</span>
                         )}
@@ -566,7 +577,12 @@ function ServerPane({ rows }: { rows: SettingsRow[] }) {
                 )
             })}
             <p className="mt-3 flex gap-4 text-sm">
-                <a className="text-primary-ink hover:underline" href={DOCS_URL} target="_blank" rel="noreferrer">
+                <a
+                    className="text-primary-ink hover:underline"
+                    href={DOCS_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                >
                     Documentation
                 </a>
                 <a className="text-primary-ink hover:underline" href={API_DOCS_URL}>

@@ -98,7 +98,7 @@ export function StepTab({
 
             <Section title={countedHeading('Attempts', view.attempts.length)}>
                 {view.attempts.length === 0 ? (
-                    <p className="text-muted-foreground text-xs">No attempts.</p>
+                    <p className="text-xs text-muted-foreground">No attempts.</p>
                 ) : (
                     <ul className="space-y-2">
                         {tries.map((attempt) => (
@@ -118,13 +118,13 @@ export function StepTab({
 
             <Section title="Config">
                 {stale && (
-                    <p className="text-muted-foreground text-xs">
+                    <p className="text-xs text-muted-foreground">
                         This run pinned version {configVersion.pinned}; the config below is version{' '}
                         {String(configVersion.shown)}, which is what the pipeline holds now.
                     </p>
                 )}
                 {config === null ? (
-                    <p className="text-muted-foreground text-xs">
+                    <p className="text-xs text-muted-foreground">
                         The pipeline document names no config for this step.
                     </p>
                 ) : (
@@ -153,9 +153,11 @@ function spanFact(span: number | null, whole: number | null): string | null {
  * has produced nothing says so instead of showing an empty box.
  */
 function StepOutput({ step, attempts }: { step: string; attempts: readonly AttemptEvent[] }) {
-    const produced = attempts.toReversed().find((attempt) => attempt.output !== null || attempt.output_uri !== null)
+    const produced = attempts
+        .toReversed()
+        .find((attempt) => attempt.output !== null || attempt.output_uri !== null)
     if (produced === undefined) {
-        return <p className="text-muted-foreground text-xs">No output.</p>
+        return <p className="text-xs text-muted-foreground">No output.</p>
     }
     const reading = outputReading(produced)
     if (reading.uri !== null) {
@@ -167,7 +169,7 @@ function StepOutput({ step, attempts }: { step: string; attempts: readonly Attem
 /** An output that went to storage, said as where it went and how large it is there. */
 function StoredOutput({ uri, bytes, className }: { uri: string; bytes: number | null; className?: string }) {
     return (
-        <p className={cn('text-faint font-mono text-xs', className)} title={uri}>
+        <p className={cn('font-mono text-xs text-faint', className)} title={uri}>
             {shortenUri(uri)} ({formatBytes(bytes)})
         </p>
     )
@@ -187,13 +189,13 @@ function StoredOutput({ uri, bytes, className }: { uri: string; bytes: number | 
 function FanOutOutput({ step, attempts }: { step: string; attempts: readonly AttemptEvent[] }) {
     const items = itemOutputs(attempts)
     if (items.length === 0) {
-        return <p className="text-muted-foreground text-xs">No items.</p>
+        return <p className="text-xs text-muted-foreground">No items.</p>
     }
     return (
         <>
-            <p className="text-muted-foreground text-xs">
-                The step after this one reads these as one list, in item order. An item that did not
-                succeed is not in the list.
+            <p className="text-xs text-muted-foreground">
+                The step after this one reads these as one list, in item order. An item that did not succeed
+                is not in the list.
             </p>
             <ul>
                 {items.map((item) => (
@@ -221,7 +223,7 @@ function ItemOutputRow({ step, item }: { step: string; item: ItemOutput }) {
         return (
             <li className="flex items-baseline gap-2 py-1">
                 <span className="font-mono text-xs">{item.key}</span>
-                <span className="text-muted-foreground text-xs">{absenceNote(item.status)}</span>
+                <span className="text-xs text-muted-foreground">{absenceNote(item.status)}</span>
             </li>
         )
     }
@@ -238,7 +240,7 @@ function ItemOutputRow({ step, item }: { step: string; item: ItemOutput }) {
                 <ChevronRight className={cn('size-3 shrink-0', open && 'rotate-90')} aria-hidden />
                 <span className="truncate font-mono text-xs">{item.key}</span>
                 {reading.bytes !== null && (
-                    <span className="text-faint ml-auto shrink-0 text-xs">{formatBytes(reading.bytes)}</span>
+                    <span className="ml-auto shrink-0 text-xs text-faint">{formatBytes(reading.bytes)}</span>
                 )}
             </button>
             {open &&
@@ -265,33 +267,36 @@ function classOf(attempt: AttemptEvent): string | null {
 function AttemptRow({ attempt }: { attempt: AttemptEvent }) {
     const classified = classOf(attempt)
     return (
-        <li className="status-rail row-hover rounded-r-sm" style={statusTokens(attempt.status) as CSSProperties}>
+        <li
+            className="status-rail row-hover rounded-r-sm"
+            style={statusTokens(attempt.status) as CSSProperties}
+        >
             <div className="flex items-center gap-2">
                 <StatusChip status={attempt.status} />
-                <span className="text-muted-foreground text-xs">
+                <span className="text-xs text-muted-foreground">
                     attempt {attempt.attempt}
                     {attempt.kind === 'manual' && ', asked for'}
                 </span>
-                <span className="text-faint ml-auto text-xs">
+                <span className="ml-auto text-xs text-faint">
                     {formatDuration(elapsedBetween(attempt.started_at, attempt.finished_at))}
                 </span>
             </div>
             {attempt.item !== null && (
-                <p className="text-muted-foreground font-mono text-xs">item {attempt.item}</p>
+                <p className="font-mono text-xs text-muted-foreground">item {attempt.item}</p>
             )}
             {attempt.waiting_message !== null && (
-                <p className="text-muted-foreground text-xs">{attempt.waiting_message}</p>
+                <p className="text-xs text-muted-foreground">{attempt.waiting_message}</p>
             )}
             {attempt.error !== null && (
                 /* The failure is the sentence this row exists for, so it gets a block of its
                    own rather than a red aside squeezed against the chips. */
-                <div className="bg-critical/10 mt-1 rounded-sm px-2 py-1.5">
+                <div className="mt-1 rounded-sm bg-critical/10 px-2 py-1.5">
                     {classified !== null && <KindChip kind={classified} className="mb-1" />}
-                    <p className="text-critical font-mono text-xs break-words">{attempt.error}</p>
+                    <p className="font-mono text-xs break-words text-critical">{attempt.error}</p>
                 </div>
             )}
             {attempt.output_uri !== null && (
-                <p className="text-faint font-mono text-xs" title={attempt.output_uri}>
+                <p className="font-mono text-xs text-faint" title={attempt.output_uri}>
                     {shortenUri(attempt.output_uri)} ({formatBytes(attempt.output_bytes)})
                 </p>
             )}

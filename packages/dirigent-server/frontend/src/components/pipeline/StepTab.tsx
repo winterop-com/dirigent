@@ -98,11 +98,13 @@ export function StepTab({
                     {heading.title}
                 </h2>
                 <p className="flex items-center gap-2">
-                    {heading.code !== null && <span className="text-muted-foreground font-mono text-xs">{heading.code}</span>}
+                    {heading.code !== null && (
+                        <span className="font-mono text-xs text-muted-foreground">{heading.code}</span>
+                    )}
                     <span className="font-mono text-xs">{blockOf(document, step) ?? 'no block'}</span>
                     {block !== null && <KindChip kind={block.kind} />}
                 </p>
-                {block !== null && <p className="text-muted-foreground text-xs">{block.summary}</p>}
+                {block !== null && <p className="text-xs text-muted-foreground">{block.summary}</p>}
             </div>
 
             <div className="space-y-1.5">
@@ -117,24 +119,24 @@ export function StepTab({
                     }}
                     placeholder="What to call this step on screen"
                 />
-                <p className="text-faint text-xs">
+                <p className="text-xs text-faint">
                     Display only. Every reference to this step is by its key, {step}.
                 </p>
             </div>
 
             {disabled !== undefined && (
-                <p className="border-warning/40 text-warning rounded-md border p-2 text-xs">{disabled}</p>
+                <p className="rounded-md border border-warning/40 p-2 text-xs text-warning">{disabled}</p>
             )}
 
             <Section title="Waits for">
                 <div className="flex flex-wrap items-center gap-1.5">
                     {prerequisites.length === 0 && (
-                        <span className="text-muted-foreground text-xs">nothing; this step is a root</span>
+                        <span className="text-xs text-muted-foreground">nothing; this step is a root</span>
                     )}
                     {prerequisites.map((name) => (
                         <span
                             key={name}
-                            className="border-border bg-secondary flex items-center gap-1 rounded-sm border px-1.5 py-0.5 text-xs"
+                            className="flex items-center gap-1 rounded-sm border border-border bg-secondary px-1.5 py-0.5 text-xs"
                         >
                             {name}
                             <Button
@@ -185,7 +187,7 @@ export function StepTab({
                         changeDocument((current) => withStepKey(current, step, name, value))
                     }}
                 />
-                <div className="border-border space-y-4 border-l pl-3">
+                <div className="space-y-4 border-l border-border pl-3">
                     <p className="font-mono text-sm font-medium">retry</p>
                     <SchemaForm
                         key={`retry-${step}`}
@@ -202,9 +204,9 @@ export function StepTab({
 
             <Section title="Config">
                 {blockProblem !== null ? (
-                    <p className="text-critical text-xs">{blockProblem.detail}</p>
+                    <p className="text-xs text-critical">{blockProblem.detail}</p>
                 ) : block === null ? (
-                    <p className="text-muted-foreground text-xs">Reading this block's schema.</p>
+                    <p className="text-xs text-muted-foreground">Reading this block's schema.</p>
                 ) : (
                     <SchemaForm
                         // Choosing another step is another form, not the same one with new
@@ -225,9 +227,9 @@ export function StepTab({
             </Section>
 
             {refusals.length > 0 && (
-                <div className="border-critical/40 space-y-1 rounded-md border p-2" role="alert">
-                    <p className="text-critical text-xs font-medium">This step will be refused at apply.</p>
-                    <ul className="text-muted-foreground list-disc space-y-0.5 pl-4 text-xs">
+                <div className="space-y-1 rounded-md border border-critical/40 p-2" role="alert">
+                    <p className="text-xs font-medium text-critical">This step will be refused at apply.</p>
+                    <ul className="list-disc space-y-0.5 pl-4 text-xs text-muted-foreground">
                         {refusals.map(([name, message]) => (
                             <li key={name}>{message}</li>
                         ))}

@@ -98,112 +98,116 @@ export function Rail() {
 
     return (
         <>
-        <aside
-            ref={aside}
-            className={cn(
-                'bg-sidebar text-sidebar-foreground border-border-strong relative hidden shrink-0 flex-col overflow-hidden border-r md:flex',
-                !dragging && 'transition-[width] duration-200',
-            )}
-            style={{ width: collapsed ? RAIL_COLLAPSED_WIDTH : width }}
-        >
-            {/* COLLAPSED, THE MARK IS THE TOGGLE. There is no room beside a 28px mark in a
+            <aside
+                ref={aside}
+                className={cn(
+                    'relative hidden shrink-0 flex-col overflow-hidden border-r border-border-strong bg-sidebar text-sidebar-foreground md:flex',
+                    !dragging && 'transition-[width] duration-200',
+                )}
+                style={{ width: collapsed ? RAIL_COLLAPSED_WIDTH : width }}
+            >
+                {/* COLLAPSED, THE MARK IS THE TOGGLE. There is no room beside a 28px mark in a
                 56px strip that does not read as a cram, so the mark itself expands the rail,
                 showing the expand glyph under the hand -- and loses nothing as a link, because
                 Home is the first entry right below it. Expanded, the mark is the home link and
                 the collapse control sits beside the wordmark, where it always was. */}
-            <div
-                data-shell-strip="top"
-                className={cn(
-                    'flex h-shell-top shrink-0 items-center gap-2 px-3',
-                    collapsed && 'justify-center px-0',
-                )}
-            >
-                {collapsed ? (
-                    <Tooltip>
-                        <TooltipTrigger
-                            render={
-                                <button
-                                    type="button"
-                                    onClick={toggleRail}
-                                    aria-label={EXPAND_LABEL}
-                                    className="focus-visible:ring-ring/50 group/mark bg-primary text-primary-foreground flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md focus-visible:ring-[3px] focus-visible:outline-none"
-                                >
-                                    <Waypoints className="size-4 group-hover/mark:hidden" aria-hidden />
-                                    <PanelLeftOpen className="hidden size-4 group-hover/mark:block" aria-hidden />
-                                </button>
-                            }
-                        />
-                        <TooltipContent side="right">{EXPAND_LABEL}</TooltipContent>
-                    </Tooltip>
-                ) : (
-                    <>
-                        <NavLink
-                            to={DASHBOARD_PATH}
-                            aria-label="dirigent"
-                            className="focus-visible:ring-ring/50 flex items-center gap-2 rounded-md focus-visible:ring-[3px] focus-visible:outline-none"
-                        >
-                            <span className="bg-primary text-primary-foreground flex size-7 shrink-0 items-center justify-center rounded-md">
-                                <Waypoints className="size-4" aria-hidden />
-                            </span>
-                            <span className="text-base font-semibold tracking-tight">dirigent</span>
-                        </NavLink>
+                <div
+                    data-shell-strip="top"
+                    className={cn(
+                        'flex h-shell-top shrink-0 items-center gap-2 px-3',
+                        collapsed && 'justify-center px-0',
+                    )}
+                >
+                    {collapsed ? (
                         <Tooltip>
                             <TooltipTrigger
                                 render={
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
+                                    <button
+                                        type="button"
                                         onClick={toggleRail}
-                                        aria-label={COLLAPSE_LABEL}
-                                        className="text-muted-foreground ml-auto shrink-0"
+                                        aria-label={EXPAND_LABEL}
+                                        className="group/mark flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md bg-primary text-primary-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
                                     >
-                                        <PanelLeftClose className="size-4" aria-hidden />
-                                    </Button>
+                                        <Waypoints className="size-4 group-hover/mark:hidden" aria-hidden />
+                                        <PanelLeftOpen
+                                            className="hidden size-4 group-hover/mark:block"
+                                            aria-hidden
+                                        />
+                                    </button>
                                 }
                             />
-                            <TooltipContent side="right">{COLLAPSE_LABEL}</TooltipContent>
+                            <TooltipContent side="right">{EXPAND_LABEL}</TooltipContent>
                         </Tooltip>
-                    </>
-                )}
-            </div>
+                    ) : (
+                        <>
+                            <NavLink
+                                to={DASHBOARD_PATH}
+                                aria-label="dirigent"
+                                className="flex items-center gap-2 rounded-md focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                            >
+                                <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
+                                    <Waypoints className="size-4" aria-hidden />
+                                </span>
+                                <span className="text-base font-semibold tracking-tight">dirigent</span>
+                            </NavLink>
+                            <Tooltip>
+                                <TooltipTrigger
+                                    render={
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={toggleRail}
+                                            aria-label={COLLAPSE_LABEL}
+                                            className="ml-auto shrink-0 text-muted-foreground"
+                                        >
+                                            <PanelLeftClose className="size-4" aria-hidden />
+                                        </Button>
+                                    }
+                                />
+                                <TooltipContent side="right">{COLLAPSE_LABEL}</TooltipContent>
+                            </Tooltip>
+                        </>
+                    )}
+                </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto pt-1 pb-2">
-                {sections.map((section) => (
-                    <nav key={section.id} className="flex flex-col gap-1 px-2 pb-3">
-                        {section.label !== null && !collapsed && (
-                            <p className="text-faint px-2 pt-4 pb-1.5 text-xs font-medium tracking-wide uppercase">
-                                {section.label}
-                            </p>
-                        )}
-                        {section.label !== null && collapsed && <div className="border-border mx-2 my-2 border-t" />}
-                        {section.entries.map((entry) => (
-                            <RailEntry key={entry.path} entry={entry} collapsed={collapsed} />
-                        ))}
-                    </nav>
-                ))}
-            </div>
-
-        </aside>
-        {(
-            <div
-                role="separator"
-                aria-orientation="vertical"
-                aria-label={collapsed ? EXPAND_LABEL : RESIZE_RAIL_LABEL}
-                aria-valuenow={collapsed ? RAIL_COLLAPSED_WIDTH : width}
-                aria-valuemin={RAIL_MIN_WIDTH}
-                aria-valuemax={RAIL_MAX_WIDTH}
-                tabIndex={0}
-                data-dragging={dragging}
-                onPointerDown={collapsed ? wake : beginResize}
-                onKeyDown={(event) => {
-                    if (event.key === 'ArrowRight') setRailWidth(width + KEYBOARD_STEP)
-                    else if (event.key === 'ArrowLeft') setRailWidth(width - KEYBOARD_STEP)
-                    else return
-                    event.preventDefault()
-                }}
-                className="resize-handle z-10 hidden w-1.5 shrink-0 cursor-col-resize touch-none md:block"
-            />
-        )}
+                <div className="min-h-0 flex-1 overflow-y-auto pt-1 pb-2">
+                    {sections.map((section) => (
+                        <nav key={section.id} className="flex flex-col gap-1 px-2 pb-3">
+                            {section.label !== null && !collapsed && (
+                                <p className="px-2 pt-4 pb-1.5 text-xs font-medium tracking-wide text-faint uppercase">
+                                    {section.label}
+                                </p>
+                            )}
+                            {section.label !== null && collapsed && (
+                                <div className="mx-2 my-2 border-t border-border" />
+                            )}
+                            {section.entries.map((entry) => (
+                                <RailEntry key={entry.path} entry={entry} collapsed={collapsed} />
+                            ))}
+                        </nav>
+                    ))}
+                </div>
+            </aside>
+            {
+                <div
+                    role="separator"
+                    aria-orientation="vertical"
+                    aria-label={collapsed ? EXPAND_LABEL : RESIZE_RAIL_LABEL}
+                    aria-valuenow={collapsed ? RAIL_COLLAPSED_WIDTH : width}
+                    aria-valuemin={RAIL_MIN_WIDTH}
+                    aria-valuemax={RAIL_MAX_WIDTH}
+                    tabIndex={0}
+                    data-dragging={dragging}
+                    onPointerDown={collapsed ? wake : beginResize}
+                    onKeyDown={(event) => {
+                        if (event.key === 'ArrowRight') setRailWidth(width + KEYBOARD_STEP)
+                        else if (event.key === 'ArrowLeft') setRailWidth(width - KEYBOARD_STEP)
+                        else return
+                        event.preventDefault()
+                    }}
+                    className="resize-handle z-10 hidden w-1.5 shrink-0 cursor-col-resize touch-none md:block"
+                />
+            }
         </>
     )
 }
@@ -217,11 +221,11 @@ export function RailEntry({ entry, collapsed }: { entry: NavEntry; collapsed: bo
             aria-label={entry.label}
             className={({ isActive }) =>
                 cn(
-                    'flex items-center gap-3 rounded-r-md rounded-l-sm border-l-2 px-3 py-2 text-sm transition-colors',
+                    'flex items-center gap-3 rounded-l-sm rounded-r-md border-l-2 px-3 py-2 text-sm transition-colors',
                     collapsed && 'mx-auto size-9 justify-center rounded-md border-l-0 p-0',
                     isActive
-                        ? 'border-sidebar-primary bg-sidebar-accent text-sidebar-accent-foreground font-medium'
-                        : 'text-muted-foreground hover:bg-secondary hover:text-foreground border-transparent',
+                        ? 'border-sidebar-primary bg-sidebar-accent font-medium text-sidebar-accent-foreground'
+                        : 'border-transparent text-muted-foreground hover:bg-secondary hover:text-foreground',
                 )
             }
         >

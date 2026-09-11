@@ -83,7 +83,10 @@ export function browserZone(): string {
  * and an offset is the thing somebody is checking the zone for.
  */
 export function zoneOffset(zone: string, at: Date = new Date()): string {
-    const parts = new Intl.DateTimeFormat('en-GB', { timeZone: zone, timeZoneName: 'shortOffset' }).formatToParts(at)
+    const parts = new Intl.DateTimeFormat('en-GB', {
+        timeZone: zone,
+        timeZoneName: 'shortOffset',
+    }).formatToParts(at)
     const named = parts.find((part) => part.type === 'timeZoneName')?.value ?? 'GMT'
     const offset = named.replace('GMT', 'UTC')
     return offset === 'UTC' ? 'UTC+0' : offset

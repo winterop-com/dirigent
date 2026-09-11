@@ -113,12 +113,23 @@ function blockOf(token: Token): Block[] {
         }
         case 'list': {
             const list = token as Tokens.List
-            return [{ kind: 'list', ordered: list.ordered, items: list.items.map((item) => inlinesOf(item.tokens)) }]
+            return [
+                {
+                    kind: 'list',
+                    ordered: list.ordered,
+                    items: list.items.map((item) => inlinesOf(item.tokens)),
+                },
+            ]
         }
         case 'paragraph':
         case 'text': {
             const carried = (token as Tokens.Paragraph).tokens
-            return [{ kind: 'paragraph', children: carried === undefined ? [words(token.raw)] : inlinesOf(carried) }]
+            return [
+                {
+                    kind: 'paragraph',
+                    children: carried === undefined ? [words(token.raw)] : inlinesOf(carried),
+                },
+            ]
         }
         default:
             // Raw markup, and anything a later marked learns to lex: its own source, as words.

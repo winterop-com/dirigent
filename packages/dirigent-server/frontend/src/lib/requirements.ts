@@ -138,7 +138,8 @@ export function requiredPipelines(document: JsonMap | null): string[] {
 
 function mapAt(value: JsonMap | null, key: string): JsonMap | null {
     const found = value?.[key]
-    if (found === null || found === undefined || typeof found !== 'object' || Array.isArray(found)) return null
+    if (found === null || found === undefined || typeof found !== 'object' || Array.isArray(found))
+        return null
     return found as JsonMap
 }
 

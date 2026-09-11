@@ -75,7 +75,9 @@ describe('what a plan says', () => {
 describe('what a diff amounts to', () => {
     test('is a line per kind of change, naming the steps in each', () => {
         expect(
-            changesIn(diff({ steps_added: ['as_csv'], steps_changed: ['parse', 'report'], params_changed: true })),
+            changesIn(
+                diff({ steps_added: ['as_csv'], steps_changed: ['parse', 'report'], params_changed: true }),
+            ),
         ).toEqual(['steps added: as_csv', 'steps changed: parse, report', 'the parameter schema changed'])
     })
 
@@ -119,17 +121,18 @@ describe('what an apply did', () => {
     })
 
     test('lists what it did to the triggers, and nothing when it left them alone', () => {
-        expect(triggerChanges(materialized({ schedules_created: ['nightly'], webhooks_removed: ['intake'] }))).toEqual([
-            'schedules created: nightly',
-            'webhooks removed: intake',
-        ])
+        expect(
+            triggerChanges(materialized({ schedules_created: ['nightly'], webhooks_removed: ['intake'] })),
+        ).toEqual(['schedules created: nightly', 'webhooks removed: intake'])
         expect(triggerChanges(materialized())).toEqual([])
     })
 })
 
 describe('what the status bar says about a validation', () => {
     test('counts the issues and says what they mean for an apply', () => {
-        expect(issuesNote([{ location: 'steps.push', message: 'no such block' }])).toBe('1 issue — apply will refuse')
+        expect(issuesNote([{ location: 'steps.push', message: 'no such block' }])).toBe(
+            '1 issue — apply will refuse',
+        )
         expect(
             issuesNote([
                 { location: 'steps.push', message: 'no such block' },

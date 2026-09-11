@@ -132,7 +132,11 @@ describe('the channels an alert can leave by', () => {
     test('a notifier is one channel per connection of its own kind', () => {
         const channels = channelsOf(
             ['slack'],
-            [aConnection({ code: 'ops-slack' }), aConnection({ id: 'c2', code: 'dev-slack' }), aConnection({ id: 'c3', code: 'ops-mail', kind: 'email' })],
+            [
+                aConnection({ code: 'ops-slack' }),
+                aConnection({ id: 'c2', code: 'dev-slack' }),
+                aConnection({ id: 'c3', code: 'ops-mail', kind: 'email' }),
+            ],
         )
         expect(channels.map((one) => one.connection)).toEqual(['ops-slack', 'dev-slack'])
     })
@@ -169,7 +173,13 @@ describe('the channels an alert can leave by', () => {
     test('a channel whose last check passed reads as checked', () => {
         const [channel] = channelsOf(
             ['slack'],
-            [aConnection({ last_check_at: '2026-01-01T00:00:00Z', last_check_healthy: true, last_check_detail: 'ok' })],
+            [
+                aConnection({
+                    last_check_at: '2026-01-01T00:00:00Z',
+                    last_check_healthy: true,
+                    last_check_detail: 'ok',
+                }),
+            ],
         )
         expect(channelView(channel)).toMatchObject({ tone: 'good', label: 'checked' })
     })

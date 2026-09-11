@@ -8,7 +8,7 @@ export function Fact({ term, detail }: { term: string; detail: ReactNode }) {
     return (
         <>
             <dt className="text-faint">{term}</dt>
-            <dd className="text-foreground break-words">{detail}</dd>
+            <dd className="break-words text-foreground">{detail}</dd>
         </>
     )
 }
@@ -17,7 +17,7 @@ export function Fact({ term, detail }: { term: string; detail: ReactNode }) {
 export function Section({ title, children }: { title: string; children: ReactNode }) {
     return (
         <section className="space-y-2">
-            <h2 className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">{title}</h2>
+            <h2 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">{title}</h2>
             {children}
         </section>
     )

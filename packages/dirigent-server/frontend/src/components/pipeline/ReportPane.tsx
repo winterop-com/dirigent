@@ -58,7 +58,7 @@ export function ReportPane({
 
     if (document === null) {
         return (
-            <p className="text-muted-foreground p-4 text-sm">
+            <p className="p-4 text-sm text-muted-foreground">
                 This pipeline has no version, so there is no document to read.
             </p>
         )
@@ -78,7 +78,7 @@ export function ReportPane({
                         onChange(chosen, held.current)
                     }}
                 />
-                <p className="text-muted-foreground text-xs">
+                <p className="text-xs text-muted-foreground">
                     {choice === 'none' ? (
                         'A run of this pipeline writes no report document.'
                     ) : (
@@ -100,13 +100,13 @@ export function ReportPane({
             </div>
 
             {disabled !== undefined && (
-                <p className="border-warning/40 text-warning rounded-md border p-2 text-xs">{disabled}</p>
+                <p className="rounded-md border border-warning/40 p-2 text-xs text-warning">{disabled}</p>
             )}
 
             {choice === 'own' && (
                 <WindowedPane
                     name={TEMPLATE_LABEL}
-                    className="border-border overflow-hidden rounded-md border"
+                    className="overflow-hidden rounded-md border border-border"
                     windowed={
                         <CodePane
                             value={section.template ?? ''}

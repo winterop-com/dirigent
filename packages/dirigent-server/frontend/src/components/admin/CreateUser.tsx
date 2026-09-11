@@ -142,7 +142,7 @@ export function CreateUser({
                             <input
                                 type="radio"
                                 name="new-role"
-                                className="accent-primary mt-1"
+                                className="mt-1 accent-primary"
                                 checked={form.role === role}
                                 onChange={() => {
                                     setForm((current) => ({ ...current, role }))
@@ -150,7 +150,9 @@ export function CreateUser({
                             />
                             <span>
                                 {role}
-                                <span className="text-muted-foreground block text-xs">{ROLE_HINTS[role]}</span>
+                                <span className="block text-xs text-muted-foreground">
+                                    {ROLE_HINTS[role]}
+                                </span>
                             </span>
                         </label>
                     ))}
@@ -160,7 +162,10 @@ export function CreateUser({
 
                 <DialogFooter>
                     <DialogClose render={<Button variant="ghost" />}>Cancel</DialogClose>
-                    <Button disabled={busy || form.username.trim() === '' || form.password === ''} onClick={send}>
+                    <Button
+                        disabled={busy || form.username.trim() === '' || form.password === ''}
+                        onClick={send}
+                    >
                         Create
                     </Button>
                 </DialogFooter>

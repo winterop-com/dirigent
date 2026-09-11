@@ -10,7 +10,13 @@ export const SHORTCUTS_TITLE = 'Keyboard shortcuts'
  * A shortcut nobody has been told about is a shortcut nobody has, so the list is reachable by
  * the `?` key and offered as a palette row as well.
  */
-export function ShortcutsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+export function ShortcutsDialog({
+    open,
+    onOpenChange,
+}: {
+    open: boolean
+    onOpenChange: (open: boolean) => void
+}) {
     const rows = shortcuts(applePlatform(navigator.userAgent))
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>

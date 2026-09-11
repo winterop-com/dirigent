@@ -172,14 +172,31 @@ describe('the subset a description is read as', () => {
         expect(blocks).toEqual([
             {
                 kind: 'paragraph',
-                children: [{ kind: 'link', href: 'https://example.test/docs', children: [{ kind: 'text', text: 'the docs' }] }],
+                children: [
+                    {
+                        kind: 'link',
+                        href: 'https://example.test/docs',
+                        children: [{ kind: 'text', text: 'the docs' }],
+                    },
+                ],
             },
         ])
     })
 
     test('emphasis, strong and inline code are their own runs', () => {
         const blocks = readMarkdown('A **bold** and _quiet_ and `literal`.')
-        expect(kindsIn(blocks)).toEqual(['paragraph', 'text', 'strong', 'text', 'text', 'emphasis', 'text', 'text', 'code', 'text'])
+        expect(kindsIn(blocks)).toEqual([
+            'paragraph',
+            'text',
+            'strong',
+            'text',
+            'text',
+            'emphasis',
+            'text',
+            'text',
+            'code',
+            'text',
+        ])
     })
 
     test('a heading carries the level it was written at', () => {
@@ -207,7 +224,10 @@ describe('the subset a description is read as', () => {
 
     test('a blockquote holds blocks of its own', () => {
         expect(readMarkdown('> mind this')).toEqual([
-            { kind: 'quote', children: [{ kind: 'paragraph', children: [{ kind: 'text', text: 'mind this' }] }] },
+            {
+                kind: 'quote',
+                children: [{ kind: 'paragraph', children: [{ kind: 'text', text: 'mind this' }] }],
+            },
         ])
     })
 
@@ -223,23 +243,18 @@ describe('the subset a description is read as', () => {
     })
 
     test('a column says how it is set, and a cell holds runs like any other block', () => {
-        const blocks = readMarkdown('| left | middle | right |\n| :--- | :----: | ----: |\n| a | `b` | **c** |')
+        const blocks = readMarkdown(
+            '| left | middle | right |\n| :--- | :----: | ----: |\n| a | `b` | **c** |',
+        )
 
         expect(blocks[0]).toMatchObject({ kind: 'table', align: ['left', 'center', 'right'] })
-        expect(kindsIn(blocks)).toEqual([
-            'table',
-            'text',
-            'text',
-            'text',
-            'text',
-            'code',
-            'strong',
-            'text',
-        ])
+        expect(kindsIn(blocks)).toEqual(['table', 'text', 'text', 'text', 'text', 'code', 'strong', 'text'])
     })
 
     test('a table between two paragraphs leaves both of them alone', () => {
-        const blocks = readMarkdown('What it holds.\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\nAnd what it does not.')
+        const blocks = readMarkdown(
+            'What it holds.\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\nAnd what it does not.',
+        )
 
         expect(blocks.map((block) => block.kind)).toEqual(['paragraph', 'table', 'paragraph'])
         expect(textIn(blocks)).toBe('What it holds.\na | b\n1 | 2\nAnd what it does not.')

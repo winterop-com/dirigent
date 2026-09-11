@@ -122,7 +122,10 @@ export function forgetConfig(): void {
 }
 
 async function readConfig(): Promise<AppConfig> {
-    const response = await fetch(CONFIG_PATH, { credentials: 'same-origin', headers: { accept: 'application/json' } })
+    const response = await fetch(CONFIG_PATH, {
+        credentials: 'same-origin',
+        headers: { accept: 'application/json' },
+    })
     const body: unknown = await response.json().catch(() => null)
     if (!response.ok) throw new ApiError(problemOf(response.status, body, CONFIG_PATH))
     const candidate = body as Record<string, unknown> | null

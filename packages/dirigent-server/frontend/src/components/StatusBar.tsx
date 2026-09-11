@@ -49,12 +49,12 @@ export function StatusBar({ onSettings }: { onSettings: () => void }) {
     return (
         <footer
             data-shell-strip="foot"
-            className="bg-sidebar border-border-strong flex h-shell-foot shrink-0 items-stretch border-t"
+            className="flex h-shell-foot shrink-0 items-stretch border-t border-border-strong bg-sidebar"
         >
             <div
                 data-shell-cell="settings"
                 className={cn(
-                    'border-border-strong hidden shrink-0 items-stretch border-r md:flex',
+                    'hidden shrink-0 items-stretch border-r border-border-strong md:flex',
                     // The cell is the rail's width, so it moves the way the rail moves: the
                     // collapse animates, and a drag is followed raw.
                     !dragging && 'transition-[width] duration-200',
@@ -70,7 +70,7 @@ export function StatusBar({ onSettings }: { onSettings: () => void }) {
                                 onClick={onSettings}
                                 aria-label={SETTINGS_LABEL}
                                 className={cn(
-                                    'text-muted-foreground hover:text-foreground h-full w-full rounded-none text-xs',
+                                    'h-full w-full rounded-none text-xs text-muted-foreground hover:text-foreground',
                                     collapsed ? 'justify-center p-0' : 'justify-start gap-3 px-4',
                                 )}
                             >
@@ -85,7 +85,7 @@ export function StatusBar({ onSettings }: { onSettings: () => void }) {
 
             <div data-shell-cell="status" className="flex min-w-0 flex-1 items-center gap-3 px-3">
                 {auth.identity !== null && (
-                    <span className="text-muted-foreground font-mono text-xs">{auth.identity.username}</span>
+                    <span className="font-mono text-xs text-muted-foreground">{auth.identity.username}</span>
                 )}
                 {status.note !== null && (
                     <span className={cn('truncate text-xs', TONE[status.tone])}>{status.note}</span>

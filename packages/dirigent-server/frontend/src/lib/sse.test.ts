@@ -96,7 +96,9 @@ describe('reading a byte stream', () => {
     })
 
     test('delivers several frames from one chunk, in order', async () => {
-        const seen = await collect(['event: attempt\ndata: a\n\nevent: log\ndata: b\n\nevent: end\ndata: {}\n\n'])
+        const seen = await collect([
+            'event: attempt\ndata: a\n\nevent: log\ndata: b\n\nevent: end\ndata: {}\n\n',
+        ])
         expect(seen.map((frame) => frame.event)).toEqual(['attempt', 'log', 'end'])
     })
 

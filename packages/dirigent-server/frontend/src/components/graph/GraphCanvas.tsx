@@ -13,7 +13,14 @@ import {
 import { Maximize2, ZoomIn, ZoomOut } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 
-import { fittedZoom, fitOptionsFor, MAX_ZOOM, MIN_ZOOM, steppedZoom, viewportSignature } from '@/lib/dag-layout'
+import {
+    fittedZoom,
+    fitOptionsFor,
+    MAX_ZOOM,
+    MIN_ZOOM,
+    steppedZoom,
+    viewportSignature,
+} from '@/lib/dag-layout'
 
 /**
  * The canvas both graph screens draw on.
