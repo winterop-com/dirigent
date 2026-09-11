@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { MarkdownLine } from '@/components/Markdown'
 import { CodePane } from '@/components/pipeline/CodePane'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -12,12 +13,15 @@ import type { JsonMap } from '@/lib/api'
 import {
     effectiveValue,
     fallbackText,
+    foldLabel,
     inputText,
     optionToken,
     parseInput,
+    partition,
     sameJson,
     type FieldDescriptor,
 } from '@/lib/schema-form'
+import { cn } from '@/lib/utils'
 
 /**
  * A form generated from a JSON Schema.
@@ -45,6 +49,13 @@ import {
  * default, so a switch over `default: true` starts on rather than showing off while the server
  * fills in true; touching it writes the value it then shows.
  *
+ * WHAT IS NEEDED IS IN FRONT, AND THE REST IS A LINK. Under `fold`, the fields the schema requires
+ * and the optional ones the document already sets are drawn -- required in body ink with its
+ * marker, optional in muted -- and the optional keys nothing has answered sit behind one link
+ * that opens them in place. The split is read from the values this form opened with, so a key
+ * being filled in now does not jump over the fold under the hands typing it; choosing another
+ * step is another form, and it opens folded again.
+ *
  * THE TEXT IN A BOX IS THE BOX'S UNTIL IT PARSES. A control that re-read its value from the
  * document on every keystroke could not be typed a decimal point or a half-written JSON list
  * into, so each holds its own text and writes to the document only when what was typed is a
@@ -57,6 +68,7 @@ export function SchemaForm({
     problems,
     stated,
     disabled,
+    fold,
     onChange,
     onTouch,
     onUnreadable,
@@ -70,36 +82,63 @@ export function SchemaForm({
     stated?: ReadonlySet<string>
     /** Why nothing may be edited, or nothing when it may. */
     disabled?: string
+    /** Whether the optional fields nothing has answered sit behind a link. */
+    fold?: boolean
     onChange: (name: string, value: unknown) => void
     /** Called when a field is left, which is what earns it the right to be told off. */
     onTouch?: (name: string) => void
     /** Called with why a field's text is not a value, or null once it is one again. */
     onUnreadable?: (name: string, message: string | null) => void
 }) {
+    // The values this form opened with, which is what the split is read from.
+    const [opened] = useState(values)
+    const { open, folded } = useMemo(
+        () => (fold === true ? partition(fields, opened) : { open: fields, folded: [] }),
+        [fold, fields, opened],
+    )
+    const [expanded, setExpanded] = useState(false)
+
     if (fields.length === 0) {
         return <p className="text-sm text-muted-foreground">This takes no configuration.</p>
     }
+
+    const draw = (field: FieldDescriptor) => (
+        <Field
+            key={field.name}
+            field={field}
+            value={values[field.name]}
+            problem={problems[field.name] ?? null}
+            stated={stated === undefined || stated.has(field.name)}
+            disabled={disabled}
+            onChange={(value) => {
+                onChange(field.name, value)
+            }}
+            onTouch={() => {
+                onTouch?.(field.name)
+            }}
+            onUnreadable={(message) => {
+                onUnreadable?.(field.name, message)
+            }}
+        />
+    )
+
     return (
         <div className="flex flex-col gap-4">
-            {fields.map((field) => (
-                <Field
-                    key={field.name}
-                    field={field}
-                    value={values[field.name]}
-                    problem={problems[field.name] ?? null}
-                    stated={stated === undefined || stated.has(field.name)}
-                    disabled={disabled}
-                    onChange={(value) => {
-                        onChange(field.name, value)
-                    }}
-                    onTouch={() => {
-                        onTouch?.(field.name)
-                    }}
-                    onUnreadable={(message) => {
-                        onUnreadable?.(field.name, message)
-                    }}
-                />
-            ))}
+            {open.map(draw)}
+            {folded.length > 0 &&
+                (expanded ? (
+                    folded.map(draw)
+                ) : (
+                    <Button
+                        variant="link"
+                        className="w-fit px-0 text-primary-ink"
+                        onClick={() => {
+                            setExpanded(true)
+                        }}
+                    >
+                        {foldLabel(folded.length)}
+                    </Button>
+                ))}
         </div>
     )
 }
@@ -147,7 +186,10 @@ function Field({
             <div className="flex flex-wrap items-baseline gap-x-2">
                 <Label
                     htmlFor={field.kind === 'code' || field.kind === 'json' ? undefined : id}
-                    className="font-mono text-sm font-medium"
+                    className={cn(
+                        'font-mono text-sm font-medium',
+                        field.required ? 'text-foreground' : 'text-muted-foreground',
+                    )}
                 >
                     {field.name}
                 </Label>

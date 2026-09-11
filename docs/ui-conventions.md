@@ -577,6 +577,15 @@ field the document cannot run without would have the server refuse what the form
 for; one that opened every optional section would make every dialog the longest form it could ever
 be.
 
+**A form opens on what the document needs.** A block such as `docker.run` publishes twenty config
+keys and a step takes two of them, so the step form draws the keys the schema requires and the
+optional ones the step already sets -- required in body ink with its marker beside it, optional in
+muted ink -- and the optional keys nothing has answered sit behind one plain link reading `N more
+fields`, which opens them in place. The split is `partition` in `lib/schema-form` and it is read
+from the values the form opened with, so a key being filled in does not jump over the fold under
+the hands typing it; it is above the fold the next time that step is chosen, because choosing
+another step is another form.
+
 **The refusal here is the client's half.** A field is checked against its own schema so a form can
 say what is wrong before it asks. Whether a document applies -- its graph, its references, the
 blocks it names -- is the server's, and the editor's Validate and Apply are the same dry run

@@ -5,9 +5,11 @@ import {
     effectiveValue,
     fallbackText,
     fieldsOf,
+    foldLabel,
     inputText,
     maySubmit,
     parseInput,
+    partition,
     validateField,
     sameJson,
     validateFields,
@@ -589,5 +591,58 @@ describe('whether what is on a form may be sent', () => {
         const held = withUnreadable(nothing, 'headers', 'that is not JSON')
         expect(withUnreadable(held, 'headers', 'that is not JSON either')).toBe(held)
         expect(withUnreadable(nothing, 'headers', null)).toBe(nothing)
+    })
+})
+
+describe('what a form opens with and what it folds', () => {
+    // A block the shape `docker.run` is: one required key, and a long tail of optional ones.
+    const fields = fieldsOf(
+        schemaOf(
+            {
+                image: { type: 'string' },
+                command: { type: 'array', items: { type: 'string' } },
+                workdir: { type: 'string' },
+                network: { type: 'string' },
+                pull: { type: 'boolean', default: true },
+            },
+            ['image'],
+        ),
+    )
+    const names = (list: FieldDescriptor[]) => list.map((one) => one.name)
+
+    test('a required field is open however empty the document is', () => {
+        const { open, folded } = partition(fields, {})
+        expect(names(open)).toEqual(['image'])
+        expect(names(folded)).toEqual(['command', 'workdir', 'network', 'pull'])
+    })
+
+    test('an optional field the document sets counts as open', () => {
+        const { open, folded } = partition(fields, { image: 'alpine', network: 'host' })
+        expect(names(open)).toEqual(['image', 'network'])
+        expect(names(folded)).toEqual(['command', 'workdir', 'pull'])
+    })
+
+    test('required comes first, and the set optional keys follow in schema order', () => {
+        const { open } = partition(fields, { pull: false, workdir: '/srv' })
+        expect(names(open)).toEqual(['image', 'workdir', 'pull'])
+    })
+
+    test('a key written false is a decision somebody made, so it is open', () => {
+        expect(names(partition(fields, { pull: false }).open)).toEqual(['image', 'pull'])
+    })
+
+    test('a key the document carries as null is set, and is open', () => {
+        expect(names(partition(fields, { network: null }).open)).toEqual(['image', 'network'])
+    })
+
+    test('a schema that requires everything folds nothing', () => {
+        const every = fieldsOf(schemaOf({ from: { type: 'string' } }, ['from']))
+        expect(partition(every, {}).folded).toEqual([])
+    })
+
+    test('the link counts the folded fields, and says field of one', () => {
+        expect(foldLabel(partition(fields, {}).folded.length)).toBe('4 more fields')
+        expect(foldLabel(1)).toBe('1 more field')
+        expect(foldLabel(0)).toBe('0 more fields')
     })
 })

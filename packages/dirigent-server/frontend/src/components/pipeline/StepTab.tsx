@@ -38,6 +38,10 @@ export const ADD_DEPENDENCY_LABEL = 'Add a prerequisite'
  * `lib/schema-form` turns it into fields, so a config key this instance does not take has no box
  * to be typed into and a value outside the schema is refused under the field it was typed in.
  *
+ * THE CONFIG OPENS ON WHAT THE STEP NEEDS. A block may publish twenty keys and take two, so the
+ * form draws what the schema requires and what this step already sets, and offers the rest behind
+ * one link.
+ *
  * THE REFUSAL HERE IS THE CLIENT'S HALF. What this can check is one field against one schema.
  * Whether the document as a whole applies -- its graph, its references, the blocks it names --
  * is the server's, and Validate and Apply are where it is asked.
@@ -216,6 +220,7 @@ export function StepTab({
                         values={config}
                         problems={problems}
                         disabled={disabled}
+                        fold
                         onChange={(name, value) => {
                             const next = { ...config }
                             if (value === undefined) delete next[name]

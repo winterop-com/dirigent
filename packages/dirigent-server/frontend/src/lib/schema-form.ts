@@ -21,6 +21,10 @@
  * the several lines it is written on rather than crammed into one box. Every other string stays
  * one line: what earns an editor is the schema saying the value is source, not its length.
  *
+ * WHAT A STEP NEEDS IS WHAT IT OPENS WITH. `partition` splits a field list into what the schema
+ * requires plus what the document already sets, and the optional keys it does not -- so a block
+ * with twenty fields and two answers reads as two.
+ *
  * THE SERVER REMAINS THE AUTHORITY. `validateField` checks the bounds the descriptor carries so
  * a form can refuse before it asks, and an apply is what decides.
  */
@@ -303,6 +307,37 @@ export function fieldsOf(schema: JsonMap | null | undefined): FieldDescriptor[] 
             },
         ]
     })
+}
+
+/** A field list split into what a form shows and what it folds away. */
+export interface Partitioned {
+    /** Required fields in schema order, then the optional ones the document already sets. */
+    open: FieldDescriptor[]
+    /** The optional fields the document does not set, in schema order. */
+    folded: FieldDescriptor[]
+}
+
+/**
+ * Which fields a form opens with and which it folds.
+ *
+ * A block such as `docker.run` publishes twenty config fields and takes two, so a form that drew
+ * all twenty at one weight said nothing about what the step needs. What it needs is what the
+ * schema requires plus what the document already carries; the rest is offered behind a link.
+ *
+ * A field is set when the document carries its key, whatever the value: a switch written `false`
+ * is a decision somebody made and stays in front of them.
+ */
+export function partition(fields: FieldDescriptor[], values: JsonMap): Partitioned {
+    const set = (field: FieldDescriptor) => Object.hasOwn(values, field.name)
+    return {
+        open: [...fields.filter((one) => one.required), ...fields.filter((one) => !one.required && set(one))],
+        folded: fields.filter((one) => !one.required && !set(one)),
+    }
+}
+
+/** What the link over the folded fields reads. */
+export function foldLabel(count: number): string {
+    return `${String(count)} more field${count === 1 ? '' : 's'}`
 }
 
 /**
