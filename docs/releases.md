@@ -15,6 +15,48 @@ package and uploads it to PyPI through trusted publishing, then builds the image
 commit and pushes it as `<version>` and `latest`. The two sibling repositories then relock
 against the tag and bump.
 
+## 0.14.0
+
+Released 2026-09-11. Every package in the workspace moves to 0.14.0 together.
+
+### Fan-out
+
+- **A fan-out may adopt an upstream fan-out's grid.** `for_each: "${steps.A.items}"` on a step
+  maps it over the items step A fans over, with the same index and the same `${item}`, fixed
+  when the run is created like every grid. Inside it `${steps.A.item.output}` is A's matching
+  item's output, not the batch. A must be in the step's own `depends_on`, and an adopting step
+  may not carry `rule: one_failed`. Under `items: continue`, an item whose partner did not
+  succeed is skipped rather than failed, and the step's own `items` policy governs its own
+  failures. `steps.A.output` stays the positional list of the items that succeeded.
+  `patterns/fan-out-item-wise.yaml` writes one file per region and lists what landed.
+
+### The editor
+
+- **A step opens on what it needs.** The step form lists the fields a block requires first, then
+  the optional ones the document sets, then one link, `N more fields`, that opens the rest in
+  place. Required labels are in body ink, optional ones muted.
+- **A program's window is the whole screen**, with a reference for the language beside the
+  editor: jq idioms and a link to the manual, the runtime's rules for SQL and shell, what a
+  Jinja template may read. A field's `contentMediaType` picks the reference.
+- **An alert rule's body is written in the dialog** and, with the subject, edited in the
+  rule's panel; a template the server refuses shows its message in place.
+
+### Blocks and the CLI
+
+- `rabbitmq.publish` refuses a message nothing takes: the publish is mandatory, and a routing
+  key no queue answers to fails the step instead of vanishing.
+- `dg dev --seed DIR` applies every document under a directory once the API is up, schedules
+  paused, creating the connections and schemas a document carries rather than refusing it;
+  `make dev-seeded` uses it and now stores the whole corpus. `DIRIGENT_UI_DIR` names a built
+  bundle for a server installed from git.
+
+### Tooling
+
+- The frontend gate (oxfmt, oxlint, vitest) runs in CI's browser lane. The e2e specs are
+  formatted like the rest.
+
+Nothing in the settings changed since 0.13.0 beyond `DIRIGENT_UI_DIR`.
+
 ## 0.13.0
 
 Released 2026-09-11. Every package in the workspace moves to 0.13.0 together.

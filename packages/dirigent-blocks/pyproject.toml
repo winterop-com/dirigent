@@ -1,6 +1,6 @@
 [project]
 name = "dirigent-blocks"
-version = "0.13.0"
+version = "0.14.0"
 description = "Built-in generic operators and sensors for dirigent."
 readme = "README.md"
 requires-python = ">=3.13"

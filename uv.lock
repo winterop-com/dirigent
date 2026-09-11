@@ -924,7 +924,7 @@ wheels = [
 
 [[package]]
 name = "dirigent-blocks"
-version = "0.13.0"
+version = "0.14.0"
 source = { editable = "packages/dirigent-blocks" }
 dependencies = [
     { name = "aio-pika" },
@@ -966,7 +966,7 @@ provides-extras = ["duckdb"]
 
 [[package]]
 name = "dirigent-cli"
-version = "0.13.0"
+version = "0.14.0"
 source = { editable = "packages/dirigent-cli" }
 dependencies = [
     { name = "dirigent-blocks" },
@@ -1005,7 +1005,7 @@ requires-dist = [
 
 [[package]]
 name = "dirigent-client"
-version = "0.13.0"
+version = "0.14.0"
 source = { editable = "packages/dirigent-client" }
 dependencies = [
     { name = "dirigent-common" },
@@ -1024,7 +1024,7 @@ requires-dist = [
 
 [[package]]
 name = "dirigent-common"
-version = "0.13.0"
+version = "0.14.0"
 source = { editable = "packages/dirigent-common" }
 dependencies = [
     { name = "httpx2" },
@@ -1043,7 +1043,7 @@ requires-dist = [
 
 [[package]]
 name = "dirigent-core"
-version = "0.13.0"
+version = "0.14.0"
 source = { editable = "packages/dirigent-core" }
 dependencies = [
     { name = "aiosqlite" },
@@ -1091,7 +1091,7 @@ provides-extras = ["otlp"]
 
 [[package]]
 name = "dirigent-parquet"
-version = "0.13.0"
+version = "0.14.0"
 source = { editable = "packages/dirigent-parquet" }
 dependencies = [
     { name = "dirigent-common" },
@@ -1108,7 +1108,7 @@ requires-dist = [
 
 [[package]]
 name = "dirigent-plugin"
-version = "0.13.0"
+version = "0.14.0"
 source = { editable = "packages/dirigent-plugin" }
 dependencies = [
     { name = "dirigent-common" },
@@ -1127,7 +1127,7 @@ requires-dist = [
 
 [[package]]
 name = "dirigent-server"
-version = "0.13.0"
+version = "0.14.0"
 source = { editable = "packages/dirigent-server" }
 dependencies = [
     { name = "dirigent-client" },
@@ -1146,7 +1146,7 @@ requires-dist = [
 
 [[package]]
 name = "dirigent-storage-s3"
-version = "0.13.0"
+version = "0.14.0"
 source = { editable = "packages/dirigent-storage-s3" }
 dependencies = [
     { name = "aioboto3" },
@@ -1165,7 +1165,7 @@ requires-dist = [
 
 [[package]]
 name = "dirigent-testing"
-version = "0.13.0"
+version = "0.14.0"
 source = { editable = "packages/dirigent-testing" }
 dependencies = [
     { name = "dirigent-common" },
