@@ -1,6 +1,6 @@
 [project]
 name = "dirigent-examples"
-version = "0.15.0"
+version = "0.15.1"
 description = "The dirigent example corpus: the shelves of runnable documents, installed."
 readme = "README.md"
 requires-python = ">=3.13"

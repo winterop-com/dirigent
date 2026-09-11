@@ -15,6 +15,14 @@ package and uploads it to PyPI through trusted publishing, then builds the image
 commit and pushes it as `<version>` and `latest`. The two sibling repositories then relock
 against the tag and bump.
 
+## 0.15.1
+
+Released 2026-09-12. Every package in the workspace moves to 0.15.1 together.
+
+- **`dirigent-plugin` imports on Python 3.14.** 0.15.0 imported `Traversable` from
+  `importlib.abc`, which Python 3.14 no longer carries, so the package could not be imported
+  there and `dirigent-dhis2` could not follow. The name comes from `importlib.resources.abc`.
+
 ## 0.15.0
 
 Released 2026-09-12. Every package in the workspace moves to 0.15.0 together, and the workspace
