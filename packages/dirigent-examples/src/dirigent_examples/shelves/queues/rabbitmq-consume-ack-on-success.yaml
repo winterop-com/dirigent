@@ -1,0 +1,102 @@
+# A run that starts from what is on a RabbitMQ queue, and why the default ack mode is the one
+# that hands a short batch back.
+#
+# NEEDS A BROKER. Bring one up and put something on the queue first:
+#   docker compose -f infra/compose.queues.yaml up -d --wait
+#   open http://127.0.0.1:15672   # dirigent / dirigent; declare a queue named `shop-orders`
+#                                 # and publish a JSON body to it from the management UI
+#   dg connection create rabbitmq shop-queue \
+#     --set url=amqp://dirigent@127.0.0.1:5672/ --set password=dirigent
+#   dg run examples/queues/rabbitmq-consume-ack-on-success.yaml
+# On the compose stack the broker is the infra/compose.brokers.yaml overlay and the connection
+# names it as `amqp://dirigent@rabbitmq:5672/`; docs/queues.md is the family's home.
+#
+# Two hops, and what each one hands on:
+#   wait       rabbitmq.consume, parked until at least one message is on the queue. Output:
+#              messages and count.
+#   summarise  a jq transform over that batch, which is the only thing this example does with
+#              the messages.
+#
+# THE CONNECTION IS NAMED, NOT CARRIED. requires.connections says the instance must already
+# hold `shop-queue`. The password is never written into the url: a plain field is neither
+# encrypted at rest nor redacted in an API response, so the secret goes in the connection's
+# sealed password field, which is both, and is merged into the url when a connection is opened
+# and nowhere else. A url written amqp://user:secret@host is refused, the same way the sql
+# kind refuses one.
+#
+# WHY ack: on_success IS THE DEFAULT. RabbitMQ, unlike Kafka, keeps its own place: a message is
+# held unacknowledged until it is acked or nacked. So the question is not where to read but
+# when to acknowledge, and the safe answer is "only in the poke that succeeded".
+#
+# Work through what a poke does with min_messages: 3 and two messages on the queue. It takes
+# both, finds the batch too small, and nacks both back onto the queue with requeue -- so they
+# are still there for the next poke, or for another consumer, and nothing was lost to a batch
+# that was never acted on. Then a third message arrives, the next poke takes all three, hands
+# them to the transform, and acknowledges them.
+#
+# ack: always is the other choice, and it is a real one with a real cost: every message is
+# acknowledged the moment it is taken, park or no park, so a batch that parks is gone. It
+# suits a queue nothing else reads and a step that would rather drop a partial batch than see
+# a message twice.
+#
+# ON_SUCCESS IS STILL AT-LEAST-ONCE. Acknowledging happens inside the poke, and the attempt's
+# outcome commits after it: a worker that dies in between leaves the messages acked and the
+# step unfinished, and a worker that dies before the ack leaves them on the queue to be taken
+# again. Neither ordering gives exactly-once -- that would need the broker and this instance's
+# database in one transaction -- so a step that must not act twice makes itself idempotent.
+#
+# THE QUEUE MUST ALREADY EXIST. This block declares nothing: a queue a pipeline invented is a
+# typo that reads as a working pipeline, so a name nobody created is rejected, with the name in
+# the message, rather than waiting forever on a queue that will never have anything in it.
+#
+# TO MAKE IT YOURS: point the connection at your own broker, change the queue, and replace the
+# summarise step with whatever actually consumes the batch.
+
+format: dirigent/v1
+kind: pipeline
+code: rabbitmq-consume-ack-on-success
+name: Consume a RabbitMQ queue, acknowledging only on success
+description: Wait for messages on a RabbitMQ queue and reshape the batch, handing a short batch back to the queue.
+
+tags: [queues, rabbitmq, sensor, transform, starter]
+
+requires:
+  blocks:
+    - rabbitmq.consume
+    - transform.jq
+  connections:
+    - shop-queue
+
+steps:
+  wait:
+    block: rabbitmq.consume
+    poll: 10s
+    deadline: 1h
+    # A wait that ran out is not a failure: nothing arrived inside the hour, so the run is
+    # skipped and the next trigger tries again.
+    on_timeout: skip
+    config:
+      connection: shop-queue
+      queue: shop-orders
+      min_messages: 1
+      max_messages: 50
+      # How long one poke waits on the broker before answering with what it has.
+      poll_timeout: 5s
+      # Written out although it is the default, because it is the decision this example is
+      # about. Change it to always and a batch below min_messages is acknowledged and dropped.
+      ack: on_success
+      value_format: json
+
+  summarise:
+    block: transform.jq
+    depends_on: [wait]
+    config:
+      # Each message carries the routing key, the exchange, the delivery tag, the decoded
+      # body, the headers, and the publisher's timestamp when it stamped one.
+      input: "${steps.wait.output.messages}"
+      program: >-
+        {
+          count: length,
+          routing_keys: (map(.routing_key) | unique),
+          bodies: map(.body)
+        }

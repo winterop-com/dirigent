@@ -10,6 +10,7 @@ dependencies = [
     "dirigent-client",
     "dirigent-common",
     "dirigent-core",
+    "dirigent-examples",
     "fastapi>=0.141.1",
 ]
 
@@ -20,3 +21,4 @@ build-backend = "uv_build"
 [tool.uv.sources]
 dirigent-client = { workspace = true }
 dirigent-core = { workspace = true }
+dirigent-examples = { workspace = true }

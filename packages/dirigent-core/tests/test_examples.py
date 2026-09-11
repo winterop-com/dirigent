@@ -35,7 +35,7 @@ EXAMPLE_PIPELINES = (
 
 #: Named schemas the examples reference by code; examples/schemas/ defines them. A carried
 #: schema satisfies its own reference, so only the instance-held codes need to appear here.
-EXAMPLE_SCHEMAS = ("ou-record",)
+EXAMPLE_SCHEMAS = ("ou-record", "echo-reading", "station-reading")
 
 #: Files under examples/ that are not pipeline documents.
 NOT_DOCUMENTS = frozenset({"connections.yaml"})
@@ -210,3 +210,32 @@ def test_every_shelf_index_lists_every_document_on_it(shelf: str) -> None:
     index = (EXAMPLES / shelf / "README.md").read_text()
     for path in documents(EXAMPLES / shelf):
         assert f"]({path.name})" in index, f"{path.name} is missing from examples/{shelf}/README.md"
+
+
+#: The floor under the curated starter set: fewer than this and `dg pipeline new` has too
+#: little to offer to be worth a menu.
+STARTERS_AT_LEAST = 12
+
+
+def is_starter(path: Path) -> bool:
+    """Say whether a pipeline document opted into being copied."""
+    definition = load_text(path.read_text())
+    return isinstance(definition, PipelineDefinition) and "starter" in definition.tags
+
+
+STARTERS = [path for path in PIPELINES if is_starter(path)]
+
+
+def test_the_corpus_carries_a_curated_set_of_starters() -> None:
+    assert len(STARTERS) >= STARTERS_AT_LEAST, f"only {len(STARTERS)} documents are tagged starter"
+
+
+@pytest.mark.parametrize("path", STARTERS, ids=ids(STARTERS))
+def test_a_starter_clears_the_bar_for_being_copied(path: Path) -> None:
+    definition = load_text(path.read_text())
+    assert isinstance(definition, PipelineDefinition)
+    assert len(definition.steps) >= 2, "a starter is a flow, not a single step"
+    assert not definition.connections, "a starter names its connections, it does not carry them"
+    assert not definition.schemas, "a starter names its schemas, it does not carry them"
+    assert path.parent.name != "failure", "a starter is not a run that fails by design"
+    assert definition.description, "a starter says what it is for"

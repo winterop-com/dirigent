@@ -1,5 +1,7 @@
 """Plugin markers and the collecting extension points a dirigent plugin implements."""
 
+from collections.abc import Sequence
+from importlib.abc import Traversable
 from typing import TYPE_CHECKING
 
 from pluginkit import Extension, ExtensionPoint
@@ -27,4 +29,14 @@ def contribute() -> "Contribution":
 @extension_point
 def formatters() -> list[Formatter]:
     """Collect the formatters a plugin adds to ``dg format``, once at CLI startup."""
+    raise NotImplementedError("an extension point is a declaration; call it via PluginManager.caller(...)")
+
+
+@extension_point
+def examples() -> Sequence[Traversable]:
+    """Collect the directories a plugin's example shelves live in, once on first use.
+
+    A directory is walked recursively for documents; a ``pathlib.Path`` satisfies the
+    protocol, so a plugin may answer with either.
+    """
     raise NotImplementedError("an extension point is a declaration; call it via PluginManager.caller(...)")

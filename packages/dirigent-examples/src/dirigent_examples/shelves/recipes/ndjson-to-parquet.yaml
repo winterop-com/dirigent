@@ -1,0 +1,130 @@
+# Records written as parquet, and read back to prove what landed.
+#
+# In:  a list of typed records, built inline.
+# Out: a parquet file in the run's scratch space, and the same records read back out of it.
+#
+# A conversion is a storage-object operation, like storage.copy: it reads one URI, writes
+# another, and never holds the records as a value. So a value in the run is written before
+# it is converted, and a result the run wants to look at is read back after -- which is what
+# the first and last hops here are. Parquet makes that concrete, being bytes rather than
+# text: there has never been an inline spelling for it.
+#
+# Six hops, and what each one hands on:
+#   rows        value.const, the records a real pipeline would have fetched.
+#   stored      storage.write, that value as a JSON object. Output: uri, bytes_written.
+#   as_ndjson   convert.std, json to ndjson. One record per line, no array to hold, which
+#               is the shape a stream of records already has.
+#   write       convert.arrow, ndjson to parquet. Output: source, target, bytes_written.
+#   read_back   convert.arrow, parquet to json, into a file of its own.
+#   landed      storage.read, that file as a value, which is what the summary counts.
+#
+# convert.arrow infers one type per column from the records: boolean, int64, float64, or
+# string. A column whose rows disagree is refused naming the column rather than coerced, and
+# integers and floats unify to a float column because JSON calls both a number.
+#
+# The read back is not decoration. It is how a run says what actually landed rather than
+# what was intended: the file's own bytes are decoded, and the row count and the columns
+# come from the file, so a truncated or half-written object shows up here as a failure
+# instead of downstream tomorrow.
+#
+# convert.arrow ships in dirigent-parquet, on pyarrow, where convert.std deliberately stands
+# on the standard library alone. Installing that pack is what puts the block in the catalog,
+# and naming it in requires.blocks is what refuses this document on an instance without it.
+#
+# To change it: point the targets at s3://<bucket>/... and the same steps write and read an
+# object store, because the scheme is the only thing that changes.
+#
+#   dg run --local examples/recipes/ndjson-to-parquet.yaml
+#   dg run --local examples/recipes/ndjson-to-parquet.yaml -p day=2026-02-01
+
+format: dirigent/v1
+kind: pipeline
+code: ndjson-to-parquet
+name: Records to parquet and back
+description: Write typed records into the run's scratch space, convert them through ndjson into parquet, and read the file back to see what landed.
+
+tags: [recipes, storage, transform, parquet, starter]
+
+requires:
+  blocks:
+    - value.const
+    - storage.write
+    - convert.std
+    - convert.arrow
+    - storage.read
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    day:
+      type: string
+      format: date
+      default: "2026-01-01"
+      description: The day the written file is named for.
+
+steps:
+  rows:
+    block: value.const
+    config:
+      value:
+        - { station: st-1, celsius: 4.5, readings: 1440, active: true }
+        - { station: st-2, celsius: -1.0, readings: 1200, active: false }
+        - { station: st-3, celsius: 7.25, readings: 1439, active: true }
+
+  stored:
+    block: storage.write
+    depends_on: [rows]
+    config:
+      target: ${run.scratch}/readings-${params.day}.json
+      value: ${steps.rows.output.value}
+
+  as_ndjson:
+    block: convert.std
+    depends_on: [stored]
+    config:
+      source: ${steps.stored.output.uri}
+      target: ${run.scratch}/readings-${params.day}.ndjson
+      from: json
+      to: ndjson
+
+  write:
+    block: convert.arrow
+    depends_on: [as_ndjson]
+    config:
+      source: ${steps.as_ndjson.output.target}
+      target: ${run.scratch}/readings-${params.day}.parquet
+      from: ndjson
+      to: parquet
+
+  read_back:
+    block: convert.arrow
+    depends_on: [write]
+    config:
+      # The URI the write reported, rather than the same expression written twice: one place
+      # decides where the file went.
+      source: ${steps.write.output.target}
+      target: ${run.scratch}/readings-${params.day}-back.json
+      from: parquet
+      to: json
+
+  landed:
+    block: storage.read
+    depends_on: [read_back]
+    config:
+      source: ${steps.read_back.output.target}
+      max_size: 1mb
+
+  summary:
+    block: transform.jq
+    depends_on: [write, landed]
+    config:
+      input:
+        uri: ${steps.write.output.target}
+        file_bytes: ${steps.write.output.bytes_written}
+        records: ${steps.landed.output.value}
+      program: |
+        {uri, file_bytes,
+         rows: (.records | length),
+         columns: (.records[0] | keys),
+         records}

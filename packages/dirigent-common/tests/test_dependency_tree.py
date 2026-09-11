@@ -20,7 +20,7 @@ ALLOWED: Final[dict[str, set[str]]] = {
     "dirigent-plugin": {"dirigent-common"},
     "dirigent-client": {"dirigent-common"},
     "dirigent-core": {"dirigent-common", "dirigent-plugin", "dirigent-client"},
-    "dirigent-server": {"dirigent-common", "dirigent-plugin", "dirigent-client", "dirigent-core"},
+    "dirigent-server": {"dirigent-common", "dirigent-plugin", "dirigent-client", "dirigent-core", "dirigent-examples"},
     "dirigent-cli": {
         "dirigent-common",
         "dirigent-plugin",
@@ -28,8 +28,11 @@ ALLOWED: Final[dict[str, set[str]]] = {
         "dirigent-core",
         "dirigent-server",
         "dirigent-blocks",
+        "dirigent-examples",
     },
     "dirigent-blocks": {"dirigent-common", "dirigent-plugin"},
+    # The corpus carries SDK scripts on its python/ shelf, which import the client.
+    "dirigent-examples": {"dirigent-common", "dirigent-plugin", "dirigent-client"},
     "dirigent-parquet": {"dirigent-common", "dirigent-plugin"},
     "dirigent-storage-s3": {"dirigent-common", "dirigent-plugin"},
     "dirigent-testing": {"dirigent-common", "dirigent-plugin"},

@@ -56,7 +56,12 @@ would mislead: `transform.jq`, `map.jq`, `filter.jq` and `convert.std` are four 
 group, `transform`, and `shell.run`, `docker.run` and `pipeline.run` are `execute`.
 
 pluginkit's role is deliberately narrow: discovery, registration, validation, and lifecycle,
-through one synchronous collecting hook, `contribute()`, called once at startup. Everything
+through one synchronous collecting hook, `contribute()`, called once at startup. Two further
+collecting hooks hang off the same mechanism and neither is part of startup: `formatters()`,
+which the CLI collects when `dg format` needs a renderer, and `examples()`, which answers with
+the directories a distribution's example shelves live in and is called the first time
+something asks for the corpus, so a worker never walks a shelf. The core corpus ships as
+`dirigent-examples`, a distribution whose only contribution is its shelves. Everything
 at runtime bypasses it. The host builds a block-id index from the contributions and calls
 operator and sensor methods directly, gathers health checks itself, and reads config models
 straight off the contributed objects.

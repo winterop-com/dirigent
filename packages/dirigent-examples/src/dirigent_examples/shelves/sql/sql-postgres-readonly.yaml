@@ -1,0 +1,111 @@
+# Reading a PostgreSQL warehouse through a connection that cannot write, whatever a step asks.
+#
+# NEEDS AN INSTANCE holding the connection, and a PostgreSQL it can reach. Unlike the other two
+# documents on this shelf, this one names its connection instead of carrying it, so there is
+# nothing here to run without a server:
+#   dg connection create sql warehouse-read \
+#     --set url=postgresql+asyncpg://reader@db.example:5432/warehouse \
+#     --set password=... \
+#     --set read_only=true
+#   dg connection check warehouse-read
+#   dg apply examples/sql/sql-postgres-readonly.yaml && dg run sql-postgres-readonly
+# On the compose stack that PostgreSQL is the infra/compose.sql.yaml overlay, seeded with this
+# table and a reader role, and the connection names it as `reader@warehouse:5432/warehouse`.
+# It is still a valid document without any of that: an instance that does not hold the
+# connection refuses it at apply, naming what is missing, rather than failing on the first run.
+# `dg apply --dry-run` is how to see that answer without writing anything.
+# docs/sql.md is the family's home.
+#
+# Two hops, and what each one hands on:
+#   recent  the rows for one site since the run's window opened, bound as parameters.
+#           Output: the rows, their count and the columns.
+#   report  a constant step reading them, standing in for whatever actually consumes them.
+#
+# THE PASSWORD IS SET SEPARATELY, AND THAT IS ENFORCED. A url written
+# postgresql+asyncpg://reader:secret@db.example/warehouse is REFUSED when the connection is
+# created: url is a plain field, so a password in it would sit unencrypted in the database and
+# come back out of the API. password is a sealed field -- encrypted at rest, redacted in every
+# response -- and the two are put together in memory at connect time and nowhere else.
+#
+# READ-ONLY IS THE DATABASE'S ANSWER, NOT A CHECK HERE. With read_only: true the connection
+# opens every session as SET TRANSACTION READ ONLY, so a statement that writes is refused by
+# PostgreSQL itself. sql.execute refuses this connection before it opens anything at all. The
+# pattern is one connection per role: this one for every reporting pipeline, a separate
+# warehouse-write for the few that load data.
+#
+# max_rows IS A PROMISE ABOUT THE OUTPUT. A step's output is stored with the run and read back
+# whole, so it is not the place for an unbounded result. The query is narrowed by both
+# parameters and then bounded again here; a result past the bound fails the step rather than
+# arriving truncated. sql-query-to-storage.yaml is what to do when the answer really is large.
+#
+# THE WINDOW IS WHY THIS IS SCHEDULABLE. ${run.window.start} is the start of the interval the
+# run covers, which a scheduled or backfilled run carries. Bound as a parameter it makes one
+# document work for today, for yesterday, and for a backfill of last March, with no edit.
+#
+# TO MAKE IT YOURS: point the connection at your warehouse, replace the query with your own,
+# and give the report step a real consumer -- a transform, a validate.schema, or an
+# http.request that posts the rows on.
+
+format: dirigent/v1
+kind: pipeline
+code: sql-postgres-readonly
+name: Read a warehouse through a read-only connection
+description: Query a PostgreSQL warehouse over a connection that refuses writes, with both values bound as parameters.
+
+tags: [sql, starter]
+
+requires:
+  blocks:
+    - sql.query
+    - value.const
+  connections:
+    # Named, not carried: the instance holds it, and this document refuses to apply where it
+    # is absent rather than failing the first time it runs.
+    - warehouse-read
+
+params:
+  type: object
+  additionalProperties: false
+  properties:
+    site:
+      type: string
+      default: north
+      description: The site to report on, bound as a parameter rather than spliced into the SQL.
+
+steps:
+  recent:
+    block: sql.query
+    deadline: 5m
+    config:
+      connection: warehouse-read
+      # Both filters are placeholders. Nothing a parameter contains can change what this
+      # statement does: the text is fixed when the document is applied.
+      sql: >-
+        SELECT id, site, seen, value
+        FROM reading
+        WHERE site = :site AND seen >= CAST(CAST(:since AS text) AS timestamptz)
+        ORDER BY seen
+      params:
+        site: "${params.site}"
+        # The interval this run covers. A scheduled run carries one; an ad hoc run carries one
+        # only if it was started with --window, and a step reading it otherwise fails rather
+        # than quietly widening to everything.
+        since: "${run.window.start}"
+      # The cast in the statement is what PostgreSQL needs: asyncpg types a parameter by where
+      # it sits, so a JSON string bound straight into a timestamp column is refused by the
+      # driver. Casting through text lets the server do the conversion it knows.
+      max_rows: 500
+      # Longer than a fast query needs and shorter than a runaway one takes. On PostgreSQL it
+      # is also set as the session's statement_timeout, so the server cancels the query rather
+      # than leaving it running after the worker stopped waiting.
+      timeout: 2m
+
+  report:
+    block: value.const
+    depends_on: [recent]
+    config:
+      value:
+        rows: "${steps.recent.output.rows}"
+        row_count: "${steps.recent.output.row_count}"
+        # How long the database took, which is the number worth watching as a table grows.
+        duration_ms: "${steps.recent.output.duration_ms}"

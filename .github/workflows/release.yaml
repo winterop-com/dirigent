@@ -84,6 +84,7 @@ jobs:
           - dirigent-core
           - dirigent-parquet
           - dirigent-blocks
+          - dirigent-examples
           - dirigent-server
           - dirigent-cli
           - dirigent-storage-s3

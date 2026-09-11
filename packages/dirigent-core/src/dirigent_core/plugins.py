@@ -4,8 +4,9 @@ A block id is public API, referenced by stored pipelines as a string forever, so
 claiming the same one is a startup error rather than last-one-wins.
 """
 
-from collections.abc import Callable, Iterable, Mapping
-from typing import Any, cast
+from collections.abc import Callable, Iterable, Mapping, Sequence
+from importlib.resources.abc import Traversable
+from typing import TYPE_CHECKING, Any, cast
 
 from pluginkit import PluginManager
 from pydantic import BaseModel
@@ -26,6 +27,9 @@ from dirigent_plugin import (
     markers,
 )
 from dirigent_plugin.markers import contribute
+
+if TYPE_CHECKING:
+    from dirigent_core.examples import ExampleEntry
 
 
 class PluginError(Exception):
@@ -71,6 +75,22 @@ class UnknownBlock(PluginError):
         self.block_id = block_id
 
 
+class UnknownExample(PluginError):
+    """No single example of the installed corpus answers to a code."""
+
+    def __init__(self, code: str, plugins: Sequence[str] = ()) -> None:
+        """Name the code, and the plugins that both claim it when two do."""
+        if plugins:
+            super().__init__(
+                f"example {code!r} is carried by {' and '.join(repr(one) for one in plugins)}; "
+                f"the code alone does not name one of them."
+            )
+        else:
+            super().__init__(f"no example {code!r} is installed; `dg examples list` says what is.")
+        self.code = code
+        self.plugins = list(plugins)
+
+
 def _described_in_markdown(node: Any) -> Any:
     """Walk a schema, reading every description the way the readers of it render one."""
     if isinstance(node, dict):
@@ -99,9 +119,11 @@ def json_schema(model: type[BaseModel]) -> JsonMap:
 class PluginHost:
     """The startup-built indexes every runtime call dispatches through."""
 
-    def __init__(self, contributions: Mapping[str, Contribution]) -> None:
+    def __init__(self, contributions: Mapping[str, Contribution], manager: PluginManager | None = None) -> None:
         """Build and validate the indexes, failing on any cross-plugin collision."""
         self.contributions = dict(contributions)
+        self._manager = manager
+        self._examples: list[ExampleEntry] | None = None
         self.operators: dict[str, AnyOperator] = {}
         self.sensors: dict[str, AnySensor] = {}
         self.storage_backends: dict[str, StorageBackend] = {}
@@ -142,6 +164,42 @@ class PluginHost:
         if owner is not None:
             raise DuplicateContribution(surface, identifier, owner, plugin)
         self.origins[key] = plugin
+
+    def examples(self) -> "list[ExampleEntry]":
+        """Read the installed example corpus, calling the ``examples`` hook once on first ask.
+
+        Nothing reads the corpus at startup, so a worker never walks a shelf.
+        """
+        if self._examples is None:
+            from dirigent_core.examples import collect
+
+            self._examples = collect(self._shelves())
+        return self._examples
+
+    def _shelves(self) -> list[tuple[str, Sequence[Traversable]]]:
+        """Ask every registered plugin for the directories its shelves live in."""
+        if self._manager is None:
+            return []
+        # The hook's return annotation is a declaration, not an enforcement: anything that is
+        # not a directory a plugin answers with is passed over.
+        collected = self._manager.caller(markers.examples).collect_with_plugins()
+        return [
+            (
+                name,
+                [root for root in roots if isinstance(root, Traversable)],  # pyright: ignore[reportUnnecessaryIsInstance]
+            )
+            for name, roots in collected
+            if isinstance(roots, Sequence)  # pyright: ignore[reportUnnecessaryIsInstance]
+        ]
+
+    def example(self, code: str) -> "ExampleEntry":
+        """Resolve a code to the one installed example that answers to it."""
+        matched = [entry for entry in self.examples() if entry.code == code]
+        if not matched:
+            raise UnknownExample(code)
+        if len(matched) > 1:
+            raise UnknownExample(code, sorted(entry.plugin for entry in matched))
+        return matched[0]
 
     def owner_of(self, surface: str, identifier: str) -> str:
         """Name the plugin that contributed an identifier."""
@@ -251,5 +309,6 @@ def load_plugin_host(
             name: value
             for name, value in collected
             if isinstance(value, Contribution)  # pyright: ignore[reportUnnecessaryIsInstance]
-        }
+        },
+        manager,
     )

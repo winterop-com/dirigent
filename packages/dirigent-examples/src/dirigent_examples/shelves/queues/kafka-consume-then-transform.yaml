@@ -1,0 +1,105 @@
+# A run that starts from what is on a Kafka topic, and reshapes the batch it took.
+#
+# NEEDS A BROKER, and a topic to read:
+#   docker compose -f infra/compose.queues.yaml up -d --wait
+#   docker exec -it dirigent-queues-redpanda-1 rpk topic create orders
+#   dg connection create kafka orders-topic --set bootstrap_servers='["127.0.0.1:9092"]'
+#   dg run examples/queues/kafka-consume-then-transform.yaml
+# Then produce to the topic in another shell, whenever -- start: latest means the run takes
+# what arrives after it began rather than what was already there, and the first poke writes
+# that place down, so a message landing between two pokes is read by the next one:
+#   docker exec -it dirigent-queues-redpanda-1 \
+#     rpk topic produce orders --format '%v\n'   # then type a JSON line and press ctrl-d
+# On the compose stack the broker is the infra/compose.brokers.yaml overlay and the connection
+# names it as `redpanda:9092`; docs/queues.md is the family's home.
+#
+# Two hops, and what each one hands on:
+#   wait       kafka.consume, parked until at least one message is on the topic. Output:
+#              messages, count, and the offsets it ended at.
+#   summarise  a jq transform over that batch, which is the only thing this example does with
+#              the messages -- the point is that they are ordinary step output from here on.
+#
+# THE CONNECTION IS NAMED, NOT CARRIED. requires.connections says the instance must already
+# hold `orders-topic`, and refuses the document at apply if it does not. That is the shape to
+# copy: bootstrap servers, a security setting and a sealed password belong to an environment,
+# not to a pipeline, so pointing this at staging instead of production is an edit to one
+# connection and to no document.
+#
+# WHY min_messages: 1. A poke succeeds as soon as there is one message, which is what "a run
+# per batch, as soon as there is a batch" means. Raise it and the sensor waits for a fuller
+# batch -- and a poke that finds fewer than that parks, keeping the offsets it read, so the
+# next poke carries on rather than starting over. max_messages: 50 is the other half: it
+# bounds what one run carries, so a topic that has been quiet for a week does not hand a
+# single step ten thousand messages.
+#
+# NO group_id, DELIBERATELY. Without one the sensor tracks offsets itself, in the attempt's
+# cursor, and commits nothing back to the cluster. Nothing on the broker has to be arranged
+# for this to work, and a second pipeline over the same topic sees every message rather than
+# racing this one for it. Set a group_id when the offsets should outlive the run -- then the
+# commit happens in the poke that succeeded, and never in one that parked.
+#
+# READING THE SAME GROUND TWICE. Advancing the cursor is at-least-once: it is written by the
+# transaction that parks the attempt, so a worker that dies before that commit leaves the
+# older offsets behind and the next poke reads those messages again. A step that must not act
+# twice on a message makes itself idempotent; this one only reshapes, so it does not care.
+#
+# TO MAKE IT YOURS: point the connection at your own cluster, change the topic, and replace
+# the summarise step with whatever actually consumes the batch.
+
+format: dirigent/v1
+kind: pipeline
+code: kafka-consume-then-transform
+name: Consume a Kafka topic, then transform the batch
+description: Wait for messages on a Kafka topic and reshape the batch the sensor handed on.
+
+tags: [queues, kafka, sensor, transform, starter]
+
+requires:
+  blocks:
+    - kafka.consume
+    - transform.jq
+  connections:
+    - orders-topic
+
+steps:
+  wait:
+    block: kafka.consume
+    # A sensor's poll is a promise about how often the world is checked, and this one is
+    # checked every ten seconds. Between pokes the attempt is a row with a due time, not a
+    # worker: waiting on a quiet topic for the whole deadline costs nothing.
+    poll: 10s
+    deadline: 1h
+    # A wait that ran out is not a failure here: no messages arrived inside the hour, so the
+    # run is skipped and the next trigger tries again.
+    on_timeout: skip
+    config:
+      connection: orders-topic
+      topic: orders
+      min_messages: 1
+      max_messages: 50
+      # How long one poke waits on the broker before answering with what it has. It bounds the
+      # poke, never the wait.
+      poll_timeout: 5s
+      # latest begins at whatever arrives next, which is what a pipeline started by a message
+      # wants: earliest would replay the whole topic on the first poke of every run.
+      start: latest
+      # A value is JSON here because whatever produces to this topic writes JSON. text or
+      # base64 are the other two, and base64 is the default for a key because a key is often
+      # not text at all.
+      value_format: json
+
+  summarise:
+    block: transform.jq
+    depends_on: [wait]
+    config:
+      # The batch is ordinary step output from here on: a list of objects, each with the
+      # topic, partition, offset, key, value, timestamp and headers the broker recorded.
+      input: "${steps.wait.output.messages}"
+      program: >-
+        {
+          count: length,
+          partitions: (map(.partition) | unique),
+          first_offset: (map(.offset) | min),
+          last_offset: (map(.offset) | max),
+          values: map(.value)
+        }

@@ -1,0 +1,36 @@
+# Example schemas
+
+Each file here is a plain JSON Schema (Draft 2020-12): the shape a read is expected to return,
+written down once so a pipeline can be refused the moment a payload moves out from under it. A
+schema is **locally authored** -- a picture you hold of the payload, never something fetched or
+introspected from the source. Each is applied on its own with `dg schema create`, or with the
+directory it sits in, and a document that references one names it in `requires.schemas`. A document may instead **carry** a
+schema in its own top-level `schemas:` section for a standalone or `--local` run; a server
+refuses a document that carries one, so a shared instance holds its schemas here.
+
+Apply one the way a person would:
+
+```bash
+dg schema create examples/schemas/ou-record.json
+```
+
+A directory apply lands them the same way: a server pointed at a directory stores every schema
+it finds there before the pipelines, so a mounted corpus needs no separate step.
+
+A schema carries its own identity in its keywords, so there is nothing else to pass:
+
+- `$id` becomes the `code` the schema is addressed by (falling back to the file's stem).
+- `title` becomes its name.
+- `description` becomes its body.
+
+| File | The shape it pins |
+| --- | --- |
+| [ou-record.json](ou-record.json) | A single organisation-unit record: a string `id`, a `name`, and an integer `level` |
+| [echo-reading.json](echo-reading.json) | What a fetch of the echo service answers with: an `args` map carrying `station` and `day`, and the `url` |
+| [station-reading.json](station-reading.json) | The row a transform is held to before it is posted on: a `station`, a `day`, and a numeric `celsius` |
+
+`ou-record` is the shape the two [validation documents](../validate) check a payload against, and
+the two reading shapes are the gates either side of the transform in
+[http-fetch-validate-post.yaml](../recipes/http-fetch-validate-post.yaml).
+The [JSON Schema guide](../../docs/json-schema.md) walks through how a schema like it is
+built, keyword by keyword.

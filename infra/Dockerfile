@@ -40,6 +40,7 @@ COPY packages/dirigent-client/pyproject.toml packages/dirigent-client/
 COPY packages/dirigent-core/pyproject.toml packages/dirigent-core/
 COPY packages/dirigent-parquet/pyproject.toml packages/dirigent-parquet/
 COPY packages/dirigent-blocks/pyproject.toml packages/dirigent-blocks/
+COPY packages/dirigent-examples/pyproject.toml packages/dirigent-examples/
 COPY packages/dirigent-server/pyproject.toml packages/dirigent-server/
 COPY packages/dirigent-cli/pyproject.toml packages/dirigent-cli/
 COPY packages/dirigent-storage-s3/pyproject.toml packages/dirigent-storage-s3/

@@ -170,6 +170,38 @@ id are. The `Formatter` protocol lives in `dirigent_common`: a name, a version, 
 `render` method, so a package ships a formatter without depending on the CLI or on the block
 contract. A formatter renders a record kind it has never heard of rather than failing.
 
+## Example shelves are a third extension point
+
+A distribution may carry example documents, and the host reads them through a third
+collecting extension point on the same `dirigent.plugins.v1` group. `examples()` answers with
+the directories the shelves live in, as `importlib.resources` traversables or plain paths:
+
+```python
+from collections.abc import Sequence
+from importlib.resources import files
+from importlib.resources.abc import Traversable
+
+from dirigent_plugin import extension
+
+
+class ExamplesPlugin:
+    @extension
+    def examples(self) -> Sequence[Traversable]:
+        return [files("my_package") / "shelves"]
+
+
+plugin = ExamplesPlugin()
+```
+
+A plugin implements whichever of the three points it has something to say through; a
+distribution that only carries documents implements `examples()` and no `contribute()` at all.
+The host walks each directory recursively on the first call and never at startup, so a worker
+pays nothing for a corpus it will not read. A file that parses as a `dirigent/v1` document
+becomes one catalogue entry -- its code, name, description, tags, `requires`, the shelf it
+sits on, and its text -- and anything else on the shelf is passed over with a warning naming
+the plugin and the file. Two plugins may carry one code; one plugin carrying it twice keeps
+the first. The core corpus ships this way, as `dirigent-examples`.
+
 ## How a pack connects systems together
 
 The surfaces are the vocabulary; the connecting happens in a pipeline. A **connection kind**

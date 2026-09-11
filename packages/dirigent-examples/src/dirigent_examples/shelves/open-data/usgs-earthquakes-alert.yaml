@@ -1,0 +1,208 @@
+# Everything the ground did in the last day, cut down to what is near you and big enough to care.
+#
+# The USGS summary feeds are keyless GeoJSON, updated every minute: all_day.geojson is a
+# FeatureCollection of every event in the past 24 hours, a couple of hundred of them on an
+# ordinary day. Each feature carries the magnitude, the place, and the epoch-milliseconds time
+# in `properties`, and the position as [longitude, latitude, depth_km] in `geometry.coordinates`
+# -- longitude first, which is the GeoJSON order and the opposite of how people say it.
+#
+# The interesting part is not the fetch, it is the quiet day. An alert that posts "nothing
+# happened" every hour is an alert nobody reads, so this pipeline has to be able to do nothing.
+# There is no `if` in the format, and there is no conditional edge; what there is is a sensor
+# that can skip, and a step behind a skipped sensor is skipped with it. So the digest is written
+# to storage first, and `storage.exists` is asked for it with a floor of one byte: an empty
+# digest writes an empty file, the floor is never met, the sensor times out and skips, the
+# webhook skips behind it, and the run still ends succeeded. A matching event writes bytes, the
+# very first poke sees them, and the post goes out.
+#
+# What happens, hop by hop:
+#
+#   feed      one GET, held inline: the whole day is well under a megabyte.
+#   candidates  every feature flattened into a row, with the great-circle distance worked out
+#             and the two thresholds copied onto it. jq has the trigonometry, so geography
+#             needs no subprocess and no allowlist entry. The thresholds ride along as data
+#             because that is the only way the filter below can see them: a jq program is
+#             compiled once and never has a value spliced into its text.
+#   nearby    filter.jq, comparing each row's own numbers against the limits it carries.
+#   digest    map.jq drops the limits again, leaving the row a person reads.
+#   ordered   the digest, biggest magnitude first, which is the order the file below holds.
+#   staged    storage.write, that list as one json object. A converter reads one URI and writes
+#             another, so a value the run is holding is put down before it is re-encoded.
+#   written   json to ndjson. ndjson is what makes the gate work: an empty list encodes as an
+#             empty file, where an empty json array would still be two bytes.
+#   matched   the gate. Three seconds is plenty when the file is already there; on a quiet
+#             day it is three seconds of waiting and then a clean skip.
+#   notify    the digest, posted. It points at Postman Echo so this example runs for real
+#             without standing anything up; on your instance it is your own receiver, and
+#             `sign_with` naming a connection with an hmac_secret is how the receiver knows
+#             the post came from you.
+#
+# To make it yours: set latitude, longitude and radius_km to your area of responsibility, raise
+# min_magnitude until the alert is worth waking up for, and point webhook_url at your receiver.
+# A schedule firing hourly is the natural cadence; the feed only ever holds a day.
+#
+#   dg run --local examples/open-data/usgs-earthquakes-alert.yaml
+#   dg run --local examples/open-data/usgs-earthquakes-alert.yaml -p min_magnitude=7 -p radius_km=50
+
+format: dirigent/v1
+kind: pipeline
+code: usgs-earthquakes-alert
+name: Earthquakes near a point
+description: |
+  The **USGS** past-day earthquake feed, filtered by magnitude and great-circle distance from a
+  point, posted onward as a digest -- and posted only when something matched.
+
+  A quiet day ends `succeeded` with the gate and the post skipped, which is what an alert
+  pipeline has to be able to do.
+
+tags: [open-data, http, sensor, storage, transform, webhook, filter, starter]
+
+requires:
+  blocks:
+    - http.request
+    - filter.jq
+    - map.jq
+    - transform.jq
+    - storage.write
+    - convert.std
+    - storage.exists
+    - webhook.post
+
+params:
+  type: object
+  additionalProperties: false
+  properties:
+    latitude:
+      type: number
+      default: 36.0
+      description: Degrees north of the point everything is measured from.
+    longitude:
+      type: number
+      default: -119.5
+      description: Degrees east; the default point is California's Central Valley.
+    radius_km:
+      type: number
+      default: 800
+      description: How far from that point an event still counts.
+    min_magnitude:
+      type: number
+      default: 2.0
+      description: Raise this until the digest is worth reading.
+    webhook_url:
+      type: string
+      default: https://postman-echo.com/post
+      description: Where the digest goes; Postman Echo so the example posts for real.
+
+steps:
+  feed:
+    block: http.request
+    # The feed is regenerated every minute and served from a cache that is occasionally slow;
+    # a second try is cheaper than a missed hour.
+    retry:
+      max_attempts: 2
+      backoff: 10s
+    config:
+      url: https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson
+
+  candidates:
+    block: transform.jq
+    depends_on: [feed]
+    config:
+      # Everything the program needs arrives as data: the features, the point, and the two
+      # limits. Nothing about this input is spliced into the program's text.
+      input:
+        features: ${steps.feed.output.body.features}
+        latitude: ${params.latitude}
+        longitude: ${params.longitude}
+        radius_km: ${params.radius_km}
+        min_magnitude: ${params.min_magnitude}
+      # GeoJSON coordinates are [longitude, latitude, depth], longitude first. USGS times are
+      # epoch milliseconds, so a digest a person reads has to divide before it formats.
+      program: |
+        def radians: . * 3.141592653589793 / 180;
+        . as {$latitude, $longitude, $radius_km, $min_magnitude}
+        | [.features[]
+           | .geometry.coordinates as $c
+           | ((($latitude - $c[1]) | radians / 2 | sin)) as $dp
+           | ((($longitude - $c[0]) | radians / 2 | sin)) as $dl
+           | ($dp * $dp + ($c[1] | radians | cos) * ($latitude | radians | cos) * $dl * $dl) as $a
+           | {
+               id: .id,
+               magnitude: (.properties.mag // -1),
+               place: .properties.place,
+               at: (.properties.time / 1000 | todate),
+               depth_km: $c[2],
+               distance_km: (2 * 6371 * (($a | sqrt) | asin) | round),
+               url: .properties.url,
+               radius_km: $radius_km,
+               min_magnitude: $min_magnitude
+             }]
+
+  nearby:
+    block: filter.jq
+    depends_on: [candidates]
+    config:
+      input: ${steps.candidates.output.value}
+      # Every number in this comparison is a field of the row being tested, which is why the
+      # program is three words long and needs no parameters of its own.
+      program: |
+        .magnitude >= .min_magnitude and .distance_km <= .radius_km
+
+  digest:
+    block: map.jq
+    depends_on: [nearby]
+    config:
+      input: ${steps.nearby.output.value}
+      # The limits did their job in the filter; what goes out is the event.
+      program: |
+        del(.radius_km, .min_magnitude)
+
+  ordered:
+    block: transform.jq
+    depends_on: [digest]
+    config:
+      input: ${steps.digest.output.value}
+      program: |
+        sort_by(-.magnitude)
+
+  staged:
+    block: storage.write
+    depends_on: [ordered]
+    config:
+      target: ${run.scratch}/matched.json
+      value: ${steps.ordered.output.value}
+
+  written:
+    block: convert.std
+    depends_on: [staged]
+    config:
+      source: ${steps.staged.output.uri}
+      target: ${run.scratch}/matched.ndjson
+      from: json
+      to: ndjson
+
+  matched:
+    block: storage.exists
+    depends_on: [written]
+    poll: 1s
+    deadline: 3s
+    # The whole point: nothing matched is not a failure, it is a run with nothing to say.
+    on_timeout: skip
+    config:
+      uri: ${steps.written.output.target}
+      # One byte is the difference between an empty digest and a digest.
+      min_size: 1b
+
+  notify:
+    block: webhook.post
+    depends_on: [digest, matched]
+    config:
+      url: ${params.webhook_url}
+      body:
+        kind: earthquake-digest
+        near:
+          - ${params.latitude}
+          - ${params.longitude}
+        radius_km: ${params.radius_km}
+        min_magnitude: ${params.min_magnitude}
+        events: ${steps.digest.output.value}

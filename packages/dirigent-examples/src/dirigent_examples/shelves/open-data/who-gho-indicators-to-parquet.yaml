@@ -1,0 +1,163 @@
+# One WHO indicator, several countries, one table, one parquet file, and a manifest over the batch.
+#
+# The WHO Global Health Observatory serves its whole indicator catalogue as OData, keyless:
+# /api/<INDICATOR_CODE> answers {"@odata.context": ..., "value": [ ... ]}, one object per
+# observation, each carrying the country in SpatialDim, the year in TimeDim, the disaggregation
+# in Dim1, and the number in NumericValue. The envelope is OData's; the rows inside it are what
+# anyone actually wants.
+#
+# What this shows, beyond the fetch: how a fan-out is read back. `for_each` is expanded when the
+# run is created, so it can read params, run and item -- and never another step's output. And a
+# fan-out step stores one output: the list of its items' outputs, in item order, with a failed
+# item absent from it. So there is no way for item three of one step to ask item three of another
+# what it produced; what a downstream step gets is the whole list at once. That is why the
+# flattening below is a single step over every envelope, and why the country is read out of
+# SpatialDim: the join key lives in the data, where a fan-in can see it.
+#
+# What happens, hop by hop:
+#
+#   fetch     one GET per country. items: continue means a country the indicator has no data
+#             for, or one the endpoint is slow for, does not take the rest of the batch down
+#             with it -- and its absence from this step's output list is what the manifest
+#             below counts.
+#   rows      the fan-in: every envelope this step is handed, opened at `.value` and flattened
+#             into one table sorted by country and year.
+#   staged    storage.write, that table as one json object. A converter reads one URI and
+#             writes another, so a value the run is holding is put down before it is
+#             re-encoded.
+#   parquet   convert.arrow, json to parquet. Parquet is bytes, so it never travels as a value:
+#             the step names a source URI and a target URI and nothing is carried between them.
+#   manifest  what the run has to say for itself: how many countries were asked for, how many
+#             answered, how many rows landed, and where the file is.
+#   index     the manifest written beside the parquet, which is the object another pipeline
+#             lists a dataset from.
+#
+# To make it yours: change indicator to any code from https://ghoapi.azureedge.net/api/Indicator
+# and countries to the ISO3 codes you report on. Point the targets at s3:// on an instance with
+# an object store, and the manifest becomes a dataset index other pipelines read.
+#
+#   dg run --local examples/open-data/who-gho-indicators-to-parquet.yaml
+#   dg run --local examples/open-data/who-gho-indicators-to-parquet.yaml \
+#     -p indicator=WHOSIS_000015 -p countries='["NPL","BGD"]'
+
+format: dirigent/v1
+kind: pipeline
+code: who-gho-indicators-to-parquet
+name: WHO GHO indicator to parquet
+description: |
+  One **GHO** indicator fetched once per country, flattened out of the OData envelopes into one
+  table and written as parquet, with a manifest counting what came back.
+
+  A fan-out's results are read back as one list, because a fan-out step stores one output and
+  `for_each` cannot read an upstream step's output at all.
+
+tags: [open-data, http, storage, transform, fan-out, parquet, starter]
+
+requires:
+  blocks:
+    - http.request
+    - transform.jq
+    - storage.write
+    - convert.arrow
+
+params:
+  type: object
+  additionalProperties: false
+  properties:
+    indicator:
+      type: string
+      default: WHOSIS_000001
+      description: A GHO indicator code; the default is life expectancy at birth.
+    countries:
+      type: array
+      default: [MWI, NPL, ETH]
+      items:
+        type: string
+        description: ISO3 country code, as GHO writes it in SpatialDim.
+
+steps:
+  fetch:
+    block: http.request
+    for_each: ${params.countries}
+    # A country with no data for this indicator answers an empty value list rather than an
+    # error, so what this policy really tolerates is the endpoint being slow or briefly down.
+    items: continue
+    # The GHO endpoint sits behind a CDN that occasionally takes seconds to answer a cold
+    # indicator; one retry costs nothing and saves the batch.
+    retry:
+      max_attempts: 3
+      backoff: 5s
+    config:
+      url: https://ghoapi.azureedge.net/api/${params.indicator}
+      query:
+        # OData's filter language, not a URL convention: the quotes around the code are part
+        # of the expression and the server parses them.
+        $filter: SpatialDim eq '${item}'
+      timeout: 1m
+
+  rows:
+    block: transform.jq
+    depends_on: [fetch]
+    config:
+      # One fan-out step, one output: the list of what its items answered. A country whose
+      # item failed is simply not in it.
+      input: ${steps.fetch.output}
+      # NumericValue rather than Value: Value is the display string, "48.0 [46.7-49.6]", and
+      # a column that has to be parsed before it can be added up is not a number.
+      program: |
+        [.[]
+         | .body.value[]
+         | {country: .SpatialDim,
+            year: .TimeDim,
+            dimension: .Dim1,
+            value: .NumericValue,
+            low: .Low,
+            high: .High}]
+        | sort_by(.country, .year, .dimension)
+
+  staged:
+    block: storage.write
+    depends_on: [rows]
+    config:
+      target: ${run.scratch}/rows/${params.indicator}.json
+      value: ${steps.rows.output.value}
+
+  parquet:
+    block: convert.arrow
+    depends_on: [staged]
+    config:
+      source: ${steps.staged.output.uri}
+      target: ${run.scratch}/parquet/${params.indicator}.parquet
+      from: json
+      to: parquet
+
+  manifest:
+    block: transform.jq
+    depends_on: [fetch, rows, parquet]
+    config:
+      input:
+        indicator: ${params.indicator}
+        requested: ${params.countries}
+        answered: ${steps.fetch.output}
+        rows: ${steps.rows.output.value}
+        file: ${steps.parquet.output.target}
+        bytes: ${steps.parquet.output.bytes_written}
+      # `answered` is shorter than `requested` exactly when an item failed, which is the only
+      # place in the run where that difference is visible as data rather than as a status.
+      program: |
+        {
+          indicator,
+          file,
+          bytes,
+          requested: (.requested | length),
+          answered: (.answered | length),
+          rows: (.rows | length),
+          countries: ([.rows[].country] | unique)
+        }
+
+  index:
+    block: storage.write
+    depends_on: [manifest]
+    config:
+      target: ${run.scratch}/parquet/${params.indicator}-manifest.json
+      value: ${steps.manifest.output.value}

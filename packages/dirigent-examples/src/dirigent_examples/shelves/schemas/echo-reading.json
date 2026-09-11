@@ -1,0 +1,18 @@
+{
+  "$id": "echo-reading",
+  "title": "Echoed reading batch",
+  "description": "What a fetch of the echo service is held to before anything reads into it: an `args` map carrying the query the call sent, and the `url` it was answered from. A source that changes shape under a pipeline is refused here rather than producing a wrong number three steps later.",
+  "type": "object",
+  "required": ["args", "url"],
+  "properties": {
+    "args": {
+      "type": "object",
+      "required": ["station", "day"],
+      "properties": {
+        "station": { "type": "string", "minLength": 1 },
+        "day": { "type": "string", "format": "date" }
+      }
+    },
+    "url": { "type": "string" }
+  }
+}

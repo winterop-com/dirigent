@@ -42,7 +42,7 @@ from dirigent_plugin import (
     merge_contributions,
     shell_string_fields,
 )
-from toy import EchoConfig, EchoOperator, TickConfig, TickSensor, ToyPlugin, plugin
+from toy import EchoConfig, EchoOperator, ShelvesPlugin, TickConfig, TickSensor, ToyPlugin, plugin
 
 
 class NullLogger:
@@ -403,6 +403,20 @@ def test_an_unregistered_plugin_contributes_nothing() -> None:
     manager.register(plugin, name="toy")
     manager.unregister("toy")
     assert manager.caller(contribute)() == []
+
+
+def test_a_plugin_may_carry_example_shelves_and_nothing_else(tmp_path: Path) -> None:
+    manager = make_manager()
+    manager.register(ShelvesPlugin(tmp_path), name="shelves")
+    collected: list[Any] = manager.caller(markers.examples)()
+    assert collected == [[tmp_path]]
+    assert manager.caller(contribute)() == []
+
+
+def test_a_plugin_without_shelves_answers_the_examples_hook_with_nothing() -> None:
+    manager = make_manager()
+    manager.register(plugin, name="toy")
+    assert manager.caller(markers.examples)() == []
 
 
 def test_the_entry_point_group_is_version_pinned() -> None:

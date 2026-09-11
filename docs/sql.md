@@ -67,7 +67,7 @@ instead of over an async one. It is the [engine that reads files](#sql-over-file
 
 A `--local` run has no instance to hold a connection, so a document run that way carries one in
 its own `connections:` section -- which is what the
-[examples](https://github.com/winterop-com/dirigent/tree/main/examples/sql) do.
+[examples](https://github.com/winterop-com/dirigent/tree/main/packages/dirigent-examples/src/dirigent_examples/shelves/sql) do.
 
 ## Values are bound, never interpolated
 
@@ -153,7 +153,7 @@ steps:
 The line between the two shapes: the rows stay in the output when the next step reads them as
 a value, and get a write of their own when something outside the run reads them as a file. A
 few hundred rows a transform maps is the first; a table an export produces is the second.
-[`examples/sql/sql-query-to-storage.yaml`](https://github.com/winterop-com/dirigent/tree/main/examples/sql)
+[`examples/sql/sql-query-to-storage.yaml`](https://github.com/winterop-com/dirigent/tree/main/packages/dirigent-examples/src/dirigent_examples/shelves/sql)
 is the second, hop by hop.
 
 ## SQL over files: DuckDB
@@ -212,7 +212,7 @@ artifact rather than rows. It writes, so it is `sql.execute`:
 ```
 
 `(FORMAT parquet)` there writes a typed artifact the next pipeline reads back with
-`read_parquet`. [`examples/sql/duckdb-parquet-to-report.yaml`](https://github.com/winterop-com/dirigent/tree/main/examples/sql)
+`read_parquet`. [`examples/sql/duckdb-parquet-to-report.yaml`](https://github.com/winterop-com/dirigent/tree/main/packages/dirigent-examples/src/dirigent_examples/shelves/sql)
 is both directions in one run.
 
 **A parameter that is a storage URI becomes a path.** On a duckdb connection, and on no other,
@@ -327,7 +327,7 @@ make docker-run-sql   # docker compose ... -f infra/compose.sql.yaml up
 
 `examples/sql/warehouse.sql` seeds it on first start with a `reader` role holding SELECT and
 nothing else, a `writer` role, and the `reading` table
-[`examples/sql/sql-postgres-readonly.yaml`](https://github.com/winterop-com/dirigent/tree/main/examples/sql)
+[`examples/sql/sql-postgres-readonly.yaml`](https://github.com/winterop-com/dirigent/tree/main/packages/dirigent-examples/src/dirigent_examples/shelves/sql)
 queries. The two connections name the service:
 
 ```bash

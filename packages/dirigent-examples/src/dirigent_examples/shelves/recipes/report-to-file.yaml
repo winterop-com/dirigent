@@ -1,0 +1,131 @@
+# Render a page of markdown and put it in a file, then read the file back and log it.
+#
+# In:  three readings written inline.
+# Out: a markdown page at ${run.scratch}/report.md, and its text on the run's own timeline.
+#
+# report.render renders text and hands it on; it writes nothing itself. Sending it
+# somewhere is a step of its own, and which step that is decides where the page goes -- a
+# file here, a bucket in examples/s3/report-to-s3.yaml, a queue in the two under
+# examples/queues/. The template does not change between them.
+#
+# Six hops, and what each one hands on:
+#   readings  value.const, the rows a real pipeline would have fetched.
+#   summary   transform.jq, the numbers the page is about, computed before anything is
+#             worded. A template that does arithmetic is a template nobody can test.
+#   page      report.render, the markdown. Output: text, content_type, text_bytes.
+#   save      storage.write, the text to a URI. Output: uri, bytes_written, content_type.
+#   back      storage.read, the same URI. It is text/markdown, so the object comes back as
+#             `text` rather than as `value`.
+#   show      log.write, the page onto the run's timeline, which is the smallest sink there
+#             is and the easiest way to see that the round trip worked.
+#
+# THE TEMPLATE IS JINJA, and `values` is everything it may read: names it was not given
+# render as the empty string rather than failing the step, so a page missing a fact is still
+# a page. It is compiled when the document is applied, so a syntax error is refused there
+# rather than at the first run. docs/reports.md is the family's home; the same language
+# writes a run's own `report:` section.
+#
+# WHY THE CONTENT TYPE IS SAID TWICE. report.render says what the text is and storage.write
+# records it, so the object carries its type on a backend that can hold one and is guessed
+# from the `.md` extension on one that cannot. storage.read resolves it the same way round:
+# an override, else what the backend stored, else the extension, else bytes it refuses to
+# decode.
+#
+# TO MAKE IT YOURS: change the template, and change where `save` points. Nothing else moves.
+#
+#   dg run --local examples/recipes/report-to-file.yaml
+#   dg run --local examples/recipes/report-to-file.yaml -p day=2026-02-01
+
+format: dirigent/v1
+kind: pipeline
+code: report-to-file
+name: Render a report and write it to a file
+description: Render a markdown page from a Jinja template, write it to the run's scratch space, and read it back.
+
+tags: [recipes, report, storage, transform, starter]
+
+requires:
+  blocks:
+    - value.const
+    - transform.jq
+    - report.render
+    - storage.write
+    - storage.read
+    - log.write
+
+params:
+  type: object
+  properties:
+    day:
+      type: string
+      format: date
+      default: "2026-01-01"
+      description: The day the report is about.
+
+steps:
+  readings:
+    block: value.const
+    config:
+      value:
+        - {station: st-1, region: east, celsius: 4.5}
+        - {station: st-3, region: west, celsius: 1.2}
+        - {station: st-4, region: north, celsius: -3.4}
+
+  summary:
+    block: transform.jq
+    depends_on: [readings]
+    config:
+      input: ${steps.readings.output.value}
+      # Every number the page shows is computed here, where it can be asserted on.
+      program: |
+        {stations: length,
+         coldest: (min_by(.celsius) | .station),
+         below_zero: [.[] | select(.celsius < 0) | .station],
+         rows: [.[] | {station, region, celsius}]}
+
+  page:
+    block: report.render
+    depends_on: [summary]
+    config:
+      # What the template may read, and the only thing it may read.
+      values:
+        day: ${params.day}
+        summary: ${steps.summary.output.value}
+      content_type: text/markdown
+      template: |
+        # Readings for {{ day }}
+
+        {{ summary.stations }} stations reported, {{ summary.below_zero | length }} below zero.
+        The coldest was {{ summary.coldest }}.
+
+        | Station | Region | Celsius |
+        | --- | --- | --- |
+        {% for row in summary.rows %}
+        | {{ row.station }} | {{ row.region }} | {{ row.celsius }} |
+        {% endfor %}
+
+  save:
+    block: storage.write
+    depends_on: [page]
+    config:
+      # ${run.scratch} is the run's own prefix in whatever storage the instance is
+      # configured with: a temporary directory under --local, the artifact root on a
+      # server, a bucket where an s3 connection serves the scheme.
+      target: ${run.scratch}/report.md
+      text: ${steps.page.output.text}
+      content_type: ${steps.page.output.content_type}
+
+  back:
+    block: storage.read
+    depends_on: [save]
+    config:
+      # Where the write said the object landed, not the same path typed twice.
+      source: ${steps.save.output.uri}
+      max_size: 1mb
+
+  show:
+    block: log.write
+    depends_on: [back]
+    config:
+      message: the report, read back out of storage
+      value: ${steps.back.output.text}

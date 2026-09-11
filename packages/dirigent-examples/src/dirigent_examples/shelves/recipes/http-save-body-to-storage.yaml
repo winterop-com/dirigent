@@ -1,0 +1,106 @@
+# Call a service, put the answer in a file, and read the file back.
+#
+# In:  a query the echo service reflects back, named by parameters.
+# Out: the body as a file in the run's scratch space, and a small summary read back out of
+#      that file.
+#
+# An http.request step hands its answer on as `body`, and a body worth keeping travels to
+# storage the way every other value does: through a storage.write step. Four hops, and what
+# each one hands on:
+#
+#   download  http.request. Output: status, headers, body, body_bytes, duration_ms. body is
+#             the parsed document here, because the echo service answers JSON.
+#   save      storage.write, the value to a URI. Output: uri, bytes_written, content_type.
+#             The bytes are staged beside the target and renamed on close, so the object
+#             becomes visible only once it is whole -- which is what makes a storage.exists
+#             sensor on the other side a gate rather than a race.
+#   back      storage.read, the same URI. It is application/json, so the object comes back
+#             as `value` rather than as `text`.
+#   summary   transform.jq, which is where a pipeline decides how much of a large body it
+#             actually needs: this one keeps four fields.
+#
+# HOW BIG A BODY THIS HOLDS. max_response bounds what the call reads into the worker, and a
+# body past it is refused rather than read half way; max_size bounds what the read brings
+# back. Both are whole values a step can look at. Bytes nobody has to look at never become a
+# step output at all: storage.copy moves them between URIs, bounded by the storage rather
+# than by the worker's memory.
+#
+# To change it: point save at s3://<bucket>/incoming/... and the same three steps become a
+# download into an object store, because the scheme is the only thing that changes.
+#
+#   dg run --local examples/recipes/http-save-body-to-storage.yaml
+#   dg run --local examples/recipes/http-save-body-to-storage.yaml -p day=2026-02-01
+
+format: dirigent/v1
+kind: pipeline
+code: http-save-body-to-storage
+name: A response body saved to storage
+description: Call an endpoint, write the body it answered with to a storage URI, and read the file back for a summary.
+
+tags: [recipes, http, storage, transform, starter]
+
+requires:
+  blocks:
+    - http.request
+    - storage.write
+    - storage.read
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    day:
+      type: string
+      format: date
+      default: "2026-01-01"
+      description: The day the downloaded file is named for.
+    station:
+      type: string
+      default: st-1
+      description: A query value, echoed back inside the downloaded body.
+
+steps:
+  download:
+    block: http.request
+    config:
+      url: https://postman-echo.com/get
+      method: GET
+      query:
+        station: ${params.station}
+        day: ${params.day}
+      max_response: 8mb
+      timeout: 30s
+
+  save:
+    block: storage.write
+    depends_on: [download]
+    config:
+      # ${run.scratch} is the run's own prefix in whatever storage the instance is
+      # configured with: a temporary directory under --local, the artifact root on a
+      # server, a bucket where an s3 connection serves the scheme.
+      target: ${run.scratch}/incoming/${params.day}.json
+      value: ${steps.download.output.body}
+
+  back:
+    block: storage.read
+    depends_on: [save]
+    config:
+      # Where the write said the object landed, not the same path typed twice.
+      source: ${steps.save.output.uri}
+      max_size: 8mb
+
+  summary:
+    block: transform.jq
+    depends_on: [download, save, back]
+    config:
+      input:
+        status: ${steps.download.output.status}
+        uri: ${steps.save.output.uri}
+        bytes: ${steps.save.output.bytes_written}
+        body: ${steps.back.output.value}
+      program: |
+        {status, uri, file_bytes: .bytes,
+         summary: {url: .body.url,
+                   station: .body.args.station,
+                   day: .body.args.day,
+                   host: .body.headers.host}}

@@ -58,7 +58,7 @@ dg connection check private-repo
 A check lists the remote's branches, which is the smallest thing that proves both reach and
 credential. A `--local` run has no instance to hold a connection, so a document run that way
 carries one in its own `connections:` section -- which is what the
-[examples](https://github.com/winterop-com/dirigent/tree/main/examples/git) do.
+[examples](https://github.com/winterop-com/dirigent/tree/main/packages/dirigent-examples/src/dirigent_examples/shelves/git) do.
 
 ## What happens to the credential
 
