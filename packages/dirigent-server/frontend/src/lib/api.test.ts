@@ -20,7 +20,7 @@ function answer(status: number, body: unknown, ok = status < 400): Response {
     } as unknown as Response
 }
 
-const CONFIG = { api_prefix: '/api/v1', version: '0.12.0' }
+const CONFIG = { api_prefix: '/api/v1', version: '0.13.0' }
 
 let calls: { url: string; init: RequestInit }[]
 

@@ -148,6 +148,18 @@ stays clean, and every example stays executable.
   realistically Keycloak, then issue dirigent's own opaque credential). Internal tokens
   stay opaque; the rationale is in docs/security.md.
 
+- **A server in the mix.** Everything dirigent runs today is a step that starts, does its work
+  and ends, and everything it talks to is somewhere else. Two things a person might mean by
+  "add a FastAPI server" are worth deciding between. One is a pack contributing HTTP routes
+  and a screen to the dirigent server itself through pluginkit -- a seventh surface beside
+  blocks and connection kinds, the server mounting a pack's router under `/api/v1/<pack>` --
+  which raises who authenticates those routes, how they appear in the OpenAPI document, and
+  whether the outbound-only decision admits a pack that listens. The other is a pipeline whose
+  step is a long-lived service: an app a run starts, health-checks with `http.ready`, uses for
+  the rest of the run, and tears down, the shape `docker.compose.up` and `.down` already give a
+  compose stack, but for a process the worker owns. To decide first: which of the two is
+  wanted, since they share a word and nothing else.
+
 ## Wanted
 
 - **Restoring both halves of the state.** The database is the system of record, but artifact
@@ -258,25 +270,6 @@ stays clean, and every example stays executable.
   corners at least, or a different mark entirely; whatever it becomes, it needs the square
   favicon, the README banner, and a dark-background variant, and `docs/assets/logo.png` and
   `banner.png` keep their names so nothing needs rewiring.
-
-- **Markdown reports from templates.** These are one feature. A run's report is currently a
-  stub, and an alert rule's message template only interpolates `${run.*}`, so neither can say
-  much. Wanted: render text from a Jinja2 template against a run's facts -- its steps, items,
-  attempts, outputs and timings -- producing markdown that is stored as an artifact, shown in
-  the run view, and usable as an alert body. A `report.render` block would let a pipeline
-  emit its own summary as a step, the way the Prefect flows emitted a markdown artifact in a
-  `finally` block, which was the operator's real feedback channel.
-  The run's own report is engine-owned rather than a step, because a step cannot run when a
-  run is cancelled or a worker dies, and those are the cases where a report matters most; the
-  engine already holds every fact one needs, and a pipeline names a template rather than
-  carrying reporting boilerplate. `report.render` as a block stays useful for a different
-  job: a summary of the WORK, mid-pipeline, that a later step sends somewhere.
-  The boundary matters: templating renders TEXT and never resolves step config. Config stays
-  references-only, deliberately, so a document cannot grow an expression language through a
-  side door -- a template is a safe place for loops and conditionals precisely because its
-  output is a document a person reads, not a decision the engine acts on. Sandbox it
-  accordingly, since a template becomes something a pipeline author can write and an operator
-  runs.
 
 - **Reusable step groups.** Blocks are the unit below a pipeline and `pipeline.run` composes
   above it, but a repeated five-step idiom has nowhere to live except duplication or its own
@@ -396,3 +389,18 @@ requires touching the engine. None is near-term.
   hold it. Worth doing when a block appears whose fetch is genuinely expensive; not worth it
   for reading logs off a container or downloading a result file, which is every remote block
   we ship, and which a repeat costs almost nothing.
+
+- **A storage backend records no content type on write.** `Storage.open_write` takes a URI and
+  nothing else, so `storage.write` cannot set `ContentType` on an S3 object; `storage.read`
+  recovers the type from the extension instead. Widen the protocol with a metadata argument and
+  have the S3 backend pass it through.
+- **The capture URIs are the last storage a block writes on its own.** `shell.run`,
+  `docker.run`, `git.checkout` and the compose and build blocks spill stdout and stderr to
+  `stdout_uri`/`stderr_uri` themselves, and `docker.run` stages `inputs` and `outputs` through
+  mounts. The rule that a value moves through outputs and storage has two doors stops at them
+  for now; a later pass decides what capture looks like under it.
+- **An aiosqlite worker thread can report after its loop closed.** Under coverage, one CI run
+  failed at the setup of the first server test with `RuntimeError: Event loop is closed` raised
+  from an aiosqlite connection thread belonging to an earlier test; a rerun was green. Some
+  test leaves an engine undisposed at teardown. Find it with `-W error` on pytest's unhandled
+  thread exception warning across the whole session.

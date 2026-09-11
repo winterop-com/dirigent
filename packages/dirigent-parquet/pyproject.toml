@@ -1,6 +1,6 @@
 [project]
 name = "dirigent-parquet"
-version = "0.12.0"
+version = "0.13.0"
 description = "The parquet format pack for dirigent: the convert.arrow codec, on pyarrow."
 readme = "README.md"
 requires-python = ">=3.13"

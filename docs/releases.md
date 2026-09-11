@@ -15,6 +15,86 @@ package and uploads it to PyPI through trusted publishing, then builds the image
 commit and pushes it as `<version>` and `latest`. The two sibling repositories then relock
 against the tag and bump.
 
+## 0.13.0
+
+Released 2026-09-11. Every package in the workspace moves to 0.13.0 together.
+
+### Before you upgrade
+
+**A value moves through step outputs; storage has two doors.** A block no longer reads or
+writes storage for a value on its own. `storage.read` brings an object in as a value, decoding
+it by content type (an override, else what the backend recorded, else the extension), and
+`storage.write` puts a value or text out under a URI with a content type. The fields that let a
+block do this itself are gone, with no aliases: `input_uri`, `save_to` and `max_input` on
+`transform.jq`, `map.jq` and `filter.jq` (whose output is now `value` alone); `body_from`,
+`save_to`, `text` and `form` on `http.request`, whose one `body` is sent as-is when it is a
+string and as JSON otherwise, and whose response is now `status`, `headers`, `body`,
+`body_bytes` and `duration_ms` (`json_body`, `text`, `body_uri` and `sent_bytes` are gone);
+`records_from` on `kafka.produce`; `save_to` and `saved_to` on `sql.query`. The converters keep
+their URIs, since a parquet or arrow file is an object and not a value, under the names
+`source` and `target`, and no longer take an inline `input`. A document that used any of these
+is rewritten to compose; every example in the corpus was. The capture URIs on `shell.run` and
+`docker.run` are untouched.
+
+**An alert rule's subject is a Jinja template.** `${run.pipeline} run ${run.status}` is now
+`{{ run.pipeline }} run {{ run.status }}`. A rule written in the old grammar is not migrated
+and must be rewritten. A template that does not compile is refused when the rule is created or
+patched, naming the field and the line; a render that fails at raise time falls back to the
+default with a warning in the run's timeline; an undefined name renders empty. Rules gain a
+`body`, also Jinja, over the same facts plus `report`, the run's report document when it has
+one: `--body` and `--body-file` on `dg alerts rules create`, and PATCH can change `template`,
+`body` and `paused`.
+
+### The run's report
+
+- **A run renders a report document when it settles.** A document may declare `report:`;
+  `report: {}` renders the built-in template, `report.template` an own Jinja one, refused at
+  apply when it does not compile. The engine renders it in the transaction that settles the
+  run, before its alerts are raised, and again when a run is cancelled, so the runs whose
+  report matters most have one. The document is a run-level artifact, inline when small and
+  under the run's scratch otherwise, rewritten in place when a retry resettles the run. A
+  render that fails, exceeds `report_max_size` (1MB) or `report_render_timeout` (5s) leaves a
+  WARNING in the run's log and never fails the run.
+- **The template context** is the run's facts: `run.*` (the alert namespace plus the window
+  and trace), `pipeline`, `steps` in order and `step` by name, each with its outcome,
+  attempts, duration, warnings, error, last output and its size, `items`, totals, `url` and
+  `rendered_at`; filters `duration`, `bytes` and `iso`. `docs/reports.md` is the reference.
+- **Read it anywhere.** `GET /runs/{id}/artifacts` lists a run's artifacts and
+  `GET /artifacts/{id}` serves one; `dg runs report --markdown` prints the document; the run
+  view has a Report tab with a maximize-to-window control and a download link, and the Output
+  tab's artifacts are now downloadable.
+- **`report.render` renders text mid-pipeline** and passes it on as output, so a later step
+  can send it anywhere: `storage.write` to a file or a bucket, `kafka.produce`,
+  `rabbitmq.publish`, `webhook.post`. Five examples show one sink each.
+
+### Blocks
+
+- New: `storage.read`, `storage.write`, `log.write` (one line in the run's log, the value
+  passed through), `rabbitmq.publish`, `report.render`.
+- `sql.query`'s statement is a program (`application/sql`), so the editor opens it in Monaco.
+
+### The editor
+
+- The Report pane edits a document's report template in Monaco with Jinja colouring, or
+  chooses the built-in template or none.
+- Program fields are coloured: a jq grammar (Monaco ships none), and SQL through Monaco's own.
+  Every program and JSON field opens in a large window, with the button at the pane's corner
+  where it covers no text.
+- Fixed: a Monaco pane kept the palette being left when appearance was switched.
+
+### Tooling
+
+- The frontend is formatted with oxfmt, pinned, in the house style; `make ui-fmt` formats and
+  `make ui-lint` checks.
+
+### Examples
+
+- `recipes/http-post-report.yaml` and `recipes/report-built-in.yaml` show the run's report;
+  `report-to-file`, `report-to-s3`, `report-to-kafka`, `report-to-rabbitmq` and
+  `report-to-webhook` show `report.render` feeding each sink. The vocabulary gains `report`.
+
+Nothing in the settings changed since 0.12.0 beyond the two report settings above.
+
 ## 0.12.0
 
 Released 2026-09-10. Every package in the workspace moves to 0.12.0 together.
