@@ -119,6 +119,16 @@ def test_examples_show_prints_the_document_verbatim_at_a_terminal() -> None:
     assert not result.stdout.lstrip().startswith("{"), "a document is not a record stream"
 
 
+def test_examples_show_writes_the_document_to_a_file_in_a_pipe(tmp_path: Path) -> None:
+    target = tmp_path / "pipelines" / "mine.yaml"
+    result = machine("examples", "show", "report-to-file", "--local", "-f", str(target))
+    assert result.exit_code == 0, result.output
+    written = only(result.stdout, "example.written")
+    assert written["code"] == "report-to-file" and written["path"] == str(target)
+    shown = only(machine("examples", "show", "report-to-file", "--local").stdout, "example.source")
+    assert target.read_text() == shown["source"], "the file is the document, not a record"
+
+
 def test_examples_show_refuses_a_code_nobody_ships() -> None:
     result = machine("examples", "show", "no-such-example", "--local")
     assert result.exit_code == 1

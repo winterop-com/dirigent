@@ -428,6 +428,37 @@ def test_apply_refuses_an_invalid_document_and_exits_non_zero(tmp_path: Path, se
     assert rows(result.stdout, "apply")[0]["plan"]["action"] == "invalid"
 
 
+def test_apply_refuses_a_record_file_by_name_and_says_how_the_document_is_written(tmp_path: Path, server: str) -> None:
+    path = tmp_path / "pipelines" / "docker-hello.yaml"
+    path.parent.mkdir()
+    path.write_text('{"kind": "example.source", "code": "docker-hello", "source": "format: dirigent/v1\\n"}\n')
+    result = machine("apply", str(path))
+    assert result.exit_code == 1
+    message = refusal(result.stdout)["message"]
+    assert str(path) in message
+    assert "kind 'example.source'" in message
+    assert "dg examples show CODE -f FILE" in message
+
+
+def test_apply_names_the_file_that_declares_no_format(tmp_path: Path, server: str) -> None:
+    path = tmp_path / "nope.yaml"
+    path.write_text("code: nope\nsteps: {}\n")
+    result = machine("apply", str(path))
+    assert result.exit_code == 1
+    message = refusal(result.stdout)["message"]
+    assert message.startswith(str(path))
+    assert "format: dirigent/v1" in message
+
+
+def test_export_to_a_file_writes_it_in_a_pipe_too(tmp_path: Path, server: str) -> None:
+    apply_document(tmp_path)
+    target = tmp_path / "piped.yaml"
+    result = machine("export", "cli-demo", "-f", str(target))
+    assert result.exit_code == 0, result.output
+    assert target.read_text().startswith("format: dirigent/v1\n")
+    assert only(result.stdout, "pipeline.exported")["path"] == str(target)
+
+
 def test_apply_can_rename_a_document(tmp_path: Path, server: str) -> None:
     path = tmp_path / "demo.yaml"
     path.write_text(DOCUMENT)

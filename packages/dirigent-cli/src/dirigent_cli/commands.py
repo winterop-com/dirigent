@@ -65,7 +65,14 @@ from dirigent_cli.project import (
     write_token_env,
 )
 from dirigent_cli.scaffold import ScaffoldedRecord, ScaffoldError, ScaffoldRecord, scaffold_pack
-from dirigent_cli.sources import Document, SourceError, looks_like_a_document, read_document, read_path
+from dirigent_cli.sources import (
+    Document,
+    SourceError,
+    looks_like_a_document,
+    parse_document,
+    read_document,
+    read_path,
+)
 from dirigent_cli.stream import Sink, track_steps, use_scratch_prefix
 from dirigent_cli.timing import RunProfile, attempt_timing, by_step, profile, step_timing
 from dirigent_client import (
@@ -184,9 +191,13 @@ def _apply_one(
     source: ProvenanceSource | None = None,
 ) -> ApplyResult:
     """Apply one document and return the server's result."""
+    try:
+        body = parse_document(document)
+    except SourceError as error:
+        fail(str(error))
     return dg.call(
         dg.pipelines.apply(
-            cast("dict[str, Any]", yaml.safe_load(document.text)),
+            body,
             code=code,
             source=source if source is not None else document.source,
             source_ref=document.ref,
@@ -374,12 +385,20 @@ def export_command(
     """Export a pipeline as canonical YAML."""
     with client_for(state_of(ctx)) as dg:
         text = dg.call(dg.pipelines.export(code, version=version))
+    if file is not None:
+        file.write_text(text)
     if state_of(ctx).json_output:
-        return emit_fact("pipeline.exported", message="exported", code=code, version=version, document=text)
+        return emit_fact(
+            "pipeline.exported",
+            message="exported",
+            code=code,
+            version=version,
+            document=text,
+            path=None if file is None else str(file),
+        )
     if file is None:
         console.print(text, end="", highlight=False, markup=False)
         return
-    file.write_text(text)
     console.print(f"Wrote [bold]{file}[/].")
 
 
@@ -2713,11 +2732,25 @@ def examples_list(
 def examples_show(
     ctx: typer.Context,
     code: Annotated[str, typer.Argument(help="The example to read.")],
+    file: Annotated[
+        Path | None, typer.Option("-f", "--file", help="Write the document to a file instead of stdout.")
+    ] = None,
     local: Annotated[bool, typer.Option("--local", help=LOCAL_CATALOGUE)] = False,
 ) -> None:
-    """Print one example's document, verbatim, as the shelf holds it."""
+    """Print one example's document, verbatim, as the shelf holds it, or write it to a file.
+
+    Stdout in a pipe carries records like every command, so a redirect keeps a record and
+    not the document; `-f` writes the document itself.
+    """
     state = state_of(ctx)
     entry = _example(state, code, local=local)
+    if file is not None:
+        file.parent.mkdir(parents=True, exist_ok=True)
+        file.write_text(entry.source)
+        if state.json_output:
+            return emit_fact("example.written", message="written", code=entry.code, path=str(file))
+        console.print(f"Wrote [bold]{file}[/].")
+        return
     if state.json_output:
         return emit_fact("example.source", message="example", **entry.model_dump(mode="json"))
     console.print(entry.source, end="", highlight=False, markup=False)
