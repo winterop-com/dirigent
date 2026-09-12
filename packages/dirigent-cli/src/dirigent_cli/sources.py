@@ -2,7 +2,7 @@
 
 import sys
 from pathlib import Path
-from typing import Any, Final
+from typing import Any, Final, cast
 
 import httpx2
 import yaml
@@ -90,7 +90,7 @@ def parse_document(document: Document) -> dict[str, Any]:
                 "starter with `dg pipeline new STARTER`."
             )
         raise SourceError(f"{document.label} declares no format; add `format: dirigent/v1`")
-    return parsed
+    return cast("dict[str, Any]", parsed)
 
 
 def looks_like_a_document(reference: str) -> bool:
