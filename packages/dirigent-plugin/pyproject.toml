@@ -1,6 +1,6 @@
 [project]
 name = "dirigent-plugin"
-version = "0.15.1"
+version = "0.15.2"
 description = "The dirigent plugin contract: block specs, protocols, and markers."
 readme = "README.md"
 requires-python = ">=3.13"

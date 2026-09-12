@@ -15,6 +15,21 @@ package and uploads it to PyPI through trusted publishing, then builds the image
 commit and pushes it as `<version>` and `latest`. The two sibling repositories then relock
 against the tag and bump.
 
+## 0.15.2
+
+Released 2026-09-12. Every package in the workspace moves to 0.15.2 together.
+
+- **`dg apply` names the file it refuses.** Each document is checked before the server sees
+  it, and a refusal carries the path: a file that holds a `dg` record (what a redirect of a
+  command in a pipe keeps, since a pipe carries records) is named as such together with the
+  ways to get the document, a missing `format` names the file, and so does an unreadable or
+  non-mapping file.
+- **`dg examples show CODE -f FILE`** writes the document whatever stdout is, as the record
+  `example.written`. The documentation's `> pipelines/mine.yaml` redirect, which kept a record
+  and not the document, is gone.
+- **`dg export -f` writes the file in a pipe.** It emitted the record and never wrote the
+  file when stdout was not a terminal; the record now also carries the `path`.
+
 ## 0.15.1
 
 Released 2026-09-12. Every package in the workspace moves to 0.15.1 together.
