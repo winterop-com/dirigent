@@ -2,9 +2,10 @@
 
 import sys
 from pathlib import Path
-from typing import Final
+from typing import Any, Final
 
 import httpx2
+import yaml
 from pydantic import BaseModel, ConfigDict
 
 from dirigent_client.enums import ProvenanceSource
@@ -65,6 +66,31 @@ def fetch(url: str) -> str:
 def read_path(path: Path) -> Document:
     """Read a document from a path already known to be one, keeping its provenance."""
     return Document(text=path.read_text(), source=ProvenanceSource.FILE, ref=str(path))
+
+
+def parse_document(document: Document) -> dict[str, Any]:
+    """Parse a document's text, refusing what is plainly not a pipeline document, by name.
+
+    The server checks the same things, but it never saw the file: an error that names the path
+    is the one a person can act on when a whole project was applied.
+    """
+    try:
+        parsed = yaml.safe_load(document.text)
+    except yaml.YAMLError as error:
+        raise SourceError(f"{document.label} is not readable YAML or JSON: {error}") from error
+    if not isinstance(parsed, dict):
+        kind = "empty" if parsed is None else type(parsed).__name__
+        raise SourceError(f"{document.label} is not a document: a document is a mapping, and this file is {kind}")
+    if "format" not in parsed:
+        if "kind" in parsed:
+            raise SourceError(
+                f"{document.label} holds a dg record (kind {parsed['kind']!r}), not a document: a command whose "
+                "stdout is a pipe writes records, so a redirect keeps the record and not the rendering. Write "
+                "the document with `dg examples show CODE -f FILE` or `dg export CODE -f FILE`, or copy a "
+                "starter with `dg pipeline new STARTER`."
+            )
+        raise SourceError(f"{document.label} declares no format; add `format: dirigent/v1`")
+    return parsed
 
 
 def looks_like_a_document(reference: str) -> bool:

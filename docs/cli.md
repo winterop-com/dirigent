@@ -120,7 +120,7 @@ dg examples list --starter                    # only what may be copied
 dg examples list --tag http --tag starter     # every tag named must be worn
 dg examples list --shelf recipes --plugin examples
 dg examples show http-post-report             # the document, verbatim
-dg examples show http-post-report > pipelines/mine.yaml
+dg examples show http-post-report -f pipelines/mine.yaml   # written to a file; a redirect would keep a record
 ```
 
 `--local` reads the corpus installed beside `dg` instead of the instance's, which is what a
@@ -762,7 +762,8 @@ verb and whose fields are the identity of what changed:
 | `trigger_document.deleted` | `dg trigger-document delete` | `code`, and that its `schedules` and `webhooks` went with it |
 | `token.revoked` | `dg admin token revoke` | `code`, and `username` when `--user` named one |
 | `token.issued` | `dg auth login`, `dg admin token create` | `username`, the token's `name`, and the `token` itself, once; a login adds the `url`, a mint the `prefix` |
-| `pipeline.exported` | `dg export` | `code`, the `version` asked for, and the `document` it exported |
+| `pipeline.exported` | `dg export` | `code`, the `version` asked for, the `document` it exported, and the `path` when `-f` wrote it |
+| `example.written` | `dg examples show -f` | `code`, and the `path` the document was written to |
 | `run.detail` | `dg runs show` | The run, its `dag`, its `items` and its `attempts`, under `fields` |
 | `run.report` | `dg runs report` | What each step amounted to and how long it took, under `fields` |
 | `run.report_document` | `dg runs report --markdown` | `run_id`, and the markdown `document` the run rendered when it settled |
@@ -926,7 +927,7 @@ dg pipeline validate CODE [--version N] | --all   # re-check what is stored agai
 dg blocks list [--kind operator|sensor] | show BLOCK_ID
 dg blocks new NAME [--directory DIR]      # scaffold a new block pack
 dg examples list [--tag T]... [--shelf S] [--plugin P] [--starter] [--local]
-dg examples show CODE [--local]           # the document, verbatim, as the shelf holds it
+dg examples show CODE [-f FILE] [--local] # the document, verbatim, as the shelf holds it
 dg pipeline new STARTER [--code X] [--dir DIR] [--local]   # copy a starter into this project
 dg schema list | show CODE | delete CODE
 dg schema create FILE|- [--code CODE] [--name TEXT] [--description TEXT]
