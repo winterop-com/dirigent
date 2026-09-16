@@ -15,6 +15,18 @@ package and uploads it to PyPI through trusted publishing, then builds the image
 commit and pushes it as `<version>` and `latest`. The two sibling repositories then relock
 against the tag and bump.
 
+## 0.16.1
+
+Released 2026-09-17. Every package in the workspace moves to 0.16.1 together.
+
+- **`dg secret-key` generates the envelope key.** It writes a `DIRIGENT_SECRET_KEY` and
+  nothing else, on one plain line at a terminal and in a pipe alike, so
+  `DIRIGENT_SECRET_KEY=$(dg secret-key)` works in a shell and in a `.env`. It is the second
+  plain-line command beside `dg --version`; every other command still writes records in a
+  pipe. The README, `.env.example` and the docs name it where they used to show a python
+  one-liner, and `dg init`, `dg run --local` and the dev seed mint their keys through the
+  same generator.
+
 ## 0.16.0
 
 Released 2026-09-16. Every package in the workspace moves to 0.16.0 together.
