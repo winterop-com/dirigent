@@ -425,6 +425,7 @@ async def cancel_run(
         attempt.status = AttemptStatus.CANCELLED
         attempt.finished_at = moment
         attempt.lease_owner = None
+        attempt.lease_token = None
         attempt.lease_expires_at = None
     await _cancel_items(session, run, moment)
     run.status = RunStatus.CANCELLED

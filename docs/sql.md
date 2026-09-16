@@ -220,6 +220,16 @@ a `file://` value in `params` is resolved to the path duckdb opens. The run's ow
 are the boundary: a URI outside them is refused, so a query reads and writes the files of the
 run it belongs to and nothing else on the worker.
 
+**The boundary is duckdb's own, not a check on the parameters.** A session is opened, given the
+run's work directory and its local scratch space as its `allowed_directories`, and then closed
+around them: `enable_external_access` goes off, which is what makes those roots the only paths
+the engine will open, and `lock_configuration` goes on, which refuses the `SET` that would give
+any of it back. So `read_csv('/etc/hostname')` written straight into the `sql` is refused the
+same way a parameter outside the run is, a `COPY ... TO` outside it cannot land, and a
+statement cannot `LOAD` or `INSTALL` a further extension to reach past the boundary. Spilled
+intermediates and duckdb's secret store are pointed inside the run's work directory for the
+same reason.
+
 **`s3://` duckdb opens itself.** Where a parameter or a statement names an `s3://` object, the
 step loads duckdb's `httpfs` extension and gives it the endpoint, region, credential and
 addressing style of the connection the `s3` scheme is configured from -- the same
@@ -228,7 +238,9 @@ facade itself uses. So `read_parquet` of a bucket object opens it, and `COPY ...
 's3://...'` writes back, with no local copy in the document. On an instance whose artifact
 root is a bucket, `${run.scratch}/readings.parquet` is one of those objects, which is what
 lets the example above run unchanged there. A step that names `s3://` with no connection bound
-to the scheme is refused, because there is no credential to open it with.
+to the scheme is refused, because there is no credential to open it with. The scheme is granted
+alongside the run's directories, and only for a step that names a bucket: a step that names none
+reaches no further than its own files.
 
 !!! note "httpfs is installed once, never mid-run"
 

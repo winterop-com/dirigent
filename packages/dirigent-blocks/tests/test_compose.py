@@ -462,6 +462,7 @@ async def test_a_compose_file_is_written_to_the_work_directory_whatever_scratch_
     """The compose CLI opens a real file, so it comes from the work directory, not storage."""
     local_ctx.scratch_uri = "s3://bucket/artifacts/runs/one"
     calls = scripted_exec(monkeypatch, lambda argv: FakeProcess(0))
+    install_daemon(monkeypatch, FakeComposeDaemon([WEB_CONTAINER]))
     await DockerComposeUpOperator().execute(DockerComposeUpConfig(content="services: {}"), local_ctx.as_context())
     named = next(argv[argv.index("-f") + 1] for argv in calls if "-f" in argv)
     assert Path(named).is_relative_to(local_ctx.work)

@@ -1,21 +1,29 @@
-"""Tests for the storage facade and the file:// backend's contract."""
+"""Tests for the storage facade, the file:// backend's contract, and how a scheme is bound."""
 
 import asyncio
 from collections.abc import AsyncGenerator, AsyncIterator, Callable
 from contextlib import AbstractAsyncContextManager
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar, cast
 
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, SecretStr
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from dirigent_core.config import Settings
+from dirigent_core.database import session_scope
+from dirigent_core.engine import EngineServices
 from dirigent_core.ids import uuid7
+from dirigent_core.models import Connection
+from dirigent_core.plugins import PluginHost
+from dirigent_core.secrets import SecretBox
 from dirigent_core.storage import (
     FileStorageBackend,
     OutsideRoot,
     Storage,
     StorageError,
     UnknownScheme,
+    UnknownStorageConnection,
     build_storage,
     join_uri,
     parse_uri,
@@ -356,3 +364,124 @@ class _Refusing(StorageBackend):
 
     async def delete(self, uri: str) -> None:  # pragma: no cover - never called
         raise AssertionError
+
+
+# -- binding a scheme to its connection ------------------------------------------
+
+#: The connection code every test here configures the ``file://`` scheme from.
+CONNECTION = "artifacts"
+
+#: The credential the connection carries, sealed on the row and recorded when it is opened.
+CREDENTIAL = "the stored credential"
+
+
+class SealedStorageConfig(BaseModel):
+    """What a storage connection holds here: where the tree is, and a credential to open it."""
+
+    root: str
+    token: SecretStr
+
+
+class SealedBackend(FileStorageBackend):
+    """A ``file://`` backend that addresses nothing until a connection has configured it.
+
+    It stands in for a backend with an endpoint and credentials of its own: an unconfigured
+    one refuses every URI, so a caller that reached storage without binding the instance's
+    storage connection fails here rather than quietly reading the wrong place.
+    """
+
+    config_model: ClassVar[type[BaseModel]] = SealedStorageConfig
+
+    def __init__(self, root: str | Path, opened: list[str]) -> None:
+        """Bind the backend to its root and the shared record of the credentials it was given."""
+        super().__init__(root)
+        self.opened = opened
+        self.token: str | None = None
+
+    def configured(self, config: BaseModel) -> "SealedBackend":
+        """Return the instance the connection configures, holding the credential it carried."""
+        resolved = cast("SealedStorageConfig", config)
+        bound = SealedBackend(resolved.root, self.opened)
+        bound.token = resolved.token.get_secret_value()
+        self.opened.append(bound.token)
+        return bound
+
+    def path_for(self, uri: str) -> Path:
+        """Resolve a URI, refusing every one while no connection has configured this backend."""
+        if self.token is None:
+            raise AssertionError(f"{uri} was addressed through storage that no connection configured")
+        return super().path_for(uri)
+
+
+def sealed_connection(secrets: SecretBox, root: str, token: str = CREDENTIAL) -> Connection:
+    """The connection row a storage scheme is configured from, with its credential sealed."""
+    config = SealedStorageConfig(root=root, token=SecretStr(token))
+    public, envelope, key_id = secrets.encrypt_config(SealedStorageConfig, config)
+    return Connection(code=CONNECTION, kind="test.files", config=public, secret_envelope=envelope, secret_key_id=key_id)
+
+
+def sealed_services(settings: Settings, host: PluginHost, opened: list[str]) -> EngineServices:
+    """Services whose ``file://`` scheme is the sealed backend, configured from ``CONNECTION``."""
+    tuned = settings.model_copy(update={"storage_connections": {"file": CONNECTION}})
+    key = tuned.secret_key.get_secret_value() if tuned.secret_key else None
+    return EngineServices(
+        settings=tuned,
+        host=host,
+        storage=Storage({"file": SealedBackend(parse_uri(tuned.artifact_root)[1], opened)}, tuned.artifact_root),
+        secrets=SecretBox(key),
+    )
+
+
+async def test_storage_bound_outside_a_step_carries_the_connections_credential(
+    sessions: async_sessionmaker[AsyncSession], settings: Settings, host: PluginHost
+) -> None:
+    """The paths that address artifacts outside a step reach the same configured backend it does."""
+    opened: list[str] = []
+    services = sealed_services(settings, host, opened)
+    root = parse_uri(services.settings.artifact_root)[1]
+    async with session_scope(sessions) as session:
+        session.add(sealed_connection(services.secrets, root))
+
+    async with session_scope(sessions) as session:
+        storage = await services.bound_storage(session)
+        await storage.write_bytes(f"file://{root}/runs/one/value.txt", b"hello")
+        read = await storage.read_bytes(f"file://{root}/runs/one/value.txt")
+
+    assert read == b"hello"
+    assert opened == [CREDENTIAL], "the backend was opened without the connection's credential"
+
+
+async def test_a_scheme_configured_from_a_connection_that_is_gone_is_a_named_refusal(
+    sessions: async_sessionmaker[AsyncSession], settings: Settings, host: PluginHost
+) -> None:
+    """A typo in the binding is refused by name rather than read through an unconfigured backend."""
+    services = sealed_services(settings, host, [])
+    root = parse_uri(services.settings.artifact_root)[1]
+
+    async with session_scope(sessions) as session:
+        storage = await services.bound_storage(session)
+        with pytest.raises(UnknownStorageConnection, match="no connection coded 'artifacts'"):
+            await storage.write_bytes(f"file://{root}/runs/one/value.txt", b"hello")
+
+
+async def test_each_call_binds_again_so_an_edited_connection_is_the_one_read(
+    sessions: async_sessionmaker[AsyncSession], settings: Settings, host: PluginHost
+) -> None:
+    """A facade holds the credential it opened, so a call takes its own rather than a cached one."""
+    opened: list[str] = []
+    services = sealed_services(settings, host, opened)
+    root = parse_uri(services.settings.artifact_root)[1]
+    async with session_scope(sessions) as session:
+        connection = sealed_connection(services.secrets, root)
+        session.add(connection)
+        await session.flush()
+        first = await services.bound_storage(session)
+        await first.write_bytes(f"file://{root}/runs/one/value.txt", b"hello")
+
+        connection.secret_envelope = services.secrets.seal({"token": "the rotated credential"})
+        await session.flush()
+        second = await services.bound_storage(session)
+        await second.write_bytes(f"file://{root}/runs/two/value.txt", b"hello")
+
+    assert first is not second
+    assert opened == [CREDENTIAL, "the rotated credential"]

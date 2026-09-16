@@ -13,7 +13,9 @@ that looks like SQL stays a value.
 
 The engine is whatever the connection's URL names. PostgreSQL and SQLite run over an async
 driver; DuckDB has none and runs in a worker thread, where it also reads the parquet and csv
-files a statement names by binding their storage URIs as parameters.
+files a statement names by binding their storage URIs as parameters. A duckdb session is held
+to the run's own directories by duckdb's own configuration, so a path written into the SQL
+reaches no further than a bound one does.
 """
 
 import asyncio
@@ -78,6 +80,22 @@ S3: Final = "s3"
 #: step must not fetch a binary from the internet mid-run, so the image installs it at build
 #: time and a bare install does it once by hand.
 HTTPFS: Final = "httpfs"
+
+#: Where a contained session spills a query too large for memory, under the run's work
+#: directory. duckdb's own default is beside the database file or in the worker's cwd, and
+#: neither is inside the roots the session is held to.
+TEMP_DIR: Final = ".duckdb-temp"
+
+#: Where a contained session looks for duckdb secrets, under the run's work directory. The
+#: default is the worker's home, which the session may not read, and httpfs reads the secret
+#: store on every remote open.
+SECRET_DIR: Final = ".duckdb-secrets"
+
+#: What duckdb says when the containment refused the path a statement named.
+DENIED_PATH: Final = "file system operations are disabled"
+
+#: What duckdb says when a statement tried to load an extension the session was not opened with.
+DENIED_EXTENSION: Final = "loading external extensions is disabled"
 
 #: The dialects whose sessions can be made read-only, and how each one is told.
 READ_ONLY: Final = {
@@ -232,7 +250,8 @@ class SqlQueryConfig(BlockModel):
     On a duckdb connection a value that is a ``file://`` storage URI inside the run's own
     directories -- its work directory, and its scratch space where that is local -- arrives as
     the path duckdb opens, so ``read_parquet(:source)`` and ``COPY ... TO :target`` name a file
-    the run wrote. A URI outside them is refused."""
+    the run wrote. A URI outside them is refused, and so is a path spelled out in ``sql``:
+    duckdb itself is held to those directories for the whole session."""
 
     max_rows: int = Field(default=1000, ge=1)
     """How many rows may be carried inline in the step's output.
@@ -327,7 +346,8 @@ class SqlExecuteConfig(BlockModel):
     """Values bound by name, written ``:name``, and shared by every statement.
 
     A statement that names no parameter simply binds none of them. On a duckdb connection a
-    ``file://`` storage URI inside the run's own directories arrives as the path duckdb opens."""
+    ``file://`` storage URI inside the run's own directories arrives as the path duckdb opens,
+    and duckdb reaches no file outside them, however a statement spells it."""
 
     timeout: Duration = timedelta(minutes=5)
     """How long the whole transaction may run.
@@ -669,11 +689,71 @@ def _open_s3(connection: Connection, ctx: StepContext) -> None:
             error_class=ErrorClass.REJECTED,
         ) from error
     for name, value in s3_options(config):
-        # The value is bound, never spliced: a secret must not become part of a statement.
-        connection.execute(sqlalchemy.text(f"SET {name} = :value"), {"value": value})
+        _set(connection, name, value)
     # These statements autobegin a transaction, and the step opens its own straight after.
     # They configure the session rather than touching data, so ending this one keeps them.
     connection.commit()
+
+
+def _set(connection: Connection, name: str, value: Any) -> None:
+    """One duckdb setting, its value bound rather than spliced into the statement.
+
+    A credential must not become part of a statement, and a path must not be able to end one.
+    """
+    connection.execute(sqlalchemy.text(f"SET {name} = :value"), {"value": value})
+
+
+def _contain(connection: Connection, ctx: StepContext, url: URL, *, s3: bool) -> None:
+    """Hold this duckdb connection to the run's own directories, whatever a statement names.
+
+    Run in the thread the connection belongs to, after the credentials and before any statement
+    the document supplies. The order is the whole mechanism: ``allowed_directories`` only bites
+    once ``enable_external_access`` is off, external access cannot be turned back on while the
+    database runs, and the lock refuses the ``SET`` that would widen the roots again. With
+    external access off duckdb also refuses to load or install any further extension, so the
+    scheme this session was opened with is the only one it has.
+    """
+    roots = [str(root) for root in _readable(ctx)]
+    if s3:
+        # The scheme duckdb was just given credentials for stays reachable; no other does.
+        roots.append(f"{S3}://")
+    _set(connection, "allowed_directories", roots)
+    database = _database_path(url)
+    if database is not None:
+        # The file this connection names may sit anywhere, and duckdb writes a log beside it.
+        _set(connection, "allowed_paths", [str(database), f"{database}.wal"])
+    work = subprocess.local_root(ctx)
+    _set(connection, "temp_directory", str(work / TEMP_DIR))
+    _set(connection, "secret_directory", str(work / SECRET_DIR))
+    _set(connection, "enable_external_access", False)
+    _set(connection, "lock_configuration", True)
+    connection.commit()
+
+
+def _database_path(url: URL) -> Path | None:
+    """The file this duckdb url opens, or nothing where the database lives only in memory."""
+    if _is_memory(url) or not url.database:
+        return None
+    return Path(url.database).absolute()
+
+
+def _refusal(error: Exception, roots: list[Path]) -> BlockFailure | None:
+    """What a statement duckdb's containment refused failed for, or nothing for any other error."""
+    text = str(error).lower()
+    if DENIED_PATH in text:
+        named = ", ".join(str(root) for root in roots)
+        return BlockFailure(
+            f"this statement names a file outside the run's own directories ({named}), which is all a "
+            f"statement reads and writes here; {REMOTE_REMEDY}",
+            error_class=ErrorClass.REJECTED,
+        )
+    if DENIED_EXTENSION in text:
+        return BlockFailure(
+            "this statement loads a duckdb extension, and a session carries only the extensions it "
+            "was opened with; a bucket a statement names is opened through its storage connection",
+            error_class=ErrorClass.REJECTED,
+        )
+    return None
 
 
 class _DuckSession:
@@ -705,11 +785,12 @@ class _DuckSession:
         try:
             if self.s3:
                 await asyncio.to_thread(_open_s3, opened, self.ctx)
+            await asyncio.to_thread(_contain, opened, self.ctx, self.url, s3=self.s3)
         except BaseException:
             await asyncio.to_thread(opened.close)
             await asyncio.to_thread(self.engine.dispose)
             raise
-        self.connection = _Threaded(opened)
+        self.connection = _Threaded(opened, _readable(self.ctx))
         return self.connection
 
     async def __aexit__(self, *_error: object) -> None:
@@ -727,10 +808,11 @@ class _Threaded:
     a step that has already failed.
     """
 
-    def __init__(self, connection: Connection) -> None:
-        """Hold the connection and the driver handle an interrupt is sent through."""
+    def __init__(self, connection: Connection, roots: list[Path]) -> None:
+        """Hold the connection, the handle an interrupt is sent through, and the roots it is held to."""
         self.connection = connection
         self.raw: Any = connection.connection.driver_connection
+        self.roots = roots
 
     async def execute(self, statement: TextClause, params: dict[str, Any]) -> Any:
         """Run one statement and hand back its result, rowcount included."""
@@ -764,6 +846,11 @@ class _Threaded:
         except asyncio.CancelledError:
             self.raw.interrupt()
             raise
+        except sqlalchemy.exc.DatabaseError as error:
+            refusal = _refusal(error, self.roots)
+            if refusal is None:
+                raise
+            raise refusal from error
 
 
 class _ThreadedRows:

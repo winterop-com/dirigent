@@ -433,7 +433,7 @@ COMPOSE_S3 = """\
     volumes:
       - s3:/data
     ports:
-      - "${S3_PORT:-9010}:9000"
+      - "127.0.0.1:${S3_PORT:-9010}:9000"
     healthcheck:
       # An unauthenticated request answers 403 rather than 200, and that is a serving
       # endpoint answering: -f would call it a failure, so only the connection is asserted.
@@ -734,7 +734,7 @@ S3_SECRET_KEY=dirigent
 S3_BUCKET=dirigent
 S3_CONNECTION=artifacts
 
-# Where the bundled S3 server is published for a person on the host; the stack itself reaches
+# Where the bundled S3 server is published on the host, on loopback only; the stack itself reaches
 # it as http://s3:9000.
 S3_PORT=9010
 DIRIGENT_S3_IMAGE=rustfs/rustfs:1.0.0-rc.4

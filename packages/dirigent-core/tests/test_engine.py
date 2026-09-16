@@ -1903,7 +1903,7 @@ async def test_a_live_lease_is_left_alone(engine: Engine, sessions: Any, service
     await start(sessions, services, definition)
     unit = await engine.claim()
     assert unit is not None
-    assert await engine.heartbeat([unit.attempt_id]) == {unit.attempt_id}
+    assert await engine.heartbeat([unit]) == {unit.attempt_id}
     async with session_scope(sessions) as session:
         assert await sweep_leases(session) == []
 
@@ -1957,6 +1957,73 @@ async def test_a_remote_handle_is_refused_when_the_lease_was_stolen(
         after = await session.get(StepAttempt, unit.attempt_id)
         assert after is not None
         assert after.remote_handle is None
+
+
+async def test_an_outcome_is_refused_when_the_same_worker_reclaimed_the_attempt(
+    engine: Engine, sessions: Any, services: EngineServices
+) -> None:
+    """A name matches this worker's own next claim, so the fence is the token or nothing."""
+    definition = PipelineDefinition(code="reclaimed", steps=steps(only=StepDefinition(block="test.echo")))
+    run = await start(sessions, services, definition)
+    abandoned = await engine.claim()
+    assert abandoned is not None
+
+    # The lease expired, the sweeper requeued the attempt, and this same worker took it again.
+    later = _after_lease(services)
+    async with session_scope(sessions) as session:
+        assert await sweep_leases(session, now=later) == [abandoned.attempt_id]
+    reclaimed = await engine.claim(now=later)
+    assert reclaimed is not None
+    assert reclaimed.attempt_id == abandoned.attempt_id
+    assert reclaimed.lease_token != abandoned.lease_token
+
+    # The abandoned call finishes and tries to record what it produced.
+    await engine.run_unit(abandoned, now=later)
+
+    async with sessions() as session:
+        after = await session.get(StepAttempt, abandoned.attempt_id)
+        assert after is not None
+        assert after.status is AttemptStatus.RUNNING, "an abandoned call settled the claim that replaced it"
+        assert after.lease_owner == engine.owner
+        assert after.lease_token == reclaimed.lease_token
+        assert after.output is None
+        assert after.finished_at is None
+        reloaded = await session.get(Run, run.id)
+        assert reloaded is not None
+        assert reloaded.status is RunStatus.RUNNING
+
+    # The live claim settles as if nothing had happened.
+    await engine.run_unit(reclaimed, now=later)
+    assert (await reload(sessions, run.id)).status is RunStatus.SUCCEEDED
+
+
+async def test_a_stale_heartbeat_does_not_extend_the_lease_that_replaced_it(
+    engine: Engine, sessions: Any, services: EngineServices
+) -> None:
+    definition = PipelineDefinition(code="reclaimed-heartbeat", steps=steps(only=StepDefinition(block="test.echo")))
+    await start(sessions, services, definition)
+    abandoned = await engine.claim()
+    assert abandoned is not None
+
+    later = _after_lease(services)
+    async with session_scope(sessions) as session:
+        assert await sweep_leases(session, now=later) == [abandoned.attempt_id]
+    reclaimed = await engine.claim(now=later)
+    assert reclaimed is not None
+
+    async with sessions() as session:
+        claimed_row = await session.get(StepAttempt, reclaimed.attempt_id)
+        assert claimed_row is not None
+        leased_until = claimed_row.lease_expires_at
+
+    beat_at = later + timedelta(minutes=5)
+    assert await engine.heartbeat([abandoned], now=beat_at) == set()
+    async with sessions() as session:
+        unchanged = await session.get(StepAttempt, reclaimed.attempt_id)
+        assert unchanged is not None
+        assert unchanged.lease_expires_at == leased_until, "an abandoned call kept a live lease alive"
+
+    assert await engine.heartbeat([reclaimed], now=beat_at) == {reclaimed.attempt_id}
 
 
 async def test_stuck_runs_are_detected(engine: Engine, sessions: Any, services: EngineServices) -> None:

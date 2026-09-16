@@ -607,6 +607,7 @@ def upgrade() -> None:
         sa.Column("attempt", sa.Integer(), server_default=sa.text("0"), nullable=False),
         sa.Column("available_at", dirigent_core.types.UtcDateTime(timezone=True), nullable=False),
         sa.Column("lease_owner", sa.String(length=200), nullable=True),
+        sa.Column("lease_token", sa.Uuid(), nullable=True),
         sa.Column("lease_expires_at", dirigent_core.types.UtcDateTime(timezone=True), nullable=True),
         sa.Column("sent_at", dirigent_core.types.UtcDateTime(timezone=True), nullable=True),
         sa.Column("error", sa.Text(), nullable=True),
@@ -799,6 +800,7 @@ def upgrade() -> None:
         sa.Column("next_poll_at", dirigent_core.types.UtcDateTime(timezone=True), nullable=True),
         sa.Column("deadline_at", dirigent_core.types.UtcDateTime(timezone=True), nullable=True),
         sa.Column("lease_owner", sa.String(length=200), nullable=True),
+        sa.Column("lease_token", sa.Uuid(), nullable=True),
         sa.Column("lease_expires_at", dirigent_core.types.UtcDateTime(timezone=True), nullable=True),
         sa.Column("heartbeat_at", dirigent_core.types.UtcDateTime(timezone=True), nullable=True),
         sa.Column(

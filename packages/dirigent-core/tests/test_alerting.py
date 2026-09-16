@@ -47,6 +47,7 @@ from dirigent_core.database import session_scope
 from dirigent_core.engine import EngineServices
 from dirigent_core.engine.definition import PipelineDefinition, StepDefinition
 from dirigent_core.engine.runs import create_run, save_pipeline
+from dirigent_core.ids import uuid7
 from dirigent_core.models import AlertRule, Connection, LogEntry, Notification, Pipeline, Run
 from dirigent_core.plugins import PluginHost
 from dirigent_plugin import AlertMessage, Contribution, Notifier
@@ -288,6 +289,7 @@ async def reclaim(sessions: async_sessionmaker[AsyncSession], notification_id: U
         assert row is not None
         row.status = NotificationStatus.SENDING
         row.lease_owner = owner
+        row.lease_token = uuid7()
         row.lease_expires_at = NOW + timedelta(seconds=LEASE)
 
 
@@ -695,9 +697,10 @@ async def test_a_delivery_retry_does_not_widen_the_throttle_window(
         assert settled is not None
         await raise_for_run(session, services, settled, AlertEvent.RUN_FAILED, now=NOW)
     async with session_scope(sessions) as session:
-        claimed = await claim_notification(session, owner=OWNER, now=NOW, lease_seconds=LEASE)
-        assert claimed is not None
-        assert await send_notification(session, services, claimed, owner=OWNER, now=NOW) is False
+        claim = await claim_notification(session, owner=OWNER, now=NOW, lease_seconds=LEASE)
+        assert claim is not None
+        claimed, token = claim.notification, claim.lease_token
+        assert await send_notification(session, services, claimed, owner=OWNER, lease_token=token, now=NOW) is False
         assert claimed.available_at > NOW + timedelta(seconds=10)
 
     async with sessions() as session:
@@ -1142,10 +1145,12 @@ async def test_claiming_leases_the_next_due_message_and_counts_the_attempt(
 ) -> None:
     await queued_message(sessions, services)
     async with session_scope(sessions) as session:
-        claimed = await claim_notification(session, owner=OWNER, now=NOW, lease_seconds=LEASE)
-        assert claimed is not None
+        claim = await claim_notification(session, owner=OWNER, now=NOW, lease_seconds=LEASE)
+        assert claim is not None
+        claimed = claim.notification
         assert claimed.status is NotificationStatus.SENDING
         assert claimed.lease_owner == OWNER
+        assert claimed.lease_token == claim.lease_token
         assert claimed.lease_expires_at == NOW + timedelta(seconds=LEASE)
         assert claimed.attempt == 1
 
@@ -1167,8 +1172,8 @@ async def test_a_message_whose_backoff_has_not_elapsed_is_not_claimable(
     )
     async with session_scope(sessions) as session:
         assert await claim_notification(session, owner=OWNER, now=NOW, lease_seconds=LEASE) is None
-        claimed = await claim_notification(session, owner=OWNER, now=NOW + timedelta(minutes=1), lease_seconds=LEASE)
-        assert claimed is not None
+        claim = await claim_notification(session, owner=OWNER, now=NOW + timedelta(minutes=1), lease_seconds=LEASE)
+        assert claim is not None
 
 
 # -- sending -----------------------------------------------------------------------
@@ -1186,13 +1191,17 @@ async def test_a_delivered_alert_is_marked_sent_released_and_written_into_the_ti
         assert stored is not None
         await raise_for_run(session, linked_services, stored, AlertEvent.RUN_FAILED, now=NOW)
     async with session_scope(sessions) as session:
-        claimed = await claim_notification(session, owner=OWNER, now=NOW, lease_seconds=LEASE)
-        assert claimed is not None
-        assert await send_notification(session, linked_services, claimed, owner=OWNER, now=NOW) is True
+        claim = await claim_notification(session, owner=OWNER, now=NOW, lease_seconds=LEASE)
+        assert claim is not None
+        claimed, token = claim.notification, claim.lease_token
+        assert (
+            await send_notification(session, linked_services, claimed, owner=OWNER, lease_token=token, now=NOW) is True
+        )
         assert claimed.status is NotificationStatus.SENT
         assert claimed.sent_at == NOW
         assert claimed.error is None
         assert claimed.lease_owner is None
+        assert claimed.lease_token is None
         assert claimed.lease_expires_at is None
 
     message, config = RecordingNotifier.sent[0]
@@ -1217,12 +1226,15 @@ async def test_a_refused_delivery_goes_back_on_the_queue_with_a_doubling_backoff
     moment = NOW
     for attempt in (1, 2, 3):
         async with session_scope(sessions) as session:
-            claimed = await claim_notification(session, owner=OWNER, now=moment, lease_seconds=LEASE)
-            assert claimed is not None
+            claim = await claim_notification(session, owner=OWNER, now=moment, lease_seconds=LEASE)
+            assert claim is not None
+            claimed, token = claim.notification, claim.lease_token
             assert claimed.attempt == attempt
-            assert await send_notification(session, services, claimed, owner=OWNER, now=moment) is False
+            delivered = await send_notification(session, services, claimed, owner=OWNER, lease_token=token, now=moment)
+            assert delivered is False
             assert claimed.status is NotificationStatus.PENDING
             assert claimed.lease_owner is None
+            assert claimed.lease_token is None
             assert claimed.lease_expires_at is None
             assert claimed.error == "RuntimeError: the channel is on fire"
             delays.append((claimed.available_at - moment).total_seconds())
@@ -1243,10 +1255,11 @@ async def test_a_delivery_that_runs_out_of_budget_fails_terminally_in_the_runs_t
         await raise_for_run(session, services, stored, AlertEvent.RUN_FAILED, now=NOW)
     budget = services.settings.notification_max_attempts
     async with session_scope(sessions) as session:
-        claimed = await claim_notification(session, owner=OWNER, now=NOW, lease_seconds=LEASE)
-        assert claimed is not None
+        claim = await claim_notification(session, owner=OWNER, now=NOW, lease_seconds=LEASE)
+        assert claim is not None
+        claimed, token = claim.notification, claim.lease_token
         claimed.attempt = budget
-        assert await send_notification(session, services, claimed, owner=OWNER, now=NOW) is False
+        assert await send_notification(session, services, claimed, owner=OWNER, lease_token=token, now=NOW) is False
         assert claimed.status is NotificationStatus.FAILED
         assert claimed.error == "RuntimeError: the channel is on fire"
         assert claimed.lease_expires_at is None
@@ -1264,9 +1277,10 @@ async def test_a_notifier_missing_from_this_worker_fails_the_delivery_rather_tha
         sessions, event=AlertEvent.RUN_FAILED, notifier="carrier-pigeon", subject="unreachable", available_at=NOW
     )
     async with session_scope(sessions) as session:
-        claimed = await claim_notification(session, owner=OWNER, now=NOW, lease_seconds=LEASE)
-        assert claimed is not None
-        assert await send_notification(session, services, claimed, owner=OWNER, now=NOW) is False
+        claim = await claim_notification(session, owner=OWNER, now=NOW, lease_seconds=LEASE)
+        assert claim is not None
+        claimed, token = claim.notification, claim.lease_token
+        assert await send_notification(session, services, claimed, owner=OWNER, lease_token=token, now=NOW) is False
         assert claimed.status is NotificationStatus.PENDING
         assert "is not installed on this worker" in (claimed.error or "")
 
@@ -1278,9 +1292,10 @@ async def test_a_message_with_no_run_and_no_context_still_delivers(
         sessions, event=AlertEvent.RUN_SUCCEEDED, notifier="recording", subject="bare", context={}, available_at=NOW
     )
     async with session_scope(sessions) as session:
-        claimed = await claim_notification(session, owner=OWNER, now=NOW, lease_seconds=LEASE)
-        assert claimed is not None
-        assert await send_notification(session, services, claimed, owner=OWNER, now=NOW) is True
+        claim = await claim_notification(session, owner=OWNER, now=NOW, lease_seconds=LEASE)
+        assert claim is not None
+        claimed, token = claim.notification, claim.lease_token
+        assert await send_notification(session, services, claimed, owner=OWNER, lease_token=token, now=NOW) is True
     message, _ = RecordingNotifier.sent[0]
     assert message.pipeline is None
     assert message.url is None
@@ -1296,12 +1311,15 @@ async def test_a_delivery_whose_lease_was_reclaimed_leaves_the_new_owners_row_al
     )
     interference.during = lambda: reclaim(sessions, notification.id, owner="other-worker")
     async with session_scope(sessions) as session:
-        assert await claim_notification(session, owner=OWNER, now=NOW, lease_seconds=LEASE) is not None
+        claim = await claim_notification(session, owner=OWNER, now=NOW, lease_seconds=LEASE)
+        assert claim is not None
+        token = claim.lease_token
     with capture_logs() as logged:
         async with session_scope(sessions) as session:
             claimed = await session.get(Notification, notification.id)
             assert claimed is not None
-            assert await send_notification(session, services, claimed, owner=OWNER, now=NOW) is False
+            delivered = await send_notification(session, services, claimed, owner=OWNER, lease_token=token, now=NOW)
+            assert delivered is False
 
     stored = await reload_notification(sessions, notification.id)
     assert stored.status is NotificationStatus.SENDING
@@ -1321,11 +1339,13 @@ async def test_a_refused_delivery_whose_lease_was_reclaimed_does_not_reschedule_
     interference.during = lambda: reclaim(sessions, notification.id, owner="other-worker")
     interference.refuses = True
     async with session_scope(sessions) as session:
-        assert await claim_notification(session, owner=OWNER, now=NOW, lease_seconds=LEASE) is not None
+        claim = await claim_notification(session, owner=OWNER, now=NOW, lease_seconds=LEASE)
+        assert claim is not None
+        token = claim.lease_token
     async with session_scope(sessions) as session:
         claimed = await session.get(Notification, notification.id)
         assert claimed is not None
-        assert await send_notification(session, services, claimed, owner=OWNER, now=NOW) is False
+        assert await send_notification(session, services, claimed, owner=OWNER, lease_token=token, now=NOW) is False
 
     stored = await reload_notification(sessions, notification.id)
     assert stored.status is NotificationStatus.SENDING
@@ -1364,9 +1384,10 @@ async def test_a_delivery_through_a_connection_opens_it(
     await a_connection(sessions, services)
     await queued_message(sessions, services, connection="desk")
     async with session_scope(sessions) as session:
-        claimed = await claim_notification(session, owner=OWNER, now=NOW, lease_seconds=LEASE)
-        assert claimed is not None
-        assert await send_notification(session, services, claimed, owner=OWNER, now=NOW) is True
+        claim = await claim_notification(session, owner=OWNER, now=NOW, lease_seconds=LEASE)
+        assert claim is not None
+        claimed, token = claim.notification, claim.lease_token
+        assert await send_notification(session, services, claimed, owner=OWNER, lease_token=token, now=NOW) is True
     _, config = RecordingNotifier.sent[0]
     assert isinstance(config, RecordingConfig)
     assert config.label == "ops"
@@ -1421,9 +1442,9 @@ async def test_a_lease_that_outlived_its_worker_goes_back_on_the_queue(
 ) -> None:
     await queued_message(sessions, services)
     async with session_scope(sessions) as session:
-        claimed = await claim_notification(session, owner="dead-worker", now=NOW, lease_seconds=LEASE)
-        assert claimed is not None
-        claimed_id = claimed.id
+        claim = await claim_notification(session, owner="dead-worker", now=NOW, lease_seconds=LEASE)
+        assert claim is not None
+        claimed_id = claim.notification.id
     async with session_scope(sessions) as session:
         assert await recover_notifications(session, now=NOW + timedelta(seconds=LEASE + 1)) == 1
     recovered = await reload_notification(sessions, claimed_id)
@@ -1438,9 +1459,9 @@ async def test_a_lease_that_is_still_valid_is_left_alone(
 ) -> None:
     await queued_message(sessions, services)
     async with session_scope(sessions) as session:
-        claimed = await claim_notification(session, owner="busy-worker", now=NOW, lease_seconds=LEASE)
-        assert claimed is not None
-        claimed_id = claimed.id
+        claim = await claim_notification(session, owner="busy-worker", now=NOW, lease_seconds=LEASE)
+        assert claim is not None
+        claimed_id = claim.notification.id
     async with session_scope(sessions) as session:
         assert await recover_notifications(session, now=NOW + timedelta(seconds=LEASE - 1)) == 0
     held = await reload_notification(sessions, claimed_id)
@@ -1459,10 +1480,15 @@ async def test_a_lease_renewed_while_the_sweep_runs_is_not_taken_from_its_holder
         abandoned = await claim_notification(session, owner="dead-worker", now=NOW, lease_seconds=LEASE)
         assert renewed is not None
         assert abandoned is not None
-        renewed_id, abandoned_id = renewed.id, abandoned.id
+        renewed_id, abandoned_id = renewed.notification.id, abandoned.notification.id
     async with session_scope(sessions) as session:
         assert await renew_lease(
-            session, renewed_id, owner="live-worker", lease_seconds=LEASE, now=NOW + timedelta(seconds=LEASE)
+            session,
+            renewed_id,
+            owner="live-worker",
+            lease_token=renewed.lease_token,
+            lease_seconds=LEASE,
+            now=NOW + timedelta(seconds=LEASE),
         )
 
     async with session_scope(sessions) as session:
@@ -1483,9 +1509,9 @@ async def test_a_notification_already_delivered_is_not_put_back_on_the_queue(
     """A delivery that landed on an expired lease stays sent: recovery only moves sending rows."""
     await queued_message(sessions, services)
     async with session_scope(sessions) as session:
-        claimed = await claim_notification(session, owner="slow-worker", now=NOW, lease_seconds=LEASE)
-        assert claimed is not None
-        claimed_id = claimed.id
+        claim = await claim_notification(session, owner="slow-worker", now=NOW, lease_seconds=LEASE)
+        assert claim is not None
+        claimed_id = claim.notification.id
     async with session_scope(sessions) as session:
         # The lease fields are left where they were, which is what makes this row look
         # recoverable to everything but the status the delivery wrote.
@@ -1499,6 +1525,76 @@ async def test_a_notification_already_delivered_is_not_put_back_on_the_queue(
     delivered = await reload_notification(sessions, claimed_id)
     assert delivered.status is NotificationStatus.SENT
     assert delivered.lease_owner == "slow-worker"
+
+
+async def test_a_reclaim_by_the_same_worker_still_fences_off_the_abandoned_delivery(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    """A worker's name matches its own next claim, so the outcome is fenced by the claim's token."""
+    notification = await queued_message(sessions, services)
+    async with session_scope(sessions) as session:
+        abandoned = await claim_notification(session, owner=OWNER, now=NOW, lease_seconds=LEASE)
+        assert abandoned is not None
+    later = NOW + timedelta(seconds=LEASE + 1)
+    async with session_scope(sessions) as session:
+        assert await recover_notifications(session, now=later) == 1
+    async with session_scope(sessions) as session:
+        live = await claim_notification(session, owner=OWNER, now=later, lease_seconds=LEASE)
+        assert live is not None
+        assert live.lease_token != abandoned.lease_token
+
+    with capture_logs() as logged:
+        async with session_scope(sessions) as session:
+            stale = await session.get(Notification, notification.id)
+            assert stale is not None
+            delivered = await send_notification(
+                session, services, stale, owner=OWNER, lease_token=abandoned.lease_token, now=later
+            )
+            assert delivered is False
+
+    stored = await reload_notification(sessions, notification.id)
+    assert stored.status is NotificationStatus.SENDING, "the row is the live claim's, and stays that way"
+    assert stored.lease_owner == OWNER
+    assert stored.lease_token == live.lease_token
+    assert stored.lease_expires_at == later + timedelta(seconds=LEASE)
+    assert stored.sent_at is None
+    assert stored.error is None
+    assert stored.attempt == 2
+    assert [entry["event"] for entry in logged] == ["lease lost, notification outcome discarded"]
+
+
+async def test_a_renewal_from_an_abandoned_claim_does_not_extend_the_claim_that_replaced_it(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    notification = await queued_message(sessions, services)
+    async with session_scope(sessions) as session:
+        abandoned = await claim_notification(session, owner=OWNER, now=NOW, lease_seconds=LEASE)
+        assert abandoned is not None
+    later = NOW + timedelta(seconds=LEASE + 1)
+    async with session_scope(sessions) as session:
+        assert await recover_notifications(session, now=later) == 1
+    async with session_scope(sessions) as session:
+        live = await claim_notification(session, owner=OWNER, now=later, lease_seconds=LEASE)
+        assert live is not None
+
+    async with session_scope(sessions) as session:
+        stale_renewal = await renew_lease(
+            session,
+            notification.id,
+            owner=OWNER,
+            lease_token=abandoned.lease_token,
+            lease_seconds=LEASE * 10,
+            now=later,
+        )
+        assert stale_renewal is False
+    held = await reload_notification(sessions, notification.id)
+    assert held.lease_expires_at == later + timedelta(seconds=LEASE), "the lease is where the live claim left it"
+
+    async with session_scope(sessions) as session:
+        renewed = await renew_lease(
+            session, notification.id, owner=OWNER, lease_token=live.lease_token, lease_seconds=LEASE, now=later
+        )
+        assert renewed is True
 
 
 # -- the dispatcher ----------------------------------------------------------------

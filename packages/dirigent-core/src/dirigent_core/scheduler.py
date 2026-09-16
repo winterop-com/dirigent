@@ -298,7 +298,8 @@ async def prune(
     total = retention.Swept()
     for _ in range(max_batches):
         async with session_scope(sessions) as session:
-            swept = await retention.sweep(session, chosen, storage=services.storage, now=now, limit=limit)
+            storage = await services.bound_storage(session)
+            swept = await retention.sweep(session, chosen, storage=storage, now=now, limit=limit)
         for family, count in swept.counts.items():
             total.record(family, count)
         total.scratch_deleted += swept.scratch_deleted

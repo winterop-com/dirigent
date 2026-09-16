@@ -41,6 +41,7 @@ from dirigent_core.engine.executor import Engine
 from dirigent_core.engine.recovery import detect_stuck_runs, sweep_leases
 from dirigent_core.engine.runs import RunCreationError, cancel_run, create_run, retry_step, save_pipeline
 from dirigent_core.engine.state import StepOutcome, attempt_counts, item_counts, lock_run
+from dirigent_core.ids import uuid7
 from dirigent_core.models import (
     AlertRule,
     Base,
@@ -1307,6 +1308,7 @@ async def test_a_notification_lease_renewed_while_recovery_sweeps_is_not_lost_to
     somebody else while its holder has just been told the lease is still theirs.
     """
     moment = utcnow()
+    lease_token = uuid7()
     async with session_scope(pg_sessions) as session:
         notification = Notification(
             event=AlertEvent.RUN_FAILED,
@@ -1315,6 +1317,7 @@ async def test_a_notification_lease_renewed_while_recovery_sweeps_is_not_lost_to
             status=NotificationStatus.SENDING,
             available_at=moment - timedelta(minutes=1),
             lease_owner="live-worker",
+            lease_token=lease_token,
             lease_expires_at=moment - timedelta(seconds=30),
         )
         session.add(notification)
@@ -1333,7 +1336,14 @@ async def test_a_notification_lease_renewed_while_recovery_sweeps_is_not_lost_to
 
     async def renew_once() -> bool:
         async with session_scope(pg_sessions) as session:
-            return await renew_lease(session, notification_id, owner="live-worker", lease_seconds=300, now=moment)
+            return await renew_lease(
+                session,
+                notification_id,
+                owner="live-worker",
+                lease_token=lease_token,
+                lease_seconds=300,
+                now=moment,
+            )
 
     async def renew() -> bool:
         await swept.wait()

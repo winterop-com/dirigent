@@ -17,7 +17,10 @@ from dirigent_core.engine import EngineServices
 from dirigent_core.engine.definition import PipelineDefinition, StepDefinition
 from dirigent_core.engine.runs import create_run, retry_step, save_pipeline
 from dirigent_core.models import LogEntry, Pipeline, PipelineVersion, Run, StepAttempt
-from dirigent_core.storage import Storage, build_storage
+from dirigent_core.plugins import PluginHost
+from dirigent_core.scheduler import prune
+from dirigent_core.storage import Storage, build_storage, parse_uri
+from test_storage import CREDENTIAL, sealed_connection, sealed_services
 
 NOW = datetime(2026, 8, 30, 12, 0, tzinfo=UTC)
 
@@ -281,6 +284,27 @@ async def test_no_run_age_sweeps_no_work_directory(session: AsyncSession, tmp_pa
     assert await retention.sweep_work(session, str(root), retention.Policy(), now=NOW) == 0
     assert await retention.sweep_work(session, str(root), retention.Policy(runs=FOREVER, scratch=False), now=NOW) == 0
     assert (root / "runs" / str(run.id)).exists()
+
+
+async def test_a_sweep_clears_scratch_through_the_configured_connection(
+    sessions: async_sessionmaker[AsyncSession], settings: Settings, host: PluginHost
+) -> None:
+    """The sweep runs on the scheduler, where no step context has bound the scheme to anything."""
+    opened: list[str] = []
+    services = sealed_services(settings, host, opened)
+    plain = build_storage(services.settings.artifact_root, [])
+    async with session_scope(sessions) as session:
+        session.add(sealed_connection(services.secrets, parse_uri(services.settings.artifact_root)[1]))
+        old = await a_run(session, finished_at=NOW, age=timedelta(days=40))
+        run_id = old.id
+    await plain.write_bytes(f"{plain.scratch_for(run_id)}/outputs/one.json", b"{}")
+
+    swept = await prune(sessions, services, retention.Policy(runs=timedelta(days=30)), now=NOW)
+
+    assert swept.counts == {"runs": 1}
+    assert swept.scratch_deleted == 1
+    assert set(opened) == {CREDENTIAL}, "the sweep deleted through a backend no connection configured"
+    assert not await _exists(plain, run_id)
 
 
 async def _exists(storage: Storage, run_id: UUID) -> bool:

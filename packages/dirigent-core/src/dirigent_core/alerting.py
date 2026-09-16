@@ -30,6 +30,7 @@ from dirigent_common import (
 from dirigent_core.database import session_scope
 from dirigent_core.engine.definition import load_definition
 from dirigent_core.engine.services import EngineServices
+from dirigent_core.ids import uuid7
 from dirigent_core.logging import get_logger
 from dirigent_core.models import (
     AlertRule,
@@ -608,13 +609,23 @@ async def queue_test_message(
     return notification
 
 
+class ClaimedNotification(BaseModel):
+    """A notification one claim holds, and the generation that claim took."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
+
+    notification: Notification
+    lease_token: UUID
+    """The generation this claim took, which every later write of the row is fenced against."""
+
+
 async def claim_notification(
     session: AsyncSession,
     *,
     owner: str,
     now: datetime,
     lease_seconds: int,
-) -> Notification | None:
+) -> ClaimedNotification | None:
     """Claim the next due notification, the same way a worker claims an attempt."""
     statement = (
         sa.select(Notification)
@@ -628,12 +639,14 @@ async def claim_notification(
     notification = found.scalars().first()
     if notification is None:
         return None
+    token = uuid7()
     notification.status = NotificationStatus.SENDING
     notification.lease_owner = owner
+    notification.lease_token = token
     notification.lease_expires_at = now + timedelta(seconds=lease_seconds)
     notification.attempt += 1
     await session.flush()
-    return notification
+    return ClaimedNotification(notification=notification, lease_token=token)
 
 
 def notifier_config(services: EngineServices, notifier: Notifier, connection: Connection | None) -> BaseModel:
@@ -651,12 +664,13 @@ async def send_notification(
     notification: Notification,
     *,
     owner: str,
+    lease_token: UUID,
     now: datetime | None = None,
 ) -> bool:
     """Deliver one claimed notification, returning whether it was delivered.
 
-    The outcome is written only while this worker still holds the lease, so a delivery that
-    outlasted its lease cannot overwrite the outcome of the worker the row was handed to.
+    The outcome is written only while this claim still holds the lease, so a delivery that
+    outlasted its lease cannot overwrite the outcome of the claim the row was handed to.
 
     THE SESSION IS COMMITTED BEFORE THE SEND, so no transaction is open while an outbound
     call is in flight: on SQLite that transaction holds the one write lock, and everything
@@ -674,33 +688,42 @@ async def send_notification(
         await session.commit()
         await notifier.send(_message(notification), config)
     except Exception as error:
-        if not await _holds_lease(session, notification, owner):
+        if not await _holds_lease(session, notification, owner, lease_token):
             return False
         return await _record_failure(session, services, notification, error, moment)
-    if not await _holds_lease(session, notification, owner):
+    if not await _holds_lease(session, notification, owner, lease_token):
         return False
     notification.status = NotificationStatus.SENT
     notification.sent_at = moment
     notification.error = None
     notification.lease_owner = None
+    notification.lease_token = None
     notification.lease_expires_at = None
     _timeline(session, notification, LogLevel.INFO, f"alert delivered through {notification.notifier!r}", moment)
     _logger.info("notification delivered", notification_id=str(notification.id), notifier=notification.notifier)
     return True
 
 
-async def _holds_lease(session: AsyncSession, notification: Notification, owner: str) -> bool:
-    """Re-read the row and report whether this worker may still write this outcome.
+async def _holds_lease(session: AsyncSession, notification: Notification, owner: str, lease_token: UUID) -> bool:
+    """Re-read the row and report whether this claim may still write this outcome.
 
     The lease is a fence, not a hint: a row the sweeper returned to the queue belongs to
     whoever claimed it next, and writing into it would replace a live delivery's outcome
-    with the outcome of an abandoned one.
+    with the outcome of an abandoned one. The token is what makes that hold when the
+    somebody else is this worker again: a name matches its own next claim, a token never does.
     """
     found = await session.execute(
-        sa.select(Notification.status, Notification.lease_owner).where(Notification.id == notification.id)
+        sa.select(Notification.status, Notification.lease_owner, Notification.lease_token).where(
+            Notification.id == notification.id
+        )
     )
     row = found.one_or_none()
-    if row is not None and row.status is NotificationStatus.SENDING and row.lease_owner == owner:
+    if (
+        row is not None
+        and row.status is NotificationStatus.SENDING
+        and row.lease_owner == owner
+        and row.lease_token == lease_token
+    ):
         return True
     _logger.warning(
         "lease lost, notification outcome discarded",
@@ -717,10 +740,16 @@ async def renew_lease(
     notification_id: UUID,
     *,
     owner: str,
+    lease_token: UUID,
     lease_seconds: int,
     now: datetime | None = None,
 ) -> bool:
-    """Push a notification's lease out, reporting whether this worker still held it."""
+    """Push a notification's lease out, reporting whether this claim still held it.
+
+    A renewal names the claim's generation as well as its row, so one that outlived its lease
+    extends nothing: the row it names is either unclaimed or held by a later claim, this
+    worker's own next one included.
+    """
     moment = now or utcnow()
     renewed = await session.execute(
         sa.update(Notification)
@@ -728,6 +757,7 @@ async def renew_lease(
             Notification.id == notification_id,
             Notification.status == NotificationStatus.SENDING,
             Notification.lease_owner == owner,
+            Notification.lease_token == lease_token,
         )
         .values(lease_expires_at=moment + timedelta(seconds=lease_seconds))
         .returning(Notification.id)
@@ -762,6 +792,7 @@ async def _record_failure(
     message = f"{type(error).__name__}: {error}"
     notification.error = message
     notification.lease_owner = None
+    notification.lease_token = None
     notification.lease_expires_at = None
     budget = services.settings.notification_max_attempts
     if notification.attempt >= budget:
@@ -873,6 +904,7 @@ async def retry_notification(
     notification.error = None
     notification.sent_at = None
     notification.lease_owner = None
+    notification.lease_token = None
     notification.lease_expires_at = None
     await session.flush()
     _logger.info("notification queued again", notification_id=str(notification.id), notifier=notification.notifier)
@@ -898,6 +930,7 @@ async def recover_notifications(session: AsyncSession, *, now: datetime | None =
             status=NotificationStatus.PENDING,
             available_at=moment,
             lease_owner=None,
+            lease_token=None,
             lease_expires_at=None,
         )
         .returning(Notification.id)
@@ -926,37 +959,40 @@ class NotificationDispatcher(BaseModel):
         for _ in range(self.max_per_pass):
             async with session_scope(self.sessions) as session:
                 moment = now or utcnow()
-                notification = await claim_notification(
+                claim = await claim_notification(
                     session,
                     owner=self.owner,
                     now=moment,
                     lease_seconds=int(self.services.settings.notification_lease.total_seconds()),
                 )
-                if notification is None:
+                if claim is None:
                     return sent
+                notification_id, lease_token = claim.notification.id, claim.lease_token
             async with session_scope(self.sessions) as session:
-                claimed = await session.get(Notification, notification.id)
+                claimed = await session.get(Notification, notification_id)
                 if claimed is None:  # pragma: no cover - it was just claimed
                     continue
-                async with self._renewing(claimed.id):
-                    delivered = await send_notification(session, self.services, claimed, owner=self.owner, now=now)
+                async with self._renewing(notification_id, lease_token):
+                    delivered = await send_notification(
+                        session, self.services, claimed, owner=self.owner, lease_token=lease_token, now=now
+                    )
                 if delivered:
                     sent += 1
         return sent
 
     @asynccontextmanager
-    async def _renewing(self, notification_id: UUID) -> AsyncGenerator[None]:
+    async def _renewing(self, notification_id: UUID, lease_token: UUID) -> AsyncGenerator[None]:
         """Hold a notification's lease open for as long as its delivery is in flight."""
         halting = asyncio.Event()
-        renewing = asyncio.create_task(self._renew_until_halted(notification_id, halting))
+        renewing = asyncio.create_task(self._renew_until_halted(notification_id, lease_token, halting))
         try:
             yield
         finally:
             halting.set()
             await renewing
 
-    async def _renew_until_halted(self, notification_id: UUID, halting: asyncio.Event) -> None:
-        """Extend the lease on a cadence until halted, or until the row is no longer this worker's.
+    async def _renew_until_halted(self, notification_id: UUID, lease_token: UUID, halting: asyncio.Event) -> None:
+        """Extend the lease on a cadence until halted, or until the row is no longer this claim's.
 
         The halt is a flag rather than a cancel: a renewal already inside its transaction runs
         to its own end, where a cancel landing in a database await strands the session's
@@ -970,7 +1006,14 @@ class NotificationDispatcher(BaseModel):
                 return
             try:
                 async with session_scope(self.sessions) as session:
-                    if not await renew_lease(session, notification_id, owner=self.owner, lease_seconds=lease_seconds):
+                    renewed = await renew_lease(
+                        session,
+                        notification_id,
+                        owner=self.owner,
+                        lease_token=lease_token,
+                        lease_seconds=lease_seconds,
+                    )
+                    if not renewed:
                         return
             except Exception as error:  # the delivery runs on; the sweeper reclaims if it outlasts the lease
                 _logger.warning(

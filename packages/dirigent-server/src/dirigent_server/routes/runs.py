@@ -335,7 +335,8 @@ async def read_artifact(
         return Response(canonical_json(reference.inline_value), media_type=JSON_CONTENT_TYPE)
     if reference.uri is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"artifact {artifact_id} holds no content")
-    return StreamingResponse(services.storage.open_read(reference.uri), media_type=content_type)
+    storage = await services.bound_storage(session)
+    return StreamingResponse(storage.open_read(reference.uri), media_type=content_type)
 
 
 async def _spilled(

@@ -8,7 +8,7 @@ import uuid
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, ClassVar, cast
 from uuid import UUID
 
 import httpx2
@@ -18,6 +18,7 @@ import yaml
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from pydantic import BaseModel, SecretStr
 
 from dirigent_client.enums import AttemptStatus, LogLevel, RunItemStatus, RunStatus, WorkerStatus
 from dirigent_core.config import Settings
@@ -33,6 +34,10 @@ from dirigent_core.models import (
     Worker,
     uuid7,
 )
+from dirigent_core.plugins import PluginHost, load_plugin_host
+from dirigent_core.secrets import SecretBox
+from dirigent_core.storage import FileStorageBackend
+from dirigent_plugin import Contribution
 from dirigent_server.routes.auth import LOGIN_BUCKETS
 from tests_support import DOCUMENT, apply_document
 
@@ -2691,3 +2696,92 @@ def test_an_artifact_that_went_to_storage_is_streamed_out_of_it(client: TestClie
 
 def test_an_artifact_this_instance_never_wrote_is_a_404(client: TestClient) -> None:
     assert client.get(f"{PREFIX}/artifacts/{uuid7()}").status_code == 404
+
+
+#: The connection the storage scheme is configured from below, and the credential it carries.
+STORAGE_CONNECTION = "artifacts"
+STORAGE_CREDENTIAL = "the stored credential"
+
+
+class SealedStorageConfig(BaseModel):
+    """What a storage connection holds: where the tree is, and a credential to open it."""
+
+    root: str
+    token: SecretStr
+
+
+class SealedBackend(FileStorageBackend):
+    """A ``file://`` backend that addresses nothing until a connection has configured it.
+
+    It stands in for a backend with an endpoint and credentials of its own: an unconfigured
+    one refuses every URI, so a route that reached storage without binding the instance's
+    storage connection fails here rather than quietly reading the wrong place.
+    """
+
+    config_model: ClassVar[type[BaseModel]] = SealedStorageConfig
+
+    def __init__(self, root: str | Path, opened: list[str]) -> None:
+        """Bind the backend to its root and the shared record of the credentials it was given."""
+        super().__init__(root)
+        self.opened = opened
+        self.token: str | None = None
+
+    def configured(self, config: BaseModel) -> "SealedBackend":
+        """Return the instance the connection configures, holding the credential it carried."""
+        resolved = cast("SealedStorageConfig", config)
+        bound = SealedBackend(resolved.root, self.opened)
+        bound.token = resolved.token.get_secret_value()
+        self.opened.append(bound.token)
+        return bound
+
+    def path_for(self, uri: str) -> Path:
+        """Resolve a URI, refusing every one while no connection has configured this backend."""
+        if self.token is None:
+            raise AssertionError(f"{uri} was addressed through storage that no connection configured")
+        return super().path_for(uri)
+
+
+def test_an_artifact_is_streamed_through_the_configured_storage_connection(
+    settings: Settings, admin_token: str
+) -> None:
+    """A download holds no step context, so the route binds the scheme the instance configures."""
+    from dirigent_server import create_app
+
+    opened: list[str] = []
+    root = Path(settings.artifact_root.removeprefix("file://"))
+    tuned = settings.model_copy(update={"storage_connections": {"file": STORAGE_CONNECTION}})
+    contributed = Contribution(storage_backends=[SealedBackend(root, opened)])
+    host = PluginHost({**load_plugin_host().contributions, "storage-tests": contributed})
+    secrets = SecretBox(tuned.secret_key.get_secret_value() if tuned.secret_key else None)
+    config = SealedStorageConfig(root=str(root), token=SecretStr(STORAGE_CREDENTIAL))
+    public, envelope, key_id = secrets.encrypt_config(SealedStorageConfig, config)
+
+    with TestClient(create_app(tuned, host=host), headers={"Authorization": f"Bearer {admin_token}"}) as client:
+        run_id = started_run(client)
+        stored = root / str(run_id) / "report.md"
+        stored.parent.mkdir(parents=True, exist_ok=True)
+        stored.write_text("# a stored report\n")
+        rows_written(
+            client,
+            sa.insert(Connection).values(
+                code=STORAGE_CONNECTION,
+                kind="test.files",
+                config=public,
+                secret_envelope=envelope,
+                secret_key_id=key_id,
+            ),
+            artifact_row(
+                run_id,
+                content_type="text/markdown",
+                size_bytes=stored.stat().st_size,
+                uri=f"file://{stored}",
+                scheme="file",
+            ),
+        )
+
+        artifact = client.get(f"{PREFIX}/runs/{run_id}/artifacts").json()["items"][0]
+        response = client.get(f"{PREFIX}/artifacts/{artifact['id']}")
+
+        assert response.status_code == 200
+        assert response.text == "# a stored report\n"
+        assert opened == [STORAGE_CREDENTIAL], "the artifact was read through a backend no connection configured"
