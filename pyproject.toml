@@ -115,7 +115,11 @@ reportMissingTypeStubs = false
 asyncio_mode = "auto"
 testpaths = ["packages"]
 addopts = "-q --color=yes --strict-markers -m 'not postgres and not s3 and not docker and not queues and not load'"
-filterwarnings = ["error"]
+filterwarnings = [
+    "error",
+    # Raised at import by starlette's test client, which still names the alias anyio 4.15 retired.
+    "ignore:The anyio.abc.BlockingPortal alias is deprecated:DeprecationWarning",
+]
 markers = [
     "postgres: requires a real PostgreSQL server, started with testcontainers",
     "e2e: drives the whole product the way a person would, through dg",
