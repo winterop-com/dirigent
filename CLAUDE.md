@@ -87,8 +87,11 @@
   CI: every command writes NDJSON, one record per line, no banner, no table, no colour.
   `--json` forces records on a terminal, `-o console` forces the rendering into a pipe,
   `DIRIGENT_LOG_FORMAT` names either once, and `dg format` reads a stream that was kept or
-  piped. There is no other exception: `dg init` follows the same rule. `dg --version`
-  answers with one plain line, like `--help`; there is no `dg version` command.
+  piped. Two commands are the exception, and both answer with one plain line at a terminal
+  and in a pipe alike, because the value is the entire output and there is nothing to
+  dispatch on: `dg --version`, like `--help`, and `dg secret-key`, so
+  `DIRIGENT_SECRET_KEY=$(dg secret-key)` works in a shell and in a `.env`. There is no
+  `dg version` command. Every other command follows the rule, `dg init` included.
 - Every record carries a `kind`, which is what a formatter dispatches on and what `jq`
   selects by. A formatter renders an unrecognised kind rather than failing.
 - A record carries what its rendering needs, so no renderer reads the run a second time.

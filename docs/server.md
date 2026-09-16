@@ -28,7 +28,7 @@ Two values in it have no safe default.
 **`DIRIGENT_SECRET_KEY`** encrypts connection secrets and webhook signing secrets:
 
 ```bash
-python3 -c "import base64, os; print(base64.urlsafe_b64encode(os.urandom(32)).decode())"
+dg secret-key
 ```
 
 Losing this key loses every stored connection secret, and changing it does not re-encrypt

@@ -293,7 +293,7 @@ Two values in `.env` have no safe default.
 secrets are encrypted with. Generate one:
 
 ```bash
-python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+dg secret-key
 ```
 
 A well-formed Fernet key is used as-is. Anything else -- a passphrase you typed -- is hashed

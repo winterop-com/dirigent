@@ -500,14 +500,16 @@ key-fetch hook. If your platform provides secrets, its job is to put this variab
 process environment before dirigent starts; dirigent does not reach out for it.
 
 The value may be either a real Fernet key or an arbitrary passphrase. A well-formed Fernet key
-is used as-is, which is what lets an operator generate one with the library's own generator:
+is used as-is, which is what `dg secret-key` mints:
 
 ```bash
-python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+dg secret-key
 ```
 
 Anything else is SHA-256'd into a valid 32-byte key, so a human-typed passphrase yields a
-working instance rather than a startup crash. Prefer the generated key.
+working instance rather than a startup crash. Prefer the generated key. The command writes
+that key and nothing else, on one plain line at a terminal and in a pipe alike, so
+`DIRIGENT_SECRET_KEY=$(dg secret-key)` works in a shell and in a `.env`.
 
 Every process that touches connection secrets needs the same value: the server, every worker,
 and the scheduler. Distributing it is one of the four things multi-node deployment requires.
