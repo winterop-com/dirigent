@@ -67,8 +67,7 @@ Two settings matter before a pipeline touches anything real:
 
 ```bash
 # Connection secrets are encrypted at rest, so the key must exist before one is stored.
-export DIRIGENT_SECRET_KEY="$(uv run python -c \
-  'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')"
+export DIRIGENT_SECRET_KEY="$(dg secret-key)"
 
 # Blocks that execute code on a worker are refused unless their id is allowlisted.
 export DIRIGENT_ENABLED_UNSAFE_BLOCKS='["shell.run"]'

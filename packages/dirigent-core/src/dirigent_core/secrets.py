@@ -33,8 +33,7 @@ class SecretKeyMissing(SecretError):
         """Say exactly which variable to set, and how to generate a key."""
         super().__init__(
             "no secret key is configured: set DIRIGENT_SECRET_KEY before storing or reading "
-            "connection secrets (generate one with `python -c "
-            '"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`)'
+            "connection secrets (generate one with `dg secret-key`)"
         )
 
 
@@ -49,6 +48,11 @@ class SecretKeyMismatch(SecretError):
             "either the key changed or the row belongs to another instance"
         )
         self.key_id = key_id
+
+
+def generate_key() -> str:
+    """Mint a key for DIRIGENT_SECRET_KEY."""
+    return Fernet.generate_key().decode()
 
 
 def derive_key(material: str) -> bytes:

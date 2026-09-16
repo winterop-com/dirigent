@@ -704,6 +704,11 @@ NDJSON is what every command writes when stdout is not a terminal, and what `--j
 nothing reaches stdout that is not a JSON object, and a command that would have asked for a
 value fails rather than blocking on a pipe. A script, an agent and CI never see anything else.
 
+Two commands are the exception, and both answer with one plain line at a terminal and in a
+pipe alike: `dg --version` and `dg secret-key`. The value is the entire output and there is
+nothing to dispatch on, which is what makes `DIRIGENT_SECRET_KEY=$(dg secret-key)` work in a
+shell and in a `.env`. Every other command follows the rule, `dg init` included.
+
 A listing is a record stream like everything else: one line per row, each carrying its kind
 and the row itself under `fields`. A row has fields of its own that a record also has -- a
 schedule's `kind` is `cron` or `interval` -- so the row is kept whole under `fields` rather
@@ -966,6 +971,7 @@ dg docker reap [--dry-run]              # compose stacks left up by runs that ha
 
 # Administration
 dg --version | dg config show
+dg secret-key                           # a DIRIGENT_SECRET_KEY, on one plain line
 dg prune [--runs 30d] [--logs 7d] [--deliveries 30d] [--firings 30d] [--notifications 30d]
          [--no-scratch] [--dry-run]     # an age given here beats the configured one
 dg db upgrade [REVISION] | current | history

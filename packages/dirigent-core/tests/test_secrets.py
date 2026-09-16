@@ -11,6 +11,7 @@ from dirigent_core.secrets import (
     SecretKeyMissing,
     derive_key,
     dump_config,
+    generate_key,
     redact,
     secret_fields,
     split_secrets,
@@ -47,6 +48,14 @@ def test_a_model_without_secrets_has_none() -> None:
         host: str
 
     assert secret_fields(Plain) == []
+
+
+def test_a_generated_key_is_a_fernet_key_that_seals_and_opens() -> None:
+    key = generate_key()
+    assert generate_key() != key
+    box = SecretBox(key)
+    assert box.open(box.seal({"token": "t0ken"})) == {"token": "t0ken"}
+    assert derive_key(key) == key.encode(), "a generated key is used verbatim, never hashed"
 
 
 def test_a_fernet_key_is_used_verbatim_and_a_passphrase_is_derived() -> None:

@@ -257,6 +257,18 @@ def format_command(
         emit_rendered(item)
 
 
+@app.command(name="secret-key", rich_help_panel=ADMIN_PANEL)
+def secret_key_command() -> None:
+    """Generate a DIRIGENT_SECRET_KEY, as one plain line rather than a record.
+
+    The key is the whole output, at a terminal and in a pipe alike, so
+    `DIRIGENT_SECRET_KEY=$(dg secret-key)` works in a shell and in a `.env`.
+    """
+    from dirigent_core.secrets import generate_key
+
+    typer.echo(generate_key())
+
+
 @config_app.command("show")
 def config_show() -> None:
     """Show the effective configuration, with secrets redacted."""
