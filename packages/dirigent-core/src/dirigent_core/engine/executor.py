@@ -55,6 +55,7 @@ from dirigent_core.engine.runs import (
 )
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.engine.state import advance, lock_run
+from dirigent_core.ids import uuid7
 from dirigent_core.logging import get_logger, log_context
 from dirigent_core.models import LogEntry, PipelineVersion, Run, RunItem, StepAttempt, utcnow
 from dirigent_core.storage import AttemptStorage, scratch_prefix
@@ -262,7 +263,9 @@ class Engine:
         attempt.status = AttemptStatus.RUNNING
         started = attempt.started_at or now
         attempt.started_at = started
+        token = uuid7()
         attempt.lease_owner = self.owner
+        attempt.lease_token = token
         attempt.lease_expires_at = now + self.services.settings.lease
         attempt.heartbeat_at = now
         attempt.input = {**(attempt.input or {}), "config": config}
@@ -274,6 +277,7 @@ class Engine:
 
         return ClaimedUnit(
             attempt_id=attempt.id,
+            lease_token=token,
             run_id=run.id,
             run_item_id=attempt.run_item_id,
             step_name=attempt.step_name,
@@ -453,14 +457,20 @@ class Engine:
 
     # -- recording ---------------------------------------------------------------
 
-    def _holds_lease(self, attempt: StepAttempt) -> bool:
-        """Report whether this worker may still write the outcome of an attempt.
+    def _holds_lease(self, unit: ClaimedUnit, attempt: StepAttempt) -> bool:
+        """Report whether this claim may still write the outcome of an attempt.
 
         The lease is a fence, not a hint. If the sweeper decided this worker was dead and
-        handed the attempt to somebody else, the row belongs to that other worker, and
-        writing into it would clobber a live attempt with the result of an abandoned one.
+        handed the attempt to somebody else, the row belongs to that other claim, and writing
+        into it would clobber a live attempt with the result of an abandoned one. The token
+        is what makes that hold when the somebody else is this worker again: a name matches
+        its own next claim, a token never does.
         """
-        return attempt.status is AttemptStatus.RUNNING and attempt.lease_owner == self.owner
+        return (
+            attempt.status is AttemptStatus.RUNNING
+            and attempt.lease_owner == self.owner
+            and attempt.lease_token == unit.lease_token
+        )
 
     def _log_lost_lease(self, unit: ClaimedUnit, attempt: StepAttempt | None, what: str) -> None:
         """Log that an outcome was dropped, which means the work may have run twice."""
@@ -490,7 +500,7 @@ class Engine:
             if attempt is not None and attempt.status is AttemptStatus.CANCELLED:
                 await self._cancel_what_was_just_submitted(session, unit, attempt, handle)
                 return
-            if attempt is None or not self._holds_lease(attempt):
+            if attempt is None or not self._holds_lease(unit, attempt):
                 self._log_lost_lease(unit, attempt, "remote handle")
                 return
             attempt.remote_handle = handle.model_dump(mode="json")
@@ -593,7 +603,7 @@ class Engine:
             attempt = await session.get(StepAttempt, unit.attempt_id)
             if attempt is None:  # pragma: no cover - foreign keys prevent this
                 return
-            if not self._holds_lease(attempt):
+            if not self._holds_lease(unit, attempt):
                 self._log_lost_lease(unit, attempt, "attempt outcome")
                 return
             if entries:
@@ -879,21 +889,28 @@ class Engine:
 
     # -- leases ------------------------------------------------------------------
 
-    async def heartbeat(self, attempt_ids: Sequence[UUID], *, now: datetime | None = None) -> set[UUID]:
-        """Refresh the leases this worker holds, and say which ones it still holds.
+    async def heartbeat(self, units: Sequence[ClaimedUnit], *, now: datetime | None = None) -> set[UUID]:
+        """Refresh the leases these claims hold, and say which ones they still hold.
+
+        A claim is named by its attempt and its token, so a call that outlived its lease
+        refreshes nothing: the row it names is either unclaimed or held by a later claim,
+        this worker's own next one included.
 
         An attempt that does not come back was taken away by the sweeper, and the caller has
         to stop working on it: its outcome will be refused by :meth:`_holds_lease` anyway.
         """
-        if not attempt_ids:
+        if not units:
             return set()
         moment = now or utcnow()
         expires = moment + self.services.settings.lease
+        held_leases = sa.or_(
+            *(sa.and_(StepAttempt.id == unit.attempt_id, StepAttempt.lease_token == unit.lease_token) for unit in units)
+        )
         async with session_scope(self.sessions) as session:
             refreshed = await session.execute(
                 sa.update(StepAttempt)
                 .where(
-                    StepAttempt.id.in_(attempt_ids),
+                    held_leases,
                     StepAttempt.lease_owner == self.owner,
                     StepAttempt.status == AttemptStatus.RUNNING,
                 )
@@ -905,7 +922,7 @@ class Engine:
                 "leases refreshed",
                 worker=self.owner,
                 held=len(held),
-                lost=len(attempt_ids) - len(held),
+                lost=len(units) - len(held),
                 expires_at=expires.isoformat(),
             )
             return held
@@ -914,6 +931,7 @@ class Engine:
 def _release(attempt: StepAttempt) -> None:
     """Drop the lease from an attempt that is no longer being worked on."""
     attempt.lease_owner = None
+    attempt.lease_token = None
     attempt.lease_expires_at = None
 
 

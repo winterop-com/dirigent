@@ -113,7 +113,7 @@ services:
     volumes:
       - s3:/data
     ports:
-      - "${S3_PORT:-9010}:9000"
+      - "127.0.0.1:${S3_PORT:-9010}:9000"
     healthcheck:
       # An unauthenticated request answers 403 rather than 200, and that is a serving
       # endpoint answering: -f would call it a failure, so only the connection is asserted.

@@ -83,7 +83,7 @@ class Worker:
         self.alerts = NotificationDispatcher(sessions=sessions, services=services, owner=self.name)
         self.sweeper = sweeper
         self.chores = list(chores)
-        self.in_flight: set[UUID] = set()
+        self.in_flight: dict[UUID, ClaimedUnit] = {}
         self._stopping = asyncio.Event()
         self._halting = asyncio.Event()
         self._tasks: set[asyncio.Task[None]] = set()
@@ -141,7 +141,7 @@ class Worker:
                 semaphore.release()
                 await self._idle()
                 continue
-            self.in_flight.add(unit.attempt_id)
+            self.in_flight[unit.attempt_id] = unit
             telemetry.gauges.in_flight = len(self.in_flight)
             task = asyncio.create_task(self._execute(unit, semaphore))
             self._tasks.add(task)
@@ -164,7 +164,7 @@ class Worker:
         except Exception as error:  # the outcome transaction owns failures; this is a bug
             _logger.error("executing an attempt raised", attempt_id=str(unit.attempt_id), error=str(error))
         finally:
-            self.in_flight.discard(unit.attempt_id)
+            self.in_flight.pop(unit.attempt_id, None)
             self._running.pop(unit.attempt_id, None)
             telemetry.gauges.in_flight = len(self.in_flight)
             semaphore.release()
@@ -189,9 +189,9 @@ class Worker:
             if self._halting.is_set():
                 return
             try:
-                claimed = set(self.in_flight)
-                held = await self.engine.heartbeat(list(claimed))
-                self._abandon(claimed - held)
+                claimed = dict(self.in_flight)
+                held = await self.engine.heartbeat(list(claimed.values()))
+                self._abandon(set(claimed) - held)
                 await self._register(WorkerStatus.DRAINING if self.draining else WorkerStatus.RUNNING)
             except Exception as error:  # a missed heartbeat is recoverable; a dead task is not
                 _logger.warning("heartbeat failed", worker=self.name, error=str(error))

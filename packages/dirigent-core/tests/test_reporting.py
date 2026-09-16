@@ -29,9 +29,11 @@ from dirigent_core.engine.runs import cancel_run, retry_step
 from dirigent_core.models import ArtifactRef, LogEntry, Notification, Pipeline, PipelineVersion, Run
 from dirigent_core.plugins import PluginHost
 from dirigent_core.reporting import DEFAULT_TEMPLATE, RunFacts, as_context, run_facts
+from dirigent_core.storage import parse_uri
 from dirigent_plugin import AlertMessage, Contribution, Notifier
 from engineblocks import EngineTestPlugin, FailOperator
 from test_engine import drain, reload, start, steps
+from test_storage import CREDENTIAL, sealed_connection, sealed_services
 
 FAST_RETRY = RetryPolicy(max_attempts=1)
 
@@ -392,6 +394,31 @@ async def test_a_document_too_large_to_inline_lands_under_the_runs_scratch(
     assert document.uri.endswith(f"{run.id}/report.md")
     assert document.scheme == "file"
     assert await load_document(services.storage, document) != ""
+
+
+async def test_a_document_too_large_to_inline_is_written_through_the_configured_connection(
+    sessions: Any, settings: Settings, host: PluginHost
+) -> None:
+    """A run's report is stored by the backend the instance's storage connection configures.
+
+    The settling transaction holds no step context, and the unconfigured facade it would
+    otherwise reach for has neither the endpoint nor the credentials the connection carries.
+    """
+    opened: list[str] = []
+    services = sealed_services(settings.model_copy(update={"inline_artifact_max": 0}), host, opened)
+    async with session_scope(sessions) as session:
+        session.add(sealed_connection(services.secrets, parse_uri(services.settings.artifact_root)[1]))
+    engine = Engine(sessions, services, owner="worker-under-test")
+
+    run = await start(sessions, services, REPORTED)
+    await drain(engine)
+
+    document = await only_document(sessions, run.id)
+    assert document.uri is not None and document.uri.endswith(f"{run.id}/report.md")
+    assert set(opened) == {CREDENTIAL}
+    async with session_scope(sessions) as session:
+        storage = await services.bound_storage(session)
+    assert await load_document(storage, document) != ""
 
 
 async def test_a_cancelled_run_has_a_report(engine: Engine, sessions: Any, services: EngineServices) -> None:

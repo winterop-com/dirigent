@@ -4,14 +4,16 @@ from functools import cached_property
 
 from jsonschema import FormatChecker
 from pydantic import BaseModel, ConfigDict
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirigent_client.schemas import BlockKind
 from dirigent_common import format_checker_with
 from dirigent_core.config import Settings
+from dirigent_core.engine.context import load_connections
 from dirigent_core.engine.failure import Failure
 from dirigent_core.plugins import PluginHost
 from dirigent_core.secrets import SecretBox
-from dirigent_core.storage import Storage, build_storage
+from dirigent_core.storage import AttemptStorage, Storage, UnknownStorageConnection, build_storage, connection_binder
 from dirigent_plugin import AnyOperator, AnySensor, ErrorClass
 
 
@@ -45,6 +47,26 @@ class EngineServices(BaseModel):
     def format_checker(self) -> FormatChecker:
         """The one checker every instance validation asserts against: base plus contributed formats."""
         return format_checker_with(self.host.formats)
+
+    async def bound_storage(self, session: AsyncSession) -> AttemptStorage:
+        """Return storage with every scheme configured from the connection this instance names for it.
+
+        The configuration a step's context binds, for the paths that address artifacts outside
+        a step. ``self.storage`` configures nothing: a scheme reached through it is opened with
+        no endpoint and no credentials.
+
+        The facade caches the credentials its binder opened, so it belongs to the call that
+        asked for it, and a connection edited in the database is read by the next call.
+        """
+        records = await load_connections(session) if self.settings.storage_connections else {}
+
+        def open_connection(scheme: str, ref: str, model: type[BaseModel]) -> BaseModel:
+            record = records.get(ref)
+            if record is None:
+                raise UnknownStorageConnection(scheme, ref, records)
+            return self.secrets.decrypt_config(model, record.config, record.envelope, key_id=record.key_id)
+
+        return self.storage.bound_by(connection_binder(self.settings.storage_connections, open_connection))
 
     def block(self, block_id: str) -> AnyOperator | AnySensor:
         """Resolve a block id to the instance the engine calls."""

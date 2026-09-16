@@ -46,6 +46,25 @@ class OutsideRoot(StorageError):
         self.uri = uri
 
 
+class UnknownStorageConnection(StorageError):
+    """A scheme is configured from a connection code this instance does not hold."""
+
+    def __init__(self, scheme: str, ref: str, known: Iterable[str]) -> None:
+        """Name the scheme, the connection it is configured from, and the ones that exist."""
+        available = ", ".join(sorted(known)) or "none are configured"
+        super().__init__(f"no connection coded {ref!r} to configure the {scheme!r} scheme from ({available})")
+        self.scheme = scheme
+        self.ref = ref
+
+
+#: How one scheme is configured before it is addressed: what a bound facade calls once per scheme.
+type Binder = Callable[[str, StorageBackend], StorageBackend]
+
+#: How a binder reads the connection a scheme is configured from, opened and validated
+#: against the backend's own config model.
+type OpenConnection = Callable[[str, str, type[BaseModel]], BaseModel]
+
+
 def parse_uri(uri: str) -> tuple[str, str]:
     """Split a URI into its scheme and the backend-specific remainder."""
     split = urlsplit(uri)
@@ -241,7 +260,7 @@ class Storage:
         self,
         backends: Mapping[str, StorageBackend],
         artifact_root: str,
-        binder: "Callable[[str, StorageBackend], StorageBackend] | None" = None,
+        binder: Binder | None = None,
     ) -> None:
         """Bind the facade to the scheme index, the default scratch root, and how a scheme is configured."""
         self._backends = dict(backends)
@@ -267,11 +286,11 @@ class Storage:
             self._bound[scheme] = backend
         return backend
 
-    def bound_by(self, binder: "Callable[[str, StorageBackend], StorageBackend]") -> "AttemptStorage":
-        """Return the same namespace as an attempt-scoped facade, configured on first use.
+    def bound_by(self, binder: Binder) -> "AttemptStorage":
+        """Return the same namespace as a caller-scoped facade, configured on first use.
 
-        A new facade rather than a mutation: the process-wide one is shared by every attempt,
-        and one attempt must not reconfigure a scheme under another.
+        A new facade rather than a mutation: the process-wide one is shared by every caller,
+        and one must not reconfigure a scheme under another.
         """
         return AttemptStorage(self._backends, self.artifact_root, binder)
 
@@ -332,12 +351,26 @@ class Storage:
 
 
 class AttemptStorage(Storage):
-    """A storage facade belonging to exactly one attempt.
+    """A storage facade belonging to exactly one caller: one attempt, one request, one sweep.
 
     The binder opens connection secrets and the backend it returns is cached for the life of
-    the facade, so sharing one across attempts would hand one attempt's credentials to
-    another.
+    the facade, so sharing one would hand one caller's credentials to the next.
     """
+
+
+def connection_binder(storage_connections: Mapping[str, str], open_connection: OpenConnection) -> Binder:
+    """Build the binder that configures each scheme from the connection the instance names for it.
+
+    A scheme no connection is named for keeps the backend the plugin contributed.
+    """
+
+    def configure(scheme: str, backend: StorageBackend) -> StorageBackend:
+        ref = storage_connections.get(scheme)
+        if ref is None:
+            return backend
+        return backend.configured(open_connection(scheme, ref, backend.config_model))
+
+    return configure
 
 
 def build_storage(artifact_root: str, backends: Iterable[StorageBackend] = ()) -> Storage:

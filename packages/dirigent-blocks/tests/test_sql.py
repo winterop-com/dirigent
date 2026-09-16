@@ -9,6 +9,7 @@ import pytest
 from pydantic import SecretStr, ValidationError
 
 from dirigent_blocks.sql import (
+    HTTPFS,
     S3StorageSettings,
     SqlConnectionConfig,
     SqlConnectionKind,
@@ -28,6 +29,21 @@ from dirigent_testing import FakeContext
 
 #: The database every test in this module builds, relative the way a document writes it.
 SQLITE = "sqlite+aiosqlite:///demo.db"
+
+
+def httpfs_installed() -> bool:
+    """Whether this worker can load httpfs, which the s3 path loads and never installs."""
+    import duckdb
+
+    try:
+        duckdb.connect().execute(f"LOAD {HTTPFS}")
+    except duckdb.Error:
+        return False
+    return True
+
+
+#: Whether anything reaching a bucket can run here at all. CI installs the extension for the s3 lane.
+HAS_HTTPFS = httpfs_installed()
 
 
 def connect(ctx: FakeContext, *, read_only: bool = False) -> SqlConnectionConfig:
@@ -406,6 +422,82 @@ async def test_a_file_outside_the_run_is_refused_rather_than_read(ducked: FakeCo
         await query(ducked, "SELECT * FROM read_parquet(:source)", params={"source": f"file://{outside}"})
     assert "outside this run's own directories" in str(raised.value)
     assert raised.value.error_class is ErrorClass.REJECTED
+
+
+async def test_a_plain_path_parameter_outside_the_run_is_refused_by_the_engine(
+    ducked: FakeContext, tmp_path: Path
+) -> None:
+    """A value that is a path rather than a storage URI is held to the same directories."""
+    outside = tmp_path / "elsewhere.csv"
+    outside.write_text("id\n1\n")
+    with pytest.raises(BlockFailure) as raised:
+        await query(ducked, "SELECT * FROM read_csv(:source)", params={"source": str(outside)})
+    assert "outside the run's own directories" in str(raised.value)
+    assert raised.value.error_class is ErrorClass.REJECTED
+
+
+async def test_a_path_written_into_the_sql_is_refused_the_same_way(ducked: FakeContext, tmp_path: Path) -> None:
+    """The boundary is duckdb's own, so a path spelled out in the statement reaches no further."""
+    outside = tmp_path / "elsewhere.csv"
+    outside.write_text("id\n1\n")
+    with pytest.raises(BlockFailure) as raised:
+        await query(ducked, f"SELECT * FROM read_csv('{outside}')")
+    assert "outside the run's own directories" in str(raised.value)
+    assert raised.value.error_class is ErrorClass.REJECTED
+
+
+async def test_a_file_in_the_work_directory_is_read_through_a_path_in_the_sql(ducked: FakeContext) -> None:
+    """Containment is the run's directories, not a ban on paths: the run's own files still open."""
+    inside = ducked.work / "readings.csv"
+    inside.write_text("id,site\n1,north\n2,south\n")
+    output = await query(ducked, f"SELECT COUNT(*) AS n FROM read_csv('{inside}')")
+    assert output.rows == [{"n": 2}]
+
+
+async def test_a_statement_cannot_set_its_way_back_out(ducked: FakeContext, tmp_path: Path) -> None:
+    """The configuration is locked, so the statement that would widen the roots is refused."""
+    outside = tmp_path / "elsewhere.csv"
+    outside.write_text("id\n1\n")
+    for statement in ("SET enable_external_access = true", "RESET enable_external_access"):
+        with pytest.raises(Exception, match="locked"):
+            await execute(ducked, statement)
+    with pytest.raises(BlockFailure) as raised:
+        await query(ducked, f"SELECT * FROM read_csv('{outside}')")
+    assert raised.value.error_class is ErrorClass.REJECTED
+
+
+async def test_a_statement_cannot_load_an_extension(ducked: FakeContext) -> None:
+    """A session carries the extensions it was opened with and can be given no others."""
+    with pytest.raises(BlockFailure) as raised:
+        await execute(ducked, f"LOAD {HTTPFS}")
+    assert "extension" in str(raised.value)
+    assert raised.value.error_class is ErrorClass.REJECTED
+
+
+async def test_the_database_the_connection_names_opens_wherever_it_is(local_ctx: FakeContext, tmp_path: Path) -> None:
+    """The containment covers what a statement names, not the file the connection itself opens."""
+    duck(local_ctx, f"duckdb:///{tmp_path}/warehouse.duckdb")
+    await execute(local_ctx, "CREATE TABLE reading (id INTEGER)", "INSERT INTO reading VALUES (1)")
+    assert (await query(local_ctx, "SELECT COUNT(*) AS n FROM reading")).rows == [{"n": 1}]
+
+
+@pytest.mark.skipif(not HAS_HTTPFS, reason="duckdb's httpfs extension is not installed on this worker")
+async def test_a_step_that_addresses_a_bucket_keeps_its_reach_to_it(ducked: FakeContext) -> None:
+    """The s3 scheme stays open where the step asked for it: the endpoint answers, not the boundary.
+
+    The endpoint is one nothing listens on, so a session that reached the network fails
+    connecting and a session that was held back fails on the path instead.
+    """
+    ducked.connections["bucket"] = S3StorageSettings(
+        endpoint_url="http://127.0.0.1:1",
+        access_key_id="a-key",
+        secret_access_key=SecretStr("a-secret-key"),
+        path_style=True,
+    )
+    ducked.storage_connections["s3"] = "bucket"
+    with pytest.raises(Exception) as raised:
+        await query(ducked, "SELECT * FROM read_csv(:source)", params={"source": "s3://bucket/readings.csv"})
+    assert "127.0.0.1:1" in str(raised.value)
 
 
 async def test_a_bucket_uri_with_no_connection_bound_to_the_scheme_is_refused(ducked: FakeContext) -> None:

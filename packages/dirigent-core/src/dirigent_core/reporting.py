@@ -323,10 +323,11 @@ async def render_run_report(
             timeout=services.settings.report_render_timeout.total_seconds(),
         )
         existing = await _report_row(session, run.id)
+        storage = await services.bound_storage(session)
         async with session.begin_nested():
             reference = await persist_document(
                 session,
-                services.storage,
+                storage,
                 run.id,
                 name=REPORT_NAME,
                 text=markdown,

@@ -275,6 +275,12 @@ class StepAttempt(Entity):
     deadline_at: Mapped[datetime | None] = mapped_column(Timestamp)
 
     lease_owner: Mapped[str | None] = mapped_column(sa.String(200))
+    lease_token: Mapped[UUID | None] = mapped_column(sa.Uuid)
+    """Minted afresh by every claim, so a write names the claim it came from.
+
+    A worker's name repeats: the same worker can reclaim an attempt the sweeper took from it,
+    and the abandoned call's outcome would pass a fence that only compares names."""
+
     lease_expires_at: Mapped[datetime | None] = mapped_column(Timestamp)
     heartbeat_at: Mapped[datetime | None] = mapped_column(Timestamp)
 
@@ -516,6 +522,12 @@ class Notification(Entity):
     attempt: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0, server_default=sa.text("0"))
     available_at: Mapped[datetime] = mapped_column(Timestamp, nullable=False, default=utcnow)
     lease_owner: Mapped[str | None] = mapped_column(sa.String(200))
+    lease_token: Mapped[UUID | None] = mapped_column(sa.Uuid)
+    """Minted afresh by every claim, so a write names the claim it came from.
+
+    A worker's name repeats: the same worker can reclaim a notification recovery took from it,
+    and the abandoned delivery's outcome would pass a fence that only compares names."""
+
     lease_expires_at: Mapped[datetime | None] = mapped_column(Timestamp)
     sent_at: Mapped[datetime | None] = mapped_column(Timestamp)
     error: Mapped[str | None] = mapped_column(sa.Text)

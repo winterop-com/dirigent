@@ -82,7 +82,7 @@ async def test_a_worker_drains_a_run_and_then_stops(sessions: Any, settings: Set
     await task
 
     assert sorted(EchoOperator.calls) == ["item-0", "item-1", "item-2", "item-3"]
-    assert worker.in_flight == set()
+    assert worker.in_flight == {}
 
 
 async def test_the_worker_registers_and_then_marks_itself_stopped(
@@ -138,7 +138,7 @@ async def test_the_heartbeat_keeps_a_lease_alive(sessions: Any, settings: Settin
     assert before is not None
 
     later = before + timedelta(seconds=30)
-    assert await worker.engine.heartbeat([unit.attempt_id], now=later) == {unit.attempt_id}
+    assert await worker.engine.heartbeat([unit], now=later) == {unit.attempt_id}
     async with sessions() as session:
         attempt = await session.get(StepAttempt, unit.attempt_id)
         assert attempt is not None
@@ -155,7 +155,7 @@ async def test_a_lease_held_by_another_worker_is_not_refreshed(
     unit = await mine.engine.claim()
     assert unit is not None
     theirs = Worker(sessions, services, name="theirs", sweeper=False)
-    assert await theirs.engine.heartbeat([unit.attempt_id]) == set()
+    assert await theirs.engine.heartbeat([unit]) == set()
     assert await theirs.engine.heartbeat([]) == set()
 
 
@@ -179,7 +179,7 @@ async def test_a_worker_abandons_a_unit_whose_heartbeat_returns_zero(
     worker.engine.run_unit = never_finishes  # type: ignore[assignment]
     semaphore = asyncio.Semaphore(1)
     await semaphore.acquire()
-    worker.in_flight.add(unit.attempt_id)
+    worker.in_flight[unit.attempt_id] = unit
     # Driving the worker's own bookkeeping directly: the test plugin has no block that
     # blocks forever.
     task = asyncio.create_task(worker._execute(unit, semaphore))  # pyright: ignore[reportPrivateUsage]
@@ -193,10 +193,10 @@ async def test_a_worker_abandons_a_unit_whose_heartbeat_returns_zero(
         assert stolen is not None
         stolen.lease_owner = "the other worker"
 
-    claimed = set(worker.in_flight)
-    held = await worker.engine.heartbeat(list(claimed))
+    claimed = dict(worker.in_flight)
+    held = await worker.engine.heartbeat(list(claimed.values()))
     assert held == set()
-    worker._abandon(claimed - held)  # pyright: ignore[reportPrivateUsage]
+    worker._abandon(set(claimed) - held)  # pyright: ignore[reportPrivateUsage]
 
     with contextlib.suppress(asyncio.CancelledError):
         await task
@@ -425,7 +425,7 @@ async def test_the_heartbeat_refreshes_leases_all_through_a_drain(
 
     release.set()
     await asyncio.wait_for(task, timeout=10.0)
-    assert worker.in_flight == set()
+    assert worker.in_flight == {}
     async with sessions() as session:
         found = await session.execute(sa.select(WorkerRow).where(WorkerRow.name == "slow-drainer"))
         assert found.scalar_one().status is WorkerStatus.STOPPED

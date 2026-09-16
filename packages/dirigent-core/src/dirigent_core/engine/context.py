@@ -24,8 +24,8 @@ from dirigent_common import JsonMap
 from dirigent_core.logging import debug_kept, get_logger
 from dirigent_core.models import Connection, Schema
 from dirigent_core.secrets import SecretBox
-from dirigent_core.storage import AttemptStorage, Storage, work_dir
-from dirigent_plugin import BlockFailure, ConnectionRef, ErrorClass, Logger, Runs, StorageBackend
+from dirigent_core.storage import AttemptStorage, Storage, connection_binder, work_dir
+from dirigent_plugin import BlockFailure, ConnectionRef, ErrorClass, Logger, Runs
 
 #: What an HTTP connection is assumed to call its fields, so core can build a client for
 #: any connection kind without importing the package that contributed it.
@@ -304,15 +304,10 @@ class EngineStepContext:
         where connection secrets are opened and nowhere else.
         """
         if self._bound_storage is None:
-            self._bound_storage = self._storage.bound_by(self._configure_backend)
+            self._bound_storage = self._storage.bound_by(
+                connection_binder(self._storage_connections, lambda _scheme, ref, model: self.connection(ref, model))
+            )
         return self._bound_storage
-
-    def _configure_backend(self, scheme: str, backend: StorageBackend) -> StorageBackend:
-        """Bind one scheme to the connection this instance configures it from, if it names one."""
-        ref = self._storage_connections.get(scheme)
-        if ref is None:
-            return backend
-        return backend.configured(self.connection(ref, backend.config_model))
 
     @property
     def scratch(self) -> str:

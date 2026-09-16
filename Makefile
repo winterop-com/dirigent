@@ -164,7 +164,7 @@ docker-push: export DIRIGENT_REVISION := $(shell git rev-parse --short HEAD)
 docker-push: docker-build ## Build with the version stamped in, prove the image starts and extends, and push it to GHCR
 	docker tag dirigent:local $(IMAGE_REPO):$(VERSION)
 	docker tag dirigent:local $(IMAGE_REPO):latest
-	docker run --rm $(IMAGE_REPO):$(VERSION) version
+	docker run --rm $(IMAGE_REPO):$(VERSION) --version
 	docker run --rm --entrypoint uv $(IMAGE_REPO):$(VERSION) --version
 	docker push $(IMAGE_REPO):$(VERSION)
 	docker push $(IMAGE_REPO):latest

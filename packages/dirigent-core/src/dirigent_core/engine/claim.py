@@ -34,6 +34,9 @@ class ClaimedUnit(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     attempt_id: UUID
+    lease_token: UUID
+    """The generation this claim took, which every later write of it is fenced against."""
+
     run_id: UUID
     run_item_id: UUID | None
     step_name: str
