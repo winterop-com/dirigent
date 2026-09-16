@@ -21,15 +21,6 @@ Released 2026-09-16. Every package in the workspace moves to 0.16.0 together.
 
 ### Before you upgrade
 
-**The schema changed.** `step_attempts` and `notifications` each gain a `lease_token` column.
-The baseline migration is edited in place, so a database created by an earlier version is not
-carried forward by `dg db upgrade`; either recreate the database or add the columns by hand:
-
-```sql
-ALTER TABLE step_attempts ADD COLUMN IF NOT EXISTS lease_token uuid;
-ALTER TABLE notifications ADD COLUMN IF NOT EXISTS lease_token uuid;
-```
-
 **The bundled S3 server listens on loopback.** The compose stack, and the one `dg init`
 writes, publish `S3_PORT` on `127.0.0.1` only. The stack itself still reaches the server as
 `http://s3:9000`; a person on another host who inspected the bucket through the published
