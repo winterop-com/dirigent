@@ -282,7 +282,8 @@ Whether an automatic retry happens is decided by the **error class** the block a
 failure: `transient` and `unknown` are retried while budget remains, and `rejected` never is
 however much budget is left. That is why a step with
 `max_attempts: 3` can still fail on its first attempt: a 4xx, or a config that cannot be
-resolved, is `rejected`.
+resolved, is `rejected`. The one 4xx that is not is 429: the server is rate limiting, the same
+call succeeds once the window has passed, so it is `transient` like a 5xx.
 
 ## Connection
 

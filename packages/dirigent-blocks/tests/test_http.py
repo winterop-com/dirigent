@@ -242,7 +242,14 @@ async def test_a_configured_timeout_overrides_the_connections(ctx: FakeContext) 
 
 @pytest.mark.parametrize(
     ("status", "expected"),
-    [(500, ErrorClass.TRANSIENT), (502, ErrorClass.TRANSIENT), (400, ErrorClass.REJECTED), (301, ErrorClass.UNKNOWN)],
+    [
+        (500, ErrorClass.TRANSIENT),
+        (502, ErrorClass.TRANSIENT),
+        (429, ErrorClass.TRANSIENT),
+        (400, ErrorClass.REJECTED),
+        (404, ErrorClass.REJECTED),
+        (301, ErrorClass.UNKNOWN),
+    ],
 )
 def test_status_classification(status: int, expected: ErrorClass) -> None:
     assert status_class(status) is expected

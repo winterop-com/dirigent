@@ -43,7 +43,7 @@ class ErrorClass(StrEnum):
     """Network, 5xx, timeout: retryable."""
 
     REJECTED = "rejected"
-    """Validation, auth, 4xx: never retried."""
+    """Validation, auth, any 4xx but 429: never retried."""
 
     UNKNOWN = "unknown"
     """Anything else: retried while the step's budget lasts."""
@@ -64,13 +64,17 @@ class BlockFailure(Exception):
 
 
 def classify_default(error: Exception) -> ErrorClass:
-    """Classify an exception with no block-specific knowledge: transport and 5xx transient, 4xx rejected."""
+    """Classify an exception with no block-specific knowledge: transport and 5xx transient, 4xx rejected.
+
+    A 429 is the one client error that asks to be retried: the server is rate limiting, and
+    the same call succeeds once the window has passed.
+    """
     match error:
         case BlockFailure():
             return error.error_class
         case httpx2.HTTPStatusError():
             status = error.response.status_code
-            if status >= 500:
+            if status >= 500 or status == 429:
                 return ErrorClass.TRANSIENT
             if 400 <= status < 500:
                 return ErrorClass.REJECTED

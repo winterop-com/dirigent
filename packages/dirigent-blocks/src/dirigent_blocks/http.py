@@ -301,8 +301,12 @@ class HttpReadySensor(Sensor[HttpReadyConfig, HttpReadyOutput]):
 
 
 def status_class(status: int) -> ErrorClass:
-    """Classify an HTTP status the way retry policy needs it classified."""
-    if status >= 500:
+    """Classify an HTTP status the way retry policy needs it classified.
+
+    A 429 is the one client error that asks to be retried: the server is rate limiting, and
+    the same call succeeds once the window has passed.
+    """
+    if status >= 500 or status == 429:
         return ErrorClass.TRANSIENT
     if 400 <= status < 500:
         return ErrorClass.REJECTED
