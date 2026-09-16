@@ -25,13 +25,13 @@ from types import FrameType
 from typing import Any, Final
 
 import yaml
-from cryptography.fernet import Fernet
 from pydantic import BaseModel
 
 from dirigent_cli.main import DEV_ADMIN, DEV_PASSWORD
 from dirigent_client import BlockingDirigent, DirigentError
 from dirigent_core.config import STATE_DIR
 from dirigent_core.protocol import Record, as_json, make
+from dirigent_core.secrets import generate_key
 
 #: Blocks the seeded instance allows, because the corpus is full of them and refusing them
 #: at apply would leave nothing to look at.
@@ -119,7 +119,7 @@ def instance_env(root: Path) -> dict[str, str]:
     return os.environ | {
         "DIRIGENT_DATABASE_URL": f"sqlite+aiosqlite:///{state / 'dirigent.db'}",
         "DIRIGENT_ARTIFACT_ROOT": f"file://{state / 'artifacts'}",
-        "DIRIGENT_SECRET_KEY": Fernet.generate_key().decode(),
+        "DIRIGENT_SECRET_KEY": generate_key(),
         "DIRIGENT_ENABLED_UNSAFE_BLOCKS": UNSAFE_BLOCKS,
         "DIRIGENT_STORAGE_CONNECTIONS": STORAGE_CONNECTIONS,
     }

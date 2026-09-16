@@ -21,6 +21,7 @@ from dirigent_cli.main import (
     build_app,
     build_worker,
     distribution_version,
+    hoist_globals,
 )
 from dirigent_core.config import CONFIG_FILE_ENV, Settings, get_settings, redacted_url, reset_settings_cache
 from dirigent_core.protocol import make
@@ -44,6 +45,34 @@ def test_the_version_flag_answers_with_one_plain_line() -> None:
     result = runner.invoke(app, ["--version"])
     assert result.exit_code == 0, result.output
     assert result.output.strip() == f"dg {distribution_version('dirigent-cli')}"
+
+
+def test_the_secret_key_command_answers_with_one_plain_line() -> None:
+    """The key is the whole output, so `DIRIGENT_SECRET_KEY=$(dg secret-key)` is how it is used."""
+    from cryptography.fernet import Fernet
+
+    result = runner.invoke(app, ["secret-key"])
+    assert result.exit_code == 0, result.output
+    key = result.output.strip()
+    assert result.output.splitlines() == [key]
+    assert Fernet(key)
+
+
+def test_the_secret_key_command_mints_a_new_key_every_time() -> None:
+    first = runner.invoke(app, ["secret-key"]).output.strip()
+    second = runner.invoke(app, ["secret-key"]).output.strip()
+    assert first != second
+
+
+def test_the_secret_key_command_writes_the_same_line_whatever_the_output() -> None:
+    """Like `--version`, it has nothing to dispatch on, so the output mode does not reach it."""
+    from cryptography.fernet import Fernet
+
+    for argv in (["secret-key"], ["--json", "secret-key"], hoist_globals(["secret-key", "--json"])):
+        result = runner.invoke(app, argv)
+        assert result.exit_code == 0, result.output
+        assert Fernet(result.output.strip())
+        assert len(result.output.splitlines()) == 1, argv
 
 
 def test_config_show_writes_the_effective_settings_as_a_record() -> None:

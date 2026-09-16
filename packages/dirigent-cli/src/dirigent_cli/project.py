@@ -1,7 +1,5 @@
 """Pipeline projects: a uv project of documents, and the scaffolding that creates one."""
 
-import base64
-import os
 import re
 from collections.abc import Sequence
 from pathlib import Path
@@ -11,6 +9,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
 from dirigent_core.configdocs import example_document, project_document
+from dirigent_core.secrets import generate_key
 
 if TYPE_CHECKING:
     from dirigent_core.examples import ExampleEntry
@@ -955,7 +954,7 @@ def _merge_ignore(path: Path, content: str, written: list[Path], skipped: list[P
 
 def _an_instance_key() -> str:
     """Generate the key the stack seals connection secrets with."""
-    return base64.urlsafe_b64encode(os.urandom(32)).decode()
+    return generate_key()
 
 
 def _write(path: Path, content: str, *, mode: int | None = None) -> Path:

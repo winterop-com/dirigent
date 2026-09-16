@@ -12,7 +12,6 @@ from uuid import UUID
 
 import sqlalchemy as sa
 import yaml
-from cryptography.fernet import Fernet
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -31,6 +30,7 @@ from dirigent_core.models import ArtifactRef, Connection, LogEntry, Run, RunItem
 from dirigent_core.pipelines import apply_document
 from dirigent_core.plugins import load_plugin_host
 from dirigent_core.schemas import SchemaRefused, resolve_identity, store_schema
+from dirigent_core.secrets import generate_key
 from dirigent_core.storage import scratch_prefix
 from dirigent_core.worker import Worker
 
@@ -315,7 +315,7 @@ def local_settings(root: Path, *, inherited: Settings | None = None) -> Settings
         database_url=f"sqlite+aiosqlite:///{root / 'dirigent.db'}",
         artifact_root=f"file://{root / 'artifacts'}",
         work_root=str(root / "work"),
-        secret_key=SecretStr(Fernet.generate_key().decode()),
+        secret_key=SecretStr(generate_key()),
         enabled_unsafe_blocks=list(base.enabled_unsafe_blocks),
         storage_connections=dict(base.storage_connections),
         inline_artifact_max=base.inline_artifact_max,

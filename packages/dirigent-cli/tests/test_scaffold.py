@@ -1,6 +1,5 @@
 """Tests for ``dg blocks new`` and ``dg init``'s templates."""
 
-import base64
 import py_compile
 import tomllib
 from pathlib import Path
@@ -8,6 +7,7 @@ from typing import Any
 
 import pytest
 import yaml
+from cryptography.fernet import Fernet
 from typer.testing import CliRunner
 
 from clisupport import of_kind, records, refusal
@@ -141,7 +141,7 @@ def test_the_environment_file_is_private_and_carries_a_key_and_the_password(tmp_
     assert values["DIRIGENT_IMAGE"] == "ghcr.io/winterop-com/dirigent:1.2.3"
     key = values["DIRIGENT_SECRET_KEY"]
     assert len(key) == 44
-    assert len(base64.urlsafe_b64decode(key)) == 32
+    assert Fernet(key), "the stack seals with this key as it stands, so it has to be a Fernet key"
     assert (tmp_path / "stack" / ".gitignore").read_text().splitlines()[-1] == ".env"
 
 
@@ -231,6 +231,15 @@ def test_every_install_page_names_the_one_install_line() -> None:
     """One page drifting to another install form sends a reader down a path nobody tests."""
     for page in ("docs/getting-started.md", "docs/index.md", "docs/tutorial.md", "README.md"):
         assert "uv tool install dirigent-cli" in (REPO_ROOT / page).read_text(), page
+
+
+def test_every_page_generates_a_key_with_the_command() -> None:
+    """A page showing a python one-liner teaches a generator the CLI does not go through."""
+    for page in ("README.md", ".env.example", "docs/getting-started.md", "docs/security.md", "docs/server.md"):
+        text = (REPO_ROOT / page).read_text()
+        assert "dg secret-key" in text, page
+        assert "Fernet.generate_key" not in text, page
+        assert "os.urandom" not in text, page
 
 
 @pytest.mark.parametrize("template", ["local", "documents", "compose"])
