@@ -15,6 +15,53 @@ package and uploads it to PyPI through trusted publishing, then builds the image
 commit and pushes it as `<version>` and `latest`. The two sibling repositories then relock
 against the tag and bump.
 
+## 0.16.0
+
+Released 2026-09-16. Every package in the workspace moves to 0.16.0 together.
+
+### Before you upgrade
+
+**The schema changed.** `step_attempts` and `notifications` each gain a `lease_token` column.
+The baseline migration is edited in place, so a database created by an earlier version is not
+carried forward by `dg db upgrade`; either recreate the database or add the columns by hand:
+
+```sql
+ALTER TABLE step_attempts ADD COLUMN IF NOT EXISTS lease_token uuid;
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS lease_token uuid;
+```
+
+**The bundled S3 server listens on loopback.** The compose stack, and the one `dg init`
+writes, publish `S3_PORT` on `127.0.0.1` only. The stack itself still reaches the server as
+`http://s3:9000`; a person on another host who inspected the bucket through the published
+port now tunnels to it instead.
+
+### Fixed
+
+- **A duckdb session is held to the run's own directories by duckdb itself.** A path written
+  straight into the `sql` of `sql.query` or `sql.execute`, such as `read_csv('/etc/hostname')`,
+  reached past the boundary that only a `file://` parameter was checked against. The session
+  now opens with the run's work directory and local scratch space as its `allowed_directories`,
+  turns `enable_external_access` off and locks the configuration, so a literal path outside
+  the run, a `COPY ... TO` outside it, a `SET` that would widen the roots and a `LOAD` of a
+  further extension are all refused. The `s3://` scheme stays reachable for a step that names
+  a bucket, on the storage connection's credentials as before.
+- **A claim is fenced by its own token, not the worker's name.** A worker whose lease the
+  sweeper took could reclaim the same attempt under the same name, and the abandoned call's
+  outcome, remote handle or heartbeat then passed the fence and landed on the live claim.
+  Every claim of a step attempt and of a notification now mints a `lease_token`; the outcome,
+  the handle, the heartbeat and the lease renewal are refused unless the row still carries
+  the token they were claimed with.
+- **Artifact downloads, run reports and retention read storage through the configured
+  connection.** The server's artifact route, the report writer and the prune sweep opened the
+  `s3` scheme with no endpoint and no credentials, because only a step's context bound
+  `DIRIGENT_STORAGE_CONNECTIONS`; on the compose stack an artifact could not be downloaded, a
+  large report not kept, and scratch not pruned. Each of them now binds the instance's
+  storage connections for the call.
+- **`make docker-push` proves the image with `dg --version`.** The smoke check still ran the
+  removed `dg version` command, so the push stopped before either tag went out.
+- **The compose test suite needs no Docker daemon.** One `docker.compose.up` test left the
+  daemon status read real; it now runs against the fake daemon like its siblings.
+
 ## 0.15.2
 
 Released 2026-09-12. Every package in the workspace moves to 0.15.2 together.
