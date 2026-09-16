@@ -165,7 +165,7 @@ their output, using PEP 695 generics.
 ```python
 class ErrorClass(StrEnum):
     TRANSIENT = "transient"  # network, 5xx, timeout: retryable
-    REJECTED = "rejected"  # validation, auth, 4xx: never retried
+    REJECTED = "rejected"  # validation, auth, any 4xx but 429: never retried
     UNKNOWN = "unknown"  # anything else: retried while the step has budget
 
 

@@ -251,6 +251,7 @@ def test_every_httpx2_transport_error_is_transient() -> None:
     [
         (500, ErrorClass.TRANSIENT),
         (503, ErrorClass.TRANSIENT),
+        (429, ErrorClass.TRANSIENT),
         (400, ErrorClass.REJECTED),
         (401, ErrorClass.REJECTED),
         (404, ErrorClass.REJECTED),
