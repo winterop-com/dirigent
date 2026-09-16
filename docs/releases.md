@@ -26,6 +26,9 @@ Released 2026-09-17. Every package in the workspace moves to 0.16.1 together.
   pipe. The README, `.env.example` and the docs name it where they used to show a python
   one-liner, and `dg init`, `dg run --local` and the dev seed mint their keys through the
   same generator.
+- **HTTP 429 is transient.** `status_class` in the http blocks and the plugin's default
+  classifier treated every 4xx as rejected, so a rate-limited step was never retried. A 429
+  now sits beside 5xx; every other 4xx stays rejected.
 
 ## 0.16.0
 
