@@ -43,6 +43,7 @@ class RunOut(WireModel):
     triggered_by_label: str | None = None
     trace_id: str | None = None
     error: str | None = None
+    """What went wrong: the reason a cancel gave, else what the first failed attempt said."""
     failed_step: str | None = None
     """The step whose first failed attempt this run holds, when it did not end well."""
     started_at: datetime | None = None
