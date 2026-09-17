@@ -27,7 +27,7 @@ COMPOSE_SINKS ?= $(COMPOSE) -f infra/compose.sinks.yaml
 #: Every overlay at once, which is what "take it all away" has to name to reach every volume.
 COMPOSE_ALL ?= $(COMPOSE) -f infra/compose.brokers.yaml -f infra/compose.sql.yaml -f infra/compose.otel.yaml -f infra/compose.sinks.yaml
 
-.PHONY: help install lint static check gate e2e queues-up queues-down schemas dev dev-seeded ui ui-dev ui-fmt ui-lint ui-test ui-e2e ui-gate ui-static ui-wheel docker-build docker-rebuild docker-run docker-run-queues docker-run-sql docker-run-otel docker-run-sinks docker-run-all docker-clean test test-postgres test-s3 test-docker test-queues load coverage docs docs-blocks docs-settings docs-build clean
+.PHONY: help install lint static check gate e2e queues-up queues-down schemas dev dev-seeded ui ui-dev ui-fmt ui-lint ui-test ui-e2e ui-gate ui-static ui-wheel docker-build docker-rebuild docker-run docker-run-queues docker-run-sql docker-run-otel docker-run-sinks docker-run-all docker-clean test test-postgres test-s3 test-docker test-queues load coverage docs docs-blocks docs-settings docs-build docs-pdf clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -226,6 +226,10 @@ schemas: ## Regenerate reports/schema-inventory.md from every pydantic model
 
 docs-build: ## Build the documentation site, failing on any warning
 	$(UV) run mkdocs build --strict
+
+docs-pdf: ## Build the site and print the basics tutorial to site/basics.pdf
+	$(UV) run --with playwright playwright install chromium
+	$(UV) run --with playwright python scripts/docs_pdf.py
 
 clean: ## Remove build artifacts and tool caches
 	rm -rf .ruff_cache .mypy_cache .pytest_cache htmlcov site .coverage coverage.xml

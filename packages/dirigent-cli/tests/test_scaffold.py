@@ -230,7 +230,7 @@ def test_a_pack_is_pinned_where_the_runtime_is(tmp_path: Path) -> None:
 
 def test_every_install_page_names_the_one_install_line() -> None:
     """One page drifting to another install form sends a reader down a path nobody tests."""
-    for page in ("docs/getting-started.md", "docs/index.md", "docs/tutorial.md", "README.md"):
+    for page in ("docs/getting-started.md", "docs/index.md", "docs/basics.md", "docs/tutorial.md", "README.md"):
         assert "uv tool install dirigent-cli" in (REPO_ROOT / page).read_text(), page
 
 
