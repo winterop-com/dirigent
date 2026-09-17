@@ -1,0 +1,8 @@
+/* Paper is narrower than a terminal. The widest capture on the basics page is 100 columns,
+   and at the screen size its box drawing wraps into nonsense on A4. */
+@media print {
+  .md-typeset pre > code {
+    font-size: 9px;
+    line-height: 1.35;
+  }
+}

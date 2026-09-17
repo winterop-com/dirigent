@@ -34,6 +34,7 @@ nav:
   - Start here:
       - Home: index.md
       - Getting started: getting-started.md
+      - The basics: basics.md
       - Tutorial: tutorial.md
       - Concepts: concepts.md
   - Using it:
@@ -62,6 +63,9 @@ nav:
       - Conventions: conventions.md
       - UI conventions: ui-conventions.md
       - Releases: releases.md
+
+extra_css:
+  - stylesheets/print.css
 
 markdown_extensions:
   - admonition
