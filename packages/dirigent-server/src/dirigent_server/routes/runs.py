@@ -739,7 +739,7 @@ async def _story(
             reported.update({row.id: _fingerprint(row) for row in moved})
             transitions = [
                 (
-                    _moment(row.finished_at or row.started_at),
+                    _moment(row.finished_at or row.started_at or row.created_at),
                     f"event: attempt\ndata: {_render_event(row, spilled, labels).model_dump_json()}\n\n",
                 )
                 for row in moved
