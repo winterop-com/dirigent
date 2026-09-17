@@ -795,6 +795,23 @@ def test_the_runs_listing_names_the_step_a_run_failed_at(client: TestClient) -> 
     assert healthy["failed_step"] is None, "the detail renders the DAG; the row is the listing's own"
 
 
+def test_the_runs_listing_says_what_the_step_a_run_failed_at_said(client: TestClient) -> None:
+    """A run row carries no error of its own, so the listing reads the failed attempt's."""
+    apply_document(client, DOCUMENT)
+    run_id = UUID(client.post(f"{PREFIX}/pipelines/api-demo/$run", json={"params": {}}).json()["run_id"])
+    rows_written(
+        client,
+        sa.update(StepAttempt)
+        .where(StepAttempt.run_id == run_id)
+        .values(status=AttemptStatus.FAILED, error="the host refused the connection"),
+        sa.update(Run).where(Run.id == run_id).values(status=RunStatus.FAILED, finished_at=datetime.now(UTC)),
+    )
+    rows = client.get(f"{PREFIX}/runs").json()["items"]
+    failed = next(row for row in rows if row["id"] == str(run_id))
+    assert failed["error"] == "the host refused the connection"
+    assert failed["failed_step"] == "greet"
+
+
 def test_one_pipelines_runs_and_triggers_are_never_counted_against_another(client: TestClient) -> None:
     apply_document(client, DOCUMENT)
     apply_document(client, DOCUMENT.replace("code: api-demo", "code: api-quiet"))

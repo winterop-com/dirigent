@@ -471,24 +471,38 @@ async def last_runs(session: AsyncSession, pipeline_ids: Sequence[UUID]) -> dict
             status=row.status,
             started_at=row.started_at,
             finished_at=row.finished_at,
-            failed_step=failing.get(row.id),
+            failed_step=failing[row.id].step if row.id in failing else None,
         )
         for row in rows
     }
 
 
-async def failing_steps(session: AsyncSession, run_ids: Sequence[UUID]) -> dict[UUID, str]:
-    """Name the step each run's first failed attempt was of."""
+class FailedStep(NamedTuple):
+    """A run's first failed attempt, as a listing names it: which step, and what it said."""
+
+    step: str
+    error: str | None
+
+
+async def failing_steps(session: AsyncSession, run_ids: Sequence[UUID]) -> dict[UUID, FailedStep]:
+    """Name the step each run's first failed attempt was of, and what that attempt said.
+
+    A run row carries no error of its own unless it was cancelled: what went wrong is written
+    on the attempt, so a listing that names the step reads its message from the same row.
+    """
     if not run_ids:
         return {}
     ranked = (
         sa.select(
             StepAttempt.run_id,
             StepAttempt.step_name,
+            StepAttempt.error,
             sa.func.row_number().over(partition_by=StepAttempt.run_id, order_by=StepAttempt.id).label("rank"),
         )
         .where(StepAttempt.run_id.in_(run_ids), StepAttempt.status == AttemptStatus.FAILED)
         .subquery()
     )
-    rows = await session.execute(sa.select(ranked.c.run_id, ranked.c.step_name).where(ranked.c.rank == 1))
-    return {run_id: step for run_id, step in rows.all()}
+    rows = await session.execute(
+        sa.select(ranked.c.run_id, ranked.c.step_name, ranked.c.error).where(ranked.c.rank == 1)
+    )
+    return {run_id: FailedStep(step, error) for run_id, step, error in rows.all()}

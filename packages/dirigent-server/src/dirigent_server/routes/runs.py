@@ -45,7 +45,7 @@ from dirigent_core.models import (
     StepAttempt,
     utcnow,
 )
-from dirigent_core.pipelines import UNWELL, carries_tag, failing_steps
+from dirigent_core.pipelines import UNWELL, FailedStep, carries_tag, failing_steps
 from dirigent_core.registry import unmet_worker_tags
 from dirigent_core.reporting import duration_ms, items_in_order, run_facts
 from dirigent_server.dependencies import ServicesDep, SessionDep, get_sessions
@@ -93,8 +93,12 @@ async def _context(session: AsyncSession, run: Run) -> tuple[Pipeline, PipelineV
     return pipeline, version, load_definition(version.ordered_document)
 
 
-def _render_run(run: Run, pipeline: Pipeline, version: PipelineVersion, failed_step: str | None = None) -> RunOut:
-    """Render a run row with the names a client actually wants to see."""
+def _render_run(run: Run, pipeline: Pipeline, version: PipelineVersion, failed: FailedStep | None = None) -> RunOut:
+    """Render a run row with the names a client actually wants to see.
+
+    A run row holds an error of its own only when it was cancelled, so a run that failed in a
+    step answers with what that step's attempt said.
+    """
     return RunOut(
         id=run.id,
         pipeline=pipeline.code,
@@ -105,8 +109,8 @@ def _render_run(run: Run, pipeline: Pipeline, version: PipelineVersion, failed_s
         triggered_by_kind=run.triggered_by_kind,
         triggered_by_label=run.triggered_by_label,
         trace_id=telemetry.trace_id_of(run.traceparent),
-        error=run.error,
-        failed_step=failed_step,
+        error=run.error or (failed.error if failed is not None else None),
+        failed_step=failed.step if failed is not None else None,
         started_at=run.started_at,
         finished_at=run.finished_at,
         window_start=run.window_start,
