@@ -1,16 +1,16 @@
 [project]
 name = "dirigent-server"
-version = "0.16.2"
+version = "0.16.3"
 description = "Dirigent FastAPI server: the REST API, its authentication, and the health probes."
 readme = "README.md"
 requires-python = ">=3.13"
 license = "LicenseRef-Proprietary"
 license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
 dependencies = [
-    "dirigent-client==0.16.2",
-    "dirigent-common==0.16.2",
-    "dirigent-core==0.16.2",
-    "dirigent-examples==0.16.2",
+    "dirigent-client==0.16.3",
+    "dirigent-common==0.16.3",
+    "dirigent-core==0.16.3",
+    "dirigent-examples==0.16.3",
     "fastapi>=0.141.1",
 ]
 
