@@ -16,6 +16,26 @@ tag is what publishes: `.github/workflows/release.yaml` builds every package and
 to PyPI through trusted publishing, then builds the image from that commit and pushes it as
 `<version>` and `latest`. The two sibling repositories then relock against the tag and bump.
 
+## 0.16.2
+
+Released 2026-09-17. Every package in the workspace moves to 0.16.2 together.
+
+- **The basics, a two-part tutorial.** A new page under Start here walks the first three moves
+  against Postman Echo, slowly: one HTTP request, a JSON Schema gate on the answer, and a send
+  built from the validated value, with a refusal and a transient retry in between, every
+  command run for real and the UI shown along the way. The second half, the same three moves
+  against DHIS2, is in the `dirigent-dhis2` documentation. Both pages are also printed to a
+  PDF that the published site carries.
+- **The installed set can no longer mix two releases.** Every package requires its dirigent
+  siblings at `==<version>`, so `uv tool upgrade dirigent-cli` moves every package and a guard
+  test fails the fast lane if a bump leaves one behind. 0.16.1's `dg` crashed on import when
+  the tool was upgraded by name alone, because only the CLI moved.
+- **A watched run's queued step carries its own moment.** `dg run --watch` against a server
+  stamped every `queued` record with a year-1 sentinel that rendered as `0001-01-01` with a
+  local-mean-time offset; the record now carries the attempt's `created_at`. The run listing
+  and the dashboard's Needs a look also answer a failed run's `error` with what its failed
+  step said, where the column was empty before.
+
 ## 0.16.1
 
 Released 2026-09-17. Every package in the workspace moves to 0.16.1 together.
