@@ -1,6 +1,7 @@
 """What `--watch` prints: the run's event stream, rendered as transitions and block output."""
 
 from collections.abc import Iterator
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import uuid4
 
@@ -43,6 +44,7 @@ def attempt(
     *,
     started: str | None,
     finished: str | None = None,
+    created: str | None = None,
     output: dict[str, Any] | None = None,
     output_uri: str | None = None,
     item: str | None = None,
@@ -57,6 +59,7 @@ def attempt(
             "status": status,
             "started_at": started,
             "finished_at": finished,
+            "created_at": created,
             "output": output,
             "output_uri": output_uri,
             "output_bytes": 24576 if output_uri else None,
@@ -134,6 +137,24 @@ def test_an_attempt_with_no_timestamp_yet_sorts_to_the_front(capsys: Any) -> Non
     print_events(moved + log_events(entries))
     printed = [line for line in capsys.readouterr().out.splitlines() if line.strip()]
     assert "queued" in printed[0]
+
+
+def test_a_queued_step_is_stamped_with_the_moment_the_attempt_was_written_down(capsys: Any) -> None:
+    """A queued attempt has neither started nor finished, and its record still says when."""
+    queued = attempt("ask", "queued", started=None, created="2026-01-01T00:00:01+00:00")
+    print_events(transitions(queued), out=Sink("json"))
+    written = streamed(capsys)[-1]
+    assert written["kind"] == "step"
+    assert written["message"] == "queued"
+    assert written["at"] == "2026-01-01T00:00:01.000+00:00"
+
+
+def test_a_transition_the_server_put_no_clock_on_is_stamped_when_the_watch_saw_it(capsys: Any) -> None:
+    """Nothing is ever stamped with the beginning of time: an `at` is a moment that happened."""
+    before = datetime.now(UTC) - timedelta(seconds=1)
+    print_events(transitions(attempt("ask", "queued", started=None)), out=Sink("json"))
+    written = streamed(capsys)[-1]
+    assert before <= datetime.fromisoformat(written["at"]) <= datetime.now(UTC)
 
 
 def test_an_attempt_is_announced_once_per_state_it_reaches() -> None:

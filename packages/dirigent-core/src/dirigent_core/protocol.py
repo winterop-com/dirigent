@@ -33,6 +33,10 @@ ABSENT: Final = "-"
 LEVEL_WIDTH: Final = 8
 MESSAGE_WIDTH: Final = 30
 
+#: The first year a zone's offset is a whole-minute standard one everywhere. Before it, a
+#: conversion into the reader's zone spells local mean time rather than a time.
+STANDARD_TIME_YEAR: Final = 1900
+
 #: Nested values are spread into ``prefix.key`` fields for the flat spellings.
 NESTED_PREFIXES: Final[Mapping[str, str]] = {"output": "output.", "fields": ""}
 
@@ -173,12 +177,18 @@ def _pad(text: str, width: int) -> str:
 
 
 def _stamp(at: str, *, local: bool) -> str:
-    """Render an instant for a person: the same moment, in the reader's own offset."""
+    """Render an instant for a person: the same moment, in the reader's own offset.
+
+    A moment from before standard time is left in the spelling it arrived in: a zone's offset
+    that far back is its local mean time, and a line reading ``+00:53:28`` says nothing.
+    """
     if not local:
         return at
     try:
         parsed = datetime.fromisoformat(at)
     except ValueError:
+        return at
+    if parsed.year < STANDARD_TIME_YEAR:
         return at
     return parsed.astimezone().isoformat(timespec="milliseconds")
 

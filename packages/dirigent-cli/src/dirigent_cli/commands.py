@@ -1467,18 +1467,27 @@ _LOG_SECOND = 1
 #: One thing that happened, in the order it happened: when, its tie-break rank, and what.
 type WatchEvent = tuple[datetime, int, AttemptOut | LogEntryOut, str | None]
 
+#: The sort key of something the server put no clock on at all, which orders before every
+#: real instant. It is an ordering device: no record is stamped with it.
+UNTIMED: Final = datetime.min.replace(tzinfo=UTC)
+
 
 def moment_of(value: object) -> datetime:
     """Read a server timestamp for ordering, treating a missing one as the beginning of time."""
     if isinstance(value, datetime):
         return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
     if not isinstance(value, str):
-        return datetime.min.replace(tzinfo=UTC)
+        return UNTIMED
     try:
         parsed = datetime.fromisoformat(value)
     except ValueError:  # pragma: no cover - the server writes ISO instants
-        return datetime.min.replace(tzinfo=UTC)
+        return UNTIMED
     return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
+
+
+def stamped(when: datetime) -> datetime:
+    """Read the instant a record carries: the one it was ordered by, or now when it has none."""
+    return datetime.now(UTC) if when == UNTIMED else when
 
 
 def item_labels(items: Sequence[ItemOut], attempts: Sequence[AttemptOut]) -> dict[UUID, str]:
@@ -1531,13 +1540,16 @@ def transition_event(attempt: AttemptEvent, seen: dict[str, str]) -> list[WatchE
     """Report one streamed attempt when it has moved since the stream last named it.
 
     The server replays every attempt on connect and after a reconnection, so an attempt in a
-    state already printed is nothing to say.
+    state already printed is nothing to say. A queued attempt has neither started nor
+    finished, so the moment it reached the state it is being announced in is when it was
+    written down.
     """
     key = f"{attempt.step_name}#{attempt.item or ''}#{attempt.attempt}"
     if seen.get(key) == attempt.status.value or attempt.status is AttemptStatus.PENDING:
         return []
     seen[key] = attempt.status.value
-    return [(moment_of(attempt.finished_at or attempt.started_at), _TRANSITION_FIRST, attempt, attempt.item)]
+    when = attempt.finished_at or attempt.started_at or attempt.created_at
+    return [(moment_of(when), _TRANSITION_FIRST, attempt, attempt.item)]
 
 
 def log_events(entries: list[LogEntryOut], labels: dict[UUID, str] | None = None) -> list[WatchEvent]:
@@ -1568,7 +1580,7 @@ def print_events(events: list[WatchEvent], level: Detail = Detail.SUMMARY, *, ou
             continue
         writer.event(
             "step",
-            at=when,
+            at=stamped(when),
             step=subject.step_name,
             item=label,
             message=subject.status.value,
@@ -1582,7 +1594,7 @@ def print_events(events: list[WatchEvent], level: Detail = Detail.SUMMARY, *, ou
             continue
         writer.event(
             "output",
-            at=when,
+            at=stamped(when),
             step=subject.step_name,
             item=label,
             message=subject.status.value,

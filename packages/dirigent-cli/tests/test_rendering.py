@@ -103,6 +103,14 @@ def test_a_uri_outside_the_runs_prefix_is_left_whole() -> None:
     assert "artifact=s3://bucket/a.json" in elsewhere
 
 
+def test_a_moment_from_before_standard_time_is_rendered_as_it_arrived() -> None:
+    """Converting one into the reader's zone spells local mean time, not a time."""
+    beginning = "0001-01-01T00:00:00.000+00:00"
+    found = LINE.match(console(make("step", at=beginning, step="fetch", message="queued")))
+    assert found is not None
+    assert found.group("at") == beginning
+
+
 def test_a_step_that_warned_is_flagged_beside_its_name() -> None:
     assert "1 warn" in plain(coloured(flagged(1)))
     assert flagged(0) == ""
