@@ -1,6 +1,7 @@
 """Tests for ``dg blocks new`` and ``dg init``'s templates."""
 
 import py_compile
+import re
 import tomllib
 from pathlib import Path
 from typing import Any
@@ -249,6 +250,50 @@ def test_every_template_pins_the_running_runtime(tmp_path: Path, template: str) 
     assert project["project"]["dependencies"] == ["dirigent-cli==1.2.3"]
     assert project["project"]["requires-python"] == ">=3.13"
     assert "sources" not in project.get("tool", {}).get("uv", {}), "dirigent-cli resolves from PyPI"
+
+
+#: A requirement, split into the distribution, its extras, and whatever version it asks for.
+REQUIREMENT = re.compile(r"^(?P<name>[A-Za-z0-9._-]+)(?P<extras>\[[^\]]*\])?(?P<specifier>.*)$")
+
+
+def workspace_manifests() -> dict[str, dict[str, Any]]:
+    """Every workspace package's manifest, read off disk."""
+    packages = REPO_ROOT / "packages"
+    return {
+        path.name: tomllib.loads((path / "pyproject.toml").read_text())
+        for path in sorted(packages.iterdir())
+        if (path / "pyproject.toml").is_file()
+    }
+
+
+def requirements(manifest: dict[str, Any]) -> list[str]:
+    """Every requirement a manifest states, runtime, extra and group alike."""
+    project: dict[str, Any] = manifest.get("project", {})
+    groups: list[Any] = [project.get("dependencies", [])]
+    groups += list(project.get("optional-dependencies", {}).values())
+    groups += list(manifest.get("dependency-groups", {}).values())
+    return [item for group in groups for item in group if isinstance(item, str)]
+
+
+def test_every_package_carries_the_same_version() -> None:
+    """A release moves the whole workspace to one number, and the tag is checked against it."""
+    versions = {name: manifest["project"]["version"] for name, manifest in workspace_manifests().items()}
+    assert len(set(versions.values())) == 1, f"a bump left a package behind: {versions}"
+
+
+@pytest.mark.parametrize("package", sorted(workspace_manifests()))
+def test_every_sibling_requirement_is_pinned_to_that_version(package: str) -> None:
+    """An unpinned sibling lets `uv tool upgrade dirigent-cli` move the CLI and nothing else.
+
+    The installed set then mixes two releases, and the first import across the seam fails.
+    """
+    manifests = workspace_manifests()
+    version = manifests["dirigent-cli"]["project"]["version"]
+    for requirement in requirements(manifests[package]):
+        parsed = REQUIREMENT.match(requirement)
+        assert parsed is not None, requirement
+        if parsed["name"].startswith("dirigent-"):
+            assert parsed["specifier"] == f"=={version}", f"{package} requires {requirement}, not =={version}"
 
 
 @pytest.mark.parametrize(
