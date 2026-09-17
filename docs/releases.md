@@ -8,12 +8,13 @@ it, or the published one.
 Versions before 0.9.0 were developed in private and are listed here for the record.
 
 **How a release is cut.** Every package in this workspace, `dirigent-dhis2` and
-`dirigent-integration` move to the same number together. The notes land here first, at the
-top; the bump merges; the merge commit is tagged `vX.Y.Z` and published as a GitHub release
-with the same notes. The tag is what publishes: `.github/workflows/release.yaml` builds every
-package and uploads it to PyPI through trusted publishing, then builds the image from that
-commit and pushes it as `<version>` and `latest`. The two sibling repositories then relock
-against the tag and bump.
+`dirigent-integration` move to the same number together, and the sibling pins move with the
+version: every package requires its dirigent dependencies at `==<version>`, so an installed
+set can never mix two releases. The notes land here first, at the top; the bump merges; the
+merge commit is tagged `vX.Y.Z` and published as a GitHub release with the same notes. The
+tag is what publishes: `.github/workflows/release.yaml` builds every package and uploads it
+to PyPI through trusted publishing, then builds the image from that commit and pushes it as
+`<version>` and `latest`. The two sibling repositories then relock against the tag and bump.
 
 ## 0.16.1
 

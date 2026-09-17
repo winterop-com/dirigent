@@ -8,8 +8,8 @@ license = "LicenseRef-Proprietary"
 license-files = ["LICENSE"]
 dependencies = [
     "aioboto3>=15.5.0",
-    "dirigent-common",
-    "dirigent-plugin",
+    "dirigent-common==0.16.1",
+    "dirigent-plugin==0.16.1",
     "pydantic>=2.13.5",
 ]
 

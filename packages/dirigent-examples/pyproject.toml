@@ -8,8 +8,8 @@ license = "LicenseRef-Proprietary"
 license-files = ["LICENSE"]
 dependencies = [
     # The python/ shelf is SDK scripts a reader runs, so the corpus carries the client.
-    "dirigent-client",
-    "dirigent-plugin",
+    "dirigent-client==0.16.1",
+    "dirigent-plugin==0.16.1",
 ]
 
 [project.entry-points."dirigent.plugins.v1"]

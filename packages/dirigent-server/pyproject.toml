@@ -7,10 +7,10 @@ requires-python = ">=3.13"
 license = "LicenseRef-Proprietary"
 license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
 dependencies = [
-    "dirigent-client",
-    "dirigent-common",
-    "dirigent-core",
-    "dirigent-examples",
+    "dirigent-client==0.16.1",
+    "dirigent-common==0.16.1",
+    "dirigent-core==0.16.1",
+    "dirigent-examples==0.16.1",
     "fastapi>=0.141.1",
 ]
 

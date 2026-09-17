@@ -26,6 +26,13 @@ published image, `docker compose exec server dg ...`, which needs nothing on the
 That gives you the CLI, the engine, the built-in blocks, and the server, because they are
 dependencies of the CLI package. You need Python 3.13 and [uv](https://docs.astral.sh/uv/).
 
+```bash
+uv tool upgrade dirigent-cli
+```
+
+That moves every dirigent package, not only the CLI: each one pins its dirigent dependencies
+at the release's exact version, so the whole set arrives on the new release together.
+
 **From source**, which is what a contributor does:
 
 ```bash
