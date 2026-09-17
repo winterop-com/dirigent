@@ -360,6 +360,48 @@ async def test_a_re_run_at_another_ref_replaces_the_checkout(
     assert not marker.exists()
 
 
+async def test_a_target_leading_through_a_symlink_is_refused_and_nothing_outside_is_touched(
+    local_ctx: FakeContext, public: GitConnectionConfig, tmp_path: Path
+) -> None:
+    """A link an earlier step left in the work directory is not a way out of it."""
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "precious.txt").write_text("not the run's\n")
+    root = work_root(local_ctx)
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "link").symlink_to(outside)
+
+    with pytest.raises(BlockFailure) as raised:
+        await checkout(install(local_ctx, public), target="link/victim")
+
+    assert raised.value.error_class is ErrorClass.REJECTED
+    assert "link/victim" in str(raised.value)
+    assert str(root) in str(raised.value)
+    assert (outside / "precious.txt").read_text() == "not the run's\n"
+    assert list(outside.iterdir()) == [outside / "precious.txt"]
+
+
+async def test_a_target_that_is_itself_a_symlink_is_unlinked_rather_than_followed(
+    local_ctx: FakeContext, public: GitConnectionConfig, remote: Remote, tmp_path: Path
+) -> None:
+    """A link is never the standing checkout, even pointing at that very commit."""
+    outside = tmp_path / "elsewhere"
+    run(tmp_path, "clone", "--quiet", remote.url, str(outside))
+    (outside / "precious.txt").write_text("not the run's\n")
+    root = work_root(local_ctx)
+    root.mkdir(parents=True, exist_ok=True)
+    link = root / local_ctx.step
+    link.symlink_to(outside)
+
+    output = await checkout(install(local_ctx, public))
+
+    assert output.commit == remote.second
+    assert not link.is_symlink()
+    assert (link / "README.md").read_text() == "two\n"
+    assert not (link / "precious.txt").exists(), "the checkout is fresh, not what the link pointed at"
+    assert (outside / "precious.txt").read_text() == "not the run's\n"
+
+
 async def test_a_target_holding_something_that_is_not_a_checkout_is_replaced(
     local_ctx: FakeContext, public: GitConnectionConfig
 ) -> None:

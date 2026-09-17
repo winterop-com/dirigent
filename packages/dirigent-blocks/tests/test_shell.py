@@ -11,6 +11,7 @@ from pydantic import ValidationError
 
 from dirigent_blocks.shell import ShellRunConfig, ShellRunOperator, ShellRunOutput
 from dirigent_common import SHELL_MEDIA_TYPE
+from dirigent_core.engine.references import ReferenceScope, resolve_config
 from dirigent_plugin import BlockFailure, ErrorClass
 from dirigent_testing import FakeContext
 
@@ -156,6 +157,85 @@ def test_the_shell_form_publishes_itself_as_shell_source() -> None:
     published = ShellRunConfig.model_json_schema()["properties"]["command"]
 
     assert published["contentMediaType"] == SHELL_MEDIA_TYPE
+
+
+def test_the_variables_the_engine_substitutes_out_are_not_a_field_a_document_may_name() -> None:
+    """They arrive from the engine, so the published schema does not offer them to an author."""
+    published = ShellRunConfig.model_json_schema()
+
+    assert "shell_variables" not in published["properties"]
+    assert published["additionalProperties"] is False
+
+
+async def test_a_substituted_value_is_text_the_shell_never_parses(local_ctx: FakeContext) -> None:
+    """A parameter that arrived in a webhook payload reaches the command, and runs nothing."""
+    payload = "$(printf pwned) `printf pwned` 'quoted' \"quoted\" ; rm -rf /"
+    resolved = resolve_config(
+        {"command": 'printf "%s|%s" ${params.value} "${params.value}"'},
+        ReferenceScope(params={"value": payload}),
+        shell_fields={"command"},
+    )
+
+    output = await run(local_ctx, ShellRunConfig.model_validate(resolved))
+
+    assert output.stdout == f"{payload}|{payload}"
+
+
+async def test_a_substituted_value_inside_single_quotes_is_the_variable_the_shell_reads(
+    local_ctx: FakeContext,
+) -> None:
+    """Single quotes are literal to a shell, and what they hold is visible in what it printed."""
+    resolved = resolve_config(
+        {"command": "printf '%s' '${params.value}'"},
+        ReferenceScope(params={"value": "oslo"}),
+        shell_fields={"command"},
+    )
+
+    output = await run(local_ctx, ShellRunConfig.model_validate(resolved))
+
+    assert output.stdout == "$DIRIGENT_V0"
+
+
+async def test_a_command_that_is_entirely_a_reference_is_a_word_and_not_a_program(
+    local_ctx: FakeContext,
+) -> None:
+    """A parameter may name the program to run, never be one: here there is no such program."""
+    resolved = resolve_config(
+        {"command": "${params.cmd}"},
+        ReferenceScope(params={"cmd": "printf pwned"}),
+        shell_fields={"command"},
+    )
+
+    with pytest.raises(BlockFailure) as raised:
+        await run(local_ctx, ShellRunConfig.model_validate(resolved))
+
+    assert "printf pwned" in str(raised.value)
+
+
+async def test_a_document_cannot_override_a_substituted_value_through_env(local_ctx: FakeContext) -> None:
+    """The engine's variables are set last, whatever the document put in env or the allowlist."""
+    resolved = resolve_config(
+        {"command": 'printf "%s" ${params.value}', "env": {"DIRIGENT_V0": "mine"}},
+        ReferenceScope(params={"value": "theirs"}),
+        shell_fields={"command"},
+    )
+
+    output = await run(local_ctx, ShellRunConfig.model_validate(resolved))
+
+    assert output.stdout == "theirs"
+
+
+async def test_an_argv_command_takes_its_arguments_as_they_resolved(local_ctx: FakeContext) -> None:
+    """An argv element is already its own word, so nothing is rewritten into it."""
+    resolved = resolve_config(
+        {"argv": ["printf", "%s", "${params.value}"]},
+        ReferenceScope(params={"value": "$(printf pwned)"}),
+        shell_fields={"command"},
+    )
+
+    output = await run(local_ctx, ShellRunConfig.model_validate(resolved))
+
+    assert output.stdout == "$(printf pwned)"
 
 
 async def test_the_environment_is_an_allowlist_and_not_an_inheritance(

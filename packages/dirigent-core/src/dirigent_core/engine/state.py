@@ -261,10 +261,13 @@ def derive_run_status(states: dict[str, StepState], *, cancelled: bool = False) 
 
 
 async def lock_run(session: AsyncSession, run_id: UUID) -> None:
-    """Serialise the outcome transactions of one run, so its status is derived once.
+    """Serialise the transactions of one run, so its status is derived once.
 
     Without this, two workers settling the run's last two attempts each read the other as
-    still in flight and neither concludes the run finished. PostgreSQL only.
+    still in flight and neither concludes the run finished. An attempt's log flush takes it
+    too: an entry's id is taken when its row is inserted and readable only once its
+    transaction commits, so two writers that do not exclude each other can leave a stream
+    paging by id past an entry that was still in flight. PostgreSQL only.
     """
     if session.get_bind().dialect.name != "postgresql":
         return
@@ -272,10 +275,16 @@ async def lock_run(session: AsyncSession, run_id: UUID) -> None:
 
 
 async def lock_pipeline(session: AsyncSession, pipeline_id: UUID) -> None:
-    """Serialise the run-creation decisions of one pipeline, so its concurrency policy holds.
+    """Serialise the concurrency-slot decisions of one pipeline, so its policy holds.
 
-    ``skip`` and ``queue`` are read-then-decide-then-write across processes. PostgreSQL only,
-    as :func:`lock_run` is.
+    ``skip`` and ``queue`` are read-then-decide-then-write across processes, and so is
+    releasing the run one of them held. PostgreSQL only, as :func:`lock_run` is.
+
+    A transaction that takes both locks takes this one first: creating a run, retrying a
+    step, and cancelling all do. The settle path is the single exception, because it holds
+    the run lock from its first statement and reaches the pipeline only at the end, when the
+    run it settled frees the slot. That leaves one cycle of two, which PostgreSQL breaks and
+    ``with_deadlock_retry`` runs again.
     """
     if session.get_bind().dialect.name != "postgresql":
         return

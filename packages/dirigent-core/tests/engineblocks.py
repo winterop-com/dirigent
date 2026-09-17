@@ -20,6 +20,7 @@ from dirigent_plugin import (
     Sensor,
     SensorSpec,
     ShellString,
+    ShellVariables,
     StepContext,
     Transformer,
     TransformError,
@@ -71,7 +72,7 @@ class EchoOperator(Operator[EchoConfig, EchoOutput]):
         return EchoOutput(value=rendered, length=len(rendered))
 
 
-class ShellishConfig(BaseModel):
+class ShellishConfig(ShellVariables):
     """A config with a field the block declares as being handed to a shell."""
 
     command: Annotated[str, ShellString()] = ""
@@ -81,18 +82,19 @@ class ShellishOutput(BaseModel):
     """What the shell-string operator saw after the engine resolved its config."""
 
     command: str
+    variables: dict[str, str]
 
 
 class ShellishOperator(Operator[ShellishConfig, ShellishOutput]):
-    """Reports the command string it was given, so a test can read what the engine quoted."""
+    """Reports what it was handed, so a test can read what the engine substituted."""
 
     spec = OperatorSpec(id="test.shellish", summary="Report a shell command string.", idempotent=True)
     config_model = ShellishConfig
     output_model = ShellishOutput
 
     async def execute(self, config: ShellishConfig, ctx: StepContext) -> ShellishOutput | RemoteHandle:
-        """Return the command exactly as it arrived."""
-        return ShellishOutput(command=config.command)
+        """Return the command exactly as it arrived, with the variables it now reads."""
+        return ShellishOutput(command=config.command, variables=config.shell_variables)
 
 
 class FailConfig(BaseModel):

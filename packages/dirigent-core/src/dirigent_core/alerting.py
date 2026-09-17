@@ -27,7 +27,7 @@ from dirigent_common import (
     format_duration,
     render,
 )
-from dirigent_core.database import session_scope
+from dirigent_core.database import is_deadlock, session_scope
 from dirigent_core.engine.definition import load_definition
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.ids import uuid7
@@ -326,7 +326,43 @@ async def raise_for_run(
     has already assembled them, and they are read here when a rule matched and the caller had
     none, so a run nothing watches pays for no facts at all. The rendered document is what the
     templates read as ``report``; it is not stored on the notification.
+
+    A savepoint, and everything that fails inside it is logged rather than raised: the caller
+    has already written the outcome this reports on, and an alert nobody can queue must not
+    cost the work a second execution. A deadlock is the one failure passed on, because the
+    caller answers that by running its whole transaction again.
     """
+    try:
+        async with session.begin_nested():
+            return await _queue_for_run(
+                session,
+                services,
+                run,
+                event,
+                now=now,
+                facts=facts,
+                report=report,
+                report_artifact_id=report_artifact_id,
+            )
+    except Exception as error:
+        if is_deadlock(error):
+            raise
+        _logger.error("alerts not raised", run_id=str(run.id), alert_event=event.value, error=str(error))
+        return []
+
+
+async def _queue_for_run(
+    session: AsyncSession,
+    services: EngineServices,
+    run: Run,
+    event: AlertEvent,
+    *,
+    now: datetime | None = None,
+    facts: "RunFacts | None" = None,
+    report: str | None = None,
+    report_artifact_id: UUID | None = None,
+) -> list[Notification]:
+    """Write down the notifications and the timeline entries one raised event owes."""
     moment = now or utcnow()
     pipeline = await session.get(Pipeline, run.pipeline_id)
     if pipeline is None:  # pragma: no cover - the foreign key makes this unreachable

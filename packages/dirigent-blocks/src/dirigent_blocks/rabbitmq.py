@@ -6,11 +6,11 @@ there is enough, handing the batch downstream as its output.
 
 Unlike a Kafka topic, a RabbitMQ queue keeps its own place: a message is held unacknowledged
 until it is acked or nacked, so the broker rather than the cursor is the bookkeeping. What the
-sensor decides is *when* to acknowledge, and the default is ``on_success``: a poke that parks
-nacks everything it took back onto the queue with ``requeue``, so a batch too small to act on
-is left for the next poke or another consumer rather than swallowed. The cursor here carries
-nothing the sensor needs, only what a reader wants -- how many messages have gone past and the
-last delivery tag seen.
+sensor decides is *when* to acknowledge, and the default is ``on_success``: a poke that parks,
+or that cannot read one of the bodies it took, nacks everything back onto the queue with
+``requeue``, so a batch too small to act on is left for the next poke or another consumer
+rather than swallowed. The cursor here carries nothing the sensor needs, only what a reader
+wants -- how many messages have gone past and the last delivery tag seen.
 
 ``rabbitmq.publish`` goes the other way, and is the sink an upstream step hands a value to: it
 puts one message on an exchange, or on the default exchange where a routing key is a queue name.
@@ -213,11 +213,13 @@ class RabbitConsumeConfig(BlockModel):
     ack: Literal["on_success", "always"] = "on_success"
     """When a message is acknowledged.
 
-    ``on_success`` acknowledges only in the poke that succeeds, and a poke that parks nacks what
-    it took back onto the queue with ``requeue``, so nothing is lost to a batch that was too
-    small and another consumer may take it instead. ``always`` acknowledges every message the
-    moment it is taken, which suits a queue nothing else reads and a step that would rather
-    drop a partial batch than see it twice."""
+    ``on_success`` acknowledges only in the poke that succeeds, once every body in the batch has
+    been read. A poke that parks, or that finds a body it cannot read, nacks what it took back
+    onto the queue with ``requeue``, so nothing is lost to a batch that was too small or to one
+    unreadable message beside sound ones, and another consumer may take it instead. ``always``
+    acknowledges every message the moment it is taken, before any of them is read, which suits a
+    queue nothing else reads and a step that would rather drop a partial or unreadable batch
+    than see it twice."""
 
     value_format: Payload = "json"
     """How a message body is decoded."""
@@ -276,6 +278,8 @@ class RabbitConsumeSensor(Sensor[RabbitConsumeConfig, RabbitConsumeOutput]):
             queue = await _queue(connection, config)
             taken = await _drain(queue, config)
             if config.ack == "always":
+                # The batch is settled before it is read, so a body that will not decode is gone
+                # from the queue with the rest of them.
                 for delivery in taken:
                     await delivery.ack()
             if len(taken) < config.min_messages:
@@ -293,10 +297,10 @@ class RabbitConsumeSensor(Sensor[RabbitConsumeConfig, RabbitConsumeOutput]):
                     next_poll_in=config.poll_every,
                     message=f"{len(taken)} of {config.min_messages} messages",
                 )
+            messages = await _decoded(taken, config)
             if config.ack == "on_success":
                 for delivery in taken:
                     await delivery.ack()
-            messages = [_read(delivery, config) for delivery in taken]
             ctx.log.info("consumed", queue=config.queue, count=len(messages), ack=config.ack)
             return RabbitConsumeOutput(messages=messages, count=len(messages))
         except BlockFailure:
@@ -339,6 +343,28 @@ async def _drain(queue: Queue, config: RabbitConsumeConfig) -> list[Delivery]:
             break
         await asyncio.sleep(min(IDLE_SLEEP.total_seconds(), remaining))
     return taken
+
+
+async def _decoded(taken: list[Delivery], config: RabbitConsumeConfig) -> list[RabbitMessage]:
+    """Read the whole batch, or hand the whole batch back and say which delivery would not read.
+
+    Under ``on_success`` nothing has been acked yet, so a body that is not what the step was
+    promised is requeued along with the sound messages beside it rather than taking them off
+    the queue with it.
+    """
+    messages: list[RabbitMessage] = []
+    for delivery in taken:
+        try:
+            messages.append(_read(delivery, config))
+        except Exception as error:
+            if config.ack == "on_success":
+                for held in taken:
+                    await held.nack(requeue=True)
+            raise BlockFailure(
+                f"delivery {delivery.delivery_tag} of the {len(taken)} taken did not read: {error}",
+                error_class=classify(error),
+            ) from error
+    return messages
 
 
 def _cursor(held: dict[str, JsonValue] | None, taken: list[Delivery]) -> dict[str, JsonValue]:

@@ -1,5 +1,8 @@
 """Tests for the transform verb frames, driven by toy engines that stand in for real ones."""
 
+import asyncio
+import contextlib
+import time
 from typing import cast
 
 import pytest
@@ -40,6 +43,22 @@ class CaseTransformer(Transformer):
             return value.upper() if compiled == "upper" else value.lower()
         if isinstance(value, list):
             return [self.apply(compiled, item) for item in value]
+        return value
+
+
+class SlowTransformer(Transformer):
+    """A program engine whose program is how long it spends on a value, the way a large reshape does."""
+
+    kind = "slow"
+    summary = "Take the seconds its program names over a value."
+
+    def compile(self, program: str) -> object:
+        """Read the program as the number of seconds to spend."""
+        return float(program)
+
+    def apply(self, compiled: object, value: JsonValue) -> JsonValue:
+        """Spend the time, holding this thread and nothing else."""
+        time.sleep(cast("float", compiled))
         return value
 
 
@@ -143,6 +162,37 @@ async def test_a_bad_program_fails_the_step_as_rejected_when_it_reaches_a_run(bl
 
     assert raised.value.error_class is ErrorClass.REJECTED
     assert "'sideways' is not a case" in raised.value.message
+
+
+async def test_an_engine_that_takes_its_time_leaves_the_event_loop_free(block_ctx: FakeContext) -> None:
+    """The step timeout and the lease heartbeat are coroutines: an engine on the loop starves both."""
+    beats = 0
+
+    async def heartbeat() -> None:
+        nonlocal beats
+        while True:
+            await asyncio.sleep(0.01)
+            beats += 1
+
+    beating = asyncio.create_task(heartbeat())
+    output = await call_block(SlowTransformer(), {"input": ["ada"], "program": "0.3"}, block_ctx)
+    beating.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await beating
+
+    assert output.model_dump() == {"value": ["ada"]}
+    assert beats > 5, "the loop ran nothing while the engine worked"
+
+
+async def test_a_step_timeout_over_a_slow_engine_fires_rather_than_waiting_it_out(block_ctx: FakeContext) -> None:
+    """The engine's work is awaited, so the timeout the engine runs under is the one that ends it."""
+    started = time.monotonic()
+
+    with pytest.raises(TimeoutError):
+        async with asyncio.timeout(0.1):
+            await call_block(SlowTransformer(), {"input": ["ada"], "program": "1"}, block_ctx)
+
+    assert time.monotonic() - started < 0.5
 
 
 def test_check_config_returns_the_compile_error_for_a_bad_program() -> None:

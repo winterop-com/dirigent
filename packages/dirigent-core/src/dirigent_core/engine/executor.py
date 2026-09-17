@@ -547,13 +547,17 @@ class Engine:
         """Append what the buffer holds to the run, in a transaction of its own.
 
         Committed entries leave the buffer for good, so the outcome cannot write them twice;
-        a flush that failed puts them back, for the next flush or for the outcome.
+        a flush that failed puts them back, for the next flush or for the outcome. The run's
+        lock holds from the first id this takes until the commit that makes it readable, so
+        two attempts flushing at once cannot commit their entries out of id order and leave a
+        stream paging by id past one that was still in flight.
         """
         entries = logger.drain()
         if not entries:
             return
         try:
             async with session_scope(self.sessions) as session:
+                await lock_run(session, logger.run_id)
                 await session.execute(sa.insert(LogEntry), entries)
         except Exception as error:
             logger.restore(entries)

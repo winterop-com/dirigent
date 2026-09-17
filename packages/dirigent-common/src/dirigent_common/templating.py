@@ -126,6 +126,11 @@ def render(source: str | jinja2.Template, context: Mapping[str, Any], *, max_byt
 
     The cap is enforced as the text is generated, so a runaway loop stops at the cap rather
     than after it has built the whole string.
+
+    Anything a template does while it renders -- dividing by zero, a filter refusing what it
+    was handed, a macro that recurses, an object in the context that raises when it is read --
+    leaves as a ``TemplateError``, so text that could not be produced never takes down the
+    work that asked for it.
     """
     template = compile_template(source) if isinstance(source, str) else source
     chunks: list[str] = []
@@ -136,6 +141,8 @@ def render(source: str | jinja2.Template, context: Mapping[str, Any], *, max_byt
             size += len(chunk.encode())
             if size > max_bytes:
                 raise RenderTooLarge(max_bytes)
+    except RenderTooLarge:
+        raise
     except (jinja2.TemplateNotFound, jinja2.TemplatesNotFound) as error:
         raise TemplateError(f"no template named {error.message}: a template cannot pull in another") from error
     except (jinja2.UndefinedError, jinja2.exceptions.SecurityError) as error:
@@ -145,4 +152,6 @@ def render(source: str | jinja2.Template, context: Mapping[str, Any], *, max_byt
         if "no loader" in str(error):
             raise TemplateError("a template cannot include, import or extend another") from error
         raise TemplateError(str(error)) from error
+    except Exception as error:
+        raise TemplateError(f"{type(error).__name__}: {error}") from error
     return "".join(chunks)

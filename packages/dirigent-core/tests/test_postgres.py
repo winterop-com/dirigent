@@ -14,6 +14,7 @@ from dirigent_client.enums import (
     AlertScope,
     AttemptKind,
     AttemptStatus,
+    LogLevel,
     NotificationStatus,
     RunItemStatus,
     RunPriority,
@@ -26,7 +27,9 @@ from dirigent_core.alerting import raise_for_stuck, recover_notifications, renew
 from dirigent_core.config import Settings
 from dirigent_core.database import create_engine, create_session_factory, session_scope
 from dirigent_core.engine import EngineServices, executor, recovery
+from dirigent_core.engine import runs as engine_runs
 from dirigent_core.engine.claim import ClaimedUnit, due_attempt_statement, is_postgres, select_due
+from dirigent_core.engine.context import BufferedLogger
 from dirigent_core.engine.definition import (
     ConcurrencyPolicy,
     PipelineDefinition,
@@ -45,6 +48,7 @@ from dirigent_core.ids import uuid7
 from dirigent_core.models import (
     AlertRule,
     Base,
+    LogEntry,
     Notification,
     Pipeline,
     PipelineVersion,
@@ -1585,3 +1589,176 @@ async def test_a_run_cancelled_before_the_lock_is_not_resurrected(
         stored = await session.get(Run, run.id)
         assert stored is not None
         assert stored.status is RunStatus.CANCELLED
+
+
+#: How many times a creation and a settlement are run against each other.
+SLOT_ROUNDS = 8
+
+
+def queued_pipeline(code: str) -> PipelineDefinition:
+    """A one-step pipeline that holds every run behind the one occupying its slot."""
+    return PipelineDefinition(
+        code=code,
+        concurrency=ConcurrencyPolicy.QUEUE,
+        steps={"only": StepDefinition(block="test.echo", config={"value": "once"})},
+    )
+
+
+async def assert_the_slot_is_sound(sessions: async_sessionmaker[AsyncSession], pipeline_id: Any) -> None:
+    """Refuse a run held with no active sibling left to release it.
+
+    A held run is queued with nothing started and every attempt still pending, which is what
+    the release itself reads to tell a run waiting for the slot from the run holding it.
+    """
+    async with sessions() as session:
+        rows = await session.execute(
+            sa.select(Run).where(Run.pipeline_id == pipeline_id, Run.status.in_((RunStatus.QUEUED, RunStatus.RUNNING)))
+        )
+        held: list[Any] = []
+        occupying: list[Any] = []
+        for run in rows.scalars():
+            statuses = await session.execute(sa.select(StepAttempt.status).where(StepAttempt.run_id == run.id))
+            waiting = run.status is RunStatus.QUEUED and run.started_at is None
+            if waiting and all(status is AttemptStatus.PENDING for status in statuses.scalars()):
+                held.append(run.id)
+            else:
+                occupying.append(run.id)
+        assert not held or occupying, f"run {held[0]} is held with nothing in flight to release it"
+
+
+async def test_a_run_held_while_the_active_one_settles_is_still_released(
+    pg_sessions: async_sessionmaker[AsyncSession], pg_services: EngineServices, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Creating a run and releasing one decide the same slot, from two processes at once.
+
+    The creation reads the active run, decides to hold, and has not committed. The worker
+    settles that active run in between and looks for a successor to release: reading outside
+    the pipeline lock it finds none, and the run that lands a moment later waits forever for a
+    sibling that has already gone.
+    """
+    async with session_scope(pg_sessions) as session:
+        version = await save_pipeline(session, queued_pipeline("held-while-settling"))
+        version_id = version.id
+        first = await create_run(session, pg_services, version)
+    assert first is not None
+
+    worker = Engine(pg_sessions, pg_services, owner="settling-worker")
+    unit = await worker.claim()
+    assert unit is not None and unit.run_id == first.id
+
+    decided = asyncio.Event()
+    write_step_rows = engine_runs._create_step_rows  # pyright: ignore[reportPrivateUsage] - the seam to pause on
+
+    async def hold_after_deciding(*args: Any, **kwargs: Any) -> None:
+        await write_step_rows(*args, **kwargs)
+        if not decided.is_set():
+            decided.set()
+            # Long enough for the settling worker to reach the pipeline lock and queue on it.
+            await asyncio.sleep(BLOCKED_ON_THE_LOCK)
+
+    monkeypatch.setattr(engine_runs, "_create_step_rows", hold_after_deciding)
+
+    async def create() -> Run | None:
+        async with session_scope(pg_sessions) as session:
+            stored = await session.get(PipelineVersion, version_id)
+            assert stored is not None
+            return await create_run(session, pg_services, stored)
+
+    async def settle() -> None:
+        await decided.wait()
+        await worker.run_unit(unit)
+
+    second, _ = await asyncio.gather(create(), settle())
+
+    assert second is not None
+    async with pg_sessions() as session:
+        settled = await session.get(Run, first.id)
+        assert settled is not None and settled.status is RunStatus.SUCCEEDED
+        rows = await session.execute(sa.select(StepAttempt.status).where(StepAttempt.run_id == second.id))
+        assert list(rows.scalars()) == [AttemptStatus.QUEUED], "the held run was left behind a run that had finished"
+    await assert_the_slot_is_sound(pg_sessions, first.pipeline_id)
+
+
+async def test_creating_and_settling_at_once_never_strands_a_held_run(
+    pg_sessions: async_sessionmaker[AsyncSession], pg_services: EngineServices
+) -> None:
+    """The two sides of one slot, run against each other until one of them is late.
+
+    Gathering a creation and a settlement does not reliably get the two to overlap where it
+    matters, so this holds the invariant rather than demonstrating the interleaving; the
+    pipeline lock is what makes it hold when the reads really do overlap.
+    """
+    async with session_scope(pg_sessions) as session:
+        version = await save_pipeline(session, queued_pipeline("racing-the-slot"))
+        version_id = version.id
+        pipeline_id = version.pipeline_id
+
+    worker = Engine(pg_sessions, pg_services, owner="racing-worker")
+
+    async def create() -> None:
+        async with session_scope(pg_sessions) as session:
+            stored = await session.get(PipelineVersion, version_id)
+            assert stored is not None
+            await create_run(session, pg_services, stored)
+
+    async def settle() -> None:
+        unit = await worker.claim()
+        if unit is not None:
+            await worker.run_unit(unit)
+
+    for _ in range(SLOT_ROUNDS):
+        await asyncio.gather(create(), settle())
+        await assert_the_slot_is_sound(pg_sessions, pipeline_id)
+
+
+async def messages_of(sessions: async_sessionmaker[AsyncSession], run_id: Any) -> list[str]:
+    """Read a run's log the way a stream pages it: by id, ascending."""
+    async with sessions() as session:
+        rows = await session.execute(sa.select(LogEntry).where(LogEntry.run_id == run_id).order_by(LogEntry.id))
+        return [entry.message for entry in rows.scalars()]
+
+
+#: How long a test waits for the transaction it opened to reach the point it holds at.
+HELD_TIMEOUT = 5.0
+
+
+async def test_a_flush_cannot_commit_its_entries_before_an_earlier_flush(
+    pg_sessions: async_sessionmaker[AsyncSession], pg_services: EngineServices
+) -> None:
+    """A run's entries become readable in the order their ids were taken, never the other way.
+
+    Two attempts of one run flush from transactions of their own. The sequence hands out an id
+    at insert, so without the run lock the second flush commits id 2 while id 1 is still in
+    flight, and a stream that has paged past 2 never asks for 1 again.
+    """
+    definition = PipelineDefinition(code="two-flushers", steps={"only": StepDefinition(block="test.echo")})
+    run = await start(pg_sessions, pg_services, definition)
+    worker = Engine(pg_sessions, pg_services, owner="flushing-worker")
+    later = BufferedLogger(run_id=run.id, step_name="only", limit=10, batch=10)
+    later.info("the second flush")
+
+    holding = asyncio.Event()
+    release = asyncio.Event()
+
+    async def flush_first_and_hold() -> None:
+        async with session_scope(pg_sessions) as session:
+            await lock_run(session, run.id)
+            session.add(LogEntry(run_id=run.id, step_name="only", level=LogLevel.INFO, message="the first flush"))
+            # Flushed, not committed: the id is taken and the row is nobody else's to read yet.
+            await session.flush()
+            holding.set()
+            await release.wait()
+
+    first = asyncio.create_task(flush_first_and_hold())
+    await asyncio.wait_for(holding.wait(), HELD_TIMEOUT)
+    second = asyncio.create_task(worker._flush(later))  # pyright: ignore[reportPrivateUsage] - the write path
+    try:
+        await asyncio.sleep(BLOCKED_ON_THE_LOCK)
+
+        assert not second.done(), "the second flush committed its entries while the first held the run"
+        assert await messages_of(pg_sessions, run.id) == [], "a stream could have paged past the entry in flight"
+    finally:
+        release.set()
+        await asyncio.gather(first, second)
+
+    assert await messages_of(pg_sessions, run.id) == ["the first flush", "the second flush"]

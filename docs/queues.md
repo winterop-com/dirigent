@@ -198,14 +198,17 @@ or nacked. So the sensor's decision is not *where to read* but *when to acknowle
 is that decision.
 
 `ack: on_success` is the default, and is the safe one. Messages are acked only in the poke that
-succeeds. A poke that parks -- because fewer than `min_messages` were there -- nacks everything
-it took back onto the queue with `requeue`, so nothing is lost and another consumer may take it
-instead. The cost is that a message may be delivered more than once, which is the same
+succeeds, and only once every body in the batch has been read. A poke that parks -- because
+fewer than `min_messages` were there -- nacks everything it took back onto the queue with
+`requeue`, and so does a poke that finds a body it cannot read, so one malformed message does
+not take the sound ones beside it off the queue. Nothing is lost and another consumer may take
+it instead. The cost is that a message may be delivered more than once, which is the same
 at-least-once bargain the cursor makes.
 
-`ack: always` acknowledges every message the moment it is taken, park or no park. It suits a
-queue nothing else reads and a step that would rather drop a partial batch than see it twice.
-It is a real choice with a real cost: a batch that parks is gone.
+`ack: always` acknowledges every message the moment it is taken, before any of them is read,
+park or no park. It suits a queue nothing else reads and a step that would rather drop a partial
+batch than see it twice. It is a real choice with a real cost: a batch that parks is gone, and
+so is a batch holding a body the step cannot read.
 
 The queue must already exist. Neither block declares one -- a queue a pipeline invented is a
 typo that reads as a working pipeline, so a name nobody created is **rejected** with the name in

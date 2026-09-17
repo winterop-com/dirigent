@@ -399,7 +399,10 @@ async def cancel_run(
     raised and the attempt reaches its terminal state either way.
     """
     moment = now or utcnow()
-    # The lock comes before the terminal check, not after. Without it, a cancel racing the
+    # The pipeline lock first, because this frees the concurrency slot at the end and taking
+    # it there would meet a run creation holding it and waiting for this very run.
+    await lock_pipeline(session, run.pipeline_id)
+    # The run lock comes before the terminal check, not after. Without it, a cancel racing the
     # outcome transaction that settles the run's last attempt reads "still running" and then
     # overwrites an already-succeeded run with "cancelled".
     await lock_run(session, run.id)
@@ -512,10 +515,16 @@ async def promote_queued_run(session: AsyncSession, services: EngineServices, pi
 
     A run settling frees the slot only if it held it: cancelling a held run settles a run that
     never did, and releasing there would run two of a ``queue`` pipeline at once.
+
+    Releasing and creating are the same read-then-decide-then-write over one slot, so both
+    make it under the pipeline lock. Without it a creation that reads the settling run as
+    still active writes a held run this call cannot see, and that run waits for a sibling
+    that has already gone.
     """
     # The caller's own writes decide whether the slot is free, and the session does not
     # autoflush, so the run and attempts read below would otherwise be the ones on disk.
     await session.flush()
+    await lock_pipeline(session, pipeline_id)
     held: list[Run] = []
     for run in await active_runs(session, pipeline_id):
         if await _occupies_slot(session, run):

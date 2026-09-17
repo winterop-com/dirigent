@@ -32,6 +32,7 @@ from dirigent_plugin import (
     RunState,
     SensorSpec,
     ShellString,
+    ShellVariables,
     StartedRun,
     StatResult,
     StepContext,
@@ -484,3 +485,16 @@ def test_a_shell_string_publishes_the_language_it_holds_and_still_validates_noth
     assert Ran(command="tar cf - . | gzip").command == "tar cf - . | gzip"
     assert Ran().command is None
     assert shell_string_fields(Ran) == frozenset({"command"})
+
+
+def test_the_variables_a_shell_string_is_substituted_into_arrive_outside_the_schema() -> None:
+    """The engine writes them; a document names neither them nor a name of its own."""
+
+    class Ran(ShellVariables):
+        command: Annotated[str | None, ShellString()] = None
+
+    assert "shell_variables" not in Ran.model_json_schema()["properties"]
+    assert Ran().shell_variables == {}
+    assert Ran(shell_variables={"DIRIGENT_V0": "a b"}).shell_variables == {"DIRIGENT_V0": "a b"}
+    with pytest.raises(ValidationError):
+        Ran(shell_variables={"PATH": "/evil"})
