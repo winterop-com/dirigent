@@ -16,6 +16,43 @@ tag is what publishes: `.github/workflows/release.yaml` builds every package and
 to PyPI through trusted publishing, then builds the image from that commit and pushes it as
 `<version>` and `latest`. The two sibling repositories then relock against the tag and bump.
 
+## 0.16.3
+
+Released 2026-09-17. Every package in the workspace moves to 0.16.3 together.
+
+### Before you upgrade
+
+**A pack with a shell-string field takes a new base.** A config that marks a field with
+`ShellString` now derives from `dirigent_plugin.ShellVariables`, which is where the engine
+hands the block the values it substituted out of the string; a config that does not is refused
+at claim time. The built-in `shell.run` and `docker.run` already do. A transform engine may
+override `Engine.offload` to say how its programs run off the event loop; the default is a
+thread.
+
+### Fixed
+
+- **A substituted value never reaches the shell.** Every `${...}` in a shell string becomes a
+  variable the engine sets in the command's environment, one word wherever the author put it,
+  so a webhook payload cannot become a program however the reference was quoted. Inside the
+  author's single quotes the command reads the variable's name, which the shell keeps literal.
+- **`git.checkout` stays inside the run's work directory.** A target that leads through a
+  symlink, or lands outside the work directory once resolved, is refused before anything is
+  inspected, cleared or cloned; a symlinked target is unlinked rather than followed.
+- **An alert that fails to render cannot undo settled work.** A template that raises while
+  rendering falls back to the default subject or body with a timeline entry, and raising alerts
+  is a savepoint inside the settle transaction, so nothing on the alert side rolls back a
+  finished attempt.
+- **`rabbitmq.consume` acknowledges after it has read.** Under `on_success` the whole batch is
+  decoded first; an unreadable body requeues every delivery and names which one.
+- **A transform runs off the event loop.** The frames hand each step's engine call to
+  `offload`, and jq programs run in a pooled process that the step's timeout or cancellation
+  ends, so a long program no longer starves the worker's heartbeat.
+- **A held run is always released.** Promoting a queued run takes the pipeline lock creation
+  takes, and cancel takes the pipeline lock before the run's, so a run created while its
+  predecessor settles can no longer be stranded.
+- **A run's log entries commit in order.** A log flush holds the run's lock while it writes, so
+  a stream paging by id cannot skip an entry that committed late.
+
 ## 0.16.2
 
 Released 2026-09-17. Every package in the workspace moves to 0.16.2 together.

@@ -1,6 +1,6 @@
 [project]
 name = "dirigent-blocks"
-version = "0.16.2"
+version = "0.16.3"
 description = "Built-in generic operators and sensors for dirigent."
 readme = "README.md"
 requires-python = ">=3.13"
@@ -10,8 +10,8 @@ dependencies = [
     "aio-pika>=9.5.7",
     "aiokafka>=0.12.0",
     "aiosmtplib>=5.1.2",
-    "dirigent-common==0.16.2",
-    "dirigent-plugin==0.16.2",
+    "dirigent-common==0.16.3",
+    "dirigent-plugin==0.16.3",
     "httpx2>=2.12.0",
     "jq>=1.8",
     "jsonschema>=4.26.0",
