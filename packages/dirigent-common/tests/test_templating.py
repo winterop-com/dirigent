@@ -85,6 +85,7 @@ def test_a_render_stops_at_the_cap() -> None:
         render("{% for i in range(100000) %}xxxxxxxx{% endfor %}", {}, max_bytes=1024)
     assert raised.value.limit == 1024
     assert "1kb" in str(raised.value)
+    assert not isinstance(raised.value, TemplateError), "the cap is its own answer, not a broken template"
 
 
 def test_a_syntax_error_names_its_line() -> None:
@@ -113,3 +114,34 @@ def test_a_type_error_in_an_expression_is_reported_as_itself() -> None:
     with pytest.raises(TemplateError) as raised:
         render('{{ 1 + "a" }}', {}, max_bytes=1024)
     assert "include" not in str(raised.value)
+
+
+def test_an_arithmetic_error_while_rendering_is_a_template_error() -> None:
+    """A template that compiles can still raise, and a raise here is never the caller's to catch."""
+    with pytest.raises(TemplateError) as raised:
+        render("{{ 1 / 0 }}", {}, max_bytes=CAP)
+    assert str(raised.value) == "ZeroDivisionError: division by zero"
+
+
+def test_a_context_value_that_raises_when_it_is_read_is_a_template_error() -> None:
+    class Awkward:
+        @property
+        def label(self) -> str:
+            raise RuntimeError("this fact is not there")
+
+    with pytest.raises(TemplateError) as raised:
+        render("{{ thing.label }}", {"thing": Awkward()}, max_bytes=CAP)
+    assert str(raised.value) == "RuntimeError: this fact is not there"
+
+
+def test_a_test_that_is_only_named_at_render_is_a_template_error() -> None:
+    """An unknown filter is caught at compile; an unknown test inside select is not."""
+    with pytest.raises(TemplateError) as raised:
+        render("{{ rows | select('nope') | list }}", {"rows": [1]}, max_bytes=CAP)
+    assert "nope" in str(raised.value)
+
+
+def test_a_macro_that_recurses_forever_is_a_template_error() -> None:
+    with pytest.raises(TemplateError) as raised:
+        render("{% macro tail(n) %}{{ tail(n + 1) }}{% endmacro %}{{ tail(0) }}", {}, max_bytes=CAP)
+    assert "RecursionError" in str(raised.value)

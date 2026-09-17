@@ -35,9 +35,11 @@
 # not get to talk the engine into a different one at run time.
 #
 # One more rule this document cannot show without the allowlist: in a config field a block
-# marked as a shell string -- shell.run's `command` -- every substituted value is shell-quoted,
-# so a parameter that arrived in a webhook payload becomes exactly one word and the
-# metacharacters the author typed keep their meaning.
+# marked as a shell string -- shell.run's `command` -- no substituted value is put into the
+# string at all. Each reference becomes a variable the engine sets in the command's
+# environment, so a parameter that arrived in a webhook payload is one word of text the shell
+# never parses, and the metacharacters the author typed keep their meaning. Inside single
+# quotes, which a shell keeps literal, the command reads the variable's name and not its value.
 #
 # THIS FILE NEEDS A WINDOW. run.window.* is a property of the run, so an ad hoc run has to be
 # given one; without it this document is refused at the first step, naming the reference. That

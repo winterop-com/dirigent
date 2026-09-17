@@ -157,7 +157,9 @@ gets the run's own facts, one per line. A subject is collapsed to one line and c
 characters, because that is what a subject is. Both templates are compiled when the rule is
 created, so a syntax error is refused there; a render that fails when the alert is raised falls
 back to the default and leaves a warning in the run's timeline, because an alert is the last
-thing standing between a failure and the person who needs to know.
+thing standing between a failure and the person who needs to know. An alert is never paid for
+by the run it reports on: whatever fails while one is being written down is logged and the
+alert is dropped, and the outcome that raised it stays settled.
 
 What the channel does with a body: Slack clips it at 3000 characters, and email sends it as
 plain text. Markdown in a body reaches Slack as mrkdwn and an inbox as the characters you

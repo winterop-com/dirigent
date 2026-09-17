@@ -44,6 +44,7 @@ from dirigent_plugin import (
     ProbeStatus,
     RemoteHandle,
     ShellString,
+    ShellVariables,
     StepContext,
     classify_default,
 )
@@ -369,7 +370,7 @@ def private_parent(ctx: StepContext) -> Path:
     return subprocess.local_root(ctx)
 
 
-class DockerRunConfig(BlockModel):
+class DockerRunConfig(ShellVariables):
     """Which image to run, with what command, environment, mounts, and limits."""
 
     image: str = Field(min_length=1)
@@ -381,9 +382,11 @@ class DockerRunConfig(BlockModel):
     command: Annotated[str | None, ShellString()] = None
     """The command as a shell string, run through ``/bin/sh -c`` inside the container.
 
-    Every ``${...}`` substituted into it is shell-quoted by the engine, so a value that came
-    from a webhook payload is one word rather than one program. Prefer ``argv``: it involves
-    no shell at all."""
+    Every ``${...}`` in it is rewritten by the engine to a variable it sets in the container's
+    environment, so a value that came from a webhook payload is one word the shell never
+    parses, however the reference was quoted -- and inside single quotes, which a shell keeps
+    literal, the command reads that variable's name rather than its value. Prefer ``argv``: it
+    involves no shell at all."""
 
     workdir: str | None = None
     """The working directory inside the container, overriding the image's own."""
@@ -728,9 +731,14 @@ def _command(config: DockerRunConfig) -> list[JsonValue] | None:
 
 
 def _environment(config: DockerRunConfig) -> list[JsonValue]:
-    """Build the container's environment from an allowlist, never from wholesale inheritance."""
+    """Build the container's environment from an allowlist, never from wholesale inheritance.
+
+    The values the engine substituted out of the shell string come last, so a document cannot
+    override what a reference resolved to.
+    """
     inherited = allowed(config.env_allowlist)
-    return [f"{name}={value}" for name, value in {**inherited, **config.env}.items()]
+    built = {**inherited, **config.env, **config.shell_variables}
+    return [f"{name}={value}" for name, value in built.items()]
 
 
 def _nano_cpus(config: DockerRunConfig) -> int | None:

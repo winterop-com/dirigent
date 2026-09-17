@@ -1,7 +1,12 @@
 """Tests for the jq engines: the transform, map and filter a pipeline used to shell out to jq for."""
 
+import asyncio
+import contextlib
+import time
+
 import pytest
 
+from dirigent_blocks import transform_jq
 from dirigent_blocks.transform_jq import JqFilterer, JqMapper, JqProgramConfig, JqTransformer
 from dirigent_common import JQ_MEDIA_TYPE
 from dirigent_plugin import BlockFailure, ErrorClass, Filterer, Mapper, Transformer
@@ -178,6 +183,99 @@ def test_every_verb_publishes_its_program_as_jq(engine: type[Transformer] | type
     published = engine.config_model.model_json_schema()["properties"]["program"]
 
     assert published["contentMediaType"] == JQ_MEDIA_TYPE
+
+
+#: A reduction over three million numbers, which takes jq well over a second and cannot be
+#: interrupted: what a step timeout has to be able to end.
+SLOW = "reduce range(0; 3000000) as $i (0; . + $i)"
+
+#: What SLOW adds up to, so a test that lets it finish knows it really ran.
+SLOW_TOTAL = 4499998500000
+
+
+async def test_a_long_program_leaves_the_event_loop_free(ctx: FakeContext) -> None:
+    """The binding holds the GIL while a program runs, so one evaluated here would starve the worker's loop."""
+    beats = 0
+
+    async def heartbeat() -> None:
+        nonlocal beats
+        while True:
+            await asyncio.sleep(0.01)
+            beats += 1
+
+    beating = asyncio.create_task(heartbeat())
+    output = await call_block(JqTransformer(), {"input": None, "program": SLOW}, ctx)
+    beating.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await beating
+
+    assert output.model_dump()["value"] == SLOW_TOTAL
+    assert beats > 5, "the loop ran nothing while the program did"
+
+
+async def test_a_step_timeout_ends_a_long_program_rather_than_waiting_it_out(ctx: FakeContext) -> None:
+    """A step that has timed out is over: what it was running must be over with it."""
+    started = time.monotonic()
+
+    with pytest.raises(TimeoutError):
+        async with asyncio.timeout(0.1):
+            await call_block(JqTransformer(), {"input": None, "program": SLOW}, ctx)
+
+    assert time.monotonic() - started < 1.0
+
+
+async def test_a_cancelled_step_kills_the_process_its_program_was_running_in(
+    ctx: FakeContext, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A program cannot be interrupted, so one that outlived its step would run on unwatched."""
+    pool = transform_jq._PROCESSES  # pyright: ignore[reportPrivateUsage] - the processes under test
+    held: list[transform_jq._Process] = []  # pyright: ignore[reportPrivateUsage] - the process under test
+    take = pool.take
+
+    async def watched() -> transform_jq._Process:  # pyright: ignore[reportPrivateUsage] - as above
+        process = await take()
+        held.append(process)
+        return process
+
+    monkeypatch.setattr(pool, "take", watched)
+    running = asyncio.create_task(call_block(JqTransformer(), {"input": None, "program": SLOW}, ctx))
+    await asyncio.sleep(0.1)
+    running.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await running
+
+    assert len(held) == 1
+    assert not held[0].alive, "the program was left running"
+    assert held[0] not in pool._idle  # pyright: ignore[reportPrivateUsage] - nothing killed is reused
+
+
+async def test_two_steps_running_at_once_evaluate_their_programs_in_processes_of_their_own(
+    ctx: FakeContext,
+) -> None:
+    """One pipe carries one request at a time, so two steps never share a process."""
+    outputs = await asyncio.gather(
+        call_block(JqMapper(), {"input": CELSIUS, "program": TO_FAHRENHEIT}, ctx),
+        call_block(JqFilterer(), {"input": READINGS, "program": '.status == "active"'}, ctx),
+    )
+
+    assert outputs[0].model_dump()["value"] == [
+        {"station": "st-1", "fahrenheit": 39},
+        {"station": "st-2", "fahrenheit": 27},
+    ]
+    assert outputs[1].model_dump()["value"] == [READINGS[0], READINGS[2]]
+
+
+async def test_a_program_that_ran_after_a_killed_one_gets_a_working_process(ctx: FakeContext) -> None:
+    """A killed process is dropped rather than handed to the next step, which starts a fresh one."""
+    running = asyncio.create_task(call_block(JqTransformer(), {"input": None, "program": SLOW}, ctx))
+    await asyncio.sleep(0.1)
+    running.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await running
+
+    output = await call_block(JqTransformer(), {"input": READINGS, "program": SELECT_ACTIVE}, ctx)
+
+    assert output.model_dump() == {"value": RESHAPED}
 
 
 def test_a_program_keeps_the_lines_it_was_written_on() -> None:

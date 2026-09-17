@@ -15,10 +15,19 @@ from dirigent_blocks import subprocess
 from dirigent_blocks.capture import log_stream, tail
 from dirigent_blocks.environment import reject_reserved
 from dirigent_common import BlockModel, Duration
-from dirigent_plugin import BlockFailure, ErrorClass, Operator, OperatorSpec, RemoteHandle, ShellString, StepContext
+from dirigent_plugin import (
+    BlockFailure,
+    ErrorClass,
+    Operator,
+    OperatorSpec,
+    RemoteHandle,
+    ShellString,
+    ShellVariables,
+    StepContext,
+)
 
 
-class ShellRunConfig(BlockModel):
+class ShellRunConfig(ShellVariables):
     """What to run, where, with what environment, and for how long."""
 
     argv: list[str] = Field(default_factory=list[str])
@@ -27,9 +36,11 @@ class ShellRunConfig(BlockModel):
     command: Annotated[str | None, ShellString()] = None
     """The command as a shell string, for when a pipe or a redirect is the point.
 
-    Every ``${...}`` substituted into it is shell-quoted by the engine, so a value that came
-    from a webhook payload is one word rather than one program. Prefer ``argv`` anyway: it
-    involves no shell at all."""
+    Every ``${...}`` in it is rewritten by the engine to a variable it sets in this command's
+    environment, so a value that came from a webhook payload is one word the shell never
+    parses, however the reference was quoted -- and inside single quotes, which a shell keeps
+    literal, the command reads that variable's name rather than its value. Prefer ``argv``
+    anyway: it involves no shell at all."""
 
     cwd: str | None = None
     """A directory relative to the run's work directory; never an absolute path."""
@@ -90,6 +101,18 @@ class ShellRunOutput(BlockModel):
     """Whether ``stderr`` above is short of the stream, which is an independent question."""
 
 
+def _environment(config: ShellRunConfig, home: Path) -> dict[str, str]:
+    """Build the command's environment, the substituted values last.
+
+    They are set after ``env`` so a document cannot override what a reference resolved to,
+    and they are set whatever the allowlist holds: the command reads them because the engine
+    put them in it.
+    """
+    environ = subprocess.environment(config.env_allowlist, config.env, home)
+    environ.update(config.shell_variables)
+    return environ
+
+
 class ShellRunOperator(Operator[ShellRunConfig, ShellRunOutput]):
     """Runs a command on the worker, inside the run's work directory and behind the allowlist."""
 
@@ -117,7 +140,7 @@ class ShellRunOperator(Operator[ShellRunConfig, ShellRunOutput]):
             stdout_uri=stdout_uri,
             stderr_uri=stderr_uri,
             timeout_seconds=config.timeout.total_seconds(),
-            environ=subprocess.environment(config.env_allowlist, config.env, directory),
+            environ=_environment(config, directory),
             argv=config.argv or None,
             command=config.command,
         )

@@ -6,7 +6,7 @@ from typing import Any, cast
 import aio_pika.exceptions
 import pytest
 from aio_pika import DeliveryMode
-from pydantic import SecretStr, ValidationError
+from pydantic import JsonValue, SecretStr, ValidationError
 
 from dirigent_blocks import rabbitmq
 from dirigent_blocks.rabbitmq import (
@@ -37,13 +37,19 @@ class FakeDelivery:
         self.exchange = "shop"
         self.headers = headers if headers is not None else {}
         self.timestamp = STAMPED
-        self.settled: str | None = None
+        self.settles: list[str] = []
+        """Every settlement in order, so an ack a later nack overwrote is still visible."""
+
+    @property
+    def settled(self) -> str | None:
+        """How the delivery stands now, which is the last thing said about it."""
+        return self.settles[-1] if self.settles else None
 
     async def ack(self) -> None:
-        self.settled = "ack"
+        self.settles.append("ack")
 
     async def nack(self, *, requeue: bool = True) -> None:
-        self.settled = f"nack requeue={requeue}"
+        self.settles.append(f"nack requeue={requeue}")
 
 
 class FakeBroker:
@@ -114,6 +120,19 @@ def connected(ctx: FakeContext) -> FakeContext:
     """Give the fake context the rabbitmq connection every config below names."""
     ctx.connections["broker"] = RabbitConnectionConfig(url="amqp://reader@localhost:5672/shop")
     return ctx
+
+
+def settlements_while_reading(monkeypatch: pytest.MonkeyPatch, broker: FakeBroker) -> list[list[str | None]]:
+    """How the batch stood at each body decoded, which is where an ack too early shows up."""
+    decode = rabbitmq.decode
+    seen: list[list[str | None]] = []
+
+    def watching(raw: bytes, form: rabbitmq.Payload) -> JsonValue:
+        seen.append([delivery.settled for delivery in broker.taken])
+        return decode(raw, form)
+
+    monkeypatch.setattr(rabbitmq, "decode", watching)
+    return seen
 
 
 def config(**overrides: Any) -> RabbitConsumeConfig:
@@ -244,6 +263,46 @@ async def test_always_acks_a_batch_that_was_too_small_too(ctx: FakeContext, brok
 
     assert isinstance(parked, NotYet)
     assert [delivery.settled for delivery in broker.taken] == ["ack"]
+
+
+async def test_on_success_acks_only_once_every_message_has_been_read(
+    ctx: FakeContext, broker: FakeBroker, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    broker.queued = [FakeDelivery(1, b"{}"), FakeDelivery(2, b"{}")]
+    while_reading = settlements_while_reading(monkeypatch, broker)
+
+    output = await RabbitConsumeSensor().poke(config(min_messages=2), connected(ctx).as_context())
+
+    assert not isinstance(output, NotYet)
+    assert while_reading == [[None, None], [None, None]], "the batch was acked before it was read"
+    assert [delivery.settled for delivery in broker.taken] == ["ack", "ack"]
+
+
+async def test_on_success_hands_the_whole_batch_back_when_one_body_will_not_read(
+    ctx: FakeContext, broker: FakeBroker
+) -> None:
+    broker.queued = [FakeDelivery(1, b'{"id": 1}'), FakeDelivery(2, b"not json at all")]
+
+    with pytest.raises(BlockFailure) as raised:
+        await RabbitConsumeSensor().poke(config(min_messages=2), connected(ctx).as_context())
+
+    assert raised.value.error_class is ErrorClass.REJECTED
+    assert "delivery 2" in str(raised.value)
+    settles = [delivery.settles for delivery in broker.taken]
+    assert settles == [["nack requeue=True"], ["nack requeue=True"]], "the sound message was acked away too"
+
+
+async def test_always_acks_before_it_reads_and_still_says_what_would_not_read(
+    ctx: FakeContext, broker: FakeBroker, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    broker.queued = [FakeDelivery(1, b"{}"), FakeDelivery(2, b"not json at all")]
+    while_reading = settlements_while_reading(monkeypatch, broker)
+
+    with pytest.raises(BlockFailure, match="delivery 2"):
+        await RabbitConsumeSensor().poke(config(min_messages=2, ack="always"), connected(ctx).as_context())
+
+    assert while_reading[0] == ["ack", "ack"], "always settles the batch before it reads it"
+    assert [delivery.settled for delivery in broker.taken] == ["ack", "ack"]
 
 
 # -- how a message is read -------------------------------------------------------

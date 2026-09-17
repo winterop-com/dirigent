@@ -18,8 +18,7 @@ how a compose file, a shell command or a template reaches a tool with its own br
 """
 
 import re
-import shlex
-from collections.abc import Callable, Container
+from collections.abc import Callable, Collection
 from datetime import datetime
 from typing import Final, cast
 from uuid import UUID
@@ -27,6 +26,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
 from dirigent_common import JsonMap
+from dirigent_plugin import SHELL_VARIABLE_PREFIX, SHELL_VARIABLES_FIELD
 
 REFERENCE_PATTERN: Final = re.compile(r"(\$+)\{([^{}]+)\}")
 """A run of dollars before a braced name.
@@ -88,28 +88,38 @@ class ReferenceScope(BaseModel):
     """The end of the run's logical data interval, exclusive, when it carries one."""
 
 
-def resolve(value: JsonValue, scope: ReferenceScope, *, quote: bool = False) -> JsonValue:
+def resolve(value: JsonValue, scope: ReferenceScope) -> JsonValue:
     """Resolve every reference in a config value, recursively, preserving structure."""
     match value:
         case str():
-            return _resolve_string(value, scope, quote=quote)
+            return _resolve_string(value, scope)
         case list():
-            return [resolve(element, scope, quote=quote) for element in value]
+            return [resolve(element, scope) for element in value]
         case dict():
-            return {key: resolve(element, scope, quote=quote) for key, element in value.items()}
+            return {key: resolve(element, scope) for key, element in value.items()}
         case _:
             return value
 
 
-def resolve_config(config: JsonMap, scope: ReferenceScope, *, shell_fields: Container[str] = frozenset()) -> JsonMap:
+def resolve_config(config: JsonMap, scope: ReferenceScope, *, shell_fields: Collection[str] = ()) -> JsonMap:
     """Resolve a step's whole config map, which is what the engine hands a block.
 
     ``shell_fields`` names the config keys the block marked with
-    :class:`~dirigent_plugin.ShellString`, whose value is handed to ``sh -c``. In those, every
-    substituted value is shell-quoted, so a parameter that arrived in a webhook payload
-    becomes exactly one word; the metacharacters the pipeline author typed keep their meaning.
+    :class:`~dirigent_plugin.ShellString`, whose value is handed to ``sh -c``. There a
+    substituted value never reaches the shell's parser: each reference is rewritten to a
+    variable of the engine's own, and the values are collected in ``shell_variables`` for the
+    block to set in the command's environment. The metacharacters the pipeline author typed
+    keep their meaning, and a parameter that arrived in a webhook payload is never shell
+    source, however the author quoted the reference.
     """
-    return {key: resolve(value, scope, quote=key in shell_fields) for key, value in config.items()}
+    variables: dict[str, str] = {}
+    resolved = {
+        key: (_resolve_shell(value, scope, variables) if key in shell_fields else resolve(value, scope))
+        for key, value in config.items()
+    }
+    if shell_fields:
+        resolved[SHELL_VARIABLES_FIELD] = cast("JsonValue", variables)
+    return resolved
 
 
 def has_reference(value: str) -> bool:
@@ -124,13 +134,22 @@ def substitute(value: str, render: Callable[[str], str]) -> str:
     """
 
     def one(match: re.Match[str]) -> str:
-        dollars, reference = match.group(1), match.group(2)
-        literal = "$" * (len(dollars) // 2)
-        if len(dollars) % 2 == 0:
-            return f"{literal}{{{reference}}}"
-        return literal + render(reference)
+        literal, resolves = _collapse(match.group(1), match.group(2))
+        return literal + render(match.group(2)) if resolves else literal
 
     return REFERENCE_PATTERN.sub(one, value)
+
+
+def _collapse(dollars: str, reference: str) -> tuple[str, bool]:
+    """The literal text a run of dollars leaves, and whether the reference after it resolves.
+
+    The dollars collapse in pairs, so an even run leaves the braces as text and an odd one
+    makes what follows a reference.
+    """
+    literal = "$" * (len(dollars) // 2)
+    if len(dollars) % 2 == 0:
+        return f"{literal}{{{reference}}}", False
+    return literal, True
 
 
 def references_in(value: JsonValue) -> list[str]:
@@ -146,22 +165,87 @@ def references_in(value: JsonValue) -> list[str]:
             return []
 
 
-def _resolve_string(value: str, scope: ReferenceScope, *, quote: bool = False) -> JsonValue:
-    """Resolve a string, typed when it is one whole reference and textual when embedded.
-
-    Under ``quote`` the whole-reference shortcut is dropped too: handing a command that is
-    entirely one reference to a shell unquoted would let a parameter be an arbitrary program.
-    """
+def _resolve_string(value: str, scope: ReferenceScope) -> JsonValue:
+    """Resolve a string, typed when it is one whole reference and textual when embedded."""
     whole = WHOLE_REFERENCE.match(value)
-    if whole is not None and not quote:
+    if whole is not None:
         return lookup(whole.group(1).strip(), scope)
-    render = _as_shell_word if quote else _as_text
-    return substitute(value, lambda reference: render(lookup(reference.strip(), scope)))
+    return substitute(value, lambda reference: _as_text(lookup(reference.strip(), scope)))
 
 
-def _as_shell_word(value: JsonValue) -> str:
-    """Render a resolved value as exactly one word for a shell, whatever it contains."""
-    return shlex.quote(_as_text(value))
+def _resolve_shell(value: JsonValue, scope: ReferenceScope, variables: dict[str, str]) -> JsonValue:
+    """Rewrite a shell string so that nothing it substitutes is ever parsed by the shell.
+
+    Each reference becomes a reference to a variable the engine invents, and its value is
+    recorded in ``variables`` under that name for the block to set in the command's
+    environment. A variable's value is text a shell expands and never re-reads, so what a
+    webhook payload carries cannot become shell source however the author wrote the
+    reference; what the quoting below decides is only whether that text stays one word.
+
+    A shell string is always text, so the whole-reference shortcut does not apply: a command
+    that is entirely one reference is one word, and therefore the name of a program to run
+    and never a program.
+    """
+    if not isinstance(value, str):
+        return value
+    rewritten: list[str] = []
+    context: tuple[str, ...] = ()
+    read = 0
+    for match in REFERENCE_PATTERN.finditer(value):
+        before = value[read : match.start()]
+        context = _shell_context(before, context)
+        literal, resolves = _collapse(match.group(1), match.group(2))
+        rewritten.append(before + literal)
+        if resolves:
+            name = f"{SHELL_VARIABLE_PREFIX}{len(variables)}"
+            variables[name] = _as_text(lookup(match.group(2).strip(), scope))
+            rewritten.append(_shell_word(name, context))
+        read = match.end()
+    rewritten.append(value[read:])
+    return "".join(rewritten)
+
+
+def _shell_word(name: str, context: tuple[str, ...]) -> str:
+    """A reference to the variable that is one word where the author put it.
+
+    Inside the author's quotes it takes none of its own: a second pair would end theirs and
+    leave the value to be split into words. Anywhere else it takes a pair, or the shell would
+    split the value and expand any glob in it -- bare, and inside a ``$( )`` or a backquoted
+    command, which quote nothing they hold. Inside single quotes, which a shell keeps
+    literal, this text is what the author gets rather than the value.
+    """
+    return f"${name}" if context and context[-1] in "'\"" else f'"${name}"'
+
+
+def _shell_context(text: str, context: tuple[str, ...]) -> tuple[str, ...]:
+    """Where in a shell's quoting this text leaves it, given where it began.
+
+    The stack holds what the shell has opened and not yet closed: a quote, a ``$( )``
+    substitution, or a backquoted one, each of which quotes what is inside it in its own
+    right. Only the innermost decides how a reference there is written, and getting that
+    wrong can only cost a value its word boundaries -- never make it shell source.
+    """
+    stack = list(context)
+    escaped = skipped = False
+    for index, character in enumerate(text):
+        inner = stack[-1] if stack else ""
+        if skipped or escaped:
+            skipped = escaped = False
+        elif inner == "'":
+            if character == "'":
+                stack.pop()
+        elif character == "\\":
+            escaped = True
+        elif inner in '"`' and character == inner:
+            stack.pop()
+        elif character == "$" and text[index + 1 : index + 2] == "(":
+            stack.append("(")
+            skipped = True
+        elif character == "`" or (character in "'\"" and inner != '"'):
+            stack.append(character)
+        elif character == ")" and inner == "(":
+            stack.pop()
+    return tuple(stack)
 
 
 def _as_text(value: JsonValue) -> str:

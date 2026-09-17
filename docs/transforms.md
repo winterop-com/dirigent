@@ -153,10 +153,15 @@ A program that compiles and then meets the wrong data -- indexing a string, addi
 fails the attempt as rejected with jq's runtime message, and retrying it would only produce
 the same message again.
 
-jq opens no file, no socket, and starts no process: it is handed a value and returns values.
-So `transform.jq` is not code execution on the worker, declares no `local_execution`, and
-needs no entry in `DIRIGENT_ENABLED_UNSAFE_BLOCKS`. That is the whole point of the engine:
-the reshape that used to cost an instance an allowlisted `shell.run` now costs it nothing.
+jq opens no file and no socket: it is handed a value and returns values. So `transform.jq`
+is not code execution on the worker, declares no `local_execution`, and needs no entry in
+`DIRIGENT_ENABLED_UNSAFE_BLOCKS`. That is the whole point of the engine: the reshape that
+used to cost an instance an allowlisted `shell.run` now costs it nothing.
+
+The program itself is evaluated in a jq process dirigent starts and holds, because the jq
+binding computes with the interpreter's lock held and would otherwise hold the worker's event
+loop for as long as the program ran -- the step's timeout and the lease heartbeat with it. A
+program cannot be interrupted, so that process is what a timeout kills.
 
 The one thing stock jq reads that is not its input is the process environment, through `env`
 and `$ENV`, and the worker's environment is where dirigent's own secrets live. Both are
@@ -515,6 +520,15 @@ beside the shared fields, and `compile` is what the apply-time check runs. Raisi
 and a rejected failure at run time, so an engine never classifies a failure itself. An engine
 that runs a language runtime adds `local_execution = True`, which is the whole of putting
 itself behind the allowlist.
+
+An engine's methods are synchronous, and the frame never calls them on the event loop: it
+hands a step's whole engine call to `offload` and awaits that, so the step's timeout and the
+worker's lease heartbeat keep running while the engine computes. The default `offload` is a
+worker thread, which is enough for an engine written in Python. An engine that computes
+inside a C extension holding the interpreter's lock holds the loop from a thread just as
+firmly, and a thread cannot be cancelled either: such an engine overrides `offload` and puts
+the work where a timeout can reach it. The jq engines keep a jq process each step, and kill
+it when the step is cancelled.
 
 A codec engine declares its pairs and supplies `convert`:
 

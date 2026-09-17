@@ -12,8 +12,17 @@ from pydantic import BaseModel, SecretStr
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from structlog.testing import capture_logs
 
-from dirigent_client.enums import AlertEvent, AlertScope, LogLevel, NotificationStatus, RunStatus, TriggerKind
+from dirigent_client.enums import (
+    AlertEvent,
+    AlertScope,
+    AttemptStatus,
+    LogLevel,
+    NotificationStatus,
+    RunStatus,
+    TriggerKind,
+)
 from dirigent_common import JsonMap, render
+from dirigent_core import alerting
 from dirigent_core.alerting import (
     DEFAULT_TEMPLATE,
     EVENT_FOR_STATUS,
@@ -46,12 +55,13 @@ from dirigent_core.config import Settings
 from dirigent_core.database import session_scope
 from dirigent_core.engine import EngineServices
 from dirigent_core.engine.definition import PipelineDefinition, StepDefinition
+from dirigent_core.engine.executor import Engine
 from dirigent_core.engine.runs import create_run, save_pipeline
 from dirigent_core.ids import uuid7
-from dirigent_core.models import AlertRule, Connection, LogEntry, Notification, Pipeline, Run
+from dirigent_core.models import AlertRule, Connection, LogEntry, Notification, Pipeline, Run, StepAttempt
 from dirigent_core.plugins import PluginHost
 from dirigent_plugin import AlertMessage, Contribution, Notifier
-from engineblocks import EngineTestPlugin
+from engineblocks import EchoOperator, EngineTestPlugin
 
 NOW = datetime(2026, 8, 28, 12, 0, tzinfo=UTC)
 
@@ -1076,6 +1086,126 @@ async def test_a_subject_that_renders_past_its_cap_falls_back_to_the_default(
     assert [entry.message for entry in warned] == [
         "the subject of alert 'page-ops' was not rendered, so the default was sent"
     ]
+
+
+async def test_a_body_that_fails_while_rendering_falls_back_to_the_facts(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    """A template that compiled can still fail on the day it runs, and the alert still goes out."""
+    run = await stored_run(sessions, services)
+    await declare(
+        sessions,
+        services,
+        AlertRuleRequest(
+            code="page-ops",
+            event=AlertEvent.RUN_FAILED,
+            notifier="recording",
+            body="one item every {{ run.duration_ms / 0 }}ms",
+        ),
+    )
+    queued = await raise_one(sessions, services, run)
+
+    assert "pipeline: nightly" in queued.body, "the default body, the run's facts one per line"
+    warned = [entry for entry in await entries_of(sessions, run.id) if entry.level is LogLevel.WARNING]
+    assert [entry.message for entry in warned] == [
+        "the body of alert 'page-ops' was not rendered, so the default was sent"
+    ]
+    assert "ZeroDivisionError" in str((warned[0].fields or {})["reason"])
+
+
+async def test_a_subject_that_fails_while_rendering_falls_back_to_the_default(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    run = await stored_run(sessions, services)
+    await declare(
+        sessions,
+        services,
+        AlertRuleRequest(
+            code="page-ops",
+            event=AlertEvent.RUN_FAILED,
+            notifier="recording",
+            template="{{ run.pipeline }} at {{ run.duration_ms / 0 }}ms an item",
+        ),
+    )
+    queued = await raise_one(sessions, services, run)
+
+    assert queued.subject == "nightly run failed"
+    warned = [entry for entry in await entries_of(sessions, run.id) if entry.level is LogLevel.WARNING]
+    assert [entry.message for entry in warned] == [
+        "the subject of alert 'page-ops' was not rendered, so the default was sent"
+    ]
+    assert "ZeroDivisionError" in str((warned[0].fields or {})["reason"])
+
+
+async def test_a_template_that_fails_while_rendering_leaves_settled_work_settled(
+    engine: Engine, sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    """The outcome is already written when the alert is raised, so no template can undo it."""
+    await declare(
+        sessions,
+        services,
+        AlertRuleRequest(
+            code="page-ops",
+            event=AlertEvent.RUN_SUCCEEDED,
+            notifier="recording",
+            template="{{ 1 / 0 }}",
+            body="{{ 1 / 0 }}",
+        ),
+    )
+    definition = PipelineDefinition(code="nightly", steps={"only": StepDefinition(block="test.echo")})
+    async with session_scope(sessions) as session:
+        version = await save_pipeline(session, definition)
+        created = await create_run(session, services, version)
+    assert created is not None
+
+    unit = await engine.claim()
+    assert unit is not None
+    await engine.run_unit(unit)
+
+    async with sessions() as session:
+        settled = await session.get(Run, created.id)
+        assert settled is not None and settled.status is RunStatus.SUCCEEDED
+        rows = await session.execute(sa.select(StepAttempt).where(StepAttempt.run_id == created.id))
+        assert [attempt.status for attempt in rows.scalars()] == [AttemptStatus.SUCCEEDED]
+    assert EchoOperator.calls == ["hello"], "the outcome was rolled back and the work run again"
+    assert await engine.claim() is None, "a rolled back outcome leaves the attempt claimable"
+    assert [notification.subject for notification in await notifications_of(sessions)] == ["nightly run succeeded"]
+
+
+async def test_an_alert_that_cannot_be_written_down_leaves_the_outcome_alone(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every alert-side failure is logged and dropped, including one the database raised."""
+    run = await stored_run(sessions, services)
+    for code in ("page-ops", "tell-slack"):
+        await declare(
+            sessions, services, AlertRuleRequest(code=code, event=AlertEvent.RUN_FAILED, notifier="recording")
+        )
+    throttled = alerting.throttled_until
+    reached = 0
+
+    async def refuse_the_second_rule(*args: Any, **kwargs: Any) -> datetime | None:
+        nonlocal reached
+        reached += 1
+        if reached == 2:
+            raise RuntimeError("the database went away")
+        return await throttled(*args, **kwargs)
+
+    monkeypatch.setattr(alerting, "throttled_until", refuse_the_second_rule)
+
+    with capture_logs() as logged:
+        async with session_scope(sessions) as session:
+            stored = await session.get(Run, run.id)
+            assert stored is not None
+            stored.error = "settled all the same"
+            assert await raise_for_run(session, services, stored, AlertEvent.RUN_FAILED, now=NOW) == []
+
+    assert reached == 2, "the second rule was reached, so the first had already written its row"
+    assert await notifications_of(sessions) == [], "the savepoint took the first rule's row back"
+    async with sessions() as session:
+        kept = await session.get(Run, run.id)
+        assert kept is not None and kept.error == "settled all the same"
+    assert [entry["event"] for entry in logged if entry["log_level"] == "error"] == ["alerts not raised"]
 
 
 async def test_a_stuck_runs_subject_renders_over_the_facts_it_has(

@@ -17,9 +17,15 @@ step produced and its output is read by a later one; a value comes in from stora
 ``storage.read`` and goes out through ``storage.write``. ``convert`` is the exception,
 because its operand is a storage object rather than a value: it reads one URI and writes
 another, the way ``storage.copy`` does.
+
+An engine computes, and no frame calls one on the event loop: the step's timeout and the
+lease heartbeat are coroutines on that loop, and a worker whose loop is held by a program
+misses both. Every frame hands a step's engine work to ``Engine.offload`` and awaits it.
 """
 
+import asyncio
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from typing import Any, ClassVar, Final, cast
 
 from pydantic import BaseModel, Field, JsonValue
@@ -100,16 +106,15 @@ class ConvertOutput(BlockModel):
     bytes_written: int
 
 
-class Transformer(Operator[ProgramConfig, TransformOutput], ABC):
-    """The ``transform`` verb: reshape one whole value into another by running a program.
+class Engine(ABC):
+    """What every transform engine is: a name, a line in the catalog, and a place its work runs.
 
-    An engine names its kind, summarises itself in one line, and supplies the two halves of
-    running a program: compiling it, which is also what the apply-time check runs, and
-    applying it to a value. The frame derives the catalog entry and hands the result on as
-    the step's output.
-
-    An engine touches no HTTP, no file outside storage, and nothing in the environment. It
-    is handed a value and returns a value; everything that reaches the world is the frame's.
+    An engine's own methods are synchronous, because reshaping a value is computation and not
+    waiting. Computation on the event loop is what a worker cannot afford: the step's timeout
+    and the lease heartbeat are coroutines on that loop, so a program holding it means the
+    timeout does not fire, the lease is not renewed, and the sweeper hands the attempt to
+    another worker while this one is still running it. Every frame therefore calls an engine
+    through ``offload``, once per step, and awaits the result.
     """
 
     kind: ClassVar[str]
@@ -120,6 +125,30 @@ class Transformer(Operator[ProgramConfig, TransformOutput], ABC):
 
     local_execution: ClassVar[bool] = False
     """Whether this engine executes code on the worker, which puts it behind the allowlist."""
+
+    async def offload[T](self, work: Callable[[], T]) -> T:
+        """Run one step's engine work off the event loop and hand back what it returned.
+
+        A thread is enough for an engine written in Python, whose interpreter lets the loop
+        run between bytecodes. It is not enough for an engine that computes inside a C
+        extension holding the GIL, and a thread cannot be cancelled either: an engine whose
+        work can be stopped overrides this and stops it when the await is cancelled, the way
+        a database driver is interrupted.
+        """
+        return await asyncio.to_thread(work)
+
+
+class Transformer(Engine, Operator[ProgramConfig, TransformOutput], ABC):
+    """The ``transform`` verb: reshape one whole value into another by running a program.
+
+    An engine names its kind, summarises itself in one line, and supplies the two halves of
+    running a program: compiling it, which is also what the apply-time check runs, and
+    applying it to a value. The frame derives the catalog entry and hands the result on as
+    the step's output.
+
+    An engine touches no HTTP, no file outside storage, and nothing in the environment. It
+    is handed a value and returns a value; everything that reaches the world is the frame's.
+    """
 
     config_model: ClassVar[type[BaseModel]] = ProgramConfig
     output_model: ClassVar[type[BaseModel]] = TransformOutput
@@ -150,7 +179,7 @@ class Transformer(Operator[ProgramConfig, TransformOutput], ABC):
     async def execute(self, config: ProgramConfig, ctx: StepContext) -> TransformOutput | RemoteHandle:
         """Run the program over the input value and hand the result on as the step's output."""
         try:
-            result = self.apply(self.compile(config.program), config.input)
+            result = await self.offload(lambda: self.apply(self.compile(config.program), config.input))
         except TransformError as error:
             raise BlockFailure(str(error), error_class=ErrorClass.REJECTED) from error
         return TransformOutput(value=result)
@@ -166,7 +195,7 @@ class Transformer(Operator[ProgramConfig, TransformOutput], ABC):
         return []
 
 
-class Mapper(Operator[ProgramConfig, TransformOutput], ABC):
+class Mapper(Engine, Operator[ProgramConfig, TransformOutput], ABC):
     """The ``map`` verb: replace every element of a list with what a program makes of it.
 
     An engine names its kind, summarises itself in one line, and supplies compiling a
@@ -183,15 +212,6 @@ class Mapper(Operator[ProgramConfig, TransformOutput], ABC):
     is handed an element and returns an element; everything that reaches the world is the
     frame's.
     """
-
-    kind: ClassVar[str]
-    """The engine's name, which is the second half of the block id."""
-
-    summary: ClassVar[str]
-    """The one line the catalog shows for this engine."""
-
-    local_execution: ClassVar[bool] = False
-    """Whether this engine executes code on the worker, which puts it behind the allowlist."""
 
     config_model: ClassVar[type[BaseModel]] = ProgramConfig
     output_model: ClassVar[type[BaseModel]] = TransformOutput
@@ -222,15 +242,19 @@ class Mapper(Operator[ProgramConfig, TransformOutput], ABC):
     async def execute(self, config: ProgramConfig, ctx: StepContext) -> TransformOutput | RemoteHandle:
         """Replace every element of the input list and hand the list on as the step's output."""
         elements = _elements(config.input, self.spec.id, MAP_PROMISE)
-        try:
-            compiled = self.compile(config.program)
-        except TransformError as error:
-            raise BlockFailure(str(error), error_class=ErrorClass.REJECTED) from error
-        mapped = self._map_each(compiled, elements)
+        mapped = await self.offload(lambda: self._mapped(config.program, elements))
         assert len(mapped) == len(elements), (
             f"{self.spec.id} produced {len(mapped)} elements from {len(elements)}, breaking the map promise"
         )
         return TransformOutput(value=mapped)
+
+    def _mapped(self, program: str, elements: list[JsonValue]) -> list[JsonValue]:
+        """Compile the program once and run the loop over it, which is the whole step's work."""
+        try:
+            compiled = self.compile(program)
+        except TransformError as error:
+            raise BlockFailure(str(error), error_class=ErrorClass.REJECTED) from error
+        return self._map_each(compiled, elements)
 
     def _map_each(self, compiled: object, elements: list[JsonValue]) -> list[JsonValue]:
         """Apply the engine once per element, in order, naming the element it refused."""
@@ -253,7 +277,7 @@ class Mapper(Operator[ProgramConfig, TransformOutput], ABC):
         return []
 
 
-class Filterer(Operator[ProgramConfig, TransformOutput], ABC):
+class Filterer(Engine, Operator[ProgramConfig, TransformOutput], ABC):
     """The ``filter`` verb: keep the elements of a list a program answers true for.
 
     An engine names its kind, summarises itself in one line, supplies compiling a program,
@@ -270,15 +294,6 @@ class Filterer(Operator[ProgramConfig, TransformOutput], ABC):
     is handed an element and returns a verdict; everything that reaches the world is the
     frame's.
     """
-
-    kind: ClassVar[str]
-    """The engine's name, which is the second half of the block id."""
-
-    summary: ClassVar[str]
-    """The one line the catalog shows for this engine."""
-
-    local_execution: ClassVar[bool] = False
-    """Whether this engine executes code on the worker, which puts it behind the allowlist."""
 
     config_model: ClassVar[type[BaseModel]] = ProgramConfig
     output_model: ClassVar[type[BaseModel]] = TransformOutput
@@ -309,14 +324,19 @@ class Filterer(Operator[ProgramConfig, TransformOutput], ABC):
     async def execute(self, config: ProgramConfig, ctx: StepContext) -> TransformOutput | RemoteHandle:
         """Keep the elements the engine answers true for and hand them on as the step's output."""
         elements = _elements(config.input, self.spec.id, FILTER_PROMISE)
-        try:
-            compiled = self.compile(config.program)
-        except TransformError as error:
-            raise BlockFailure(str(error), error_class=ErrorClass.REJECTED) from error
+        verdicts = await self.offload(lambda: self._verdicts(config.program, elements))
         # The element the frame was given, never anything the engine returned: what a filter
         # keeps is what arrived.
-        kept = [element for index, element in enumerate(elements) if self._verdict(compiled, element, index)]
+        kept = [element for element, verdict in zip(elements, verdicts, strict=True) if verdict]
         return TransformOutput(value=kept)
+
+    def _verdicts(self, program: str, elements: list[JsonValue]) -> list[bool]:
+        """Compile the program once and ask the engine about every element, which is the step's work."""
+        try:
+            compiled = self.compile(program)
+        except TransformError as error:
+            raise BlockFailure(str(error), error_class=ErrorClass.REJECTED) from error
+        return [self._verdict(compiled, element, index) for index, element in enumerate(elements)]
 
     def _verdict(self, compiled: object, element: JsonValue, index: int) -> bool:
         """Ask the engine about one element, refusing an answer that is not a boolean."""
@@ -344,7 +364,7 @@ class Filterer(Operator[ProgramConfig, TransformOutput], ABC):
         return []
 
 
-class Converter(Operator[ConvertConfig, ConvertOutput], ABC):
+class Converter(Engine, Operator[ConvertConfig, ConvertOutput], ABC):
     """The ``convert`` verb: re-encode bytes from one format into another, content preserved.
 
     A converter is a codec, not a language: there is no program. An engine names its kind,
@@ -356,17 +376,8 @@ class Converter(Operator[ConvertConfig, ConvertOutput], ABC):
     is handed bytes and returns bytes; everything that reaches the world is the frame's.
     """
 
-    kind: ClassVar[str]
-    """The engine's name, which is the second half of the block id."""
-
-    summary: ClassVar[str]
-    """The one line the catalog shows for this engine."""
-
     pairs: ClassVar[frozenset[tuple[str, str]]]
     """Every ``(from, to)`` format pair this engine re-encodes between."""
-
-    local_execution: ClassVar[bool] = False
-    """Whether this engine executes code on the worker, which puts it behind the allowlist."""
 
     config_model: ClassVar[type[BaseModel]] = ConvertConfig
     output_model: ClassVar[type[BaseModel]] = ConvertOutput
@@ -396,7 +407,9 @@ class Converter(Operator[ConvertConfig, ConvertOutput], ABC):
             raise BlockFailure(unsupported, error_class=ErrorClass.REJECTED)
         source = await _read(ctx, config.source)
         try:
-            produced = self.convert(source, source_format=config.from_format, target_format=config.to_format)
+            produced = await self.offload(
+                lambda: self.convert(source, source_format=config.from_format, target_format=config.to_format)
+            )
         except TransformError as error:
             raise BlockFailure(str(error), error_class=ErrorClass.REJECTED) from error
         written = await _write(ctx, config.target, produced)

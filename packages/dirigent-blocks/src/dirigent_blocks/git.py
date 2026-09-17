@@ -250,7 +250,7 @@ class GitCheckoutOperator(Operator[GitCheckoutConfig, GitCheckoutOutput]):
         root = subprocess.local_root(ctx)
         settings = ctx.connection(config.connection, GitConnectionConfig)
         target = config.target or ctx.step
-        destination = root / target
+        destination = _destination(root, target)
         remote = public_url(settings.url)
         binary = shutil.which("git", path=subprocess.environment([], {}, root).get("PATH"))
         if binary is None:
@@ -409,8 +409,11 @@ async def _standing(git: _Git, config: GitCheckoutConfig, destination: Path, rem
     A retry of a step, or a second run into a work directory that already holds the checkout,
     should cost one ref listing rather than a second clone. Anything that is not a working
     tree at the wanted commit answers false, and the target is then rebuilt from scratch.
+
+    A target that is itself a symlink is never standing: what it points at is some other
+    directory, so it is unlinked and replaced rather than looked into.
     """
-    if not (destination / ".git").exists():
+    if destination.is_symlink() or not (destination / ".git").exists():
         return False
     code, out, _err = await git.call(destination, "rev-parse", "HEAD")
     if code != 0:
@@ -482,6 +485,37 @@ def classify(stderr: bytes) -> ErrorClass:
     if any(marker in text for marker in REFUSED):
         return ErrorClass.REJECTED
     return ErrorClass.UNKNOWN
+
+
+def _destination(root: Path, target: str) -> Path:
+    """Where the checkout lands, once it is certain that path is inside the run's work directory.
+
+    The config refuses a target that is absolute or carries ``..``, which is a check on the
+    text; a symlink an earlier step left in the work directory is not. So every component
+    between the root and the target must be a real directory here, and the directory the
+    checkout lands in must resolve inside the root, before anything looks at the target,
+    clears it or clones into it. The target itself may be a symlink: it is unlinked rather
+    than followed.
+    """
+    base = root.resolve()
+    parts = Path(target).parts
+    walked = base
+    for part in parts[:-1]:
+        walked = walked / part
+        if walked.is_symlink():
+            raise BlockFailure(
+                f"the checkout target {target!r} leads through the symlink {walked}, which can point "
+                f"anywhere; a target is a path of real directories under the run's work directory {base}",
+                error_class=ErrorClass.REJECTED,
+            )
+    destination = walked / parts[-1] if parts else walked
+    landing = destination.parent.resolve()
+    if landing != base and base not in landing.parents:
+        raise BlockFailure(
+            f"the checkout target {target!r} lands at {destination}, which is outside the run's work directory {base}",
+            error_class=ErrorClass.REJECTED,
+        )
+    return destination
 
 
 def _clear(destination: Path) -> None:
