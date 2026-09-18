@@ -50,8 +50,10 @@ Two properties are worth reading before a block is used:
 
 SURFACES_PREAMBLE: Final = """## Other surfaces
 
-Blocks are two of the five surfaces a plugin contributes to. The other three are listed here
-by id, since a document references them by code and never by id of any other kind.
+Blocks are two of the six surfaces a plugin contributes to. Three of the other four -- storage
+backends, notifiers and connection kinds -- are listed here by id, since a document references
+them by code and never by id of any other kind. The sixth, a JSON Schema format checker, is in
+[JSON Schema](json-schema.md).
 """
 
 NO_DESCRIPTION: Final = "--"
