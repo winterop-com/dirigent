@@ -198,6 +198,10 @@ Run the instance it made with `uv run dg dev`, in its own terminal in the projec
 it keeps running, and serves the UI at `http://127.0.0.1:3333`. `dg dev --wipe-state` would
 empty `.dirigent/state/` first, taking the admin and the token `dg init` just created with it.
 
+It never outlives the process that started it: a wrapper killed outright forwards no signal,
+so `dg dev` watches its own parent and shuts down the way SIGTERM shuts it down once it is
+reparented -- which also means backgrounding it past the shell that launched it ends it.
+
 `dg dev --seed DIR` fills the instance the moment its API answers: every `dirigent/v1`
 document under the directory, recursively and in path order, applied with its schedules
 paused. The connections a `connections.yaml` declares go in first, and a document that
@@ -600,7 +604,7 @@ rather than being able to change what a parser reads the record by.
 | `step` | An attempt changes state; the message is the new status | `block`, `attempt`, `duration_ms` once it has settled |
 | `log` | A block writes a line | Whatever the block bound to it |
 | `output` | A step settles, from `-v` up; the message is its status | The output's own fields, or `artifact` and `bytes` when it went to storage |
-| `process` | A long-running process starts, when it is ready, and when `dg dev --wipe-state` clears its state | `process`, and for `dg dev` the `api`, `docs`, `state`, `admin`, `token` and `migrated` it would otherwise have printed; a `state cleared` carries the `state` it deleted and the `hint` that keeps it |
+| `process` | A long-running process starts, when it is ready, when `dg dev --wipe-state` clears its state, and when the process that started `dg dev` goes | `process`, and for `dg dev` the `api`, `docs`, `state`, `admin`, `token` and `migrated` it would otherwise have printed; a `state cleared` carries the `state` it deleted and the `hint` that keeps it, and a `parent gone` the `parent` pid that went |
 | `seed.connection` | `dg dev --seed` creates a connection a file or a document declares | `connection`, `connection_kind`, `action` of `created` or `updated`, and the `origin` file it was read from |
 | `seed.applied` | `dg dev --seed` stores one document | `document`, `pipeline`, `action`, and the `schedules_paused` this apply brought into being |
 | `seed.refused` | `dg dev --seed` meets something the instance will not take | `document` and the `reason` it gave |
@@ -1028,6 +1032,28 @@ loopback when nothing is named). A machine with no instance says so in one line.
 component is the assertion that it should be here, so a worker that is simply not there fails
 `dg health worker` and does not fail `dg health`; containers' HEALTHCHECKs use the named
 forms. Every form writes `check` records, ends with a `health` verdict, and exits 0 or 1.
+
+### `dg connection create`
+
+A connection's secret fields are never echoed: at a terminal they are asked for, and the answer
+is hidden as it is typed. Which of them are asked for depends on how the command was spelled.
+An invocation carrying `--set` has said what it wants, so it is asked only for a field the kind
+cannot do without -- a one-liner runs to completion instead of stopping on an optional field it
+deliberately left out:
+
+```bash
+dg connection create http ops-api --set base_url=https://ops.example.org \
+  --set basic_username=ops --set basic_password=district
+```
+
+A bare `dg connection create KIND CODE` is the interactive form, and there every secret the kind
+declares is offered in turn: Enter leaves one unset. In a script -- a pipe, a container, CI --
+nothing is asked at all, and a required field that arrived through no `--set` is a refusal
+naming the flag to pass.
+
+An empty value is not a credential: `--set bearer_token=` leaves the field unset rather than
+sealing an empty string, so every read afterwards says `null` rather than `***`. A required
+secret given empty is refused exactly as one left out is.
 
 ### `dg connection ensure`
 

@@ -37,6 +37,15 @@ class SecretKeyMissing(SecretError):
         )
 
 
+class EmptySecret(SecretError):
+    """A required secret field was given an empty value, which is not a credential."""
+
+    def __init__(self, fields: list[str]) -> None:
+        """Name the fields that came in empty."""
+        super().__init__(f"{', '.join(fields)} cannot be stored empty: a required secret needs a value")
+        self.fields = fields
+
+
 class SecretKeyMismatch(SecretError):
     """An envelope could not be opened with the configured key."""
 
@@ -98,6 +107,20 @@ def split_secrets(model: type[BaseModel], config: JsonMap) -> tuple[JsonMap, Jso
     return public, secret
 
 
+def unset_empty_secrets(model: type[BaseModel], config: JsonMap) -> JsonMap:
+    """Return a config in which every secret field left empty is unset rather than sealed.
+
+    An empty value is nobody's credential. Sealing one would store a secret that every read
+    afterwards reports as set, so an optional secret given nothing stays unset; a required
+    secret has no unset state to fall back to, so an empty value there is refused.
+    """
+    empty = sorted(name for name in secret_fields(model) if config.get(name) == "")
+    required = [name for name in empty if model.model_fields[name].is_required()]
+    if required:
+        raise EmptySecret(required)
+    return {name: (None if name in empty else value) for name, value in config.items()}
+
+
 def redact(model: type[BaseModel], config: JsonMap) -> JsonMap:
     """Replace every secret field's value with the redaction marker, for display."""
     secret_names = set(secret_fields(model))
@@ -149,8 +172,11 @@ class SecretBox:
         return opened
 
     def encrypt_config(self, model: type[BaseModel], config: BaseModel) -> tuple[JsonMap, bytes | None, str | None]:
-        """Split a config into its public columns and its sealed envelope, ready to store."""
-        public, secret = split_secrets(model, dump_config(config))
+        """Split a config into its public columns and its sealed envelope, ready to store.
+
+        A secret field left empty is stored unset, so nothing seals an empty credential.
+        """
+        public, secret = split_secrets(model, unset_empty_secrets(model, dump_config(config)))
         if not secret:
             return public, None, None
         return public, self.seal(secret), self.key_id

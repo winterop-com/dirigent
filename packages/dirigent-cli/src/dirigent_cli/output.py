@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from rich.console import Console, Group, RenderableType
 from rich.markup import escape
 from rich.table import Table
+from rich.text import Text
 
 from dirigent_client.schemas.common import Problem
 from dirigent_core.protocol import Format, Record, as_json, make
@@ -500,16 +501,26 @@ def elapsed(value: object) -> str:
     return f"{int(hours)}h{int(minutes)}m"
 
 
+def titled(title: str, built: Table) -> RenderableType:
+    """Put a title above a table, on a line of its own.
+
+    Rich folds a table's own title to the width of the table, which the widest row sets, so a
+    title carrying a 36-character run id breaks in half wherever the rows are narrower than
+    it. Above the table the title is folded only by the console.
+    """
+    return Group(Text.from_markup(title, style="table.title"), built)
+
+
 def build_table(title: str, columns: Sequence[str], rows: Iterable[Sequence[str]]) -> RenderableType:
     """Build one rich table, or the quiet line that stands in for an empty one."""
-    built = Table(title=title, show_header=True, header_style="bold", title_justify="left")
+    built = Table(show_header=True, header_style="bold")
     for column in columns:
         built.add_column(column)
     count = 0
     for row in rows:
         built.add_row(*row)
         count += 1
-    return built if count else f"[dim]{title}: nothing to show.[/]"
+    return titled(title, built) if count else f"[dim]{title}: nothing to show.[/]"
 
 
 def table(title: str, columns: Sequence[str], rows: Iterable[Sequence[str]]) -> None:
@@ -518,13 +529,13 @@ def table(title: str, columns: Sequence[str], rows: Iterable[Sequence[str]]) -> 
 
 
 def build_fields(title: str, values: Mapping[str, Any]) -> RenderableType:
-    """Build one record as a two-column table."""
-    built = Table(title=title, show_header=False, box=None, title_justify="left", padding=(0, 2, 0, 0))
+    """Build one record as a two-column table under its title."""
+    built = Table(show_header=False, box=None, padding=(0, 2, 0, 0))
     built.add_column(style="bold")
     built.add_column()
     for name, value in values.items():
         built.add_row(name, styled(value))
-    return built
+    return titled(title, built)
 
 
 def fields(title: str, values: Mapping[str, Any]) -> None:

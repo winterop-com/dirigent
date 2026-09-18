@@ -574,6 +574,39 @@ def test_a_reader_that_goes_away_ends_the_stream_rather_than_the_process(
     assert silenced == [True], "the write is abandoned quietly and stdout is pointed at the void"
 
 
+def test_a_dev_instance_shuts_down_when_the_process_that_started_it_goes(capsys: pytest.CaptureFixture[str]) -> None:
+    """A killed `uv run` wrapper forwards no signal, and the instance it left claims later runs."""
+    import asyncio
+
+    reparented = iter([4242, 4242, 1, 1])
+    stopped: list[bool] = []
+
+    asyncio.run(main.watch_parent(lambda: next(reparented), lambda: stopped.append(True), every=0))
+
+    assert stopped == [True], "the shutdown a signal would have asked for was asked for here"
+    said = only(capsys.readouterr().out, "process")
+    assert said["message"] == "parent gone"
+    assert said["parent"] == 4242
+
+
+def test_a_dev_instance_keeps_running_while_the_process_that_started_it_is_there() -> None:
+    """The watch is a poll, so a parent that stays is a shutdown that never happens."""
+    import asyncio
+    import contextlib
+
+    stopped: list[bool] = []
+
+    async def watched() -> None:
+        task = asyncio.create_task(main.watch_parent(lambda: 4242, lambda: stopped.append(True), every=0))
+        await asyncio.sleep(0)
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+    asyncio.run(watched())
+    assert stopped == []
+
+
 def test_dev_names_the_admin_that_exists_rather_than_the_one_it_would_have_made(tmp_path: Path) -> None:
     """After dg init the instance has its own admin, and dev must not name one that is absent."""
     import asyncio

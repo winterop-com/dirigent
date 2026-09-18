@@ -9,9 +9,10 @@ import io
 from typing import Any
 
 import pytest
-from rich.console import Console
+from rich.console import Console, Group, RenderableType
 
 from clisupport import LINE, plain
+from dirigent_cli.formatters import Console as ConsoleFormatter
 from dirigent_cli.output import flagged
 from dirigent_cli.stream import paint, shorten, track_steps, use_scratch_prefix
 from dirigent_core.protocol import Record, console, make
@@ -19,6 +20,8 @@ from dirigent_core.protocol import Record, console, make
 AT = "2026-01-01T12:00:00.000+00:00"
 
 SCRATCH = "file:///scratch/runs/01a0"
+
+RUN_ID = "0d9f3f2e-5e6a-4c4c-9c1e-2b7a1f0d8e11"
 
 
 @pytest.fixture(autouse=True)
@@ -37,6 +40,22 @@ def coloured(line: str) -> str:
     console = Console(file=written, force_terminal=True, color_system="truecolor", width=300, no_color=False)
     console.print(line, soft_wrap=True, highlight=False)
     return written.getvalue().rstrip("\n")
+
+
+def printed(item: RenderableType) -> str:
+    """Render what a formatter answered with, in a console told what colour it has.
+
+    A line is soft-wrapped and a table is not, the way the command prints them, so what a
+    reader sees folded here is what folds on their screen too.
+    """
+    written = io.StringIO()
+    console = Console(file=written, force_terminal=False, no_color=True, width=120)
+    for part in item.renderables if isinstance(item, Group) else [item]:
+        if isinstance(part, str):
+            console.print(part, soft_wrap=True, highlight=False)
+        else:
+            console.print(part)
+    return plain(written.getvalue())
 
 
 def log(**fields: Any) -> Record:
@@ -128,3 +147,23 @@ def test_the_origin_bracket_sits_in_one_column_whatever_the_record_is() -> None:
     assert all(found is not None for found in matched)
     origins = {found.start("kind") for found in matched if found is not None}
     assert len(origins) == 1, f"the origin bracket drifts between rows: {origins}"
+
+
+def test_a_watched_runs_header_keeps_the_whole_run_id_on_one_line() -> None:
+    """A run id is 36 characters, and a short pipeline gives the header no rows that wide."""
+    finished = make(
+        "run",
+        at=AT,
+        message="succeeded",
+        pipeline="echo-s3",
+        run_id=RUN_ID,
+        pipeline_version=1,
+        triggered_by="cli",
+        duration_ms=1200,
+        items_total=0,
+        items_failed=0,
+        steps=[{"step": "echo", "block": "shell.run", "status": "succeeded", "duration_ms": 12}],
+        failures=[],
+    )
+    lines = [line.rstrip() for line in printed(ConsoleFormatter().render(finished)).splitlines()]
+    assert f"run {RUN_ID}" in lines, f"the run id folded: {lines}"

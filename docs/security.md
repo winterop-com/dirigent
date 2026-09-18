@@ -483,6 +483,10 @@ are secret by typing them `SecretStr`, the public settings stay as queryable JSO
 and only the secret fields go into a Fernet-sealed envelope. The same declaration that makes
 the API redact a field is what makes the engine encrypt it, so the two cannot drift apart.
 
+A secret field given an empty value is stored unset rather than sealed, whichever way the row
+was written: an empty string is nobody's credential, and sealing one would leave a field that
+every read afterwards reports as set. A required secret given empty is refused.
+
 Each envelope is stamped with a short, non-reversible **key id** (the first twelve hex
 characters of the key's own SHA-256), so an instance can tell which key sealed a row without
 trying to decrypt it -- and so a failure to open one says "sealed by key `abc123…`" rather than
