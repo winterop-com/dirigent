@@ -616,6 +616,24 @@ source pane, which is where that document actually is. A blank `/pipelines/$new`
 tab like every other screen -- the canvas says how to add the first step, and the source, whose
 schema would mark an empty `steps` map before anything had been done, is a tab away.
 
+**The step panel reads the config first, then the engine, then the name.** What a step does is the
+block's own config, so the panel opens on that form, folded the way every generated form is. The
+engine's half sits under it as five groups in one order -- Waits for, Fan-out, Timing, Retry, Rule
+-- because `for_each`, the timings and a retry policy are the setting a step runs in rather than
+the question it answers, and a flat list of twelve controls buried the two keys the step was about.
+A shut group is one row: its title, and a mono line of what would run, with the values the document
+sets in body ink and the defaults it leaves alone in muted -- `timeout 30s · no deadline ·
+on_timeout fail`, `off` for a fan-out over nothing, `all_success` for a step that says nothing about
+its rule, the prerequisite keys as chips. Clicking the row opens that group's own fields under
+itself, against one rule in the identity colour marking what is being edited; the line goes while
+the row stands open, because the fields under it say the same thing, and a group holding a
+refusal stands open with no button to shut it, because a refusal folded away is one nobody can
+answer. `poll` belongs to a sensor, so the timing group neither says nor draws one for an operator
+unless the step carries it anyway. Which key belongs to which group, and how each line reads, is
+`lib/step-groups` over the schema in `lib/step-keys`, so a member added to the definition is filed
+rather than appended to a list. The display name is last and it is one small field: nothing
+references it, and asking for it first was asking the least of the step first.
+
 **Apply is quiet until it would write.** The button takes the identity colour where the document
 differs from the version the instance holds, and where there is no version at all; where applying
 would write nothing it stands in outline beside Validate, which is what it would do.
@@ -813,6 +831,9 @@ aligned at its foot. A dialog raised over a dialog puts a scrim over the thing i
 the row that offered the verb is already the sentence saying what the form is for. The button
 that opened it is replaced by the section while it stands, so there are never two controls that
 shut it, and the refusal is `Refusal` inside the section, where the fields it is about are.
+
+The step panel's engine groups are the same gesture at rest: the row is the group's own summary,
+and its fields open under it rather than in a pane of their own.
 
 ## A write that can be refused says so, and a shut control says why
 

@@ -120,6 +120,12 @@ const CHAIN = {
     },
 }
 
+/** Where an element sits down the screen, which is how the order of a panel is asserted. */
+async function topOf(locator: Locator): Promise<number> {
+    const box = await locator.boundingBox()
+    return box?.y ?? Number.NaN
+}
+
 /** One step's port, which is what an edge is dragged from and to. */
 function port(page: Page, step: string, end: 'source' | 'target') {
     return page.locator(`.react-flow__handle.dg-port.${end}[data-nodeid="${step}"]`)
@@ -221,6 +227,66 @@ test('a step opens on what it needs, and the keys it leaves unset are one link',
     await expect(panel.getByText('convert.std', { exact: true })).toBeVisible()
     await page.locator('.react-flow__node').getByText('rows', { exact: true }).click()
     await expect(panel.getByRole('button', { name: '2 more fields' })).toBeVisible()
+})
+
+/**
+ * THE CONFIG IS THE QUESTION AND THE ENGINE IS THE SETTING.
+ *
+ * The panel opens on the block's own form; `for_each`, the timings, the retry policy and the rule
+ * sit under it as groups that say what would run without being opened, and the display name is
+ * last. A group opens under its own row rather than in a second pane.
+ */
+test('the engine half of a step is groups that say their state, and one opens in place', async ({ page }) => {
+    await signIn(page)
+    await applyExample(page.request, DOCUMENT_EXAMPLE)
+
+    await page.goto(`/pipelines/${DOCUMENT_PIPELINE}`)
+    // per_region is mapped over the parameter, and waits for the step that reshaped the rows.
+    await page.locator('.react-flow__node').getByText('per_region', { exact: true }).click()
+
+    const panel = page.locator('aside')
+    const config = panel.getByRole('heading', { name: 'Config' })
+    const waits = panel.getByRole('button', { name: /Waits for/ })
+    const displayName = panel.getByLabel('Name', { exact: true })
+    await expect(config).toBeVisible()
+    await expect(waits).toBeVisible()
+
+    // CONFIG FIRST, THEN THE ENGINE, THEN THE NAME.
+    expect(await topOf(config)).toBeLessThan(await topOf(waits))
+    expect(await topOf(waits)).toBeLessThan(await topOf(displayName))
+
+    // EVERY GROUP SAYS WHERE IT STANDS WITH NOTHING OPENED: what the step sets, and what it
+    // would fall back to.
+    await expect(waits).toContainText('active')
+    const fanOut = panel.getByRole('button', { name: /Fan-out/ })
+    await expect(fanOut).toContainText('${params.regions}')
+    await expect(fanOut).toContainText('fail_fast')
+    await expect(panel.getByRole('button', { name: /Timing/ })).toContainText('on_timeout fail')
+    await expect(panel.getByRole('button', { name: /Rule/ })).toContainText('all_success')
+
+    const retry = panel.getByRole('button', { name: /Retry/ })
+    await expect(retry).toContainText('off')
+    await expect(panel.getByLabel('max_attempts', { exact: true })).toBeHidden()
+
+    // A ROW OPENS UNDER ITSELF, and what is edited there is the document.
+    await retry.click()
+    const attempts = panel.getByLabel('max_attempts', { exact: true })
+    await expect(attempts).toBeVisible()
+    expect(await topOf(retry)).toBeLessThan(await topOf(attempts))
+    await attempts.fill('3')
+
+    // An open row says nothing its fields do not: the line comes back when it shuts, and THEN
+    // SAYS THE POLICY THAT WOULD RUN NOW, defaults and all.
+    await expect(retry).not.toContainText('attempts')
+    await retry.click()
+    await expect(attempts).toBeHidden()
+    await expect(retry).toContainText('3 attempts')
+    await expect(retry).toContainText('30s backoff')
+
+    // The group beside it was never opened by any of this.
+    await expect(panel.getByLabel('for_each', { exact: true })).toBeHidden()
+    await fanOut.click()
+    await expect(panel.getByLabel('for_each', { exact: true })).toHaveValue('${params.regions}')
 })
 
 test('a config field the schema calls a program is edited as one, and every other string is not', async ({
@@ -484,6 +550,10 @@ test('an edge dragged between two ports is the dependency, and Delete takes it a
     await expect(page.locator('.react-flow__edge')).toHaveCount(1)
     await expect(page.getByRole('button', { name: 'Apply', exact: true })).toHaveClass(/bg-primary/)
     await page.locator('.react-flow__node').getByText('report', { exact: true }).click()
+    // The panel says it in the shut Waits for row, and opening the row is where it is taken back.
+    const waits = page.locator('aside').getByRole('button', { name: /Waits for/ })
+    await expect(waits).toContainText('fetch')
+    await waits.click()
     await expect(page.locator('aside').getByRole('button', { name: 'Stop waiting for fetch' })).toBeVisible()
 
     // Choosing the edge and pressing the key is how it is taken back. The panel that just
