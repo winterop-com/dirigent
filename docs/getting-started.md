@@ -54,10 +54,17 @@ dg run --local examples/hello-world.yaml
 ```
 
 ```text
-  queued          greet (value.const)
-  succeeded       greet (value.const)    value=hello from dirigent
-
-succeeded  run 01a04d45-6737-70b7-9d19-0e9dc750c24a
+2026-09-18T22:13:09.129+02:00 [info    ] started                        [run] pipeline=hello-world run_id=01a0b626-c486-7403-9b58-93a3bfaf00e0 local=true scratch=file:///var/folders/7t/m0y6vhq508n4fsfg85vhgjkh0000gp/T/dirigent-local-3k5tyvmd/artifacts/runs/01a0b626-c486-7403-9b58-93a3bfaf00e0 root=/var/folders/7t/m0y6vhq508n4fsfg85vhgjkh0000gp/T/dirigent-local-3k5tyvmd
+2026-09-18T22:13:09.125+02:00 [info    ] queued                         [step greet] block=value.const attempt=1
+2026-09-18T22:13:09.170+02:00 [info    ] succeeded                      [step greet] block=value.const attempt=1 duration_ms=10
+2026-09-18T22:13:09.174+02:00 [info    ] finished                       [log greet] duration_ms=0 output_bytes=31
+2026-09-18T22:13:09.283+02:00 [info    ] succeeded                      [run] pipeline=hello-world run_id=01a0b626-c486-7403-9b58-93a3bfaf00e0 exit_code=0
+steps
+┏━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ step  ┃ block       ┃ outcome   ┃ after ┃ duration ┃ output                    ┃
+┡━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ greet │ value.const │ succeeded │ -     │ 0.0s     │ value=hello from dirigent │
+└───────┴─────────────┴───────────┴───────┴──────────┴───────────────────────────┘
 ```
 
 `--local` applies and runs the document in a throwaway SQLite instance in a temporary
@@ -394,7 +401,7 @@ have prompted for a value fails with a problem object instead of blocking on a p
 dg run --local ./daily-load.yaml --json | jq -r 'select(.kind == "log") | .message'
 ```
 
-The record kinds and their fields are in [the command line](cli.md#machine-output-the-default).
+The record kinds and their fields are in [the command line](cli.md#the-events).
 
 ## Pointing the CLI at an instance
 

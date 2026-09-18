@@ -6,6 +6,10 @@ readme = "README.md"
 requires-python = ">=3.13"
 license = "LicenseRef-Proprietary"
 license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+]
 dependencies = [
     "dirigent-client==0.16.4",
     "dirigent-common==0.16.4",

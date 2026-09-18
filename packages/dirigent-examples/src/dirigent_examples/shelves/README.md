@@ -29,6 +29,7 @@ The documents live on topic shelves, each with its own README:
 | [`demo/`](demo) | Surfaces shown off: the run form, rendered markdown, the requires preflight, the weekly-import shared-name pair. |
 | [`open-data/`](open-data) | Real feeds against public, mostly keyless APIs: acme, health indicators, maps, earthquakes, humanitarian data. |
 | [`validate/`](validate) | A gate that checks a value's shape and passes it through: `validate.schema`, with the shape carried and named. |
+| [`schemas/`](schemas) | Not documents but the shapes they are held to: plain JSON Schemas, applied on their own and referenced by code. |
 
 **The tag rule.** Every document's `tags:` is drawn from one vocabulary of three groups and
 nothing else. The **shelf** is the directory the file sits in, exactly one, and every document
@@ -71,7 +72,7 @@ response service, so you can run any of them for real without standing anything 
 ```bash
 dg run --local examples/hello-world.yaml
 dg run --local examples/graph/linear.yaml -p day=2026-01-01 --enable-unsafe shell.run
-dg run --local examples/failure/retries.yaml                    # watch the retry policy fire
+dg run --local examples/failure/retries.yaml --enable-unsafe shell.run  # the retry policy fires
 dg run --local examples/composition/chained-instances.yaml \
   --connections examples/connections.yaml -p day=2026-01-01
 ```
@@ -203,8 +204,10 @@ Each shelf's README indexes its own documents; what stays at the root is the fro
 Two of them are worth running twice, because a parameter flips which branch is taken:
 
 ```bash
-dg run --local examples/failure/retries.yaml -p status=200        # publish succeeds; still completed_with_errors as the cache times out
-dg run --local examples/failure/error-handler.yaml -p status=200  # the success branch, not the alert
+# publish succeeds; still completed_with_errors as the cache times out
+dg run --local examples/failure/retries.yaml -p status=200 --enable-unsafe shell.run
+# the success branch, not the alert
+dg run --local examples/failure/error-handler.yaml -p status=200 --enable-unsafe shell.run
 ```
 
 ## Preview documents

@@ -24,7 +24,7 @@ builds forms from -- so it cannot drift from the code: a field added to a block 
 up here or fails the build.
 
 What a block is, and the contract behind these tables, is in
-[the design document](design.md#2-the-five-plugin-surfaces). The short version:
+[the design document](design.md#2-the-six-plugin-surfaces). The short version:
 
 - An **operator** does work. It either finishes and returns its output, or hands back a
   handle for the engine to probe, which is how a step waits for an hour without holding a
@@ -50,8 +50,10 @@ Two properties are worth reading before a block is used:
 
 SURFACES_PREAMBLE: Final = """## Other surfaces
 
-Blocks are two of the five surfaces a plugin contributes to. The other three are listed here
-by id, since a document references them by code and never by id of any other kind.
+Blocks are two of the six surfaces a plugin contributes to. Three of the other four -- storage
+backends, notifiers and connection kinds -- are listed here by id, since a document references
+them by code and never by id of any other kind. The sixth, a JSON Schema format checker, is in
+[JSON Schema](json-schema.md).
 """
 
 NO_DESCRIPTION: Final = "--"
