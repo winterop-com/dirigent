@@ -394,7 +394,7 @@ have prompted for a value fails with a problem object instead of blocking on a p
 dg run --local ./daily-load.yaml --json | jq -r 'select(.kind == "log") | .message'
 ```
 
-The record kinds and their fields are in [the command line](cli.md#machine-output-the-default).
+The record kinds and their fields are in [the command line](cli.md#the-events).
 
 ## Pointing the CLI at an instance
 
