@@ -2,6 +2,13 @@
 
 # dirigent
 
+[![PyPI](https://img.shields.io/pypi/v/dirigent-cli?label=pypi)](https://pypi.org/project/dirigent-cli/)
+[![Python](https://img.shields.io/pypi/pyversions/dirigent-cli)](https://pypi.org/project/dirigent-cli/)
+[![CI](https://github.com/winterop-com/dirigent/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/winterop-com/dirigent/actions/workflows/ci.yaml)
+[![Release](https://img.shields.io/github/v/release/winterop-com/dirigent?label=release)](https://github.com/winterop-com/dirigent/releases)
+[![Image](https://img.shields.io/badge/image-ghcr.io%2Fwinterop--com%2Fdirigent-2b2f38)](https://github.com/winterop-com/dirigent/pkgs/container/dirigent)
+[![Docs](https://img.shields.io/badge/docs-winterop--com.github.io%2Fdirigent-2b2f38)](https://winterop-com.github.io/dirigent/)
+
 A generic pipeline orchestrator. Pipelines are data, composed from pluggable building blocks
 (operators, sensors, storage backends, notifiers) and executed as a DAG on a durable
 Postgres-backed engine.
