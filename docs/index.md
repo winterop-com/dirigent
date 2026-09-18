@@ -52,11 +52,8 @@ dg run --local examples/hello-world.yaml
 ```
 
 ```text
-running examples/hello-world.yaml locally, on a throwaway database
-  queued          greet (shell.run)
-                  greet | hello from dirigent
-                  greet | command finished
-  succeeded       greet (shell.run)
+  queued          greet (value.const)
+  succeeded       greet (value.const)    value=hello from dirigent
 
 succeeded  run 01a04d45-6737-70b7-9d19-0e9dc750c24a
 ```
@@ -73,6 +70,9 @@ then the three-service compose stack, an admin account, and a token.
 - **[Getting started](getting-started.md)** is install to first successful run, then the real
   deployment: what each process does, what has to be configured, and what to do when it does
   not work.
+- **[The basics](basics.md)** is the course: one read, a schema gate on the answer, and a send
+  built from the validated value, against a public service, with a deliberate failure and a
+  retry in between.
 - **[Tutorial](tutorial.md)** builds one realistic pipeline end to end -- a sensor, a fan-out,
   an error branch -- then breaks it on purpose so you can read a real diagnosis and learn what
   a run actually is.
@@ -87,11 +87,13 @@ then the three-service compose stack, an admin account, and a token.
   than a table has its own page: [transforms](transforms.md) and [jq](jq.md),
   [docker](docker.md), [git](git.md), [SQL](sql.md), [queues](queues.md), and
   [JSON Schema](json-schema.md).
-- **[Plugins](plugins.md)** is how to contribute to that catalog: the five surfaces a package
+- **[Plugins](plugins.md)** is how to contribute to that catalog: the six surfaces a package
   can extend, and what a block author writes.
-- **[Operations](operations.md)** is for whoever has to run this: deployment shapes, every
-  `DIRIGENT_*` setting, scaling, migrations, backups, health checks, what to monitor, and an
-  honest list of what is not built.
+- **[Operations](operations.md)** is for whoever has to run this: deployment shapes, the
+  `DIRIGENT_*` settings that need operational context, scaling, migrations, backups, health
+  checks, what to monitor, and an honest list of what is not built.
+  **[Settings](settings.md)** is the generated reference beside it: every setting there is,
+  with its default and what it does.
 - **[Telemetry](telemetry.md)** is the OpenTelemetry surface: which spans and metrics exist,
   which processes export them, and the exact environment that turns it on.
 - **[Security](security.md)** is the threat model, what authenticates and what authorizes, the
@@ -106,8 +108,8 @@ URI-addressed storage, envelope-encrypted connection secrets, the `dirigent/v1` 
 with `dg apply` / `dg export`, the authenticated REST surface, the web UI the server ships,
 the scheduler with its advisory lock and misfire policy, webhook intake, alert rules delivered
 through a retried notification queue, `dirigent-storage-s3`, the built-in block families
-([HTTP, storage, shell, docker, git, sql, the queue sensors and the transform verbs](blocks.md)),
-and OpenTelemetry instrumentation.
+([HTTP, storage, shell, docker, git, sql, the queues, the clocks, schema validation, reports and
+the transform verbs](blocks.md)), and OpenTelemetry instrumentation.
 
 Retention is off until you configure it: each family has its own age and nothing
 is pruned until one is set. See [retention](operations.md#retention), and [known
