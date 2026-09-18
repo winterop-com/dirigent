@@ -1,19 +1,19 @@
 [project]
 name = "dirigent-cli"
-version = "0.16.3"
+version = "0.16.4"
 description = "The dirigent command line interface (dirigent / dg)."
 readme = "README.md"
 requires-python = ">=3.13"
 license = "LicenseRef-Proprietary"
 license-files = ["LICENSE"]
 dependencies = [
-    "dirigent-blocks==0.16.3",
-    "dirigent-client==0.16.3",
-    "dirigent-common==0.16.3",
-    "dirigent-core==0.16.3",
-    "dirigent-examples==0.16.3",
-    "dirigent-plugin==0.16.3",
-    "dirigent-server==0.16.3",
+    "dirigent-blocks==0.16.4",
+    "dirigent-client==0.16.4",
+    "dirigent-common==0.16.4",
+    "dirigent-core==0.16.4",
+    "dirigent-examples==0.16.4",
+    "dirigent-plugin==0.16.4",
+    "dirigent-server==0.16.4",
     "httpx2>=2.12.0",
     "python-dotenv>=1.1.0",
     "pyyaml>=6.0.3",

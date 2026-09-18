@@ -16,6 +16,25 @@ tag is what publishes: `.github/workflows/release.yaml` builds every package and
 to PyPI through trusted publishing, then builds the image from that commit and pushes it as
 `<version>` and `latest`. The two sibling repositories then relock against the tag and bump.
 
+## 0.16.4
+
+Released 2026-09-18. Every package in the workspace moves to 0.16.4 together.
+
+- **The step panel reads the config first.** What a step does is its block's config, so the
+  panel opens on that form, folded the way every generated form is: required fields and the
+  ones the document sets in front, the rest behind "N more fields". The engine's half sits under
+  it as five groups, Waits for, Fan-out, Timing, Retry and Rule, each one row saying what would
+  run, the document's values in body ink and the defaults in muted, and each opening in place.
+  The display name comes last.
+- **A map of scalars is a key/value table.** `query`, `headers`, `env`, `build_args` and every
+  other map of strings, numbers or booleans is edited as rows of key and value rather than as
+  JSON in a textarea, in the step panel, the run dialog, triggers and connections alike. A cell
+  takes the narrowest shape the map allows, a duplicate key is marked where it stands, and a
+  reference standing for the whole map is drawn as the reference.
+- **A string option is drawn bare.** A select showed `"GET"` while its hint said `default GET`;
+  a string option now wears no quotes, and only a number, a boolean or null keeps its JSON
+  spelling.
+
 ## 0.16.3
 
 Released 2026-09-17. Every package in the workspace moves to 0.16.3 together.
