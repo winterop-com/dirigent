@@ -8,7 +8,7 @@ builds forms from -- so it cannot drift from the code: a field added to a block 
 up here or fails the build.
 
 What a block is, and the contract behind these tables, is in
-[the design document](design.md#2-the-five-plugin-surfaces). The short version:
+[the design document](design.md#2-the-six-plugin-surfaces). The short version:
 
 - An **operator** does work. It either finishes and returns its output, or hands back a
   handle for the engine to probe, which is how a step waits for an hour without holding a

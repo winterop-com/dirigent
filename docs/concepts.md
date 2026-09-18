@@ -174,7 +174,7 @@ Sensors carry their own deadline, and what happens when it expires is configurat
 real terminal outcome that downstream edges can see -- "no drop landed today" is not a failure,
 it is a day with nothing to do.
 
-Detail: [design.md section 2](design.md#2-the-five-plugin-surfaces) has the precise contract
+Detail: [design.md section 2](design.md#2-the-six-plugin-surfaces) has the precise contract
 for both, and why they stay two concepts on one mechanism.
 
 ## Run
