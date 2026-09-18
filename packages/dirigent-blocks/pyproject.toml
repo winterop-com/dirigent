@@ -6,6 +6,10 @@ readme = "README.md"
 requires-python = ">=3.13"
 license = "LicenseRef-Proprietary"
 license-files = ["LICENSE"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+]
 dependencies = [
     "aio-pika>=9.5.7",
     "aiokafka>=0.12.0",
