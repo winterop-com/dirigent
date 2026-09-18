@@ -100,7 +100,10 @@ test('the gallery', async ({ page }) => {
                 // The panel is half the editor and the board it is compared against shows one,
                 // so the camera opens a step rather than photographing a bare canvas.
                 await page.locator('.react-flow__node').getByText('fetch', { exact: true }).click()
-                await page.locator('aside').getByRole('heading', { name: 'Config' }).waitFor({ timeout: 15_000 })
+                await page
+                    .locator('aside')
+                    .getByRole('heading', { name: 'Config' })
+                    .waitFor({ timeout: 15_000 })
             }
             await shot(page, mode, name)
         }
