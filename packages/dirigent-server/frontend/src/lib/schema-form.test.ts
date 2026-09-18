@@ -320,7 +320,7 @@ describe('a map of scalars, which is a table of pairs', () => {
 
     test('a table says what a cell takes when it is anything but text, and stays quiet when it is', () => {
         expect(only({ query: { additionalProperties: SCALARS, type: 'object' } }).hint).toBe(
-            'values are text or a whole number or a number or true or false',
+            'values are text or a number or true or false',
         )
         expect(only({ ports: { additionalProperties: { type: 'integer' }, type: 'object' } }).hint).toBe(
             'values are a whole number',
@@ -588,7 +588,7 @@ describe('what is wrong with a map the document already carries', () => {
         expect(validateField(TEXT, { PATH: 3 })).toBe('env.PATH is text')
         expect(validateField(WHOLE, { http: 1.5 })).toBe('ports.http is a whole number')
         expect(validateField(ANY, { page: [] })).toBe(
-            'query.page is text or a whole number or a number or true or false',
+            'query.page is text or a number or true or false',
         )
     })
 

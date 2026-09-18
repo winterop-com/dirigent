@@ -293,9 +293,10 @@ function pairsHint(holds: FieldKind[]): string | null {
     return `values are ${wordsOf(holds)}`
 }
 
-/** The shapes a cell takes, in reader words, with each word said once. */
+/** The shapes a cell takes, in reader words, each said once; a number covers the whole ones. */
 function wordsOf(kinds: readonly FieldKind[]): string {
-    return [...new Set(kinds.map((one) => wordFor(one)))].join(' or ')
+    const said = kinds.includes('number') ? kinds.filter((one) => one !== 'integer') : kinds
+    return [...new Set(said.map((one) => wordFor(one)))].join(' or ')
 }
 
 /**
