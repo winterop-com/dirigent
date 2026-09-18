@@ -3,11 +3,17 @@
 # dirigent
 
 [![PyPI](https://img.shields.io/pypi/v/dirigent-cli?label=pypi)](https://pypi.org/project/dirigent-cli/)
-[![Python](https://img.shields.io/pypi/pyversions/dirigent-cli)](https://pypi.org/project/dirigent-cli/)
+[![Python](https://img.shields.io/badge/python-3.13%2B-2b2f38)](https://pypi.org/project/dirigent-cli/)
 [![CI](https://github.com/winterop-com/dirigent/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/winterop-com/dirigent/actions/workflows/ci.yaml)
 [![Release](https://img.shields.io/github/v/release/winterop-com/dirigent?label=release)](https://github.com/winterop-com/dirigent/releases)
 [![Image](https://img.shields.io/badge/image-ghcr.io%2Fwinterop--com%2Fdirigent-2b2f38)](https://github.com/winterop-com/dirigent/pkgs/container/dirigent)
 [![Docs](https://img.shields.io/badge/docs-winterop--com.github.io%2Fdirigent-2b2f38)](https://winterop-com.github.io/dirigent/)
+
+Documentation: <https://winterop-com.github.io/dirigent/>. New to it,
+[**The basics**](https://winterop-com.github.io/dirigent/basics/) is one read, one schema gate
+and one send against a public service, end to end;
+[**the tutorial**](https://winterop-com.github.io/dirigent/tutorial/) then builds one realistic
+pipeline, breaks it on purpose, and puts it on a schedule.
 
 A generic pipeline orchestrator. Pipelines are data, composed from pluggable building blocks
 (operators, sensors, storage backends, notifiers) and executed as a DAG on a durable
@@ -52,11 +58,12 @@ dg dev | dg format
 # the starting record carries a token, minted once; in another terminal:
 export DG_URL=http://127.0.0.1:3333 DG_TOKEN=...
 
-dg init my-pipelines && cd my-pipelines
-dg apply --dry-run                      # the whole-project plan
-dg apply
-dg run hello-world --watch
-dg runs logs $(dg runs list --json | jq -r '.[0].id')
+dg init my-pipelines --template documents && cd my-pipelines && uv sync
+uv run dg pipeline new report-to-file   # `pipelines/` starts empty; a starter fills it
+uv run dg apply --dry-run               # the whole-project plan
+uv run dg apply
+uv run dg run report-to-file --watch
+uv run dg runs logs $(uv run dg runs list --limit 1 --json | jq -r .fields.id)
 ```
 
 `dg dev` is the zero-dependency mode: one process, one SQLite file, an embedded worker, and a
@@ -81,10 +88,10 @@ export DIRIGENT_ENABLED_UNSAFE_BLOCKS='["shell.run"]'
 ```
 
 Configuration layers, most specific first: `DIRIGENT_`-prefixed environment variables, then a
-YAML file (`DIRIGENT_CONFIG_FILE`, `./dirigent.yaml`, `.dirigent/dirigent.yaml`, or
-`~/.config/dirigent/dirigent.yaml`), then defaults. Everything a person hand-writes for
-dirigent is YAML -- documents, this file, the CLI's profiles -- so there is one syntax to
-know. To run against PostgreSQL:
+`.env` file, then a YAML file (`DIRIGENT_CONFIG_FILE`, `./dirigent.yaml`,
+`.dirigent/dirigent.yaml`, or `~/.config/dirigent/dirigent.yaml`), then defaults. Everything a
+person hand-writes for dirigent is YAML -- documents, this file, the CLI's profiles -- so there
+is one syntax to know. To run against PostgreSQL:
 
 ```bash
 export DIRIGENT_DATABASE_URL="postgresql+asyncpg://dirigent:dirigent@localhost/dirigent"
@@ -123,12 +130,14 @@ real](#running-it-for-real-three-services) is the same shape from a checkout.
 - **The rest.** The plugin host and its served catalog, envelope-encrypted connection
   secrets, the `dirigent/v1` document format with `dg apply` / `dg export`, the authenticated
   REST surface, OpenTelemetry instrumentation, `dg dev` standalone mode on SQLite, and the
-  built-in block pack: `http.request` and `http.ready`, `storage.copy` and `storage.exists`,
-  `shell.run`, the docker family (`docker.run`, `docker.build`, `docker.compose.up`,
-  `docker.compose.down`), `git.checkout`, `sql.query` and `sql.execute`, the queue sensors
-  `kafka.consume` and `rabbitmq.consume`, the clock sensors `time.window` and `time.sleep`,
-  `validate.schema`, `value.const`, `pipeline.run` and `webhook.post`, plus the transform
-  verbs `transform.jq`, `map.jq`, `filter.jq` and `convert.std`.
+  built-in block pack: `http.request` and `http.ready`, `storage.read`, `storage.write`,
+  `storage.copy` and `storage.exists`, `shell.run`, the docker family (`docker.run`,
+  `docker.build`, `docker.compose.up`, `docker.compose.down`), `git.checkout`, `sql.query` and
+  `sql.execute` (SQLite, PostgreSQL, and duckdb over files a storage URI names), the queue pairs
+  `kafka.produce` and `kafka.consume`, `rabbitmq.publish` and `rabbitmq.consume`, the clock
+  sensors `time.window` and `time.sleep`, `validate.schema`, `value.const`, `log.write`,
+  `report.render`, `pipeline.run` and `webhook.post`, plus the transform verbs `transform.jq`,
+  `map.jq`, `filter.jq` and `convert.std`.
 - **Composition and handoff.** `pipeline.run` starts another pipeline on the same instance
   and waits for it, bounded by a depth guard on the attribution chain; `webhook.post` hands a
   signed payload to another instance, signed the way this one's own intake verifies it; and
@@ -142,21 +151,18 @@ Every block, with the config it takes and the output it produces, is in
 
 None of this exists yet, and the order is roughly the order it is wanted in.
 
-- **Adapter packs.** An adapter is a pack, each its own package on the plugin contract that
-  already exists; the DHIS2 one is
+- **More adapter packs.** An adapter is a pack, each its own package on the plugin contract
+  that already exists, released and versioned on its own. The DHIS2 one ships today as
   [dirigent-dhis2](https://github.com/winterop-com/dirigent-dhis2), and
-  [docs/plugins.md](docs/plugins.md) says how to write one.
+  [docs/plugins.md](docs/plugins.md) says how to write the next.
 - **The tabular half of the transform family.** More codecs beside `convert.std` and
-  `convert.arrow`, an engine that runs a language runtime, and SQL over files: a duckdb-backed
-  block reading parquet or CSV from a storage URI.
+  `convert.arrow`, and an engine that runs a language runtime.
 - **AI and FHIR blocks.** A step that asks a model against a schema its answer must fit, and
   the general half of FHIR: parse, render, validate against a profile, and a `fhir`
   connection kind.
-- **Hardening.** Log batching under load, and dashboards for the telemetry already emitted.
+- **Hardening.** Log batching under load.
 - **Scoped authorization.** Three instance-wide roles are the whole model today; there is no
   way to let a team run its own pipelines and nobody else's.
-- **Pagination and run detail.** Cursor pagination across runs, versions and histories; today
-  it is cursor on run logs only and unbounded elsewhere.
 
 [ROADMAP.md](ROADMAP.md) has the rest, including what has been decided and not yet built.
 [docs/design.md](docs/design.md) is the specification, and
@@ -165,9 +171,11 @@ None of this exists yet, and the order is roughly the order it is wanted in.
 ## Running it for real: three services
 
 `dg init <dir> --template compose` scaffolds this stack into a directory of your own.
-`infra/compose.yaml` at the repository root is the same shape -- PostgreSQL, an API
-server with the scheduler embedded, and one worker -- built from a single image in which
-`dg server`, `dg worker`, and `dg scheduler` are the same code with different entry points.
+`infra/compose.yaml` at the repository root is the same shape with the extras a checkout wants
+-- PostgreSQL, object storage and its bucket, a one-shot migration, an API server with the
+scheduler embedded, and one worker beside a Docker daemon of its own -- built from a single
+image in which `dg server`, `dg worker`, and `dg scheduler` are the same code with different
+entry points.
 
 ```bash
 cp .env.example .env      # then set DIRIGENT_SECRET_KEY and the bootstrap admin password
@@ -181,10 +189,12 @@ dg schedule list managed-and-manual
 That worker carries the tag `docker`, so a pipeline whose `requires.workers` names it is
 claimed only by a worker that can reach a daemon.
 
-Everything the three services share is a database URL and a secret key. There is no broker,
-no inter-service protocol, and no port open on the worker: all coordination is PostgreSQL,
-which is what makes `docker compose --project-directory . -f infra/compose.yaml up --scale worker=3` the whole scale-out story, and what
-lets a worker on another machine join the pool the moment it can reach the database.
+Everything the three dirigent services share is a database URL, a secret key, and where
+artifacts live. There is no broker, no inter-service protocol, and no port open on the worker:
+all coordination is PostgreSQL, which is what makes
+`docker compose --project-directory . -f infra/compose.yaml up --scale worker=3` the whole
+scale-out story, and what lets a worker on another machine join the pool the moment it can
+reach the database.
 
 Migrations run as their own one-shot service rather than inside the server's start-up, so
 scaling the server out never means N processes racing to migrate one schema. Isolating the
@@ -194,15 +204,19 @@ clock is two lines: set `DIRIGENT_SCHEDULER_ENABLED=false` and add a service who
 ## Examples
 
 [The corpus](packages/dirigent-examples/src/dirigent_examples/shelves) holds one runnable
-document per concept -- a linear chain, a diamond, fan-out, a sensor gate, retry policy, an
-error-handler branch, triggers, a scheduled pipeline with a webhook, the `requires` preflight,
-and a rich parameter schema. It ships as `dirigent-examples`, which `dg` and an instance both
-install, and the root `examples/` is a symlink to it, so the paths below read from a checkout.
-The HTTP ones call a public echo service, so every one of them runs for real:
+document per concept, on a shelf per topic: the shapes a DAG takes, one engine behaviour per
+file, failure and retry, the transform verbs, the recipes, the three clocks and the inbound
+webhook, the sensors, the queue and SQL and git and docker and object-storage families, shell
+on the allowlist, pipelines made of pipelines, schema gates, and real feeds against public
+APIs. A document tagged `starter` is one `dg pipeline new` copies into a project, and
+`dg examples list` is how an instance shows what it holds. It ships as `dirigent-examples`,
+which `dg` and an instance both install, and the root `examples/` is a symlink to it, so the
+paths below read from a checkout. The HTTP ones call a public echo service, so every one of
+them runs for real:
 
 ```bash
 dg run --local examples/graph/linear.yaml -p day=2026-01-01 --enable-unsafe shell.run
-dg run --local examples/failure/retries.yaml          # watch the retry policy fire, then give up
+dg run --local examples/failure/retries.yaml --enable-unsafe shell.run   # retries, then gives up
 ```
 
 An adapter pack ships its own shelf beside these, with pipelines against a real instance of
