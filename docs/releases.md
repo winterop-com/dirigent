@@ -16,6 +16,25 @@ tag is what publishes: `.github/workflows/release.yaml` builds every package and
 to PyPI through trusted publishing, then builds the image from that commit and pushes it as
 `<version>` and `latest`. The two sibling repositories then relock against the tag and bump.
 
+## 0.16.5
+
+Released 2026-09-19. Every package in the workspace moves to 0.16.5 together.
+
+- **`dg connection create` asks only what it has to.** At a terminal it prompted for every
+  secret field left unset, optional ones included, so a documented one-liner stopped at
+  `api_token:` until Enter. It now prompts for a secret only when the kind requires it, or for
+  every secret when no `--set` was given at all; `--json` still refuses a missing required one.
+- **An empty secret is not a credential.** `--set api_token=` was an empty secret that a kind's
+  validator read as chosen and a listing showed as `***`. The CLI drops an empty secret at
+  `--set`, and every write path, the API's create and update included, stores an empty
+  optional secret as unset and refuses an empty required one.
+- **A table's title never folds.** The run header's title wrapped to the widest row, so a
+  36-character run id broke after 35 columns whenever the pipeline name was short. A title now
+  sits on its own line above every table.
+- **`dg dev` dies with the process that started it.** A wrapper killed with SIGKILL forwards
+  nothing, and the instance lived on to claim later runs against the same state. `dg dev`
+  watches the pid that started it and shuts down the way SIGTERM does when that parent is gone.
+
 ## 0.16.4
 
 Released 2026-09-18. Every package in the workspace moves to 0.16.4 together.
