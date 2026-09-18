@@ -277,7 +277,7 @@ function Group({
         <>
             <ChevronRight className={cn('size-3 shrink-0 self-center', open && 'rotate-90')} aria-hidden />
             <span className="shrink-0 text-sm font-medium">{group.title}</span>
-            <Summary parts={group.summary} chips={group.chips} />
+            {!open && <Summary parts={group.summary} chips={group.chips} />}
         </>
     )
     return (

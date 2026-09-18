@@ -625,7 +625,8 @@ A shut group is one row: its title, and a mono line of what would run, with the 
 sets in body ink and the defaults it leaves alone in muted -- `timeout 30s · no deadline ·
 on_timeout fail`, `off` for a fan-out over nothing, `all_success` for a step that says nothing about
 its rule, the prerequisite keys as chips. Clicking the row opens that group's own fields under
-itself, against one rule in the identity colour marking what is being edited, and a group holding a
+itself, against one rule in the identity colour marking what is being edited; the line goes while
+the row stands open, because the fields under it say the same thing, and a group holding a
 refusal stands open with no button to shut it, because a refusal folded away is one nobody can
 answer. `poll` belongs to a sensor, so the timing group neither says nor draws one for an operator
 unless the step carries it anyway. Which key belongs to which group, and how each line reads, is

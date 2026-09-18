@@ -275,13 +275,15 @@ test('the engine half of a step is groups that say their state, and one opens in
     expect(await topOf(retry)).toBeLessThan(await topOf(attempts))
     await attempts.fill('3')
 
-    // THE ROW SAYS THE POLICY THAT WOULD RUN NOW, defaults and all.
+    // An open row says nothing its fields do not: the line comes back when it shuts, and THEN
+    // SAYS THE POLICY THAT WOULD RUN NOW, defaults and all.
+    await expect(retry).not.toContainText('attempts')
+    await retry.click()
+    await expect(attempts).toBeHidden()
     await expect(retry).toContainText('3 attempts')
     await expect(retry).toContainText('30s backoff')
 
-    // It shuts again, and the group beside it was never opened by any of this.
-    await retry.click()
-    await expect(attempts).toBeHidden()
+    // The group beside it was never opened by any of this.
     await expect(panel.getByLabel('for_each', { exact: true })).toBeHidden()
     await fanOut.click()
     await expect(panel.getByLabel('for_each', { exact: true })).toHaveValue('${params.regions}')
