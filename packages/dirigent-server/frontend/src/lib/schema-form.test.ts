@@ -587,9 +587,7 @@ describe('what is wrong with a map the document already carries', () => {
     test('a value of the wrong shape is named by the key that carries it', () => {
         expect(validateField(TEXT, { PATH: 3 })).toBe('env.PATH is text')
         expect(validateField(WHOLE, { http: 1.5 })).toBe('ports.http is a whole number')
-        expect(validateField(ANY, { page: [] })).toBe(
-            'query.page is text or a number or true or false',
-        )
+        expect(validateField(ANY, { page: [] })).toBe('query.page is text or a number or true or false')
     })
 
     test('a list where a map goes says it is a map, or a reference to one', () => {
