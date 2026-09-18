@@ -170,6 +170,11 @@ def fail(message: str) -> NoReturn:
     raise typer.Exit(code=1)
 
 
+def at_a_terminal() -> bool:
+    """Report whether somebody is there to answer a prompt."""
+    return sys.stdin.isatty()
+
+
 def ask(label: str, *, hide: bool = False) -> str:
     """Read one value from the terminal, refusing under --json where nothing can answer.
 
@@ -885,11 +890,21 @@ def parse_params(
     schema: dict[str, Any] | None = None,
     files: list[Path] | None = None,
 ) -> dict[str, Any]:
-    """Build a run's parameters from files and flags, coerced against the pipeline's schema."""
+    """Build a run's parameters from files and flags, coerced against the pipeline's schema.
+
+    An empty value for a secret field means unset: ``--set api_token=`` leaves the field out
+    altogether, so nothing stores a credential that every read afterwards reports as set.
+    """
     try:
-        return build_params(schema or {}, pairs=pairs or [], files=files or [])
+        built = build_params(schema or {}, pairs=pairs or [], files=files or [])
     except ParamError as error:
         fail(str(error))
+    properties = cast("dict[str, Any]", (schema or {}).get("properties") or {})
+    return {
+        name: value
+        for name, value in built.items()
+        if value != "" or not _is_secret_field(cast("dict[str, Any]", properties.get(name) or {}))
+    }
 
 
 #: What separates the two ends of a ``--window`` value.
@@ -2224,12 +2239,19 @@ def connection_create(
     """Create a connection, prompting for the secret fields without echoing them.
 
     Prompting happens only on a terminal; in a script every value must arrive via ``--set``.
+    An invocation carrying ``--set`` is prompted only for what it cannot do without: a
+    required field it left out. A bare invocation is the interactive form and is offered
+    every secret the kind declares.
     """
     with client_for(state_of(ctx)) as dg:
         schema = _connection_schema(dg.call(dg.blocks.catalog()), kind_id)
         config = parse_params(set_value, schema=schema)
         required = set(cast("list[str]", schema.get("required") or []))
-        interactive = sys.stdin.isatty() and not json_mode()
+        interactive = at_a_terminal() and not json_mode()
+        # An invocation that carried --set said what it wanted, so only a required secret is
+        # still asked for there: an optional one it left out is left out. With no --set at
+        # all the command is the form, and every secret is offered.
+        offered = not set_value
         for field, body in cast("dict[str, Any]", schema.get("properties") or {}).items():
             if field in config:
                 continue
@@ -2241,6 +2263,8 @@ def connection_create(
             if not interactive:
                 continue
             if _is_secret_field(body):
+                if not offered and field not in required:
+                    continue
                 value = typer.prompt(f"{field}", hide_input=True, default="", show_default=False)
                 if value:
                     config[field] = value

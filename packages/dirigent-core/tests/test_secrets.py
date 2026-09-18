@@ -6,6 +6,7 @@ from pydantic import BaseModel, SecretStr
 
 from dirigent_core.secrets import (
     REDACTED,
+    EmptySecret,
     SecretBox,
     SecretKeyMismatch,
     SecretKeyMissing,
@@ -15,6 +16,7 @@ from dirigent_core.secrets import (
     redact,
     secret_fields,
     split_secrets,
+    unset_empty_secrets,
 )
 
 
@@ -92,6 +94,35 @@ def test_redaction_masks_only_the_secret_fields(config: ApiConnection) -> None:
 def test_redaction_leaves_an_unset_secret_alone() -> None:
     config = ApiConnection(base_url="https://api.example", token=SecretStr("t"))
     assert redact(ApiConnection, dump_config(config))["password"] is None
+
+
+def test_an_empty_optional_secret_is_unset_rather_than_sealed(box: SecretBox) -> None:
+    """An empty value is no credential: the field reads as unset, never as one that is set."""
+    config = ApiConnection(base_url="https://api.example", token=SecretStr("t"), password=SecretStr(""))
+    public, envelope, _ = box.encrypt_config(ApiConnection, config)
+    assert public["password"] is None
+    assert redact(ApiConnection, public)["password"] is None
+    assert envelope is not None
+    assert box.open(envelope) == {"token": "t"}, "the envelope holds the secret that exists, and no other"
+
+
+def test_an_empty_required_secret_is_refused(box: SecretBox) -> None:
+    """A required secret has no unset state, so nothing stores it blank."""
+    config = ApiConnection(base_url="https://api.example", token=SecretStr(""))
+    with pytest.raises(EmptySecret, match="token cannot be stored empty") as raised:
+        box.encrypt_config(ApiConnection, config)
+    assert raised.value.fields == ["token"]
+
+
+def test_unsetting_leaves_every_value_that_is_one_alone() -> None:
+    """Only an empty secret is touched: a public field and a set secret pass through."""
+    config = {"base_url": "https://api.example", "verify_tls": True, "token": "t", "password": ""}
+    assert unset_empty_secrets(ApiConnection, config) == {
+        "base_url": "https://api.example",
+        "verify_tls": True,
+        "token": "t",
+        "password": None,
+    }
 
 
 def test_a_config_round_trips_through_the_envelope(box: SecretBox, config: ApiConnection) -> None:

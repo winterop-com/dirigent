@@ -3,21 +3,26 @@
 import asyncio
 import os
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
+import typer
 import yaml
+from pydantic import BaseModel, SecretStr
 from typer.testing import CliRunner
 
 from clisupport import asking_for_the_rendering, closing, of_kind, only, plain, records, refusal, rows
+from dirigent_cli import commands
 from dirigent_cli.commands import instance_settings
 from dirigent_cli.main import app, dev_admin, hoist_globals
 from dirigent_cli.profiles import resolve_endpoint
 from dirigent_cli.project import InitChoices, ProjectError, find_project, scaffold
+from dirigent_common import BlockModel, HealthReport
 from dirigent_core.config import CONFIG_FILE_ENV, Settings, reset_settings_cache
+from dirigent_plugin import ConnectionKind, Contribution, extension
 
 runner = CliRunner(env={"COLUMNS": "200", "TERMINAL_WIDTH": "200"})
 
@@ -71,7 +76,13 @@ def _isolated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[None]
 
 
 @pytest.fixture
-def server(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[str]:
+def extra_plugins(request: pytest.FixtureRequest) -> dict[str, object]:
+    """The plugins one test installs into its server beside the ones this checkout ships."""
+    return dict(getattr(request, "param", {}))
+
+
+@pytest.fixture
+def server(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, extra_plugins: dict[str, object]) -> Iterator[str]:
     """Run the real API on a real port, and point the CLI at it through DG_URL and DG_TOKEN."""
     import asyncio
     import socket
@@ -87,6 +98,7 @@ def server(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[str]:
     from dirigent_core.database import create_engine, create_session_factory, session_scope
     from dirigent_core.logging import configure_logging
     from dirigent_core.models import Base
+    from dirigent_core.plugins import load_plugin_host
     from dirigent_server import create_app
 
     settings = Settings(
@@ -124,7 +136,9 @@ def server(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[str]:
     holder.listen()
     port = int(holder.getsockname()[1])
 
-    running = uvicorn.Server(uvicorn.Config(create_app(settings), host="127.0.0.1", port=port, log_config=None))
+    host = load_plugin_host(extra=extra_plugins) if extra_plugins else None
+    app_under_test = create_app(settings, host=host)
+    running = uvicorn.Server(uvicorn.Config(app_under_test, host="127.0.0.1", port=port, log_config=None))
     thread = threading.Thread(target=lambda: running.run(sockets=[holder]), daemon=True)
     thread.start()
     deadline = time.monotonic() + 20
@@ -1059,6 +1073,132 @@ def test_creating_a_connection_of_an_unknown_kind_is_refused(server: str) -> Non
     result = machine("connection", "create", "nope", "x", "--set", "base_url=https://x")
     assert result.exit_code == 1
     assert "no connection kind" in refusal(result.stdout)["message"]
+
+
+class SecretfulConfig(BlockModel):
+    """A connection that cannot be used without its credential."""
+
+    endpoint: str
+    api_token: SecretStr
+    spare_token: SecretStr | None = None
+
+
+class SecretfulConnectionKind(ConnectionKind):
+    """A kind whose secret is required, which no kind this checkout ships has."""
+
+    id: ClassVar[str] = "secretful"
+    config_model: ClassVar[type[BaseModel]] = SecretfulConfig
+
+    async def check(self, config: BaseModel) -> HealthReport:
+        """Report health without reaching anything: there is nothing behind this kind."""
+        return HealthReport(healthy=True)
+
+
+class SecretfulPlugin:
+    """The plugin that contributes the kind with a required secret."""
+
+    @extension
+    def contribute(self) -> Contribution:
+        """Contribute the one connection kind these tests need."""
+        return Contribution(connection_kinds=[SecretfulConnectionKind()])
+
+
+#: What a test that needs the required-secret kind installs into its server.
+SECRETFUL = [{"secretful": SecretfulPlugin()}]
+
+
+def prompting(asked: list[str], answers: dict[str, str]) -> Callable[..., str]:
+    """Stand in for the person at the terminal: record every question, answer the ones given."""
+
+    def prompt(label: str, **_: Any) -> str:
+        asked.append(label)
+        return answers.get(label, "")
+
+    return prompt
+
+
+def test_a_create_that_was_told_what_to_do_is_not_prompted_for_the_rest(
+    server: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """--set said what it wanted: an optional secret it left out stays unset, without asking."""
+    asked: list[str] = []
+    monkeypatch.setattr(commands, "at_a_terminal", lambda: True)
+    monkeypatch.setattr(typer, "prompt", prompting(asked, {}))
+    created = invoke("connection", "create", "http", "ops-api", "--set", "base_url=https://ops.example.org")
+    assert created.exit_code == 0, created.output
+    assert asked == [], "a one-liner that carried --set must not block on a field it left out"
+    stored = only(machine("connection", "show", "ops-api").stdout, "connection")["fields"]["config"]
+    assert stored["bearer_token"] is None
+
+
+def test_a_bare_create_at_a_terminal_offers_every_secret_the_kind_declares(
+    server: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """With nothing on the command line the command is the form, and a prompt is the offer."""
+    asked: list[str] = []
+    monkeypatch.setattr(commands, "at_a_terminal", lambda: True)
+    monkeypatch.setattr(typer, "prompt", prompting(asked, {"base_url": "https://ops.example.org"}))
+    created = invoke("connection", "create", "http", "ops-api")
+    assert created.exit_code == 0, created.output
+    assert asked == ["base_url", "bearer_token", "basic_password", "hmac_secret"]
+
+
+@pytest.mark.parametrize("extra_plugins", SECRETFUL, indirect=True)
+def test_a_required_secret_is_prompted_for_beside_set(server: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A field the kind cannot do without is asked for however the invocation was spelled."""
+    asked: list[str] = []
+    monkeypatch.setattr(commands, "at_a_terminal", lambda: True)
+    monkeypatch.setattr(typer, "prompt", prompting(asked, {"api_token": "t0ken"}))
+    created = invoke("connection", "create", "secretful", "vault", "--set", "endpoint=https://vault.example.org")
+    assert created.exit_code == 0, created.output
+    assert asked == ["api_token"], "the required secret is asked for, the optional one is not"
+    stored = only(machine("connection", "show", "vault").stdout, "connection")["fields"]["config"]
+    assert (stored["api_token"], stored["spare_token"]) == ("***", None)
+
+
+@pytest.mark.parametrize("extra_plugins", SECRETFUL, indirect=True)
+def test_a_required_secret_nobody_can_be_asked_for_is_refused(server: str) -> None:
+    """In a script there is nobody to prompt, so the missing credential is said out loud."""
+    refused = machine("connection", "create", "secretful", "vault", "--set", "endpoint=https://vault.example.org")
+    assert refused.exit_code == 1
+    assert "cannot prompt for api_token" in refusal(refused.stdout)["message"]
+
+
+def test_an_empty_secret_is_unset_rather_than_stored_empty(server: str) -> None:
+    """``--set bearer_token=`` sets nothing: a read says the field is unset, not that it is set."""
+    created = machine(
+        "connection",
+        "create",
+        "http",
+        "ops-api",
+        "--set",
+        "base_url=https://ops.example.org",
+        "--set",
+        "hmac_secret=signing",
+        "--set",
+        "bearer_token=",
+    )
+    assert created.exit_code == 0, created.output
+    made = only(created.stdout, "connection.created")
+    assert made["config"]["bearer_token"] is None, "an empty value is no credential"
+    assert made["config"]["hmac_secret"] == "***", "the one that was given is sealed as before"
+
+
+@pytest.mark.parametrize("extra_plugins", SECRETFUL, indirect=True)
+def test_a_required_secret_given_empty_is_refused(server: str) -> None:
+    """An empty value for a required secret leaves it unset, which is a refusal, not a blank row."""
+    refused = machine(
+        "connection",
+        "create",
+        "secretful",
+        "vault",
+        "--set",
+        "endpoint=https://vault.example.org",
+        "--set",
+        "api_token=",
+    )
+    assert refused.exit_code == 1
+    assert "cannot prompt for api_token" in refusal(refused.stdout)["message"]
 
 
 def test_system_info_and_the_worker_registry(server: str) -> None:

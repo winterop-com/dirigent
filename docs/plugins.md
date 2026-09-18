@@ -295,7 +295,9 @@ uv run dg connection create acme acme-prod \
 uv run dg connection check acme-prod     # confirms the credential and reports the server version
 ```
 
-On a terminal a missing secret is prompted for; in a script every value arrives via `--set`.
+At a terminal a required field the command was not given is prompted for, and a bare
+`dg connection create acme acme-prod` offers every secret the kind declares; in a script every
+value arrives via `--set`, and an empty one (`--set api_token=`) leaves the field unset.
 
 ### 3. Schemas to validate against (optional)
 

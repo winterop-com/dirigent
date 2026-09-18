@@ -3,7 +3,7 @@
 import os
 import shutil
 import sys
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from datetime import UTC, datetime, timedelta
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
@@ -1076,8 +1076,15 @@ async def _dev(
     install_signal_handlers(worker)
     server_config = uvicorn.Config(build_app(), host=host, port=port, log_config=None)
     api = uvicorn.Server(server_config)
+
+    def shut_down() -> None:
+        """Ask for the shutdown SIGTERM asks for: the worker drains, and serve returns."""
+        worker.request_stop()
+        api.should_exit = True
+
     worker_task = asyncio.create_task(worker.run())
     ready = asyncio.create_task(_announce_ready(api))
+    orphaned = asyncio.create_task(watch_parent(os.getppid, shut_down))
     seeding = (
         asyncio.create_task(_seed(api, local_url(host, port), bearer, seed, installed)) if seed or installed else None
     )
@@ -1085,6 +1092,7 @@ async def _dev(
         await api.serve()
     finally:
         ready.cancel()
+        orphaned.cancel()
         if seeding is not None:
             seeding.cancel()
         worker.request_stop()
@@ -1105,6 +1113,30 @@ async def _announce_ready(api: "uvicorn.Server") -> None:
     while not api.started:
         await asyncio.sleep(0.05)
     emit(make("process", at=datetime.now(UTC), message="ready", process="dev"))
+
+
+#: How often the instance looks at whether the process that started it is still there.
+PARENT_POLL_SECONDS = 1.0
+
+
+async def watch_parent(
+    parent: Callable[[], int], stop: Callable[[], None], *, every: float = PARENT_POLL_SECONDS
+) -> None:
+    """Shut the instance down once the process that started it is gone.
+
+    ``uv run dg dev`` forwards SIGTERM to the instance, but a wrapper that was killed outright
+    cannot, and the instance it leaves behind goes on claiming runs against the same state.
+    macOS has no PR_SET_PDEATHSIG, so the parent pid is polled: a pid that changed means this
+    process was reparented to init. A dev instance therefore does not outlive the process that
+    started it, backgrounding it past the shell that launched it included.
+    """
+    import asyncio
+
+    started = parent()
+    while parent() == started:
+        await asyncio.sleep(every)
+    emit(make("process", at=datetime.now(UTC), message="parent gone", process="dev", parent=started))
+    stop()
 
 
 async def _seed(
