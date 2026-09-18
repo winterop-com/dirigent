@@ -96,18 +96,22 @@ test('the gallery', async ({ page }) => {
             ['admin-alerting', '/admin/alerting'],
         ] as const) {
             await page.goto(route)
+            if (name === 'editor') {
+                // The panel is half the editor and the board it is compared against shows one,
+                // so the camera opens a step rather than photographing a bare canvas.
+                await page.locator('.react-flow__node').getByText('fetch', { exact: true }).click()
+                await page.locator('aside').getByRole('heading', { name: 'Config' }).waitFor({ timeout: 15_000 })
+            }
             await shot(page, mode, name)
         }
 
         // The overlays: the palette, the settings dialog, and the run terminal.
         await page.goto('/pipelines')
+        // The chord is a keydown the shell listens for, so a press that lands before the shell
+        // mounts is lost and the camera photographs the screen behind the palette instead.
+        await page.getByLabel('Instance').waitFor({ timeout: 30_000 })
         await page.keyboard.press('ControlOrMeta+k')
-        await page
-            .getByPlaceholder(/run, pipeline|go to/i)
-            .or(page.locator('[cmdk-input]'))
-            .first()
-            .waitFor({ timeout: 4000 })
-            .catch(() => undefined)
+        await page.getByPlaceholder('Go to a screen, or run something').waitFor({ timeout: 10_000 })
         await shot(page, mode, 'palette')
         await page.keyboard.press('Escape')
 
