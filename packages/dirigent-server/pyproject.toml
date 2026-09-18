@@ -1,6 +1,6 @@
 [project]
 name = "dirigent-server"
-version = "0.16.4"
+version = "0.16.5"
 description = "Dirigent FastAPI server: the REST API, its authentication, and the health probes."
 readme = "README.md"
 requires-python = ">=3.13"
@@ -11,10 +11,10 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    "dirigent-client==0.16.4",
-    "dirigent-common==0.16.4",
-    "dirigent-core==0.16.4",
-    "dirigent-examples==0.16.4",
+    "dirigent-client==0.16.5",
+    "dirigent-common==0.16.5",
+    "dirigent-core==0.16.5",
+    "dirigent-examples==0.16.5",
     "fastapi>=0.141.1",
 ]
 

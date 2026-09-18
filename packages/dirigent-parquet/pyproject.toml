@@ -1,6 +1,6 @@
 [project]
 name = "dirigent-parquet"
-version = "0.16.4"
+version = "0.16.5"
 description = "The parquet format pack for dirigent: the convert.arrow codec, on pyarrow."
 readme = "README.md"
 requires-python = ">=3.13"
@@ -11,8 +11,8 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    "dirigent-common==0.16.4",
-    "dirigent-plugin==0.16.4",
+    "dirigent-common==0.16.5",
+    "dirigent-plugin==0.16.5",
     "pyarrow>=21.0.0",
 ]
 
