@@ -543,10 +543,29 @@ its bounds are, whether it is required, what its enum offers. A block's config s
 pipeline's parameter schema are both fed through it, so the step form and the run dialog are one
 decision rendered twice, and every shape the shipped catalog publishes has a test.
 
-**What no control fits is edited as JSON.** A list, a map, and a schema with no type at all are a
+**What no control fits is edited as JSON.** A list and a schema with no type at all are a
 textarea rather than a wrong control -- guessing at a list of integers with a text box is how a
 document ends up carrying `"[200]"`. The fallback has a test of its own, so a shape this bundle
 was built before degrades rather than misleads.
+
+**A map of scalars is a key/value table.** An object schema with no `properties` of its own whose
+`additionalProperties` names one scalar type, or a union of them, is the `pairs` kind: two
+columns, one row per entry in the document's own order, a blank row at the foot to type the next
+pair into, and a remove control on each row that holds a pair. That is `headers` and `query` on
+`http.request`, `env` on `shell.run` and on each docker verb, `inputs` and `outputs` on
+`docker.run`, and `headers` on `webhook.post` and on the webhook connection kind. What the table writes is the plain object, so the document, a
+run's parameters and a connection's config keep the shape they had and nothing downstream learns
+a form was involved. A cell is a switch where the map holds booleans alone and a box otherwise,
+and what is typed is read as the narrowest shape the map takes -- a whole number where it takes
+integers, a number where it takes numbers, `true` or `false` where it takes booleans, and text
+last -- so `2` in `query` is the number 2 while `2` in `headers` is the text. A key written twice
+wears the same marking a refused box does and is not written until it is fixed. Every other map
+stays JSON, and the reason is always that a cell cannot hold what the values are: `pipeline.run`'s
+`params` takes any JSON value, a map of lists takes a list, a map whose values may be null takes
+something an empty cell is not. **A reference in place of the whole map is not a table.** The
+document language lets `${...}` stand wherever a value goes, so a map written as one is the text
+it was written as, with `a reference, not a table` beside the label; clearing the box brings the
+table back.
 
 **A field that carries a program is edited as one.** A string whose schema published a
 `contentMediaType` -- `application/jq` for the three jq verbs, `text/x-shellscript` for the shell
@@ -796,6 +815,12 @@ A dropdown whose options are values the app already draws somewhere -- a status,
 renders each option as that drawing: the status filter's rows are the same chips the listing
 shows, and the trigger carries the chip it chose. Choosing becomes recognising. An option
 never wraps; the menu grows to its longest row instead of folding a label in half.
+
+**A string option is drawn bare, and every other value wears its JSON.** A generated form's enum
+is words a document carries -- `GET`, `all_success` -- so the row and the trigger read `GET`, not
+`"GET"`; a number, a boolean and null are drawn as the JSON they are, which is what keeps `2` and
+`"2"` two choices in an enum holding both. The quoted spelling is the token a select addresses a
+choice by and it is never on screen: the trigger draws the option, not the token.
 
 **A choice between looks is made on the looks themselves.** Where the values of a setting are
 appearances -- the three palettes -- the control is one card per value showing that value, and

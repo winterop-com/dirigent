@@ -8,8 +8,17 @@ import {
     foldLabel,
     inputText,
     maySubmit,
+    optionLabel,
+    optionToken,
+    pairProblems,
+    pairRows,
+    pairsOf,
+    pairsReference,
+    pairsValue,
+    parseCell,
     parseInput,
     partition,
+    switchCell,
     validateField,
     sameJson,
     validateFields,
@@ -22,9 +31,14 @@ import {
  *
  * The catalog was surveyed for the distinct property shapes across all fourteen blocks, and
  * each one has a case here: a plain scalar, a bounded number, an enum reached through `$ref`,
- * pydantic's two spellings of optional, a union of two scalars, a list, a map, and a member
- * with no type at all. A block whose config takes a shape none of these cover is a block whose
- * form silently renders the wrong control, so the fallback has a test of its own.
+ * pydantic's two spellings of optional, a union of two scalars, a list, a map of scalars, a map
+ * of any JSON value, and a member with no type at all. A block whose config takes a shape none
+ * of these cover is a block whose form silently renders the wrong control, so the fallback has a
+ * test of its own.
+ *
+ * TWO MAPS HERE ARE NOT IN THE CATALOG: a map of integers and a map of booleans. What is under
+ * test is the `pairs` kind's own rule -- a cell refuses what its type refuses -- and a rule is
+ * tested where it is written rather than left for the first pack that publishes such a map.
  */
 
 /** `$defs` as the catalog writes them, shared by the schemas below. */
@@ -41,6 +55,11 @@ const DEFS: JsonMap = {
     EntityName: { maxLength: 63, minLength: 1, pattern: '^[a-z](-?[a-z0-9])*$', type: 'string' },
     JsonValue: {},
     Duration: { type: 'string' },
+}
+
+/** The union `http.request.query` allows one value to be, which is every scalar type. */
+const SCALARS: JsonMap = {
+    anyOf: [{ type: 'string' }, { type: 'integer' }, { type: 'number' }, { type: 'boolean' }],
 }
 
 /** One property, wrapped in the closed object schema every block config is. */
@@ -248,11 +267,6 @@ describe('the shapes no control fits, which are edited as JSON', () => {
         expect(only({ days: { items: { $ref: '#/$defs/DayName' }, type: 'array' } }).kind).toBe('json')
     })
 
-    test('a map of strings', () => {
-        // docker.run.env
-        expect(only({ env: { additionalProperties: { type: 'string' }, type: 'object' } }).kind).toBe('json')
-    })
-
     test('a member with no type at all, which is any JSON value', () => {
         // webhook.post.body, through JsonValue.
         expect(only({ body: { $ref: '#/$defs/JsonValue', description: 'The payload.' } }).kind).toBe('json')
@@ -275,6 +289,320 @@ describe('the shapes no control fits, which are edited as JSON', () => {
     })
 })
 
+describe('a map of scalars, which is a table of pairs', () => {
+    test('a map of strings is a table, and its cells hold text', () => {
+        // docker.run.env, http.request.headers, webhook.post.headers, a connection kind's headers.
+        const field = only({ env: { additionalProperties: { type: 'string' }, type: 'object' } })
+        expect(field.kind).toBe('pairs')
+        expect(field.holds).toEqual(['text'])
+    })
+
+    test('a map of a union of scalars keeps every shape a cell may hold, in schema order', () => {
+        // http.request.query
+        const field = only({ query: { additionalProperties: SCALARS, type: 'object' } })
+        expect(field.kind).toBe('pairs')
+        expect(field.holds).toEqual(['text', 'integer', 'number', 'switch'])
+    })
+
+    test('a map of integers is a table whose cells refuse anything else', () => {
+        const field = only({ ports: { additionalProperties: { type: 'integer' }, type: 'object' } })
+        expect(field.kind).toBe('pairs')
+        expect(field.holds).toEqual(['integer'])
+    })
+
+    test('a map of booleans is a table of switches', () => {
+        const field = only({ flags: { additionalProperties: { type: 'boolean' }, type: 'object' } })
+        expect(switchCell(field)).toBe(true)
+        expect(switchCell(only({ env: { additionalProperties: { type: 'string' }, type: 'object' } }))).toBe(
+            false,
+        )
+    })
+
+    test('a table says what a cell takes when it is anything but text, and stays quiet when it is', () => {
+        expect(only({ query: { additionalProperties: SCALARS, type: 'object' } }).hint).toBe(
+            'values are text or a whole number or a number or true or false',
+        )
+        expect(only({ ports: { additionalProperties: { type: 'integer' }, type: 'object' } }).hint).toBe(
+            'values are a whole number',
+        )
+        expect(only({ env: { additionalProperties: { type: 'string' }, type: 'object' } }).hint).toBeNull()
+    })
+
+    test('a nullable map is still a table, and clearing it is a value', () => {
+        const field = only({
+            env: {
+                anyOf: [{ additionalProperties: { type: 'string' }, type: 'object' }, { type: 'null' }],
+                default: null,
+            },
+        })
+        expect(field).toMatchObject({ kind: 'pairs', nullable: true })
+    })
+})
+
+describe('the maps a table cannot draw, which stay JSON', () => {
+    test('a map of any JSON value stays JSON, because a cell is not a JSON editor', () => {
+        // pipeline.run.params
+        expect(
+            only({ params: { additionalProperties: { $ref: '#/$defs/JsonValue' }, type: 'object' } }).kind,
+        ).toBe('json')
+    })
+
+    test('a map of lists stays JSON', () => {
+        expect(
+            only({
+                tags: { additionalProperties: { items: { type: 'string' }, type: 'array' }, type: 'object' },
+            }).kind,
+        ).toBe('json')
+    })
+
+    test('a map of maps stays JSON', () => {
+        expect(
+            only({
+                nested: {
+                    additionalProperties: { additionalProperties: { type: 'string' }, type: 'object' },
+                    type: 'object',
+                },
+            }).kind,
+        ).toBe('json')
+    })
+
+    test('an object with properties of its own is not a map at all', () => {
+        expect(
+            only({
+                window: {
+                    type: 'object',
+                    properties: { start: { type: 'string' }, end: { type: 'string' } },
+                },
+            }).kind,
+        ).toBe('json')
+    })
+
+    test('an object open to anything stays JSON, because it says nothing about its values', () => {
+        expect(only({ extra: { additionalProperties: true, type: 'object' } }).kind).toBe('json')
+        expect(only({ closed: { additionalProperties: false, type: 'object' } }).kind).toBe('json')
+    })
+
+    test('a map whose values may be null stays JSON, because an empty cell is not null', () => {
+        expect(
+            only({
+                env: {
+                    additionalProperties: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+                    type: 'object',
+                },
+            }).kind,
+        ).toBe('json')
+    })
+
+    test('a map of an enum stays JSON, because a cell is not a select', () => {
+        expect(
+            only({ methods: { additionalProperties: { $ref: '#/$defs/HttpMethod' }, type: 'object' } }).kind,
+        ).toBe('json')
+    })
+
+    test('a map of programs stays JSON, because a cell is not an editor', () => {
+        expect(
+            only({
+                programs: {
+                    additionalProperties: { contentMediaType: 'application/jq', type: 'string' },
+                    type: 'object',
+                },
+            }).kind,
+        ).toBe('json')
+    })
+})
+
+describe('reading one cell of a table', () => {
+    const TEXT = only({ env: { additionalProperties: { type: 'string' }, type: 'object' } })
+    const WHOLE = only({ ports: { additionalProperties: { type: 'integer' }, type: 'object' } })
+    const ANY = only({ query: { additionalProperties: SCALARS, type: 'object' } })
+
+    test('a map of text keeps what was typed, digits included', () => {
+        expect(parseCell(TEXT, 'east')).toEqual({ ok: true, value: 'east' })
+        expect(parseCell(TEXT, '2')).toEqual({ ok: true, value: '2' })
+        expect(parseCell(TEXT, 'true')).toEqual({ ok: true, value: 'true' })
+    })
+
+    test('an empty cell is nothing, so a half-typed row is not a pair', () => {
+        expect(parseCell(TEXT, '')).toEqual({ ok: true, value: undefined })
+        expect(parseCell(TEXT, '   ')).toEqual({ ok: true, value: undefined })
+    })
+
+    test('a map of integers reads a whole number and refuses anything else', () => {
+        expect(parseCell(WHOLE, '8080')).toEqual({ ok: true, value: 8080 })
+        expect(parseCell(WHOLE, '1.5')).toEqual({ ok: false, message: 'ports values are a whole number' })
+        expect(parseCell(WHOLE, 'east')).toEqual({ ok: false, message: 'ports values are a whole number' })
+    })
+
+    test('a map that takes several shapes reads the narrowest one the text fits', () => {
+        // http.request.query takes a string, an integer, a number or a boolean, and `2` in that
+        // box is the number 2: a map that also took text would otherwise never carry a number.
+        expect(parseCell(ANY, '2')).toEqual({ ok: true, value: 2 })
+        expect(parseCell(ANY, '1.5')).toEqual({ ok: true, value: 1.5 })
+        expect(parseCell(ANY, 'true')).toEqual({ ok: true, value: true })
+        expect(parseCell(ANY, 'false')).toEqual({ ok: true, value: false })
+        expect(parseCell(ANY, 'east')).toEqual({ ok: true, value: 'east' })
+        expect(parseCell(ANY, 'TRUE')).toEqual({ ok: true, value: 'TRUE' })
+    })
+})
+
+describe('the rows a table draws and the object it writes', () => {
+    const TEXT = only({ env: { additionalProperties: { type: 'string' }, type: 'object' } })
+    const WHOLE = only({ ports: { additionalProperties: { type: 'integer' }, type: 'object' } })
+    const FLAGS = only({ flags: { additionalProperties: { type: 'boolean' }, type: 'object' } })
+
+    test('a map opens as its own entries in document order, with one blank row to type into', () => {
+        expect(pairsOf(TEXT, { PATH: '/usr/bin', HOME: '/root' })).toEqual([
+            { key: 'PATH', text: '/usr/bin' },
+            { key: 'HOME', text: '/root' },
+            { key: '', text: '' },
+        ])
+    })
+
+    test('an empty map is the blank row alone, and so is a field the document does not carry', () => {
+        expect(pairsOf(TEXT, {})).toEqual([{ key: '', text: '' }])
+        expect(pairsOf(TEXT, undefined)).toEqual([{ key: '', text: '' }])
+        expect(pairsOf(TEXT, null)).toEqual([{ key: '', text: '' }])
+    })
+
+    test('a number and a boolean already in the document are their own text', () => {
+        expect(pairsOf(WHOLE, { http: 8080 })[0]).toEqual({ key: 'http', text: '8080' })
+        expect(pairsOf(FLAGS, { quiet: true })[0]).toEqual({ key: 'quiet', text: 'true' })
+    })
+
+    test('a map of booleans starts its blank row off, so a key alone writes the pair', () => {
+        expect(pairsOf(FLAGS, {})).toEqual([{ key: '', text: 'false' }])
+        expect(pairsValue(FLAGS, [{ key: 'quiet', text: 'false' }])).toEqual({ quiet: false })
+    })
+
+    test('the table grows a blank row as soon as the last one is typed into', () => {
+        expect(pairRows(TEXT, [{ key: 'PATH', text: '/usr/bin' }])).toEqual([
+            { key: 'PATH', text: '/usr/bin' },
+            { key: '', text: '' },
+        ])
+        expect(pairRows(TEXT, [{ key: '', text: '' }])).toEqual([{ key: '', text: '' }])
+        expect(pairRows(TEXT, [])).toEqual([{ key: '', text: '' }])
+    })
+
+    test('what is written is the plain object, in the order the rows are in', () => {
+        const written = pairsValue(TEXT, [
+            { key: 'PATH', text: '/usr/bin' },
+            { key: 'HOME', text: '/root' },
+            { key: '', text: '' },
+        ])
+        expect(written).toEqual({ PATH: '/usr/bin', HOME: '/root' })
+        expect(Object.keys(written)).toEqual(['PATH', 'HOME'])
+    })
+
+    test('a half-typed row is on screen and not in the document', () => {
+        expect(
+            pairsValue(TEXT, [
+                { key: 'PATH', text: '' },
+                { key: '', text: '/root' },
+                { key: 'HOME', text: '/root' },
+            ]),
+        ).toEqual({ HOME: '/root' })
+    })
+
+    test('a key is trimmed and a value is kept as it was typed', () => {
+        expect(pairsValue(TEXT, [{ key: '  PATH  ', text: ' /usr/bin ' }])).toEqual({ PATH: ' /usr/bin ' })
+    })
+
+    test('a cell that is not a value is not written either', () => {
+        expect(
+            pairsValue(WHOLE, [
+                { key: 'http', text: '1.5' },
+                { key: 'https', text: '443' },
+            ]),
+        ).toEqual({ https: 443 })
+    })
+
+    test('a key written twice is written once, by the first row that carries it', () => {
+        expect(
+            pairsValue(TEXT, [
+                { key: 'PATH', text: 'first' },
+                { key: 'PATH', text: 'second' },
+            ]),
+        ).toEqual({ PATH: 'first' })
+    })
+})
+
+describe('what is wrong with a table on screen', () => {
+    const TEXT = only({ env: { additionalProperties: { type: 'string' }, type: 'object' } })
+    const WHOLE = only({ ports: { additionalProperties: { type: 'integer' }, type: 'object' } })
+
+    test('a table that is all pairs has nothing wrong with it', () => {
+        expect(
+            pairProblems(TEXT, [
+                { key: 'PATH', text: '/usr/bin' },
+                { key: '', text: '' },
+            ]),
+        ).toEqual([])
+    })
+
+    test('a key written twice marks the second row, by its key cell', () => {
+        expect(
+            pairProblems(TEXT, [
+                { key: 'PATH', text: 'first' },
+                { key: 'PATH', text: 'second' },
+            ]),
+        ).toEqual([{ row: 1, where: 'key', message: 'env carries PATH twice' }])
+    })
+
+    test('a cell that is not the shape the map holds marks its own row, by the value cell', () => {
+        expect(pairProblems(WHOLE, [{ key: 'http', text: '1.5' }])).toEqual([
+            { row: 0, where: 'value', message: 'ports values are a whole number' },
+        ])
+    })
+
+    test('a map that takes text can never have a cell refused', () => {
+        expect(pairProblems(TEXT, [{ key: 'PATH', text: 'anything at all' }])).toEqual([])
+    })
+})
+
+describe('a reference standing for a whole map', () => {
+    const TEXT = only({ env: { additionalProperties: { type: 'string' }, type: 'object' } })
+
+    test('a string is the reference it was written as, and a map is not a reference', () => {
+        expect(pairsReference('${steps.read.output.env}')).toBe('${steps.read.output.env}')
+        expect(pairsReference({ PATH: '/usr/bin' })).toBeNull()
+        expect(pairsReference(undefined)).toBeNull()
+    })
+
+    test('a reference is not refused, the way one in a JSON textarea never was', () => {
+        expect(validateField(TEXT, '${steps.read.output.env}')).toBeNull()
+    })
+})
+
+describe('what is wrong with a map the document already carries', () => {
+    const TEXT = only({ env: { additionalProperties: { type: 'string' }, type: 'object' } })
+    const WHOLE = only({ ports: { additionalProperties: { type: 'integer' }, type: 'object' } })
+    const ANY = only({ query: { additionalProperties: SCALARS, type: 'object' } })
+
+    test('a map of the right shape is fine, and so is an empty one', () => {
+        expect(validateField(TEXT, { PATH: '/usr/bin' })).toBeNull()
+        expect(validateField(TEXT, {})).toBeNull()
+        expect(validateField(ANY, { page: 2, since: '2026-01-01', deep: true, ratio: 1.5 })).toBeNull()
+    })
+
+    test('a value of the wrong shape is named by the key that carries it', () => {
+        expect(validateField(TEXT, { PATH: 3 })).toBe('env.PATH is text')
+        expect(validateField(WHOLE, { http: 1.5 })).toBe('ports.http is a whole number')
+        expect(validateField(ANY, { page: [] })).toBe(
+            'query.page is text or a whole number or a number or true or false',
+        )
+    })
+
+    test('a list where a map goes says it is a map, or a reference to one', () => {
+        expect(validateField(TEXT, ['PATH'])).toBe('env is a map, or a reference to one')
+        expect(validateField(TEXT, 3)).toBe('env is a map, or a reference to one')
+    })
+
+    test('a form with a bad map in it may not be sent', () => {
+        expect(validateFields([TEXT], { env: { PATH: 3 } })).toEqual({ env: 'env.PATH is text' })
+        expect(validateFields([TEXT], { env: { PATH: '/usr/bin' } })).toEqual({})
+    })
+})
+
 describe('what an empty control shows', () => {
     test('a list says the shape it takes, because a bare textarea teaches nothing', () => {
         expect(only({ argv: { items: { type: 'string' }, type: 'array' } }).placeholder).toBe(
@@ -282,9 +610,17 @@ describe('what an empty control shows', () => {
         )
     })
 
-    test('a map says its shape too', () => {
+    test('a map of any JSON value says its shape too', () => {
+        // pipeline.run.params, which is a textarea rather than a table.
+        expect(
+            only({ params: { additionalProperties: { $ref: '#/$defs/JsonValue' }, type: 'object' } })
+                .placeholder,
+        ).toBe('{"key": "value"}')
+    })
+
+    test('a table of pairs shows nothing, because its own cells say what they take', () => {
         expect(only({ env: { additionalProperties: { type: 'string' }, type: 'object' } }).placeholder).toBe(
-            '{"key": "value"}',
+            '',
         )
     })
 
@@ -551,6 +887,47 @@ describe('an enum that is not made of strings', () => {
     })
 })
 
+describe('what an option reads as, and what it is addressed by', () => {
+    test('a string option is drawn bare, because the word is what the document carries', () => {
+        // http.request.method through HttpMethod.
+        const field = only({ method: { $ref: '#/$defs/HttpMethod', default: 'GET' } })
+        expect(field.options.map((option) => option.label)).toEqual([
+            'GET',
+            'POST',
+            'PUT',
+            'PATCH',
+            'DELETE',
+            'HEAD',
+            'OPTIONS',
+        ])
+        expect(optionLabel('all_success')).toBe('all_success')
+    })
+
+    test('a number, a boolean and null are drawn as the JSON they are', () => {
+        expect(
+            only({ retries: { enum: [0, 1, 3], type: 'integer' } }).options.map((one) => one.label),
+        ).toEqual(['0', '1', '3'])
+        expect(optionLabel(1.5)).toBe('1.5')
+        expect(optionLabel(true)).toBe('true')
+        expect(optionLabel(null)).toBe('null')
+    })
+
+    test('an enum holding both 2 and "2" reads as two choices and is addressed by two tokens', () => {
+        const field = only({ pick: { enum: [2, '2'] } })
+        expect(field.options).toEqual([
+            { value: 2, label: '2' },
+            { value: '2', label: '2' },
+        ])
+        expect(field.options.map((one) => optionToken(one.value))).toEqual(['2', '"2"'])
+    })
+
+    test('the token is JSON for every value, which is not what a reader is shown', () => {
+        expect(optionToken('GET')).toBe('"GET"')
+        expect(optionToken(1)).toBe('1')
+        expect(optionToken(null)).toBe('null')
+    })
+})
+
 describe('what a control shows for a field the document does not carry', () => {
     const pull = only({ pull: { default: true, type: 'boolean' } })
     const quiet = only({ quiet: { default: false, type: 'boolean' } })
@@ -638,6 +1015,20 @@ describe('what a form opens with and what it folds', () => {
     test('a schema that requires everything folds nothing', () => {
         const every = fieldsOf(schemaOf({ from: { type: 'string' } }, ['from']))
         expect(partition(every, {}).folded).toEqual([])
+    })
+
+    test('a table of pairs folds like any other field, and opens once the document sets it', () => {
+        const mapped = fieldsOf(
+            schemaOf(
+                {
+                    image: { type: 'string' },
+                    env: { additionalProperties: { type: 'string' }, type: 'object' },
+                },
+                ['image'],
+            ),
+        )
+        expect(names(partition(mapped, {}).folded)).toEqual(['env'])
+        expect(names(partition(mapped, { env: {} }).open)).toEqual(['image', 'env'])
     })
 
     test('the link counts the folded fields, and says field of one', () => {

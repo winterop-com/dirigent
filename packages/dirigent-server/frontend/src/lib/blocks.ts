@@ -146,6 +146,7 @@ const TYPES: Readonly<Record<FieldDescriptor['kind'], string>> = {
     integer: 'integer',
     switch: 'boolean',
     select: 'enum',
+    pairs: 'map',
     json: 'json',
 }
 

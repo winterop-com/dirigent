@@ -11,10 +11,15 @@
  * renamed it would be teaching the wrong name for the thing it is editing. The `description` is
  * the help under the label, which is what the schema carries prose for.
  *
- * WHAT IT DOES NOT UNDERSTAND, IT SAYS SO ABOUT. A list, a map, and a schema with no type at all
- * are edited as JSON in a textarea rather than as a wrong control: the shipped catalog has all
- * three, and guessing at a list of integers with a text box is how a document ends up carrying
- * `"[200]"`. Every shape the catalog actually uses is covered by a test.
+ * WHAT IT DOES NOT UNDERSTAND, IT SAYS SO ABOUT. A list and a schema with no type at all are
+ * edited as JSON in a textarea rather than as a wrong control: the shipped catalog has both, and
+ * guessing at a list of integers with a text box is how a document ends up carrying `"[200]"`.
+ * Every shape the catalog actually uses is covered by a test.
+ *
+ * A MAP OF SCALARS IS A TABLE OF PAIRS. An object schema whose `additionalProperties` names one
+ * scalar type, or a union of them, is the `pairs` kind -- `headers`, `env`, `query` -- and its
+ * table writes the plain object the document carries, in the order its rows are in. A map of
+ * anything else stays JSON: `pipeline.run`'s `params` holds any JSON value, and a cell cannot.
  *
  * A FIELD THAT CARRIES A PROGRAM SAYS SO, and the schema is where it says it. A string with
  * `contentMediaType` is a `code` field carrying that media type, so a jq program is edited as
@@ -32,7 +37,7 @@
 import type { JsonMap } from '@/lib/api'
 
 /** Which control a field is edited with. */
-export type FieldKind = 'text' | 'code' | 'number' | 'integer' | 'switch' | 'select' | 'json'
+export type FieldKind = 'text' | 'code' | 'number' | 'integer' | 'switch' | 'select' | 'json' | 'pairs'
 
 /** What `validateField` checks, gathered from the schema the descriptor came from. */
 export interface Bounds {
@@ -75,6 +80,14 @@ export interface FieldDescriptor {
      * not the branch it happens to draw.
      */
     accepts: BranchShape[]
+    /**
+     * Every shape one entry of a `pairs` map takes, in the schema's order; empty otherwise.
+     *
+     * This is what a value cell is read and refused against: a map of integers refuses `1.5`,
+     * a map of booleans alone is a switch, and a map that takes several shapes reads what was
+     * typed as the first of them it fits.
+     */
+    holds: FieldKind[]
 }
 
 /** One choice of an enum. */
@@ -167,10 +180,18 @@ function flatten(
  * A choice submits the JSON the schema listed, so an integer enum sends 1 rather than "1".
  */
 function optionsOf(schema: JsonMap): FieldOption[] {
-    return arrayAt(schema, 'enum').map((one) => ({
-        value: one,
-        label: typeof one === 'string' ? one : (JSON.stringify(one) ?? String(one)),
-    }))
+    return arrayAt(schema, 'enum').map((one) => ({ value: one, label: optionLabel(one) }))
+}
+
+/**
+ * What one choice reads as: a string wears no quotes, and every other value wears its JSON.
+ *
+ * `GET` and `all_success` are words a document carries, and drawing them `"GET"` would teach a
+ * spelling the document does not use. A number, a boolean and null are drawn as the JSON they
+ * are, so an enum holding both `2` and `"2"` still reads as two choices.
+ */
+export function optionLabel(value: unknown): string {
+    return typeof value === 'string' ? value : (JSON.stringify(value) ?? String(value))
 }
 
 /** Whether two values are the same JSON, which is how a value is matched against a choice. */
@@ -180,7 +201,12 @@ export function sameJson(a: unknown, b: unknown): boolean {
     return JSON.stringify(a) === JSON.stringify(b)
 }
 
-/** The string a select addresses one choice by, which is not what the choice reads as. */
+/**
+ * The string a select addresses one choice by, which is not what the choice reads as.
+ *
+ * It is JSON for every value, strings included, because an enum holding `2` and `"2"` needs two
+ * tokens and `optionLabel` is what a reader is shown instead.
+ */
 export function optionToken(value: unknown): string {
     return JSON.stringify(value) ?? String(value)
 }
@@ -200,6 +226,33 @@ function kindOf(schema: JsonMap): FieldKind {
         default:
             return 'json'
     }
+}
+
+/** The shapes a value cell is able to hold. A map of anything else is edited as JSON. */
+const CELL_KINDS: ReadonlySet<FieldKind> = new Set<FieldKind>(['text', 'integer', 'number', 'switch'])
+
+/**
+ * The shapes a map's values take, or empty when this schema is not a map of scalars.
+ *
+ * A map is an object schema with no `properties` of its own whose `additionalProperties` is a
+ * schema rather than a bare `true` or `false`. Its values have to be scalars all the way down:
+ * a map of lists, a map of any JSON value, and a map whose values may be null are all shapes a
+ * two-column table would have to lie about, so they keep the textarea.
+ */
+function holdsOf(schema: JsonMap, defs: JsonMap): FieldKind[] {
+    if (schema.type !== 'object' || objectAt(schema, 'properties') !== null) return []
+    const values = objectAt(schema, 'additionalProperties')
+    if (values === null) return []
+    const resolved = flatten(values, defs)
+    if (resolved.nullable) return []
+    const branches = resolved.branches.length > 1 ? resolved.branches : [resolved.schema]
+    const kinds = branches.map((one) => kindOf(one))
+    return kinds.every((one) => CELL_KINDS.has(one)) ? kinds : []
+}
+
+/** Whether a `pairs` field's cells are switches, which is a map of booleans and nothing else. */
+export function switchCell(field: FieldDescriptor): boolean {
+    return field.holds.length === 1 && field.holds[0] === 'switch'
 }
 
 /**
@@ -234,6 +287,17 @@ function hintOf(schema: JsonMap, branches: JsonMap[]): string | null {
     return parts.length === 0 ? null : parts.join(' · ')
 }
 
+/** What a `pairs` field says beside its label, when a cell holds anything other than text. */
+function pairsHint(holds: FieldKind[]): string | null {
+    if (holds.length === 1 && holds[0] === 'text') return null
+    return `values are ${wordsOf(holds)}`
+}
+
+/** The shapes a cell takes, in reader words, with each word said once. */
+function wordsOf(kinds: readonly FieldKind[]): string {
+    return [...new Set(kinds.map((one) => wordFor(one)))].join(' or ')
+}
+
 /**
  * What an empty control shows.
  *
@@ -243,12 +307,17 @@ function hintOf(schema: JsonMap, branches: JsonMap[]): string | null {
  */
 function placeholderOf(schema: JsonMap, kind: FieldKind, fallback: unknown): string {
     if (fallback !== undefined && fallback !== null) {
-        return kind === 'json' ? (JSON.stringify(fallback) ?? '') : String(fallback)
+        return jsonWritten(kind) ? (JSON.stringify(fallback) ?? '') : String(fallback)
     }
     if (kind !== 'json') return ''
     if (schema.type === 'array') return '["one", "two"]'
     if (schema.type === 'object') return '{"key": "value"}'
     return ''
+}
+
+/** Whether a value of this kind reads as the JSON it is rather than as its own text. */
+function jsonWritten(kind: FieldKind): boolean {
+    return kind === 'json' || kind === 'pairs'
 }
 
 function boundsOf(schema: JsonMap): Bounds {
@@ -285,7 +354,8 @@ export function fieldsOf(schema: JsonMap | null | undefined): FieldDescriptor[] 
     return Object.entries(properties).flatMap(([name, raw]) => {
         if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return []
         const resolved = flatten(raw as JsonMap, defs)
-        const kind = kindOf(resolved.schema)
+        const holds = holdsOf(resolved.schema, defs)
+        const kind = holds.length > 0 ? 'pairs' : kindOf(resolved.schema)
         const fallback = resolved.schema.default
         return [
             {
@@ -297,13 +367,14 @@ export function fieldsOf(schema: JsonMap | null | undefined): FieldDescriptor[] 
                 fallback,
                 options: kind === 'select' ? optionsOf(resolved.schema) : [],
                 mediaType: stringAt(resolved.schema, 'contentMediaType'),
-                hint: hintOf(resolved.schema, resolved.branches),
+                hint: kind === 'pairs' ? pairsHint(holds) : hintOf(resolved.schema, resolved.branches),
                 placeholder: placeholderOf(resolved.schema, kind, fallback),
                 bounds: boundsOf(resolved.schema),
                 accepts:
                     resolved.branches.length > 1
                         ? resolved.branches.map((one) => ({ kind: kindOf(one), bounds: boundsOf(one) }))
                         : [],
+                holds,
             },
         ]
     })
@@ -384,9 +455,34 @@ function shapeProblem(field: FieldDescriptor, shape: BranchShape, value: unknown
             return typeof value === 'number' && Number.isFinite(value)
                 ? numberProblem(field, shape, value)
                 : `${field.name} is a number`
+        case 'pairs':
+            return mapProblem(field, value)
         case 'json':
             return null
     }
+}
+
+/**
+ * What is wrong with a whole map, or null.
+ *
+ * A REFERENCE STANDS FOR THE WHOLE FIELD. The document language lets `${...}` be written
+ * wherever a value goes, so a string here is that reference and nothing to refuse -- the same
+ * courtesy a map edited as JSON has always had.
+ */
+function mapProblem(field: FieldDescriptor, value: unknown): string | null {
+    if (typeof value === 'string') return null
+    if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+        return `${field.name} is a map, or a reference to one`
+    }
+    for (const [key, held] of Object.entries(value as JsonMap)) {
+        if (!fits(field.holds, held)) return `${field.name}.${key} is ${wordsOf(field.holds)}`
+    }
+    return null
+}
+
+/** Whether one entry's value is a shape the map holds. */
+function fits(holds: readonly FieldKind[], value: unknown): boolean {
+    return holds.some((kind) => typeMatches(kind, value) && (kind !== 'integer' || Number.isInteger(value)))
 }
 
 /** Whether a value already has the type a shape edits, whatever its bounds say. */
@@ -401,6 +497,8 @@ function typeMatches(kind: FieldKind, value: unknown): boolean {
             return typeof value === 'number'
         case 'switch':
             return typeof value === 'boolean'
+        case 'pairs':
+            return value !== null && typeof value === 'object' && !Array.isArray(value)
         case 'json':
             return true
     }
@@ -420,6 +518,8 @@ function wordFor(kind: FieldKind): string {
             return 'true or false'
         case 'select':
             return 'one of its options'
+        case 'pairs':
+            return 'a map'
         case 'json':
             return 'JSON'
     }
@@ -499,10 +599,118 @@ export function parseInput(field: FieldDescriptor, text: string): Parsed {
     }
 }
 
+/** One row of a `pairs` table: the key, and whatever text is in the value cell beside it. */
+export interface Pair {
+    key: string
+    text: string
+}
+
+/** What is wrong with one cell of a `pairs` table, so the row it is in can be marked. */
+export interface PairProblem {
+    /** Which row, counted from the top as the table draws them. */
+    row: number
+    where: 'key' | 'value'
+    message: string
+}
+
+/**
+ * The rows a map opens as: one per entry in the document's own order, then one blank row.
+ *
+ * THE TRAILING ROW IS WHERE THE NEXT PAIR IS TYPED, so a table always has one and an empty map
+ * is that row alone. A map of booleans starts its blank row at `false`, which is a value, so
+ * such a pair is written as soon as it is given a key.
+ */
+export function pairsOf(field: FieldDescriptor, value: unknown): Pair[] {
+    const held: JsonMap =
+        value !== null && typeof value === 'object' && !Array.isArray(value) ? (value as JsonMap) : {}
+    return pairRows(
+        field,
+        Object.entries(held).map(([key, one]) => ({ key, text: cellText(one) })),
+    )
+}
+
+/** The rows a table draws: the ones that were typed, and the blank row at the foot. */
+export function pairRows(field: FieldDescriptor, rows: readonly Pair[]): Pair[] {
+    const blank: Pair = { key: '', text: switchCell(field) ? 'false' : '' }
+    const last = rows.length === 0 ? undefined : rows[rows.length - 1]
+    const ends = last !== undefined && last.key === '' && last.text === blank.text
+    return ends ? [...rows] : [...rows, blank]
+}
+
+/** What a value cell shows for a value the document already carries. */
+function cellText(value: unknown): string {
+    return typeof value === 'string' ? value : (JSON.stringify(value) ?? '')
+}
+
+/** The reference a whole map field was written as, or null when the field holds a map. */
+export function pairsReference(value: unknown): string | null {
+    return typeof value === 'string' ? value : null
+}
+
+/**
+ * What a table of rows writes: the plain object, in the order the rows are in.
+ *
+ * A ROW IS A PAIR ONLY ONCE IT IS ONE. A row with no key, a row whose cell is empty, and a row
+ * whose cell is not a shape the map holds are all half-typed, so they contribute nothing rather
+ * than writing a key with no value into the document. A key written twice is written once, by
+ * the first row that carries it, and `pairProblems` is what marks the other.
+ */
+export function pairsValue(field: FieldDescriptor, rows: readonly Pair[]): JsonMap {
+    const written: JsonMap = {}
+    const seen = new Set<string>()
+    for (const row of rows) {
+        const key = row.key.trim()
+        if (key === '' || seen.has(key)) continue
+        seen.add(key)
+        const cell = parseCell(field, row.text)
+        if (!cell.ok || cell.value === undefined) continue
+        written[key] = cell.value
+    }
+    return written
+}
+
+/** Every cell of a table that is not a value, in the order a reader meets them. */
+export function pairProblems(field: FieldDescriptor, rows: readonly Pair[]): PairProblem[] {
+    const problems: PairProblem[] = []
+    const seen = new Set<string>()
+    rows.forEach((row, index) => {
+        const key = row.key.trim()
+        if (key !== '') {
+            if (seen.has(key)) {
+                problems.push({ row: index, where: 'key', message: `${field.name} carries ${key} twice` })
+            }
+            seen.add(key)
+        }
+        const cell = parseCell(field, row.text)
+        if (!cell.ok) problems.push({ row: index, where: 'value', message: cell.message })
+    })
+    return problems
+}
+
+/**
+ * Read one value cell as the value the document will carry.
+ *
+ * THE NARROWEST SHAPE THE MAP TAKES WINS. `http.request`'s `query` takes a string, an integer, a
+ * number or a boolean, and `2` in that box is the number 2 rather than the text "2" -- a query
+ * string is the same either way, and a map that also took text would otherwise never carry a
+ * number at all. Where the map takes text alone, `2` is the text "2" and nothing else.
+ */
+export function parseCell(field: FieldDescriptor, text: string): Parsed {
+    if (text.trim() === '') return { ok: true, value: undefined }
+    const reading = Number(text)
+    if (field.holds.includes('integer') && Number.isInteger(reading)) return { ok: true, value: reading }
+    if (field.holds.includes('number') && Number.isFinite(reading)) return { ok: true, value: reading }
+    if (field.holds.includes('switch') && (text === 'true' || text === 'false')) {
+        return { ok: true, value: text === 'true' }
+    }
+    if (field.holds.includes('text')) return { ok: true, value: text }
+    return { ok: false, message: `${field.name} values are ${wordsOf(field.holds)}` }
+}
+
 /** The default this field falls back to, as one line, or null when it declares none. */
 export function fallbackText(field: FieldDescriptor): string | null {
     if (field.fallback === undefined || field.fallback === null) return null
-    if (field.kind === 'json') return JSON.stringify(field.fallback) ?? null
+    if (jsonWritten(field.kind)) return JSON.stringify(field.fallback) ?? null
     return String(field.fallback)
 }
 
