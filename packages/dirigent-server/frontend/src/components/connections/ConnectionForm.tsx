@@ -26,7 +26,8 @@ import { maySubmit, validateFields, withUnreadable, type FieldDescriptor } from 
  * THE FORM IS THE KIND'S SCHEMA, the same way a step's form is its block's. A connection kind
  * publishes its config as a JSON Schema and the catalog carries it, so `lib/schema-form` reads
  * the fields and `SchemaForm` renders them -- a port is a number box, an enum is a select, a
- * mapping is JSON, and every bound the schema states is checked before anything is sent. A kind
+ * mapping of scalars is a key/value table, and every bound the schema states is checked before
+ * anything is sent. A kind
  * this instance no longer has installed publishes nothing, and the form falls back to the keys
  * the connection itself carries, because a credential outliving its plugin still has to be
  * readable and deletable.
@@ -236,6 +237,7 @@ function formFields(connection: ConnectionOut, schema: JsonMap | null): FieldDes
             placeholder: '',
             bounds: {},
             accepts: [],
+            holds: [],
         }))
 }
 

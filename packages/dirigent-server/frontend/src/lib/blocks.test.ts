@@ -88,6 +88,7 @@ function field(over: Partial<FieldDescriptor> = {}): FieldDescriptor {
         hint: null,
         bounds: {},
         accepts: [],
+        holds: [],
         ...over,
     }
 }
@@ -175,6 +176,7 @@ describe('the type a field takes', () => {
         expect(typeLabel(field({ kind: 'select' }))).toBe('enum')
         expect(typeLabel(field({ kind: 'integer' }))).toBe('integer')
         expect(typeLabel(field({ kind: 'json' }))).toBe('json')
+        expect(typeLabel(field({ kind: 'pairs', holds: ['text'] }))).toBe('map')
     })
 
     test('says so when the schema also allowed null', () => {

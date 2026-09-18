@@ -1,3 +1,4 @@
+import { X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { MarkdownLine } from '@/components/Markdown'
@@ -15,11 +16,19 @@ import {
     fallbackText,
     foldLabel,
     inputText,
+    optionLabel,
     optionToken,
+    pairProblems,
+    pairRows,
+    pairsOf,
+    pairsReference,
+    pairsValue,
     parseInput,
     partition,
     sameJson,
+    switchCell,
     type FieldDescriptor,
+    type Pair,
 } from '@/lib/schema-form'
 import { cn } from '@/lib/utils'
 
@@ -55,6 +64,14 @@ import { cn } from '@/lib/utils'
  * that opens them in place. The split is read from the values this form opened with, so a key
  * being filled in now does not jump over the fold under the hands typing it; choosing another
  * step is another form, and it opens folded again.
+ *
+ * A MAP OF SCALARS IS A TABLE OF PAIRS. A `pairs` field draws a key column and a value column,
+ * one row per entry in the document's own order, and a blank row at the foot to type the next
+ * pair into. What it writes is the plain object, so the document, a run's parameters and a
+ * connection's config all keep the shape they had. A key written twice marks its row and is not
+ * written until it is fixed, which shuts the caller's verb the same way unreadable text does.
+ * A field carrying a reference instead of a map is not a table at all: the reference is the text
+ * it was written as, said beside the label, and clearing the box brings the table back.
  *
  * THE TEXT IN A BOX IS THE BOX'S UNTIL IT PARSES. A control that re-read its value from the
  * document on every keystroke could not be typed a decimal point or a half-written JSON list
@@ -180,12 +197,17 @@ function Field({
     )
     const shown = unreadable ?? (stated ? problem : null)
     const fallback = fallbackText(field)
+    // A reference stands for the whole map, so there is a table to draw only when there is none.
+    const reference = field.kind === 'pairs' ? pairsReference(value) : null
+    // Whether one control carries the label's `for`. A pane and a table are not one control.
+    const single =
+        field.kind === 'pairs' ? reference !== null : field.kind !== 'code' && field.kind !== 'json'
 
     return (
         <div className="flex flex-col gap-1.5">
             <div className="flex flex-wrap items-baseline gap-x-2">
                 <Label
-                    htmlFor={field.kind === 'code' || field.kind === 'json' ? undefined : id}
+                    htmlFor={single ? id : undefined}
                     className={cn(
                         'font-mono text-sm font-medium',
                         field.required ? 'text-foreground' : 'text-muted-foreground',
@@ -194,7 +216,12 @@ function Field({
                     {field.name}
                 </Label>
                 {field.required && <span className="text-xs text-primary">required</span>}
-                {field.hint !== null && <span className="text-xs text-faint">{field.hint}</span>}
+                {/* A field written as a reference is not a table, so what a cell would take is
+                    not what this field is about. */}
+                {field.hint !== null && reference === null && (
+                    <span className="text-xs text-faint">{field.hint}</span>
+                )}
+                {reference !== null && <span className="text-xs text-faint">a reference, not a table</span>}
                 {fallback !== null && <span className="text-xs text-faint">default {fallback}</span>}
             </div>
             <Control
@@ -273,9 +300,17 @@ function Control({
                 }}
             >
                 <SelectTrigger id={id} size="sm" className="w-full" aria-invalid={invalid} onBlur={onTouch}>
-                    <SelectValue
-                        placeholder={field.fallback === undefined ? 'unset' : String(field.fallback)}
-                    />
+                    {/* The trigger draws the choice as the option reads rather than the token it
+                        is addressed by, which is JSON and would put `GET` in quotes. */}
+                    <SelectValue>
+                        {() =>
+                            chosen === undefined
+                                ? field.fallback === undefined
+                                    ? 'unset'
+                                    : optionLabel(field.fallback)
+                                : chosen.label
+                        }
+                    </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                     {field.options.map((option) => (
@@ -285,6 +320,36 @@ function Control({
                     ))}
                 </SelectContent>
             </Select>
+        )
+    }
+    if (field.kind === 'pairs') {
+        const reference = pairsReference(value)
+        if (reference !== null) {
+            return (
+                <Input
+                    id={id}
+                    className="font-mono"
+                    spellCheck={false}
+                    disabled={disabled}
+                    aria-invalid={invalid}
+                    value={reference}
+                    onBlur={onTouch}
+                    onChange={(event) => {
+                        const next = event.target.value
+                        onChange(next.trim() === '' ? undefined : next)
+                    }}
+                />
+            )
+        }
+        return (
+            <PairsTable
+                field={field}
+                value={value}
+                disabled={disabled}
+                onChange={onChange}
+                onUnreadable={onUnreadable}
+                onTouch={onTouch}
+            />
         )
     }
     return (
@@ -299,6 +364,160 @@ function Control({
             onTouch={onTouch}
         />
     )
+}
+
+/**
+ * A map of scalars, edited as the two-column table it is.
+ *
+ * THE ROWS ARE THE TABLE'S AND THE DOCUMENT GETS THE OBJECT. A half-typed row -- a key with no
+ * value, a value with no key -- is on screen but not in the document, so the rows are held here
+ * and `pairsValue` is what the document is written from. A map with nothing left in it removes
+ * its key rather than writing `{}`, which is the rule every other control here follows.
+ *
+ * A CELL THAT IS NOT A VALUE AND A KEY WRITTEN TWICE ARE THE SAME REFUSAL. Both mark the cell
+ * and go out through `onUnreadable`, because in both cases the document carries something other
+ * than what is on screen and the caller's verb has to stay shut until it does not.
+ */
+function PairsTable({
+    field,
+    value,
+    disabled,
+    onChange,
+    onUnreadable,
+    onTouch,
+}: {
+    field: FieldDescriptor
+    value: unknown
+    disabled: boolean
+    onChange: (value: unknown) => void
+    onUnreadable: (message: string | null) => void
+    onTouch: () => void
+}) {
+    const [rows, setRows] = useState<Pair[]>(() => pairsOf(field, value))
+    // What this table last wrote, compared as JSON: a value that arrived from anywhere else --
+    // the source pane, another step being chosen -- is what the rows are re-seeded from.
+    const written = useRef<unknown>(value)
+
+    useEffect(() => {
+        if (sameJson(value, written.current)) return
+        written.current = value
+        setRows(pairsOf(field, value))
+        onUnreadable(null)
+        // `onUnreadable` is a setState and stable; re-seeding on it would fight the typing.
+        // oxlint-disable-next-line react/exhaustive-deps
+    }, [field, value])
+
+    const problems = pairProblems(field, rows)
+    const marked = (row: number, where: 'key' | 'value') =>
+        problems.some((one) => one.row === row && one.where === where)
+
+    const put = (next: readonly Pair[]) => {
+        const grown = pairRows(field, next)
+        setRows(grown)
+        const wrong = pairProblems(field, grown)
+        onUnreadable(wrong.length === 0 ? null : wrong[0].message)
+        const map = pairsValue(field, grown)
+        const carried = Object.keys(map).length === 0 ? undefined : map
+        written.current = carried
+        onChange(carried)
+    }
+
+    const change = (index: number, part: Partial<Pair>) => {
+        put(rows.map((row, at) => (at === index ? { ...row, ...part } : row)))
+    }
+
+    return (
+        <table className="w-full table-fixed" aria-label={field.name}>
+            <thead>
+                <tr>
+                    <th
+                        scope="col"
+                        className="w-2/5 pr-1.5 text-left text-xs font-normal text-muted-foreground"
+                    >
+                        key
+                    </th>
+                    <th scope="col" className="pr-1.5 text-left text-xs font-normal text-muted-foreground">
+                        value
+                    </th>
+                    <th scope="col" className="w-6">
+                        <span className="sr-only">remove</span>
+                    </th>
+                </tr>
+            </thead>
+            <tbody>
+                {rows.map((row, index) => (
+                    // The rows are a list somebody is typing into and every cell is controlled
+                    // from `rows`, so the position is the identity.
+                    // oxlint-disable-next-line react/no-array-index-key
+                    <tr key={index}>
+                        <td className="pt-1 pr-1.5 align-middle">
+                            <Input
+                                className="font-mono"
+                                spellCheck={false}
+                                disabled={disabled}
+                                aria-invalid={marked(index, 'key')}
+                                aria-label={`${field.name} key ${String(index + 1)}`}
+                                placeholder="key"
+                                value={row.key}
+                                onBlur={onTouch}
+                                onChange={(event) => {
+                                    change(index, { key: event.target.value })
+                                }}
+                            />
+                        </td>
+                        <td className="pt-1 pr-1.5 align-middle">
+                            {switchCell(field) ? (
+                                <Switch
+                                    disabled={disabled}
+                                    aria-label={`${field.name} value ${String(index + 1)}`}
+                                    checked={row.text === 'true'}
+                                    onBlur={onTouch}
+                                    onCheckedChange={(checked) => {
+                                        change(index, { text: checked ? 'true' : 'false' })
+                                    }}
+                                />
+                            ) : (
+                                <Input
+                                    className="font-mono"
+                                    spellCheck={false}
+                                    disabled={disabled}
+                                    aria-invalid={marked(index, 'value')}
+                                    aria-label={`${field.name} value ${String(index + 1)}`}
+                                    placeholder="value"
+                                    value={row.text}
+                                    onBlur={onTouch}
+                                    onChange={(event) => {
+                                        change(index, { text: event.target.value })
+                                    }}
+                                />
+                            )}
+                        </td>
+                        <td className="pt-1 align-middle">
+                            {index < rows.length - 1 && (
+                                <Button
+                                    variant="ghost"
+                                    size="icon-xs"
+                                    disabled={disabled}
+                                    aria-label={removeLabel(field.name, row, index)}
+                                    onClick={() => {
+                                        put(rows.filter((_, at) => at !== index))
+                                    }}
+                                >
+                                    <X className="size-3" aria-hidden />
+                                </Button>
+                            )}
+                        </td>
+                    </tr>
+                ))}
+            </tbody>
+        </table>
+    )
+}
+
+/** What the remove control on one row is called, which is the pair it takes away. */
+function removeLabel(name: string, row: Pair, index: number): string {
+    const key = row.key.trim()
+    return key === '' ? `Remove row ${String(index + 1)} from ${name}` : `Remove ${key} from ${name}`
 }
 
 /** A box holding its own text, which reaches the document only once what is in it is a value. */
