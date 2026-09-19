@@ -1,6 +1,6 @@
 [project]
 name = "dirigent-client"
-version = "0.16.6"
+version = "0.16.7"
 description = "The dirigent API contract: typed wire schemas and an async Python client."
 readme = "README.md"
 requires-python = ">=3.13"
@@ -11,7 +11,7 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    "dirigent-common==0.16.6",
+    "dirigent-common==0.16.7",
     "httpx2>=2.12.0",
     "pydantic>=2.13.5",
     "pyyaml>=6.0.3",

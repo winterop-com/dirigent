@@ -48,7 +48,7 @@ uv sync
 ```
 
 ```text
-2026-09-19T14:45:19.340+02:00 [info    ] initialised                    [instance.initialised] directory=/home/you/basics state=.dirigent/state schema=0001_baseline admin=admin template=local version=0.16.5
+2026-09-20T00:00:26.319+02:00 [info    ] initialised                    [instance.initialised] directory=/home/you/basics state=.dirigent/state schema=0001_baseline admin=admin template=local version=0.16.7
 ```
 
 It creates the state directory, migrates the schema, creates the first admin, and mints that
@@ -312,7 +312,7 @@ uv run dg runs show 01a0ad18-60eb-7566-8497-7f16384117ed --json \
 The query arguments came back under `args`, with the parameter's default in `station`. The same
 run is on the Runs screen of the UI, and choosing a step opens what it produced:
 
-![A run in the UI: one step named ask, succeeded in 279 milliseconds, its output showing the echoed args.](images/basics/run-first.png)
+![A run in the UI: one step named ask, succeeded in 356 milliseconds, its output showing the echoed args.](images/basics/run-first.png)
 
 *The run's only step, its one attempt, and the answer it stored.*
 
@@ -518,6 +518,13 @@ steps
 ![The Schemas screen with the echo-reading schema selected, its JSON shown beside the list.](images/basics/schemas.png)
 
 *The shape the instance now holds. Any pipeline on this instance may gate on it by code.*
+
+The step's `schema` box shows the same shape: the code it names opens to the body the instance
+holds.
+
+![The pipeline editor with the check step selected, its schema box opened to the body of echo-reading.](images/basics/step-check.png)
+
+*The code in the box, the shape behind it, and a link to the row it came from.*
 
 ## 5. The send
 
@@ -736,7 +743,7 @@ uv run dg run echo-failures --watch
 
 *One attempt, with three allowed. A rejected failure never touches the budget.*
 
-![The same run with the unlucky step selected: three attempts, each one transient, eight seconds from the first to the last.](images/basics/run-retried.png)
+![The same run with the unlucky step selected: three attempts, each one transient, seven seconds from the first to the last.](images/basics/run-retried.png)
 
 *The same budget, spent. Every attempt is a row of its own, with its own resolved config and its own logs, which is what makes a retry auditable rather than a counter.*
 

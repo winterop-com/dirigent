@@ -16,6 +16,28 @@ tag is what publishes: `.github/workflows/release.yaml` builds every package and
 to PyPI through trusted publishing, then builds the image from that commit and pushes it as
 `<version>` and `latest`. The two sibling repositories then relock against the tag and bump.
 
+## 0.16.7
+
+Released 2026-09-20. Every package in the workspace moves to 0.16.7 together.
+
+- **A field that names a thing shows the thing.** A block's config schema now says when a
+  string holds the code of a connection or a schema: `ConnectionRef` and the new `SchemaRef`
+  in `dirigent-plugin` publish `x-dirigent-ref`, and both stay plain strings to every
+  validator. Under such a field the step panel draws one shut row: a schema the document
+  carries opens to its body and says so, one the instance holds opens to its body and links
+  to its screen, a connection reads its kind and its last check and links to its screen, and
+  a code nothing holds is one muted line. `validate.schema` and `http.request` adopt the
+  aliases; every other built-in connection field already carried `ConnectionRef`. A pack
+  that types its connection fields `ConnectionRef` gets the row for free.
+- **A chosen schema or connection is an address.** `/schemas/<code>` and
+  `/connections/<code>` open that screen on the row with its panel filled, and choosing a
+  row writes its code into the URL, the way Pipelines already works.
+- **The schema editor knows what it holds.** The New schema dialog edits against the JSON
+  Schema 2020-12 meta-schema: keywords complete as they are typed and a value the draft does
+  not take is marked where it was written. Nothing is fetched; the meta-schema ships with the
+  bundle. The editor gains its suggest controller, so document panes complete against the
+  instance's document schema too.
+
 ## 0.16.6
 
 Released 2026-09-19. Every package in the workspace moves to 0.16.6 together.
