@@ -36,6 +36,11 @@ export function readSchemas(after: string | null = null): Promise<Page<SchemaOut
     return apiJson<Page<SchemaOut>>(`/schemas?${query.toString()}`)
 }
 
+/** Read one schema by the code it is addressed by. */
+export function readSchema(code: string): Promise<SchemaOut> {
+    return apiJson<SchemaOut>(`/schemas/${encodeURIComponent(code)}`)
+}
+
 /** Store a JSON Schema, letting the server take its identity from the schema's own keywords. */
 export function createSchema(body: JsonMap, code: string | null): Promise<SchemaOut> {
     const payload: JsonMap = { body }

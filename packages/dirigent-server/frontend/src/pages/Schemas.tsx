@@ -1,5 +1,6 @@
 import { FileJson, RefreshCw } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate, useParams } from 'react-router'
 
 import { ApiChip } from '@/components/ApiChip'
 import { Description } from '@/components/Description'
@@ -12,11 +13,12 @@ import { NewSchema } from '@/components/schemas/NewSchema'
 import { Button } from '@/components/ui/button'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { usePaged } from '@/hooks/use-paged'
+import { useRead } from '@/hooks/use-read'
 import { headingOf, oneLine } from '@/lib/identity'
 import { LIST_GROUP, registerActions } from '@/lib/palette'
 import { fillPanel, openPanel } from '@/lib/panels'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
-import { deleteSchema, readSchemas, schemasNote, type SchemaOut } from '@/lib/schemas'
+import { deleteSchema, readSchema, readSchemas, schemasNote, type SchemaOut } from '@/lib/schemas'
 
 const schemaId = (row: SchemaOut) => row.code
 
@@ -28,16 +30,34 @@ const schemaId = (row: SchemaOut) => row.code
  * anywhere. Its code, title and description are the schema's own `$id`, `title` and
  * `description`, so a row reads the same quartet every other screen reads.
  *
+ * THE CHOSEN ROW IS THE ADDRESS. `/schemas/<code>` is this screen with that schema in the panel,
+ * so a shape somebody is reading is a link they can send -- and a code past the pages read so far
+ * is read on its own rather than made to depend on where its row happens to fall.
+ *
  * THE BODY IS THE SCHEMA. Opening a row shows the schema itself, coloured, with the window the
  * step panel uses -- a schema is JSON, and the reader wants to read it.
  */
 export function Schemas() {
-    const [chosen, setChosen] = useState<string | null>(null)
+    const { code: chosen = null } = useParams()
+    const navigate = useNavigate()
     const [creating, setCreating] = useState(false)
     const { state, more, reload } = usePaged(readSchemas, schemaId)
 
     const rows = state.rows
-    const open = rows.find((row) => row.code === chosen) ?? null
+    const listed = rows.find((row) => row.code === chosen) ?? null
+    // A code the walk has not reached, read on its own. A 404 answers nothing and the panel
+    // stays shut, which is what an address naming no schema should do.
+    const ask = useCallback(
+        () => (chosen === null || listed !== null ? Promise.resolve(null) : readSchema(chosen)),
+        [chosen, listed],
+    )
+    const alone = useRead(ask)
+    const open = listed ?? alone.value
+
+    // The address is the selection, so a link straight to a schema opens the panel it names.
+    useEffect(() => {
+        if (chosen !== null) openPanel()
+    }, [chosen])
 
     useEffect(() => {
         const note = schemasNote(rows)
@@ -137,8 +157,8 @@ export function Schemas() {
                     onMore={more}
                     noun="schemas"
                     onSelect={(row) => {
-                        setChosen(row.code)
-                        openPanel()
+                        // The row is not another page of history: it is which one is being read.
+                        void navigate(`/schemas/${encodeURIComponent(row.code)}`, { replace: true })
                     }}
                     selected={(row) => row.code === chosen}
                 />

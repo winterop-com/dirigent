@@ -1,5 +1,6 @@
 import { PlugZap, RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { useNavigate, useParams } from 'react-router'
 
 import { ApiChip } from '@/components/ApiChip'
 import { ConnectionForm } from '@/components/connections/ConnectionForm'
@@ -12,10 +13,12 @@ import { sayRefusal } from '@/components/Refusal'
 import { Button } from '@/components/ui/button'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { usePaged } from '@/hooks/use-paged'
+import { useRead } from '@/hooks/use-read'
 import {
     checkConnection,
     connectionsNote,
     healthOf,
+    readConnection,
     readConnectionKinds,
     readConnections,
     settingsSummary,
@@ -41,6 +44,10 @@ const TONES: Record<'good' | 'critical', string> = { good: 'var(--good)', critic
  * `settingsSummary` is written so that a config which somehow did carry one still could not put
  * it in the row. What a reader learns about a credential is that it is set, and nothing else.
  *
+ * THE CHOSEN ROW IS THE ADDRESS. `/connections/<code>` is this screen with that credential's form
+ * in the panel, so a step's connection is one link away from the step naming it -- and a code past
+ * the pages read so far is read on its own rather than made to depend on where its row falls.
+ *
  * A CHECK IS A WRITE, AND THE ROW IS WHAT IT ANSWERS. `POST /connections/{code}/$check` opens
  * the credential, asks the external system, and records the three fields the health column
  * draws -- so the row is updated from the report rather than by reading the listing again, and
@@ -51,7 +58,8 @@ const TONES: Record<'good' | 'critical', string> = { good: 'var(--good)', critic
  * at the listing never asks for it: opening a row or the dialog is what does.
  */
 export function Connections() {
-    const [chosen, setChosen] = useState<string | null>(null)
+    const { code: chosen = null } = useParams()
+    const navigate = useNavigate()
     const [creating, setCreating] = useState(false)
     // What a check or a save has since made of a row, over the page it was read on.
     const [fresher, setFresher] = useState<Record<string, ConnectionOut>>({})
@@ -61,7 +69,22 @@ export function Connections() {
     const { state, more, reload } = usePaged(readConnections, connectionId)
 
     const rows = useMemo(() => state.rows.map((row) => fresher[row.code] ?? row), [fresher, state.rows])
-    const open = rows.find((row) => row.code === chosen) ?? null
+    const listed = rows.find((row) => row.code === chosen) ?? null
+    // A code the walk has not reached, read on its own. A 404 answers nothing and the panel
+    // stays shut, which is what an address naming no connection should do.
+    const ask = useCallback(
+        () => (chosen === null || listed !== null ? Promise.resolve(null) : readConnection(chosen)),
+        [chosen, listed],
+    )
+    const alone = useRead(ask)
+    const read = alone.value
+    // A row read on its own takes what a check or a save has since made of it, as a listed one does.
+    const open = listed ?? (read === null ? null : (fresher[read.code] ?? read))
+
+    // The address is the selection, so a link straight to a connection opens the panel it names.
+    useEffect(() => {
+        if (chosen !== null) openPanel()
+    }, [chosen])
 
     const held = useCallback((row: ConnectionOut) => {
         setFresher((current) => ({ ...current, [row.code]: row }))
@@ -207,8 +230,8 @@ export function Connections() {
                     onMore={more}
                     noun="connections"
                     onSelect={(row) => {
-                        setChosen(row.code)
-                        openPanel()
+                        // The row is not another page of history: it is which one is being read.
+                        void navigate(`/connections/${encodeURIComponent(row.code)}`, { replace: true })
                     }}
                     selected={(row) => row.code === chosen}
                 />

@@ -1,7 +1,8 @@
-import { ChevronRight, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { Fragment, useMemo, useState, type ReactNode } from 'react'
 
 import { KindChip } from '@/components/KindChip'
+import { Disclosure } from '@/components/pipeline/Disclosure'
 import { SchemaForm } from '@/components/pipeline/SchemaForm'
 import { Section } from '@/components/run/Panel'
 import { Button } from '@/components/ui/button'
@@ -10,6 +11,8 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { JsonMap, Problem } from '@/lib/api'
 import type { BlockEntry } from '@/lib/blocks'
+import type { ConnectionOut } from '@/lib/connections'
+import type { SchemaOut } from '@/lib/schemas'
 import {
     blockOf,
     changeDocument,
@@ -35,7 +38,6 @@ import {
     withRetryKey,
     withStepKey,
 } from '@/lib/step-keys'
-import { cn } from '@/lib/utils'
 
 export const ADD_DEPENDENCY_LABEL = 'Add a prerequisite'
 
@@ -54,6 +56,10 @@ export const ADD_DEPENDENCY_LABEL = 'Add a prerequisite'
  * THE CONFIG OPENS ON WHAT THE STEP NEEDS. A block may publish twenty keys and take two, so the
  * form draws what the schema requires and what this step already sets, and offers the rest behind
  * one link.
+ *
+ * A CONFIG FIELD THAT NAMES A THING SHOWS IT. The listings this panel is handed go to the config
+ * form, where a field the block's schema marked as holding a connection's or a schema's code
+ * draws that thing under the box. The engine groups take none: none of their keys names one.
  *
  * A SHUT GROUP STILL SAYS WHAT WOULD RUN. Its line carries the values the document sets in body
  * ink and the defaults it leaves alone in muted ink, so a reader sees the whole of the step's
@@ -84,6 +90,8 @@ export function StepTab({
     document,
     block,
     blockProblem,
+    schemas,
+    connections,
     disabled,
     onConfig,
     onDependsOn,
@@ -95,6 +103,10 @@ export function StepTab({
     block: BlockEntry | null
     /** Why the block could not be read, such as a plugin this instance does not have. */
     blockProblem: Problem | null
+    /** Every schema this instance holds, or null while the listing is being read. */
+    schemas: SchemaOut[] | null
+    /** Every connection this instance holds, or null while the listing is being read. */
+    connections: ConnectionOut[] | null
     /** Why nothing on this form may be edited, or nothing when it may. */
     disabled?: string
     onConfig: (config: JsonMap) => void
@@ -154,6 +166,7 @@ export function StepTab({
                         problems={problems}
                         disabled={disabled}
                         fold
+                        references={{ document, schemas, connections }}
                         onChange={(name, value) => {
                             const next = { ...config }
                             if (value === undefined) delete next[name]
@@ -273,29 +286,15 @@ function Group({
     onToggle: (() => void) | null
     children: ReactNode
 }) {
-    const row = (
-        <>
-            <ChevronRight className={cn('size-3 shrink-0 self-center', open && 'rotate-90')} aria-hidden />
-            <span className="shrink-0 text-sm font-medium">{group.title}</span>
-            {!open && <Summary parts={group.summary} chips={group.chips} />}
-        </>
-    )
     return (
-        <div>
-            {onToggle === null ? (
-                <div className="flex w-full items-baseline gap-2 py-1.5">{row}</div>
-            ) : (
-                <button
-                    type="button"
-                    aria-expanded={open}
-                    onClick={onToggle}
-                    className="row-hover flex w-full items-baseline gap-2 rounded-sm py-1.5 text-left"
-                >
-                    {row}
-                </button>
-            )}
-            {open && <div className="my-1 ml-5 border-l border-primary py-1 pl-3">{children}</div>}
-        </div>
+        <Disclosure
+            title={group.title}
+            summary={<Summary parts={group.summary} chips={group.chips} />}
+            open={open}
+            onToggle={onToggle}
+        >
+            {children}
+        </Disclosure>
     )
 }
 

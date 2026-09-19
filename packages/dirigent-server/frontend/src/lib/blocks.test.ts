@@ -85,6 +85,7 @@ function field(over: Partial<FieldDescriptor> = {}): FieldDescriptor {
         fallback: undefined,
         options: [],
         mediaType: null,
+        refers: null,
         hint: null,
         bounds: {},
         accepts: [],
