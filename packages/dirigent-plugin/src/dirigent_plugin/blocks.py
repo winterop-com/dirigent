@@ -132,14 +132,8 @@ class ShellString:
 class Reference:
     """Marks a config field whose value is the code of another thing this instance holds.
 
-    A string that names a connection or a schema is not the same as a string that holds a URL:
-    the code addresses something a reader can be shown and can open. The block knows which, and
-    nothing downstream can work it out from a closed schema, so the field says so itself.
-
     It publishes ``x-dirigent-ref`` carrying what the code names, and a form generated from the
-    schema draws that thing under the field.
-
-    It is a bare class rather than a model, for the reason :class:`ShellString` is: annotation
+    schema draws that thing under the field. It is a bare class rather than a model: annotation
     metadata pydantic recognises as a model would be read as the field's schema, and a marker
     must stay invisible to validation.
     """
