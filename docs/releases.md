@@ -16,6 +16,18 @@ tag is what publishes: `.github/workflows/release.yaml` builds every package and
 to PyPI through trusted publishing, then builds the image from that commit and pushes it as
 `<version>` and `latest`. The two sibling repositories then relock against the tag and bump.
 
+## 0.16.6
+
+Released 2026-09-19. Every package in the workspace moves to 0.16.6 together.
+
+- **A project's `.env` is a settings layer.** Every command run in a project directory reads
+  `DIRIGENT_*` settings from its `.env`, after the environment and before `dirigent.yaml`, the
+  way the `local` profile already read `DG_TOKEN` from it. `dg init --template local` writes
+  `DIRIGENT_SECRET_KEY` there beside the token, so a new project starts with the key its
+  instance seals connection secrets with and a restart keeps it; the export step is gone from
+  the getting-started page and the basics tutorial. A stack's `.env` is still the file compose
+  reads, and the containers get it as environment.
+
 ## 0.16.5
 
 Released 2026-09-19. Every package in the workspace moves to 0.16.5 together.
