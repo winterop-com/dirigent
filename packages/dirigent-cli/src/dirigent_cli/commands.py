@@ -62,7 +62,7 @@ from dirigent_cli.project import (
     check_choices,
     find_project,
     scaffold,
-    write_token_env,
+    write_instance_env,
 )
 from dirigent_cli.scaffold import ScaffoldedRecord, ScaffoldError, ScaffoldRecord, scaffold_pack
 from dirigent_cli.sources import (
@@ -537,9 +537,10 @@ def init_command(
     stack's services, packs, and the first admin. The flags answer the same questions for a
     script. `--template local` writes the documents and a `pyproject.toml` pinning the running
     dirigent, then creates the state directory, migrates the schema, creates the first admin
-    and mints it a token, kept in `.env`. `--template compose` writes the documents and a
-    container stack instead, and initialises nothing locally: the instance is the containers.
-    `--template documents` writes the documents alone, against an instance somebody else runs.
+    and mints it a token and a secret key, both kept in `.env`. `--template compose` writes the
+    documents and a container stack instead, and initialises nothing locally: the instance is
+    the containers. `--template documents` writes the documents alone, against an instance
+    somebody else runs.
     """
     import asyncio
 
@@ -616,7 +617,7 @@ def init_command(
     migrated = migrations.head_revision(settings) or "none"
     migrations.upgrade("head", settings)
     token = asyncio.run(first_admin(settings, choices.admin, choices.password))
-    env_file = write_token_env(root, token)
+    env_file = write_instance_env(root, token)
     emit_fact(
         "instance.initialised",
         message="initialised",

@@ -1,4 +1,4 @@
-"""Layered configuration: defaults, a YAML file, then DIRIGENT_-prefixed environment variables."""
+"""Layered configuration: defaults, a YAML file, a ``.env``, then DIRIGENT_-prefixed variables."""
 
 import json
 import os
@@ -19,6 +19,10 @@ from pydantic_settings import (
 from dirigent_common import Duration, EntityName, Size
 
 CONFIG_FILE_ENV = "DIRIGENT_CONFIG_FILE"
+
+#: The project file that carries an instance's own variables, read from the working
+#: directory. A command run elsewhere does not see it.
+ENV_FILE = ".env"
 
 #: Connections a worker process needs beyond its in-flight block calls: one for the lease
 #: heartbeat, one for the sweeper, one for the alert loop, and one spare so that none of the
@@ -81,6 +85,10 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="DIRIGENT_",
         env_nested_delimiter="__",
+        env_file=ENV_FILE,
+        env_file_encoding="utf-8",
+        # A project's .env carries DG_TOKEN and a stack's own variables beside the settings,
+        # and none of those name a field here.
         extra="ignore",
         frozen=True,
         # Each field's docstring becomes its description, which is what the generated
@@ -408,7 +416,7 @@ class Settings(BaseSettings):
         dotenv_settings: PydanticBaseSettingsSource,
         file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[PydanticBaseSettingsSource, ...]:
-        """Order the layers: explicit arguments, then environment, then the YAML file."""
+        """Order the layers: explicit arguments, the environment, the ``.env``, then the YAML file."""
         yaml_settings = YamlConfigSettingsSource(settings_cls, yaml_file=candidate_config_paths())
         return (init_settings, env_settings, dotenv_settings, yaml_settings)
 

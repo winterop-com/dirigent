@@ -180,7 +180,10 @@ uv run dg run report-to-file --watch
 `.dirigent/state/`, migrates the schema, creates the first admin, and mints it one token. The
 token goes into the project's `.env`, readable by you alone and kept out of git, and the
 `local` profile in `.dirigent/profiles.yaml` reads it from there whenever the shell does not
-export `DG_TOKEN` -- so nothing has to be pasted. `uv sync` builds the project's environment
+export `DG_TOKEN` -- so nothing has to be pasted. A generated `DIRIGENT_SECRET_KEY` goes in
+beside it, because that `.env` is a settings layer as well: every command run in this
+directory, `dg dev` included, seals connection secrets under that key, and an instance started
+under a different one cannot open what it stored. `uv sync` builds the project's environment
 from the `pyproject.toml` it wrote, which pins the dirigent that scaffolded it -- so every
 `uv run dg` below is that runtime rather than whatever is on the path.
 `dg dev` then runs what it made, and serves the UI at `http://127.0.0.1:3333`. Never

@@ -498,10 +498,17 @@ for its connection. It does not happen when a connection is listed, shown, or ap
 ### Where the key comes from
 
 `DIRIGENT_SECRET_KEY`, and nothing else. Per twelve-factor, it is configuration in the
-environment: an environment variable, or a value in the `dirigent.yaml` the process reads at
-boot. **Dirigent assumes no secret manager.** There is no KMS integration, no Vault client, no
+environment: an environment variable, a line in the `.env` of the directory the process runs
+in, or a value in the `dirigent.yaml` it reads at boot, in that order of precedence.
+**Dirigent assumes no secret manager.** There is no KMS integration, no Vault client, no
 key-fetch hook. If your platform provides secrets, its job is to put this variable in the
 process environment before dirigent starts; dirigent does not reach out for it.
+
+`dg init --template local` writes a generated key into the project's `.env`, which that
+project's `.gitignore` keeps out of the repository and whose mode is owner-only, so a local
+instance seals credentials from its first command with nothing exported. A stack keeps its key
+the other way round: it is in the `.env` compose reads, and compose passes it into each
+container's environment.
 
 The value may be either a real Fernet key or an arbitrary passphrase. A well-formed Fernet key
 is used as-is, which is what `dg secret-key` mints:

@@ -76,7 +76,9 @@ Precedence is `--url` / `--token` flags, then `DG_URL` / `DG_TOKEN`, then the se
 profile. A `.env` at the root of the project, beside `.dirigent/`, stands in for any of these
 variables the shell does not set, including the one a `token_env` names: that is where
 `dg init` puts the token it mints, and where a `DG_STAGING_TOKEN` for the profile above can
-live too. The shell's own value always wins over the file's.
+live too. The shell's own value always wins over the file's. The same file is the settings
+layer under the environment, which is how the `DIRIGENT_SECRET_KEY` beside that token reaches
+every command run in the project directory.
 
 A profile holds a URL and a token, and nothing else. It never holds a database URL, and one
 that names a database scheme is refused on sight: a CLI that could reach the database would
@@ -86,7 +88,7 @@ configuration planes and this is only the first of them:
 | Plane | Holds | Lives |
 | --- | --- | --- |
 | Profiles | A server URL, and how to get a token | Beside you, in a project or `~/.config` |
-| Server settings | `DIRIGENT_DATABASE_URL`, `DIRIGENT_SECRET_KEY`, the artifact root | On the host running the server and the workers |
+| Server settings | `DIRIGENT_DATABASE_URL`, `DIRIGENT_SECRET_KEY`, the artifact root | The environment, the project's `.env`, or `dirigent.yaml`, on the host running the server and the workers |
 | Connections | Third-party credentials | Encrypted inside the server's database |
 
 ## Seeing a pipeline's shape
@@ -169,8 +171,10 @@ and the defaults are `local` with S3 on the stack.
 `--template local` initialises an instance: it writes the documents, creates `.dirigent/state/`,
 migrates the schema, creates the first admin and mints it one token. The token is shown once,
 and written to the project's `.env` with owner-only permissions, where the `local` profile
-reads it whenever the shell does not export `DG_TOKEN`. Give the password with `--password`,
-or `DIRIGENT_BOOTSTRAP_ADMIN_PASSWORD` where there is nothing to prompt.
+reads it whenever the shell does not export `DG_TOKEN`. A generated `DIRIGENT_SECRET_KEY` goes
+into that same file: a `.env` is a settings layer, so the instance seals connection secrets
+under that key from its first command, with nothing to export. Give the password with
+`--password`, or `DIRIGENT_BOOTSTRAP_ADMIN_PASSWORD` where there is nothing to prompt.
 
 `--service` names what the stack carries beside PostgreSQL, the migration, the server and the
 worker, and may repeat: `s3` (object storage, on unless the flag says otherwise; off means
@@ -223,9 +227,9 @@ dg dev --seed examples --seed ../pack/examples # two corpora, in that order
 dg dev --wipe-state --seed-installed           # every installed corpus, the packs' included
 ```
 
-What it makes is one person's instance on one machine -- SQLite on this disk, and no secret
-key, so a connection carrying a credential cannot be stored until `DIRIGENT_SECRET_KEY` is
-set. A real server is the compose stack.
+What it makes is one person's instance on one machine -- SQLite on this disk, with its key in
+the project's `.env`, and no process to reach it from anywhere else. A real server is the
+compose stack.
 
 `--template compose` writes that stack instead: the same documents plus `compose.yaml`, a
 `Dockerfile`, a `.env` holding a generated `DIRIGENT_SECRET_KEY` and the password it was

@@ -48,7 +48,7 @@ uv sync
 ```
 
 ```text
-2026-09-17T03:58:18.061+02:00 [info    ] initialised                    [instance.initialised] directory=/home/you/basics state=.dirigent/state schema=0001_baseline admin=admin template=local version=0.16.1
+2026-09-19T14:45:19.340+02:00 [info    ] initialised                    [instance.initialised] directory=/home/you/basics state=.dirigent/state schema=0001_baseline admin=admin template=local version=0.16.5
 ```
 
 It creates the state directory, migrates the schema, creates the first admin, and mints that
@@ -57,25 +57,25 @@ reads it. Nothing has to be pasted anywhere. `uv sync` then builds the project's
 from the `pyproject.toml` it wrote, so every `uv run dg` below is the runtime this project
 pins rather than whatever is on the path.
 
-The last line it prints is the one that matters next:
+The last lines it prints are about the other thing it wrote into that `.env`:
 
 ```text
-No DIRIGENT_SECRET_KEY is set, so a connection carrying a credential cannot be
-stored until it is.
+DIRIGENT_SECRET_KEY is in .env beside it, and every command run in
+this directory reads it: it is what connection secrets are sealed with, and
+under another key the instance cannot open what it stored.
 ```
 
-Nothing on this page stores a credential, so nothing here strictly needs a key. Mint one
-anyway and start the instance with it, in a second terminal, in this directory -- the moment
-you store your first connection the instance will want one, and an instance that changes its
-key cannot read what it stored under the old one:
+A project's `.env` is a settings layer, so that key is in force for every command run in this
+directory, `dg dev` included, and there is nothing to export. Keep the file: a connection
+secret is sealed under the key that was set when it was stored, and an instance running under
+a different key cannot open it. Nothing on this page stores a credential, but the instance is
+ready for the moment you do.
+
+Start the instance in a second terminal, in this directory:
 
 ```bash
-export DIRIGENT_SECRET_KEY="$(uv run dg secret-key)"
 uv run dg dev
 ```
-
-`dg secret-key` mints a key and writes it as a single plain line, terminal or pipe alike,
-which is what makes that substitution work.
 
 `dg dev` is one process holding the API, the web UI, the scheduler, one worker and a SQLite
 file under `.dirigent/state/`. It keeps running; leave it. The UI is at

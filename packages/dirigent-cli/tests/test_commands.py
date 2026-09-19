@@ -21,7 +21,7 @@ from dirigent_cli.main import app, dev_admin, hoist_globals
 from dirigent_cli.profiles import resolve_endpoint
 from dirigent_cli.project import InitChoices, ProjectError, find_project, scaffold
 from dirigent_common import BlockModel, HealthReport
-from dirigent_core.config import CONFIG_FILE_ENV, Settings, reset_settings_cache
+from dirigent_core.config import CONFIG_FILE_ENV, Settings, get_settings, reset_settings_cache
 from dirigent_plugin import ConnectionKind, Contribution, extension
 
 runner = CliRunner(env={"COLUMNS": "200", "TERMINAL_WIDTH": "200"})
@@ -1431,11 +1431,46 @@ def test_init_shows_the_token_once_and_says_where_it_lives(tmp_path: Path) -> No
     assert "http://127.0.0.1:3333" in text
 
 
-def test_init_says_the_one_thing_a_local_instance_cannot_do(tmp_path: Path) -> None:
-    """No secret key means no stored credential, and that is the one fact worth a line."""
+def test_init_says_where_the_key_that_seals_credentials_lives(tmp_path: Path) -> None:
+    """The instance has a key from the first command, so where it lives is the fact worth a line."""
     result = invoke("init", str(tmp_path / "instance"), "--password", "a test password")
 
-    assert "DIRIGENT_SECRET_KEY" in plain(result.output)
+    text = plain(result.output)
+    assert "DIRIGENT_SECRET_KEY is in .env" in text
+    assert "No DIRIGENT_SECRET_KEY is set" not in text
+
+
+def test_init_puts_a_usable_secret_key_in_the_env_file(tmp_path: Path) -> None:
+    """A local instance stores a credential from the start: the key is written beside the token."""
+    from cryptography.fernet import Fernet
+
+    root = tmp_path / "instance"
+
+    result = machine("init", str(root), "--password", "a test password", "--json")
+
+    assert result.exit_code == 0, result.output
+    lines = (root / ".env").read_text().splitlines()
+    key = next(line.partition("=")[2] for line in lines if line.startswith("DIRIGENT_SECRET_KEY="))
+    assert Fernet(key)
+    assert ".env" in only(result.stdout, "instance.initialised")["files"]
+
+
+def test_a_command_run_in_the_project_reads_the_key_from_its_env_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, dotenv_layer: None
+) -> None:
+    """Every command gets the key through Settings, `dg dev` included, with no code of its own."""
+    root = tmp_path / "instance"
+    assert machine("init", str(root), "--password", "a test password", "--json").exit_code == 0
+    lines = (root / ".env").read_text().splitlines()
+    key = next(line.partition("=")[2] for line in lines if line.startswith("DIRIGENT_SECRET_KEY="))
+    monkeypatch.chdir(root)
+    reset_settings_cache()
+
+    settings = get_settings()
+
+    assert settings.secret_key is not None
+    assert settings.secret_key.get_secret_value() == key
+    reset_settings_cache()
 
 
 def test_init_refuses_to_clobber_an_instance_that_is_already_there(tmp_path: Path) -> None:
@@ -1466,6 +1501,7 @@ def test_documents_only_writes_no_database(tmp_path: Path) -> None:
     assert result.exit_code == 0, result.output
     assert not (root / ".dirigent" / "state" / "dirigent.db").exists()
     assert (root / "pipelines" / "report-to-file.yaml").is_file()
+    assert not (root / ".env").exists(), "the instance is somebody else's, so its key is not this project's"
 
 
 def test_init_refuses_when_it_has_no_password_and_cannot_ask(tmp_path: Path) -> None:

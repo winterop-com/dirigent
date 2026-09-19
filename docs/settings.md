@@ -5,11 +5,16 @@ Every setting an instance has, its default, and what it does. This page is gener
 settings model, so it cannot drift from the code: a setting added either shows up here or
 fails the build.
 
-Each one is read from three places, most specific first: a `DIRIGENT_`-prefixed environment
-variable, the YAML configuration file, then the default below. `dg init` writes a
-`dirigent.example.yaml` holding this same list, commented out, beside the working
-`dirigent.yaml` -- so the file a person edits stays short and the whole surface is still
-one file away.
+Each one is read from four places, most specific first: a `DIRIGENT_`-prefixed environment
+variable, a `.env` in the directory the command runs in, the YAML configuration file, then the
+default below. `dg init` writes a `dirigent.example.yaml` holding this same list, commented
+out, beside the working `dirigent.yaml` -- so the file a person edits stays short and the whole
+surface is still one file away.
+
+A project's `.env` is that middle layer, which is where `dg init` puts the instance's
+`DIRIGENT_SECRET_KEY`. A compose stack's `.env` is a different thing with the same name:
+compose reads it to fill in `${...}` and passes what it resolves to the containers as
+environment, and the server inside one never opens the file.
 
 | Setting | Environment | Default | What it does |
 | --- | --- | --- | --- |

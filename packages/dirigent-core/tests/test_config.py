@@ -72,6 +72,78 @@ def test_the_environment_outranks_the_yaml_file(tmp_path: Path, monkeypatch: pyt
     assert settings.environment == "staging"
 
 
+def test_a_dotenv_in_the_working_directory_supplies_the_secret_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, dotenv_layer: None
+) -> None:
+    """A project's .env is a settings layer, so the key dg init wrote there is the instance's."""
+    (tmp_path / ".env").write_text("DG_TOKEN=a-token\nDIRIGENT_SECRET_KEY=a-key-from-the-file\n")
+    monkeypatch.chdir(tmp_path)
+
+    settings = Settings()
+
+    assert settings.secret_key is not None
+    assert settings.secret_key.get_secret_value() == "a-key-from-the-file"
+
+
+def test_the_environment_outranks_the_dotenv_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, dotenv_layer: None
+) -> None:
+    (tmp_path / ".env").write_text("DIRIGENT_SECRET_KEY=from-the-file\nDIRIGENT_ENVIRONMENT=staging\n")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("DIRIGENT_SECRET_KEY", "from-the-shell")
+
+    settings = Settings()
+
+    assert settings.secret_key is not None
+    assert settings.secret_key.get_secret_value() == "from-the-shell"
+    assert settings.environment == "staging", "the file still supplies what the shell does not"
+
+
+def test_the_dotenv_file_outranks_the_yaml_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, dotenv_layer: None
+) -> None:
+    config_file = tmp_path / "dirigent.yaml"
+    config_file.write_text('environment: "prod"\n')
+    (tmp_path / ".env").write_text("DIRIGENT_ENVIRONMENT=staging\n")
+    monkeypatch.setenv(CONFIG_FILE_ENV, str(config_file))
+    monkeypatch.chdir(tmp_path)
+
+    assert Settings().environment == "staging"
+
+
+def test_a_dotenv_is_read_from_the_working_directory_and_nowhere_else(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, dotenv_layer: None
+) -> None:
+    """The layer is the directory a command runs in, so a project's .env travels no further."""
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / ".env").write_text("DIRIGENT_SECRET_KEY=a-key-from-the-file\n")
+    monkeypatch.chdir(tmp_path)
+
+    assert Settings().secret_key is None
+
+
+def test_a_dotenv_reads_a_setting_the_way_the_environment_does(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, dotenv_layer: None
+) -> None:
+    """Same prefix, same spellings for a list and a mapping, and a line without the prefix is no setting."""
+    (tmp_path / ".env").write_text(
+        "DIRIGENT_WORKER_TAGS=docker,gpu\n"
+        "DIRIGENT_STORAGE_CONNECTIONS=s3=archive, gs=cold\n"
+        "DIRIGENT_ENABLED_UNSAFE_BLOCKS=\n"
+        "S3_ACCESS_KEY=dirigent\n"
+        "PORT=8080\n"
+    )
+    monkeypatch.chdir(tmp_path)
+
+    settings = Settings()
+
+    assert settings.worker_tags == ["docker", "gpu"]
+    assert settings.storage_connections == {"s3": "archive", "gs": "cold"}
+    assert settings.enabled_unsafe_blocks == []
+    assert settings.port == 3333
+
+
 def test_the_api_prefix_is_normalised() -> None:
     assert Settings(api_prefix="api/v1/").api_prefix == "/api/v1"
 

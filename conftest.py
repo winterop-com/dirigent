@@ -2,6 +2,7 @@
 
 import pytest
 
+from dirigent_core.config import ENV_FILE, Settings
 from dirigent_testing import pin_terminal
 
 #: The terminal the suite is actually being watched in, read before the width below hides it.
@@ -9,8 +10,19 @@ REAL_WIDTH = pin_terminal()
 
 
 @pytest.fixture(autouse=True)
-def _ignore_the_developer_environment(defaults_only_environment: None) -> None:
-    """Run every test in this repository against defaults, whatever the shell exports."""
+def _ignore_the_developer_environment(defaults_only_environment: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Run every test against defaults, whatever the shell exports or this checkout's .env holds.
+
+    The dotenv layer reads the working directory, which under test is the checkout, and a
+    developer keeps a real .env there. A test about that layer asks for ``dotenv_layer``.
+    """
+    monkeypatch.setitem(Settings.model_config, "env_file", None)
+
+
+@pytest.fixture
+def dotenv_layer(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Put back the dotenv layer the fixture above hides, for a test that is about it."""
+    monkeypatch.setitem(Settings.model_config, "env_file", ENV_FILE)
 
 
 @pytest.hookimpl(trylast=True)
