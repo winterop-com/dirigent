@@ -349,6 +349,10 @@ some tables are. A listing row is the exception, because a
 cell is a glance: `oneLine` closes up the whitespace and the row truncates the words rather
 than rendering a heading cut in half.
 
+**The chosen row's code is in the address.** Schemas and Connections put the code of the row
+somebody opened into the URL and read it back from there, the way Pipelines does, so a schema or a
+credential is a link that can be sent rather than a selection somebody else has to find.
+
 A step is the one exception to the shape, and it is the same rule underneath. Its map key is
 the reference -- what `depends_on` and `${steps....}` read -- so the key plays the part `code`
 plays elsewhere, and the step's optional `name` is the title drawn above it.
@@ -572,6 +576,18 @@ table back.
 string `shell.run` and `docker.run` take -- gets the same Monaco a document is written in, through
 the same `CodePane`, so a jq program is read on the lines it was written on. The schema is what
 decides this and nothing else: every other string stays one line, however long a value it holds.
+
+**A field that names a thing shows the thing.** A string property carrying `x-dirigent-ref` holds
+the code of a connection or a schema, and under the box the form draws what that code resolves to,
+in the step panel's own group gesture: a shut row with a one-line summary, and the definition under
+it against the group rule when it is opened. A schema the document carries in its top-level
+`schemas:` resolves before one the instance holds, which is the order the engine resolves them in,
+and says `carried by this document`; one the instance holds says `instance` and opens with a link
+to `/schemas/<code>`, a connection with `<kind> · <state>` and a link to `/connections/<code>`. A
+code nothing holds is `not stored` or `not configured`, muted, and not a button -- there is nothing
+under it to open. Nothing is called missing while the listing behind the answer is still being
+read, and a value written `${...}` names no code at all, so neither draws a row. The code itself is
+never repeated: the box above the row already holds it.
 
 **The label is the key.** What is being edited is a document, and the word an author writes in it
 is `max_response` rather than "Max Response". `description` is the help under the label, and whether a

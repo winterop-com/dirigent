@@ -95,6 +95,22 @@ rewrite is the whole of the translation: inline literals and nothing else, so RS
 markdown equivalent reaches a reader unchanged. A description is one or two plain sentences
 with code in double backticks.
 
+### A config field that names another thing says so
+
+A block whose config takes the code of a connection or of a schema types that field
+`ConnectionRef` or `SchemaRef` rather than `str`:
+
+```python
+class CheckoutConfig(BlockModel):
+    connection: ConnectionRef
+    """The ``git`` connection naming the remote and holding its credential."""
+```
+
+Both are `str` to every validator, and both publish `x-dirigent-ref` in the schema the catalog
+serves. What reads it is the step form: a field typed either way is drawn with the thing it names
+under it -- the connection's settings and health, or the schema's body -- and a link to that
+thing's own screen.
+
 ### A sensor keeps its place in a cursor
 
 A sensor's `poke` runs once and returns: either the observation, which ends the step, or
