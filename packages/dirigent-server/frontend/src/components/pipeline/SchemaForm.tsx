@@ -10,7 +10,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch'
 import { WindowedPane } from '@/components/WindowedPane'
 import { ProgramReference } from '@/components/pipeline/ProgramReference'
+import { ReferenceRow } from '@/components/pipeline/ReferenceRow'
 import type { JsonMap } from '@/lib/api'
+import type { ConnectionOut } from '@/lib/connections'
+import type { SchemaOut } from '@/lib/schemas'
 import {
     effectiveValue,
     fallbackText,
@@ -54,6 +57,11 @@ import { cn } from '@/lib/utils'
  * same lazy pane, so a form of ordinary fields fetches no editor. It names itself rather than
  * being named by the label beside it: an editor is not one control for a `for` to point at.
  *
+ * A FIELD THAT NAMES A THING SHOWS THE THING. Where the caller hands over the listings, a field
+ * whose schema says its value is the code of a connection or a schema draws that thing under the
+ * control: one shut row, and the definition under it when it is opened. A form with no listings
+ * behind it -- the run dialog, the connection form -- passes none and draws none.
+ *
  * A CONTROL SHOWS WHAT WOULD RUN. A field the document does not carry renders the schema's own
  * default, so a switch over `default: true` starts on rather than showing off while the server
  * fills in true; touching it writes the value it then shows.
@@ -79,6 +87,13 @@ import { cn } from '@/lib/utils'
  * value. What does not parse is said under that field and told to the owner through
  * `onUnreadable`, because a form whose text does not parse may not be submitted.
  */
+/** What a form needs to draw the thing a marked field names: the document, and both listings. */
+export interface FormReferences {
+    document: JsonMap | null
+    schemas: SchemaOut[] | null
+    connections: ConnectionOut[] | null
+}
+
 export function SchemaForm({
     fields,
     values,
@@ -86,6 +101,7 @@ export function SchemaForm({
     stated,
     disabled,
     fold,
+    references,
     onChange,
     onTouch,
     onUnreadable,
@@ -101,6 +117,8 @@ export function SchemaForm({
     disabled?: string
     /** Whether the optional fields nothing has answered sit behind a link. */
     fold?: boolean
+    /** What a field that names a connection or a schema is resolved against, or nothing. */
+    references?: FormReferences
     onChange: (name: string, value: unknown) => void
     /** Called when a field is left, which is what earns it the right to be told off. */
     onTouch?: (name: string) => void
@@ -127,6 +145,7 @@ export function SchemaForm({
             problem={problems[field.name] ?? null}
             stated={stated === undefined || stated.has(field.name)}
             disabled={disabled}
+            references={references}
             onChange={(value) => {
                 onChange(field.name, value)
             }}
@@ -167,6 +186,7 @@ function Field({
     problem,
     stated,
     disabled,
+    references,
     onChange,
     onTouch,
     onUnreadable,
@@ -177,6 +197,7 @@ function Field({
     /** Whether this field's problem is written out, or only marked on the control. */
     stated: boolean
     disabled?: string
+    references?: FormReferences
     onChange: (value: unknown) => void
     onTouch: () => void
     onUnreadable: (message: string | null) => void
@@ -237,6 +258,15 @@ function Field({
                 }}
                 onTouch={onTouch}
             />
+            {field.refers !== null && references !== undefined && (
+                <ReferenceRow
+                    refers={field.refers}
+                    value={value}
+                    document={references.document}
+                    schemas={references.schemas}
+                    connections={references.connections}
+                />
+            )}
             {field.help !== null && (
                 <p className="text-xs text-muted-foreground">
                     <MarkdownLine text={field.help} />

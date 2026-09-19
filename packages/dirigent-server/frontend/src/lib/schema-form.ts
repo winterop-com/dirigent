@@ -26,6 +26,11 @@
  * the several lines it is written on rather than crammed into one box. Every other string stays
  * one line: what earns an editor is the schema saying the value is source, not its length.
  *
+ * A FIELD THAT NAMES A THING SAYS WHICH THING, and the schema is again where it says it. A
+ * string with `x-dirigent-ref` holds the code of a connection or of a schema rather than a value
+ * of its own, and a form that knows which can draw the thing under the box. Any other word there
+ * is a kind this bundle has nothing to draw for, and reads as no reference at all.
+ *
  * WHAT A STEP NEEDS IS WHAT IT OPENS WITH. `partition` splits a field list into what the schema
  * requires plus what the document already sets, and the optional keys it does not -- so a block
  * with twenty fields and two answers reads as two.
@@ -38,6 +43,14 @@ import type { JsonMap } from '@/lib/api'
 
 /** Which control a field is edited with. */
 export type FieldKind = 'text' | 'code' | 'number' | 'integer' | 'switch' | 'select' | 'json' | 'pairs'
+
+/** What a field's code addresses, for the two kinds of thing a screen can draw. */
+export type ReferenceKind = 'connection' | 'schema'
+
+/** The keyword a block's schema names a reference field with. `Reference` in dirigent_plugin. */
+export const REFERENCE_KEYWORD = 'x-dirigent-ref'
+
+const REFERENCE_KINDS: ReadonlySet<string> = new Set<ReferenceKind>(['connection', 'schema'])
 
 /** What `validateField` checks, gathered from the schema the descriptor came from. */
 export interface Bounds {
@@ -67,6 +80,8 @@ export interface FieldDescriptor {
     options: FieldOption[]
     /** The `contentMediaType` the schema published, which is the language a `code` field holds. */
     mediaType: string | null
+    /** What a value of this field addresses, from `x-dirigent-ref`, or null for a plain value. */
+    refers: ReferenceKind | null
     /** One line beside the label: the format, an example, or the shapes a union accepts. */
     hint: string | null
     /** What an empty control shows: the default it would submit, else the shape it takes. */
@@ -339,6 +354,12 @@ function boundsOf(schema: JsonMap): Bounds {
     return bounds
 }
 
+/** What one resolved schema says its value addresses, or null when it says nothing this draws. */
+function refersTo(schema: JsonMap): ReferenceKind | null {
+    const named = stringAt(schema, REFERENCE_KEYWORD)
+    return named !== null && REFERENCE_KINDS.has(named) ? (named as ReferenceKind) : null
+}
+
 /**
  * The fields one schema describes, in the order the schema lists them.
  *
@@ -368,6 +389,7 @@ export function fieldsOf(schema: JsonMap | null | undefined): FieldDescriptor[] 
                 fallback,
                 options: kind === 'select' ? optionsOf(resolved.schema) : [],
                 mediaType: stringAt(resolved.schema, 'contentMediaType'),
+                refers: refersTo(resolved.schema),
                 hint: kind === 'pairs' ? pairsHint(holds) : hintOf(resolved.schema, resolved.branches),
                 placeholder: placeholderOf(resolved.schema, kind, fallback),
                 bounds: boundsOf(resolved.schema),
