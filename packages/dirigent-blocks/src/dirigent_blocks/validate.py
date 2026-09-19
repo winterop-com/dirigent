@@ -7,7 +7,7 @@ from jsonschema import ValidationError as SchemaValidationError
 from pydantic import BaseModel, Field, JsonValue
 
 from dirigent_common import BlockModel
-from dirigent_plugin import BlockFailure, ErrorClass, Operator, OperatorSpec, StepContext
+from dirigent_plugin import BlockFailure, ErrorClass, Operator, OperatorSpec, SchemaRef, StepContext
 
 
 class ValidateSchemaConfig(BlockModel):
@@ -17,7 +17,7 @@ class ValidateSchemaConfig(BlockModel):
     """The value to check, normally a ``${steps....}`` reference to what an upstream step
     produced. An explicit null is a value like any other and is checked as one."""
 
-    json_schema: str = Field(alias="schema")
+    json_schema: SchemaRef = Field(alias="schema")
     """The code of the schema the value must satisfy: one the instance holds, or one the
     document carries in its top-level ``schemas`` section. The named schema was validated when
     it was stored or applied, so nothing rechecks it here; a code no instance holds fails the

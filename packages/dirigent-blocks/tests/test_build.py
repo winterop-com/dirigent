@@ -457,3 +457,11 @@ async def test_a_build_against_a_connection_reaches_the_daemon_it_names(
 def _empty() -> Drained:
     """A drained stream with nothing in either end."""
     return Drained(head=b"", tail=b"", total_bytes=0)
+
+
+def test_an_optional_connection_says_it_names_one_on_the_branch_that_holds_a_code() -> None:
+    """A field that may be left unset still says what a code written in it addresses."""
+    published = DockerBuildConfig.model_json_schema()
+    branch = next(one for one in published["properties"]["connection"]["anyOf"] if "$ref" in one)
+    named = str(branch["$ref"]).removeprefix("#/$defs/")
+    assert published["$defs"][named]["x-dirigent-ref"] == "connection"

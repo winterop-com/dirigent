@@ -18,18 +18,21 @@ import dirigent_plugin
 from dirigent_common import API_VERSION, SHELL_MEDIA_TYPE, JsonMap, base_format_checker
 from dirigent_plugin import (
     ByteSink,
+    ConnectionRef,
     Contribution,
     ErrorClass,
     Logger,
     NotYet,
     OperatorSpec,
     ProbeStatus,
+    Reference,
     RemoteHandle,
     RunId,
     RunRefused,
     Runs,
     RunSnapshot,
     RunState,
+    SchemaRef,
     SensorSpec,
     ShellString,
     ShellVariables,
@@ -485,6 +488,30 @@ def test_a_shell_string_publishes_the_language_it_holds_and_still_validates_noth
     assert Ran(command="tar cf - . | gzip").command == "tar cf - . | gzip"
     assert Ran().command is None
     assert shell_string_fields(Ran) == frozenset({"command"})
+
+
+def test_a_referenced_code_publishes_what_it_names() -> None:
+    """Both aliases say in the schema what the code a field holds addresses."""
+
+    class Gate(BaseModel):
+        schema_code: SchemaRef
+        connection: ConnectionRef | None = None
+
+    published = Gate.model_json_schema()
+    defs = published["$defs"]
+
+    assert defs[_referenced(published["properties"]["schema_code"])] is defs["SchemaRef"]
+    assert defs["SchemaRef"] == {"type": "string", "x-dirigent-ref": "schema"}
+    # The nullable spelling is a union, and the keyword is on the string branch of it.
+    string_branch = next(one for one in published["properties"]["connection"]["anyOf"] if "$ref" in one)
+    assert defs[_referenced(string_branch)] == {"type": "string", "x-dirigent-ref": "connection"}
+    assert Gate(schema_code="ou-record").connection is None
+    assert repr(Reference("schema")) == "Reference('schema')"
+
+
+def _referenced(node: JsonMap) -> str:
+    """The name in `$defs` one property points at."""
+    return str(node["$ref"]).removeprefix("#/$defs/")
 
 
 def test_the_variables_a_shell_string_is_substituted_into_arrive_outside_the_schema() -> None:
