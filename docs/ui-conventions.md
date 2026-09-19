@@ -573,6 +573,11 @@ string `shell.run` and `docker.run` take -- gets the same Monaco a document is w
 the same `CodePane`, so a jq program is read on the lines it was written on. The schema is what
 decides this and nothing else: every other string stays one line, however long a value it holds.
 
+**A JSON Schema is edited against its own meta-schema.** The media type
+`application/schema+json` is what asks for it: a buffer holding a schema document is checked
+against JSON Schema 2020-12, the draft the server validates with, so its keywords complete as
+they are typed and a value the draft does not take is marked where it was written.
+
 **The label is the key.** What is being edited is a document, and the word an author writes in it
 is `max_response` rather than "Max Response". `description` is the help under the label, and whether a
 field is required is said beside the label rather than inside it, so the control's accessible
