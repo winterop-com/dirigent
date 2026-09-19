@@ -19,7 +19,7 @@ from dirigent_cli.project import (
     compose_document,
     project_name,
     scaffold,
-    write_token_env,
+    write_instance_env,
 )
 
 runner = CliRunner()
@@ -353,14 +353,19 @@ def test_the_root_ignore_covers_the_environment_uv_builds_and_the_env_file(tmp_p
     lines = (tmp_path / "plain" / ".gitignore").read_text().splitlines()
     assert ".venv/" in lines
     assert "__pycache__/" in lines
-    assert ".env" in lines, "the token dg init writes to .env would be committed"
+    assert ".env" in lines, "the token and key dg init writes to .env would be committed"
 
 
-def test_the_token_env_file_is_readable_by_its_owner_alone(tmp_path: Path) -> None:
+def test_the_instance_env_file_carries_the_token_and_a_key_and_is_readable_by_its_owner_alone(
+    tmp_path: Path,
+) -> None:
     scaffold(tmp_path / "plain", InitChoices(), version="1.2.3")
-    path = write_token_env(tmp_path / "plain", "a-minted-token")
+    path = write_instance_env(tmp_path / "plain", "a-minted-token")
     assert path == tmp_path / "plain" / ".env"
-    assert "DG_TOKEN=a-minted-token" in path.read_text().splitlines()
+    lines = path.read_text().splitlines()
+    assert "DG_TOKEN=a-minted-token" in lines
+    key = next(line.partition("=")[2] for line in lines if line.startswith("DIRIGENT_SECRET_KEY="))
+    assert Fernet(key), "the instance seals with this key as it stands, so it has to be a Fernet key"
     assert path.stat().st_mode & 0o777 == 0o600
 
 

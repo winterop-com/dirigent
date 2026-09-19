@@ -81,6 +81,8 @@ Two settings matter before a pipeline touches anything real:
 
 ```bash
 # Connection secrets are encrypted at rest, so the key must exist before one is stored.
+# A project dg init made carries one in its .env already; this is how a stack or a bare
+# instance gets one.
 export DIRIGENT_SECRET_KEY="$(dg secret-key)"
 
 # Blocks that execute code on a worker are refused unless their id is allowlisted.
@@ -89,9 +91,11 @@ export DIRIGENT_ENABLED_UNSAFE_BLOCKS='["shell.run"]'
 
 Configuration layers, most specific first: `DIRIGENT_`-prefixed environment variables, then a
 `.env` file, then a YAML file (`DIRIGENT_CONFIG_FILE`, `./dirigent.yaml`,
-`.dirigent/dirigent.yaml`, or `~/.config/dirigent/dirigent.yaml`), then defaults. Everything a
-person hand-writes for dirigent is YAML -- documents, this file, the CLI's profiles -- so there
-is one syntax to know. To run against PostgreSQL:
+`.dirigent/dirigent.yaml`, or `~/.config/dirigent/dirigent.yaml`), then defaults. The `.env`
+is the one in the directory the command runs in, which is where `dg init` puts a local
+instance's `DIRIGENT_SECRET_KEY`. Everything a person hand-writes for dirigent is YAML --
+documents, this file, the CLI's profiles -- so there is one syntax to know. To run against
+PostgreSQL:
 
 ```bash
 export DIRIGENT_DATABASE_URL="postgresql+asyncpg://dirigent:dirigent@localhost/dirigent"

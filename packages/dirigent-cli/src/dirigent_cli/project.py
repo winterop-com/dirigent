@@ -821,14 +821,18 @@ ROOT_IGNORE_TEMPLATE = """\
 .venv/
 __pycache__/
 
-# This instance's token, or the stack's key and first password. Never shared.
+# This instance's token and key, or the stack's key and first password. Never shared.
 .env
 """
 
-TOKEN_ENV_TEMPLATE = """\
+INSTANCE_ENV_TEMPLATE = """\
 # The token dg init minted for this instance's first admin. The local profile in
 # .dirigent/profiles.yaml reads it from here when the shell does not export it.
 DG_TOKEN=__TOKEN__
+
+# The key this instance seals connection secrets with, read by every command run in this
+# directory. What is stored under it cannot be opened under another one.
+DIRIGENT_SECRET_KEY=__SECRET_KEY__
 """
 
 PYPROJECT_TEMPLATE = """\
@@ -923,9 +927,10 @@ def scaffold(directory: Path, choices: InitChoices, *, version: str = "0.0.0") -
     return Scaffolded(files=written, skipped=skipped)
 
 
-def write_token_env(directory: Path, token: str) -> Path:
-    """Write the ``.env`` holding a new instance's token, readable by its owner alone."""
-    return _write(directory / ".env", TOKEN_ENV_TEMPLATE.replace("__TOKEN__", token), mode=0o600)
+def write_instance_env(directory: Path, token: str) -> Path:
+    """Write the ``.env`` holding a new instance's token and key, readable by its owner alone."""
+    document = INSTANCE_ENV_TEMPLATE.replace("__TOKEN__", token).replace("__SECRET_KEY__", _an_instance_key())
+    return _write(directory / ".env", document, mode=0o600)
 
 
 def _record(path: Path, content: str, written: list[Path], skipped: list[Path]) -> None:
@@ -953,7 +958,7 @@ def _merge_ignore(path: Path, content: str, written: list[Path], skipped: list[P
 
 
 def _an_instance_key() -> str:
-    """Generate the key the stack seals connection secrets with."""
+    """Generate the key an instance seals connection secrets with."""
     return generate_key()
 
 

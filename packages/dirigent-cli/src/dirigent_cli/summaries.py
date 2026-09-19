@@ -316,7 +316,9 @@ def _initialised(record: Record) -> RenderableType | None:
         "\n  [bold]uv run dg examples list --starter[/]"
         "\n  [bold]uv run dg pipeline new <starter>[/]"
         "\n  [bold]uv run dg apply[/]"
-        "\n\n[dim]No DIRIGENT_SECRET_KEY is set, so a connection carrying a credential cannot be stored until it is.[/]"
+        "\n\n[dim]DIRIGENT_SECRET_KEY is in .env beside it, and every command run in"
+        "\nthis directory reads it: it is what connection secrets are sealed with, and"
+        "\nunder another key the instance cannot open what it stored.[/]"
     )
     return Group(*parts)
 

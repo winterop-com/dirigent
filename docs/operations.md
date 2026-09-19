@@ -426,6 +426,12 @@ the image does.
 Settings come from four layers, most specific winning: explicit arguments, then `DIRIGENT_`
 environment variables, then a `.env` file, then a YAML file, then the defaults below.
 
+The `.env` is the one in the directory the command runs in -- a project's, where `dg init`
+puts the instance's `DIRIGENT_SECRET_KEY` -- and it is read by whatever runs there, `dg dev`
+and `dg server` alike. A compose stack's `.env` is a different thing wearing the same name:
+compose reads it to fill in `${...}` and hands the result to the containers as environment,
+and the server inside one never opens the file.
+
 The YAML file is `$DIRIGENT_CONFIG_FILE` if that is set; otherwise `dirigent.yaml`,
 `.dirigent/dirigent.yaml`, and `~/.config/dirigent/dirigent.yaml` are all read, with the
 nearest one winning. A leftover `dirigent.toml` sitting where the YAML now belongs is refused
