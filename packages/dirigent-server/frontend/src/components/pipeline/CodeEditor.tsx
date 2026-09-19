@@ -9,6 +9,10 @@ import { useEffect, useRef } from 'react'
 import type { JsonMap } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
+import metaSchema from './json-schema-2020-12.json'
+
+import 'monaco-editor/esm/vs/editor/contrib/suggest/browser/suggestController'
+
 import 'monaco-editor/esm/vs/basic-languages/shell/shell.contribution'
 import 'monaco-editor/esm/vs/basic-languages/sql/sql.contribution'
 import 'monaco-editor/esm/vs/basic-languages/twig/twig.contribution'
@@ -54,7 +58,10 @@ import 'monaco-editor/esm/vs/language/json/monaco.contribution'
  * ONLY THE EDITOR AND THE LANGUAGES IT HOSTS ARE IMPORTED. `monaco-editor` as a whole registers
  * every language it ships; what is wanted is the editor plus YAML, shell, twig and SQL, so the
  * api entry and those four contributions are imported by path and the rest are never fetched. A
- * language `LANGUAGES` names but nothing imported tokenises as plain text and says nothing.
+ * language `LANGUAGES` names but nothing imported tokenises as plain text and says nothing. The
+ * api entry brings no editor contributions with it either, so the one a schema-checked buffer
+ * cannot do without -- the suggest controller, which is the widget a completion is offered in --
+ * is imported by path beside them.
  */
 
 /** Which worker each language runs in. `self` carries this: monaco reads it off the global. */
@@ -235,10 +242,12 @@ monaco.languages.setLanguageConfiguration('jq', {
     ],
 })
 
-/** How a buffer is tokenised and what it is named, which is all a media type decides here. */
+/** How a buffer is tokenised, what it is named, and whether it holds a schema rather than data. */
 interface Buffer {
     language: string
     extension: string
+    /** A buffer that is itself a JSON Schema, which is checked against the draft it is written in. */
+    metaSchema?: boolean
 }
 
 /** What a document pane edits, which is what a caller naming no media type gets. */
@@ -254,6 +263,8 @@ const LANGUAGES: Record<string, Buffer> = {
     'text/x-jinja': { language: 'twig', extension: 'j2' },
     'application/jq': { language: 'jq', extension: 'jq' },
     'application/json': { language: 'json', extension: 'json' },
+    // A schema document rather than a JSON value: the same language, checked against the draft.
+    'application/schema+json': { language: 'json', extension: 'json', metaSchema: true },
     'application/sql': { language: 'sql', extension: 'sql' },
 }
 
@@ -291,6 +302,11 @@ function houseTheme(dark: boolean): monaco.editor.IStandaloneThemeData {
         string: resolvedColor('var(--color-good-ink)'),
         number: resolvedColor('var(--color-warning-ink)'),
         accent: resolvedColor('var(--color-accent)'),
+        accentInk: resolvedColor('var(--color-accent-foreground)'),
+        raised: resolvedColor('var(--color-popover)'),
+        hovered: resolvedColor('var(--color-muted)'),
+        raisedInk: resolvedColor('var(--color-popover-foreground)'),
+        edge: resolvedColor('var(--color-border)'),
         // A jq binding needs a hue neither a key nor a string wears, and the kind family is
         // where a hue that means neither a state nor an action lives.
         binding: resolvedColor('var(--color-kind-violet-ink)'),
@@ -339,6 +355,22 @@ function houseTheme(dark: boolean): monaco.editor.IStandaloneThemeData {
             'editorBracketHighlight.foreground4': ink.quiet,
             'editorBracketHighlight.foreground5': ink.quiet,
             'editorBracketHighlight.foreground6': ink.quiet,
+            // A widget stands over the buffer rather than in it, so it wears what every other
+            // raised surface in this app wears.
+            'editorWidget.background': ink.raised,
+            'editorWidget.foreground': ink.raisedInk,
+            'editorWidget.border': ink.edge,
+            'editorSuggestWidget.background': ink.raised,
+            'editorSuggestWidget.foreground': ink.raisedInk,
+            'editorSuggestWidget.border': ink.edge,
+            'editorSuggestWidget.selectedBackground': ink.accent,
+            'editorSuggestWidget.selectedForeground': ink.accentInk,
+            'editorSuggestWidget.highlightForeground': ink.key,
+            'editorSuggestWidget.focusHighlightForeground': ink.key,
+            'symbolIcon.propertyForeground': ink.key,
+            // The row under the pointer, which the suggest widget takes from the list it is.
+            'list.hoverBackground': ink.hovered,
+            'list.hoverForeground': ink.raisedInk,
         },
     }
 }
@@ -374,6 +406,38 @@ function useSchema(schema: JsonMap | null | undefined): void {
         }
         void configured.update({ schemas })
     }, [schema])
+}
+
+/**
+ * The draft a schema document is written in, under the uri that draft is published at.
+ *
+ * It is carried rather than fetched. `enableSchemaRequest` is false, so the worker is given no
+ * way to reach the network at all, and the meta-schemas it does carry stop at draft-07 -- 2020-12
+ * arrives with the buffer that asks for it or not at all.
+ */
+const META_SCHEMA_URI = 'https://json-schema.org/draft/2020-12/schema'
+
+/** Which schema buffers are open, by the uri each one's model is registered under. */
+const metaSchemaBuffers = new Set<string>()
+
+/**
+ * Hand monaco the schema buffers open right now.
+ *
+ * `setDiagnosticsOptions` replaces the whole options object rather than adding to it, so every
+ * buffer still open is restated on each call and whatever else monaco was holding is carried
+ * over -- a buffer of plain JSON is read exactly as it was before any schema buffer opened.
+ */
+function stateMetaSchemas(): void {
+    const held = monaco.languages.json.jsonDefaults.diagnosticsOptions
+    monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
+        ...held,
+        validate: true,
+        enableSchemaRequest: false,
+        schemas:
+            metaSchemaBuffers.size === 0
+                ? []
+                : [{ uri: META_SCHEMA_URI, fileMatch: [...metaSchemaBuffers], schema: metaSchema }],
+    })
 }
 
 export function CodeEditor({
@@ -417,6 +481,10 @@ export function CodeEditor({
         const buffer = bufferOf(mediaType)
         const uri = monaco.Uri.parse(modelUri(path, buffer))
         const model = monaco.editor.getModel(uri) ?? monaco.editor.createModel(value, buffer.language, uri)
+        if (buffer.metaSchema === true) {
+            metaSchemaBuffers.add(uri.toString())
+            stateMetaSchemas()
+        }
         const created = monaco.editor.create(host.current, {
             model,
             automaticLayout: true,
@@ -443,7 +511,9 @@ export function CodeEditor({
             // Two panes may read one buffer -- a config field and its window -- so the model
             // is disposed by whichever editor leaves it last, never from under the other.
             const held = monaco.editor.getEditors().some((editor) => editor.getModel() === model)
-            if (!held) model.dispose()
+            if (held) return
+            model.dispose()
+            if (metaSchemaBuffers.delete(uri.toString())) stateMetaSchemas()
         }
         // The editor is created once. What flows in afterwards is handled by the effects below.
         // oxlint-disable-next-line react/exhaustive-deps
