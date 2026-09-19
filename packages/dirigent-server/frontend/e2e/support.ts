@@ -200,7 +200,9 @@ export async function writeInEditor(page: Page, editor: Locator, text: string): 
     const input = editor.locator('textarea').first()
     await editor.locator('.view-lines').click()
     await expect(input).toBeFocused()
-    await page.keyboard.press('ControlOrMeta+a')
+    // The suite's device profile carries a Windows user agent, so monaco binds select-all to
+    // Control on every host, a mac included.
+    await page.keyboard.press('Control+a')
     // A real paste replaces the selection; a synthetic one is inserted at the caret, so a pane
     // that already holds a document is emptied rather than left for the new text to land inside.
     if ((await editor.locator('.view-lines').innerText()).trim() !== '') {

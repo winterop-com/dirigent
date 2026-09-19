@@ -51,32 +51,21 @@ export function ReferenceRow({
             : connectionRow(resolveConnection(code, connections))
     if (found === null) return null
 
+    // A code nothing holds has nothing under it to open, so it is one muted line and no chevron.
+    if (found.body === null) return <p className="py-1.5 text-xs text-muted-foreground">{found.words}</p>
+
     return (
         <Disclosure
-            title={
-                <span
-                    className={
-                        found.body === null
-                            ? 'text-xs font-normal text-muted-foreground'
-                            : 'text-xs font-normal'
-                    }
-                >
-                    {found.named ?? found.words}
-                </span>
-            }
+            title={<span className="text-xs font-normal">{found.named ?? found.words}</span>}
             summary={
                 found.named === null ? undefined : (
                     <span className="ml-auto text-xs text-muted-foreground">{found.words}</span>
                 )
             }
-            open={open && found.body !== null}
-            onToggle={
-                found.body === null
-                    ? null
-                    : () => {
-                          setOpen(!open)
-                      }
-            }
+            open={open}
+            onToggle={() => {
+                setOpen(!open)
+            }}
         >
             {found.body}
         </Disclosure>
