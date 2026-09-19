@@ -1,6 +1,6 @@
 [project]
 name = "dirigent-testing"
-version = "0.16.5"
+version = "0.16.6"
 description = "Test doubles and pytest fixtures for writing and testing dirigent blocks."
 readme = "README.md"
 requires-python = ">=3.13"
@@ -11,8 +11,8 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    "dirigent-common==0.16.5",
-    "dirigent-plugin==0.16.5",
+    "dirigent-common==0.16.6",
+    "dirigent-plugin==0.16.6",
     "httpx2>=2.12.0",
     "pydantic>=2.13.5",
     "pytest>=9.1.1",
