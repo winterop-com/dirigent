@@ -108,6 +108,10 @@ function Loading() {
  * ADDING A SCREEN: a `<Route>` here and an entry in `NAV` (lib/nav). The rail is drawn from that
  * array and the command palette offers every entry in it, so nothing else has to be told.
  *
+ * A LISTING WHOSE ROW OPENS A PANEL IS ADDRESSED AT THAT ROW. `schemas/:code` and
+ * `connections/:code` are the listing screen with a row chosen, the way `pipelines/:code` is the
+ * editor on one pipeline, so what somebody is reading is a link they can send.
+ *
  * THE ROOT IS THE HOME SCREEN. It answers "how is this instance doing" before anybody has
  * picked a noun, which is a question no listing answers and the one somebody arriving with no
  * address of their own is asking. Every other screen keeps its own address, so a link to one of
@@ -177,6 +181,14 @@ export default function App() {
                     }
                 />
                 <Route
+                    path="connections/:code"
+                    element={
+                        <Suspense fallback={<Loading />}>
+                            <Connections />
+                        </Suspense>
+                    }
+                />
+                <Route
                     path="blocks"
                     element={
                         <Suspense fallback={<Loading />}>
@@ -194,6 +206,14 @@ export default function App() {
                 />
                 <Route
                     path="schemas"
+                    element={
+                        <Suspense fallback={<Loading />}>
+                            <Schemas />
+                        </Suspense>
+                    }
+                />
+                <Route
+                    path="schemas/:code"
                     element={
                         <Suspense fallback={<Loading />}>
                             <Schemas />

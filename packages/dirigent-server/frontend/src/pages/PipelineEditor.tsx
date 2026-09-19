@@ -14,6 +14,7 @@ import { PageState } from '@/components/PageState'
 import { ToolbarActions } from '@/components/ToolbarActions'
 import { Button } from '@/components/ui/button'
 import { readConnections, type ConnectionOut } from '@/lib/connections'
+import { readSchemas, type SchemaOut } from '@/lib/schemas'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { useSmallScreen } from '@/hooks/use-small-screen'
 import { useStore } from '@/hooks/use-store'
@@ -143,6 +144,7 @@ export function PipelineEditor() {
     })
     const [versions, setVersions] = useState<PipelineVersionOut[]>([])
     const [connections, setConnections] = useState<ConnectionOut[] | null>(null)
+    const [schemas, setSchemas] = useState<SchemaOut[] | null>(null)
     const [runs, setRuns] = useState<RunOut[]>([])
     const [blocks, setBlocks] = useState<BlockEntry[]>([])
     const [schema, setSchema] = useState<JsonMap | null>(null)
@@ -230,6 +232,9 @@ export function PipelineEditor() {
         }
         settle(readConnections(), (page) => {
             setConnections(page.items)
+        })
+        settle(readSchemas(), (page) => {
+            setSchemas(page.items)
         })
         settle(readCatalog(), (catalog) => {
             setBlocks(catalog.blocks)
@@ -450,6 +455,8 @@ export function PipelineEditor() {
                             document={local}
                             block={stepRead.block}
                             blockProblem={stepRead.problem}
+                            schemas={schemas}
+                            connections={connections}
                             disabled={disabled}
                             onConfig={(config) => {
                                 changeDocument((current) => withStepConfig(current, selected, config))
@@ -520,6 +527,7 @@ export function PipelineEditor() {
         pipeline,
         runs,
         schema,
+        schemas,
         selected,
         small,
         state.parseError,

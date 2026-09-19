@@ -233,6 +233,7 @@ function formFields(connection: ConnectionOut, schema: JsonMap | null): FieldDes
             fallback: undefined,
             options: [],
             mediaType: null,
+            refers: null,
             hint: null,
             placeholder: '',
             bounds: {},

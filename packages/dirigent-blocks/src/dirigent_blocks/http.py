@@ -12,6 +12,7 @@ from dirigent_blocks.connections import HttpConnectionConfig
 from dirigent_common import BlockModel, Duration, Size
 from dirigent_plugin import (
     BlockFailure,
+    ConnectionRef,
     ErrorClass,
     NotYet,
     Operator,
@@ -32,7 +33,7 @@ JSON_CONTENT_TYPE = "application/json"
 class HttpTarget(BlockModel):
     """The half of an HTTP block's config that says which service to talk to."""
 
-    connection: str | None = None
+    connection: ConnectionRef | None = None
     """The code of the connection whose base URL, auth, TLS, and timeout apply."""
 
     url: str | None = None

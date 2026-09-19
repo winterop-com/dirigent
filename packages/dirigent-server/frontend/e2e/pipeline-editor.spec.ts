@@ -1,7 +1,8 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
 import {
     DEV_USERNAME,
+    apiPrefix,
     applyDocument,
     applyExample,
     canvasSettled,
@@ -1027,4 +1028,181 @@ test('choosing a step switches the panel to its own tab, whatever was open, and 
     await canvasSettled(page)
     await page.locator('.react-flow__node').getByText('report', { exact: true }).click()
     await expect(panel.getByRole('tab', { name: 'Step · report' })).toHaveAttribute('aria-selected', 'true')
+})
+
+/**
+ * A FIELD THAT NAMES A THING SHOWS THE THING.
+ *
+ * `validate.schema`'s `schema` and every block's `connection` hold a code, and a code in a one
+ * line box says nothing about what it addresses. What these assert is the row under the box: what
+ * answered the code, the definition it opens to, and the way out to that thing's own screen --
+ * against a schema and a connection this run really put on the instance.
+ *
+ * AN APPLIED DOCUMENT NAMES NOTHING THE INSTANCE HAS NOT GOT: the server refuses one that does.
+ * So the unheld code and the carried shape are read where they are reachable, which is a document
+ * being edited.
+ */
+const REFERENCE_SCHEMA = 'e2e-ou-record'
+
+const REFERENCE_SCHEMA_TITLE = 'Org unit record'
+
+const REFERENCE_CONNECTION = 'e2e-reference-http'
+
+/** A code the instance holds nothing under, which is what a row has to say so about. */
+const UNHELD_SCHEMA = 'e2e-nothing-holds-this'
+
+const NAMING_PIPELINE = 'names-things'
+
+const NAMING = {
+    format: 'dirigent/v1',
+    kind: 'pipeline',
+    code: NAMING_PIPELINE,
+    description: 'Two steps, each naming something this instance holds by code.',
+    requires: { blocks: ['validate.schema', 'http.request'] },
+    steps: {
+        check: { block: 'validate.schema', config: { input: { id: 'OU1' }, schema: REFERENCE_SCHEMA } },
+        call: { block: 'http.request', config: { connection: REFERENCE_CONNECTION, path: '/health' } },
+    },
+}
+
+/** The document carrying its own shape, under the very code the instance holds one under. */
+const CARRYING = [
+    'format: dirigent/v1',
+    'kind: pipeline',
+    'code: carries-its-shape',
+    'schemas:',
+    `  ${REFERENCE_SCHEMA}:`,
+    '    type: object',
+    '    required: [carried_here]',
+    '    properties:',
+    '      carried_here: { type: string }',
+    'steps:',
+    '  check:',
+    '    block: validate.schema',
+    '    config:',
+    '      input: { carried_here: a value }',
+    `      schema: ${REFERENCE_SCHEMA}`,
+    '',
+].join('\n')
+
+/** Put the schema and the connection these specs name onto the instance. */
+async function seedNamed(request: APIRequestContext, baseURL: string): Promise<void> {
+    const prefix = await apiPrefix(request)
+    await request.delete(`${prefix}/schemas/${REFERENCE_SCHEMA}`)
+    const stored = await request.post(`${prefix}/schemas`, {
+        data: {
+            body: {
+                $id: REFERENCE_SCHEMA,
+                title: REFERENCE_SCHEMA_TITLE,
+                type: 'object',
+                required: ['id'],
+                properties: { id: { type: 'string' } },
+            },
+        },
+    })
+    expect(stored.ok(), await stored.text()).toBe(true)
+    await request.delete(`${prefix}/connections/${REFERENCE_CONNECTION}`)
+    const minted = await request.post(`${prefix}/connections`, {
+        data: {
+            code: REFERENCE_CONNECTION,
+            kind: 'http',
+            config: { base_url: baseURL, health_path: '/health' },
+        },
+    })
+    expect(minted.ok(), await minted.text()).toBe(true)
+}
+
+test('a field naming a schema the instance holds opens it, and links to its screen', async ({
+    page,
+    baseURL,
+}) => {
+    await signIn(page)
+    await seedNamed(page.request, baseURL ?? '')
+    await applyDocument(page.request, NAMING)
+
+    await page.goto(`/pipelines/${NAMING_PIPELINE}`)
+    await page.locator('.react-flow__node').getByText('check', { exact: true }).click()
+
+    const panel = page.locator('aside')
+    // The box holds the code and the row under it says what answered it, headed by the schema's
+    // own title so the code is not on screen twice.
+    await expect(panel.getByLabel('schema', { exact: true })).toHaveValue(REFERENCE_SCHEMA)
+    const row = panel.getByRole('button', { name: /instance/ })
+    await expect(row).toContainText(REFERENCE_SCHEMA_TITLE)
+    await expect(row).toContainText('instance')
+
+    // IT OPENS UNDER ITSELF, on the schema itself.
+    await row.click()
+    await expect(panel.getByText('properties', { exact: false }).first()).toBeVisible()
+
+    // AND THE THING HAS A SCREEN OF ITS OWN, at an address that can be sent.
+    await panel.getByRole('link', { name: 'Open in Schemas' }).click()
+    await expect(page).toHaveURL(new RegExp(`/schemas/${REFERENCE_SCHEMA}$`))
+    await expect(page.locator('aside').getByText('properties', { exact: false })).toBeVisible()
+})
+
+test('a field naming a connection reads its kind and where its last check left it', async ({
+    page,
+    baseURL,
+}) => {
+    await signIn(page)
+    await seedNamed(page.request, baseURL ?? '')
+    await applyDocument(page.request, NAMING)
+
+    await page.goto(`/pipelines/${NAMING_PIPELINE}`)
+    await page.locator('.react-flow__node').getByText('call', { exact: true }).click()
+
+    const panel = page.locator('aside')
+    await expect(panel.getByLabel('connection', { exact: true })).toHaveValue(REFERENCE_CONNECTION)
+    const row = panel.getByRole('button', { name: /unchecked/ })
+    await expect(row).toContainText('http · unchecked')
+
+    // Open, and it says what the credential is pointed at, and where it is edited.
+    await row.click()
+    await expect(panel.getByText('base_url=', { exact: false })).toBeVisible()
+    await panel.getByRole('link', { name: 'Open in Connections' }).click()
+    await expect(page).toHaveURL(new RegExp(`/connections/${REFERENCE_CONNECTION}$`))
+})
+
+test('a code nothing holds says so, and is not something to press', async ({ page, baseURL }) => {
+    await signIn(page)
+    await seedNamed(page.request, baseURL ?? '')
+    await applyDocument(page.request, NAMING)
+
+    await page.goto(`/pipelines/${NAMING_PIPELINE}`)
+    await page.locator('.react-flow__node').getByText('check', { exact: true }).click()
+
+    // The row follows the box: typing a code nothing holds is what makes it a missing one.
+    const panel = page.locator('aside')
+    await panel.getByLabel('schema', { exact: true }).fill(UNHELD_SCHEMA)
+
+    await expect(panel.getByText('not stored', { exact: true })).toBeVisible()
+    // NOTHING WEARS INTERACTIVE CHROME UNLESS IT DOES SOMETHING: there is nothing to open.
+    await expect(panel.getByRole('button', { name: /not stored/ })).toHaveCount(0)
+})
+
+test('a schema the document carries answers the gate before anything the instance holds', async ({
+    page,
+    baseURL,
+}) => {
+    await signIn(page)
+    await seedNamed(page.request, baseURL ?? '')
+
+    await page.goto('/pipelines')
+    await page.getByRole('button', { name: 'New pipeline' }).click()
+    const panel = page.locator('aside')
+    await panel.getByRole('tab', { name: 'Source' }).click()
+    const editor = panel.getByTestId('code-editor')
+    await expect(editor.locator('.view-lines')).toContainText('my-pipeline')
+    await writeInEditor(page, editor, CARRYING)
+
+    await page.locator('.react-flow__node').getByText('check', { exact: true }).click()
+
+    // The instance holds a schema under this very code, and the carried one is what would run.
+    const row = panel.getByRole('button', { name: /carried by this document/ })
+    await expect(row).toBeVisible()
+    await expect(panel.getByText(REFERENCE_SCHEMA_TITLE)).toHaveCount(0)
+
+    await row.click()
+    await expect(panel.getByText('carried_here', { exact: false }).first()).toBeVisible()
 })

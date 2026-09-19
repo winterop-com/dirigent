@@ -6,7 +6,7 @@ from contextlib import AbstractAsyncContextManager
 from datetime import datetime, timedelta
 from enum import StrEnum
 from pathlib import Path
-from typing import Annotated, Any, ClassVar, Final, Protocol, cast
+from typing import Annotated, Any, ClassVar, Final, Literal, Protocol, cast
 from uuid import UUID
 
 import httpx2
@@ -18,9 +18,6 @@ from pydantic_core import CoreSchema
 from dirigent_common import API_VERSION, SHELL_MEDIA_TYPE, BlockModel, HealthReport, JsonMap
 
 type RunId = UUID
-
-#: A connection is referenced by name, never by id, so documents stay portable.
-type ConnectionRef = str
 
 #: A JSON Schema format checker: a predicate that returns True when a value satisfies the
 #: format, False when it does not, and may instead raise to signal the value is invalid --
@@ -130,6 +127,43 @@ class ShellString:
         published = handler(schema)
         published["contentMediaType"] = SHELL_MEDIA_TYPE
         return published
+
+
+class Reference:
+    """Marks a config field whose value is the code of another thing this instance holds.
+
+    It publishes ``x-dirigent-ref`` carrying what the code names, and a form generated from the
+    schema draws that thing under the field. It is a bare class rather than a model: annotation
+    metadata pydantic recognises as a model would be read as the field's schema, and a marker
+    must stay invisible to validation.
+    """
+
+    __slots__ = ("kind",)
+
+    def __init__(self, kind: Literal["connection", "schema"]) -> None:
+        """Record what a value of the marked field names."""
+        self.kind = kind
+
+    def __repr__(self) -> str:
+        """Render the marker the way it is written."""
+        return f"Reference({self.kind!r})"
+
+    def __get_pydantic_json_schema__(
+        self,
+        schema: CoreSchema,
+        handler: GetJsonSchemaHandler,
+    ) -> JsonSchemaValue:
+        """Publish what the marked field's code names, leaving what it validates untouched."""
+        published = handler(schema)
+        published["x-dirigent-ref"] = self.kind
+        return published
+
+
+#: A connection is referenced by code, never by id, so documents stay portable.
+type ConnectionRef = Annotated[str, Reference("connection")]
+
+#: A schema is referenced by code: one the instance holds, or one the document carries.
+type SchemaRef = Annotated[str, Reference("schema")]
 
 
 #: What the engine names the variables it substitutes a shell string's references out into.

@@ -133,3 +133,10 @@ def test_check_config_has_nothing_to_add() -> None:
     """A named schema was validated when it was stored or applied, so check_config is empty."""
     config = ValidateSchemaConfig.model_validate({"input": None, "schema": "ou-shape"})
     assert ValidateSchemaOperator().check_config(config) == []
+
+
+def test_the_schema_field_says_it_names_a_schema() -> None:
+    """A form generated from this schema draws the named schema under the box holding its code."""
+    published = ValidateSchemaConfig.model_json_schema(mode="serialization")
+    named = str(published["properties"]["schema"]["$ref"]).removeprefix("#/$defs/")
+    assert published["$defs"][named]["x-dirigent-ref"] == "schema"

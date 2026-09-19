@@ -108,6 +108,11 @@ export function readConnections(after: string | null = null): Promise<Page<Conne
     return apiJson<Page<ConnectionOut>>(`/connections?${query.toString()}`)
 }
 
+/** Read one connection by the code it is addressed by, secrets redacted as every read is. */
+export function readConnection(code: string): Promise<ConnectionOut> {
+    return apiJson<ConnectionOut>(`/connections/${encodeURIComponent(code)}`)
+}
+
 /** Ask a connection's kind whether the external system answers, and record what it said. */
 export function checkConnection(code: string): Promise<HealthReport> {
     return apiJson<HealthReport>(`/connections/${encodeURIComponent(code)}/$check`, { method: 'POST' })

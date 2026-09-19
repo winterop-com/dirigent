@@ -55,6 +55,8 @@ const DEFS: JsonMap = {
     EntityName: { maxLength: 63, minLength: 1, pattern: '^[a-z](-?[a-z0-9])*$', type: 'string' },
     JsonValue: {},
     Duration: { type: 'string' },
+    SchemaRef: { type: 'string', 'x-dirigent-ref': 'schema' },
+    ConnectionRef: { type: 'string', 'x-dirigent-ref': 'connection' },
 }
 
 /** The union `http.request.query` allows one value to be, which is every scalar type. */
@@ -239,6 +241,38 @@ describe('the shapes the shipped catalog publishes', () => {
         // shell.run.cwd: a path is not a program, and length is not what earns an editor.
         const field = only({ cwd: { anyOf: [{ type: 'string' }, { type: 'null' }], default: null } })
         expect(field).toMatchObject({ kind: 'text', mediaType: null })
+    })
+
+    test('a string that names a schema says so, through the alias the catalog writes it as', () => {
+        // validate.schema.schema
+        const field = only(
+            {
+                schema: {
+                    $ref: '#/$defs/SchemaRef',
+                    description: 'The code of the schema the value must satisfy.',
+                },
+            },
+            ['schema'],
+        )
+        expect(field).toMatchObject({ kind: 'text', refers: 'schema', required: true })
+    })
+
+    test('a nullable string that names a connection says so from the branch holding the code', () => {
+        // docker.build.connection, and every other optional connection through the same alias.
+        const field = only({
+            connection: {
+                anyOf: [{ $ref: '#/$defs/ConnectionRef' }, { type: 'null' }],
+                default: null,
+                description: 'A `docker` connection naming the daemon to build on.',
+            },
+        })
+        expect(field).toMatchObject({ kind: 'text', refers: 'connection', nullable: true })
+    })
+
+    test('a reference kind this bundle draws nothing for reads as no reference at all', () => {
+        // A pack may mark a field for a thing no screen here holds, and a form says nothing of it.
+        expect(only({ target: { type: 'string', 'x-dirigent-ref': 'satellite' } }).refers).toBeNull()
+        expect(only({ url: { type: 'string' } }).refers).toBeNull()
     })
 
     test('a pattern travels to the field so a bad name is refused before the apply is', () => {
