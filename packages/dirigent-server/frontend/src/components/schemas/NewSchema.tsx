@@ -93,7 +93,7 @@ export function NewSchema({
                 <div className="min-h-0 flex-1 overflow-hidden rounded-md border border-border">
                     <CodePane
                         value={text}
-                        mediaType="application/json"
+                        mediaType="application/schema+json"
                         path="new-schema"
                         label="the schema"
                         placeholder={PLACEHOLDER}
