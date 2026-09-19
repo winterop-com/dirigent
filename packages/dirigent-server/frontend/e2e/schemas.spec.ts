@@ -48,6 +48,28 @@ test('a schema reads as its own identity and shows its body', async ({ page }) =
     await expect(panel.getByText('properties', { exact: false })).toBeVisible()
 })
 
+test('a link straight to a schema opens that schema', async ({ page }) => {
+    await signIn(page)
+    await seedSchema(page.request)
+
+    // The address is the selection, so nothing has to be found on the listing first.
+    await page.goto('/schemas/e2e-org-unit')
+
+    const panel = page.locator('aside')
+    await expect(panel.getByText('properties', { exact: false })).toBeVisible()
+    await expect(page.getByRole('row').filter({ hasText: 'Organisation unit' })).toBeVisible()
+})
+
+test('choosing a row writes its code into the address', async ({ page }) => {
+    await signIn(page)
+    await seedSchema(page.request)
+
+    await page.goto('/schemas')
+    await page.getByRole('row').filter({ hasText: 'Organisation unit' }).click()
+
+    await expect(page).toHaveURL(/\/schemas\/e2e-org-unit$/)
+})
+
 test('the schema box completes against the meta-schema', async ({ page }) => {
     await signIn(page)
 
