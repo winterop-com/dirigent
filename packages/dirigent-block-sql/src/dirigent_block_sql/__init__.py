@@ -1,6 +1,8 @@
 """The SQL block family: reading and writing a database through one connection kind."""
 
-from dirigent_block_sql.sql import SqlConnectionKind, SqlExecuteOperator, SqlQueryOperator
+from dirigent_block_sql.engines import SqlAlchemyEngine, SqlEngine, SqlSession
+from dirigent_block_sql.markers import ENGINES_GROUP
+from dirigent_block_sql.sql import SqlConnectionConfig, SqlConnectionKind, SqlExecuteOperator, SqlQueryOperator
 from dirigent_plugin import Contribution, extension
 
 
@@ -19,9 +21,14 @@ class SqlBlocks:
 plugin = SqlBlocks()
 
 __all__ = [
+    "ENGINES_GROUP",
+    "SqlAlchemyEngine",
     "SqlBlocks",
+    "SqlConnectionConfig",
     "SqlConnectionKind",
+    "SqlEngine",
     "SqlExecuteOperator",
     "SqlQueryOperator",
+    "SqlSession",
     "plugin",
 ]

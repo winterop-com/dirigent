@@ -14,7 +14,7 @@ dg run --local examples/sql/sql-query-to-storage.yaml
 
 Those two need nothing at all -- no network, no daemon, no server. Each builds a SQLite
 database in the run's own work directory, so the whole example is self-contained. The DuckDB one
-needs the engine (`dirigent-block-sql[duckdb]`) and the parquet pack, and nothing else; the last
+needs the engine package (`dirigent-block-sql-duckdb`) and the parquet pack, and nothing else; the last
 names a real PostgreSQL and says so in its own header.
 
 ```bash
@@ -47,6 +47,6 @@ connection names it as `reader@warehouse:5432/warehouse`.
 | --- | --- |
 | [sql-sqlite-roundtrip.yaml](sql-sqlite-roundtrip.yaml) | The family end to end: a table created and filled in one transaction, read back with a bound parameter, and the rows referenced by a downstream step. |
 | [sql-query-to-storage.yaml](sql-query-to-storage.yaml) | Rows into a file: the query hands them on as its output, `storage.write` puts them in an object, and `max_rows` bounds what the step will carry. |
-| [duckdb-parquet-to-report.yaml](duckdb-parquet-to-report.yaml) | The engine that reads files: a parquet artifact queried by DuckDB through a bound `read_parquet(:source)`, and the answer copied out as a csv artifact. Needs the `dirigent-block-sql[duckdb]` extra and the parquet pack. |
+| [duckdb-parquet-to-report.yaml](duckdb-parquet-to-report.yaml) | The engine that reads files: a parquet artifact queried by DuckDB through a bound `read_parquet(:source)`, and the answer copied out as a csv artifact. Needs the `dirigent-block-sql-duckdb` engine package and the parquet pack. |
 | [sql-postgres-readonly.yaml](sql-postgres-readonly.yaml) | A referenced PostgreSQL connection with `read_only: true` and its password sealed separately, queried inside the run's window. Validates offline; it cannot run without an instance. |
 | [warehouse.sql](warehouse.sql) | Not a pipeline: the roles and the one table the compose stack's warehouse is seeded with, mounted by `infra/compose.sql.yaml` |

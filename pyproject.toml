@@ -12,6 +12,7 @@ dirigent-block-execute = { workspace = true }
 dirigent-block-http = { workspace = true }
 dirigent-block-queues = { workspace = true }
 dirigent-block-sql = { workspace = true }
+dirigent-block-sql-duckdb = { workspace = true }
 dirigent-block-storage = { workspace = true }
 dirigent-block-transform = { workspace = true }
 dirigent-examples = { workspace = true }
@@ -52,6 +53,7 @@ known-first-party = [
     "dirigent_block_parquet",
     "dirigent_block_queues",
     "dirigent_block_sql",
+    "dirigent_block_sql_duckdb",
     "dirigent_block_storage",
     "dirigent_block_transform",
     "dirigent_cli",
@@ -92,6 +94,7 @@ mypy_path = [
     "packages/dirigent-block-parquet/src",
     "packages/dirigent-block-queues/src",
     "packages/dirigent-block-sql/src",
+    "packages/dirigent-block-sql-duckdb/src",
     "packages/dirigent-block-storage/src",
     "packages/dirigent-block-transform/src",
     "packages/dirigent-examples/src",
@@ -129,6 +132,7 @@ extraPaths = [
     "packages/dirigent-block-parquet/src",
     "packages/dirigent-block-queues/src",
     "packages/dirigent-block-sql/src",
+    "packages/dirigent-block-sql-duckdb/src",
     "packages/dirigent-block-storage/src",
     "packages/dirigent-block-transform/src",
     "packages/dirigent-examples/src",
@@ -175,8 +179,6 @@ exclude_lines = [
 [dependency-groups]
 dev = [
     "coverage>=7.15.4",
-    "duckdb>=1.4.0",
-    "duckdb-engine>=0.17.0",
     "httpx2>=2.12.0",
     "mkdocs-material>=9.7.7",
     "mypy>=2.3.1",

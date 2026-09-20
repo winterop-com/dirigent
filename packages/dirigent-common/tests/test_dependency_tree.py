@@ -50,6 +50,8 @@ ALLOWED: Final[dict[str, set[str]]] = {
     "dirigent-block-parquet": {"dirigent-common", "dirigent-plugin"},
     "dirigent-block-queues": {"dirigent-common", "dirigent-plugin"},
     "dirigent-block-sql": {"dirigent-common", "dirigent-plugin"},
+    # An engine of the sql family, registered under the family's own entry-point group.
+    "dirigent-block-sql-duckdb": {"dirigent-common", "dirigent-plugin", "dirigent-block-sql"},
     "dirigent-block-storage": {"dirigent-common", "dirigent-plugin"},
     "dirigent-block-transform": {"dirigent-common", "dirigent-plugin"},
     # The corpus carries SDK scripts on its python/ shelf, which import the client.

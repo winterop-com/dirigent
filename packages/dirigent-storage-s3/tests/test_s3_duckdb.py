@@ -11,7 +11,6 @@ import pytest
 from pydantic import SecretStr
 
 from dirigent_block_sql.sql import (
-    S3StorageSettings,
     SqlConnectionConfig,
     SqlExecuteConfig,
     SqlExecuteOperator,
@@ -19,6 +18,7 @@ from dirigent_block_sql.sql import (
     SqlQueryOperator,
     SqlQueryOutput,
 )
+from dirigent_block_sql_duckdb.engine import S3StorageSettings
 from dirigent_plugin import BlockFailure, ErrorClass
 from dirigent_storage_s3 import S3StorageConfig
 from dirigent_testing import FakeContext, FakeStorage

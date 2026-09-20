@@ -137,7 +137,8 @@ real](#running-it-for-real-three-services) is the same shape from a checkout.
   built-in block pack: `http.request` and `http.ready`, `storage.read`, `storage.write`,
   `storage.copy` and `storage.exists`, `shell.run`, the docker family (`docker.run`,
   `docker.build`, `docker.compose.up`, `docker.compose.down`), `git.checkout`, `sql.query` and
-  `sql.execute` (SQLite, PostgreSQL, and duckdb over files a storage URI names), the queue pairs
+  `sql.execute` (SQLite and PostgreSQL, and duckdb over files a storage URI names with the
+  `dirigent-block-sql-duckdb` engine installed), the queue pairs
   `kafka.produce` and `kafka.consume`, `rabbitmq.publish` and `rabbitmq.consume`, the clock
   sensors `time.window` and `time.sleep`, `validate.schema`, `value.const`, `log.write`,
   `report.render`, `pipeline.run` and `webhook.post`, plus the transform verbs `transform.jq`,
@@ -241,6 +242,7 @@ dirigent/
     dirigent-core/         # engine, schema, document format, plugin host, storage, auth
     dirigent-block-*/      # the built-in block families: base, http, storage, execute,
                            #   sql, transform, queues, parquet -- one package each
+    dirigent-block-sql-duckdb/  # the duckdb engine of the sql family, its own package
     dirigent-blocks/       # the umbrella over the families, plus the outbound alert channels
     dirigent-examples/     # the example corpus, contributed through the examples() hook
     dirigent-server/       # FastAPI app, authentication, the REST surface, and frontend/

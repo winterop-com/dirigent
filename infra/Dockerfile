@@ -44,6 +44,7 @@ COPY packages/dirigent-block-http/pyproject.toml packages/dirigent-block-http/
 COPY packages/dirigent-block-parquet/pyproject.toml packages/dirigent-block-parquet/
 COPY packages/dirigent-block-queues/pyproject.toml packages/dirigent-block-queues/
 COPY packages/dirigent-block-sql/pyproject.toml packages/dirigent-block-sql/
+COPY packages/dirigent-block-sql-duckdb/pyproject.toml packages/dirigent-block-sql-duckdb/
 COPY packages/dirigent-block-storage/pyproject.toml packages/dirigent-block-storage/
 COPY packages/dirigent-block-transform/pyproject.toml packages/dirigent-block-transform/
 COPY packages/dirigent-blocks/pyproject.toml packages/dirigent-blocks/
@@ -53,7 +54,7 @@ COPY packages/dirigent-cli/pyproject.toml packages/dirigent-cli/
 COPY packages/dirigent-storage-s3/pyproject.toml packages/dirigent-storage-s3/
 COPY packages/dirigent-testing/pyproject.toml packages/dirigent-testing/
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --all-packages --locked --no-dev --extra otlp --extra duckdb --no-install-workspace
+    uv sync --all-packages --locked --no-dev --extra otlp --no-install-workspace
 
 COPY packages/ packages/
 COPY README.md ./
@@ -63,7 +64,7 @@ COPY README.md ./
 COPY --from=frontend /frontend/dist/ packages/dirigent-server/src/dirigent_server/static/
 
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --all-packages --locked --no-dev --extra otlp --extra duckdb
+    uv sync --all-packages --locked --no-dev --extra otlp
 
 
 FROM python:3.13-slim-bookworm@sha256:c45a22ea000adfd9cda29364bbe7edd23001ce5cc2ad15857cfbf7766943b9ca AS runtime
