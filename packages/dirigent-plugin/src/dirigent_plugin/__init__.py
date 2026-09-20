@@ -52,6 +52,7 @@ from dirigent_plugin.markers import (
     extension_point,
     formatters,
 )
+from dirigent_plugin.runners import ProgramRunner, RunnerEngine
 from dirigent_plugin.transforms import (
     ConvertConfig,
     Converter,
@@ -94,12 +95,14 @@ __all__ = [
     "ProbeResult",
     "ProbeStatus",
     "ProgramConfig",
+    "ProgramRunner",
     "Reference",
     "RemoteHandle",
     "RunId",
     "RunRefused",
     "RunSnapshot",
     "RunState",
+    "RunnerEngine",
     "Runs",
     "SURFACE_ID_PATTERN",
     "SchemaRef",

@@ -527,8 +527,8 @@ worker's lease heartbeat keep running while the engine computes. The default `of
 worker thread, which is enough for an engine written in Python. An engine that computes
 inside a C extension holding the interpreter's lock holds the loop from a thread just as
 firmly, and a thread cannot be cancelled either: such an engine overrides `offload` and puts
-the work where a timeout can reach it. The jq engines keep a jq process each step, and kill
-it when the step is cancelled.
+the work where a timeout can reach it. That is what [a runner engine](#out-of-process-engines)
+is: the jq engines keep a jq process each step, and kill it when the step is cancelled.
 
 A codec engine declares its pairs and supplies `convert`:
 
@@ -561,3 +561,62 @@ Engines are contributed like any other block, in the plugin's `Contribution`, an
 [the Python guide](python.md#testing-a-block) is how to test one -- `call_block` validates
 the config the way the engine does and makes the call, and `check_config` is an ordinary
 method a test calls directly.
+
+## Out-of-process engines
+
+An engine whose programs cannot be interrupted -- a language runtime, or a binding that
+computes with the interpreter's lock held -- runs them in a process of its own, because
+killing that process is the only thing a step timeout can do about a program that will not
+stop. `RunnerEngine` is that engine. It names the `command` that starts one runner and wraps
+the author's program into the source its runner compiles; the rest it inherits.
+
+```python
+from collections.abc import Sequence
+from typing import ClassVar
+
+from pydantic import JsonValue
+
+from dirigent_plugin import RunnerEngine, TransformError, Transformer
+
+
+class LuaTransformer(RunnerEngine, Transformer):
+    """Reshape a value with a Lua program, run in a Lua of its own."""
+
+    kind = "lua"
+    summary = "Reshape a value with a Lua program."
+    command: ClassVar[Sequence[str]] = ("lua", "runner.lua")
+
+    def apply(self, compiled: object, value: JsonValue) -> JsonValue:
+        produced = self.outputs(compiled, value)
+        if not produced:
+            raise TransformError("the program produced no output")
+        return produced[0] if len(produced) == 1 else produced
+```
+
+dirigent starts one runner per command and hands it to one step at a time: a step holds it
+for its whole run and gives it back after, so two steps never meet on one pipe, and a runner
+that was killed is never handed out again. `outputs` is what the engine calls per value;
+compiling the program and releasing it are the frame's.
+
+A runner is any program, in any language, that reads its standard input and writes its
+standard output. It reads one JSON object per line and answers one JSON object per line, one
+reply per request and in the order the requests arrived, and it ends when the pipe closes:
+
+| The request | The answer |
+| --- | --- |
+| `{"kind": "compile", "id": "...", "program": "..."}` | `{"ok": true}`, or `{"error": "..."}` carrying the runner's own message about a program it refuses. |
+| `{"kind": "run", "id": "...", "value": <json>}` | `{"outputs": [...]}`, the stream the program produced, or `{"error": "..."}`. |
+| `{"kind": "forget", "id": "..."}` | `{"ok": true}`. |
+
+A program that compiled is held under the id the request named it by until a `forget`
+releases it. A step compiles once and runs every element through that id, so the program
+text crosses the pipe once however many elements there are, and a runner outliving a step
+keeps nothing of it. An `error` in reply to a `run` fails the step as rejected with the
+runner's message, and an id no program is compiled under is an error naming it.
+`dirigent_block_transform/jq_runner.py` is the one dirigent ships, and the only jq in it is
+the line that compiles a program and the line that reads its outputs.
+
+There is no runner at apply, where a document is checked before it is stored. An engine that
+can read its own language there implements `check_program`, which refuses a bad program by
+raising `TransformError` -- the jq engines compile it with the jq binding on the worker --
+and an engine that cannot leaves a bad program to be refused when the step compiles it.
