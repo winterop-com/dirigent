@@ -176,7 +176,7 @@ an extra rather than as a hard dependency, because its engine binary is larger t
 other driver put together:
 
 ```bash
-uv pip install 'dirigent-blocks[duckdb]'
+uv pip install 'dirigent-block-sql[duckdb]'
 ```
 
 **Reading a file.** `read_parquet` and `read_csv_auto` take the file as a **bound parameter**,

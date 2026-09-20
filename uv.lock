@@ -9,13 +9,20 @@ resolution-markers = [
 
 [manifest]
 members = [
+    "dirigent-block-base",
+    "dirigent-block-execute",
+    "dirigent-block-http",
+    "dirigent-block-parquet",
+    "dirigent-block-queues",
+    "dirigent-block-sql",
+    "dirigent-block-storage",
+    "dirigent-block-transform",
     "dirigent-blocks",
     "dirigent-cli",
     "dirigent-client",
     "dirigent-common",
     "dirigent-core",
     "dirigent-examples",
-    "dirigent-parquet",
     "dirigent-plugin",
     "dirigent-server",
     "dirigent-storage-s3",
@@ -925,21 +932,104 @@ wheels = [
 ]
 
 [[package]]
-name = "dirigent-blocks"
+name = "dirigent-block-base"
 version = "0.16.7"
-source = { editable = "packages/dirigent-blocks" }
+source = { editable = "packages/dirigent-block-base" }
 dependencies = [
-    { name = "aio-pika" },
-    { name = "aiokafka" },
-    { name = "aiosmtplib" },
+    { name = "dirigent-common" },
+    { name = "dirigent-plugin" },
+    { name = "jsonschema" },
+    { name = "structlog" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "dirigent-common", editable = "packages/dirigent-common" },
+    { name = "dirigent-plugin", editable = "packages/dirigent-plugin" },
+    { name = "jsonschema", specifier = ">=4.26.0" },
+    { name = "structlog", specifier = ">=25.5.0" },
+]
+
+[[package]]
+name = "dirigent-block-execute"
+version = "0.16.7"
+source = { editable = "packages/dirigent-block-execute" }
+dependencies = [
+    { name = "dirigent-block-http" },
     { name = "dirigent-common" },
     { name = "dirigent-plugin" },
     { name = "httpx2" },
-    { name = "jq" },
-    { name = "jsonschema" },
-    { name = "pyyaml" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "dirigent-block-http", editable = "packages/dirigent-block-http" },
+    { name = "dirigent-common", editable = "packages/dirigent-common" },
+    { name = "dirigent-plugin", editable = "packages/dirigent-plugin" },
+    { name = "httpx2", specifier = ">=2.12.0" },
+]
+
+[[package]]
+name = "dirigent-block-http"
+version = "0.16.7"
+source = { editable = "packages/dirigent-block-http" }
+dependencies = [
+    { name = "dirigent-common" },
+    { name = "dirigent-plugin" },
+    { name = "httpx2" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "dirigent-common", editable = "packages/dirigent-common" },
+    { name = "dirigent-plugin", editable = "packages/dirigent-plugin" },
+    { name = "httpx2", specifier = ">=2.12.0" },
+]
+
+[[package]]
+name = "dirigent-block-parquet"
+version = "0.16.7"
+source = { editable = "packages/dirigent-block-parquet" }
+dependencies = [
+    { name = "dirigent-common" },
+    { name = "dirigent-plugin" },
+    { name = "pyarrow" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "dirigent-common", editable = "packages/dirigent-common" },
+    { name = "dirigent-plugin", editable = "packages/dirigent-plugin" },
+    { name = "pyarrow", specifier = ">=21.0.0" },
+]
+
+[[package]]
+name = "dirigent-block-queues"
+version = "0.16.7"
+source = { editable = "packages/dirigent-block-queues" }
+dependencies = [
+    { name = "aio-pika" },
+    { name = "aiokafka" },
+    { name = "dirigent-common" },
+    { name = "dirigent-plugin" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aio-pika", specifier = ">=9.5.7" },
+    { name = "aiokafka", specifier = ">=0.12.0" },
+    { name = "dirigent-common", editable = "packages/dirigent-common" },
+    { name = "dirigent-plugin", editable = "packages/dirigent-plugin" },
+]
+
+[[package]]
+name = "dirigent-block-sql"
+version = "0.16.7"
+source = { editable = "packages/dirigent-block-sql" }
+dependencies = [
+    { name = "dirigent-common" },
+    { name = "dirigent-plugin" },
     { name = "sqlalchemy", extra = ["asyncio"] },
-    { name = "structlog" },
 ]
 
 [package.optional-dependencies]
@@ -950,27 +1040,89 @@ duckdb = [
 
 [package.metadata]
 requires-dist = [
-    { name = "aio-pika", specifier = ">=9.5.7" },
-    { name = "aiokafka", specifier = ">=0.12.0" },
-    { name = "aiosmtplib", specifier = ">=5.1.2" },
     { name = "dirigent-common", editable = "packages/dirigent-common" },
     { name = "dirigent-plugin", editable = "packages/dirigent-plugin" },
     { name = "duckdb", marker = "extra == 'duckdb'", specifier = ">=1.4.0" },
     { name = "duckdb-engine", marker = "extra == 'duckdb'", specifier = ">=0.17.0" },
-    { name = "httpx2", specifier = ">=2.12.0" },
-    { name = "jq", specifier = ">=1.8" },
-    { name = "jsonschema", specifier = ">=4.26.0" },
-    { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.52" },
-    { name = "structlog", specifier = ">=25.5.0" },
 ]
 provides-extras = ["duckdb"]
+
+[[package]]
+name = "dirigent-block-storage"
+version = "0.16.7"
+source = { editable = "packages/dirigent-block-storage" }
+dependencies = [
+    { name = "dirigent-common" },
+    { name = "dirigent-plugin" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "dirigent-common", editable = "packages/dirigent-common" },
+    { name = "dirigent-plugin", editable = "packages/dirigent-plugin" },
+]
+
+[[package]]
+name = "dirigent-block-transform"
+version = "0.16.7"
+source = { editable = "packages/dirigent-block-transform" }
+dependencies = [
+    { name = "dirigent-common" },
+    { name = "dirigent-plugin" },
+    { name = "jq" },
+    { name = "pyyaml" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "dirigent-common", editable = "packages/dirigent-common" },
+    { name = "dirigent-plugin", editable = "packages/dirigent-plugin" },
+    { name = "jq", specifier = ">=1.8" },
+    { name = "pyyaml", specifier = ">=6.0.3" },
+]
+
+[[package]]
+name = "dirigent-blocks"
+version = "0.16.7"
+source = { editable = "packages/dirigent-blocks" }
+dependencies = [
+    { name = "aiosmtplib" },
+    { name = "dirigent-block-base" },
+    { name = "dirigent-block-execute" },
+    { name = "dirigent-block-http" },
+    { name = "dirigent-block-queues" },
+    { name = "dirigent-block-sql" },
+    { name = "dirigent-block-storage" },
+    { name = "dirigent-block-transform" },
+    { name = "dirigent-common" },
+    { name = "dirigent-plugin" },
+    { name = "httpx2" },
+    { name = "structlog" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aiosmtplib", specifier = ">=5.1.2" },
+    { name = "dirigent-block-base", editable = "packages/dirigent-block-base" },
+    { name = "dirigent-block-execute", editable = "packages/dirigent-block-execute" },
+    { name = "dirigent-block-http", editable = "packages/dirigent-block-http" },
+    { name = "dirigent-block-queues", editable = "packages/dirigent-block-queues" },
+    { name = "dirigent-block-sql", editable = "packages/dirigent-block-sql" },
+    { name = "dirigent-block-storage", editable = "packages/dirigent-block-storage" },
+    { name = "dirigent-block-transform", editable = "packages/dirigent-block-transform" },
+    { name = "dirigent-common", editable = "packages/dirigent-common" },
+    { name = "dirigent-plugin", editable = "packages/dirigent-plugin" },
+    { name = "httpx2", specifier = ">=2.12.0" },
+    { name = "structlog", specifier = ">=25.5.0" },
+]
 
 [[package]]
 name = "dirigent-cli"
 version = "0.16.7"
 source = { editable = "packages/dirigent-cli" }
 dependencies = [
+    { name = "dirigent-block-execute" },
     { name = "dirigent-blocks" },
     { name = "dirigent-client" },
     { name = "dirigent-common" },
@@ -990,6 +1142,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "dirigent-block-execute", editable = "packages/dirigent-block-execute" },
     { name = "dirigent-blocks", editable = "packages/dirigent-blocks" },
     { name = "dirigent-client", editable = "packages/dirigent-client" },
     { name = "dirigent-common", editable = "packages/dirigent-common" },
@@ -1106,23 +1259,6 @@ dependencies = [
 requires-dist = [
     { name = "dirigent-client", editable = "packages/dirigent-client" },
     { name = "dirigent-plugin", editable = "packages/dirigent-plugin" },
-]
-
-[[package]]
-name = "dirigent-parquet"
-version = "0.16.7"
-source = { editable = "packages/dirigent-parquet" }
-dependencies = [
-    { name = "dirigent-common" },
-    { name = "dirigent-plugin" },
-    { name = "pyarrow" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "dirigent-common", editable = "packages/dirigent-common" },
-    { name = "dirigent-plugin", editable = "packages/dirigent-plugin" },
-    { name = "pyarrow", specifier = ">=21.0.0" },
 ]
 
 [[package]]

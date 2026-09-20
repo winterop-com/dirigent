@@ -28,7 +28,7 @@ dg run --local examples/transform/jq-reshape.yaml
 | [ndjson-round-trip.yaml](ndjson-round-trip.yaml) | ndjson: a JSON array re-spelled one record per line, and read back. |
 | [yaml-config-to-json.yaml](yaml-config-to-json.yaml) | yaml: one document is one value, so a config becomes the object it describes, and comes back a document. |
 | [xml-feed-to-ndjson.yaml](xml-feed-to-ndjson.yaml) | xml: a feed's elements as one record per line, the mapping that makes attributes and children keys, and the whole document as one object. |
-| [parquet-round-trip.yaml](parquet-round-trip.yaml) | Records to parquet and back, the types surviving where csv would flatten them to strings (needs `dirigent-parquet`). |
+| [parquet-round-trip.yaml](parquet-round-trip.yaml) | Records to parquet and back, the types surviving where csv would flatten them to strings (needs `dirigent-block-parquet`). |
 
 Every program on this shelf is reference-free, so jq compiles them when the document is
 applied and a syntax error is an issue beside every other one the document has. That is why

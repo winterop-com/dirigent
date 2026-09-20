@@ -415,7 +415,7 @@ dg run --local examples/transform/xml-feed-to-ndjson.yaml
 
 ## `convert.arrow`
 
-The parquet codec, shipped separately in `dirigent-parquet` because it stands on pyarrow
+The parquet codec, shipped separately in `dirigent-block-parquet` because it stands on pyarrow
 where `convert.std` deliberately stands on the standard library alone. Installing the pack
 is what puts the block in the catalog. It trades parquet with the three text spellings, in
 every direction:

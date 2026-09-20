@@ -74,9 +74,12 @@
 - A measured size in emitted data is `<thing>_bytes`, an integer of bytes.
 - A configured size is a humane `Size` value, and carries no `_bytes` suffix: the type says
   the unit, and the value may be written `16KB`.
-- A pack is named `dirigent-<system or format>` (`dirigent-dhis2`, `dirigent-parquet`,
-  `dirigent-storage-s3`) and a runtime package `dirigent-<role>` (`core`, `server`, `cli`,
-  `client`, `common`, `plugin`, `testing`). `dirigent-blocks` is the built-in pack.
+- A pack is named for what it contributes: `dirigent-<system>` for an adapter pack
+  (`dirigent-dhis2`), `dirigent-block-<family>` for blocks (`dirigent-block-parquet`),
+  `dirigent-storage-<backend>` (`dirigent-storage-s3`), `dirigent-notify-<channel>`. A
+  runtime package is `dirigent-<role>` (`core`, `server`, `cli`, `client`, `common`,
+  `plugin`, `testing`). `dirigent-blocks` is the umbrella over the built-in
+  `dirigent-block-*` families.
 - YAML files we own end in `.yaml`, never `.yml`. A file a tool insists on naming for us,
   such as `mkdocs.yml`, keeps the name that tool expects.
 

@@ -7,10 +7,17 @@ dirigent-plugin = { workspace = true }
 dirigent-client = { workspace = true }
 dirigent-core = { workspace = true }
 dirigent-blocks = { workspace = true }
+dirigent-block-base = { workspace = true }
+dirigent-block-execute = { workspace = true }
+dirigent-block-http = { workspace = true }
+dirigent-block-queues = { workspace = true }
+dirigent-block-sql = { workspace = true }
+dirigent-block-storage = { workspace = true }
+dirigent-block-transform = { workspace = true }
 dirigent-examples = { workspace = true }
 dirigent-server = { workspace = true }
 dirigent-cli = { workspace = true }
-dirigent-parquet = { workspace = true }
+dirigent-block-parquet = { workspace = true }
 dirigent-storage-s3 = { workspace = true }
 dirigent-testing = { workspace = true }
 
@@ -39,10 +46,17 @@ convention = "google"
 [tool.ruff.lint.isort]
 known-first-party = [
     "dirigent_blocks",
+    "dirigent_block_base",
+    "dirigent_block_execute",
+    "dirigent_block_http",
+    "dirigent_block_parquet",
+    "dirigent_block_queues",
+    "dirigent_block_sql",
+    "dirigent_block_storage",
+    "dirigent_block_transform",
     "dirigent_cli",
     "dirigent_client",
     "dirigent_core",
-    "dirigent_parquet",
     "dirigent_plugin",
     "dirigent_server",
     "dirigent_storage_s3",
@@ -72,10 +86,17 @@ mypy_path = [
     "packages/dirigent-client/src",
     "packages/dirigent-core/src",
     "packages/dirigent-blocks/src",
+    "packages/dirigent-block-base/src",
+    "packages/dirigent-block-execute/src",
+    "packages/dirigent-block-http/src",
+    "packages/dirigent-block-parquet/src",
+    "packages/dirigent-block-queues/src",
+    "packages/dirigent-block-sql/src",
+    "packages/dirigent-block-storage/src",
+    "packages/dirigent-block-transform/src",
     "packages/dirigent-examples/src",
     "packages/dirigent-server/src",
     "packages/dirigent-cli/src",
-    "packages/dirigent-parquet/src",
     "packages/dirigent-storage-s3/src",
     "packages/dirigent-testing/src",
 ]
@@ -102,10 +123,17 @@ extraPaths = [
     "packages/dirigent-client/src",
     "packages/dirigent-core/src",
     "packages/dirigent-blocks/src",
+    "packages/dirigent-block-base/src",
+    "packages/dirigent-block-execute/src",
+    "packages/dirigent-block-http/src",
+    "packages/dirigent-block-parquet/src",
+    "packages/dirigent-block-queues/src",
+    "packages/dirigent-block-sql/src",
+    "packages/dirigent-block-storage/src",
+    "packages/dirigent-block-transform/src",
     "packages/dirigent-examples/src",
     "packages/dirigent-server/src",
     "packages/dirigent-cli/src",
-    "packages/dirigent-parquet/src",
     "packages/dirigent-storage-s3/src",
     "packages/dirigent-testing/src",
 ]

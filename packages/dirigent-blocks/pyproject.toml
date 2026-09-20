@@ -1,7 +1,7 @@
 [project]
 name = "dirigent-blocks"
 version = "0.16.7"
-description = "Built-in generic operators and sensors for dirigent."
+description = "The built-in pack for dirigent: every block family, and the outbound alert channels."
 readme = "README.md"
 requires-python = ">=3.13"
 license = "LicenseRef-Proprietary"
@@ -11,23 +11,19 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    "aio-pika>=9.5.7",
-    "aiokafka>=0.12.0",
     "aiosmtplib>=5.1.2",
+    "dirigent-block-base==0.16.7",
+    "dirigent-block-execute==0.16.7",
+    "dirigent-block-http==0.16.7",
+    "dirigent-block-queues==0.16.7",
+    "dirigent-block-sql==0.16.7",
+    "dirigent-block-storage==0.16.7",
+    "dirigent-block-transform==0.16.7",
     "dirigent-common==0.16.7",
     "dirigent-plugin==0.16.7",
     "httpx2>=2.12.0",
-    "jq>=1.8",
-    "jsonschema>=4.26.0",
-    "pyyaml>=6.0.3",
-    "sqlalchemy[asyncio]>=2.0.52",
     "structlog>=25.5.0",
 ]
-
-[project.optional-dependencies]
-# DuckDB is a 45MB engine binary, which is more than every other driver the family speaks to
-# put together; a worker that never runs a duckdb url should not carry it.
-duckdb = ["duckdb>=1.4.0", "duckdb-engine>=0.17.0"]
 
 [project.entry-points."dirigent.plugins.v1"]
 builtin = "dirigent_blocks:plugin"
@@ -37,4 +33,12 @@ requires = ["uv_build>=0.12.0,<0.13.0"]
 build-backend = "uv_build"
 
 [tool.uv.sources]
+dirigent-block-base = { workspace = true }
+dirigent-block-execute = { workspace = true }
+dirigent-block-http = { workspace = true }
+dirigent-block-queues = { workspace = true }
+dirigent-block-sql = { workspace = true }
+dirigent-block-storage = { workspace = true }
+dirigent-block-transform = { workspace = true }
+dirigent-common = { workspace = true }
 dirigent-plugin = { workspace = true }

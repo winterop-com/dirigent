@@ -1,0 +1,29 @@
+[project]
+name = "dirigent-block-base"
+version = "0.16.7"
+description = "The base block family for dirigent: logging, reporting, validation, values, time, and pipeline.run."
+readme = "README.md"
+requires-python = ">=3.13"
+license = "LicenseRef-Proprietary"
+license-files = ["LICENSE"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "dirigent-common==0.16.7",
+    "dirigent-plugin==0.16.7",
+    "jsonschema>=4.26.0",
+    "structlog>=25.5.0",
+]
+
+[project.entry-points."dirigent.plugins.v1"]
+block-base = "dirigent_block_base:plugin"
+
+[build-system]
+requires = ["uv_build>=0.12.0,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.uv.sources]
+dirigent-common = { workspace = true }
+dirigent-plugin = { workspace = true }

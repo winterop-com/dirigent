@@ -266,9 +266,9 @@ def test_the_history_shows_what_arrived_and_what_it_mapped_to(client: TestClient
 
 def test_what_webhook_post_signs_is_what_the_intake_verifies(client: TestClient, anonymous: TestClient) -> None:
     """``webhook.post``'s rendering and signature must verify at the intake endpoint."""
-    from dirigent_blocks.webhooks import SIGNATURE_HEADER as OUTBOUND_HEADER
-    from dirigent_blocks.webhooks import render
-    from dirigent_blocks.webhooks import sign as sign_outbound
+    from dirigent_block_http.webhooks import SIGNATURE_HEADER as OUTBOUND_HEADER
+    from dirigent_block_http.webhooks import render
+    from dirigent_block_http.webhooks import sign as sign_outbound
 
     minted = mint(client, hmac_secret=SECRET)
     payload = render(PAYLOAD)

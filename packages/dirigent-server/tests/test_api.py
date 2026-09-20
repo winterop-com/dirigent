@@ -1326,7 +1326,7 @@ def test_system_info_repeats_each_connections_last_check_and_probes_nothing(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The corner of every page reads this, so it must never run anyone's connect timeout."""
-    from dirigent_blocks.connections import HttpConnectionKind
+    from dirigent_block_http.connections import HttpConnectionKind
 
     original = HttpConnectionKind.check
     probes = 0

@@ -1,6 +1,6 @@
 """Wiring the docker orphan reaper to an instance: what a run id means, and when a pass runs.
 
-The reaping itself is ``dirigent_blocks.reap``, which knows docker and nothing else. This
+The reaping itself is ``dirigent_block_execute.reap``, which knows docker and nothing else. This
 module supplies the half it cannot have: the run lookup, which is a database read, and the
 worker chore that puts a pass on a cadence.
 """
@@ -15,8 +15,8 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from dirigent_blocks import reap, subprocess
-from dirigent_blocks.docker import DAEMON_ENV
+from dirigent_block_execute import reap, subprocess
+from dirigent_block_execute.docker import DAEMON_ENV
 from dirigent_client.schemas import TERMINAL_RUN_STATUSES
 from dirigent_core.config import Settings
 from dirigent_core.database import session_scope

@@ -239,12 +239,13 @@ dirigent/
     dirigent-plugin/       # the block contract: markers, specs, base classes
     dirigent-client/       # the API contract: wire schemas, and the async Python SDK
     dirigent-core/         # engine, schema, document format, plugin host, storage, auth
-    dirigent-blocks/       # built-in generic operators and sensors
+    dirigent-block-*/      # the built-in block families: base, http, storage, execute,
+                           #   sql, transform, queues, parquet -- one package each
+    dirigent-blocks/       # the umbrella over the families, plus the outbound alert channels
     dirigent-examples/     # the example corpus, contributed through the examples() hook
     dirigent-server/       # FastAPI app, authentication, the REST surface, and frontend/
     dirigent-cli/          # `dirigent` and the short alias `dg`
     dirigent-storage-s3/   # the s3:// storage backend, registering its own scheme
-    dirigent-parquet/      # the parquet format pack: the convert.arrow codec
     dirigent-testing/      # test doubles and pytest fixtures for writing blocks
   examples/                # a symlink to dirigent-examples' shelves, so `dg run --local examples/...` reads
   docs/                    # mkdocs-material site; design.md is the in-repo spec

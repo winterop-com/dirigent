@@ -33,37 +33,37 @@ Two properties are worth reading before a block is used:
 
 | Block | Kind | Group | Summary | Contributed by |
 | --- | --- | --- | --- | --- |
-| [`convert.arrow`](#convertarrow) | operator | transform | Convert between parquet and the text formats. | `parquet` |
-| [`convert.std`](#convertstd) | operator | transform | Convert between json, ndjson, csv, yaml and xml. | `builtin` |
-| [`docker.build`](#dockerbuild) | operator | execute | Build a container image on the worker. | `builtin` |
-| [`docker.compose.down`](#dockercomposedown) | operator | execute | Tear a compose stack down on the worker. | `builtin` |
-| [`docker.compose.up`](#dockercomposeup) | operator | execute | Bring a compose stack up on the worker. | `builtin` |
-| [`docker.run`](#dockerrun) | operator | execute | Run a container on the worker. | `builtin` |
-| [`filter.jq`](#filterjq) | operator | transform | Keep the elements of a list a jq program answers true for. | `builtin` |
-| [`git.checkout`](#gitcheckout) | operator | git | Check a repository out into the run's work directory. | `builtin` |
-| [`http.ready`](#httpready) | sensor | http | Wait for an HTTP endpoint to report ready. | `builtin` |
-| [`http.request`](#httprequest) | operator | http | Call an HTTP endpoint. | `builtin` |
-| [`kafka.consume`](#kafkaconsume) | sensor | kafka | Wait for messages on a Kafka topic. | `builtin` |
-| [`kafka.produce`](#kafkaproduce) | operator | kafka | Publish records to a Kafka topic. | `builtin` |
-| [`log.write`](#logwrite) | operator | log | Write a line to the run's log. | `builtin` |
-| [`map.jq`](#mapjq) | operator | transform | Replace every element of a list with what a jq program makes of it. | `builtin` |
-| [`pipeline.run`](#pipelinerun) | operator | execute | Run another pipeline on this instance. | `builtin` |
-| [`rabbitmq.consume`](#rabbitmqconsume) | sensor | rabbitmq | Wait for messages on a RabbitMQ queue. | `builtin` |
-| [`rabbitmq.publish`](#rabbitmqpublish) | operator | rabbitmq | Publish one message to an exchange. | `builtin` |
-| [`report.render`](#reportrender) | operator | report | Render text from a Jinja template. | `builtin` |
-| [`shell.run`](#shellrun) | operator | execute | Run a command on the worker. | `builtin` |
-| [`sql.execute`](#sqlexecute) | operator | sql | Run SQL statements against a database in one transaction. | `builtin` |
-| [`sql.query`](#sqlquery) | operator | sql | Run one SQL statement and return its rows. | `builtin` |
-| [`storage.copy`](#storagecopy) | operator | storage | Copy an object from one URI to another. | `builtin` |
-| [`storage.exists`](#storageexists) | sensor | storage | Wait for an object to appear at a URI. | `builtin` |
-| [`storage.read`](#storageread) | operator | storage | Read an object from a storage URI as a value. | `builtin` |
-| [`storage.write`](#storagewrite) | operator | storage | Write a value or text to a storage URI. | `builtin` |
-| [`time.sleep`](#timesleep) | sensor | time | Wait a fixed duration. | `builtin` |
-| [`time.window`](#timewindow) | sensor | time | Wait until the local clock is inside a time window. | `builtin` |
-| [`transform.jq`](#transformjq) | operator | transform | Reshape a value with a jq program. | `builtin` |
-| [`validate.schema`](#validateschema) | operator | validate | Validate a value against a JSON Schema. | `builtin` |
-| [`value.const`](#valueconst) | operator | value | Emit a fixed value. | `builtin` |
-| [`webhook.post`](#webhookpost) | operator | webhook | POST a JSON body, optionally HMAC-signed. | `builtin` |
+| [`convert.arrow`](#convertarrow) | operator | transform | Convert between parquet and the text formats. | `block-parquet` |
+| [`convert.std`](#convertstd) | operator | transform | Convert between json, ndjson, csv, yaml and xml. | `block-transform` |
+| [`docker.build`](#dockerbuild) | operator | execute | Build a container image on the worker. | `block-execute` |
+| [`docker.compose.down`](#dockercomposedown) | operator | execute | Tear a compose stack down on the worker. | `block-execute` |
+| [`docker.compose.up`](#dockercomposeup) | operator | execute | Bring a compose stack up on the worker. | `block-execute` |
+| [`docker.run`](#dockerrun) | operator | execute | Run a container on the worker. | `block-execute` |
+| [`filter.jq`](#filterjq) | operator | transform | Keep the elements of a list a jq program answers true for. | `block-transform` |
+| [`git.checkout`](#gitcheckout) | operator | git | Check a repository out into the run's work directory. | `block-execute` |
+| [`http.ready`](#httpready) | sensor | http | Wait for an HTTP endpoint to report ready. | `block-http` |
+| [`http.request`](#httprequest) | operator | http | Call an HTTP endpoint. | `block-http` |
+| [`kafka.consume`](#kafkaconsume) | sensor | kafka | Wait for messages on a Kafka topic. | `block-queues` |
+| [`kafka.produce`](#kafkaproduce) | operator | kafka | Publish records to a Kafka topic. | `block-queues` |
+| [`log.write`](#logwrite) | operator | log | Write a line to the run's log. | `block-base` |
+| [`map.jq`](#mapjq) | operator | transform | Replace every element of a list with what a jq program makes of it. | `block-transform` |
+| [`pipeline.run`](#pipelinerun) | operator | execute | Run another pipeline on this instance. | `block-base` |
+| [`rabbitmq.consume`](#rabbitmqconsume) | sensor | rabbitmq | Wait for messages on a RabbitMQ queue. | `block-queues` |
+| [`rabbitmq.publish`](#rabbitmqpublish) | operator | rabbitmq | Publish one message to an exchange. | `block-queues` |
+| [`report.render`](#reportrender) | operator | report | Render text from a Jinja template. | `block-base` |
+| [`shell.run`](#shellrun) | operator | execute | Run a command on the worker. | `block-execute` |
+| [`sql.execute`](#sqlexecute) | operator | sql | Run SQL statements against a database in one transaction. | `block-sql` |
+| [`sql.query`](#sqlquery) | operator | sql | Run one SQL statement and return its rows. | `block-sql` |
+| [`storage.copy`](#storagecopy) | operator | storage | Copy an object from one URI to another. | `block-storage` |
+| [`storage.exists`](#storageexists) | sensor | storage | Wait for an object to appear at a URI. | `block-storage` |
+| [`storage.read`](#storageread) | operator | storage | Read an object from a storage URI as a value. | `block-storage` |
+| [`storage.write`](#storagewrite) | operator | storage | Write a value or text to a storage URI. | `block-storage` |
+| [`time.sleep`](#timesleep) | sensor | time | Wait a fixed duration. | `block-base` |
+| [`time.window`](#timewindow) | sensor | time | Wait until the local clock is inside a time window. | `block-base` |
+| [`transform.jq`](#transformjq) | operator | transform | Reshape a value with a jq program. | `block-transform` |
+| [`validate.schema`](#validateschema) | operator | validate | Validate a value against a JSON Schema. | `block-base` |
+| [`value.const`](#valueconst) | operator | value | Emit a fixed value. | `block-base` |
+| [`webhook.post`](#webhookpost) | operator | webhook | POST a JSON body, optionally HMAC-signed. | `block-http` |
 
 ## Operators
 
@@ -71,7 +71,7 @@ Two properties are worth reading before a block is used:
 
 Convert between parquet and the text formats.
 
-Contributed by `parquet`. Idempotent.
+Contributed by `block-parquet`. Idempotent.
 
 **Config**
 
@@ -94,7 +94,7 @@ Contributed by `parquet`. Idempotent.
 
 Convert between json, ndjson, csv, yaml and xml.
 
-Contributed by `builtin`. Idempotent.
+Contributed by `block-transform`. Idempotent.
 
 **Config**
 
@@ -117,7 +117,7 @@ Contributed by `builtin`. Idempotent.
 
 Build a container image on the worker.
 
-Contributed by `builtin`. Not idempotent. **Runs code on the worker**, so the instance must allowlist its id.
+Contributed by `block-execute`. Not idempotent. **Runs code on the worker**, so the instance must allowlist its id.
 
 **Config**
 
@@ -154,7 +154,7 @@ Contributed by `builtin`. Not idempotent. **Runs code on the worker**, so the in
 
 Tear a compose stack down on the worker.
 
-Contributed by `builtin`. Not idempotent. **Runs code on the worker**, so the instance must allowlist its id.
+Contributed by `block-execute`. Not idempotent. **Runs code on the worker**, so the instance must allowlist its id.
 
 **Config**
 
@@ -188,7 +188,7 @@ Contributed by `builtin`. Not idempotent. **Runs code on the worker**, so the in
 
 Bring a compose stack up on the worker.
 
-Contributed by `builtin`. Not idempotent. **Runs code on the worker**, so the instance must allowlist its id.
+Contributed by `block-execute`. Not idempotent. **Runs code on the worker**, so the instance must allowlist its id.
 
 **Config**
 
@@ -229,7 +229,7 @@ Contributed by `builtin`. Not idempotent. **Runs code on the worker**, so the in
 
 Run a container on the worker.
 
-Contributed by `builtin`. Not idempotent. **Runs code on the worker**, so the instance must allowlist its id. Polls every 2s unless the step says otherwise.
+Contributed by `block-execute`. Not idempotent. **Runs code on the worker**, so the instance must allowlist its id. Polls every 2s unless the step says otherwise.
 
 **Config**
 
@@ -277,7 +277,7 @@ Contributed by `builtin`. Not idempotent. **Runs code on the worker**, so the in
 
 Keep the elements of a list a jq program answers true for.
 
-Contributed by `builtin`. Idempotent.
+Contributed by `block-transform`. Idempotent.
 
 **Config**
 
@@ -296,7 +296,7 @@ Contributed by `builtin`. Idempotent.
 
 Check a repository out into the run's work directory.
 
-Contributed by `builtin`. Idempotent.
+Contributed by `block-execute`. Idempotent.
 
 **Config**
 
@@ -324,7 +324,7 @@ Contributed by `builtin`. Idempotent.
 
 Call an HTTP endpoint.
 
-Contributed by `builtin`. Not idempotent.
+Contributed by `block-http`. Not idempotent.
 
 **Config**
 
@@ -357,7 +357,7 @@ Contributed by `builtin`. Not idempotent.
 
 Publish records to a Kafka topic.
 
-Contributed by `builtin`. Not idempotent.
+Contributed by `block-queues`. Not idempotent.
 
 **Config**
 
@@ -384,7 +384,7 @@ Contributed by `builtin`. Not idempotent.
 
 Write a line to the run's log.
 
-Contributed by `builtin`. Idempotent.
+Contributed by `block-base`. Idempotent.
 
 **Config**
 
@@ -404,7 +404,7 @@ Contributed by `builtin`. Idempotent.
 
 Replace every element of a list with what a jq program makes of it.
 
-Contributed by `builtin`. Idempotent.
+Contributed by `block-transform`. Idempotent.
 
 **Config**
 
@@ -423,7 +423,7 @@ Contributed by `builtin`. Idempotent.
 
 Run another pipeline on this instance.
 
-Contributed by `builtin`. Not idempotent. Polls every 5s unless the step says otherwise.
+Contributed by `block-base`. Not idempotent. Polls every 5s unless the step says otherwise.
 
 **Config**
 
@@ -447,7 +447,7 @@ Contributed by `builtin`. Not idempotent. Polls every 5s unless the step says ot
 
 Publish one message to an exchange.
 
-Contributed by `builtin`. Not idempotent.
+Contributed by `block-queues`. Not idempotent.
 
 **Config**
 
@@ -472,7 +472,7 @@ Contributed by `builtin`. Not idempotent.
 
 Render text from a Jinja template.
 
-Contributed by `builtin`. Idempotent.
+Contributed by `block-base`. Idempotent.
 
 **Config**
 
@@ -495,7 +495,7 @@ Contributed by `builtin`. Idempotent.
 
 Run a command on the worker.
 
-Contributed by `builtin`. Not idempotent. **Runs code on the worker**, so the instance must allowlist its id.
+Contributed by `block-execute`. Not idempotent. **Runs code on the worker**, so the instance must allowlist its id.
 
 **Config**
 
@@ -526,7 +526,7 @@ Contributed by `builtin`. Not idempotent. **Runs code on the worker**, so the in
 
 Run SQL statements against a database in one transaction.
 
-Contributed by `builtin`. Not idempotent.
+Contributed by `block-sql`. Not idempotent.
 
 **Config**
 
@@ -548,7 +548,7 @@ Contributed by `builtin`. Not idempotent.
 
 Run one SQL statement and return its rows.
 
-Contributed by `builtin`. Idempotent.
+Contributed by `block-sql`. Idempotent.
 
 **Config**
 
@@ -573,7 +573,7 @@ Contributed by `builtin`. Idempotent.
 
 Copy an object from one URI to another.
 
-Contributed by `builtin`. Idempotent.
+Contributed by `block-storage`. Idempotent.
 
 **Config**
 
@@ -594,7 +594,7 @@ Contributed by `builtin`. Idempotent.
 
 Read an object from a storage URI as a value.
 
-Contributed by `builtin`. Idempotent.
+Contributed by `block-storage`. Idempotent.
 
 **Config**
 
@@ -617,7 +617,7 @@ Contributed by `builtin`. Idempotent.
 
 Write a value or text to a storage URI.
 
-Contributed by `builtin`. Idempotent.
+Contributed by `block-storage`. Idempotent.
 
 **Config**
 
@@ -640,7 +640,7 @@ Contributed by `builtin`. Idempotent.
 
 Reshape a value with a jq program.
 
-Contributed by `builtin`. Idempotent.
+Contributed by `block-transform`. Idempotent.
 
 **Config**
 
@@ -659,7 +659,7 @@ Contributed by `builtin`. Idempotent.
 
 Validate a value against a JSON Schema.
 
-Contributed by `builtin`. Idempotent.
+Contributed by `block-base`. Idempotent.
 
 **Config**
 
@@ -678,7 +678,7 @@ Contributed by `builtin`. Idempotent.
 
 Emit a fixed value.
 
-Contributed by `builtin`. Idempotent.
+Contributed by `block-base`. Idempotent.
 
 **Config**
 
@@ -696,7 +696,7 @@ Contributed by `builtin`. Idempotent.
 
 POST a JSON body, optionally HMAC-signed.
 
-Contributed by `builtin`. Not idempotent.
+Contributed by `block-http`. Not idempotent.
 
 **Config**
 
@@ -729,7 +729,7 @@ Contributed by `builtin`. Not idempotent.
 
 Wait for an HTTP endpoint to report ready.
 
-Contributed by `builtin`. Not idempotent. Polls every 1m unless the step says otherwise. Gives up after 24h unless the step says otherwise.
+Contributed by `block-http`. Not idempotent. Polls every 1m unless the step says otherwise. Gives up after 24h unless the step says otherwise.
 
 **Config**
 
@@ -756,7 +756,7 @@ Contributed by `builtin`. Not idempotent. Polls every 1m unless the step says ot
 
 Wait for messages on a Kafka topic.
 
-Contributed by `builtin`. Not idempotent. Polls every 30s unless the step says otherwise. Gives up after 24h unless the step says otherwise.
+Contributed by `block-queues`. Not idempotent. Polls every 30s unless the step says otherwise. Gives up after 24h unless the step says otherwise.
 
 **Config**
 
@@ -785,7 +785,7 @@ Contributed by `builtin`. Not idempotent. Polls every 30s unless the step says o
 
 Wait for messages on a RabbitMQ queue.
 
-Contributed by `builtin`. Not idempotent. Polls every 30s unless the step says otherwise. Gives up after 24h unless the step says otherwise.
+Contributed by `block-queues`. Not idempotent. Polls every 30s unless the step says otherwise. Gives up after 24h unless the step says otherwise.
 
 **Config**
 
@@ -811,7 +811,7 @@ Contributed by `builtin`. Not idempotent. Polls every 30s unless the step says o
 
 Wait for an object to appear at a URI.
 
-Contributed by `builtin`. Not idempotent. Polls every 1m unless the step says otherwise. Gives up after 24h unless the step says otherwise.
+Contributed by `block-storage`. Not idempotent. Polls every 1m unless the step says otherwise. Gives up after 24h unless the step says otherwise.
 
 **Config**
 
@@ -832,7 +832,7 @@ Contributed by `builtin`. Not idempotent. Polls every 1m unless the step says ot
 
 Wait a fixed duration.
 
-Contributed by `builtin`. Not idempotent. Polls every 1s unless the step says otherwise. Gives up after 24h unless the step says otherwise.
+Contributed by `block-base`. Not idempotent. Polls every 1s unless the step says otherwise. Gives up after 24h unless the step says otherwise.
 
 **Config**
 
@@ -851,7 +851,7 @@ Contributed by `builtin`. Not idempotent. Polls every 1s unless the step says ot
 
 Wait until the local clock is inside a time window.
 
-Contributed by `builtin`. Not idempotent. Polls every 1m unless the step says otherwise. Gives up after 24h unless the step says otherwise.
+Contributed by `block-base`. Not idempotent. Polls every 1m unless the step says otherwise. Gives up after 24h unless the step says otherwise.
 
 **Config**
 
@@ -887,7 +887,7 @@ them by code and never by id of any other kind. The sixth, a JSON Schema format 
 | Notifier | Contributed by |
 | --- | --- |
 | `email` | `builtin` |
-| `log` | `builtin` |
+| `log` | `block-base` |
 | `slack` | `builtin` |
 | `webhook` | `builtin` |
 
@@ -895,13 +895,13 @@ them by code and never by id of any other kind. The sixth, a JSON Schema format 
 
 | Connection kind | Contributed by |
 | --- | --- |
-| `docker` | `builtin` |
+| `docker` | `block-execute` |
 | `email` | `builtin` |
-| `git` | `builtin` |
-| `http` | `builtin` |
-| `kafka` | `builtin` |
-| `rabbitmq` | `builtin` |
+| `git` | `block-execute` |
+| `http` | `block-http` |
+| `kafka` | `block-queues` |
+| `rabbitmq` | `block-queues` |
 | `s3` | `storage-s3` |
 | `slack` | `builtin` |
-| `sql` | `builtin` |
+| `sql` | `block-sql` |
 | `webhook` | `builtin` |

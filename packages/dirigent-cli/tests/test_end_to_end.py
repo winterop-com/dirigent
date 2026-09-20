@@ -14,7 +14,7 @@ from cryptography.fernet import Fernet
 from pydantic import SecretStr
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from dirigent_blocks.connections import HttpConnectionConfig
+from dirigent_block_http.connections import HttpConnectionConfig
 from dirigent_client.enums import AttemptStatus, RunItemStatus, RunStatus
 from dirigent_core.config import Settings
 from dirigent_core.database import create_engine, create_session_factory, session_scope
@@ -417,7 +417,7 @@ async def test_the_reaper_reads_a_runs_status_out_of_the_database(
 async def test_the_reaping_chore_logs_a_record_for_each_project_a_pass_took(
     settings: Settings, sessions: async_sessionmaker[AsyncSession], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from dirigent_blocks.reap import Reaped
+    from dirigent_block_execute.reap import Reaped
     from dirigent_cli import reaper
 
     def a_daemon() -> bool:

@@ -1,0 +1,33 @@
+[project]
+name = "dirigent-block-sql"
+version = "0.16.7"
+description = "The SQL block family for dirigent: sql.query, sql.execute, and the sql connection kind."
+readme = "README.md"
+requires-python = ">=3.13"
+license = "LicenseRef-Proprietary"
+license-files = ["LICENSE"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "dirigent-common==0.16.7",
+    "dirigent-plugin==0.16.7",
+    "sqlalchemy[asyncio]>=2.0.52",
+]
+
+[project.optional-dependencies]
+# DuckDB is a 45MB engine binary, which is more than every other driver the family speaks to
+# put together; a worker that never runs a duckdb url should not carry it.
+duckdb = ["duckdb>=1.4.0", "duckdb-engine>=0.17.0"]
+
+[project.entry-points."dirigent.plugins.v1"]
+block-sql = "dirigent_block_sql:plugin"
+
+[build-system]
+requires = ["uv_build>=0.12.0,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.uv.sources]
+dirigent-common = { workspace = true }
+dirigent-plugin = { workspace = true }

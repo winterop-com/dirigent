@@ -443,8 +443,25 @@ def test_loading_collects_a_renamed_implementation_of_the_hook() -> None:
     assert host.contributions["renamed"].block_ids() == ["test.echo"]
 
 
-def test_loading_discovers_the_installed_pack_and_any_extra_plugin() -> None:
+def test_loading_discovers_the_installed_families_and_any_extra_plugin() -> None:
     host = load_plugin_host(extra={"tests": FullPlugin()})
     assert "builtin" in host.contributions
+    assert {
+        "block-base",
+        "block-execute",
+        "block-http",
+        "block-parquet",
+        "block-queues",
+        "block-sql",
+        "block-storage",
+        "block-transform",
+    } <= set(host.contributions)
     assert "tests" in host.contributions
     assert "test.echo" in host.operators
+
+
+def test_only_the_local_execution_blocks_of_the_whole_host_declare_themselves_unsafe() -> None:
+    """The families are separate packages; what may run code on the worker is one list."""
+    host = load_plugin_host()
+    unsafe = sorted(block_id for block_id, operator in host.operators.items() if operator.spec.local_execution)
+    assert unsafe == ["docker.build", "docker.compose.down", "docker.compose.up", "docker.run", "shell.run"]
