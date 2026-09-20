@@ -491,7 +491,7 @@ requirement specifiers, installed into the venv once the workspace is in place, 
 image carries a pack without a Dockerfile of its own:
 
 ```bash
-docker build -f infra/Dockerfile --build-arg DIRIGENT_PACKS="dirigent-dhis2 dirigent-parquet" -t dirigent-with-packs .
+docker build -f infra/Dockerfile --build-arg DIRIGENT_PACKS="dirigent-dhis2 dirigent-block-parquet" -t dirigent-with-packs .
 ```
 
 `infra/compose.yaml` passes the argument through, so `DIRIGENT_PACKS=dirigent-dhis2 make

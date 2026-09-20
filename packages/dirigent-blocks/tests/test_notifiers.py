@@ -1,8 +1,7 @@
-"""Tests for the built-in channels: the process log, an outbound JSON POST, Slack, and email."""
+"""Tests for the outbound channels: a JSON POST, Slack, and email."""
 
 import asyncio
 import json
-import logging
 import socket
 from collections.abc import Callable, Iterator
 from datetime import timedelta
@@ -14,23 +13,18 @@ from uuid import UUID, uuid4
 import aiosmtplib
 import httpx2
 import pytest
-import structlog
 from aiosmtpd.controller import Controller
 from aiosmtpd.smtp import AuthResult, LoginPassword
 from pydantic import SecretStr, ValidationError
 from structlog.testing import capture_logs
-from structlog.typing import EventDict
 
 from dirigent_blocks.notifiers import (
-    ALERT_LOGGER,
     SLACK_AUTH_TEST,
     SLACK_HEADER_LIMIT,
     SLACK_POST_MESSAGE,
     EmailConnectionKind,
     EmailNotifier,
     EmailNotifierConfig,
-    LogNotifier,
-    LogNotifierConfig,
     SlackConnectionKind,
     SlackError,
     SlackNotifier,
@@ -51,19 +45,6 @@ ENDPOINT = "http://alerts.test/hook"
 SLACK_HOOK = "https://hooks.slack.test/services/T000/B000/xxxx"
 
 BOT_TOKEN = "xoxb-000-not-a-real-token"
-
-
-@pytest.fixture(autouse=True)
-def _permissive_structlog() -> Iterator[None]:  # pyright: ignore[reportUnusedFunction]
-    """Let every level through while a test runs, and restore the session's own configuration.
-
-    ``capture_logs`` swaps the processors but leaves the wrapper class alone, so a suite that
-    has already configured logging at INFO would silently swallow the debug-level assertion.
-    """
-    saved = structlog.get_config()
-    structlog.configure(wrapper_class=structlog.make_filtering_bound_logger(logging.DEBUG))
-    yield
-    structlog.configure(**saved)
 
 
 def an_alert(
@@ -107,65 +88,6 @@ def intercept(monkeypatch: pytest.MonkeyPatch, responder: Callable[[httpx2.Reque
         return real(transport=httpx2.MockTransport(responder), **kwargs)
 
     monkeypatch.setattr(httpx2, "AsyncClient", build)
-
-
-def alert_entries(entries: list[EventDict]) -> list[EventDict]:
-    """Keep only the entries this module's assertions are about."""
-    return [entry for entry in entries if entry.get("pipeline") is not None or "event_kind" in entry]
-
-
-# -- the log notifier --------------------------------------------------------------
-
-
-async def test_an_alert_reaches_the_process_log_with_the_facts_on_it() -> None:
-    with capture_logs() as entries:
-        await LogNotifier().send(an_alert(), LogNotifierConfig())
-    entry = alert_entries(entries)[0]
-    assert entry["event"] == "nightly run failed"
-    assert entry["event_kind"] == "run_failed"
-    assert entry["run_id"] == str(RUN_ID)
-    assert entry["pipeline"] == "nightly"
-    assert entry["url"] == "https://dirigent.test/runs/nightly"
-    assert entry["body"] == "status: failed"
-
-
-@pytest.mark.parametrize("level", ["debug", "info", "warning", "error"])
-async def test_an_alert_is_written_at_the_configured_level(level: str) -> None:
-    with capture_logs() as entries:
-        await LogNotifier().send(an_alert(), LogNotifierConfig.model_validate({"level": level}))
-    assert alert_entries(entries)[0]["log_level"] == level
-
-
-async def test_the_default_level_is_the_one_an_operator_would_notice() -> None:
-    with capture_logs() as entries:
-        await LogNotifier().send(an_alert(), LogNotifierConfig())
-    assert alert_entries(entries)[0]["log_level"] == "warning"
-
-
-async def test_an_alert_about_no_run_says_so_rather_than_inventing_an_id() -> None:
-    with capture_logs() as entries:
-        await LogNotifier().send(an_alert(run_id=None, pipeline=None, url=None), LogNotifierConfig())
-    entry = [line for line in entries if "event_kind" in line][0]
-    assert entry["run_id"] is None
-    assert entry["pipeline"] is None
-    assert entry["url"] is None
-
-
-def test_the_channel_writes_under_the_logger_the_engine_configures() -> None:
-    assert ALERT_LOGGER == "dirigent.alert"
-    assert LogNotifier.id == "log"
-    assert LogNotifier.config_model is LogNotifierConfig
-
-
-@pytest.mark.parametrize("level", ["debug", "info", "warning", "error"])
-def test_the_four_levels_are_accepted(level: str) -> None:
-    assert LogNotifierConfig.model_validate({"level": level}).level == level
-
-
-@pytest.mark.parametrize("level", ["critical", "trace", "WARNING", ""])
-def test_anything_but_the_four_levels_is_refused(level: str) -> None:
-    with pytest.raises(ValidationError):
-        LogNotifierConfig.model_validate({"level": level})
 
 
 # -- the webhook notifier ----------------------------------------------------------

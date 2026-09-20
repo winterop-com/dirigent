@@ -84,9 +84,11 @@ stays clean, and every example stays executable.
    wired through a connection kind, with a client written fresh or wrapping a stable one, and
    assembled by `dirigent-integration`. Open for the program: generalising
    `dirigent-integration`'s dev-dep filter beyond one pack's client prefix.
-2. **Block family packages.** Split dirigent-blocks into family packages
-   (dirigent-block-http, dirigent-block-storage, ...) under an umbrella. Invisible to stored
-   pipelines, because documents bind to block ids rather than packages.
+2. **Publish the block families.** `dirigent-block-http`, `-storage`, `-execute`, `-sql`,
+   `-transform`, `-queues`, `-base` and `-parquet` build with the workspace and are not on
+   PyPI. Before the next release: a PyPI project and a `pypi-<name>` environment for each,
+   then their names in `release.yaml`'s matrix. Until then a release would publish an
+   umbrella whose dependencies nothing can install.
 
 ## Open questions
 

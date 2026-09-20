@@ -10,7 +10,7 @@ from typing import Any
 import pytest
 from pydantic import SecretStr
 
-from dirigent_blocks.sql import (
+from dirigent_block_sql.sql import (
     S3StorageSettings,
     SqlConnectionConfig,
     SqlExecuteConfig,

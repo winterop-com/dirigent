@@ -6,7 +6,7 @@
 # This is examples/transform/parquet-round-trip.yaml with a real destination. Parquet is
 # the format a downstream analysis actually wants -- columnar, typed, compact -- and what
 # lands in the bucket is a dataset a reader opens with pandas or duckdb, not a csv that
-# lost its numbers on the way out. convert.arrow ships in the dirigent-parquet pack;
+# lost its numbers on the way out. convert.arrow ships in the dirigent-block-parquet pack;
 # installing it puts the block in the catalog.
 #
 #      dg apply examples/s3/s3-parquet-report.yaml

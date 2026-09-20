@@ -27,7 +27,7 @@
 # come from the file, so a truncated or half-written object shows up here as a failure
 # instead of downstream tomorrow.
 #
-# convert.arrow ships in dirigent-parquet, on pyarrow, where convert.std deliberately stands
+# convert.arrow ships in dirigent-block-parquet, on pyarrow, where convert.std deliberately stands
 # on the standard library alone. Installing that pack is what puts the block in the catalog,
 # and naming it in requires.blocks is what refuses this document on an instance without it.
 #

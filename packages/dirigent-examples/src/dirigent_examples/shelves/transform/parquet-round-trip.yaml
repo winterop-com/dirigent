@@ -11,7 +11,7 @@
 # the records in storage to begin with, and storage.read the hop that brings the result
 # back where a later step, or a person reading the run, can see it.
 #
-# convert.arrow ships in the dirigent-parquet pack; installing it is what puts the block in
+# convert.arrow ships in the dirigent-block-parquet pack; installing it is what puts the block in
 # the catalog.
 #
 #   dg run --local examples/transform/parquet-round-trip.yaml --keep

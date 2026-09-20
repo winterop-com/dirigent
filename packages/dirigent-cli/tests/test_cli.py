@@ -767,7 +767,7 @@ def test_docker_reap_refuses_a_host_with_no_docker_cli(monkeypatch: pytest.Monke
 def test_docker_reap_writes_one_record_per_project_it_took_down(monkeypatch: pytest.MonkeyPatch) -> None:
     from uuid import UUID
 
-    from dirigent_blocks.reap import Reaped
+    from dirigent_block_execute.reap import Reaped
 
     run_id = UUID("0123456789abcdef0123456789abcdef")
     reaped = [Reaped(f"dirigent-{run_id.hex}", run_id, "failed", torn_down=True)]
@@ -789,7 +789,7 @@ def test_docker_reap_writes_one_record_per_project_it_took_down(monkeypatch: pyt
 def test_a_dry_run_says_it_would_reap_and_takes_nothing_down(monkeypatch: pytest.MonkeyPatch) -> None:
     from uuid import UUID
 
-    from dirigent_blocks.reap import Reaped
+    from dirigent_block_execute.reap import Reaped
 
     run_id = UUID("0123456789abcdef0123456789abcdef")
     seen: list[bool] = []
@@ -830,7 +830,7 @@ async def test_a_docker_capable_worker_runs_the_reaping_chore(monkeypatch: pytes
 def test_a_teardown_the_daemon_refused_is_reported_as_such(monkeypatch: pytest.MonkeyPatch) -> None:
     from uuid import UUID
 
-    from dirigent_blocks.reap import Reaped
+    from dirigent_block_execute.reap import Reaped
 
     run_id = UUID("0123456789abcdef0123456789abcdef")
     monkeypatch.setattr("dirigent_cli.reaper.reachable", a_daemon)

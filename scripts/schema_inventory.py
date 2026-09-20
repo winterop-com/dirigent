@@ -16,8 +16,15 @@ PACKAGES = (
     "dirigent_server",
     "dirigent_cli",
     "dirigent_blocks",
+    "dirigent_block_base",
+    "dirigent_block_execute",
+    "dirigent_block_http",
+    "dirigent_block_queues",
+    "dirigent_block_sql",
+    "dirigent_block_storage",
+    "dirigent_block_transform",
     "dirigent_storage_s3",
-    "dirigent_parquet",
+    "dirigent_block_parquet",
 )
 
 #: Where the inventory is written. The directory is ignored; this is a review artifact.

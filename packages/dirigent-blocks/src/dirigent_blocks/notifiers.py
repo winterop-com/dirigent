@@ -1,8 +1,8 @@
-"""The notifiers a fresh install already has: the process log, an outbound POST, Slack, and email.
+"""The outbound alert channels: an outbound POST, Slack, and email.
 
-Every notifier but the log one registers a connection kind of the same id beside itself, so the
-channel is minted, sealed and health-checked through the one connection path every credential
-in this instance goes through.
+Each registers a connection kind of the same id beside itself, so the channel is minted,
+sealed and health-checked through the one connection path every credential in this instance
+goes through.
 """
 
 from datetime import timedelta
@@ -11,14 +11,10 @@ from typing import ClassVar, Literal
 
 import aiosmtplib
 import httpx2
-import structlog
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, ValidationError, model_validator
 
 from dirigent_common import BlockModel, Duration, HealthReport
 from dirigent_plugin import AlertMessage, ConnectionKind, Notifier
-
-#: Must match the logger chain dirigent-core configures.
-ALERT_LOGGER = "dirigent.alert"
 
 DEFAULT_TIMEOUT = timedelta(seconds=15)
 
@@ -26,34 +22,6 @@ FAILED_STATUS = 400
 
 #: Where a health check stops calling an answer evidence that something is listening.
 SERVER_ERROR_STATUS = 500
-
-
-class LogNotifierConfig(BlockModel):
-    """What the log notifier needs, which is nothing but the level to write at."""
-
-    level: Literal["debug", "info", "warning", "error"] = "warning"
-    """The process-log level an alert is written at; a channel with no credential has little else to say."""
-
-
-class LogNotifier(Notifier):
-    """Writes an alert to the process log, so an instance with no channel configured still says something."""
-
-    id: ClassVar[str] = "log"
-    config_model: ClassVar[type[BaseModel]] = LogNotifierConfig
-
-    async def send(self, message: AlertMessage, config: BaseModel) -> None:
-        """Write one alert through the shared structlog chain, at the configured level."""
-        settings = LogNotifierConfig.model_validate(config.model_dump())
-        logger: structlog.stdlib.BoundLogger = structlog.get_logger(ALERT_LOGGER)
-        write = getattr(logger, settings.level, logger.warning)
-        write(
-            message.subject,
-            event_kind=message.event,
-            run_id=str(message.run_id) if message.run_id else None,
-            pipeline=message.pipeline,
-            url=message.url,
-            body=message.body,
-        )
 
 
 class WebhookNotifierConfig(BlockModel):

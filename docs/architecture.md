@@ -1,21 +1,29 @@
 # Architecture
 
-Dirigent is one `uv` workspace of ten packages. This page says what each is for, what may
+Dirigent is one `uv` workspace of eighteen packages. This page says what each is for, what may
 depend on what, and **where a new thing goes** -- so the answer is a rule rather than a guess.
 
 ## The tree
 
 ```text
-dirigent-common       value types and shared schemas               -> nothing
-dirigent-plugin       the block contract                           -> common
-dirigent-client       wire schemas and the SDK                     -> common
-dirigent-core         engine, scheduler, triggers, alerting        -> common, plugin, client
-dirigent-server       the API and auth                             -> common, client, core
-dirigent-cli          the commands                                 -> common, client, core, server, blocks
-dirigent-blocks       the standard library of blocks               -> common, plugin
-dirigent-storage-s3   an adapter pack, and the shape of others     -> common, plugin
-dirigent-parquet      the parquet format pack                      -> common, plugin
-dirigent-testing      doubles and fixtures for testing a block     -> common, plugin
+dirigent-common           value types and shared schemas            -> nothing
+dirigent-plugin           the block contract                        -> common
+dirigent-client           wire schemas and the SDK                  -> common
+dirigent-core             engine, scheduler, triggers, alerting     -> common, plugin, client
+dirigent-server           the API and auth                          -> common, client, core
+dirigent-cli              the commands                              -> common, client, core, server, blocks
+dirigent-examples         the example corpus                        -> common, plugin, client
+dirigent-block-base       log, report, validate, value, time, run   -> common, plugin
+dirigent-block-http       http.request, http.ready, webhook.post    -> common, plugin
+dirigent-block-storage    copy, read, write, exists                 -> common, plugin
+dirigent-block-execute    shell, docker, compose, build, checkout   -> common, plugin, block-http
+dirigent-block-sql        sql.query, sql.execute                    -> common, plugin
+dirigent-block-transform  the jq blocks and convert.std             -> common, plugin
+dirigent-block-queues     kafka and rabbitmq                        -> common, plugin
+dirigent-block-parquet    convert.arrow, on pyarrow                 -> common, plugin
+dirigent-blocks           the umbrella, and the alert channels      -> common, plugin, every family
+dirigent-storage-s3       an adapter pack, and the shape of others  -> common, plugin
+dirigent-testing          doubles and fixtures for testing a block  -> common, plugin
 ```
 
 Edges point down and never back up. `packages/dirigent-common/tests/test_dependency_tree.py`
@@ -33,7 +41,7 @@ because a package can declare the right thing and still reach past it.
 | Anything that decides what runs, when, or what happened | `core` |
 | An HTTP route, or how a request is authenticated | `server` |
 | A command, or how one is rendered | `cli` |
-| A block anybody would want | `blocks` |
+| A block anybody would want | the `dirigent-block-*` family it belongs to |
 | A block or backend for one external system | an adapter pack |
 | A double or fixture a block author writes tests against | `testing` |
 
@@ -52,14 +60,15 @@ the test asserts the edge to `plugin` stays absent.
 
 `HttpConnectionConfig` and `build_client` live in `common`. An adapter pack for some external
 system needs the same base URL, auth, TLS and timeout fields that `http.request` uses, and a
-client that honours them -- and if the only way to get either were to depend on
-`dirigent-blocks`, a pack would either take the whole standard library as a dependency or
-redefine the fields. Four packs doing the latter is four slightly different HTTP connections,
-which the UI renders as four slightly different forms, and four different ideas about whether
-a timeout applies to the connect or the read.
+client that honours them -- and if the only way to get either were to depend on the standard
+library, a pack would either take all of it as a dependency or redefine the fields. Four packs
+doing the latter is four slightly different HTTP connections, which the UI renders as four
+slightly different forms, and four different ideas about whether a timeout applies to the
+connect or the read.
 
-`dirigent-blocks` still owns the *kind* that registers it: the configuration and the client
-are shared, the registration is the standard library's.
+`dirigent-block-http` still owns the *kind* that registers it: the configuration and the
+client are shared, the registration is that family's. A pack that wants the kind itself
+depends on that one family rather than on everything.
 
 ## What is not settled
 

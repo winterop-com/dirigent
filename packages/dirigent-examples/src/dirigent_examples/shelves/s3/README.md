@@ -31,4 +31,4 @@ dg run s3-round-trip -p day=2026-01-01 --watch
 | [s3-copy-and-verify.yaml](s3-copy-and-verify.yaml) | Promote-then-consume: a copy between prefixes, and `storage.exists` standing between the copy and the reader. |
 | [s3-csv-report.yaml](s3-csv-report.yaml) | A report delivered to a bucket: the csv-report chain with the converter's `target` one word away from scratch. |
 | [report-to-s3.yaml](report-to-s3.yaml) | A rendered markdown page delivered to a bucket: `report.render` hands its text on and `storage.write` puts it in the object, content type and all. |
-| [s3-parquet-report.yaml](s3-parquet-report.yaml) | A typed parquet dataset written straight to a bucket, for an analysis to open (needs `dirigent-parquet`). |
+| [s3-parquet-report.yaml](s3-parquet-report.yaml) | A typed parquet dataset written straight to a bucket, for an analysis to open (needs `dirigent-block-parquet`). |

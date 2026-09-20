@@ -40,8 +40,8 @@ test('the catalog lists every installed block in its family, with its kind and p
 
     // The row carries what the catalog says about the block, not what this spec guessed.
     await expect(rowOf(page, SHELL)).toContainText('Run a command on the worker.')
-    // The plugin that contributed it, which for the shipped catalog is the builtin entry point.
-    await expect(rowOf(page, SHELL)).toContainText('builtin')
+    // The plugin that contributed it, which for `shell.run` is the execute family's entry point.
+    await expect(rowOf(page, SHELL)).toContainText('block-execute')
 
     // A KIND IS NOT A STATUS: the chip is drawn from the kind family, and the two blocks
     // asserted here sit in different ones.
