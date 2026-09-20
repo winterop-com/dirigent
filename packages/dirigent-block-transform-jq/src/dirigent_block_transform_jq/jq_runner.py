@@ -12,8 +12,8 @@ over one value, and ``forget`` releases one. The pipe closing is how the parent 
 done, and compiling a program and reading its outputs are the only jq in here.
 
 This module is run by path, never imported, so it costs the standard library and jq and
-nothing else to start. Importing it as part of its package would load the whole transform
-family in order to evaluate ``.name``.
+nothing else to start. Importing it as part of its package would load the
+whole plugin in order to evaluate ``.name``.
 """
 
 import json

@@ -613,7 +613,7 @@ releases it. A step compiles once and runs every element through that id, so the
 text crosses the pipe once however many elements there are, and a runner outliving a step
 keeps nothing of it. An `error` in reply to a `run` fails the step as rejected with the
 runner's message, and an id no program is compiled under is an error naming it.
-`dirigent_block_transform/jq_runner.py` is the one dirigent ships, and the only jq in it is
+`dirigent_block_transform_jq/jq_runner.py` is the one dirigent ships, and the only jq in it is
 the line that compiles a program and the line that reads its outputs.
 
 There is no runner at apply, where a document is checked before it is stored. An engine that

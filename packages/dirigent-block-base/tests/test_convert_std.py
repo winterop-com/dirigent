@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from dirigent_block_transform.convert_std import StdConverter
+from dirigent_block_base.convert_std import StdConverter
 from dirigent_plugin import BlockFailure, ErrorClass
 from dirigent_testing import FakeContext, FakeStorage, call_block
 

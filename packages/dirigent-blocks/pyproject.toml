@@ -18,7 +18,7 @@ dependencies = [
     "dirigent-block-queues==0.16.7",
     "dirigent-block-sql==0.16.7",
     "dirigent-block-storage==0.16.7",
-    "dirigent-block-transform==0.16.7",
+    "dirigent-block-transform-jq==0.16.7",
     "dirigent-common==0.16.7",
     "dirigent-plugin==0.16.7",
     "httpx2>=2.12.0",
@@ -39,6 +39,6 @@ dirigent-block-http = { workspace = true }
 dirigent-block-queues = { workspace = true }
 dirigent-block-sql = { workspace = true }
 dirigent-block-storage = { workspace = true }
-dirigent-block-transform = { workspace = true }
+dirigent-block-transform-jq = { workspace = true }
 dirigent-common = { workspace = true }
 dirigent-plugin = { workspace = true }

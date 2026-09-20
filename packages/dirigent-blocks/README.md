@@ -8,5 +8,5 @@ same id, so an alert is delivered through the one connection path every credenti
 instance goes through. The fourth channel, `log`, is `dirigent-block-base`'s, because it needs
 no credential.
 
-A family is installable on its own: a worker that only runs jq needs `dirigent-block-transform`
-and nothing else. This package is what an instance installs to have the lot.
+A family is installable on its own: a worker that only runs jq needs
+`dirigent-block-transform-jq` and nothing else. This package is what an instance installs to have the lot.

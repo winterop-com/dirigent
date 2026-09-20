@@ -454,7 +454,7 @@ def test_loading_discovers_the_installed_families_and_any_extra_plugin() -> None
         "block-queues",
         "block-sql",
         "block-storage",
-        "block-transform",
+        "block-transform-jq",
     } <= set(host.contributions)
     assert "tests" in host.contributions
     assert "test.echo" in host.operators

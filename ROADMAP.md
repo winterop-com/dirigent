@@ -85,7 +85,7 @@ stays clean, and every example stays executable.
    assembled by `dirigent-integration`. Open for the program: generalising
    `dirigent-integration`'s dev-dep filter beyond one pack's client prefix.
 2. **Publish the block families.** `dirigent-block-http`, `-storage`, `-execute`, `-sql`,
-   `-sql-duckdb`, `-transform`, `-queues`, `-base` and `-parquet` build with the workspace and
+   `-sql-duckdb`, `-transform-jq`, `-queues`, `-base` and `-parquet` build with the workspace and
    are not on PyPI. Before the next release: a PyPI project and a `pypi-<name>` environment
    for each, then their names in `release.yaml`'s matrix. Until then a release would publish
    an umbrella whose dependencies nothing can install.
@@ -284,12 +284,21 @@ requires touching the engine. None is near-term.
 
   Split it into families that ship separately, so no part waits on the rest:
   - **Codecs.** More formats on `convert`, each a pair the engine declares and the frame
-    refuses where it is not supported, so a new one touches nothing else.
+    refuses where it is not supported, so a new one touches nothing else. A codec that costs
+    nothing but the standard library joins `convert.std` in `dirigent-block-base`; one with a
+    dependency of its own is a package, `dirigent-block-convert-<format>`, so an instance
+    pays for the formats it reads. `dirigent-block-parquet` takes that name when a second
+    such codec appears.
   - **Other engines for the verbs that exist.** A `js` kind on bun and a docker-backed kind
-    are the obvious two, and both are plugin packages rather than core work: an engine that
-    runs a language runtime sets `local_execution` and goes behind `enabled_unsafe_blocks`
-    like `shell.run`, and a docker one rides the docker gating. A typed `filter.predicates`
-    is one possible kind among peers, not the design.
+    are the obvious two. An engine is a package named for itself,
+    `dirigent-block-transform-<engine>` -- `-js`, `-docker` -- contributing its
+    `transform.<kind>`, `map.<kind>` and `filter.<kind>` blocks through `contribute()`, so a
+    worker installs the engines it runs and carries neither the others' dependencies nor
+    their blocks in its catalog. One that evaluates programs out of process speaks the runner
+    protocol in `docs/transforms.md` rather than inventing a second one. An engine that runs
+    a language runtime sets `local_execution` and goes behind `enabled_unsafe_blocks` like
+    `shell.run`, and a docker one rides the docker gating. A typed `filter.predicates` is one
+    possible kind among peers, not the design.
   - **A runtime block.** `bun.run` or similar, executing a script directly on the worker.
     Markedly faster than a container for small work, which matters when a transform sits
     between two steps, and it wants the same allowlist gate as `shell.run`. Both this and

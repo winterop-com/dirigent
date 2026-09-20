@@ -1,8 +1,8 @@
-# dirigent-block-transform
+# dirigent-block-transform-jq
 
-The transform block family: `transform.jq`, `map.jq` and `filter.jq` reshape a value with a jq
-program, and `convert.std` trades between json, ndjson, csv, yaml and xml on the standard
-library.
+The jq engine for the transform verbs: `transform.jq` reshapes a whole value with a jq
+program, `map.jq` replaces every element of a list with what a program makes of it, and
+`filter.jq` keeps the elements a program answers true for.
 
 A jq program is evaluated in a child process rather than in the worker, because jq holds the
 GIL for as long as a program runs and there is no way to interrupt one. The runner that child

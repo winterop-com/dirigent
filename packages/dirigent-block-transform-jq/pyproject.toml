@@ -1,7 +1,7 @@
 [project]
-name = "dirigent-block-transform"
+name = "dirigent-block-transform-jq"
 version = "0.16.7"
-description = "The transform block family for dirigent: the jq blocks and the convert.std codec."
+description = "The jq engine for dirigent's transform verbs: transform.jq, map.jq and filter.jq."
 readme = "README.md"
 requires-python = ">=3.13"
 license = "LicenseRef-Proprietary"
@@ -14,11 +14,10 @@ dependencies = [
     "dirigent-common==0.16.7",
     "dirigent-plugin==0.16.7",
     "jq>=1.8",
-    "pyyaml>=6.0.3",
 ]
 
 [project.entry-points."dirigent.plugins.v1"]
-block-transform = "dirigent_block_transform:plugin"
+block-transform-jq = "dirigent_block_transform_jq:plugin"
 
 [build-system]
 requires = ["uv_build>=0.12.0,<0.13.0"]
