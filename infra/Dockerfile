@@ -122,6 +122,13 @@ USER dirigent
 # running user's own home -- so a step LOADs it rather than fetching a binary mid-run.
 RUN python -c "import duckdb; duckdb.connect().execute('INSTALL httpfs')"
 
+# Packs to add to the stock image without a Dockerfile of its own: a whitespace-separated list
+# of pip requirement specifiers -- `dirigent-dhis2`, `dirigent-dhis2==<version>`,
+# `dirigent-parquet` -- resolved from PyPI and installed into the venv the workspace already
+# occupies. Empty by default, and the layer is then a no-op.
+ARG DIRIGENT_PACKS=""
+RUN if [ -n "$DIRIGENT_PACKS" ]; then uv pip install --no-cache $DIRIGENT_PACKS; fi
+
 EXPOSE 3333
 
 ENTRYPOINT ["dg"]

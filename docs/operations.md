@@ -486,9 +486,26 @@ pipeline declaring `requires.workers: [docker]` to route to it).
 `ghcr.io/winterop-com/dirigent:<version>` and `ghcr.io/winterop-com/dirigent:latest`, stamped
 with `org.opencontainers.image.version` and `.revision`.
 
+**Packs by build argument.** `DIRIGENT_PACKS` names a whitespace-separated list of pip
+requirement specifiers, installed into the venv once the workspace is in place, so the stock
+image carries a pack without a Dockerfile of its own:
+
+```bash
+docker build -f infra/Dockerfile --build-arg DIRIGENT_PACKS="dirigent-dhis2 dirigent-parquet" -t dirigent-with-packs .
+```
+
+`infra/compose.yaml` passes the argument through, so `DIRIGENT_PACKS=dirigent-dhis2 make
+docker-build` builds the stack's image with it, and `.env` is where a checkout keeps the list.
+A pack named here is resolved from PyPI at build time and sits outside the workspace lock, so a
+deployment that wants a locked assembly with every official pack builds `dirigent-full` from
+`dirigent-integration` instead. Pinning the pack to the image's version
+(`dirigent-dhis2==<version>`) is what keeps the two in step: a pack releases at the same version
+as the runtime.
+
 **Building on it.** The image is a base. `uv` is on its PATH, `VIRTUAL_ENV` names the venv at
 `/app/.venv`, git is installed, and the stage ends as the `dirigent` user, which owns the venv.
-A pack, or anything else a deployment adds, is one more layer:
+Anything a deployment adds that a requirement specifier cannot name -- a system package, a
+certificate, a file, a pack from a git source -- is one more layer:
 
 ```dockerfile
 FROM ghcr.io/winterop-com/dirigent:<version>

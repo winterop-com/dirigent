@@ -71,21 +71,6 @@ it; what it forbids is here, because that is what somebody is liable to undo.
   wrote, and a commit that failed did so after a 2xx. `Transactional` commits while the
   response can still become the error instead.
 
-### Decided, not yet built
-
-Take these in order; each is a chunk on its own.
-
-- **Two images, two audiences.** The core image built here stays slim: the workspace, the
-  web UI, the docker CLI, and no adapter pack. `dirigent-integration` ships the
-  batteries-included image, `dirigent-full`, built from its manifest and lock with every
-  official pack, which is the only assembly whose git sources resolve before PyPI. What is
-  left here is the hook on the core image: a build argument naming extra distributions,
-  installed into the venv after the workspace sync, so a deployment adds two packs to the
-  stock image without a second repository. It lands with 1.0, because a pack installed by
-  name resolves only once the packages are on PyPI. `dg init --with <pack>` is the same
-  convenience for a project on a machine, and lands after.
-
-
 ## Next up
 
 Ordered. Each is one working chunk. Working rules for any session picking these up: read
