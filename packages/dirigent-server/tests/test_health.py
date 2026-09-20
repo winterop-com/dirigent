@@ -104,11 +104,14 @@ async def test_the_database_check_reports_an_unreachable_database(tmp_path: Path
     assert outcome.detail == "database is unreachable"
 
 
-def test_the_registry_is_keyed_by_check_name(tmp_path: Path) -> None:
+async def test_the_registry_is_keyed_by_check_name(tmp_path: Path) -> None:
     engine = create_engine(Settings(database_url=f"sqlite+aiosqlite:///{tmp_path / 'dirigent.db'}"))
-    registry = build_registry(engine)
-    assert set(registry) == {"database"}
-    assert isinstance(registry["database"], DatabaseHealthCheck)
+    try:
+        registry = build_registry(engine)
+        assert set(registry) == {"database"}
+        assert isinstance(registry["database"], DatabaseHealthCheck)
+    finally:
+        await engine.dispose()
 
 
 def test_a_health_check_must_implement_check() -> None:

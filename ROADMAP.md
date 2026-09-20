@@ -393,8 +393,3 @@ requires touching the engine. None is near-term.
   `stdout_uri`/`stderr_uri` themselves, and `docker.run` stages `inputs` and `outputs` through
   mounts. The rule that a value moves through outputs and storage has two doors stops at them
   for now; a later pass decides what capture looks like under it.
-- **An aiosqlite worker thread can report after its loop closed.** Under coverage, one CI run
-  failed at the setup of the first server test with `RuntimeError: Event loop is closed` raised
-  from an aiosqlite connection thread belonging to an earlier test; a rerun was green. Some
-  test leaves an engine undisposed at teardown. Find it with `-W error` on pytest's unhandled
-  thread exception warning across the whole session.
