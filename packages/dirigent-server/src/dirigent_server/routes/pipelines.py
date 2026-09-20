@@ -24,16 +24,14 @@ from dirigent_client.schemas import (
     ValidationIssue,
 )
 from dirigent_core.directory import prune_absent
-from dirigent_core.documents import DocumentError, carried_refusal, load_document
-from dirigent_core.engine import Attribution, ParameterError, create_run
+from dirigent_core.documents import carried_refusal, load_document
+from dirigent_core.engine import Attribution, create_run
 from dirigent_core.engine.definition import load_definition
-from dirigent_core.engine.runs import Provenance, RunCreationError, RunWindow
+from dirigent_core.engine.runs import Provenance, RunWindow
 from dirigent_core.models import Pipeline
 from dirigent_core.pipelines import (
     NO_COUNTS,
     PipelineCounts,
-    PipelineError,
-    PipelineInUse,
     UnknownPipeline,
     apply_document,
     delete_pipeline,
@@ -47,7 +45,7 @@ from dirigent_core.pipelines import (
     revalidate,
     set_active,
 )
-from dirigent_core.triggers.backfill import BackfillError, backfill
+from dirigent_core.triggers.backfill import backfill
 from dirigent_core.triggers.schedules import find_schedule
 from dirigent_server.dependencies import ServicesDep, SessionDep
 from dirigent_server.pagination import DEFAULT_PAGE, AfterParam, LimitParam, clip, int_cursor
@@ -119,10 +117,7 @@ async def apply(
     raw = dict(payload.document)
     if payload.code is not None:
         raw["code"] = payload.code
-    try:
-        definition = load_document(raw)
-    except DocumentError as error:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=error.problems) from error
+    definition = load_document(raw)
     refusal = carried_refusal(definition)
     if refusal is not None:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=[refusal])
@@ -217,10 +212,7 @@ async def export(
     version: Annotated[int | None, Query(description="Export this version instead of the current one.")] = None,
 ) -> PlainTextResponse:
     """Render a stored pipeline as the canonical YAML a git repository holds."""
-    try:
-        text = await export_pipeline(session, code, version=version)
-    except PipelineError as error:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    text = await export_pipeline(session, code, version=version)
     return PlainTextResponse(text, media_type="application/yaml")
 
 
@@ -238,10 +230,7 @@ async def validate_stored(
     version: Annotated[int | None, Query(description="Check this version instead of the current one.")] = None,
 ) -> list[ValidationIssue]:
     """Report what a stored version would fail on if it ran now, or an empty list."""
-    try:
-        return await revalidate(session, services, code, version=version)
-    except PipelineError as error:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    return await revalidate(session, services, code, version=version)
 
 
 @router.post(
@@ -280,12 +269,7 @@ async def delete(code: str, session: SessionDep, principal: AdminDep) -> Respons
     webhooks the definition owns. Runs still in flight refuse the delete with a 409 --
     finish or cancel them first. Deactivating is the reversible verb an operator has.
     """
-    try:
-        await delete_pipeline(session, code)
-    except UnknownPipeline as error:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
-    except PipelineInUse as error:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
+    await delete_pipeline(session, code)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -311,29 +295,23 @@ async def start_run(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"pipeline {code!r} has no versions yet")
     version = await get_version(session, pipeline)
     definition = load_definition(version.document)
-    try:
-        definition.validate_params(payload.params, services.format_checker)
-    except ParameterError as error:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)) from error
-    try:
-        run = await create_run(
-            session,
-            services,
-            version,
-            params=payload.params,
-            attribution=Attribution(
-                kind=principal.trigger_kind,
-                id=principal.token_id or principal.user_id,
-                label=principal.label,
-            ),
-            window=_window(payload),
-            log_levels={pattern: level.value for pattern, level in payload.log_levels.items()}
-            if payload.log_levels
-            else None,
-            priority=payload.priority,
-        )
-    except RunCreationError as error:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
+    definition.validate_params(payload.params, services.format_checker)
+    run = await create_run(
+        session,
+        services,
+        version,
+        params=payload.params,
+        attribution=Attribution(
+            kind=principal.trigger_kind,
+            id=principal.token_id or principal.user_id,
+            label=principal.label,
+        ),
+        window=_window(payload),
+        log_levels={pattern: level.value for pattern, level in payload.log_levels.items()}
+        if payload.log_levels
+        else None,
+        priority=payload.priority,
+    )
     if run is None:
         return RunAccepted(status="skipped", detail="a run of this pipeline is already in flight")
     return RunAccepted(run_id=run.id, status=run.status.value)
@@ -378,23 +356,16 @@ async def start_backfill(
             detail=f"pipeline {code!r} has no schedule coded {payload.schedule!r}",
         )
     version = await get_version(session, pipeline)
-    try:
-        filled = await backfill(
-            session,
-            services,
-            version,
-            schedule,
-            start=payload.from_,
-            end=payload.to,
-            params=payload.params,
-            dry_run=payload.dry_run,
-        )
-    except BackfillError as error:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)) from error
-    except ParameterError as error:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)) from error
-    except RunCreationError as error:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
+    filled = await backfill(
+        session,
+        services,
+        version,
+        schedule,
+        start=payload.from_,
+        end=payload.to,
+        params=payload.params,
+        dry_run=payload.dry_run,
+    )
     return BackfillAccepted(
         pipeline=pipeline.code,
         schedule=schedule.code,

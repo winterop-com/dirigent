@@ -268,23 +268,16 @@ stays clean, and every example stays executable.
   of the work ahead -- the fan-out cardinalities, the deadlines and poll cadences, the retry
   budgets -- before anything executes.
 
-- **A service layer, the servicekit way.** Today an endpoint does everything itself: it calls
-  a core function, catches each domain error it knows about, translates it to a status, and
-  renders the row -- the same try/except and the same `render` repeated route after route, and
-  a new refusal means touching every endpoint that can meet it. Servicekit spent its
-  convention time here and the shape holds: a generic repository (data access), a manager
-  carrying the business logic with In-to-Out conversion and lifecycle hooks, a CRUD router
-  built from the pair, and ONE app-wide exception handler that maps the domain error
-  hierarchy to problem documents, so an endpoint calls and returns and nothing else. Take it
-  in two bites, because the first is cheap and pays immediately: give every domain error its
-  status (the hierarchy under `AuthError` and friends already exists), register one handler
-  that renders any of them as the problem document, and delete the per-endpoint try/except.
-  The second bite is the manager/router layering for the plain CRUD resources -- users,
-  connections, schedules, webhooks, alert rules -- and has to answer what servicekit did not
-  have to: per-route principals (`AdminDep` beside `PrincipalDep`), named `operation_id`s,
-  and the `$verb` actions that sit beside the CRUD, which a generic router must carry rather
-  than fight. Runs, apply, and the streams stay hand-written: they are the product, not
-  plumbing.
+- **A service layer, the servicekit way.** An endpoint still reads and renders every row
+  itself: the same lookup-or-404 helper and the same `render` repeated resource after
+  resource. Servicekit spent its convention time here and the shape holds: a generic
+  repository (data access), a manager carrying the business logic with In-to-Out conversion
+  and lifecycle hooks, and a CRUD router built from the pair. Wanted for the plain CRUD
+  resources -- users, connections, schedules, webhooks, alert rules -- and it has to answer
+  what servicekit did not have to: per-route principals (`AdminDep` beside `PrincipalDep`),
+  named `operation_id`s, and the `$verb` actions that sit beside the CRUD, which a generic
+  router must carry rather than fight. Runs, apply, and the streams stay hand-written: they
+  are the product, not plumbing.
 
 - **Stored pipeline layout, as research.** The canvas auto-flows a DAG with elk and a reader
   can now drag nodes, but what they drag lives in their browser alone: the pipeline itself

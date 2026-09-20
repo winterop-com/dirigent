@@ -17,7 +17,7 @@ from dirigent_client.schemas import ConnectionIn, ConnectionOut, ConnectionUpdat
 from dirigent_common import HealthReport, JsonMap
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.models import Connection, utcnow
-from dirigent_core.secrets import REDACTED, SecretError, redact, secret_fields
+from dirigent_core.secrets import REDACTED, redact, secret_fields
 from dirigent_server.dependencies import ServicesDep, SessionDep
 from dirigent_server.logging import get_logger
 from dirigent_server.pagination import DEFAULT_PAGE, AfterParam, LimitParam, clip
@@ -95,10 +95,7 @@ def restore_marked_secrets(row: Connection, config: JsonMap, services: EngineSer
     marked = [name for name in secret_fields(contributed.config_model) if config.get(name) == REDACTED]
     if not marked:
         return config
-    try:
-        stored = services.secrets.open(row.secret_envelope, key_id=row.secret_key_id)
-    except SecretError as error:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
+    stored = services.secrets.open(row.secret_envelope, key_id=row.secret_key_id)
     empty = sorted(name for name in marked if stored.get(name) is None)
     if empty:
         raise HTTPException(
@@ -129,10 +126,7 @@ def seal(services: EngineServices, kind_id: str, config: JsonMap) -> tuple[JsonM
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=error.errors(include_input=False),
         ) from error
-    try:
-        return services.secrets.encrypt_config(contributed.config_model, validated)
-    except SecretError as error:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
+    return services.secrets.encrypt_config(contributed.config_model, validated)
 
 
 @router.get(

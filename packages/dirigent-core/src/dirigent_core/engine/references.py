@@ -26,6 +26,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
 from dirigent_common import JsonMap
+from dirigent_core.errors import DomainError
 from dirigent_plugin import SHELL_VARIABLE_PREFIX, SHELL_VARIABLES_FIELD
 
 REFERENCE_PATTERN: Final = re.compile(r"(\$+)\{([^{}]+)\}")
@@ -41,7 +42,7 @@ is not matched at all and passes through untouched.
 WHOLE_REFERENCE: Final = re.compile(r"^\$\{([^{}]+)\}$")
 
 
-class UnknownReference(Exception):
+class UnknownReference(DomainError):
     """A document named something the run does not have."""
 
     def __init__(self, reference: str, detail: str) -> None:

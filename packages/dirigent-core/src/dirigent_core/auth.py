@@ -17,6 +17,7 @@ from pydantic import BaseModel, ConfigDict, SecretStr
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirigent_client.enums import TokenKind, TriggerKind, UserRole
+from dirigent_core.errors import DomainError
 from dirigent_core.logging import get_logger
 from dirigent_core.models import ApiToken, User, utcnow
 
@@ -43,7 +44,7 @@ _hasher = PasswordHasher()
 _logger = get_logger("auth")
 
 
-class AuthError(Exception):
+class AuthError(DomainError):
     """Any refusal from the authentication layer."""
 
 
@@ -58,6 +59,8 @@ class WeakPassword(AuthError):
 class DuplicateUser(AuthError):
     """An account already holds the requested username."""
 
+    status = 409
+
     def __init__(self, username: str) -> None:
         """Name the account already holding the username."""
         super().__init__(f"a user named {username!r} already exists")
@@ -66,6 +69,8 @@ class DuplicateUser(AuthError):
 
 class DuplicateEmail(AuthError):
     """An account already holds the requested email address."""
+
+    status = 409
 
     def __init__(self, email: str) -> None:
         """Name the address already taken."""
@@ -76,6 +81,8 @@ class DuplicateEmail(AuthError):
 class LastAdmin(AuthError):
     """A change would have left the instance with no active admin."""
 
+    status = 409
+
     def __init__(self, username: str) -> None:
         """Name the account that would have been the last one able to manage this instance."""
         super().__init__(f"{username!r} is the only active admin; promote another account before changing this one")
@@ -84,6 +91,8 @@ class LastAdmin(AuthError):
 
 class WrongPassword(AuthError):
     """A self-service password change presented the wrong current password."""
+
+    status = 403
 
     def __init__(self) -> None:
         """State what did not match, without naming the account."""

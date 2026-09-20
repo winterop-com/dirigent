@@ -40,6 +40,7 @@ from dirigent_core.engine.definition import (
 from dirigent_core.engine.references import ReferenceScope, resolve
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.engine.state import advance, lock_pipeline, lock_run
+from dirigent_core.errors import DomainError
 from dirigent_core.ids import uuid7
 from dirigent_core.logging import get_logger
 from dirigent_core.models import Pipeline, PipelineVersion, Run, RunItem, StepAttempt, utcnow
@@ -53,8 +54,10 @@ ACTIVE_RUN_STATUSES = (RunStatus.QUEUED, RunStatus.RUNNING)
 _logger = get_logger("engine")
 
 
-class RunCreationError(Exception):
+class RunCreationError(DomainError):
     """A run could not be created."""
+
+    status = 409
 
 
 class FanOutError(RunCreationError):

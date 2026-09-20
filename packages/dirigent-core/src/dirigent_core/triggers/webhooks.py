@@ -22,6 +22,7 @@ from dirigent_common import EntityName, JsonMap
 from dirigent_core.engine.definition import ParameterError, PipelineDefinition, WebhookSpec, load_definition
 from dirigent_core.engine.runs import Attribution, RunCreationError, create_run
 from dirigent_core.engine.services import EngineServices
+from dirigent_core.errors import DomainError
 from dirigent_core.logging import get_logger
 from dirigent_core.models import Pipeline, PipelineVersion, Run, WebhookDelivery, WebhookTrigger, utcnow
 from dirigent_core.secrets import SecretBox
@@ -45,7 +46,7 @@ UNKNOWN_TOKEN: Final = "no webhook accepts this token"
 _logger = get_logger("webhook")
 
 
-class WebhookError(Exception):
+class WebhookError(DomainError):
     """A webhook could not be declared, found, or delivered to."""
 
 
@@ -64,8 +65,16 @@ class DeliveryRefused(WebhookError):
         self.public = public if public is not None else reason
 
 
+class DuplicateWebhook(WebhookError):
+    """A pipeline already has a webhook of that code."""
+
+    status = 409
+
+
 class UnknownWebhook(WebhookError):
     """No webhook of that code exists on this pipeline."""
+
+    status = 404
 
     def __init__(self, pipeline: str, code: str) -> None:
         """Name the pipeline and the webhook."""
@@ -295,7 +304,7 @@ async def create_webhook(
 ) -> MintedToken:
     """Declare a webhook and mint its token, which is returned here and never again."""
     if await find_webhook(session, pipeline.id, request.code) is not None:
-        raise WebhookError(f"pipeline {pipeline.code!r} already has a webhook coded {request.code!r}")
+        raise DuplicateWebhook(f"pipeline {pipeline.code!r} already has a webhook coded {request.code!r}")
     token = mint_token()
     envelope, key_id = seal_hmac(secrets, request.hmac_secret)
     webhook = WebhookTrigger(

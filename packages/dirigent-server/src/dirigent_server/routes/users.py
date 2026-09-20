@@ -14,10 +14,6 @@ from dirigent_client.schemas import (
     UserUpdate,
 )
 from dirigent_core.auth import (
-    DuplicateEmail,
-    DuplicateUser,
-    LastAdmin,
-    WeakPassword,
     activate_user,
     create_user,
     deactivate_user,
@@ -74,19 +70,14 @@ async def list_accounts(
 )
 async def create_account(payload: UserIn, session: SessionDep, principal: AdminDep) -> UserOut:
     """Create an account with an Argon2id password hash."""
-    try:
-        user = await create_user(
-            session,
-            payload.username,
-            payload.password.get_secret_value(),
-            role=payload.role,
-            name=payload.name,
-            email=payload.email,
-        )
-    except (DuplicateEmail, DuplicateUser) as error:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
-    except WeakPassword as error:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)) from error
+    user = await create_user(
+        session,
+        payload.username,
+        payload.password.get_secret_value(),
+        role=payload.role,
+        name=payload.name,
+        email=payload.email,
+    )
     return render(user)
 
 
@@ -102,15 +93,9 @@ async def update_account(
     if payload.changing("name"):
         row.name = payload.name
     if payload.changing("email"):
-        try:
-            await set_email(session, row, payload.email)
-        except DuplicateEmail as error:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
+        await set_email(session, row, payload.email)
     if payload.role is not None:
-        try:
-            await set_role(session, row, payload.role)
-        except LastAdmin as error:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
+        await set_role(session, row, payload.role)
     await session.flush()
     return render(row)
 
@@ -124,10 +109,7 @@ async def update_account(
 async def deactivate_account(username: str, session: SessionDep, principal: AdminDep) -> UserOut:
     """Bar an account from logging in and revoke the sessions it already holds."""
     row = await find(session, username)
-    try:
-        await deactivate_user(session, row)
-    except LastAdmin as error:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
+    await deactivate_user(session, row)
     return render(row)
 
 
@@ -156,10 +138,7 @@ async def reset_account_password(
 ) -> Response:
     """Set an account's password without presenting the old one, ending every session it holds and no API token."""
     row = await find(session, username)
-    try:
-        await reset_password(session, row, payload.password.get_secret_value())
-    except WeakPassword as error:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)) from error
+    await reset_password(session, row, payload.password.get_secret_value())
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

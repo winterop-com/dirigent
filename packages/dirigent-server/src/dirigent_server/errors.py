@@ -11,6 +11,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from dirigent_client.schemas import Problem
 from dirigent_core import __version__
+from dirigent_core.errors import DomainError
 from dirigent_core.logging import redact_path
 from dirigent_server.logging import get_logger
 
@@ -92,6 +93,14 @@ async def validation_error(request: Request, error: Exception) -> JSONResponse:
     return answer(render(422, detail, problems=problems, instance=_where(request)))
 
 
+async def domain_error(request: Request, error: Exception) -> JSONResponse:
+    """Render a refusal raised anywhere in the domain, at the status its class carries."""
+    if not isinstance(error, DomainError):  # pragma: no cover - registered for this class
+        return await unhandled(request, error)
+    detail, problems = _problems_of(error.problems or str(error))
+    return answer(render(error.status, detail, problems=problems, instance=_where(request)))
+
+
 async def unhandled(request: Request, error: Exception) -> JSONResponse:
     """Answer an unhandled exception in the same shape, and say nothing about it.
 
@@ -113,4 +122,5 @@ def install_error_handlers(app: FastAPI) -> None:
     app.middleware("http")(_stamp_version)
     app.add_exception_handler(StarletteHTTPException, http_error)
     app.add_exception_handler(RequestValidationError, validation_error)
+    app.add_exception_handler(DomainError, domain_error)
     app.add_exception_handler(Exception, unhandled)
