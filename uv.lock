@@ -15,6 +15,7 @@ members = [
     "dirigent-block-parquet",
     "dirigent-block-queues",
     "dirigent-block-sql",
+    "dirigent-block-sql-duckdb",
     "dirigent-block-storage",
     "dirigent-block-transform",
     "dirigent-blocks",
@@ -33,8 +34,6 @@ members = [
 dev = [
     { name = "aiosmtpd", specifier = ">=1.4.6" },
     { name = "coverage", specifier = ">=7.15.4" },
-    { name = "duckdb", specifier = ">=1.4.0" },
-    { name = "duckdb-engine", specifier = ">=0.17.0" },
     { name = "httpx2", specifier = ">=2.12.0" },
     { name = "mkdocs-material", specifier = ">=9.7.7" },
     { name = "mypy", specifier = ">=2.3.1" },
@@ -1032,21 +1031,33 @@ dependencies = [
     { name = "sqlalchemy", extra = ["asyncio"] },
 ]
 
-[package.optional-dependencies]
-duckdb = [
+[package.metadata]
+requires-dist = [
+    { name = "dirigent-common", editable = "packages/dirigent-common" },
+    { name = "dirigent-plugin", editable = "packages/dirigent-plugin" },
+    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.52" },
+]
+
+[[package]]
+name = "dirigent-block-sql-duckdb"
+version = "0.16.7"
+source = { editable = "packages/dirigent-block-sql-duckdb" }
+dependencies = [
+    { name = "dirigent-block-sql" },
+    { name = "dirigent-common" },
+    { name = "dirigent-plugin" },
     { name = "duckdb" },
     { name = "duckdb-engine" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "dirigent-block-sql", editable = "packages/dirigent-block-sql" },
     { name = "dirigent-common", editable = "packages/dirigent-common" },
     { name = "dirigent-plugin", editable = "packages/dirigent-plugin" },
-    { name = "duckdb", marker = "extra == 'duckdb'", specifier = ">=1.4.0" },
-    { name = "duckdb-engine", marker = "extra == 'duckdb'", specifier = ">=0.17.0" },
-    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.52" },
+    { name = "duckdb", specifier = ">=1.4.0" },
+    { name = "duckdb-engine", specifier = ">=0.17.0" },
 ]
-provides-extras = ["duckdb"]
 
 [[package]]
 name = "dirigent-block-storage"

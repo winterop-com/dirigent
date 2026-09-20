@@ -61,9 +61,12 @@ blocks speak. `postgresql+asyncpg` and `sqlite+aiosqlite` work out of the box. A
 dialect needs its driver installed on the worker, and a step whose driver is absent fails with
 the package to add rather than an import error.
 
-**DuckDB is the exception, because it has no async driver at all.** `duckdb:///warehouse.duckdb`
-and `duckdb:///:memory:` name it with no driver written, and the engine runs in a worker thread
-instead of over an async one. It is the [engine that reads files](#sql-over-files-duckdb).
+**A backend that needs more than a driver is an engine package.** DuckDB has no async driver at
+all, so `duckdb:///warehouse.duckdb` and `duckdb:///:memory:` name it with no driver written and
+`dirigent-block-sql-duckdb` is what answers for them; without that package installed the
+connection is refused, naming the install. It is the [engine that reads
+files](#sql-over-files-duckdb), and [adding an engine](#adding-an-engine) is the contract it is
+written to.
 
 A `--local` run has no instance to hold a connection, so a document run that way carries one in
 its own `connections:` section -- which is what the
@@ -171,12 +174,12 @@ connections:
 ```
 
 `duckdb:///warehouse.duckdb` names a file instead, and, like sqlite, a relative path is
-resolved against the run's [work directory](operations.md#scratch-and-work). DuckDB ships as
-an extra rather than as a hard dependency, because its engine binary is larger than every
-other driver put together:
+resolved against the run's [work directory](operations.md#scratch-and-work). The engine is its
+own package rather than part of the family, because its binary is larger than every other
+driver put together and a worker that never runs a `duckdb://` url should not carry it:
 
 ```bash
-uv pip install 'dirigent-block-sql[duckdb]'
+uv pip install dirigent-block-sql-duckdb
 ```
 
 **Reading a file.** `read_parquet` and `read_csv_auto` take the file as a **bound parameter**,
@@ -311,7 +314,7 @@ applies. A database that answers and refuses is **rejected**, and is not retried
 | --- | --- | --- | --- | --- |
 | PostgreSQL | `postgresql+asyncpg` | yes | yes | yes |
 | SQLite | `sqlite+aiosqlite` | yes | yes | no, the worker's deadline only |
-| DuckDB | `duckdb`, in a worker thread | with the `duckdb` extra | yes, the file is opened read-only | yes, by interrupt |
+| DuckDB | `duckdb`, in a worker thread | with `dirigent-block-sql-duckdb` | yes, the file is opened read-only | yes, by interrupt |
 | Anything else | its own async driver | no | no | no |
 
 A SQLite or DuckDB database written with a **relative** path -- `sqlite+aiosqlite:///demo.db`,
@@ -325,6 +328,26 @@ outside a run because outside a run there is nothing there yet. An absolute path
 Another dialect is a driver away: install its async driver on the worker and write it in the
 URL. Nothing in these blocks is PostgreSQL-specific beyond the two rows above, and a dialect
 without them is refused where it would otherwise be silently weaker.
+
+## Adding an engine
+
+An engine is a package. It implements `SqlEngine` from `dirigent_block_sql.engines`, claims one
+backend -- what `duckdb://` or `clickhouse://` names, one engine each -- and registers under the
+`dirigent.sql.engines.v1` entry-point group, which the family loads itself:
+
+```toml
+[project.entry-points."dirigent.sql.engines.v1"]
+duckdb = "dirigent_block_sql_duckdb:plugin"
+```
+
+The contract is five decisions, and everything else about the two blocks is the same whichever
+engine answers: `validate` says what makes a connection to this backend valid, and is where a
+URL is refused; `resolve` says where a database written as a relative path lands; `bind` says
+what a parameter becomes before the database sees it -- which is how a storage URI becomes the
+file duckdb opens; `check` reaches the database for `dg connection check`; and `session` opens
+what a step runs its statements in, given the statements and the bound parameters so a session
+can be told what they need. A backend no installed engine claims is driven through SQLAlchemy's
+async layer, which is the generic path and needs no package at all.
 
 ## On the compose stack
 

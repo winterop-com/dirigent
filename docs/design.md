@@ -308,6 +308,7 @@ dirigent/
     dirigent-core/         # engine: schema, queue, DAG walker, scheduler, plugin host
     dirigent-block-*/      # the eight built-in block families: base, http, storage,
                            #   execute, sql, transform, queues, parquet
+    dirigent-block-sql-duckdb/  # the duckdb engine of the sql family
     dirigent-blocks/       # the umbrella: every family, and the outbound alert channels
     dirigent-server/       # FastAPI app, auth, SSE, webhook endpoints
       frontend/            # the web UI, built into the server wheel
@@ -330,6 +331,7 @@ an inventory of what an instance can do:
 | Prefix | Contributes | Example |
 | --- | --- | --- |
 | `dirigent-block-*` | Operators and sensors that need no credential of their own | `dirigent-block-parquet` |
+| `dirigent-block-sql-<engine>` | An engine of the `sql` family, registered under `dirigent.sql.engines.v1` | `dirigent-block-sql-duckdb` |
 | `dirigent-storage-*` | A storage backend, registering a URI scheme | `dirigent-storage-s3` |
 | `dirigent-notify-*` | A notifier channel | `dirigent-notify-slack` |
 | `dirigent-<system>` | An adapter pack: one connection kind plus the blocks for one external system | `dirigent-acme` |
