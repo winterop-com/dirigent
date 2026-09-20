@@ -141,6 +141,44 @@ pulls the published one, pinned to the version of the `dg` that wrote it. That d
 uv project, so `uv sync` once and then `uv run dg auth login --username admin` against the
 stack it starts.
 
+### Running under another ASGI server
+
+`dg server` runs the application under uvicorn, and uvicorn is a dependency of the CLI alone.
+`dirigent-server` only defines the application; nothing in it runs one.
+
+The application is plain ASGI. The factory is `dirigent_server.create_app`, which takes a
+`Settings` and reads `get_settings()` -- the `DIRIGENT_*` environment and the config file --
+when it is given none. `dirigent_cli.main:build_app` is the zero-argument factory `dg server`
+hands uvicorn, and it is what another server points at:
+
+```bash
+granian --interface asgi --factory dirigent_cli.main:build_app --host 0.0.0.0 --port 3333
+```
+
+Hypercorn has no factory flag, so hand it a module that holds the built application:
+
+```python
+# asgi.py
+from dirigent_server import create_app
+
+app = create_app()
+```
+
+```bash
+hypercorn asgi:app --bind 0.0.0.0:3333
+```
+
+Settings still travel through `DIRIGENT_*` on this path, because there are no CLI flags on it:
+the address is the other server's own, and `DIRIGENT_HOST` and `DIRIGENT_PORT` are
+`dg server`'s. The embedded scheduler travels the same way: `DIRIGENT_SCHEDULER_ENABLED`, or
+`scheduler=` on `create_app`, embeds it in whichever process hosts the application, and
+leadership is a PostgreSQL advisory lock, so several app processes with it on are safe.
+
+What not to reach for is a prefork model: gunicorn buys nothing here, because capacity comes
+from more `dg worker` processes claiming from PostgreSQL, not from more web processes, and more
+API processes only multiply connection pools against one database. More API capacity is more
+`dg server` containers behind a load balancer.
+
 ### The first admin, by hand
 
 Leave `DIRIGENT_BOOTSTRAP_ADMIN_PASSWORD` empty and create the account yourself:

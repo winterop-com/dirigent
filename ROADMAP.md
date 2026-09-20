@@ -253,19 +253,6 @@ stays clean, and every example stays executable.
     satisfy someone else's platform rather than to solve a problem we have. If it becomes
     unavoidable it belongs under `infra/chart/`, and the compose stack stays the reference.
 
-- **The ASGI server is a choice, not a fixture.** `dg server` calls `uvicorn.run()` on an
-  app factory, and uvicorn stays the default for simplicity. Nothing in the code depends on
-  it though: the application is plain ASGI, so granian, hypercorn or whatever Rust-backed
-  server is worth having by then already work today by pointing at the factory. Two things
-  to tidy when this is revisited: uvicorn is a dependency of `dirigent-server`, which only
-  DEFINES the app and never runs one, so the dependency belongs in the CLI alone and an
-  embedder should not inherit a server choice; and the docs should name the factory so
-  running under something else is documented rather than discovered.
-  Note what NOT to reach for: gunicorn's prefork model buys nothing here, because capacity
-  comes from running more dirigent workers claiming from PostgreSQL, not more web processes.
-  More API processes only multiply connection pools against one database; more API capacity
-  means more `dg server` containers behind a load balancer.
-
 - **A better logo.** The current mark and banner are placeholders generated early. Rounded
   corners at least, or a different mark entirely; whatever it becomes, it needs the square
   favicon, the README banner, and a dark-background variant, and `docs/assets/logo.png` and
