@@ -15,6 +15,9 @@ export const CLOSE_NAV_LABEL = 'Close navigation'
 /** What the drawer's foot offers, which is the cell the status bar carries above the breakpoint. */
 const SETTINGS_LABEL = 'Settings'
 
+/** How many frames the drawer asks for focus before it gives up, about a second at 60Hz. */
+const FOCUS_FRAMES = 60
+
 /**
  * The rail, below the breakpoint the rail is not drawn at.
  *
@@ -47,20 +50,24 @@ export function NavDrawer({
     // Focus lands in the drawer on open: a sheet over the screen that left the focus behind it
     // is a sheet a keyboard cannot reach. Returning it is the opener's, which holds that ref.
     //
-    // TWO FRAMES, because a hidden element takes no focus: the class that stops hiding the
-    // drawer is resolved on the frame after the render, and the control inside it is focusable
-    // only once that has happened.
+    // A FRAME AT A TIME UNTIL IT LANDS, because a hidden element takes no focus and takes it
+    // silently: the classes and the `inert` that stop hiding the drawer are resolved after the
+    // render, and how many frames a loaded machine needs for that is not fixed. Each frame asks
+    // again and reads back what took the focus, and the count bounds a drawer that can never
+    // hold it.
     useEffect(() => {
         if (!open) return
-        let second = 0
-        const first = requestAnimationFrame(() => {
-            second = requestAnimationFrame(() => {
-                close.current?.focus()
-            })
-        })
+        let frame = 0
+        let left = FOCUS_FRAMES
+        const ask = () => {
+            close.current?.focus()
+            if (document.activeElement === close.current) return
+            left -= 1
+            if (left > 0) frame = requestAnimationFrame(ask)
+        }
+        frame = requestAnimationFrame(ask)
         return () => {
-            cancelAnimationFrame(first)
-            cancelAnimationFrame(second)
+            cancelAnimationFrame(frame)
         }
     }, [open])
 
