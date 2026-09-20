@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirigent_client.schemas import Page, SchemaIn, SchemaOut, SchemaUpdate
 from dirigent_core.models import Schema
-from dirigent_core.schemas import SchemaRefused, check_valid_schema, resolve_identity
+from dirigent_core.schemas import check_valid_schema, resolve_identity
 from dirigent_server.dependencies import SessionDep
 from dirigent_server.pagination import DEFAULT_PAGE, AfterParam, LimitParam, clip
 from dirigent_server.security import AdminDep, PrincipalDep
@@ -71,13 +71,10 @@ async def list_schemas(
 )
 async def create_schema(payload: SchemaIn, session: SessionDep, principal: AdminDep) -> SchemaOut:
     """Store a JSON Schema, taking its identity from its own keywords when the write gives none."""
-    try:
-        check_valid_schema(payload.body)
-        code, name, description = resolve_identity(
-            payload.body, code=payload.code, name=payload.name, description=payload.description
-        )
-    except SchemaRefused as error:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)) from error
+    check_valid_schema(payload.body)
+    code, name, description = resolve_identity(
+        payload.body, code=payload.code, name=payload.name, description=payload.description
+    )
     existing = (await session.execute(sa.select(Schema).where(Schema.code == code))).scalar_one_or_none()
     if existing is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"a schema coded {code!r} exists")
@@ -106,10 +103,7 @@ async def update_schema(code: str, payload: SchemaUpdate, session: SessionDep, p
     if payload.changing("description"):
         row.description = payload.description
     if payload.body is not None:
-        try:
-            check_valid_schema(payload.body)
-        except SchemaRefused as error:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)) from error
+        check_valid_schema(payload.body)
         row.body = payload.body
     await session.flush()
     return render(row)

@@ -14,6 +14,7 @@ from cryptography.fernet import Fernet, InvalidToken
 from pydantic import BaseModel, SecretStr
 
 from dirigent_common import JsonMap
+from dirigent_core.errors import DomainError
 
 REDACTED = "***"
 
@@ -22,8 +23,10 @@ REDACTED = "***"
 KEY_ID_LENGTH = 12
 
 
-class SecretError(Exception):
+class SecretError(DomainError):
     """Any failure in the secrets layer."""
+
+    status = 409
 
 
 class SecretKeyMissing(SecretError):

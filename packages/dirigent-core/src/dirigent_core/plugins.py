@@ -13,6 +13,7 @@ from pydantic import BaseModel
 
 from dirigent_client.schemas import BlockEntry, BlockKind, Catalog, SurfaceEntry
 from dirigent_common import API_VERSION, HumaneJsonSchema, JsonMap, as_markdown
+from dirigent_core.errors import DomainError
 from dirigent_core.secrets import secret_fields
 from dirigent_plugin import (
     ENTRY_POINT_GROUP,
@@ -32,7 +33,7 @@ if TYPE_CHECKING:
     from dirigent_core.examples import ExampleEntry
 
 
-class PluginError(Exception):
+class PluginError(DomainError):
     """A plugin made the host unable to start."""
 
 
@@ -52,6 +53,8 @@ class UnsupportedApiVersion(PluginError):
 class DuplicateContribution(PluginError):
     """Two plugins claimed the same public identifier."""
 
+    status = 409
+
     def __init__(self, surface: str, identifier: str, first: str, second: str) -> None:
         """Name the identifier and both plugins."""
         super().__init__(
@@ -65,6 +68,8 @@ class DuplicateContribution(PluginError):
 
 class UnknownBlock(PluginError):
     """A stored pipeline referenced a block no installed plugin contributes."""
+
+    status = 404
 
     def __init__(self, block_id: str, known: Iterable[str]) -> None:
         """Name the block and the size of the catalog."""
@@ -89,6 +94,7 @@ class UnknownExample(PluginError):
             super().__init__(f"no example {code!r} is installed; `dg examples list` says what is.")
         self.code = code
         self.plugins = list(plugins)
+        self.status = 409 if self.plugins else 404
 
 
 def _described_in_markdown(node: Any) -> Any:

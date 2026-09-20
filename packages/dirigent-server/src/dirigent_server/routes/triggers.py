@@ -39,10 +39,7 @@ from dirigent_core.models import (
 )
 from dirigent_core.pipelines import UnknownPipeline, get_version, require_pipeline
 from dirigent_core.triggers import (
-    DuplicateSchedule,
-    ScheduleError,
     ScheduleRequest,
-    WebhookError,
     WebhookRequest,
     check_schedule_params,
     check_webhook_mapping,
@@ -177,17 +174,14 @@ async def _webhook_out(session: AsyncSession, row: WebhookTrigger) -> WebhookOut
 )
 async def preview_schedule(payload: SchedulePreviewRequest, principal: PrincipalDep) -> SchedulePreview:
     """Compute the next firings of a clock nothing has declared, with the scheduler's own arithmetic."""
-    try:
-        return SchedulePreview(
-            firings=preview_firings(
-                cron=payload.cron,
-                interval=payload.interval,
-                at=payload.at,
-                timezone=payload.timezone,
-            )
+    return SchedulePreview(
+        firings=preview_firings(
+            cron=payload.cron,
+            interval=payload.interval,
+            at=payload.at,
+            timezone=payload.timezone,
         )
-    except ScheduleError as error:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)) from error
+    )
 
 
 @router.get(
@@ -234,13 +228,8 @@ async def add_schedule(
 ) -> ScheduleOut:
     """Declare a schedule on a pipeline and compute when it first fires."""
     pipeline = await _require(session, code)
-    try:
-        await _check_pins(session, services, pipeline.id, payload)
-        return await _schedule_out(session, await create_schedule(session, pipeline, _schedule_request(payload)))
-    except DuplicateSchedule as error:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
-    except ScheduleError as error:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)) from error
+    await _check_pins(session, services, pipeline.id, payload)
+    return await _schedule_out(session, await create_schedule(session, pipeline, _schedule_request(payload)))
 
 
 @router.patch(
@@ -259,11 +248,8 @@ async def edit_schedule(
 ) -> ScheduleOut:
     """Change a schedule's clock or parameters, keeping whether it is paused."""
     row = await _require_schedule(session, code, schedule)
-    try:
-        await _check_pins(session, services, row.pipeline_id, payload)
-        return await _schedule_out(session, await update_schedule(session, row, _schedule_request(payload)))
-    except ScheduleError as error:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)) from error
+    await _check_pins(session, services, row.pipeline_id, payload)
+    return await _schedule_out(session, await update_schedule(session, row, _schedule_request(payload)))
 
 
 @router.post(
@@ -382,10 +368,7 @@ async def add_webhook(
     """Declare a webhook and return its token, which is shown here and nowhere else again."""
     pipeline = await _require(session, code)
     await _check_mapping(session, pipeline.id, payload)
-    try:
-        minted = await create_webhook(session, pipeline, _webhook_request(payload), secrets=services.secrets)
-    except WebhookError as error:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
+    minted = await create_webhook(session, pipeline, _webhook_request(payload), secrets=services.secrets)
     return _token(minted.webhook_id, minted.code, minted.token.get_secret_value(), minted.prefix)
 
 
@@ -499,10 +482,7 @@ async def _check_mapping(session: AsyncSession, pipeline_id: UUID, payload: Webh
     if pipeline is None or pipeline.current_version is None:
         return
     version = await get_version(session, pipeline)
-    try:
-        check_webhook_mapping(load_definition(version.document), payload.params_from_payload)
-    except WebhookError as error:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)) from error
+    check_webhook_mapping(load_definition(version.document), payload.params_from_payload)
 
 
 async def _require(session: AsyncSession, code: str) -> Pipeline:

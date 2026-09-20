@@ -33,6 +33,7 @@ from dirigent_core.engine.definition import Document, PipelineDefinition, Trigge
 from dirigent_core.engine.runs import Provenance, save_pipeline
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.engine.state import lock_pipeline
+from dirigent_core.errors import DomainError
 from dirigent_core.logging import get_logger
 from dirigent_core.models import (
     ArtifactRef,
@@ -54,8 +55,10 @@ from dirigent_core.triggers.materialize import materialize_triggers, owner_issue
 _logger = get_logger("pipelines")
 
 
-class PipelineError(Exception):
+class PipelineError(DomainError):
     """A pipeline could not be found, applied, or retired."""
+
+    status = 404
 
 
 class UnknownPipeline(PipelineError):
@@ -69,6 +72,8 @@ class UnknownPipeline(PipelineError):
 
 class PipelineInUse(PipelineError):
     """A pipeline was asked to be deleted while runs of it are still in flight."""
+
+    status = 409
 
     def __init__(self, code: str, runs: int) -> None:
         """Say how much work is still in flight, and what to do about it."""

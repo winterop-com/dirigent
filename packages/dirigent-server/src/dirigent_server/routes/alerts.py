@@ -18,7 +18,6 @@ from dirigent_client.schemas import (
 )
 from dirigent_common.durations import format_duration
 from dirigent_core.alerting import (
-    AlertError,
     AlertRuleRequest,
     create_rule,
     delete_rule,
@@ -94,26 +93,23 @@ async def add_rule(
     payload: AlertRuleIn, session: SessionDep, services: ServicesDep, principal: OperatorDep
 ) -> AlertRuleOut:
     """Declare an alert rule, refusing a notifier or a pipeline this instance does not have."""
-    try:
-        rule = await create_rule(
-            session,
-            services,
-            AlertRuleRequest(
-                code=payload.code,
-                name=payload.name,
-                description=payload.description,
-                event=payload.event,
-                notifier=payload.notifier,
-                scope=payload.scope,
-                pipeline=payload.pipeline,
-                connection=payload.connection,
-                template=payload.template,
-                body=payload.body,
-                throttle=payload.throttle,
-            ),
-        )
-    except AlertError as error:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)) from error
+    rule = await create_rule(
+        session,
+        services,
+        AlertRuleRequest(
+            code=payload.code,
+            name=payload.name,
+            description=payload.description,
+            event=payload.event,
+            notifier=payload.notifier,
+            scope=payload.scope,
+            pipeline=payload.pipeline,
+            connection=payload.connection,
+            template=payload.template,
+            body=payload.body,
+            throttle=payload.throttle,
+        ),
+    )
     return render(rule, payload.pipeline, payload.connection)
 
 
@@ -131,10 +127,7 @@ async def change_rule(code: str, payload: AlertRuleUpdate, session: SessionDep, 
     the caller left out is left as it was.
     """
     rule = await _rule_or_404(session, code)
-    try:
-        await update_rule(session, rule, payload.model_dump(exclude_unset=True))
-    except AlertError as error:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)) from error
+    await update_rule(session, rule, payload.model_dump(exclude_unset=True))
     return render(rule, await _pipeline_code(session, rule), await _connection_code(session, rule.connection_id))
 
 
@@ -161,17 +154,14 @@ async def test_notifier(
     payload: TestRequest, session: SessionDep, services: ServicesDep, principal: OperatorDep
 ) -> TestQueued:
     """Queue one message through a channel, on the same path a real alert takes."""
-    try:
-        notification = await queue_test_message(
-            session,
-            services,
-            notifier=payload.notifier,
-            connection=payload.connection,
-            subject=payload.subject,
-            body=payload.body,
-        )
-    except AlertError as error:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)) from error
+    notification = await queue_test_message(
+        session,
+        services,
+        notifier=payload.notifier,
+        connection=payload.connection,
+        subject=payload.subject,
+        body=payload.body,
+    )
     return TestQueued(notification_id=notification.id, notifier=notification.notifier)
 
 
@@ -231,10 +221,7 @@ async def retry(
 ) -> NotificationOut:
     """Make one notification due now, so a worker takes it on its next pass."""
     row = await _notification_or_404(session, notification_id)
-    try:
-        await retry_notification(session, row)
-    except AlertError as error:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
+    await retry_notification(session, row)
     return await _notification(session, services, row)
 
 

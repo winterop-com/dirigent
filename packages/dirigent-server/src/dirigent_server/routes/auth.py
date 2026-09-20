@@ -15,8 +15,6 @@ from dirigent_client.schemas import (
 from dirigent_core.auth import (
     SESSION_LIFETIME,
     Principal,
-    WeakPassword,
-    WrongPassword,
     authenticate,
     change_password,
     issue_token,
@@ -131,18 +129,13 @@ async def change_own_password(
     out of the page they made it from. An API token is not a session and is untouched.
     """
     user = await _require_user(session, principal.username)
-    try:
-        await change_password(
-            session,
-            user,
-            payload.current_password.get_secret_value(),
-            payload.new_password.get_secret_value(),
-            keep=principal.token_id,
-        )
-    except WrongPassword as error:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(error)) from error
-    except WeakPassword as error:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)) from error
+    await change_password(
+        session,
+        user,
+        payload.current_password.get_secret_value(),
+        payload.new_password.get_secret_value(),
+        keep=principal.token_id,
+    )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

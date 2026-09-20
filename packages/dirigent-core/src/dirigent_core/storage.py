@@ -16,6 +16,7 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel
 
+from dirigent_core.errors import DomainError
 from dirigent_plugin import ByteSink, StatResult, StorageBackend
 
 CHUNK_SIZE: Final = 256 * 1024
@@ -23,7 +24,7 @@ CHUNK_SIZE: Final = 256 * 1024
 GLOB_CHARACTERS: Final = ("*", "?", "[")
 
 
-class StorageError(Exception):
+class StorageError(DomainError):
     """Any failure raised by the storage layer itself, as opposed to by a block."""
 
 

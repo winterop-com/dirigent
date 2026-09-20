@@ -26,18 +26,21 @@ from dirigent_core.engine.definition import (
     anchor_naive_moment,
 )
 from dirigent_core.engine.runs import RunWindow
+from dirigent_core.errors import DomainError
 from dirigent_core.logging import get_logger
 from dirigent_core.models import Pipeline, Schedule, ScheduleFiring, utcnow
 
 _logger = get_logger("scheduler")
 
 
-class ScheduleError(Exception):
+class ScheduleError(DomainError):
     """A schedule could not be declared, found, or advanced."""
 
 
 class DuplicateSchedule(ScheduleError):
     """A pipeline already has a schedule of that code."""
+
+    status = 409
 
     def __init__(self, pipeline: str, code: str) -> None:
         """Name the pipeline and the schedule."""
@@ -48,6 +51,8 @@ class DuplicateSchedule(ScheduleError):
 
 class UnknownSchedule(ScheduleError):
     """No schedule of that code exists on this pipeline."""
+
+    status = 404
 
     def __init__(self, pipeline: str, code: str) -> None:
         """Name the pipeline and the schedule."""

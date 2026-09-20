@@ -20,6 +20,7 @@ from dirigent_common import JsonMap
 from dirigent_core.engine.definition import load_definition
 from dirigent_core.engine.runs import Attribution, RunWindow, create_run
 from dirigent_core.engine.services import EngineServices
+from dirigent_core.errors import DomainError
 from dirigent_core.logging import get_logger
 from dirigent_core.models import PipelineVersion, Schedule
 from dirigent_core.triggers.schedules import occurrences_between, window_for
@@ -36,7 +37,7 @@ COUNT_CEILING: Final = 10 * BACKFILL_CAP
 _logger = get_logger("backfill")
 
 
-class BackfillError(Exception):
+class BackfillError(DomainError):
     """A backfill could not be enumerated or run."""
 
 

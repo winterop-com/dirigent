@@ -20,13 +20,14 @@ from jsonschema.exceptions import SchemaError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirigent_common import JsonMap
+from dirigent_core.errors import DomainError
 from dirigent_core.models import Schema
 
 #: The code a schema is given when it names none: a slug drawn from ``$id`` or a filename.
 _CODE_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{0,199}$")
 
 
-class SchemaRefused(Exception):
+class SchemaRefused(DomainError):
     """A schema that cannot be stored, and the reason a caller can show."""
 
 

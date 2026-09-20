@@ -7,11 +7,10 @@ request that asks for them.
 
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Query
 
 from dirigent_client.schemas import ExampleDetail, ExampleOut, Page
 from dirigent_core.examples import ExampleEntry
-from dirigent_core.plugins import UnknownExample
 from dirigent_server.dependencies import ServicesDep
 from dirigent_server.pagination import DEFAULT_PAGE, AfterParam, LimitParam, clip
 from dirigent_server.security import PrincipalDep
@@ -80,11 +79,5 @@ def _cursor(entry: ExampleOut) -> str:
 )
 async def read_example(code: str, services: ServicesDep, principal: PrincipalDep) -> ExampleDetail:
     """Read one example by its code, with the text a copy of it copies."""
-    try:
-        entry = services.host.example(code)
-    except UnknownExample as error:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT if error.plugins else status.HTTP_404_NOT_FOUND,
-            detail=str(error),
-        ) from error
+    entry = services.host.example(code)
     return ExampleDetail(**render(entry).model_dump(), source=entry.source, path=entry.path)

@@ -13,6 +13,7 @@ from dirigent_client.enums import RunPriority
 from dirigent_client.schemas import Requirements
 from dirigent_common import TEMPLATE_MEDIA_TYPE, EntityName, JsonMap, StepName, TemplateError, compile_template
 from dirigent_common.durations import Duration
+from dirigent_core.errors import DomainError
 from dirigent_plugin import BLOCK_ID_PATTERN
 
 FORMAT_V1: Final = "dirigent/v1"
@@ -45,7 +46,7 @@ _TAG = re.compile(TAG_PATTERN)
 ADOPTED_GRID: Final = re.compile(r"^\$\{\s*steps\.([a-z][a-z0-9_]*)\.items\s*\}$")
 
 
-class ParameterError(ValueError):
+class ParameterError(DomainError, ValueError):
     """Supplied run parameters did not satisfy the pipeline's parameter schema."""
 
 

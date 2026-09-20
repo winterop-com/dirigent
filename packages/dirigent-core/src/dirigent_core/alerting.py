@@ -30,6 +30,7 @@ from dirigent_common import (
 from dirigent_core.database import is_deadlock, session_scope
 from dirigent_core.engine.definition import load_definition
 from dirigent_core.engine.services import EngineServices
+from dirigent_core.errors import DomainError
 from dirigent_core.ids import uuid7
 from dirigent_core.logging import get_logger
 from dirigent_core.models import (
@@ -69,8 +70,14 @@ RENEWALS_PER_LEASE = 3
 _logger = get_logger("alerting")
 
 
-class AlertError(Exception):
+class AlertError(DomainError):
     """An alert rule could not be declared, found, or delivered."""
+
+
+class NotificationInFlight(AlertError):
+    """A notification a worker is delivering was asked to go back on the queue."""
+
+    status = 409
 
 
 class AlertRuleRequest(BaseModel):
@@ -933,7 +940,7 @@ async def retry_notification(
     would hand the same message to a second worker.
     """
     if notification.status is NotificationStatus.SENDING:
-        raise AlertError("a worker is delivering this one; wait for it to finish or fail")
+        raise NotificationInFlight("a worker is delivering this one; wait for it to finish or fail")
     notification.status = NotificationStatus.PENDING
     notification.available_at = now or utcnow()
     notification.attempt = 0

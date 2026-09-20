@@ -26,6 +26,7 @@ from dirigent_core.engine.definition import (
     canonical_document,
 )
 from dirigent_core.engine.references import has_reference, references_in
+from dirigent_core.errors import DomainError
 
 #: High enough that the canonical dump never folds a line, which would shift the digest.
 YAML_WIDTH: Final = 10_000
@@ -85,14 +86,19 @@ class CanonicalDumper(yaml.SafeDumper):
         super().increase_indent(flow=flow, indentless=False)
 
 
-class DocumentError(Exception):
+class DocumentError(DomainError):
     """A document could not be read at all, or did not satisfy the format."""
 
     def __init__(self, message: str, problems: Iterable[str] = ()) -> None:
         """Carry the whole list of problems a document has."""
-        self.problems = list(problems) or [message]
-        detail = "; ".join(self.problems)
+        self._problems = list(problems) or [message]
+        detail = "; ".join(self._problems)
         super().__init__(message if detail == message else f"{message}: {detail}")
+
+    @property
+    def problems(self) -> list[str]:
+        """Every problem the document has, which is the message itself when it has only the one."""
+        return self._problems
 
 
 def parse_text(text: str) -> JsonMap:

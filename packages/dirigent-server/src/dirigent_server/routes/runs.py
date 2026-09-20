@@ -33,7 +33,7 @@ from dirigent_core import telemetry
 from dirigent_core.artifacts import JSON_CONTENT_TYPE, TEXT_KEY, canonical_json
 from dirigent_core.database import session_scope
 from dirigent_core.engine.definition import PipelineDefinition, load_definition
-from dirigent_core.engine.runs import RunCreationError, cancel_run, retry_step
+from dirigent_core.engine.runs import cancel_run, retry_step
 from dirigent_core.engine.state import StepCounts, attempt_counts, item_counts, step_states
 from dirigent_core.models import (
     ArtifactRef,
@@ -403,17 +403,14 @@ async def retry(
     if attempt is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"no attempt {attempt_id}")
     run = await _run_row(session, attempt.run_id)
-    try:
-        created = await retry_step(
-            session,
-            services,
-            run,
-            attempt.step_name,
-            idempotency_key=idempotency_key,
-            run_item_id=attempt.run_item_id,
-        )
-    except RunCreationError as error:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
+    created = await retry_step(
+        session,
+        services,
+        run,
+        attempt.step_name,
+        idempotency_key=idempotency_key,
+        run_item_id=attempt.run_item_id,
+    )
     return AttemptOut.model_validate(created, from_attributes=True)
 
 
