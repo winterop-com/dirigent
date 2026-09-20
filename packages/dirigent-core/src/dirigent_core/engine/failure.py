@@ -7,10 +7,13 @@ and never reaches here.
 
 import random
 from datetime import timedelta
+from typing import Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
+from dirigent_common import JsonMap, Message
 from dirigent_core.engine.definition import RetryPolicy
+from dirigent_core.messages import BLOCK_RAISED
 from dirigent_plugin import AnyOperator, AnySensor, BlockFailure, ErrorClass, classify_default
 
 
@@ -51,21 +54,31 @@ class Failure(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
+    code: str
     message: str
+    params: JsonMap = Field(default_factory=dict)
     error_class: ErrorClass
 
     @classmethod
     def of(cls, block: AnyOperator | AnySensor, error: Exception) -> "Failure":
-        """Build a failure from an exception a block raised."""
-        message = str(error) if isinstance(error, BlockFailure) else f"{type(error).__name__}: {error}"
-        return cls(message=message or type(error).__name__, error_class=classify(block, error))
+        """Build a failure from an exception a block raised, keeping its code when it has one."""
+        error_class = classify(block, error)
+        if isinstance(error, BlockFailure):
+            return cls(code=error.code, message=error.message, params=error.params, error_class=error_class)
+        params: JsonMap = {"kind": type(error).__name__, "detail": str(error)}
+        return cls(
+            code=BLOCK_RAISED.code,
+            message=BLOCK_RAISED.render(**params),
+            params=params,
+            error_class=error_class,
+        )
 
     @classmethod
-    def rejected(cls, message: str) -> "Failure":
+    def rejected(cls, message: Message, /, **params: Any) -> "Failure":
         """Build a failure the engine itself raised and that retrying cannot fix."""
-        return cls(message=message, error_class=ErrorClass.REJECTED)
+        return cls(code=message.code, message=message.render(**params), params=params, error_class=ErrorClass.REJECTED)
 
     @classmethod
-    def transient(cls, message: str) -> "Failure":
+    def transient(cls, message: Message, /, **params: Any) -> "Failure":
         """Build a failure the engine itself raised that another attempt may survive."""
-        return cls(message=message, error_class=ErrorClass.TRANSIENT)
+        return cls(code=message.code, message=message.render(**params), params=params, error_class=ErrorClass.TRANSIENT)

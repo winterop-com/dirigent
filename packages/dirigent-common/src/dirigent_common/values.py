@@ -13,6 +13,8 @@ import uuid
 
 from pydantic import JsonValue
 
+from dirigent_common.messages import NO_JSON_SPELLING
+
 
 def spelled(value: object) -> JsonValue:
     """Give one Python value its JSON spelling, refusing what has none.
@@ -37,4 +39,4 @@ def spelled(value: object) -> JsonValue:
         return None
     if value is None or isinstance(value, bool | int | float | str):
         return value
-    raise ValueError(f"a value of type {type(value).__name__} has no JSON spelling")
+    raise ValueError(NO_JSON_SPELLING.render(kind=type(value).__name__))

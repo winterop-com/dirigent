@@ -202,6 +202,7 @@ class Run(Entity):
     traceparent: Mapped[str | None] = mapped_column(sa.String(64))
     """The trace context the run was created in, which every attempt of it opens under."""
     error: Mapped[str | None] = mapped_column(sa.Text)
+    error_code: Mapped[str | None] = mapped_column(sa.String(128))
     started_at: Mapped[datetime | None] = mapped_column(Timestamp)
     finished_at: Mapped[datetime | None] = mapped_column(Timestamp)
 
@@ -242,6 +243,7 @@ class RunItem(Entity):
     )
     failing_step: Mapped[str | None] = mapped_column(sa.String(200))
     error: Mapped[str | None] = mapped_column(sa.Text)
+    error_code: Mapped[str | None] = mapped_column(sa.String(128))
     started_at: Mapped[datetime | None] = mapped_column(Timestamp)
     finished_at: Mapped[datetime | None] = mapped_column(Timestamp)
 
@@ -307,6 +309,8 @@ class StepAttempt(Entity):
     output: Mapped[JsonMap | None] = mapped_column(JsonDocument)
     output_artifact_id: Mapped[UUID | None] = mapped_column(sa.Uuid)
     error: Mapped[str | None] = mapped_column(sa.Text)
+    error_code: Mapped[str | None] = mapped_column(sa.String(128))
+    error_params: Mapped[JsonMap | None] = mapped_column(JsonDocument)
     error_class: Mapped[str | None] = mapped_column(sa.String(32))
 
     started_at: Mapped[datetime | None] = mapped_column(Timestamp)

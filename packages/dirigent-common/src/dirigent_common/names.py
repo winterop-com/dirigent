@@ -5,6 +5,8 @@ from typing import Annotated, Final
 
 from pydantic import StringConstraints
 
+from dirigent_common.messages import NOT_A_STEP_NAME, NOT_AN_ENTITY_NAME
+
 #: The grammar reads most naturally as ``^[a-z]([a-z0-9]|-(?=[a-z0-9]))*$``, but this
 #: pattern is published in JSON Schema and compiled by pydantic-core's Rust engine, which
 #: supports no look-ahead. The form below is its exact equivalent: every hyphen must be
@@ -50,16 +52,9 @@ def is_step_name(value: str) -> bool:
 
 def entity_name_error(label: str, value: str) -> str:
     """Render the one message every entity-name rejection uses, so the advice never varies."""
-    return (
-        f"{label} {value!r} is not a valid name: names are lowercase letters, digits, and single "
-        f"hyphens, start with a letter, end alphanumeric, and are at most "
-        f"{ENTITY_NAME_MAX_LENGTH} characters"
-    )
+    return NOT_AN_ENTITY_NAME.render(label=label, value=repr(value), limit=ENTITY_NAME_MAX_LENGTH)
 
 
 def step_name_error(value: str) -> str:
     """Render the one message every step-name rejection uses, including why it differs."""
-    return (
-        f"step name {value!r} is not valid: step names are snake_case ({STEP_NAME_PATTERN}), because "
-        f"they appear inside ${{steps.<name>.output.…}} where a hyphen or a dot would be ambiguous"
-    )
+    return NOT_A_STEP_NAME.render(value=repr(value), pattern=STEP_NAME_PATTERN)

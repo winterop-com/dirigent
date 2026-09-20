@@ -2,7 +2,9 @@
 
 from typing import Any, Final, cast
 
+from dirigent_client.messages import NO_PROBLEM_DOCUMENT, NOT_DIRIGENT, UNREACHABLE
 from dirigent_client.schemas import Problem
+from dirigent_common import Issue, JsonMap, validation_issues
 
 #: The header a dirigent server puts on every response, including its errors.
 VERSION_HEADER: Final = "X-Dirigent-Version"
@@ -11,16 +13,37 @@ VERSION_HEADER: Final = "X-Dirigent-Version"
 class DirigentError(Exception):
     """A call against a dirigent instance did not produce a result."""
 
-    def __init__(self, message: str, *, status: int = 0, url: str = "", problem: Problem | None = None) -> None:
+    def __init__(
+        self,
+        message: str,
+        *,
+        status: int = 0,
+        url: str = "",
+        problem: Problem | None = None,
+        code: str = "",
+        params: JsonMap | None = None,
+    ) -> None:
         """Carry the message, the status, the URL, and the problem the server sent."""
         super().__init__(message)
         self.message = message
         self.status = status
         self.url = url
         self.problem = problem
+        self._code = code
+        self._params = params or {}
 
     @property
-    def problems(self) -> list[str]:
+    def code(self) -> str:
+        """The dotted code of the refusal, from the problem when the server sent one."""
+        return self.problem.code if self.problem else self._code
+
+    @property
+    def params(self) -> JsonMap:
+        """The specifics the refusal rendered, for a re-render in another language."""
+        return dict(self.problem.params) if self.problem else dict(self._params)
+
+    @property
+    def problems(self) -> list[Issue]:
         """List the individual failures, when the refusal was a list of them rather than one."""
         return list(self.problem.problems) if self.problem else []
 
@@ -30,7 +53,8 @@ class TransportError(DirigentError):
 
     def __init__(self, url: str, error: Exception) -> None:
         """Name the URL that could not be reached."""
-        super().__init__(f"cannot reach {url}: {type(error).__name__}: {error}", url=url)
+        params: JsonMap = {"url": url, "kind": type(error).__name__, "detail": str(error)}
+        super().__init__(UNREACHABLE.render(**params), url=url, code=UNREACHABLE.code, params=params)
         self.cause = error
 
 
@@ -40,10 +64,8 @@ class NotDirigent(DirigentError):
     def __init__(self, base_url: str, url: str, content_type: str) -> None:
         """Say what answered and where."""
         described = content_type.split(";")[0].strip() or "no content type"
-        super().__init__(
-            f"the server at {base_url} does not look like a dirigent instance (got {described} from {url})",
-            url=url,
-        )
+        params: JsonMap = {"base_url": base_url, "described": described, "url": url}
+        super().__init__(NOT_DIRIGENT.render(**params), url=url, code=NOT_DIRIGENT.code, params=params)
         self.base_url = base_url
         self.content_type = content_type
 
@@ -111,23 +133,23 @@ def _loose(mapping: "dict[str, Any]") -> Problem | None:
     """Read a body that carries a detail but not the whole envelope, such as a bare 404."""
     detail = mapping.get("detail")
     if isinstance(detail, str):
-        return Problem(status=0, title="Error", detail=detail)
+        return _synthesised(detail)
     if isinstance(detail, list):
-        rendered = [_one(item) for item in cast("list[object]", detail)]
-        return Problem(status=0, title="Error", detail="; ".join(rendered), problems=rendered)
+        issues = validation_issues([entry for entry in cast("list[Any]", detail) if isinstance(entry, dict)])
+        return _synthesised("; ".join(str(issue) for issue in issues), problems=issues)
     return None
 
 
-def _one(item: object) -> str:
-    """Render one entry of a problem list, whether it is a string or a pydantic error."""
-    if isinstance(item, str):
-        return item
-    if isinstance(item, dict):
-        mapping = cast("dict[str, Any]", item)
-        location = ".".join(str(part) for part in mapping.get("loc", []))
-        message = str(mapping.get("msg", mapping))
-        return f"{location}: {message}" if location else message
-    return str(item)
+def _synthesised(detail: str, *, problems: list[Issue] | None = None) -> Problem:
+    """Build the problem a body that is not one stands in as."""
+    return Problem(
+        status=0,
+        title="Error",
+        detail=detail,
+        code=NO_PROBLEM_DOCUMENT.code,
+        params={"detail": detail},
+        problems=problems or [],
+    )
 
 
 def error_for(status: int, url: str, problem: Problem | None, *, retry_after: float | None = None) -> DirigentError:

@@ -534,6 +534,7 @@ def upgrade() -> None:
         sa.Column("triggered_by_label", sa.String(length=200), nullable=True),
         sa.Column("traceparent", sa.String(length=64), nullable=True),
         sa.Column("error", sa.Text(), nullable=True),
+        sa.Column("error_code", sa.String(length=128), nullable=True),
         sa.Column("started_at", dirigent_core.types.UtcDateTime(timezone=True), nullable=True),
         sa.Column("finished_at", dirigent_core.types.UtcDateTime(timezone=True), nullable=True),
         sa.Column("window_start", dirigent_core.types.UtcDateTime(timezone=True), nullable=True),
@@ -673,6 +674,7 @@ def upgrade() -> None:
         ),
         sa.Column("failing_step", sa.String(length=200), nullable=True),
         sa.Column("error", sa.Text(), nullable=True),
+        sa.Column("error_code", sa.String(length=128), nullable=True),
         sa.Column("started_at", dirigent_core.types.UtcDateTime(timezone=True), nullable=True),
         sa.Column("finished_at", dirigent_core.types.UtcDateTime(timezone=True), nullable=True),
         sa.Column(
@@ -818,6 +820,10 @@ def upgrade() -> None:
         sa.Column("output", sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"), nullable=True),
         sa.Column("output_artifact_id", sa.Uuid(), nullable=True),
         sa.Column("error", sa.Text(), nullable=True),
+        sa.Column("error_code", sa.String(length=128), nullable=True),
+        sa.Column(
+            "error_params", sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"), nullable=True
+        ),
         sa.Column("error_class", sa.String(length=32), nullable=True),
         sa.Column("started_at", dirigent_core.types.UtcDateTime(timezone=True), nullable=True),
         sa.Column("finished_at", dirigent_core.types.UtcDateTime(timezone=True), nullable=True),

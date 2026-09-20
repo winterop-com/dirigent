@@ -1,6 +1,6 @@
 """One error envelope for every refusal, in the shape RFC 9457 describes."""
 
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from http import HTTPStatus
 from typing import Any, cast
 
@@ -10,47 +10,61 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from dirigent_client.schemas import Problem
+from dirigent_common import Issue, JsonMap, Message, validation_issues
 from dirigent_core import __version__
 from dirigent_core.errors import DomainError
 from dirigent_core.logging import redact_path
 from dirigent_server.logging import get_logger
+from dirigent_server.messages import HTTP_ERROR, INTERNAL, REQUEST_INVALID
 
 VERSION_HEADER = "X-Dirigent-Version"
 
-INTERNAL_DETAIL = "the server failed to handle this request; the server log has the detail"
+INTERNAL_DETAIL = INTERNAL.render()
 
 _logger = get_logger("errors")
 
 
-def render(status: int, detail: str, *, problems: list[str] | None = None, instance: str | None = None) -> Problem:
+class Refusal(DomainError):
+    """A refusal a route makes for which no core class already exists."""
+
+    def __init__(
+        self,
+        message: Message,
+        /,
+        *,
+        status: int = 400,
+        headers: Mapping[str, str] | None = None,
+        **params: Any,
+    ) -> None:
+        """Carry the status this refusal is answered with, and any header it has to set."""
+        super().__init__(message, **params)
+        self.status = status
+        self.headers = dict(headers) if headers else None
+
+
+def render(
+    status: int,
+    detail: str,
+    *,
+    code: str,
+    params: JsonMap | None = None,
+    problems: Sequence[Issue] = (),
+    instance: str | None = None,
+) -> Problem:
     """Build the one problem shape, from whichever handler is answering."""
     try:
         title = HTTPStatus(status).phrase
     except ValueError:  # pragma: no cover - a non-standard status from a plugin
         title = "Error"
-    return Problem(status=status, title=title, detail=detail, problems=problems or [], instance=instance)
-
-
-def _problems_of(detail: Any) -> tuple[str, list[str]]:
-    """Split whatever was raised into one sentence and, when there is one, a list."""
-    if isinstance(detail, str):
-        return detail, []
-    if isinstance(detail, list):
-        rendered = [_one(item) for item in cast(list[object], detail)]
-        return "; ".join(rendered), rendered
-    return str(detail), []
-
-
-def _one(item: object) -> str:
-    """Render one entry of a problem list, whether it is a string or a pydantic error."""
-    if isinstance(item, str):
-        return item
-    if isinstance(item, dict):
-        mapping = cast(dict[str, Any], item)
-        location = ".".join(str(part) for part in mapping.get("loc", []))
-        message = str(mapping.get("msg", mapping))
-        return f"{location}: {message}" if location else message
-    return str(item)
+    return Problem(
+        status=status,
+        title=title,
+        detail=detail,
+        code=code,
+        params=params or {},
+        problems=list(problems),
+        instance=instance,
+    )
 
 
 def _where(request: Request) -> str:
@@ -75,11 +89,18 @@ async def _stamp_version(request: Request, call_next: Callable[[Request], Awaita
 
 
 async def http_error(request: Request, error: Exception) -> JSONResponse:
-    """Render an HTTPException as a problem."""
+    """Render an HTTPException as a problem: the framework's own 404, 405 and the like."""
     if not isinstance(error, StarletteHTTPException):  # pragma: no cover - registered for this class
         return await unhandled(request, error)
-    detail, problems = _problems_of(error.detail)
-    response = answer(render(error.status_code, detail, problems=problems, instance=_where(request)))
+    detail = str(error.detail)
+    problem = render(
+        error.status_code,
+        detail,
+        code=HTTP_ERROR.code,
+        params={"status": error.status_code, "detail": detail},
+        instance=_where(request),
+    )
+    response = answer(problem)
     if isinstance(error, HTTPException) and error.headers:
         response.headers.update(error.headers)
     return response
@@ -89,16 +110,37 @@ async def validation_error(request: Request, error: Exception) -> JSONResponse:
     """Render a request-validation failure as a problem with its field list intact."""
     if not isinstance(error, RequestValidationError):  # pragma: no cover - registered for this class
         return await unhandled(request, error)
-    detail, problems = _problems_of(error.errors())
-    return answer(render(422, detail, problems=problems, instance=_where(request)))
+    issues = validation_issues(cast("list[dict[str, Any]]", error.errors()))
+    detail = "; ".join(str(issue) for issue in issues)
+    return answer(
+        render(
+            422,
+            detail,
+            code=REQUEST_INVALID.code,
+            params={"detail": detail},
+            problems=issues,
+            instance=_where(request),
+        )
+    )
 
 
 async def domain_error(request: Request, error: Exception) -> JSONResponse:
     """Render a refusal raised anywhere in the domain, at the status its class carries."""
     if not isinstance(error, DomainError):  # pragma: no cover - registered for this class
         return await unhandled(request, error)
-    detail, problems = _problems_of(error.problems or str(error))
-    return answer(render(error.status, detail, problems=problems, instance=_where(request)))
+    problem = render(
+        error.status,
+        str(error),
+        code=error.code,
+        params=error.params,
+        problems=error.problems,
+        instance=_where(request),
+    )
+    response = answer(problem)
+    headers = getattr(error, "headers", None)
+    if headers:
+        response.headers.update(cast("Mapping[str, str]", headers))
+    return response
 
 
 async def unhandled(request: Request, error: Exception) -> JSONResponse:
@@ -114,7 +156,7 @@ async def unhandled(request: Request, error: Exception) -> JSONResponse:
         error=f"{type(error).__name__}: {error}",
         exc_info=error,
     )
-    return answer(render(500, INTERNAL_DETAIL, instance=_where(request)))
+    return answer(render(500, INTERNAL_DETAIL, code=INTERNAL.code, instance=_where(request)))
 
 
 def install_error_handlers(app: FastAPI) -> None:

@@ -8,6 +8,8 @@ from pydantic import AfterValidator, BeforeValidator, PlainSerializer, WithJsonS
 from pydantic.json_schema import GenerateJsonSchema, JsonSchemaMode, JsonSchemaValue
 from pydantic_core import CoreSchema
 
+from dirigent_common.messages import NEGATIVE_DURATION, NOT_A_DURATION
+
 #: Ordered largest first; the greedy decomposition in :func:`format_duration` depends on it.
 UNITS: Final[tuple[tuple[str, float], ...]] = (
     ("w", 604800.0),
@@ -35,10 +37,7 @@ class NegativeDuration(ValueError):
 
     def __init__(self, value: object) -> None:
         """Name the offending value."""
-        super().__init__(
-            f"{value!r} is negative, and a duration is a delay, a cadence, or a budget: "
-            "the format has no way to write one that runs backwards"
-        )
+        super().__init__(NEGATIVE_DURATION.render(value=repr(value)))
 
 
 class DurationError(ValueError):
@@ -46,10 +45,7 @@ class DurationError(ValueError):
 
     def __init__(self, value: object) -> None:
         """Name the value and the grammar it failed."""
-        super().__init__(
-            f"{value!r} is not a duration: write a number of seconds, or unit-suffixed terms "
-            f"such as '30s', '5m', '6h', '1h30m', '250ms' (units: w, d, h, m, s, ms)"
-        )
+        super().__init__(NOT_A_DURATION.render(value=repr(value)))
 
 
 def parse_duration(value: object) -> object:

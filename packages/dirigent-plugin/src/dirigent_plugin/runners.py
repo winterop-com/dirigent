@@ -32,6 +32,8 @@ from uuid import uuid4
 
 from pydantic import BaseModel, JsonValue
 
+from dirigent_common import Issue
+from dirigent_plugin.messages import PROGRAM_REFUSED
 from dirigent_plugin.transforms import Engine, ProgramConfig, TransformError
 
 #: What a step is told when the process running its program stopped on its own. It is not a
@@ -242,12 +244,12 @@ class RunnerEngine(Engine):
             runner.release()
             _RUNNERS.give_back(runner)
 
-    def check_config(self, config: BaseModel) -> list[str]:
+    def check_config(self, config: BaseModel) -> list[Issue]:
         """Check the program at apply, where the engine's own reading of it is all there is."""
         if not isinstance(config, ProgramConfig):
             return []
         try:
             self.check_program(config.program)
         except TransformError as error:
-            return [str(error)]
+            return [Issue.of(PROGRAM_REFUSED, detail=str(error))]
         return []

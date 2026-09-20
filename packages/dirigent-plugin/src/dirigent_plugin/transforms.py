@@ -30,7 +30,7 @@ from typing import Any, ClassVar, Final, cast
 
 from pydantic import BaseModel, Field, JsonValue
 
-from dirigent_common import BlockModel, StorageUri
+from dirigent_common import BlockModel, Issue, JsonMap, StorageUri
 from dirigent_plugin.blocks import (
     BlockFailure,
     ErrorClass,
@@ -38,6 +38,15 @@ from dirigent_plugin.blocks import (
     OperatorSpec,
     RemoteHandle,
     StepContext,
+)
+from dirigent_plugin.messages import (
+    ELEMENT_FAILED,
+    FILTER_ANSWER,
+    NOT_AN_ARRAY,
+    NOTHING_TO_CONVERT,
+    PROGRAM_REFUSED,
+    TRANSFORM_FAILED,
+    UNSUPPORTED_PAIR,
 )
 
 #: How much is handed to a storage sink at a time.
@@ -181,17 +190,17 @@ class Transformer(Engine, Operator[ProgramConfig, TransformOutput], ABC):
         try:
             result = await self.offload(lambda: self.apply(self.compile(config.program), config.input))
         except TransformError as error:
-            raise BlockFailure(str(error), error_class=ErrorClass.REJECTED) from error
+            raise BlockFailure(TRANSFORM_FAILED, error_class=ErrorClass.REJECTED, detail=str(error)) from error
         return TransformOutput(value=result)
 
-    def check_config(self, config: BaseModel) -> list[str]:
+    def check_config(self, config: BaseModel) -> list[Issue]:
         """Compile the program at apply, so a bad one is refused before the document is stored."""
         if not isinstance(config, ProgramConfig):
             return []
         try:
             self.compile(config.program)
         except TransformError as error:
-            return [str(error)]
+            return [Issue.of(PROGRAM_REFUSED, detail=str(error))]
         return []
 
 
@@ -253,7 +262,7 @@ class Mapper(Engine, Operator[ProgramConfig, TransformOutput], ABC):
         try:
             compiled = self.compile(program)
         except TransformError as error:
-            raise BlockFailure(str(error), error_class=ErrorClass.REJECTED) from error
+            raise BlockFailure(TRANSFORM_FAILED, error_class=ErrorClass.REJECTED, detail=str(error)) from error
         return self._map_each(compiled, elements)
 
     def _map_each(self, compiled: object, elements: list[JsonValue]) -> list[JsonValue]:
@@ -263,17 +272,19 @@ class Mapper(Engine, Operator[ProgramConfig, TransformOutput], ABC):
             try:
                 mapped.append(self.apply(compiled, element))
             except TransformError as error:
-                raise BlockFailure(f"element {index}: {error}", error_class=ErrorClass.REJECTED) from error
+                raise BlockFailure(
+                    ELEMENT_FAILED, error_class=ErrorClass.REJECTED, index=index, detail=str(error)
+                ) from error
         return mapped
 
-    def check_config(self, config: BaseModel) -> list[str]:
+    def check_config(self, config: BaseModel) -> list[Issue]:
         """Compile the program at apply, so a bad one is refused before the document is stored."""
         if not isinstance(config, ProgramConfig):
             return []
         try:
             self.compile(config.program)
         except TransformError as error:
-            return [str(error)]
+            return [Issue.of(PROGRAM_REFUSED, detail=str(error))]
         return []
 
 
@@ -335,7 +346,7 @@ class Filterer(Engine, Operator[ProgramConfig, TransformOutput], ABC):
         try:
             compiled = self.compile(program)
         except TransformError as error:
-            raise BlockFailure(str(error), error_class=ErrorClass.REJECTED) from error
+            raise BlockFailure(TRANSFORM_FAILED, error_class=ErrorClass.REJECTED, detail=str(error)) from error
         return [self._verdict(compiled, element, index) for index, element in enumerate(elements)]
 
     def _verdict(self, compiled: object, element: JsonValue, index: int) -> bool:
@@ -345,22 +356,27 @@ class Filterer(Engine, Operator[ProgramConfig, TransformOutput], ABC):
             # engine is held to it.
             answer = cast("object", self.keep(compiled, element))
         except TransformError as error:
-            raise BlockFailure(f"element {index}: {error}", error_class=ErrorClass.REJECTED) from error
+            raise BlockFailure(
+                ELEMENT_FAILED, error_class=ErrorClass.REJECTED, index=index, detail=str(error)
+            ) from error
         if not isinstance(answer, bool):
             raise BlockFailure(
-                f"{self.spec.id} answered {answer!r} for element {index}, and a filter's answer is true or false",
+                FILTER_ANSWER,
                 error_class=ErrorClass.REJECTED,
+                block=self.spec.id,
+                answer=repr(answer),
+                index=index,
             )
         return answer
 
-    def check_config(self, config: BaseModel) -> list[str]:
+    def check_config(self, config: BaseModel) -> list[Issue]:
         """Compile the program at apply, so a bad one is refused before the document is stored."""
         if not isinstance(config, ProgramConfig):
             return []
         try:
             self.compile(config.program)
         except TransformError as error:
-            return [str(error)]
+            return [Issue.of(PROGRAM_REFUSED, detail=str(error))]
         return []
 
 
@@ -402,33 +418,37 @@ class Converter(Engine, Operator[ConvertConfig, ConvertOutput], ABC):
 
     async def execute(self, config: ConvertConfig, ctx: StepContext) -> ConvertOutput | RemoteHandle:
         """Refuse an unsupported pair, then re-encode the source object onto the target."""
-        unsupported = self._pair_refusal(config.from_format, config.to_format)
+        unsupported = self._unsupported(config.from_format, config.to_format)
         if unsupported is not None:
-            raise BlockFailure(unsupported, error_class=ErrorClass.REJECTED)
+            raise BlockFailure(UNSUPPORTED_PAIR, error_class=ErrorClass.REJECTED, **unsupported)
         source = await _read(ctx, config.source)
         try:
             produced = await self.offload(
                 lambda: self.convert(source, source_format=config.from_format, target_format=config.to_format)
             )
         except TransformError as error:
-            raise BlockFailure(str(error), error_class=ErrorClass.REJECTED) from error
+            raise BlockFailure(TRANSFORM_FAILED, error_class=ErrorClass.REJECTED, detail=str(error)) from error
         written = await _write(ctx, config.target, produced)
         return ConvertOutput(source=config.source, target=config.target, bytes_written=written)
 
-    def check_config(self, config: BaseModel) -> list[str]:
+    def check_config(self, config: BaseModel) -> list[Issue]:
         """Refuse a format pair this engine has no codec for, at apply."""
         if not isinstance(config, ConvertConfig):
             return []
-        unsupported = self._pair_refusal(config.from_format, config.to_format)
-        return [] if unsupported is None else [unsupported]
+        unsupported = self._unsupported(config.from_format, config.to_format)
+        return [] if unsupported is None else [Issue.of(UNSUPPORTED_PAIR, **unsupported)]
 
-    def _pair_refusal(self, source_format: str, target_format: str) -> str | None:
-        """Word the refusal of a pair this engine does not support, naming the ones it does."""
+    def _unsupported(self, source_format: str, target_format: str) -> JsonMap | None:
+        """Name the params of a pair this engine does not support, or nothing when it does."""
         if (source_format, target_format) in self.pairs:
             return None
         listed = ", ".join(f"{one} to {other}" for one, other in sorted(self.pairs))
-        supported = listed or "this engine converts nothing"
-        return f"{self.spec.id} does not convert {source_format} to {target_format} ({supported})"
+        return {
+            "block": self.spec.id,
+            "source_format": source_format,
+            "target_format": target_format,
+            "supported": listed or "this engine converts nothing",
+        }
 
 
 def _elements(value: JsonValue, spec_id: str, promise: str) -> list[JsonValue]:
@@ -436,8 +456,11 @@ def _elements(value: JsonValue, spec_id: str, promise: str) -> list[JsonValue]:
     if isinstance(value, list):
         return value
     raise BlockFailure(
-        f"{spec_id} {promise}, so its input has to be a JSON array, and this one is {_named(value)}",
+        NOT_AN_ARRAY,
         error_class=ErrorClass.REJECTED,
+        block=spec_id,
+        promise=promise,
+        described=_named(value),
     )
 
 
@@ -458,7 +481,7 @@ def _named(value: JsonValue) -> str:
 async def _read(ctx: StepContext, uri: str) -> bytes:
     """Read the object whole, refusing a URI that holds nothing."""
     if await ctx.storage.stat(uri) is None:
-        raise BlockFailure(f"there is nothing at {uri} to convert", error_class=ErrorClass.REJECTED)
+        raise BlockFailure(NOTHING_TO_CONVERT, error_class=ErrorClass.REJECTED, uri=uri)
     chunks: list[bytes] = []
     async for chunk in ctx.storage.open_read(uri):
         chunks.append(chunk)
