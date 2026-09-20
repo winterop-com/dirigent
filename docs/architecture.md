@@ -6,24 +6,24 @@ depend on what, and **where a new thing goes** -- so the answer is a rule rather
 ## The tree
 
 ```text
-dirigent-common           value types and shared schemas            -> nothing
-dirigent-plugin           the block contract                        -> common
-dirigent-client           wire schemas and the SDK                  -> common
-dirigent-core             engine, scheduler, triggers, alerting     -> common, plugin, client
-dirigent-server           the API and auth                          -> common, client, core
-dirigent-cli              the commands                              -> common, client, core, server, blocks
-dirigent-examples         the example corpus                        -> common, plugin, client
-dirigent-block-base       log, report, validate, value, time, run   -> common, plugin
-dirigent-block-http       http.request, http.ready, webhook.post    -> common, plugin
-dirigent-block-storage    copy, read, write, exists                 -> common, plugin
-dirigent-block-execute    shell, docker, compose, build, checkout   -> common, plugin, block-http
-dirigent-block-sql        sql.query, sql.execute                    -> common, plugin
-dirigent-block-transform  the jq blocks and convert.std             -> common, plugin
-dirigent-block-queues     kafka and rabbitmq                        -> common, plugin
-dirigent-block-parquet    convert.arrow, on pyarrow                 -> common, plugin
-dirigent-blocks           the umbrella, and the alert channels      -> common, plugin, every family
-dirigent-storage-s3       an adapter pack, and the shape of others  -> common, plugin
-dirigent-testing          doubles and fixtures for testing a block  -> common, plugin
+dirigent-common              value types and shared schemas                    -> nothing
+dirigent-plugin              the block contract                                -> common
+dirigent-client              wire schemas and the SDK                          -> common
+dirigent-core                engine, scheduler, triggers, alerting             -> common, plugin, client
+dirigent-server              the API and auth                                  -> common, client, core
+dirigent-cli                 the commands                                      -> common, client, core, server, blocks
+dirigent-examples            the example corpus                                -> common, plugin, client
+dirigent-block-base          log, report, validate, value, time, run, convert  -> common, plugin
+dirigent-block-http          http.request, http.ready, webhook.post            -> common, plugin
+dirigent-block-storage       copy, read, write, exists                         -> common, plugin
+dirigent-block-execute       shell, docker, compose, build, checkout           -> common, plugin, block-http
+dirigent-block-sql           sql.query, sql.execute                            -> common, plugin
+dirigent-block-transform-jq  transform.jq, map.jq, filter.jq                   -> common, plugin
+dirigent-block-queues        kafka and rabbitmq                                -> common, plugin
+dirigent-block-parquet       convert.arrow, on pyarrow                         -> common, plugin
+dirigent-blocks              the umbrella, and the alert channels              -> common, plugin, every family
+dirigent-storage-s3          an adapter pack, and the shape of others          -> common, plugin
+dirigent-testing             doubles and fixtures for testing a block          -> common, plugin
 ```
 
 Edges point down and never back up. `packages/dirigent-common/tests/test_dependency_tree.py`

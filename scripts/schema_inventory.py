@@ -23,7 +23,7 @@ PACKAGES = (
     "dirigent_block_sql",
     "dirigent_block_sql_duckdb",
     "dirigent_block_storage",
-    "dirigent_block_transform",
+    "dirigent_block_transform_jq",
     "dirigent_storage_s3",
     "dirigent_block_parquet",
 )

@@ -241,7 +241,7 @@ dirigent/
     dirigent-client/       # the API contract: wire schemas, and the async Python SDK
     dirigent-core/         # engine, schema, document format, plugin host, storage, auth
     dirigent-block-*/      # the built-in block families: base, http, storage, execute,
-                           #   sql, transform, queues, parquet -- one package each
+                           #   sql, transform-jq, queues, parquet -- one package each
     dirigent-block-sql-duckdb/  # the duckdb engine of the sql family, its own package
     dirigent-blocks/       # the umbrella over the families, plus the outbound alert channels
     dirigent-examples/     # the example corpus, contributed through the examples() hook

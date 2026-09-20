@@ -1,6 +1,7 @@
 """The base block family: what a pipeline needs whatever it integrates with."""
 
 from dirigent_block_base.clock import TimeSleepSensor, TimeWindowSensor
+from dirigent_block_base.convert_std import StdConverter
 from dirigent_block_base.log_notifier import LogNotifier
 from dirigent_block_base.logging import LogWriteOperator
 from dirigent_block_base.pipelines import PipelineRunOperator
@@ -23,6 +24,7 @@ class BaseBlocks:
                 ValidateSchemaOperator(),
                 ValueConstOperator(),
                 PipelineRunOperator(),
+                StdConverter(),
             ],
             sensors=[TimeSleepSensor(), TimeWindowSensor()],
             notifiers=[LogNotifier()],
@@ -37,6 +39,7 @@ __all__ = [
     "LogWriteOperator",
     "PipelineRunOperator",
     "ReportRenderOperator",
+    "StdConverter",
     "TimeSleepSensor",
     "TimeWindowSensor",
     "ValidateSchemaOperator",

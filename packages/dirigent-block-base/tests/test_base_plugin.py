@@ -7,6 +7,7 @@ from dirigent_common import API_VERSION
 from dirigent_plugin import ENTRY_POINT_GROUP, PROJECT_NAME, contribute, markers
 
 BASE_BLOCKS = [
+    "convert.std",
     "log.write",
     "pipeline.run",
     "report.render",
@@ -18,6 +19,7 @@ BASE_BLOCKS = [
 
 #: The shelf each block declares, which is what a catalog is arranged by.
 BASE_GROUPS = {
+    "convert.std": "transform",
     "log.write": "log",
     "pipeline.run": "execute",
     "report.render": "report",

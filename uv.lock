@@ -17,7 +17,7 @@ members = [
     "dirigent-block-sql",
     "dirigent-block-sql-duckdb",
     "dirigent-block-storage",
-    "dirigent-block-transform",
+    "dirigent-block-transform-jq",
     "dirigent-blocks",
     "dirigent-cli",
     "dirigent-client",
@@ -938,6 +938,7 @@ dependencies = [
     { name = "dirigent-common" },
     { name = "dirigent-plugin" },
     { name = "jsonschema" },
+    { name = "pyyaml" },
     { name = "structlog" },
 ]
 
@@ -946,6 +947,7 @@ requires-dist = [
     { name = "dirigent-common", editable = "packages/dirigent-common" },
     { name = "dirigent-plugin", editable = "packages/dirigent-plugin" },
     { name = "jsonschema", specifier = ">=4.26.0" },
+    { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "structlog", specifier = ">=25.5.0" },
 ]
 
@@ -1075,14 +1077,13 @@ requires-dist = [
 ]
 
 [[package]]
-name = "dirigent-block-transform"
+name = "dirigent-block-transform-jq"
 version = "0.16.7"
-source = { editable = "packages/dirigent-block-transform" }
+source = { editable = "packages/dirigent-block-transform-jq" }
 dependencies = [
     { name = "dirigent-common" },
     { name = "dirigent-plugin" },
     { name = "jq" },
-    { name = "pyyaml" },
 ]
 
 [package.metadata]
@@ -1090,7 +1091,6 @@ requires-dist = [
     { name = "dirigent-common", editable = "packages/dirigent-common" },
     { name = "dirigent-plugin", editable = "packages/dirigent-plugin" },
     { name = "jq", specifier = ">=1.8" },
-    { name = "pyyaml", specifier = ">=6.0.3" },
 ]
 
 [[package]]
@@ -1105,7 +1105,7 @@ dependencies = [
     { name = "dirigent-block-queues" },
     { name = "dirigent-block-sql" },
     { name = "dirigent-block-storage" },
-    { name = "dirigent-block-transform" },
+    { name = "dirigent-block-transform-jq" },
     { name = "dirigent-common" },
     { name = "dirigent-plugin" },
     { name = "httpx2" },
@@ -1121,7 +1121,7 @@ requires-dist = [
     { name = "dirigent-block-queues", editable = "packages/dirigent-block-queues" },
     { name = "dirigent-block-sql", editable = "packages/dirigent-block-sql" },
     { name = "dirigent-block-storage", editable = "packages/dirigent-block-storage" },
-    { name = "dirigent-block-transform", editable = "packages/dirigent-block-transform" },
+    { name = "dirigent-block-transform-jq", editable = "packages/dirigent-block-transform-jq" },
     { name = "dirigent-common", editable = "packages/dirigent-common" },
     { name = "dirigent-plugin", editable = "packages/dirigent-plugin" },
     { name = "httpx2", specifier = ">=2.12.0" },

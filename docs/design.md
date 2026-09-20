@@ -307,7 +307,7 @@ dirigent/
     dirigent-client/       # the API contract: wire schemas, and the async Python SDK
     dirigent-core/         # engine: schema, queue, DAG walker, scheduler, plugin host
     dirigent-block-*/      # the eight built-in block families: base, http, storage,
-                           #   execute, sql, transform, queues, parquet
+                           #   execute, sql, transform-jq, queues, parquet
     dirigent-block-sql-duckdb/  # the duckdb engine of the sql family
     dirigent-blocks/       # the umbrella: every family, and the outbound alert channels
     dirigent-server/       # FastAPI app, auth, SSE, webhook endpoints
@@ -345,7 +345,7 @@ instance: `dirigent-plugin` is what a block author writes against, and `dirigent
 what a program driving an instance writes against.
 
 The built-in blocks ship as eight families -- `dirigent-block-base`, `-http`, `-storage`,
-`-execute`, `-sql`, `-transform`, `-queues` and `-parquet` -- each a package and a plugin of
+`-execute`, `-sql`, `-transform-jq`, `-queues` and `-parquet` -- each a package and a plugin of
 its own, so a worker carries the dependencies of what it actually runs. `dirigent-blocks` is
 the umbrella over them: it depends on every family but `-parquet`, whose pyarrow outweighs
 the other seven together, and contributes the three outbound alert channels itself, so one

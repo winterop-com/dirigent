@@ -41,7 +41,7 @@ ALLOWED: Final[dict[str, set[str]]] = {
         "dirigent-block-queues",
         "dirigent-block-sql",
         "dirigent-block-storage",
-        "dirigent-block-transform",
+        "dirigent-block-transform-jq",
     },
     "dirigent-block-base": {"dirigent-common", "dirigent-plugin"},
     # docker.run classifies a daemon's answer the way http.request classifies a response.
@@ -53,7 +53,7 @@ ALLOWED: Final[dict[str, set[str]]] = {
     # An engine of the sql family, registered under the family's own entry-point group.
     "dirigent-block-sql-duckdb": {"dirigent-common", "dirigent-plugin", "dirigent-block-sql"},
     "dirigent-block-storage": {"dirigent-common", "dirigent-plugin"},
-    "dirigent-block-transform": {"dirigent-common", "dirigent-plugin"},
+    "dirigent-block-transform-jq": {"dirigent-common", "dirigent-plugin"},
     # The corpus carries SDK scripts on its python/ shelf, which import the client.
     "dirigent-examples": {"dirigent-common", "dirigent-plugin", "dirigent-client"},
     "dirigent-storage-s3": {"dirigent-common", "dirigent-plugin"},

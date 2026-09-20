@@ -2,7 +2,12 @@
 
 import pytest
 
-from dirigent_testing import FakeContext
+from dirigent_testing import FakeContext, FakeStorage
+
+
+@pytest.fixture
+def storage(block_storage: FakeStorage) -> FakeStorage:
+    return block_storage
 
 
 @pytest.fixture
