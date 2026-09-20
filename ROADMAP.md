@@ -92,12 +92,6 @@ stays clean, and every example stays executable.
 
 ## Open questions
 
-- **Whether `dg health` belongs under `dg system`.** `dg system info` asks a server over the
-  API; `dg health` probes the local process without a token. Two planes, which is why they
-  are two commands -- but one place to look is worth something. Either fold health into
-  `dg system` and let it dispatch on whether a server was named, or keep them apart and make
-  each say in its help what the other is for.
-
 - **Scoped authorization.** Three instance-wide roles are the whole model: a viewer reads,
   an operator may define, run and schedule every pipeline, and an admin hands out authority.
   There is no way to let a team run its own pipelines and nobody else's, or to bind a
@@ -208,10 +202,10 @@ stays clean, and every example stays executable.
     deployment (PostgreSQL, object storage, migrate, server, worker, scheduler), the `.env`
     rendered at play time from a secret store and never committed, a reverse proxy
     holding TLS on 443 with its own certificate renewal, nightly `pg_dump` to a second bucket,
-    and `dg health` as the last task. An `upgrade` play pulls, runs `migrate`, restarts the
-    server and then the workers, which already drain on SIGTERM. A `worker` play puts only the
-    worker and its docker sidecar on a second host, pointed at the first host's PostgreSQL and
-    bucket over a private network, which is why object storage is always on the stack.
+    and `dg system health` as the last task. An `upgrade` play pulls, runs `migrate`, restarts
+    the server and then the workers, which already drain on SIGTERM. A `worker` play puts only
+    the worker and its docker sidecar on a second host, pointed at the first host's PostgreSQL
+    and bucket over a private network, which is why object storage is always on the stack.
     Creating the machine is a separate, optional play per provider (`hetzner.hcloud`,
     `linode.cloud`) that ends by adding the host to the inventory; the `dirigent` play never
     knows which provider it is on.
@@ -223,14 +217,14 @@ stays clean, and every example stays executable.
     blocks, and the play says so and sets `enabled_unsafe_blocks` accordingly.
   - **It needs a lot of testing, and the testing is the larger half.** A play is proven only
     on a host that did not exist a minute earlier. The fast lane is a local Incus container:
-    launch an Ubuntu LTS image, run the play, `dg health`, run a handful of examples through the
-    instance, run the play a second time and require zero changes, run the `upgrade` play from
-    the previous tagged release to the current one, destroy the container; that is `make
-    provision-test` and it runs before the play's PR merges. The slow lane is the same script
-    against a throwaway box created by the provider play and destroyed at the end, run by hand
-    before a release. Each host shape (VM with Docker, Incus with nested Docker, LXD without
-    Docker) is its own lane, because the failure modes are different, and the LXD lane is the
-    one expected to be red first.
+    launch an Ubuntu LTS image, run the play, `dg system health`, run a handful of examples
+    through the instance, run the play a second time and require zero changes, run the
+    `upgrade` play from the previous tagged release to the current one, destroy the container;
+    that is `make provision-test` and it runs before the play's PR merges. The slow lane is
+    the same script against a throwaway box created by the provider play and destroyed at the
+    end, run by hand before a release. Each host shape (VM with Docker, Incus with nested
+    Docker, LXD without Docker) is its own lane, because the failure modes are different, and
+    the LXD lane is the one expected to be red first.
   - **Terraform** only if machines start being created rather than handed to us and the
     provider collections stop being enough.
   - **Kubernetes** last, and preferably never: the engine has no need of it -- coordination is

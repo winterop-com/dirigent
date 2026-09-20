@@ -711,8 +711,8 @@ event that needs a plan, not as an undo button.
 ## Health checks
 
 There are two kinds, and they answer different questions. The **HTTP probes** are what an
-orchestrator outside the container asks. The **`dg health` commands** are what a container's
-own `HEALTHCHECK` runs, from inside, against its own process.
+orchestrator outside the container asks. The **`dg system health` commands** are what a
+container's own `HEALTHCHECK` runs, from inside, against its own process.
 
 ### The HTTP probes
 
@@ -746,7 +746,7 @@ Every response the server sends, error or not, carries an `X-Dirigent-Version` h
 what lets a client say "that is not a dirigent instance" rather than "HTTP 404" when it has
 been pointed at the wrong port -- at, for instance, the documentation site on 3334.
 
-### `dg health`
+### `dg system health`
 
 Process-side, in the sense `dg db upgrade` is: it needs no token, reads the configured
 database directly, and asks a server only over plain HTTP. It writes one `check` record per
@@ -760,7 +760,7 @@ container it is the container's own environment. A machine with no instance at a
 one line rather than reporting the absence of everything, part by part:
 
 ```console
-$ dg health
+$ dg system health
 no database at .dirigent/state/dirigent.db [check] check=database status=absent probe=readiness
 there is no instance here: no database at .dirigent/state/dirigent.db, and no server was named [health] checked=1 ...
 ```
@@ -768,7 +768,7 @@ there is no instance here: no database at .dirigent/state/dirigent.db, and no se
 And a deployment that is up reads as one:
 
 ```console
-$ dg health
+$ dg system health
 the database at postgresql://dirigent:***@postgres:5432/dirigent answers, schema 0001_baseline [check] ...
 3 of 3 workers beating [check] check=worker status=healthy probe=readiness
 2 schedules waiting, none overdue [check] check=scheduler status=healthy probe=readiness
@@ -778,11 +778,11 @@ everything checked is healthy [health] checked=4 healthy=4 absent=0 unhealthy=0
 
 | Command | What it does | What that proves |
 | --- | --- | --- |
-| `dg health` | Every check below, for the instance this shell resolves | The instance is working, from wherever you are standing. A part that is simply not there is `absent` and does not fail the command |
-| `dg health database` | Reads the alembic stamp | The database answers *and* holds the schema this code expects. A database nobody has migrated answers `SELECT 1` and has no tables; one left behind by a half-finished upgrade is missing a column. Both are `unhealthy`, with the `dg db upgrade` that fixes them. A SQLite file that is not there is `absent`, and looking does not create it |
-| `dg health worker` | Reads the worker registry for this hostname and passes if a worker that claims to be alive has beaten within six heartbeats | The worker process in this container is alive, its heartbeat loop is turning, and it can still write the database -- which is a worker's only dependency. A worker opens no port, so its heartbeat is the only honest signal there is. The bare form asks the same question of every worker the instance has, because from a laptop the workers that matter are all of them |
-| `dg health scheduler` | Reads the unpaused schedules and compares the earliest `next_fire_at` against the misfire grace | Schedules are firing on time. Leadership is a session-scoped advisory lock no other process can see, so what gets checked is the work: a schedule later than `DIRIGENT_SCHEDULER_MISFIRE_GRACE` means nothing is ticking, whichever process was meant to be doing it |
-| `dg health server` | An HTTP `GET .../health/ready` against the named server, or `127.0.0.1:$DIRIGENT_PORT` when none is named, with a five-second timeout | The server is accepting connections *and* every registered check passes. A server that has stopped answering the socket is only visible from the socket, which is why this is a request and not a database query |
+| `dg system health` | Every check below, for the instance this shell resolves | The instance is working, from wherever you are standing. A part that is simply not there is `absent` and does not fail the command |
+| `dg system health database` | Reads the alembic stamp | The database answers *and* holds the schema this code expects. A database nobody has migrated answers `SELECT 1` and has no tables; one left behind by a half-finished upgrade is missing a column. Both are `unhealthy`, with the `dg db upgrade` that fixes them. A SQLite file that is not there is `absent`, and looking does not create it |
+| `dg system health worker` | Reads the worker registry for this hostname and passes if a worker that claims to be alive has beaten within six heartbeats | The worker process in this container is alive, its heartbeat loop is turning, and it can still write the database -- which is a worker's only dependency. A worker opens no port, so its heartbeat is the only honest signal there is. The bare form asks the same question of every worker the instance has, because from a laptop the workers that matter are all of them |
+| `dg system health scheduler` | Reads the unpaused schedules and compares the earliest `next_fire_at` against the misfire grace | Schedules are firing on time. Leadership is a session-scoped advisory lock no other process can see, so what gets checked is the work: a schedule later than `DIRIGENT_SCHEDULER_MISFIRE_GRACE` means nothing is ticking, whichever process was meant to be doing it |
+| `dg system health server` | An HTTP `GET .../health/ready` against the named server, or `127.0.0.1:$DIRIGENT_PORT` when none is named, with a five-second timeout | The server is accepting connections *and* every registered check passes. A server that has stopped answering the socket is only visible from the socket, which is why this is a request and not a database query |
 
 **`absent` is not `unhealthy`.** A worker that shut down cleanly wrote `stopped` and is
 history, not a fault; a database file that was never created is a machine with no instance,
@@ -790,17 +790,17 @@ not a broken one. The bare form reports what is absent and fails only on what is
 broken -- so a stopped `dg dev` instance reads as "an instance's database is here, and nothing
 is running against it", exit `0`. Starting it again runs that database, unless
 `--wipe-state` says otherwise. Naming a component is the assertion that it should be there:
-`dg health worker` on a host with no live worker exits `1`. Point a container's `HEALTHCHECK`
-at the named form, always -- `infra/compose.yaml`'s two healthchecks are `dg health server`
-and `dg health worker`.
+`dg system health worker` on a host with no live worker exits `1`. Point a container's
+`HEALTHCHECK` at the named form, always -- `infra/compose.yaml`'s two healthchecks are
+`dg system health server` and `dg system health worker`.
 
-**Liveness and readiness are different questions.** `dg health server` asks readiness;
-`dg health server --liveness` asks `GET /health`, which touches no dependency. A process that
-answers liveness and fails readiness is up and cannot reach its database -- which is the case
-anyone actually cares about, and the one a bare "is it up" cannot tell you.
+**Liveness and readiness are different questions.** `dg system health server` asks readiness;
+`dg system health server --liveness` asks `GET /health`, which touches no dependency. A process
+that answers liveness and fails readiness is up and cannot reach its database -- which is the
+case anyone actually cares about, and the one a bare "is it up" cannot tell you.
 
-`dg health worker` matches on hostname rather than on worker name, because a worker names
-itself hostname-plus-pid and the check runs in a different process with a different pid.
+`dg system health worker` matches on hostname rather than on worker name, because a worker
+names itself hostname-plus-pid and the check runs in a different process with a different pid.
 Inside a container the hostname is the container id, and exactly one worker writes under it.
 Running two workers in one container makes the check answer about whichever one is freshest.
 
@@ -809,12 +809,12 @@ rather than as a fixed number of seconds, so raising the heartbeat interval wide
 tolerance with it. At the default 15 seconds that is 90 seconds of silence before a worker
 container is called unhealthy.
 
-Note what none of it covers. `dg health server` inherits the readiness probe's blind spots
-exactly -- a green answer means the database replied to `SELECT 1`, not that storage is
-reachable. `dg health worker` says a worker is heartbeating, not that it is making progress: a
-worker whose every block call is failing heartbeats perfectly. `dg health scheduler` says
-schedules are not late, which on an instance with no schedules is free. For progress, watch
-runs, not health.
+Note what none of it covers. `dg system health server` inherits the readiness probe's blind
+spots exactly -- a green answer means the database replied to `SELECT 1`, not that storage is
+reachable. `dg system health worker` says a worker is heartbeating, not that it is making
+progress: a worker whose every block call is failing heartbeats perfectly.
+`dg system health scheduler` says schedules are not late, which on an instance with no
+schedules is free. For progress, watch runs, not health.
 
 ## Process logs
 
@@ -897,7 +897,7 @@ containers and not only the server. See [telemetry](telemetry.md).
 
 | Signal | Read it with | Instrument, when exporting |
 | --- | --- | --- |
-| Worker heartbeat freshness | `dg system workers`, whose **last seen** column is the age of each heartbeat; `--json` adds the `stale` flag, true past two minutes of silence. Inside a container, `dg health worker` | `dirigent.worker.heartbeat_age`, by `dirigent.worker`. Every sweeper reports every worker, so take the max by worker |
+| Worker heartbeat freshness | `dg system workers`, whose **last seen** column is the age of each heartbeat; `--json` adds the `stale` flag, true past two minutes of silence. Inside a container, `dg system health worker` | `dirigent.worker.heartbeat_age`, by `dirigent.worker`. Every sweeper reports every worker, so take the max by worker |
 | Workers alive at all | `dg system info`: `workers_live`. Zero live workers means nothing will pick work up, and no probe reports it | none |
 | Queue depth | Nothing exposes the count of claimable attempts. `dg runs list --status queued` is the nearest proxy -- runs that have started nothing yet -- and a growing number there with live workers means the pool is behind | `dirigent.queue.depth` |
 | Work parked, not running | `dg runs show RUN_ID`, per run: attempts in `waiting`. There is no instance-wide count | `dirigent.waiting` |

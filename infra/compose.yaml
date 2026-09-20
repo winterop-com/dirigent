@@ -159,7 +159,7 @@ services:
     ports:
       - "${DIRIGENT_PORT:-3333}:3333"
     healthcheck:
-      test: ["CMD", "dg", "health", "server"]
+      test: ["CMD", "dg", "system", "health", "server"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -221,7 +221,7 @@ services:
         condition: service_healthy
     stop_grace_period: 60s
     healthcheck:
-      test: ["CMD", "dg", "health", "worker"]
+      test: ["CMD", "dg", "system", "health", "worker"]
       interval: 15s
       timeout: 10s
       retries: 3

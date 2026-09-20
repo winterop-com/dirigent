@@ -195,8 +195,8 @@ jobs:
       - name: Prove it answers
         run: |
           COMPOSE="docker compose --project-directory . -f infra/compose.yaml"
-          $COMPOSE exec -T server dg health server
-          $COMPOSE exec -T worker dg health worker
+          $COMPOSE exec -T server dg system health server
+          $COMPOSE exec -T worker dg system health worker
           $COMPOSE ps
 
       # The worker drives the dind sidecar, never the runner's daemon: a socket mounted into

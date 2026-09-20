@@ -781,6 +781,8 @@ verb and whose fields are the identity of what changed:
 | `run.report` | `dg runs report` | What each step amounted to and how long it took, under `fields` |
 | `run.report_document` | `dg runs report --markdown` | `run_id`, and the markdown `document` the run rendered when it settled |
 | `system.info` | `dg system info` | The instance the CLI is talking to, under `fields` |
+| `check` | `dg system health …` | One check: `check`, `status`, `probe`, and what it found as the `message` |
+| `health` | `dg system health` | The closing verdict: `checked`, `healthy`, `absent`, `unhealthy` |
 | `auth` | `dg auth status` | `url`, `source`, `username`, `role`, `via` |
 | `user.created` | `dg admin user create` | `username`, `role`, `database` |
 | `password.changed` | `dg auth password` | `other_sessions` |
@@ -973,8 +975,6 @@ dg dev [--host H] [--port 3333] [--ui/--no-ui] [--wipe-state] [--seed DIR]... [-
 dg server [--host H] [--port 3333] [--reload] [--no-scheduler] [--ui/--no-ui]  # dg serve works too
 dg worker [--concurrency N] [--tag T] [--name NAME]   # --tag is what this worker advertises
 dg scheduler                            # the clock on its own; PostgreSQL only
-dg health                               # everything this host runs
-dg health database | worker | scheduler | server [--liveness]
 dg docker reap [--dry-run]              # compose stacks left up by runs that have ended
 
 # Administration
@@ -986,6 +986,8 @@ dg db upgrade [REVISION] | current | history
 dg auth login [--username U] [--password P] | dg auth status   # login emits the token it minted
 dg auth password [--current P] [--new P]
 dg system info | dg system workers
+dg system health                        # everything this host runs
+dg system health database | worker | scheduler | server [--liveness]
 dg admin user create NAME --role admin|operator|viewer [--password P] [--email E]
 dg admin user list | activate NAME | deactivate NAME
 dg admin user password NAME [--password P]
@@ -1028,14 +1030,16 @@ Accounts and tokens live under `dg admin` and the worker registry under `dg syst
 the help screen should show the same boundaries the API enforces: `dg admin` is the part only
 an admin may use, and `dg system` is what this instance is and whether it is well.
 
-`dg health` is process-side, like `dg db`: no token, the configured database read directly,
-a server asked only over plain HTTP. Bare, it answers "is my instance OK?" for the instance
-this shell resolves -- the database and its schema, every worker the instance has, whether
-schedules are firing on time, and the server `DG_URL` or the profile names (this host's own
-loopback when nothing is named). A machine with no instance says so in one line. Naming a
-component is the assertion that it should be here, so a worker that is simply not there fails
-`dg health worker` and does not fail `dg health`; containers' HEALTHCHECKs use the named
-forms. Every form writes `check` records, ends with a `health` verdict, and exits 0 or 1.
+`dg system` holds both views of the instance. `dg system info` and `dg system workers` are the
+API view: a server answers them, and they carry a token. `dg system health` is the process-side
+one, like `dg db`: no token, the configured database read directly, a server asked only over
+plain HTTP. Bare, it answers "is my instance OK?" for the instance this shell resolves -- the
+database and its schema, every worker the instance has, whether schedules are firing on time,
+and the server `DG_URL` or the profile names (this host's own loopback when nothing is named).
+A machine with no instance says so in one line. Naming a component is the assertion that it
+should be here, so a worker that is simply not there fails `dg system health worker` and does
+not fail `dg system health`; containers' HEALTHCHECKs use the named forms. Every form writes
+`check` records, ends with a `health` verdict, and exits 0 or 1.
 
 ### `dg connection create`
 

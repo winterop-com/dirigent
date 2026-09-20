@@ -491,6 +491,13 @@ def test_accounts_and_tokens_moved_under_admin_and_workers_under_system() -> Non
     assert runner.invoke(app, ["workers", "--help"]).exit_code != 0
 
 
+def test_the_health_checks_live_under_system() -> None:
+    """The process-side checks answer under `dg system`, bare and named, and nowhere else."""
+    assert runner.invoke(app, ["system", "health", "--help"]).exit_code == 0
+    assert runner.invoke(app, ["system", "health", "server", "--help"]).exit_code == 0
+    assert runner.invoke(app, ["health", "--help"]).exit_code != 0
+
+
 def test_a_schedule_takes_the_same_parameter_flags_as_a_run() -> None:
     """A schedule's overrides accept the same -p and -P flags as `dg run`."""
     # The declared parameters, not the rendered help, which a narrow terminal truncates.
@@ -651,7 +658,7 @@ def test_health_says_a_database_with_no_schema_is_not_ready(tmp_path: Path, noth
     """Reachable is not usable, and it is the first thing a new deployment gets wrong."""
     (tmp_path / "dirigent.db").touch()  # a zero-byte file is a valid, empty SQLite database
 
-    result = runner.invoke(app, ["health"])
+    result = runner.invoke(app, ["system", "health"])
 
     assert result.exit_code == 1
     checks = of_kind(records(result.output), "check")
@@ -664,7 +671,7 @@ def test_health_says_a_database_with_no_schema_is_not_ready(tmp_path: Path, noth
 
 
 def test_health_reports_one_record_for_every_check_this_host_can_answer(a_migrated_host: None) -> None:
-    result = runner.invoke(app, ["health"])
+    result = runner.invoke(app, ["system", "health"])
 
     assert result.exit_code == 0, result.output
     checks = of_kind(records(result.output), "check")
@@ -674,7 +681,7 @@ def test_health_reports_one_record_for_every_check_this_host_can_answer(a_migrat
 
 def test_health_does_not_fail_on_what_this_host_simply_does_not_run(a_migrated_host: None) -> None:
     """No worker and no server here is a report, not a fault."""
-    result = runner.invoke(app, ["health"])
+    result = runner.invoke(app, ["system", "health"])
 
     assert result.exit_code == 0, result.output
     absent = {check["check"]: check["status"] for check in of_kind(records(result.output), "check")}
@@ -685,14 +692,14 @@ def test_health_does_not_fail_on_what_this_host_simply_does_not_run(a_migrated_h
 def test_naming_a_component_that_is_not_here_fails(a_migrated_host: None) -> None:
     """Naming it is the assertion that this host runs one, so finding none is a failure."""
     for component in ("worker", "server"):
-        result = runner.invoke(app, ["health", component])
+        result = runner.invoke(app, ["system", "health", component])
         assert result.exit_code == 1, f"{component}: {result.output}"
         [check] = of_kind(records(result.output), "check")
         assert (check["check"], check["status"], check["level"]) == (component, "absent", "error")
 
 
 def test_asking_a_server_for_liveness_says_which_question_it_asked(a_migrated_host: None) -> None:
-    result = runner.invoke(app, ["health", "server", "--liveness"])
+    result = runner.invoke(app, ["system", "health", "server", "--liveness"])
 
     [check] = of_kind(records(result.output), "check")
     assert check["probe"] == "liveness"
@@ -700,7 +707,7 @@ def test_asking_a_server_for_liveness_says_which_question_it_asked(a_migrated_ho
 
 def test_health_ends_with_the_verdict(a_migrated_host: None) -> None:
     """The last line is the answer, so a person does not have to add the lines up."""
-    result = runner.invoke(app, ["health"])
+    result = runner.invoke(app, ["system", "health"])
 
     [summary] = of_kind(records(result.output), "health")
     assert (summary["checked"], summary["healthy"], summary["absent"], summary["unhealthy"]) == (4, 2, 2, 0)
@@ -716,7 +723,7 @@ def test_a_machine_with_no_instance_says_so_in_one_line(nothing_listening: None)
     settings = Settings()
     assert settings.sqlite_path is not None
 
-    result = runner.invoke(app, ["health"])
+    result = runner.invoke(app, ["system", "health"])
 
     assert result.exit_code == 0, result.output
     [database] = of_kind(records(result.output), "check")
@@ -728,7 +735,7 @@ def test_a_machine_with_no_instance_says_so_in_one_line(nothing_listening: None)
 
 def test_a_named_server_is_checked_even_where_no_instance_is(nothing_listening: None) -> None:
     """DG_URL or --url names the server this shell talks to, wherever its database lives."""
-    result = runner.invoke(app, ["--url", "http://127.0.0.1:9", "health"])
+    result = runner.invoke(app, ["--url", "http://127.0.0.1:9", "system", "health"])
 
     assert result.exit_code == 0, result.output
     [server] = [check for check in of_kind(records(result.output), "check") if check["check"] == "server"]
@@ -737,7 +744,7 @@ def test_a_named_server_is_checked_even_where_no_instance_is(nothing_listening: 
 
 
 def test_an_instance_with_no_schedules_is_a_healthy_scheduler(a_migrated_host: None) -> None:
-    result = runner.invoke(app, ["health", "scheduler"])
+    result = runner.invoke(app, ["system", "health", "scheduler"])
 
     assert result.exit_code == 0, result.output
     [check] = of_kind(records(result.output), "check")
