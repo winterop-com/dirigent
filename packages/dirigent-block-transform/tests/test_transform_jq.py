@@ -4,6 +4,8 @@ import asyncio
 import contextlib
 import json
 import time
+from collections.abc import Sequence
+from typing import Any
 
 import pytest
 
@@ -13,10 +15,19 @@ from dirigent_block_storage.storage import (
     StorageWriteOperator,
     StorageWriteOutput,
 )
-from dirigent_block_transform import transform_jq
+from dirigent_block_transform import jq_runner
 from dirigent_block_transform.transform_jq import JqFilterer, JqMapper, JqProgramConfig, JqTransformer
 from dirigent_common import JQ_MEDIA_TYPE
-from dirigent_plugin import BlockFailure, ErrorClass, Filterer, Mapper, Transformer, TransformOutput
+from dirigent_plugin import (
+    BlockFailure,
+    ErrorClass,
+    Filterer,
+    Mapper,
+    ProgramRunner,
+    Transformer,
+    TransformOutput,
+    runners,
+)
 from dirigent_testing import FakeContext, FakeStorage, call_block
 
 READINGS = [
@@ -235,12 +246,12 @@ async def test_a_cancelled_step_kills_the_process_its_program_was_running_in(
     ctx: FakeContext, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A program cannot be interrupted, so one that outlived its step would run on unwatched."""
-    pool = transform_jq._PROCESSES  # pyright: ignore[reportPrivateUsage] - the processes under test
-    held: list[transform_jq._Process] = []  # pyright: ignore[reportPrivateUsage] - the process under test
+    pool = runners._RUNNERS  # pyright: ignore[reportPrivateUsage] - the processes under test
+    held: list[ProgramRunner] = []
     take = pool.take
 
-    async def watched() -> transform_jq._Process:  # pyright: ignore[reportPrivateUsage] - as above
-        process = await take()
+    async def watched(command: Sequence[str]) -> ProgramRunner:
+        process = await take(command)
         held.append(process)
         return process
 
@@ -253,7 +264,8 @@ async def test_a_cancelled_step_kills_the_process_its_program_was_running_in(
 
     assert len(held) == 1
     assert not held[0].alive, "the program was left running"
-    assert held[0] not in pool._idle  # pyright: ignore[reportPrivateUsage] - nothing killed is reused
+    idle = pool._idle  # pyright: ignore[reportPrivateUsage] - nothing killed is reused
+    assert all(held[0] not in kept for kept in idle.values())
 
 
 async def test_two_steps_running_at_once_evaluate_their_programs_in_processes_of_their_own(
@@ -283,6 +295,45 @@ async def test_a_program_that_ran_after_a_killed_one_gets_a_working_process(ctx:
     output = await call_block(JqTransformer(), {"input": READINGS, "program": SELECT_ACTIVE}, ctx)
 
     assert output.model_dump() == {"value": RESHAPED}
+
+
+async def test_two_programs_answer_for_themselves_when_one_process_runs_both(ctx: FakeContext) -> None:
+    """A process outlives the step that used it, so the next step's program is not the one before."""
+    for _ in range(2):
+        reshaped = await call_block(JqTransformer(), {"input": READINGS, "program": SELECT_ACTIVE}, ctx)
+        counted = await call_block(JqTransformer(), {"input": READINGS, "program": "length"}, ctx)
+
+        assert reshaped.model_dump()["value"] == RESHAPED
+        assert counted.model_dump()["value"] == 3
+
+
+def test_the_runner_holds_a_compiled_program_by_id_until_it_is_forgotten() -> None:
+    """The jq in a runner is compiling a program and reading its outputs; the rest is the protocol."""
+    programs: dict[str, Any] = {}
+
+    assert jq_runner.answer(programs, {"kind": "compile", "id": "one", "program": ".name"}) == {"ok": True}
+    assert jq_runner.answer(programs, {"kind": "compile", "id": "two", "program": ".[]"}) == {"ok": True}
+    assert jq_runner.answer(programs, {"kind": "run", "id": "one", "value": {"name": "ada"}}) == {"outputs": ["ada"]}
+    assert jq_runner.answer(programs, {"kind": "run", "id": "two", "value": [1, 2]}) == {"outputs": [1, 2]}
+    assert jq_runner.answer(programs, {"kind": "forget", "id": "one"}) == {"ok": True}
+
+    gone = jq_runner.answer(programs, {"kind": "run", "id": "one", "value": {"name": "ada"}})
+    assert gone == {"error": "no program is compiled under one"}
+
+
+def test_the_runner_refuses_a_program_jq_cannot_compile_and_holds_nothing_for_it() -> None:
+    programs: dict[str, Any] = {}
+
+    refused = jq_runner.answer(programs, {"kind": "compile", "id": "one", "program": "[.[] | "})
+
+    assert "syntax error, unexpected end of file" in refused["error"]
+    assert programs == {}
+
+
+def test_the_runner_names_a_request_kind_it_does_not_know() -> None:
+    answered = jq_runner.answer({}, {"kind": "explain", "id": "one"})
+
+    assert answered == {"error": "explain is not a request kind: compile, run, or forget"}
 
 
 def test_a_program_keeps_the_lines_it_was_written_on() -> None:
