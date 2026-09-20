@@ -330,15 +330,18 @@ def test_dev_says_what_it_cleared(tmp_path: Path) -> None:
     assert record["state"] == str(tmp_path / ".dirigent" / "state")
 
 
-def test_a_worker_can_be_assembled_from_the_installed_plugins() -> None:
-    settings = Settings(database_url="sqlite+aiosqlite:///./dirigent-cli-test.db")
+async def test_a_worker_can_be_assembled_from_the_installed_plugins(tmp_path: Path) -> None:
+    settings = Settings(database_url=f"sqlite+aiosqlite:///{tmp_path / 'dirigent.db'}")
     worker, engine = build_worker(settings, concurrency=3, tags=["docker"], name="test-worker")
-    assert worker.name == "test-worker"
-    assert worker.concurrency == 3
-    assert worker.tags == ["docker"]
-    assert worker.engine.tags == ["docker"], "the tags a worker advertises are the ones its claim routes on"
-    assert "http.request" in worker.services.host.operators
-    assert engine.dialect.name == "sqlite"
+    try:
+        assert worker.name == "test-worker"
+        assert worker.concurrency == 3
+        assert worker.tags == ["docker"]
+        assert worker.engine.tags == ["docker"], "the tags a worker advertises are the ones its claim routes on"
+        assert "http.request" in worker.services.host.operators
+        assert engine.dialect.name == "sqlite"
+    finally:
+        await engine.dispose()
 
 
 def test_the_server_command_builds_an_importable_app() -> None:
@@ -805,19 +808,23 @@ def test_a_dry_run_says_it_would_reap_and_takes_nothing_down(monkeypatch: pytest
     assert written[0]["torn_down"] is False
 
 
-def test_a_worker_on_a_host_with_no_daemon_runs_no_reaping_chore(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_a_worker_on_a_host_with_no_daemon_runs_no_reaping_chore(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("dirigent_cli.reaper.reachable", no_daemon)
     worker, engine = build_worker(get_settings())
-    assert worker.chores == []
-    del engine
+    try:
+        assert worker.chores == []
+    finally:
+        await engine.dispose()
 
 
-def test_a_docker_capable_worker_runs_the_reaping_chore(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_a_docker_capable_worker_runs_the_reaping_chore(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("dirigent_cli.reaper.reachable", a_daemon)
     worker, engine = build_worker(get_settings())
-    assert [chore.name for chore in worker.chores] == ["docker-reap"]
-    assert worker.chores[0].interval == get_settings().docker_reap_interval
-    del engine
+    try:
+        assert [chore.name for chore in worker.chores] == ["docker-reap"]
+        assert worker.chores[0].interval == get_settings().docker_reap_interval
+    finally:
+        await engine.dispose()
 
 
 def test_a_teardown_the_daemon_refused_is_reported_as_such(monkeypatch: pytest.MonkeyPatch) -> None:

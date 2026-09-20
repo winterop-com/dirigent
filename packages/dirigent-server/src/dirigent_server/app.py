@@ -60,21 +60,23 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
-        """Open the database engine for the process, and dispose of it on shutdown."""
+        """Open the database engine for the process, and dispose of it on every exit path."""
         engine = create_engine(resolved)
         app.state.engine = engine
         app.state.session_factory = create_session_factory(engine)
         app.state.health_checks = build_registry(engine)
-        await _bootstrap(app)
-        await _apply_startup_directory(app)
-        clock = await _start_scheduler(app, embed=embed)
-        _logger.info(
-            "server starting",
-            database="sqlite" if resolved.is_sqlite else "postgresql",
-            blocks=len(app.state.services.host.block_ids),
-            scheduler=embed,
-        )
+        app.state.scheduler = None
+        clock: asyncio.Task[None] | None = None
         try:
+            await _bootstrap(app)
+            await _apply_startup_directory(app)
+            clock = await _start_scheduler(app, embed=embed)
+            _logger.info(
+                "server starting",
+                database="sqlite" if resolved.is_sqlite else "postgresql",
+                blocks=len(app.state.services.host.block_ids),
+                scheduler=embed,
+            )
             yield
         finally:
             await _stop_scheduler(app, clock)
@@ -105,7 +107,6 @@ def create_app(
 
 async def _start_scheduler(app: FastAPI, *, embed: bool) -> asyncio.Task[None] | None:
     """Start the embedded scheduler as a task in the API's own event loop."""
-    app.state.scheduler = None
     if not embed:
         return None
     scheduler = Scheduler(app.state.session_factory, app.state.services)

@@ -2,11 +2,16 @@
 
 from pathlib import Path
 
+import pytest
 from cryptography.fernet import Fernet
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
+from sqlalchemy import event
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 from dirigent_core.config import Settings
+from dirigent_core.database import create_engine
 from dirigent_server import create_app
 from dirigent_server.logging import PACKAGE_LOGGER, get_logger
 
@@ -116,3 +121,26 @@ def test_the_startup_directory_is_applied_and_a_broken_document_does_not_stop_th
         assert codes == ["seeded-at-boot"]
         version = client.get("/api/v1/pipelines/seeded-at-boot/versions").json()["items"][0]
         assert version["provenance_source"] == "directory"
+
+
+def test_a_boot_that_fails_still_disposes_the_engine(settings: Settings, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Startup opens the engine before it can refuse, so a refusal must hand it back."""
+    opened: list[AsyncEngine] = []
+    disposed: list[object] = []
+
+    def recording(resolved: Settings) -> AsyncEngine:
+        engine = create_engine(resolved)
+        event.listen(engine.sync_engine, "engine_disposed", disposed.append)
+        opened.append(engine)
+        return engine
+
+    async def refuse(app: FastAPI) -> None:
+        raise RuntimeError("startup refused")
+
+    monkeypatch.setattr("dirigent_server.app.create_engine", recording)
+    monkeypatch.setattr("dirigent_server.app._apply_startup_directory", refuse)
+
+    with pytest.raises(RuntimeError, match="startup refused"), TestClient(create_app(settings)):
+        pass
+
+    assert [engine.sync_engine for engine in opened] == disposed
