@@ -388,12 +388,6 @@ requires touching the engine. None is near-term.
   the connection under `requires` instead. One rule for both, carrying for local runs and
   requiring for copies, would remove the duplication.
 
-- **A storage backend records no content type on write.** `Storage.open_write` takes a URI and
-  nothing else, so `storage.write` cannot set `ContentType` on an S3 object; `storage.read`
-  recovers the type from the extension instead. Widen the protocol with a metadata argument and
-  have the S3 backend pass it through. An object written with `content_type: text/markdown` on
-  2026-09-11 did come back as `text/markdown`, but that was the S3 server guessing from the
-  `.md` key, not the client saying so.
 - **The capture URIs are the last storage a block writes on its own.** `shell.run`,
   `docker.run`, `git.checkout` and the compose and build blocks spill stdout and stderr to
   `stdout_uri`/`stderr_uri` themselves, and `docker.run` stages `inputs` and `outputs` through

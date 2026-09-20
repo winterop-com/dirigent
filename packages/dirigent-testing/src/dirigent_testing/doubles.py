@@ -76,6 +76,8 @@ class FakeStorage:
     def __init__(self, root: Path) -> None:
         """Root the facade at a throwaway directory."""
         self.root = root
+        #: What each written URI was declared to be, since a file has nowhere to keep it.
+        self.content_types: dict[str, str] = {}
 
     def path_for(self, uri: str) -> Path:
         """Map a URI onto a local path: absolute as given, relative under the root."""
@@ -91,13 +93,17 @@ class FakeStorage:
         if payload[middle:]:
             yield payload[middle:]
 
-    def open_write(self, uri: str) -> AbstractAsyncContextManager[ByteSink]:
-        """Open a writer for a URI, creating the directories it needs."""
+    def open_write(self, uri: str, *, content_type: str | None = None) -> AbstractAsyncContextManager[ByteSink]:
+        """Open a writer for a URI, creating the directories it needs and recording its type."""
 
         @asynccontextmanager
         async def writer() -> AsyncGenerator[ByteSink]:
             path = self.path_for(uri)
             path.parent.mkdir(parents=True, exist_ok=True)
+            if content_type is None:
+                self.content_types.pop(uri, None)
+            else:
+                self.content_types[uri] = content_type
             sink = FakeSink(path)
             try:
                 yield sink
@@ -112,7 +118,12 @@ class FakeStorage:
         if not path.is_file():
             return None
         info = path.stat()
-        return StatResult(uri=uri, size=info.st_size, modified_at=datetime.fromtimestamp(info.st_mtime, tz=UTC))
+        return StatResult(
+            uri=uri,
+            size=info.st_size,
+            modified_at=datetime.fromtimestamp(info.st_mtime, tz=UTC),
+            content_type=self.content_types.get(uri),
+        )
 
     async def list(self, uri: str) -> AsyncIterator[StatResult]:
         """List the objects matching a pattern, in a stable order."""

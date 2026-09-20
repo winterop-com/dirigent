@@ -53,6 +53,22 @@ async def test_copying_a_large_object_does_not_depend_on_one_chunk(ctx: FakeCont
     assert storage.path_for("file://out/big.bin").read_bytes() == payload
 
 
+async def test_a_copy_carries_the_content_type_of_what_it_copied(ctx: FakeContext, storage: FakeStorage) -> None:
+    await call_block(
+        StorageWriteOperator(),
+        {"target": "file://in/report.md", "text": "# title\n", "content_type": "text/markdown"},
+        ctx,
+    )
+
+    await StorageCopyOperator().execute(
+        StorageCopyConfig(source="file://in/report.md", target="file://out/report.dat"), ctx.as_context()
+    )
+
+    described = await storage.stat("file://out/report.dat")
+    assert described is not None
+    assert described.content_type == "text/markdown"
+
+
 async def test_copying_from_nothing_is_rejected_rather_than_retried(ctx: FakeContext) -> None:
     with pytest.raises(BlockFailure) as raised:
         await StorageCopyOperator().execute(
@@ -135,6 +151,31 @@ async def test_a_content_type_the_step_names_wins(ctx: FakeContext) -> None:
     )
     assert isinstance(output, StorageWriteOutput)
     assert output.content_type == "text/markdown"
+
+
+async def test_the_type_a_step_names_is_recorded_on_the_object(ctx: FakeContext, storage: FakeStorage) -> None:
+    await call_block(
+        StorageWriteOperator(),
+        {"target": "file://out/report.md", "text": "# title\n", "content_type": "text/markdown"},
+        ctx,
+    )
+
+    described = await storage.stat("file://out/report.md")
+    assert described is not None
+    assert described.content_type == "text/markdown"
+
+
+async def test_a_write_that_names_no_type_records_the_default_for_what_it_carries(
+    ctx: FakeContext, storage: FakeStorage
+) -> None:
+    await call_block(StorageWriteOperator(), {"target": "file://out/notes.txt", "text": "plain\n"}, ctx)
+    await call_block(StorageWriteOperator(), {"target": "file://out/rows.json", "value": [1]}, ctx)
+
+    written_text = await storage.stat("file://out/notes.txt")
+    written_value = await storage.stat("file://out/rows.json")
+    assert written_text is not None
+    assert written_value is not None
+    assert (written_text.content_type, written_value.content_type) == ("text/plain", "application/json")
 
 
 async def test_a_write_that_names_neither_text_nor_value_is_refused_at_validation(ctx: FakeContext) -> None:

@@ -57,6 +57,26 @@ async def test_stat_describes_a_present_object_and_returns_none_for_an_absent_on
     assert await backend.stat(uri("stat/absent.txt")) is None
 
 
+async def test_a_small_write_records_the_content_type_it_was_given(backend: S3StorageBackend) -> None:
+    # A key the server cannot guess from, so what comes back is what the client declared.
+    async with backend.open_write(uri("typed/small.bin"), content_type="text/markdown") as sink:
+        await sink.write(b"# a title\n")
+    described = await backend.stat(uri("typed/small.bin"))
+    assert described is not None
+    assert described.content_type == "text/markdown"
+
+
+async def test_a_multipart_write_records_the_content_type_it_was_given(backend: S3StorageBackend) -> None:
+    async with backend.open_write(uri("typed/large.bin"), content_type="application/x-ndjson") as sink:
+        await sink.write(payload(LARGE_SIZE))
+        assert isinstance(sink, S3Sink)
+        assert sink.upload_id is not None
+    described = await backend.stat(uri("typed/large.bin"))
+    assert described is not None
+    assert described.size == LARGE_SIZE
+    assert described.content_type == "application/x-ndjson"
+
+
 async def test_list_takes_a_prefix_and_reaches_every_depth_below_it(backend: S3StorageBackend) -> None:
     keys = ["listing/a.csv", "listing/b.json", "listing/deep/c.csv", "elsewhere/d.csv"]
     for key in keys:

@@ -66,10 +66,11 @@ class StorageCopyOperator(Operator[StorageCopyConfig, StorageCopyOutput]):
 
     async def execute(self, config: StorageCopyConfig, ctx: StepContext) -> StorageCopyOutput | RemoteHandle:
         """Copy source to target through the storage facade, refusing a missing source."""
-        if await ctx.storage.stat(config.source) is None:
+        found = await ctx.storage.stat(config.source)
+        if found is None:
             raise BlockFailure(f"there is nothing at {config.source}", error_class=ErrorClass.REJECTED)
         copied = 0
-        async with ctx.storage.open_write(config.target) as sink:
+        async with ctx.storage.open_write(config.target, content_type=found.content_type) as sink:
             async for chunk in ctx.storage.open_read(config.source):
                 copied += await sink.write(chunk)
         ctx.log.info("copied", source=config.source, target=config.target, bytes_copied=copied)
@@ -92,7 +93,9 @@ class StorageWriteConfig(BlockModel):
     """What the object is, recorded where the backend can record it.
 
     Unset, it is ``text/plain`` for ``text`` and ``application/json`` for ``value``; an
-    explicit one wins, which is how a markdown page or a csv says what it is."""
+    explicit one wins, which is how a markdown page or a csv says what it is. S3 keeps it on
+    the object and hands it back to ``storage.read``; a filesystem has nowhere to keep it, so
+    a reader there recovers the type from the extension."""
 
     @model_validator(mode="after")
     def _one_payload(self) -> "StorageWriteConfig":
@@ -139,7 +142,7 @@ class StorageWriteOperator(Operator[StorageWriteConfig, StorageWriteOutput]):
         payload = config.payload()
         content_type = config.declared_content_type()
         written = 0
-        async with ctx.storage.open_write(config.target) as sink:
+        async with ctx.storage.open_write(config.target, content_type=content_type) as sink:
             written += await sink.write(payload)
         ctx.log.info("wrote", uri=config.target, bytes_written=written, content_type=content_type)
         return StorageWriteOutput(uri=config.target, bytes_written=written, content_type=content_type)

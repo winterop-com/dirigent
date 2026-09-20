@@ -2929,10 +2929,10 @@ class _MarkedFileBackend(FileStorageBackend):
         """Return the instance the coded connection configures, rooted where it says."""
         return _MarkedFileBackend(cast(FileStorageConfig, config).root, self.writes, source="connection")
 
-    def open_write(self, uri: str) -> AbstractAsyncContextManager[ByteSink]:
+    def open_write(self, uri: str, *, content_type: str | None = None) -> AbstractAsyncContextManager[ByteSink]:
         """Note which instance is writing, then write."""
         self.writes.append(self.source)
-        return super().open_write(uri)
+        return super().open_write(uri, content_type=content_type)
 
 
 async def test_an_output_too_large_to_inline_is_persisted_through_the_configured_connection(

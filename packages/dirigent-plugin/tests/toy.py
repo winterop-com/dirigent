@@ -116,7 +116,7 @@ class MemoryStorageBackend(StorageBackend):
         """Stream the object at a URI."""
         raise NotImplementedError
 
-    def open_write(self, uri: str) -> AbstractAsyncContextManager[ByteSink]:
+    def open_write(self, uri: str, *, content_type: str | None = None) -> AbstractAsyncContextManager[ByteSink]:
         """Open a streamed writer for a URI."""
         raise NotImplementedError
 
