@@ -478,7 +478,7 @@ COMPOSE_SERVER = """\
 __ARTIFACTS_MOUNT__    ports:
       - "${DIRIGENT_PORT:-3333}:3333"
     healthcheck:
-      test: ["CMD", "dg", "health", "server"]
+      test: ["CMD", "dg", "system", "health", "server"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -613,7 +613,7 @@ __ARTIFACTS_MOUNT____WORKER_DOCKER_VOLUMES__      # The worker's own working fil
         condition: service_completed_successfully
 __WORKER_DEPENDS__    stop_grace_period: 60s
     healthcheck:
-      test: ["CMD", "dg", "health", "worker"]
+      test: ["CMD", "dg", "system", "health", "worker"]
       interval: 15s
       timeout: 10s
       retries: 3

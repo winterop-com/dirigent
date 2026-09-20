@@ -2,8 +2,8 @@
 
 Each check answers one question without a token: does the configured database answer and
 hold the right schema, are workers beating, are schedules firing on time, does the server
-answer. Bare, ``dg health`` checks the whole instance -- and a machine with no instance on
-it says so in one line instead of reporting the absence of everything, part by part.
+answer. Bare, ``dg system health`` checks the whole instance -- and a machine with no instance
+on it says so in one line instead of reporting the absence of everything, part by part.
 
 A named check asserts its component is here, so finding none of it fails; that is the form
 a container's ``HEALTHCHECK`` runs, where the environment is the instance and exactly one

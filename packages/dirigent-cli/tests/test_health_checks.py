@@ -91,8 +91,8 @@ async def test_a_worker_that_never_registered_is_absent_rather_than_broken(
     check = await worker_check(session, settings, HOST)
 
     assert check.status == "absent"
-    assert check.failed(asserted=True), "dg health worker asserts a worker runs here"
-    assert not check.failed(asserted=False), "dg health reports what is not here without failing"
+    assert check.failed(asserted=True), "dg system health worker asserts a worker runs here"
+    assert not check.failed(asserted=False), "dg system health reports what is not here without failing"
 
 
 async def test_a_worker_that_stopped_cleanly_is_history_rather_than_a_fault(
