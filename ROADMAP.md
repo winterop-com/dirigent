@@ -79,16 +79,14 @@ CLAUDE.md first, commit signed with conventional messages, every change ships wi
 `make test-postgres` stay green, coverage stays at or above 90, `mkdocs build --strict`
 stays clean, and every example stays executable.
 
-1. **M4 adapter packs.** The first adapter pack has moved out to its own repository, owning
-   its blocks, examples and tests and self-testing against `dirigent-plugin`'s main;
-   `dirigent-integration` assembles the whole set and proves it composes. Every further pack
-   takes the same shape: its own repository, its own examples, wired through a connection
-   kind, with a client written fresh or wrapping a stable one. Still open for the program:
-   generalising `dirigent-integration`'s dev-dep filter beyond one pack's client prefix.
-2. **M5 hardening.** Log batching under load.
-3. **Post-M5.** Split dirigent-blocks into family packages (dirigent-block-http,
-   dirigent-block-storage, ...) under an umbrella. Invisible to stored pipelines, because
-   documents bind to block ids rather than packages.
+1. **Adapter packs.** Every further pack takes the shape `dirigent-dhis2` set: its own
+   repository, its own examples and tests, self-testing against `dirigent-plugin`'s main,
+   wired through a connection kind, with a client written fresh or wrapping a stable one, and
+   assembled by `dirigent-integration`. Open for the program: generalising
+   `dirigent-integration`'s dev-dep filter beyond one pack's client prefix.
+2. **Block family packages.** Split dirigent-blocks into family packages
+   (dirigent-block-http, dirigent-block-storage, ...) under an umbrella. Invisible to stored
+   pipelines, because documents bind to block ids rather than packages.
 
 ## Open questions
 
