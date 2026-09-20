@@ -76,6 +76,9 @@ it ensures the connection the artifact root resolves through.
 
 Everything the services share is a database URL, a secret key, and the bucket.
 
+`dg server` runs the application under uvicorn. Pointing granian or hypercorn at the app
+factory instead is [running under another ASGI server](server.md#running-under-another-asgi-server).
+
 Four overlay files add to that base, each layered with another `-f` and each declaring only
 what differs. `make docker-run-all` is every one of them at once:
 
