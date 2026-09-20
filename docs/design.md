@@ -910,6 +910,9 @@ Dirigent standardizes the reference, not the format or the backend:
   references; it never parses contents.
 - **Backends register schemes.** A small streamed protocol (`open_read` / `open_write` /
   `stat` / `list` / `delete`). `file://` ships in core; `s3://` is the first backend package.
+  A write names what the object is, and the backend records it where its store can hold one:
+  `s3://` puts it on the object and `stat` hands it back, while `file://` has nowhere to keep
+  it and a reader falls back to the extension.
 - **Blocks receive storage handles, not paths.** This is the multi-worker correctness rule:
   nothing ever passes a worker-local filesystem path between steps.
 - **Run scratch space.** Each run gets a namespaced prefix

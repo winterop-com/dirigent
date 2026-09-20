@@ -352,8 +352,8 @@ async def test_output_is_streamed_to_storage_rather_than_held_whole(
             return await self.inner.write(data)  # type: ignore[attr-defined,no-any-return]
 
     @asynccontextmanager
-    async def recording(uri: str) -> AsyncGenerator[Recording]:
-        async with real(uri) as sink:
+    async def recording(uri: str, *, content_type: str | None = None) -> AsyncGenerator[Recording]:
+        async with real(uri, content_type=content_type) as sink:
             yield Recording(sink)
 
     monkeypatch.setattr(local_ctx.storage, "open_write", recording)

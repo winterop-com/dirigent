@@ -2,7 +2,8 @@
 
 import asyncio
 from collections.abc import AsyncGenerator, AsyncIterator, Callable
-from contextlib import AbstractAsyncContextManager
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, ClassVar, cast
 
@@ -242,6 +243,90 @@ async def test_facade_stat_list_and_delete_dispatch(storage: Storage, tmp_path: 
     assert await storage.stat(uri) is None
 
 
+# -- what a write says the object is ---------------------------------------------
+
+
+class _MemoryConfig(BaseModel):
+    """A memory backend is configured by nothing."""
+
+
+class _MemorySink:
+    """The write end of a memory object."""
+
+    def __init__(self) -> None:
+        self.buffer = bytearray()
+
+    async def write(self, data: bytes) -> int:
+        self.buffer.extend(data)
+        return len(data)
+
+
+class _MemoryBackend(StorageBackend):
+    """A backend whose store keeps what a write said the object is, the way S3 does."""
+
+    scheme: ClassVar[str] = "memory"
+    config_model: ClassVar[type[BaseModel]] = _MemoryConfig
+
+    def __init__(self) -> None:
+        self.objects: dict[str, tuple[bytes, str | None]] = {}
+
+    async def open_read(self, uri: str) -> AsyncGenerator[bytes]:
+        yield self.objects[uri][0]
+
+    def open_write(self, uri: str, *, content_type: str | None = None) -> AbstractAsyncContextManager[ByteSink]:
+        @asynccontextmanager
+        async def writer() -> AsyncGenerator[ByteSink]:
+            sink = _MemorySink()
+            yield sink
+            self.objects[uri] = (bytes(sink.buffer), content_type)
+
+        return writer()
+
+    async def stat(self, uri: str) -> StatResult | None:
+        held = self.objects.get(uri)
+        if held is None:
+            return None
+        return StatResult(uri=uri, size=len(held[0]), modified_at=datetime.now(UTC), content_type=held[1])
+
+    def list(self, uri: str) -> AsyncIterator[StatResult]:  # pragma: no cover - never called
+        raise NotImplementedError
+
+    async def delete(self, uri: str) -> None:  # pragma: no cover - never called
+        raise NotImplementedError
+
+
+async def test_the_facade_hands_the_content_type_to_the_backend(tmp_path: Path) -> None:
+    storage = build_storage(f"file://{tmp_path}", [_MemoryBackend()])
+
+    await storage.write_bytes("memory://reports/summary.md", b"# title\n", content_type="text/markdown")
+
+    described = await storage.stat("memory://reports/summary.md")
+    assert described is not None
+    assert described.content_type == "text/markdown"
+
+
+async def test_a_copy_carries_the_content_type_of_what_it_copied(tmp_path: Path) -> None:
+    storage = build_storage(f"file://{tmp_path}", [_MemoryBackend()])
+    await storage.write_bytes("memory://in/report.md", b"# title\n", content_type="text/markdown")
+
+    assert await storage.copy("memory://in/report.md", "memory://out/report.dat") == 8
+
+    described = await storage.stat("memory://out/report.dat")
+    assert described is not None
+    assert described.content_type == "text/markdown"
+
+
+async def test_the_file_backend_has_nowhere_to_keep_a_content_type(backend: FileStorageBackend, tmp_path: Path) -> None:
+    uri = f"file://{tmp_path}/report.md"
+
+    async with backend.open_write(uri, content_type="text/markdown") as sink:
+        await sink.write(b"# title\n")
+
+    described = await backend.stat(uri)
+    assert described is not None
+    assert described.content_type is None
+
+
 def test_build_storage_prefers_a_contributed_backend(tmp_path: Path) -> None:
     class MemoryConfig(BaseModel):
         pass
@@ -253,7 +338,7 @@ def test_build_storage_prefers_a_contributed_backend(tmp_path: Path) -> None:
         def open_read(self, uri: str) -> AsyncGenerator[bytes]:
             raise NotImplementedError
 
-        def open_write(self, uri: str) -> AbstractAsyncContextManager[ByteSink]:
+        def open_write(self, uri: str, *, content_type: str | None = None) -> AbstractAsyncContextManager[ByteSink]:
             raise NotImplementedError
 
         async def stat(self, uri: str) -> StatResult | None:
@@ -353,7 +438,7 @@ class _Refusing(StorageBackend):
     def open_read(self, uri: str) -> Any:  # pragma: no cover - never called
         raise AssertionError
 
-    def open_write(self, uri: str) -> Any:  # pragma: no cover - never called
+    def open_write(self, uri: str, *, content_type: str | None = None) -> Any:  # pragma: no cover - never called
         raise AssertionError
 
     async def stat(self, uri: str) -> Any:  # pragma: no cover - never called

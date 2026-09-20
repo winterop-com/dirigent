@@ -387,8 +387,12 @@ class Storage(Protocol):
         """Stream the object at a URI, closeable so a reader that stops early releases it."""
         ...
 
-    def open_write(self, uri: str) -> AbstractAsyncContextManager[ByteSink]:
-        """Open a streamed writer for a URI."""
+    def open_write(self, uri: str, *, content_type: str | None = None) -> AbstractAsyncContextManager[ByteSink]:
+        """Open a streamed writer for a URI.
+
+        The backend records the content type on the object where its store can hold one, and
+        ignores it where it cannot.
+        """
         ...
 
     async def stat(self, uri: str) -> StatResult | None:
@@ -676,8 +680,12 @@ class StorageBackend(ABC):
         ...
 
     @abstractmethod
-    def open_write(self, uri: str) -> AbstractAsyncContextManager[ByteSink]:
-        """Open a streamed writer for a URI."""
+    def open_write(self, uri: str, *, content_type: str | None = None) -> AbstractAsyncContextManager[ByteSink]:
+        """Open a streamed writer for a URI.
+
+        The backend records the content type on the object where its store can hold one, and
+        ignores it where it cannot.
+        """
         ...
 
     @abstractmethod

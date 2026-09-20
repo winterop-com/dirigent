@@ -164,11 +164,12 @@ def is_missing(error: ClientError) -> bool:
 class S3Sink:
     """The write end of an S3 object: buffered, and promoted to a multipart upload once large."""
 
-    def __init__(self, client: S3Client, bucket: str, key: str) -> None:
-        """Hold the open client and the object the accumulated bytes will be published as."""
+    def __init__(self, client: S3Client, bucket: str, key: str, content_type: str | None = None) -> None:
+        """Hold the open client, the object the accumulated bytes will be published as, and its type."""
         self._client = client
         self.bucket = bucket
         self.key = key
+        self.content_type = content_type
         self.written = 0
         self._buffer = bytearray()
         self._parts: list[dict[str, Any]] = []
@@ -190,7 +191,9 @@ class S3Sink:
     async def close(self) -> None:
         """Publish the object: one put for a small write, a completed upload for a multipart one."""
         if self._upload_id is None:
-            await self._client.put_object(Bucket=self.bucket, Key=self.key, Body=bytes(self._buffer))
+            await self._client.put_object(
+                Bucket=self.bucket, Key=self.key, Body=bytes(self._buffer), **self._type_kwargs()
+            )
             self._buffer.clear()
             return
         if self._buffer:
@@ -212,10 +215,17 @@ class S3Sink:
             await self._client.abort_multipart_upload(Bucket=self.bucket, Key=self.key, UploadId=self._upload_id)
         self._upload_id = None
 
+    def _type_kwargs(self) -> dict[str, str]:
+        """Render the content type as the argument S3 takes, or nothing when none was named."""
+        return {} if self.content_type is None else {"ContentType": self.content_type}
+
     async def _send_part(self) -> None:
         """Upload one part off the front of the buffer, starting the multipart upload if needed."""
         if self._upload_id is None:
-            started: Any = await self._client.create_multipart_upload(Bucket=self.bucket, Key=self.key)
+            # S3 takes the content type when the upload is created, not when it is completed.
+            started: Any = await self._client.create_multipart_upload(
+                Bucket=self.bucket, Key=self.key, **self._type_kwargs()
+            )
             self._upload_id = str(started["UploadId"])
         chunk = bytes(self._buffer[:PART_SIZE])
         del self._buffer[:PART_SIZE]
@@ -272,11 +282,11 @@ class S3StorageBackend(StorageBackend):
                 yield chunk
 
     @asynccontextmanager
-    async def _writer(self, uri: str) -> AsyncGenerator[ByteSink]:
+    async def _writer(self, uri: str, content_type: str | None) -> AsyncGenerator[ByteSink]:
         """Open a buffered writer, publishing the object only once writing finished cleanly."""
         bucket, key = self.locate(uri)
         async with self.client() as client:
-            sink = S3Sink(client, bucket, key)
+            sink = S3Sink(client, bucket, key, content_type)
             try:
                 yield sink
                 # Inside the guard, so a failure while sending the last part or completing the
@@ -286,9 +296,9 @@ class S3StorageBackend(StorageBackend):
                 await sink.abort()
                 raise
 
-    def open_write(self, uri: str) -> AbstractAsyncContextManager[ByteSink]:
-        """Open a streamed writer for a URI; the object appears only once writing finished."""
-        return self._writer(uri)
+    def open_write(self, uri: str, *, content_type: str | None = None) -> AbstractAsyncContextManager[ByteSink]:
+        """Open a streamed writer for a URI, recording the content type on the object."""
+        return self._writer(uri, content_type)
 
     async def stat(self, uri: str) -> StatResult | None:
         """Describe the object at a URI, or return None when it does not exist."""

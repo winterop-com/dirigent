@@ -191,8 +191,12 @@ class FileStorageBackend(StorageBackend):
         # Staging beside the target keeps both on one filesystem, where os.replace is atomic.
         await asyncio.to_thread(os.replace, staged, path)
 
-    def open_write(self, uri: str) -> AbstractAsyncContextManager[ByteSink]:
-        """Open a streamed writer for a URI; the object appears only once writing finished."""
+    def open_write(self, uri: str, *, content_type: str | None = None) -> AbstractAsyncContextManager[ByteSink]:
+        """Open a streamed writer for a URI; the object appears only once writing finished.
+
+        The content type is discarded: a file holds bytes and a name, and nowhere to say what
+        they are, so a reader recovers the type from the extension.
+        """
         return self._writer(uri)
 
     async def stat(self, uri: str) -> StatResult | None:
@@ -302,9 +306,9 @@ class Storage:
         """Stream the object at a URI."""
         return self.backend_for(uri).open_read(uri)
 
-    def open_write(self, uri: str) -> AbstractAsyncContextManager[ByteSink]:
-        """Open a streamed writer for a URI."""
-        return self.backend_for(uri).open_write(uri)
+    def open_write(self, uri: str, *, content_type: str | None = None) -> AbstractAsyncContextManager[ByteSink]:
+        """Open a streamed writer for a URI, recording what the object is where the backend can."""
+        return self.backend_for(uri).open_write(uri, content_type=content_type)
 
     async def stat(self, uri: str) -> StatResult | None:
         """Describe the object at a URI, or return None when it does not exist."""
@@ -336,15 +340,16 @@ class Storage:
         chunks = [chunk async for chunk in self.open_read(uri)]
         return b"".join(chunks)
 
-    async def write_bytes(self, uri: str, data: bytes) -> int:
+    async def write_bytes(self, uri: str, data: bytes, *, content_type: str | None = None) -> int:
         """Write a whole object in one call, streaming it through the backend."""
-        async with self.open_write(uri) as sink:
+        async with self.open_write(uri, content_type=content_type) as sink:
             return await sink.write(data)
 
     async def copy(self, source: str, target: str) -> int:
-        """Stream one object onto another, across backends, without buffering it whole."""
+        """Stream one object onto another, across backends, carrying the source's content type."""
+        found = await self.stat(source)
         copied = 0
-        async with self.open_write(target) as sink:
+        async with self.open_write(target, content_type=found.content_type if found else None) as sink:
             async for chunk in self.open_read(source):
                 copied += await sink.write(chunk)
         return copied
