@@ -18,8 +18,37 @@ from dirigent_cli import commands, triggers
 from dirigent_cli.aliases import add_alias, add_list_aliases
 from dirigent_cli.context import CliState, state_of
 from dirigent_cli.formatters import DEFAULT, names
+from dirigent_cli.messages import (
+    AUTH_REFUSED,
+    CONNECTION_UNUSABLE,
+    CREATE_AN_ADMIN,
+    DEV_IS_SQLITE_ONLY,
+    FORMATTER_TAKES_NO_TEMPLATE,
+    FORMATTERS_ARE,
+    GIVE_AN_AGE,
+    INVALID_AGE,
+    NEVER_MIGRATED,
+    NO_ADMIN_TO_SEED,
+    NO_DOCKER_DAEMON,
+    NOT_A_FORMATTER,
+    NOT_AN_OUTPUT_FORMAT,
+    NOTHING_TO_PRUNE,
+    OR_NO_SCHEDULER,
+    OR_POSTGRES,
+    OUTPUTS_ARE,
+    RUN_DB_UPGRADE,
+    SCHEDULER_NEEDS_POSTGRES,
+    SERVER_NEEDS_A_LEADER,
+    UNKNOWN_CONNECTION_KIND,
+    USE_DG_DEV,
+    USE_DG_DEV_STANDALONE,
+    USE_DG_SERVER,
+    USE_JQ,
+    WORKER_NEEDS_POSTGRES,
+)
 from dirigent_cli.output import configure, detail_mode, emit_fact, emit_problem, emit_rendered, refuse
 from dirigent_client.enums import UserRole
+from dirigent_common import Issue
 from dirigent_core import migrations
 from dirigent_core.config import STATE_DIR, Settings, get_settings, redacted_url, reset_settings_cache
 from dirigent_core.logging import LOG_FORMAT_ENV, configure_logging, silence_stdout
@@ -180,10 +209,11 @@ def resolve_output(named: str | None, *, json_output: bool) -> Format:
         # The output that was asked for is exactly what is missing, so the refusal is written
         # in the default one rather than in the one that was named.
         emit_problem(
-            f"{chosen!r} is not an output format",
+            NOT_AN_OUTPUT_FORMAT,
             status=2,
             title="Not an output format",
-            problems=[f"the outputs are {', '.join(FORMATS)}"],
+            problems=[Issue.of(OUTPUTS_ARE, formats=", ".join(FORMATS))],
+            chosen=repr(chosen),
         )
         raise typer.Exit(code=2)
     return cast("Format", resolved)
@@ -237,19 +267,20 @@ def format_command(
             # docker and kubectl take a template here, so the habit is worth answering rather
             # than refusing. Picking fields out of a record is what jq does, over this stream.
             emit_problem(
-                "a formatter renders whole records; it takes no template",
+                FORMATTER_TAKES_NO_TEMPLATE,
                 status=2,
                 title="Not a formatter",
-                problems=["to pick fields out, use jq:  dg dev | jq -r '.step'"],
+                problems=[Issue.of(USE_JQ)],
             )
         else:
             # The formatter that would render this refusal is the one that is missing, so it
             # is written in the default output rather than rendered.
             emit_problem(
-                f"{named!r} is not a formatter",
+                NOT_A_FORMATTER,
                 status=2,
                 title="Not a formatter",
-                problems=[f"the formatters are {', '.join(registered)}"],
+                problems=[Issue.of(FORMATTERS_ARE, formatters=", ".join(registered))],
+                named=repr(named),
             )
         raise typer.Exit(code=2)
     lines = file.read_text().splitlines() if file is not None else sys.stdin
@@ -306,7 +337,7 @@ def db_current() -> None:
     current = migrations.current_revision(settings)
     head = migrations.head_revision(settings)
     if current is None:
-        refuse("the database has never been migrated", title="Not migrated", problems=["run dg db upgrade"])
+        refuse(NEVER_MIGRATED, title="Not migrated", problems=[Issue.of(RUN_DB_UPGRADE)])
         raise typer.Exit(code=1)
     emit_fact(
         "db.revision",
@@ -351,7 +382,7 @@ def connection_ensure(
     kind = kinds.get(kind_id)
     if kind is None:
         known = ", ".join(sorted(kinds)) or "none are installed"
-        commands.fail(f"no connection kind {kind_id!r} is installed ({known})")
+        commands.fail(UNKNOWN_CONNECTION_KIND, kind=repr(kind_id), known=known)
     model = kind.config_model
     config = commands.parse_params(set_value, schema=model.model_json_schema())
     try:
@@ -359,12 +390,12 @@ def connection_ensure(
     except ValidationError as error:
         # include_input=False: the input here is a credential, and pydantic's default error
         # payload echoes the value that failed.
-        commands.fail(f"{code} is not a usable {kind_id} connection: {error.errors(include_input=False)}")
+        commands.fail(CONNECTION_UNUSABLE, code=code, kind=kind_id, detail=str(error.errors(include_input=False)))
     key = settings.secret_key.get_secret_value() if settings.secret_key else None
     try:
         public, envelope, key_id = SecretBox(key).encrypt_config(model, validated)
     except SecretError as error:
-        commands.fail(str(error))
+        commands.fail(AUTH_REFUSED, detail=str(error))
     written = asyncio.run(
         store_connection(
             settings,
@@ -556,7 +587,7 @@ def prune_command(
     try:
         policy = _prune_policy(settings, runs, logs, deliveries, firings, notifications, scratch=scratch)
     except ValueError as error:
-        refuse(str(error), status=2, title="Invalid age")
+        refuse(INVALID_AGE, status=2, title="Invalid age", detail=str(error))
         raise typer.Exit(code=2) from error
     asyncio.run(_prune(settings, policy, state, dry_run=dry_run))
 
@@ -599,10 +630,10 @@ async def _prune(settings: Settings, policy: "retention.Policy", state: CliState
     out = commands.sink(state)
     if not retention.configured(policy):
         refuse(
-            "no family has an age, so there is nothing to prune",
+            NOTHING_TO_PRUNE,
             status=2,
             title="Nothing configured",
-            problems=["give --runs, --logs, --deliveries, --firings or --notifications, or configure one"],
+            problems=[Issue.of(GIVE_AN_AGE)],
         )
         raise typer.Exit(code=2)
     engine = create_engine(settings)
@@ -663,15 +694,10 @@ def server(
     _process_logging(_level(ctx, settings), cap_foreign=_cap_foreign(ctx))
     if settings.is_sqlite and settings.scheduler_enabled:
         refuse(
-            "dg server embeds the scheduler, and leadership is a PostgreSQL advisory lock: on SQLite "
-            "nothing stops a second server double-firing every schedule",
+            SERVER_NEEDS_A_LEADER,
             status=commands.GUARD_EXIT,
             title="SQLite cannot elect a leader",
-            problems=[
-                "use dg dev for the standalone mode",
-                "or pass --no-scheduler",
-                "or point DIRIGENT_DATABASE_URL at PostgreSQL",
-            ],
+            problems=[Issue.of(USE_DG_DEV_STANDALONE), Issue.of(OR_NO_SCHEDULER), Issue.of(OR_POSTGRES)],
         )
         raise typer.Exit(code=commands.GUARD_EXIT)
     uvicorn.run(
@@ -706,11 +732,7 @@ def docker_reap(
     settings = get_settings()
     _process_logging(_level(ctx, settings), cap_foreign=_cap_foreign(ctx), stream=sys.stderr)
     if not reaper.reachable():
-        refuse(
-            "docker is not on this host's PATH, so there is no daemon to reap stacks from",
-            status=commands.GUARD_EXIT,
-            title="No docker daemon",
-        )
+        refuse(NO_DOCKER_DAEMON, status=commands.GUARD_EXIT, title="No docker daemon")
         raise typer.Exit(code=commands.GUARD_EXIT)
     asyncio.run(_docker_reap(settings, Sink(output_mode()), dry_run=dry_run))
 
@@ -805,7 +827,7 @@ async def _create_user(
             user = await create_user(session, username, password, role=role, email=email)
             return user.username
     except AuthError as error:
-        refuse(str(error))
+        refuse(AUTH_REFUSED, detail=str(error))
         raise typer.Exit(code=1) from error
     finally:
         await engine.dispose()
@@ -876,10 +898,10 @@ def dev(
     )
     if not settings.is_sqlite:
         refuse(
-            "dg dev is the SQLite standalone mode",
+            DEV_IS_SQLITE_ONLY,
             status=commands.GUARD_EXIT,
             title="Not SQLite",
-            problems=["use dg server on PostgreSQL"],
+            problems=[Issue.of(USE_DG_SERVER)],
         )
         raise typer.Exit(code=commands.GUARD_EXIT)
     if wipe_state:
@@ -1040,10 +1062,10 @@ async def seed_token(settings: Settings) -> str:
             admins = [user for user in await list_users(session) if user.role is UserRole.ADMIN and user.active]
             if not admins:
                 refuse(
-                    "dg dev --seed has no admin account to seed as",
+                    NO_ADMIN_TO_SEED,
                     status=commands.GUARD_EXIT,
                     title="No admin",
-                    problems=["create one with dg admin user create --role admin"],
+                    problems=[Issue.of(CREATE_AN_ADMIN)],
                 )
                 raise typer.Exit(code=commands.GUARD_EXIT)
             issued = await issue_token(session, admins[0], name=SEED_TOKEN_NAME, lifetime=SEED_TOKEN_LIFETIME)
@@ -1181,10 +1203,10 @@ def worker(
     configure_telemetry(settings)
     if settings.is_sqlite:
         refuse(
-            "dg worker refuses to start on SQLite: its claim fallback is only correct with exactly one process",
+            WORKER_NEEDS_POSTGRES,
             status=commands.GUARD_EXIT,
             title="SQLite claims only one process",
-            problems=["use dg dev", "or point DIRIGENT_DATABASE_URL at PostgreSQL"],
+            problems=[Issue.of(USE_DG_DEV), Issue.of(OR_POSTGRES)],
         )
         raise typer.Exit(code=commands.GUARD_EXIT)
     asyncio.run(_worker(settings, concurrency, tag, name))
@@ -1216,11 +1238,10 @@ def scheduler_command(ctx: typer.Context) -> None:
     configure_telemetry(settings)
     if settings.is_sqlite:
         refuse(
-            "dg scheduler refuses to start on SQLite: leadership is a PostgreSQL advisory lock, and "
-            "without one nothing stops a second scheduler double-firing every schedule",
+            SCHEDULER_NEEDS_POSTGRES,
             status=commands.GUARD_EXIT,
             title="SQLite cannot elect a leader",
-            problems=["use dg dev", "or point DIRIGENT_DATABASE_URL at PostgreSQL"],
+            problems=[Issue.of(USE_DG_DEV), Issue.of(OR_POSTGRES)],
         )
         raise typer.Exit(code=commands.GUARD_EXIT)
     emit(

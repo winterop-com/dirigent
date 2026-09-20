@@ -10,13 +10,15 @@ schema rather than a wrapper around one. A stored body is checked to be a valid 
 """
 
 import sqlalchemy as sa
-from fastapi import APIRouter, HTTPException, Response, status
+from fastapi import APIRouter, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirigent_client.schemas import Page, SchemaIn, SchemaOut, SchemaUpdate
 from dirigent_core.models import Schema
 from dirigent_core.schemas import check_valid_schema, resolve_identity
 from dirigent_server.dependencies import SessionDep
+from dirigent_server.errors import Refusal
+from dirigent_server.messages import NO_SCHEMA, SCHEMA_EXISTS
 from dirigent_server.pagination import DEFAULT_PAGE, AfterParam, LimitParam, clip
 from dirigent_server.security import AdminDep, PrincipalDep
 from dirigent_server.transactions import Transactional
@@ -41,7 +43,7 @@ async def find(session: AsyncSession, code: str) -> Schema:
     """Read one stored schema by code, or 404."""
     row = (await session.execute(sa.select(Schema).where(Schema.code == code))).scalar_one_or_none()
     if row is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"no schema coded {code!r}")
+        raise Refusal(NO_SCHEMA, status=status.HTTP_404_NOT_FOUND, code=repr(code))
     return row
 
 
@@ -77,7 +79,7 @@ async def create_schema(payload: SchemaIn, session: SessionDep, principal: Admin
     )
     existing = (await session.execute(sa.select(Schema).where(Schema.code == code))).scalar_one_or_none()
     if existing is not None:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"a schema coded {code!r} exists")
+        raise Refusal(SCHEMA_EXISTS, status=status.HTTP_409_CONFLICT, code=repr(code))
     row = Schema(code=code, name=name, description=description, body=payload.body)
     session.add(row)
     await session.flush()

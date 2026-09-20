@@ -35,6 +35,12 @@ from dirigent_core.engine.services import EngineServices
 from dirigent_core.engine.state import lock_pipeline
 from dirigent_core.errors import DomainError
 from dirigent_core.logging import get_logger
+from dirigent_core.messages import (
+    PIPELINE_IN_USE,
+    PIPELINE_NO_SUCH_VERSION,
+    PIPELINE_NO_VERSIONS,
+    UNKNOWN_PIPELINE,
+)
 from dirigent_core.models import (
     ArtifactRef,
     Connection,
@@ -64,9 +70,11 @@ class PipelineError(DomainError):
 class UnknownPipeline(PipelineError):
     """No live pipeline holds the given code."""
 
+    message = UNKNOWN_PIPELINE
+
     def __init__(self, code: str) -> None:
         """Name what was asked for."""
-        super().__init__(f"no pipeline coded {code!r}")
+        super().__init__(code=repr(code))
         self.code = code
 
 
@@ -74,12 +82,11 @@ class PipelineInUse(PipelineError):
     """A pipeline was asked to be deleted while runs of it are still in flight."""
 
     status = 409
+    message = PIPELINE_IN_USE
 
     def __init__(self, code: str, runs: int) -> None:
         """Say how much work is still in flight, and what to do about it."""
-        super().__init__(
-            f"pipeline {code!r} has {runs} run(s) still in flight and cannot be deleted; finish or cancel them first"
-        )
+        super().__init__(code=repr(code), runs=runs)
         self.code = code
         self.runs = runs
 
@@ -167,13 +174,13 @@ async def get_version(session: AsyncSession, pipeline: Pipeline, version: int | 
     """Read one version of a pipeline, defaulting to the current one."""
     wanted = version if version is not None else pipeline.current_version
     if wanted is None:
-        raise PipelineError(f"pipeline {pipeline.code!r} has no versions yet")
+        raise PipelineError(PIPELINE_NO_VERSIONS, code=repr(pipeline.code))
     found = await session.execute(
         sa.select(PipelineVersion).where(PipelineVersion.pipeline_id == pipeline.id, PipelineVersion.version == wanted)
     )
     row = found.scalar_one_or_none()
     if row is None:
-        raise PipelineError(f"pipeline {pipeline.code!r} has no version {wanted}")
+        raise PipelineError(PIPELINE_NO_SUCH_VERSION, code=repr(pipeline.code), version=wanted)
     return row
 
 
@@ -487,6 +494,7 @@ class FailedStep(NamedTuple):
 
     step: str
     error: str | None
+    code: str | None
 
 
 async def failing_steps(session: AsyncSession, run_ids: Sequence[UUID]) -> dict[UUID, FailedStep]:
@@ -502,12 +510,13 @@ async def failing_steps(session: AsyncSession, run_ids: Sequence[UUID]) -> dict[
             StepAttempt.run_id,
             StepAttempt.step_name,
             StepAttempt.error,
+            StepAttempt.error_code,
             sa.func.row_number().over(partition_by=StepAttempt.run_id, order_by=StepAttempt.id).label("rank"),
         )
         .where(StepAttempt.run_id.in_(run_ids), StepAttempt.status == AttemptStatus.FAILED)
         .subquery()
     )
     rows = await session.execute(
-        sa.select(ranked.c.run_id, ranked.c.step_name, ranked.c.error).where(ranked.c.rank == 1)
+        sa.select(ranked.c.run_id, ranked.c.step_name, ranked.c.error, ranked.c.error_code).where(ranked.c.rank == 1)
     )
-    return {run_id: FailedStep(step, error) for run_id, step, error in rows.all()}
+    return {run_id: FailedStep(step, error, code) for run_id, step, error, code in rows.all()}

@@ -28,6 +28,23 @@ from dirigent_core.engine.definition import (
 from dirigent_core.engine.runs import RunWindow
 from dirigent_core.errors import DomainError
 from dirigent_core.logging import get_logger
+from dirigent_core.messages import (
+    BAD_CRON,
+    BAD_INTERVAL,
+    BAD_MOMENT,
+    CRON_NO_FUTURE,
+    CRON_NO_TIME_AFTER,
+    CRON_NO_TIME_BEFORE,
+    DUPLICATE_SCHEDULE,
+    NO_CRON,
+    NO_INSTANT,
+    NO_INTERVAL,
+    SCHEDULE_EXACTLY_ONE_CLOCK,
+    SCHEDULE_PARAMS,
+    UNKNOWN_SCHEDULE,
+    UNKNOWN_TIMEZONE,
+    WHOLE_SECONDS,
+)
 from dirigent_core.models import Pipeline, Schedule, ScheduleFiring, utcnow
 
 _logger = get_logger("scheduler")
@@ -41,10 +58,11 @@ class DuplicateSchedule(ScheduleError):
     """A pipeline already has a schedule of that code."""
 
     status = 409
+    message = DUPLICATE_SCHEDULE
 
     def __init__(self, pipeline: str, code: str) -> None:
         """Name the pipeline and the schedule."""
-        super().__init__(f"pipeline {pipeline!r} already has a schedule coded {code!r}")
+        super().__init__(pipeline=repr(pipeline), code=repr(code))
         self.pipeline = pipeline
         self.code = code
 
@@ -53,10 +71,11 @@ class UnknownSchedule(ScheduleError):
     """No schedule of that code exists on this pipeline."""
 
     status = 404
+    message = UNKNOWN_SCHEDULE
 
     def __init__(self, pipeline: str, code: str) -> None:
         """Name the pipeline and the schedule."""
-        super().__init__(f"pipeline {pipeline!r} has no schedule coded {code!r}")
+        super().__init__(pipeline=repr(pipeline), code=repr(code))
         self.pipeline = pipeline
         self.code = code
 
@@ -116,7 +135,7 @@ def check_schedule(request: ScheduleRequest) -> None:
     declared = [field for field in ("cron", "interval", "at") if getattr(request, field) is not None]
     if len(declared) != 1:
         named = ", ".join(declared) or "none"
-        raise ScheduleError(f"a schedule declares exactly one of cron, interval, or at ({named})")
+        raise ScheduleError(SCHEDULE_EXACTLY_ONE_CLOCK, named=named)
     resolve_zone(request.timezone)
     if request.cron is not None:
         _check_cron(request.cron, request.timezone)
@@ -128,9 +147,7 @@ def _check_interval(interval: timedelta) -> None:
     """Refuse an interval the row cannot hold: it is stored as whole seconds."""
     seconds = interval.total_seconds()
     if seconds < 1 or seconds != int(seconds):
-        raise ScheduleError(
-            f"an interval schedule fires every whole number of seconds, at least one, not every {seconds}s"
-        )
+        raise ScheduleError(WHOLE_SECONDS, seconds=seconds)
 
 
 def check_schedule_params(definition: PipelineDefinition, params: JsonMap, format_checker: FormatChecker) -> None:
@@ -142,7 +159,7 @@ def check_schedule_params(definition: PipelineDefinition, params: JsonMap, forma
     try:
         definition.validate_params(dict(params), format_checker)
     except ParameterError as error:
-        raise ScheduleError(str(error)) from error
+        raise ScheduleError(SCHEDULE_PARAMS, detail=str(error)) from error
 
 
 def resolve_zone(name: str) -> ZoneInfo:
@@ -150,7 +167,7 @@ def resolve_zone(name: str) -> ZoneInfo:
     try:
         return ZoneInfo(name)
     except (ZoneInfoNotFoundError, ValueError) as error:
-        raise ScheduleError(f"{name!r} is not an IANA timezone this host knows (try 'UTC' or 'Europe/Oslo')") from error
+        raise ScheduleError(UNKNOWN_TIMEZONE, name=repr(name)) from error
 
 
 def _check_cron(expression: str, timezone: str) -> None:
@@ -158,9 +175,9 @@ def _check_cron(expression: str, timezone: str) -> None:
     try:
         next(CronSim(expression, datetime.now(resolve_zone(timezone))))
     except CronSimError as error:
-        raise ScheduleError(f"{expression!r} is not a cron expression: {error}") from error
+        raise ScheduleError(BAD_CRON, expression=repr(expression), detail=str(error)) from error
     except StopIteration as error:  # pragma: no cover - an expression that never fires again
-        raise ScheduleError(f"{expression!r} names no future time") from error
+        raise ScheduleError(CRON_NO_FUTURE, expression=repr(expression)) from error
 
 
 def next_fire_after(
@@ -181,19 +198,21 @@ def next_fire_after(
     match kind:
         case ScheduleKind.CRON:
             if cron is None:  # pragma: no cover - the check refuses this at declaration time
-                raise ScheduleError("a cron schedule has no expression")
+                raise ScheduleError(NO_CRON)
             local = after.astimezone(resolve_zone(timezone))
             try:
                 return next(CronSim(cron, local)).astimezone(UTC)
             except (CronSimError, StopIteration) as error:
-                raise ScheduleError(f"{cron!r} names no time after {after.isoformat()}: {error}") from error
+                raise ScheduleError(
+                    CRON_NO_TIME_AFTER, cron=repr(cron), after=after.isoformat(), detail=str(error)
+                ) from error
         case ScheduleKind.INTERVAL:
             if not interval_seconds:  # pragma: no cover - the check refuses this at declaration time
-                raise ScheduleError("an interval schedule has no interval")
+                raise ScheduleError(NO_INTERVAL)
             return after + timedelta(seconds=interval_seconds)
         case ScheduleKind.ONE_TIME:
             if run_at is None:  # pragma: no cover - the check refuses this at declaration time
-                raise ScheduleError("a one-time schedule has no instant")
+                raise ScheduleError(NO_INSTANT)
             return run_at if run_at > after else None
 
 
@@ -257,7 +276,7 @@ def _interval(text: str | None) -> timedelta | None:
             raise DurationError(text)
         return refuse_negative(parsed)
     except ValueError as error:
-        raise ScheduleError(str(error)) from error
+        raise ScheduleError(BAD_INTERVAL, detail=str(error)) from error
 
 
 def _moment(text: str | None) -> datetime | None:
@@ -267,7 +286,7 @@ def _moment(text: str | None) -> datetime | None:
     try:
         return datetime.fromisoformat(text)
     except ValueError as error:
-        raise ScheduleError(f"{text!r} is not a moment: write one as 2026-06-01T09:00:00Z") from error
+        raise ScheduleError(BAD_MOMENT, text=repr(text)) from error
 
 
 def first_fire_at(request: ScheduleRequest, *, now: datetime | None = None) -> datetime | None:
@@ -312,15 +331,17 @@ def previous_fire_before(schedule: Schedule, before: datetime) -> datetime | Non
     match schedule.kind:
         case ScheduleKind.CRON:
             if schedule.cron is None:  # pragma: no cover - the check refuses this at declaration time
-                raise ScheduleError("a cron schedule has no expression")
+                raise ScheduleError(NO_CRON)
             local = before.astimezone(resolve_zone(schedule.timezone))
             try:
                 return next(CronSim(schedule.cron, local, reverse=True)).astimezone(UTC)
             except (CronSimError, StopIteration) as error:
-                raise ScheduleError(f"{schedule.cron!r} names no time before {before.isoformat()}: {error}") from error
+                raise ScheduleError(
+                    CRON_NO_TIME_BEFORE, cron=repr(schedule.cron), before=before.isoformat(), detail=str(error)
+                ) from error
         case ScheduleKind.INTERVAL:
             if not schedule.interval_seconds:  # pragma: no cover - refused at declaration time
-                raise ScheduleError("an interval schedule has no interval")
+                raise ScheduleError(NO_INTERVAL)
             return before - timedelta(seconds=schedule.interval_seconds)
         case ScheduleKind.ONE_TIME:
             return None
@@ -348,7 +369,7 @@ def occurrences_between(schedule: Schedule, *, start: datetime, end: datetime) -
     """
     if schedule.kind is ScheduleKind.INTERVAL:
         if not schedule.interval_seconds:  # pragma: no cover - refused at declaration time
-            raise ScheduleError("an interval schedule has no interval")
+            raise ScheduleError(NO_INTERVAL)
         step = timedelta(seconds=schedule.interval_seconds)
         moment = start
         while moment < end:

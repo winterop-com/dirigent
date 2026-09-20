@@ -135,7 +135,7 @@ def _loose(mapping: "dict[str, Any]") -> Problem | None:
     if isinstance(detail, str):
         return _synthesised(detail)
     if isinstance(detail, list):
-        issues = validation_issues([entry for entry in cast("list[Any]", detail) if isinstance(entry, dict)])
+        issues = validation_issues([entry for entry in detail if isinstance(entry, dict)])
         return _synthesised("; ".join(str(issue) for issue in issues), problems=issues)
     return None
 

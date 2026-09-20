@@ -7,6 +7,13 @@ import typer
 
 from dirigent_cli.commands import paged, parse_log_levels, parse_params, parse_priority
 from dirigent_cli.context import Session, client_for, state_of
+from dirigent_cli.messages import (
+    AT_TAKES_AN_INSTANT,
+    MAP_TAKES_A_PATH,
+    NOT_AN_ALERT_EVENT,
+    ONE_BODY,
+    ONE_CLOCK,
+)
 from dirigent_cli.output import (
     console,
     emit_fact,
@@ -19,6 +26,7 @@ from dirigent_cli.output import (
     table,
 )
 from dirigent_client import AlertEvent, AlertScope, WebhookTokenOut
+from dirigent_common import Message
 
 schedule_app = typer.Typer(
     name="schedule", help="A pipeline's clocks: cron, interval, or one-time.", no_args_is_help=True
@@ -39,12 +47,12 @@ def _check_clock(cron: str | None, interval: str | None, at: str | None) -> None
     declared = [flag for flag, value in (("--cron", cron), ("--interval", interval), ("--at", at)) if value]
     if len(declared) != 1:
         named = ", ".join(declared) or "none"
-        _fail(f"a schedule takes exactly one of --cron, --interval, or --at ({named} given)")
+        _fail(ONE_CLOCK, named=named)
 
 
-def _fail(message: str) -> None:
+def _fail(message: Message, /, **params: Any) -> None:
     """Write a refusal the CLI decided on its own as a record, and exit non-zero."""
-    refuse(message)
+    refuse(message, **params)
     raise typer.Exit(code=1)
 
 
@@ -132,7 +140,7 @@ def _instant(value: str | None) -> Any:
     try:
         return datetime.fromisoformat(value)
     except ValueError:
-        _fail(f"--at takes an ISO instant, and {value!r} is not one")
+        _fail(AT_TAKES_AN_INSTANT, value=repr(value))
 
 
 @schedule_app.command("list")
@@ -274,7 +282,7 @@ def webhook_create(
     mapping: dict[str, str] = {}
     for entry in map_value or []:
         if "=" not in entry:
-            _fail(f"--map takes param=$.path.into.payload, and {entry!r} has no '='")
+            _fail(MAP_TAKES_A_PATH, entry=repr(entry))
         key, path = entry.split("=", 1)
         mapping[key.strip()] = path.strip()
     with client_for(state_of(ctx)) as dg:
@@ -452,9 +460,9 @@ def alerts_rules_create(
 ) -> None:
     """Declare an alert rule binding an event at a scope to a channel."""
     if event not in set(AlertEvent):
-        _fail(f"{event!r} is not an alert event ({', '.join(sorted(AlertEvent))})")
+        _fail(NOT_AN_ALERT_EVENT, event=repr(event), allowed=", ".join(sorted(AlertEvent)))
     if body is not None and body_file is not None:
-        _fail("a rule takes one body: --body or --body-file, not both")
+        _fail(ONE_BODY)
     if body_file is not None:
         body = body_file.read_text()
     with client_for(state_of(ctx)) as dg:

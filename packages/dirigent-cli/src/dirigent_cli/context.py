@@ -9,6 +9,8 @@ from urllib.parse import urlsplit
 import typer
 from pydantic import BaseModel, ConfigDict
 
+from dirigent_cli.messages import CALL_REFUSED
+from dirigent_cli.messages import LOCAL_INSTANCE_HINT as LOCAL_INSTANCE_HINT_MESSAGE
 from dirigent_cli.output import (
     FULL_VERBOSITY,
     Detail,
@@ -19,6 +21,7 @@ from dirigent_cli.output import (
 from dirigent_cli.profiles import Endpoint, ProfileError, resolve_endpoint
 from dirigent_cli.stream import ansi
 from dirigent_client import BlockingDirigent, DirigentError, TransportError
+from dirigent_common import Issue
 from dirigent_core.logging import NOISY_LOGGERS, configure_logging
 from dirigent_core.protocol import Format
 
@@ -110,7 +113,7 @@ def state_of(ctx: typer.Context) -> CliState:
 
 
 #: What a refused connection to a loopback address adds: the local instance is not running.
-LOCAL_INSTANCE_HINT = "nothing is listening there; uv run dg dev in the project starts its instance"
+LOCAL_INSTANCE_HINT = Issue.of(LOCAL_INSTANCE_HINT_MESSAGE)
 
 LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 
@@ -131,9 +134,9 @@ class Session(BlockingDirigent):
             if error.problem is not None:
                 write_refusal(error.problem)
             elif isinstance(error, TransportError) and _is_local(error.url):
-                refuse(error.message, problems=[LOCAL_INSTANCE_HINT])
+                refuse(CALL_REFUSED, problems=[LOCAL_INSTANCE_HINT], detail=error.message)
             else:
-                refuse(error.message, status=error.status or 1)
+                refuse(CALL_REFUSED, status=error.status or 1, detail=error.message)
             raise typer.Exit(code=1) from error
 
 

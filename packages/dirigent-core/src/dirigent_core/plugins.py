@@ -14,6 +14,13 @@ from pydantic import BaseModel
 from dirigent_client.schemas import BlockEntry, BlockKind, Catalog, SurfaceEntry
 from dirigent_common import API_VERSION, HumaneJsonSchema, JsonMap, as_markdown
 from dirigent_core.errors import DomainError
+from dirigent_core.messages import (
+    AMBIGUOUS_EXAMPLE,
+    DUPLICATE_CONTRIBUTION,
+    UNKNOWN_BLOCK,
+    UNKNOWN_EXAMPLE,
+    UNSUPPORTED_API_VERSION,
+)
 from dirigent_core.secrets import secret_fields
 from dirigent_plugin import (
     ENTRY_POINT_GROUP,
@@ -40,12 +47,11 @@ class PluginError(DomainError):
 class UnsupportedApiVersion(PluginError):
     """A plugin was written against a different revision of the block contract."""
 
+    message = UNSUPPORTED_API_VERSION
+
     def __init__(self, plugin: str, api_version: int) -> None:
         """Name the plugin and both API versions."""
-        super().__init__(
-            f"plugin {plugin!r} contributes api_version {api_version}; this host speaks {API_VERSION}. "
-            f"Upgrade the plugin, or the host, so both agree."
-        )
+        super().__init__(plugin=repr(plugin), api_version=api_version, host_version=API_VERSION)
         self.plugin = plugin
         self.api_version = api_version
 
@@ -54,12 +60,16 @@ class DuplicateContribution(PluginError):
     """Two plugins claimed the same public identifier."""
 
     status = 409
+    message = DUPLICATE_CONTRIBUTION
 
     def __init__(self, surface: str, identifier: str, first: str, second: str) -> None:
         """Name the identifier and both plugins."""
         super().__init__(
-            f"{surface} {identifier!r} is contributed by both {first!r} and {second!r}. "
-            f"{surface.capitalize()}s are public API, so one of the two packages must be uninstalled or renamed."
+            surface=surface,
+            identifier=repr(identifier),
+            first=repr(first),
+            second=repr(second),
+            surface_title=surface.capitalize(),
         )
         self.surface = surface
         self.identifier = identifier
@@ -70,28 +80,25 @@ class UnknownBlock(PluginError):
     """A stored pipeline referenced a block no installed plugin contributes."""
 
     status = 404
+    message = UNKNOWN_BLOCK
 
     def __init__(self, block_id: str, known: Iterable[str]) -> None:
         """Name the block and the size of the catalog."""
-        super().__init__(
-            f"no block {block_id!r} is installed; the catalog has {len(list(known))} blocks. "
-            f"Install the plugin package that contributes it."
-        )
+        super().__init__(block_id=repr(block_id), catalog_size=len(list(known)))
         self.block_id = block_id
 
 
 class UnknownExample(PluginError):
     """No single example of the installed corpus answers to a code."""
 
+    message = UNKNOWN_EXAMPLE
+
     def __init__(self, code: str, plugins: Sequence[str] = ()) -> None:
         """Name the code, and the plugins that both claim it when two do."""
         if plugins:
-            super().__init__(
-                f"example {code!r} is carried by {' and '.join(repr(one) for one in plugins)}; "
-                f"the code alone does not name one of them."
-            )
+            super().__init__(AMBIGUOUS_EXAMPLE, code=repr(code), plugins=" and ".join(repr(one) for one in plugins))
         else:
-            super().__init__(f"no example {code!r} is installed; `dg examples list` says what is.")
+            super().__init__(code=repr(code))
         self.code = code
         self.plugins = list(plugins)
         self.status = 409 if self.plugins else 404

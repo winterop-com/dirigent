@@ -167,7 +167,7 @@ def _refused(origin: str, reason: str) -> Record:
 
 def _reason(error: DirigentError) -> str:
     """Read a refusal as the one line a record carries."""
-    return "; ".join(error.problems) or error.message
+    return "; ".join(str(problem) for problem in error.problems) or error.message
 
 
 async def seed_installed(client: Dirigent) -> AsyncIterator[Record]:

@@ -13,8 +13,9 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from dirigent_common.types import JsonMap
 
-#: A message name: one lowercase word, or several joined by underscores.
-NAME_PATTERN: Final = re.compile(r"^[a-z][a-z0-9_]*$")
+#: A message name: lowercase words joined by underscores, and dotted where a family of
+#: refusals groups under one thing, as a health check's do.
+NAME_PATTERN: Final = re.compile(r"^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$")
 
 #: A catalogue prefix: one or more lowercase segments separated by dots.
 PREFIX_PATTERN: Final = re.compile(r"^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$")

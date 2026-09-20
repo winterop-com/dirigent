@@ -29,6 +29,60 @@ from dirigent_cli.local import (
     load_schema_specs,
     run_document,
 )
+from dirigent_cli.messages import (
+    ADMIN_IS_FIXED_IN_A_STACK,
+    ALL_TAKES_NO_CODE,
+    ALREADY_THERE,
+    AS_IS_ONE_DOCUMENT,
+    CANNOT_PROMPT,
+    CANNOT_PROMPT_SET,
+    CONCURRENCY_REFUSED,
+    DOCUMENT_INVALID,
+    GUARD_REFUSED,
+    INIT_CANCELLED,
+    INIT_REFUSED,
+    INIT_WAY,
+    INSTANCE_ALREADY_HERE,
+    KEEP_IS_LOCAL_ONLY,
+    LOCAL_RUN_HAD_NO_OUTCOME,
+    LOCAL_TAKES_A_DOCUMENT,
+    LOCAL_TAKES_NO_SERVER,
+    LOG_LEVEL_NO_PATTERN,
+    LOG_LEVEL_NOT_A_LEVEL,
+    NAME_A_PIPELINE,
+    NAME_ANOTHER_CODE,
+    NO_DOCUMENT_AND_NO_PROJECT,
+    NO_FAILURE_TO_RETRY,
+    NO_FIRST_PASSWORD,
+    NO_REPORT_DOCUMENT,
+    NO_SUCH_EXAMPLE,
+    NOT_A_BLOCK_KIND,
+    NOT_A_PRIORITY,
+    NOT_A_RUN_STATUS,
+    NOT_A_STARTER,
+    NOT_A_WINDOW,
+    NOT_AUTHENTICATED,
+    OR_A_PROFILE_TOKEN,
+    OR_DG_AUTH_LOGIN,
+    PARAMS_REFUSED,
+    PRIORITY_IS_NOT_LOCAL,
+    PROJECT_IS_EMPTY,
+    PRUNE_IS_PROJECT_WIDE,
+    ROOT_IS_LOCAL_ONLY,
+    RUN_SKIPPED,
+    SCAFFOLD_REFUSED,
+    SCHEMA_NOT_AN_OBJECT,
+    SCHEMA_UNREADABLE,
+    SET_DG_TOKEN,
+    SOURCE_REFUSED,
+    STARTER_TAG_NEEDED,
+    STRICT_NEEDS_WATCH,
+    TRIGGERS_DOCUMENT_NOT_RUNNABLE,
+    UNKNOWN_CONNECTION_KIND,
+    UNSAFE_FOR_THE_INSTANCE,
+    UNSAFE_FOR_THIS_RUN,
+)
+from dirigent_cli.messages import WINDOW_GRAMMAR as WINDOW_GRAMMAR_MESSAGE
 from dirigent_cli.output import (
     Detail,
     age,
@@ -100,7 +154,7 @@ from dirigent_client import (
     RunStatus,
     ValidationIssue,
 )
-from dirigent_common import JsonMap
+from dirigent_common import Issue, JsonMap, Message
 from dirigent_core import migrations
 from dirigent_core.config import STATE_DIR, Settings
 from dirigent_core.documents import (
@@ -164,9 +218,9 @@ def paged[T](fetch: Callable[[str | None, int], Page[T]], limit: int | None) -> 
         after = page.next
 
 
-def fail(message: str) -> NoReturn:
+def fail(message: Message, /, **params: Any) -> NoReturn:
     """Write a refusal the CLI decided on as a record, and exit non-zero."""
-    refuse(message)
+    refuse(message, **params)
     raise typer.Exit(code=1)
 
 
@@ -182,7 +236,7 @@ def ask(label: str, *, hide: bool = False) -> str:
     invocation fails with a JSON object instead of blocking on a terminal that is a pipe.
     """
     if json_mode():
-        fail(f"--json cannot prompt for {label}; pass it as an option")
+        fail(CANNOT_PROMPT, label=label)
     return str(typer.prompt(label, hide_input=hide))
 
 
@@ -199,7 +253,7 @@ def _apply_one(
     try:
         body = parse_document(document)
     except SourceError as error:
-        fail(str(error))
+        fail(SOURCE_REFUSED, detail=str(error))
     return dg.call(
         dg.pipelines.apply(
             body,
@@ -271,7 +325,7 @@ def _runnable(text: str) -> PipelineDefinition:
     """Read a document a local run is about to execute, refusing the kind that cannot be run."""
     definition = load_text(text)
     if not isinstance(definition, PipelineDefinition):
-        fail("a triggers document declares clocks for a pipeline and cannot be run; run the pipeline it names")
+        fail(TRIGGERS_DOCUMENT_NOT_RUNNABLE)
     return definition
 
 
@@ -312,7 +366,7 @@ def apply_command(
     """
     state = state_of(ctx)
     if prune and reference is not None:
-        fail("--prune reconciles a whole project, so it cannot be used with a single document")
+        fail(PRUNE_IS_PROJECT_WIDE)
     documents = _documents_to_apply(reference, as_code)
     source = ProvenanceSource.DIRECTORY if prune else None
     with client_for(state) as dg:
@@ -356,18 +410,18 @@ def _documents_to_apply(reference: str | None, as_code: str | None) -> list[Docu
         try:
             return [read_document(reference)]
         except SourceError as error:
-            fail(str(error))
+            fail(SOURCE_REFUSED, detail=str(error))
     project = find_project()
     if project is None:
-        fail("no document was named and this directory is not a project; run dg init, or name a file")
+        fail(NO_DOCUMENT_AND_NO_PROJECT)
     if as_code is not None:
-        fail("--as recodes one document, so it cannot be used when applying a whole project")
+        fail(AS_IS_ONE_DOCUMENT)
     try:
         paths = cast("Any", project).documents()
     except ProjectError as error:
-        fail(str(error))
+        fail(SOURCE_REFUSED, detail=str(error))
     if not paths:
-        fail(f"{cast('Any', project).pipelines_dir} holds no documents")
+        fail(PROJECT_IS_EMPTY, directory=cast("Any", project).pipelines_dir)
     # Pipelines go before triggers documents: one that names a pipeline the instance does not
     # hold yet is refused, and applying the pipeline first is what makes it present.
     return sorted((read_path(path) for path in paths), key=_declares_triggers)
@@ -562,7 +616,7 @@ def init_command(
             root, version=version, admin=admin, password=password or os.environ.get(BOOTSTRAP_PASSWORD_ENV, "")
         )
         if chosen is None:
-            _init_fail("cancelled; nothing was written")
+            _init_fail(INIT_CANCELLED)
         choices = chosen
     else:
         choices = InitChoices(
@@ -577,17 +631,17 @@ def init_command(
         try:
             check_choices(choices)
         except ProjectError as error:
-            _init_fail(str(error))
+            _init_fail(INIT_REFUSED, detail=str(error))
         if choices.stack and admin != "admin":
-            _init_fail("--admin does not apply to the compose template; the stack's first admin is named admin")
+            _init_fail(ADMIN_IS_FIXED_IN_A_STACK)
         if choices.template != "documents" and not choices.password:
             choices = choices.model_copy(update={"password": _prompt_for_a_password(stack=choices.stack)})
     if choices.template != "documents" and len(choices.password) < MIN_PASSWORD_LENGTH:
-        _init_fail(str(WeakPassword()))
+        _init_fail(INIT_REFUSED, detail=str(WeakPassword()))
     try:
         made = scaffold(directory, choices, version=version)
     except ProjectError as error:
-        _init_fail(str(error))
+        _init_fail(INIT_REFUSED, detail=str(error))
     left = [_within(path, directory) for path in made.skipped]
     described = {
         "template": choices.template,
@@ -649,16 +703,16 @@ def instance_settings(root: Path) -> Settings:
     )
 
 
-def _init_fail(message: str, *, ways: Sequence[tuple[str, str]] = ()) -> NoReturn:
+def _init_fail(message: Message, /, *, ways: Sequence[tuple[str, str]] = (), **params: Any) -> NoReturn:
     """Refuse an init: a record where records were asked for, plain sentences otherwise.
 
     Each way out is a command and what it does; the record carries them as one sentence
     each, and the rendering sets the commands in a column of their own.
     """
     if json_mode():
-        refuse(message, problems=[f"{command} {what}" for command, what in ways])
+        refuse(message, problems=[Issue.of(INIT_WAY, command=command, what=what) for command, what in ways], **params)
     else:
-        error_console.print(f"[red]{escape(message)}[/]", highlight=False)
+        error_console.print(f"[red]{escape(message.render(**params))}[/]", highlight=False)
         width = max((len(command) for command, _ in ways), default=0)
         for command, what in ways:
             error_console.print(f"  [bold]{escape(command).ljust(width)}[/]  [dim]{escape(what)}[/]", highlight=False)
@@ -674,7 +728,8 @@ def _refuse_an_existing_instance(root: Path) -> None:
     existing = instance_settings(root).sqlite_path
     if existing is not None and existing.exists():
         _init_fail(
-            f"this directory holds an instance already: {existing}",
+            INSTANCE_ALREADY_HERE,
+            path=existing,
             ways=[
                 ("dg dev", "starts it"),
                 ("dg db upgrade", "brings its schema forward"),
@@ -686,7 +741,7 @@ def _refuse_an_existing_instance(root: Path) -> None:
 def _prompt_for_a_password(*, stack: bool = False) -> str:
     """Ask for the first admin's password, or say how to give it without a prompt."""
     if not sys.stdin.isatty():
-        _init_fail(f"no password for the first admin: pass --password, or set {BOOTSTRAP_PASSWORD_ENV}")
+        _init_fail(NO_FIRST_PASSWORD, variable=BOOTSTRAP_PASSWORD_ENV)
     asked = "password for the stack's first admin" if stack else "password for the first admin"
     return str(typer.prompt(asked, hide_input=True, confirmation_prompt=True))
 
@@ -714,7 +769,7 @@ async def first_admin(settings: Settings, username: str, password: str) -> str:
             issued = await issue_token(session, user, name="init")
             return issued.secret.get_secret_value()
     except AuthError as error:
-        _init_fail(str(error))
+        _init_fail(INIT_REFUSED, detail=str(error))
     finally:
         await engine.dispose()
 
@@ -827,9 +882,9 @@ def pipeline_validate(
     """
     state = state_of(ctx)
     if every and (code is not None or version is not None):
-        fail("--all checks every pipeline, so it takes neither a code nor a version")
+        fail(ALL_TAKES_NO_CODE)
     if not every and code is None:
-        fail("name a pipeline, or pass --all to check every one of them")
+        fail(NAME_A_PIPELINE)
     with client_for(state) as dg:
         codes = (
             [row.code for row in paged(lambda after, size: dg.call(dg.pipelines.list(after=after, limit=size)), None)]
@@ -899,7 +954,7 @@ def parse_params(
     try:
         built = build_params(schema or {}, pairs=pairs or [], files=files or [])
     except ParamError as error:
-        fail(str(error))
+        fail(PARAMS_REFUSED, detail=str(error))
     properties = cast("dict[str, Any]", (schema or {}).get("properties") or {})
     return {
         name: value
@@ -912,7 +967,7 @@ def parse_params(
 WINDOW_SEPARATOR: Final = ".."
 
 #: The grammar, said once, so every refusal says the same thing.
-WINDOW_GRAMMAR: Final = "--window takes START..END: two ISO 8601 instants separated by '..'"
+WINDOW_GRAMMAR: Final = WINDOW_GRAMMAR_MESSAGE.render()
 
 
 def read_instant(value: str, flag: str) -> datetime:
@@ -940,7 +995,7 @@ def read_window(value: str) -> tuple[datetime, datetime]:
     """Read a ``START..END`` window, or say what the grammar is."""
     start_text, separator, end_text = value.partition(WINDOW_SEPARATOR)
     if not separator:
-        raise ParamError(f"{WINDOW_GRAMMAR}, not {value!r}")
+        raise ParamError(NOT_A_WINDOW.render(grammar=WINDOW_GRAMMAR, value=repr(value)))
     start = read_instant(start_text, "--window")
     end = read_instant(end_text, "--window")
     check_interval(start, end)
@@ -954,7 +1009,7 @@ def parse_window(value: str | None) -> tuple[datetime, datetime] | None:
     try:
         return read_window(value)
     except ParamError as error:
-        fail(str(error))
+        fail(PARAMS_REFUSED, detail=str(error))
 
 
 def parse_log_levels(values: list[str] | None) -> dict[str, LogLevel] | None:
@@ -971,12 +1026,12 @@ def parse_log_levels(values: list[str] | None) -> dict[str, LogLevel] | None:
         if not named:
             pattern, named = "*", value
         if not pattern:
-            fail(f"--log-level {value!r} names no pattern before the =")
+            fail(LOG_LEVEL_NO_PATTERN, value=repr(value))
         try:
             levels[pattern] = LogLevel(named.lower())
         except ValueError:
             allowed = ", ".join(level.value for level in LogLevel)
-            fail(f"--log-level {value!r}: {named!r} is not a level ({allowed})")
+            fail(LOG_LEVEL_NOT_A_LEVEL, value=repr(value), named=repr(named), allowed=allowed)
     return levels
 
 
@@ -987,7 +1042,11 @@ def parse_priority(value: str | None) -> RunPriority | None:
     try:
         return RunPriority(value.lower())
     except ValueError:
-        fail(f"--priority {value!r} is not a priority ({', '.join(priority.value for priority in RunPriority)})")
+        fail(
+            NOT_A_PRIORITY,
+            value=repr(value),
+            allowed=", ".join(priority.value for priority in RunPriority),
+        )
 
 
 def run_command(
@@ -1068,16 +1127,16 @@ def run_command(
     """
     state = state_of(ctx)
     if strict and not (watch or local):
-        fail("--strict decides on a run's outcome, so it needs --watch or --local")
+        fail(STRICT_NEEDS_WATCH)
     if keep and not local:
-        fail("--keep leaves a --local run's throwaway instance behind; a real instance keeps its own")
+        fail(KEEP_IS_LOCAL_ONLY)
     if root is not None and not local:
-        fail("--root holds a --local run's instance in a directory; a real instance has its own")
+        fail(ROOT_IS_LOCAL_ONLY)
     covered = parse_window(window)
     levels = parse_log_levels(log_level)
     wanted = parse_priority(priority)
     if wanted is not None and local:
-        fail("--priority orders a run against the others queued, and a --local run has none")
+        fail(PRIORITY_IS_NOT_LOCAL)
     if local:
         _run_locally(
             state,
@@ -1103,15 +1162,16 @@ def run_command(
                 document = read_document(target)
                 schema = dict(load_pipeline_text(document.text).params)
             except (SourceError, DocumentError) as error:
-                fail(str(error))
+                fail(SOURCE_REFUSED, detail=str(error))
             result = _apply_one(dg, document, code=as_code, dry_run=False)
             if not _print_plan(result, document.label):
                 if state.json_output:
                     emit_problem(
-                        f"{result.plan.code} does not validate",
+                        DOCUMENT_INVALID,
                         status=422,
                         title="Unprocessable Content",
-                        problems=[f"{issue.location}: {issue.message}" for issue in result.plan.issues],
+                        problems=[issue.issue() for issue in result.plan.issues],
+                        code=result.plan.code,
                     )
                 raise typer.Exit(code=1)
             code = result.plan.code
@@ -1122,9 +1182,14 @@ def run_command(
         accepted = dg.call(dg.pipelines.run(code, params=params, window=covered, log_levels=levels, priority=wanted))
         if accepted.run_id is None:
             if state.json_output:
-                emit_problem(accepted.detail or "the concurrency policy refused this run", status=409, title="Skipped")
+                emit_problem(
+                    RUN_SKIPPED,
+                    status=409,
+                    title="Skipped",
+                    detail=accepted.detail or CONCURRENCY_REFUSED.render(),
+                )
                 return
-            console.print(f"[yellow]skipped[/] {accepted.detail or 'the concurrency policy refused this run'}")
+            console.print(f"[yellow]skipped[/] {accepted.detail or CONCURRENCY_REFUSED.render()}")
             return
         sink(state).event(
             "run",
@@ -1170,7 +1235,7 @@ def backfill_command(
         end = read_instant(to, "--to")
         check_interval(start, end)
     except ParamError as error:
-        fail(str(error))
+        fail(PARAMS_REFUSED, detail=str(error))
     with client_for(state) as dg:
         accepted = dg.call(dg.pipelines.backfill(pipeline, schedule=schedule, start=start, end=end, dry_run=dry_run))
     _report_backfill(accepted, state=state)
@@ -1208,9 +1273,9 @@ def _run_locally(
 ) -> None:
     """Apply and run a document in a throwaway instance, streaming what it logs."""
     if state.url is not None or state.profile is not None or state.token is not None:
-        fail("--local runs here with no server, so it cannot be combined with --url, --token, or --profile")
+        fail(LOCAL_TAKES_NO_SERVER)
     if not looks_like_a_document(target):
-        fail(f"--local runs a document, and {target!r} is not a file, a URL, or '-'")
+        fail(LOCAL_TAKES_A_DOCUMENT, target=repr(target))
     try:
         document = read_document(target)
         specs: list[ConnectionSpec] = load_connection_specs(connections) if connections else []
@@ -1218,7 +1283,7 @@ def _run_locally(
         supporting = [read_document(str(path)).text for path in also_apply]
         schema = dict(_runnable(document.text).params)
     except (SourceError, LocalError, DocumentError) as error:
-        fail(str(error))
+        fail(SOURCE_REFUSED, detail=str(error))
     params = parse_params(pairs, schema=schema, files=params_files)
     settings = _local_settings(enable_unsafe)
     outcome = asyncio.run(
@@ -1237,7 +1302,7 @@ def _run_locally(
         )
     )
     if outcome is None:  # pragma: no cover - the generator always ends with an outcome
-        fail("the local run produced no outcome")
+        fail(LOCAL_RUN_HAD_NO_OUTCOME)
     _report_outcome(outcome, strict=strict, state=state)
 
 
@@ -1313,13 +1378,13 @@ async def _stream_local(
     except LocalError as error:
         remedies = (
             [
-                "for this run only: dg run --local ... --enable-unsafe shell.run",
-                "for the instance:  export DIRIGENT_ENABLED_UNSAFE_BLOCKS='[\"shell.run\"]'",
+                Issue.of(UNSAFE_FOR_THIS_RUN),
+                Issue.of(UNSAFE_FOR_THE_INSTANCE),
             ]
             if "DIRIGENT_ENABLED_UNSAFE_BLOCKS" in str(error)
             else []
         )
-        refuse(str(error), status=GUARD_EXIT, title="Refused", problems=remedies)
+        refuse(GUARD_REFUSED, status=GUARD_EXIT, title="Refused", problems=remedies, detail=str(error))
         raise typer.Exit(code=GUARD_EXIT) from error
     return outcome
 
@@ -1777,7 +1842,7 @@ def runs_list(
 ) -> None:
     """List runs, newest first, or the ones whose pipeline wears every tag named."""
     if status is not None and status not in set(RunStatus):
-        fail(f"{status!r} is not a run status ({', '.join(sorted(RunStatus))})")
+        fail(NOT_A_RUN_STATUS, status=repr(status), allowed=", ".join(sorted(RunStatus)))
     tags = tag or []
     with client_for(state_of(ctx)) as dg:
         rows = list(
@@ -1936,7 +2001,7 @@ def runs_retry(
     with client_for(state_of(ctx)) as dg:
         candidates = [row for row in run_attempts(dg, run_id, step=step) if row.status in RETRYABLE]
         if not candidates:
-            fail(f"run {run_id} has no settled failure of step {step!r} to retry")
+            fail(NO_FAILURE_TO_RETRY, run_id=run_id, step=repr(step))
         retried = candidates if failed_items else candidates[-1:]
         labels = item_labels(run_items(dg, run_id), retried)
         for attempt in retried:
@@ -2005,7 +2070,7 @@ def runs_report(
         if markdown:
             document = dg.call(dg.runs.report_document(run_id))
             if document is None:
-                fail(f"run {run_id} has no report document; declare `report:` in the pipeline document")
+                fail(NO_REPORT_DOCUMENT, run_id=run_id)
             if state.json_output:
                 return emit_fact("run.report_document", message="rendered", run_id=str(run_id), document=document)
             console.print(document, end="", highlight=False, markup=False)
@@ -2123,7 +2188,7 @@ def blocks_new(
     try:
         written = scaffold_pack(directory.resolve(), name)
     except ScaffoldError as error:
-        fail(str(error))
+        fail(SCAFFOLD_REFUSED, detail=str(error))
     root = directory.resolve() / f"dirigent-{name}"
     if state_of(ctx).json_output:
         for path in written:
@@ -2143,7 +2208,7 @@ def blocks_list(
 ) -> None:
     """List the blocks this instance can run."""
     if kind is not None and kind not in set(BlockKind):
-        fail(f"{kind!r} is not a block kind ({', '.join(sorted(BlockKind))})")
+        fail(NOT_A_BLOCK_KIND, kind=repr(kind), allowed=", ".join(sorted(BlockKind)))
     with client_for(state_of(ctx)) as dg:
         catalog = dg.call(dg.blocks.catalog(kind=BlockKind(kind) if kind else None))
     if state_of(ctx).json_output:
@@ -2260,7 +2325,7 @@ def connection_create(
             # refusing the invocation for declining it would make the bot-token form of a
             # slack connection unreachable from any script.
             if json_mode() and field in required:
-                fail(f"--json cannot prompt for {field}; pass it as --set {field}=...")
+                fail(CANNOT_PROMPT_SET, field=field)
             if not interactive:
                 continue
             if _is_secret_field(body):
@@ -2289,7 +2354,7 @@ def _connection_schema(catalog: Catalog, kind_id: str) -> dict[str, Any]:
         if entry.id == kind_id:
             return entry.config_schema
     known = ", ".join(entry.id for entry in catalog.connection_kinds) or "none"
-    fail(f"no connection kind {kind_id!r} is installed ({known})")
+    fail(UNKNOWN_CONNECTION_KIND, kind=repr(kind_id), known=known)
 
 
 def _is_secret_field(body: dict[str, Any]) -> bool:
@@ -2378,13 +2443,13 @@ def schema_create(
     try:
         document = read_document(reference)
     except SourceError as error:
-        fail(str(error))
+        fail(SOURCE_REFUSED, detail=str(error))
     try:
         body = yaml.safe_load(document.text)
     except yaml.YAMLError as error:
-        fail(f"{document.label} is not readable JSON or YAML: {error}")
+        fail(SCHEMA_UNREADABLE, label=document.label, detail=str(error))
     if not isinstance(body, dict):
-        fail(f"{document.label} is not a JSON Schema: a schema is an object, and this is {type(body).__name__}")
+        fail(SCHEMA_NOT_AN_OBJECT, label=document.label, kind=type(body).__name__)
     schema = cast("JsonMap", body)
     resolved = code
     if resolved is None and not (isinstance(schema.get("$id"), str) and code_from_id(cast("str", schema["$id"]))):
@@ -2652,9 +2717,10 @@ def auth_status(ctx: typer.Context) -> None:
     state = state_of(ctx)
     if state.resolved.token is None:
         refuse(
-            f"no token for {state.resolved.url}",
+            NOT_AUTHENTICATED,
             title="Not authenticated",
-            problems=["set DG_TOKEN", "or add a token to a profile", "or mint one with dg auth login"],
+            problems=[Issue.of(SET_DG_TOKEN), Issue.of(OR_A_PROFILE_TOKEN), Issue.of(OR_DG_AUTH_LOGIN)],
+            url=state.resolved.url,
         )
         raise typer.Exit(code=1)
     with client_for(state) as dg:
@@ -2723,7 +2789,7 @@ def _example(state: CliState, code: str, *, local: bool) -> ExampleDetail:
     try:
         return as_detail(load_plugin_host().example(code))
     except UnknownExample as error:
-        refuse(str(error), title="No such example")
+        refuse(NO_SUCH_EXAMPLE, title="No such example", detail=str(error))
         raise typer.Exit(code=1) from error
 
 
@@ -2814,15 +2880,16 @@ def pipeline_new(
     entry = _example(state_of(ctx), starter, local=local)
     if not entry.starter:
         refuse(
-            f"{entry.code!r} is an example, not a starter",
+            NOT_A_STARTER,
             title="Not a starter",
-            problems=[f"a document is copyable only when it wears the {STARTER_TAG!r} tag"],
+            problems=[Issue.of(STARTER_TAG_NEEDED, tag=repr(STARTER_TAG))],
+            code=repr(entry.code),
         )
         raise typer.Exit(code=1)
     new_code = code or entry.code
     path = directory / f"{new_code}.yaml"
     if path.exists():
-        refuse(f"{path} is already there", title="Already there", problems=["name another code with --code"])
+        refuse(ALREADY_THERE, title="Already there", problems=[Issue.of(NAME_ANOTHER_CODE)], path=path)
         raise typer.Exit(code=1)
     text = starters.instantiate(entry.source, new_code)
     directory.mkdir(parents=True, exist_ok=True)

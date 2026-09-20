@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirigent_common import JsonMap
 from dirigent_core.errors import DomainError
+from dirigent_core.messages import SCHEMA_INVALID, SCHEMA_NO_CODE
 from dirigent_core.models import Schema
 
 #: The code a schema is given when it names none: a slug drawn from ``$id`` or a filename.
@@ -65,9 +66,7 @@ def resolve_identity(
     if chosen is None and fallback_code is not None and _CODE_PATTERN.match(fallback_code):
         chosen = fallback_code
     if chosen is None:
-        raise SchemaRefused(
-            "this schema names no code: give one, or set $id, or store it from a file whose name is a code"
-        )
+        raise SchemaRefused(SCHEMA_NO_CODE)
     title = body.get("title")
     resolved_name = name if name is not None else (title if isinstance(title, str) else None)
     doc = body.get("description")
@@ -87,7 +86,7 @@ def check_valid_schema(body: JsonMap) -> None:
     except SchemaError as error:
         where = "/".join(str(part) for part in error.absolute_path)
         at = f" at {where}" if where else ""
-        raise SchemaRefused(f"this is not a valid JSON Schema{at}: {error.message}") from error
+        raise SchemaRefused(SCHEMA_INVALID, at=at, detail=error.message) from error
 
 
 async def find_schema(session: AsyncSession, code: str) -> Schema | None:

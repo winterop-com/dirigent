@@ -20,13 +20,26 @@ how a compose file, a shell command or a template reaches a tool with its own br
 import re
 from collections.abc import Callable, Collection
 from datetime import datetime
-from typing import Final, cast
+from typing import Any, Final, cast
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
-from dirigent_common import JsonMap
+from dirigent_common import JsonMap, Message
 from dirigent_core.errors import DomainError
+from dirigent_core.messages import (
+    ITEM_FAILED,
+    MALFORMED_RUN,
+    MALFORMED_STEP,
+    NAMES_NOTHING,
+    NO_FIELD,
+    NO_GRID,
+    NO_ITEM,
+    NO_OUTPUT,
+    NO_WINDOW,
+    NOT_PAIRED,
+    UNKNOWN_NAMESPACE,
+)
 from dirigent_plugin import SHELL_VARIABLE_PREFIX, SHELL_VARIABLES_FIELD
 
 REFERENCE_PATTERN: Final = re.compile(r"(\$+)\{([^{}]+)\}")
@@ -45,9 +58,9 @@ WHOLE_REFERENCE: Final = re.compile(r"^\$\{([^{}]+)\}$")
 class UnknownReference(DomainError):
     """A document named something the run does not have."""
 
-    def __init__(self, reference: str, detail: str) -> None:
+    def __init__(self, message: Message, /, *, reference: str, **params: Any) -> None:
         """Name the reference and what was actually available."""
-        super().__init__(f"${{{reference}}} cannot be resolved: {detail}")
+        super().__init__(message, reference=reference, **params)
         self.reference = reference
 
 
@@ -262,23 +275,20 @@ def lookup(reference: str, scope: ReferenceScope) -> JsonValue:
     """Resolve one reference path against the scope, or say precisely what is missing."""
     parts = [part for part in reference.split(".") if part]
     if not parts:
-        raise UnknownReference(reference, "it names nothing")
+        raise UnknownReference(NAMES_NOTHING, reference=reference)
     match parts[0]:
         case "params":
             return _walk(reference, scope.params, parts[1:], "params")
         case "item":
             if not scope.has_item:
-                raise UnknownReference(reference, "this step does not fan out, so there is no item")
+                raise UnknownReference(NO_ITEM, reference=reference)
             return _walk(reference, scope.item, parts[1:], "item")
         case "steps":
             return _step_output(reference, parts, scope)
         case "run":
             return _run_value(reference, parts, scope)
         case unknown:
-            raise UnknownReference(
-                reference,
-                f"{unknown!r} is not a namespace; the reference language has params, steps, item, and run",
-            )
+            raise UnknownReference(UNKNOWN_NAMESPACE, reference=reference, namespace=repr(unknown))
 
 
 def _step_output(reference: str, parts: list[str], scope: ReferenceScope) -> JsonValue:
@@ -287,32 +297,20 @@ def _step_output(reference: str, parts: list[str], scope: ReferenceScope) -> Jso
         case [name, "output", *path]:
             if name not in scope.outputs:
                 available = ", ".join(sorted(scope.outputs)) or "no step has produced output yet"
-                raise UnknownReference(reference, f"step {name!r} has no stored output ({available})")
+                raise UnknownReference(NO_OUTPUT, reference=reference, step=repr(name), available=available)
             return _walk(reference, scope.outputs[name], path, f"steps.{name}.output")
         case [name, "items"]:
             if name not in scope.grids:
-                raise UnknownReference(
-                    reference,
-                    f"step {name!r} has no grid here; steps.{name}.items is the list a fan-out maps over, "
-                    "and only for_each reads it",
-                )
+                raise UnknownReference(NO_GRID, reference=reference, step=repr(name), bare_step=name)
             return cast("JsonValue", scope.grids[name])
         case [name, "item", "output", *path]:
             if name not in scope.paired:
-                raise UnknownReference(
-                    reference,
-                    f"this step does not fan over step {name!r}'s items; "
-                    f"write for_each: ${{steps.{name}.items}} to map over them",
-                )
+                raise UnknownReference(NOT_PAIRED, reference=reference, step=repr(name), bare_step=name)
             if name not in scope.item_outputs:
-                raise UnknownReference(reference, f"step {name!r}'s item {scope.item_index} did not succeed")
+                raise UnknownReference(ITEM_FAILED, reference=reference, step=repr(name), index=scope.item_index)
             return _walk(reference, scope.item_outputs[name], path, f"steps.{name}.item.output")
         case _:
-            raise UnknownReference(
-                reference,
-                "a step reference reads steps.<name>.output.<field>, steps.<name>.items, "
-                "or steps.<name>.item.output.<field>",
-            )
+            raise UnknownReference(MALFORMED_STEP, reference=reference)
 
 
 def _run_value(reference: str, parts: list[str], scope: ReferenceScope) -> JsonValue:
@@ -327,10 +325,7 @@ def _run_value(reference: str, parts: list[str], scope: ReferenceScope) -> JsonV
         case ["window", "end"]:
             return _window_edge(reference, scope.window_end)
         case _:
-            raise UnknownReference(
-                reference,
-                "run exposes only run.scratch, run.id, run.window.start and run.window.end",
-            )
+            raise UnknownReference(MALFORMED_RUN, reference=reference)
 
 
 def _window_edge(reference: str, edge: datetime | None) -> JsonValue:
@@ -340,11 +335,7 @@ def _window_edge(reference: str, edge: datetime | None) -> JsonValue:
     with no window refuses the reference the way an unknown one is refused.
     """
     if edge is None:
-        raise UnknownReference(
-            reference,
-            "this run carries no window; a schedule-fired or backfilled run has one, "
-            "and an ad hoc run only if it was started with one",
-        )
+        raise UnknownReference(NO_WINDOW, reference=reference)
     return edge.isoformat()
 
 
@@ -359,6 +350,6 @@ def _walk(reference: str, value: JsonValue, path: list[str], namespace: str) -> 
             current = current[int(part)]
         else:
             available = ", ".join(sorted(current)) if isinstance(current, dict) else "it is not an object"
-            raise UnknownReference(reference, f"{walked} has no {part!r} ({available})")
+            raise UnknownReference(NO_FIELD, reference=reference, walked=walked, part=repr(part), available=available)
         walked = f"{walked}.{part}"
     return current

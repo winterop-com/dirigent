@@ -16,15 +16,36 @@ import socket
 from collections import Counter
 from collections.abc import Awaitable, Callable, Sequence
 from datetime import datetime, timedelta
-from typing import Any, Literal
+from typing import Any, Literal, Self
 
 import httpx2
 import sqlalchemy as sa
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dirigent_cli.messages import (
+    DATABASE_ABSENT,
+    DATABASE_BEHIND,
+    DATABASE_OK,
+    DATABASE_UNMIGRATED,
+    DATABASE_UNREACHABLE,
+    SCHEDULER_IDLE,
+    SCHEDULER_ON_TIME,
+    SCHEDULER_OVERDUE,
+    SERVER_ERRORED,
+    SERVER_NOT_ANSWERING,
+    SERVER_NOT_SERVING,
+    SERVER_OK,
+    SERVER_REFUSED,
+    WORKER_ALL_STOPPED,
+    WORKER_BEATING,
+    WORKER_NEVER_REGISTERED,
+    WORKER_SILENT,
+    WORKERS_BEATING,
+)
 from dirigent_cli.profiles import ProfileError, resolve_endpoint
 from dirigent_client.enums import WorkerStatus
+from dirigent_common import JsonMap, Message
 from dirigent_core.config import Settings, redacted_url
 from dirigent_core.database import create_engine, create_session_factory
 from dirigent_core.migrations import current_revision_async, head_revision
@@ -53,7 +74,25 @@ class Check(BaseModel):
     check: str
     status: Verdict
     detail: str
+    code: str
+    """The dotted code of the message the detail was rendered from."""
+
+    params: JsonMap = Field(default_factory=dict)
+    """The specifics the detail rendered, for a re-render in another language."""
+
     probe: Probe = "readiness"
+
+    @classmethod
+    def of(cls, message: Message, /, *, check: str, status: Verdict, probe: Probe = "readiness", **params: Any) -> Self:
+        """Build a check result by rendering its catalogued message with the specifics."""
+        return cls(
+            check=check,
+            status=status,
+            detail=message.render(**params),
+            code=message.code,
+            params=params,
+            probe=probe,
+        )
 
     def failed(self, *, asserted: bool) -> bool:
         """Report whether this ends the command in a failure.
@@ -110,18 +149,18 @@ async def worker_check(session: AsyncSession, settings: Settings, hostname: str 
     rows = (await session.execute(query)).all()
     place = f" on {hostname}" if hostname is not None else ""
     if not rows:
-        return Check(check="worker", status="absent", detail=f"no worker has ever registered{place}")
+        return Check.of(WORKER_NEVER_REGISTERED, check="worker", status="absent", place=place)
     alive = [seen for seen, status in rows if status != WorkerStatus.STOPPED]
     if not alive:
-        return Check(check="worker", status="absent", detail=f"every worker{place} has stopped")
+        return Check.of(WORKER_ALL_STOPPED, check="worker", status="absent", place=place)
     beating = [seen for seen in alive if is_beating(seen, heartbeat=settings.heartbeat)]
     if not beating:
         quiet = int((utcnow() - max(alive)).total_seconds())
         noun = f"the worker{place}" if len(alive) == 1 else f"all {len(alive)} workers{place}"
-        return Check(check="worker", status="unhealthy", detail=f"{noun} went silent, the last {quiet}s ago")
+        return Check.of(WORKER_SILENT, check="worker", status="unhealthy", noun=noun, quiet=quiet)
     if hostname is not None:
-        return Check(check="worker", status="healthy", detail=f"a worker on {hostname} is beating")
-    return Check(check="worker", status="healthy", detail=f"{len(beating)} of {len(alive)} workers beating")
+        return Check.of(WORKER_BEATING, check="worker", status="healthy", hostname=hostname)
+    return Check.of(WORKERS_BEATING, check="worker", status="healthy", beating=len(beating), alive=len(alive))
 
 
 async def scheduler_check(session: AsyncSession, settings: Settings, *, now: datetime | None = None) -> Check:
@@ -137,17 +176,20 @@ async def scheduler_check(session: AsyncSession, settings: Settings, *, now: dat
     )
     waiting = sorted(when for when in rows.scalars() if when is not None)
     if not waiting:
-        return Check(check="scheduler", status="healthy", detail="no schedule is waiting to fire")
+        return Check.of(SCHEDULER_IDLE, check="scheduler", status="healthy")
     threshold = moment - settings.scheduler_misfire_grace
     overdue = [when for when in waiting if when < threshold]
     if overdue:
         late = int((moment - overdue[0]).total_seconds())
-        return Check(
+        return Check.of(
+            SCHEDULER_OVERDUE,
             check="scheduler",
             status="unhealthy",
-            detail=f"{len(overdue)} of {len(waiting)} schedules overdue, the oldest by {late}s: nothing is firing them",
+            overdue=len(overdue),
+            waiting=len(waiting),
+            late=late,
         )
-    return Check(check="scheduler", status="healthy", detail=f"{len(waiting)} schedules waiting, none overdue")
+    return Check.of(SCHEDULER_ON_TIME, check="scheduler", status="healthy", waiting=len(waiting))
 
 
 def server_check(
@@ -165,21 +207,29 @@ def server_check(
     try:
         response = httpx2.get(f"{base}{path}", timeout=timeout)
     except httpx2.ConnectError:
-        detail = f"nothing is answering at {where}" if server else f"nothing is serving {where}"
-        return Check(check="server", status="absent", detail=detail, probe=probe)
+        silent = SERVER_NOT_ANSWERING if server else SERVER_NOT_SERVING
+        return Check.of(silent, check="server", status="absent", probe=probe, where=where)
     except httpx2.HTTPError as error:
-        return Check(
-            check="server", status="unhealthy", detail=f"the server at {where}: {type(error).__name__}", probe=probe
-        )
-    if response.status_code != HTTP_OK:
-        return Check(
+        return Check.of(
+            SERVER_ERRORED,
             check="server",
             status="unhealthy",
-            detail=f"the server at {where} answered {response.status_code} to {path}",
             probe=probe,
+            where=where,
+            kind=type(error).__name__,
+        )
+    if response.status_code != HTTP_OK:
+        return Check.of(
+            SERVER_REFUSED,
+            check="server",
+            status="unhealthy",
+            probe=probe,
+            where=where,
+            status_code=response.status_code,
+            path=path,
         )
     word = "ready" if probe == "readiness" else "alive"
-    return Check(check="server", status="healthy", detail=f"the server at {where} is {word}", probe=probe)
+    return Check.of(SERVER_OK, check="server", status="healthy", probe=probe, where=where, word=word)
 
 
 async def database_check(settings: Settings) -> Check:
@@ -194,26 +244,19 @@ async def database_check(settings: Settings) -> Check:
     # given an empty database by the command that came to look at one.
     target = settings.sqlite_path
     if target is not None and not target.exists():
-        return Check(check="database", status="absent", detail=f"no database at {target}")
+        return Check.of(DATABASE_ABSENT, check="database", status="absent", target=target)
     try:
         stamped = await current_revision_async(settings)
     except Exception as error:  # any driver error means the same thing to whoever asked
-        return Check(check="database", status="unhealthy", detail=f"{where} is unreachable: {type(error).__name__}")
-    if stamped is None:
-        return Check(
-            check="database",
-            status="unhealthy",
-            detail=f"the database at {where} answers, but holds no schema; run `dg db upgrade`",
+        return Check.of(
+            DATABASE_UNREACHABLE, check="database", status="unhealthy", where=where, kind=type(error).__name__
         )
+    if stamped is None:
+        return Check.of(DATABASE_UNMIGRATED, check="database", status="unhealthy", where=where)
     head = head_revision(settings)
     if head is not None and stamped != head:
-        return Check(
-            check="database",
-            status="unhealthy",
-            detail=f"the database at {where} is at schema {stamped}, and this dirigent expects {head};"
-            " run `dg db upgrade`",
-        )
-    return Check(check="database", status="healthy", detail=f"the database at {where} answers, schema {stamped}")
+        return Check.of(DATABASE_BEHIND, check="database", status="unhealthy", where=where, stamped=stamped, head=head)
+    return Check.of(DATABASE_OK, check="database", status="healthy", where=where, stamped=stamped)
 
 
 async def _opened[T](settings: Settings, work: Callable[[AsyncSession], Awaitable[T]]) -> T:

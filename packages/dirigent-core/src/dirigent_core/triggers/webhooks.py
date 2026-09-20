@@ -18,12 +18,42 @@ from pydantic import BaseModel, ConfigDict, Field, JsonValue, SecretStr
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirigent_client.enums import RunPriority, TriggerKind, WebhookOutcome
-from dirigent_common import EntityName, JsonMap
+from dirigent_common import EntityName, Issue, JsonMap, Message
 from dirigent_core.engine.definition import ParameterError, PipelineDefinition, WebhookSpec, load_definition
 from dirigent_core.engine.runs import Attribution, RunCreationError, create_run
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.errors import DomainError
 from dirigent_core.logging import get_logger
+from dirigent_core.messages import (
+    BODY_NOT_JSON,
+    BODY_NOT_OBJECT,
+    BODY_TOO_LARGE,
+    DUPLICATE_WEBHOOK,
+    EMPTY_SIGNING_SECRET,
+    MAPPING_REFUSED,
+    NAME_UNDECLARED,
+    NO_SECRET_KEY,
+    PATH_ADDRESSES_NOTHING,
+    PATH_BAD_ROOT,
+    PATH_EMPTY,
+    PATH_EMPTY_SEGMENT,
+    PATH_NOT_ROOTED,
+    PAYLOAD_MISSING,
+    REQUIRED_UNMAPPED,
+    SIGNATURE_MISMATCH,
+    SIGNATURE_REQUIRED,
+    UNKNOWN_WEBHOOK,
+    WEBHOOK_DISABLED,
+    WEBHOOK_PARAMS_REFUSED,
+    WEBHOOK_PIPELINE_GONE,
+    WEBHOOK_PIPELINE_INACTIVE,
+    WEBHOOK_PIPELINE_NO_VERSIONS,
+    WEBHOOK_PIPELINE_UNREADABLE,
+    WEBHOOK_RUN_REFUSED,
+)
+from dirigent_core.messages import (
+    UNKNOWN_TOKEN as UNKNOWN_TOKEN_MESSAGE,
+)
 from dirigent_core.models import Pipeline, PipelineVersion, Run, WebhookDelivery, WebhookTrigger, utcnow
 from dirigent_core.secrets import SecretBox
 
@@ -41,7 +71,7 @@ PATH_ROOT: Final = "$."
 
 #: Told for a token that does not resolve and for one that resolves to a disabled webhook:
 #: the same thing either way, so the endpoint is not a probing oracle.
-UNKNOWN_TOKEN: Final = "no webhook accepts this token"
+UNKNOWN_TOKEN: Final = UNKNOWN_TOKEN_MESSAGE.render()
 
 _logger = get_logger("webhook")
 
@@ -57,28 +87,30 @@ class DeliveryRefused(WebhookError):
     delivery history, but the caller is told only what an unknown token is told.
     """
 
-    def __init__(self, reason: str, *, status: int = 400, public: str | None = None) -> None:
+    def __init__(self, message: Message, /, *, status: int = 400, public: str | None = None, **params: Any) -> None:
         """Carry the recorded reason, the status to answer with, and what the caller sees."""
-        super().__init__(reason)
-        self.reason = reason
+        super().__init__(message, **params)
+        self.reason = str(self)
         self.status = status
-        self.public = public if public is not None else reason
+        self.public = public if public is not None else self.reason
 
 
 class DuplicateWebhook(WebhookError):
     """A pipeline already has a webhook of that code."""
 
     status = 409
+    message = DUPLICATE_WEBHOOK
 
 
 class UnknownWebhook(WebhookError):
     """No webhook of that code exists on this pipeline."""
 
     status = 404
+    message = UNKNOWN_WEBHOOK
 
     def __init__(self, pipeline: str, code: str) -> None:
         """Name the pipeline and the webhook."""
-        super().__init__(f"pipeline {pipeline!r} has no webhook coded {code!r}")
+        super().__init__(pipeline=repr(pipeline), code=repr(code))
 
 
 class WebhookRequest(BaseModel):
@@ -148,11 +180,11 @@ def verify_signature(secret: bytes, body: bytes, presented: str | None) -> None:
     comparing strings would turn one non-ASCII byte into a 500 and no delivery row.
     """
     if not presented:
-        raise DeliveryRefused(f"this webhook requires a {SIGNATURE_HEADER} header", status=401)
+        raise DeliveryRefused(SIGNATURE_REQUIRED, status=401, header=SIGNATURE_HEADER)
     offered = presented.split("=", 1)[1] if presented.startswith("sha256=") else presented
     expected = sign(secret, body).encode("ascii")
     if not hmac.compare_digest(expected, offered.strip().encode("utf-8", "surrogateescape")):
-        raise DeliveryRefused("the signature does not match the body", status=401)
+        raise DeliveryRefused(SIGNATURE_MISMATCH, status=401)
 
 
 def read_path(payload: JsonMap, path: str) -> JsonValue:
@@ -164,7 +196,7 @@ def read_path(payload: JsonMap, path: str) -> JsonValue:
     trimmed = path[len(PATH_ROOT) :] if path.startswith(PATH_ROOT) else path.removeprefix("$")
     parts = [part for part in trimmed.split(".") if part]
     if not parts:
-        raise DeliveryRefused(f"the mapping path {path!r} addresses nothing")
+        raise DeliveryRefused(PATH_ADDRESSES_NOTHING, path=repr(path))
     current: JsonValue = payload
     walked = "$"
     for part in parts:
@@ -176,7 +208,7 @@ def read_path(payload: JsonMap, path: str) -> JsonValue:
             available = (
                 ", ".join(sorted(cast("dict[str, Any]", current))) if isinstance(current, dict) else "not an object"
             )
-            raise DeliveryRefused(f"the payload has no {walked}.{part} ({available})")
+            raise DeliveryRefused(PAYLOAD_MISSING, walked=walked, part=part, available=available)
         walked = f"{walked}.{part}"
     return current
 
@@ -196,27 +228,27 @@ def check_webhook_mapping(definition: PipelineDefinition, mapping: Mapping[str, 
     """
     problems = [*_path_problems(mapping), *_name_problems(definition, mapping)]
     if problems:
-        raise WebhookError("; ".join(problems))
+        raise WebhookError(MAPPING_REFUSED, problems=problems, detail="; ".join(issue.message for issue in problems))
 
 
-def _path_problems(mapping: Mapping[str, str]) -> list[str]:
+def _path_problems(mapping: Mapping[str, str]) -> list[Issue]:
     """Parse each declared path against the mapping grammar: ``$`` then dotted, non-empty segments."""
-    problems: list[str] = []
+    problems: list[Issue] = []
     for path in mapping.values():
         if not path.startswith("$"):
-            problems.append(f"{path!r} is not a payload path: it does not start with '$'")
+            problems.append(Issue.of(PATH_NOT_ROOTED, path=repr(path)))
             continue
         rest = path[1:]
         if not rest:
-            problems.append(f"{path!r} is not a payload path: it addresses nothing")
+            problems.append(Issue.of(PATH_EMPTY, path=repr(path)))
         elif not rest.startswith("."):
-            problems.append(f"{path!r} is not a payload path: the root is followed by {rest[0]!r} rather than '.'")
+            problems.append(Issue.of(PATH_BAD_ROOT, path=repr(path), found=repr(rest[0])))
         elif any(not segment for segment in rest[1:].split(".")):
-            problems.append(f"{path!r} is not a payload path: an empty segment")
+            problems.append(Issue.of(PATH_EMPTY_SEGMENT, path=repr(path)))
     return problems
 
 
-def _name_problems(definition: PipelineDefinition, mapping: Mapping[str, str]) -> list[str]:
+def _name_problems(definition: PipelineDefinition, mapping: Mapping[str, str]) -> list[Issue]:
     """Check the mapped names against the pipeline's parameter schema, both ways.
 
     A schema declaring no properties and forbidding no additional ones takes any name, so
@@ -224,11 +256,11 @@ def _name_problems(definition: PipelineDefinition, mapping: Mapping[str, str]) -
     """
     properties = definition.params.get("properties")
     declared = cast("dict[str, Any]", properties) if isinstance(properties, dict) else {}
-    problems: list[str] = []
+    problems: list[Issue] = []
     if declared or definition.params.get("additionalProperties") is False:
         named = ", ".join(sorted(declared)) or "none"
         problems = [
-            f"{name!r} is not a parameter this pipeline declares ({named})" for name in mapping if name not in declared
+            Issue.of(NAME_UNDECLARED, name=repr(name), declared=named) for name in mapping if name not in declared
         ]
     declaration = definition.params.get("required")
     listed = cast("list[object]", declaration) if isinstance(declaration, list) else []
@@ -237,7 +269,7 @@ def _name_problems(definition: PipelineDefinition, mapping: Mapping[str, str]) -
         entry = declared.get(name)
         has_default = isinstance(entry, dict) and "default" in cast("dict[str, Any]", entry)
         if name not in mapping and not has_default:
-            problems.append(f"the required parameter {name!r} is not mapped, so no delivery could supply it")
+            problems.append(Issue.of(REQUIRED_UNMAPPED, name=repr(name)))
     return problems
 
 
@@ -280,9 +312,9 @@ def seal_hmac(secrets: "SecretBox | None", secret: SecretStr | None) -> tuple[by
     if secret is None:
         return None, None
     if not secret.get_secret_value():
-        raise WebhookError("an empty webhook signing secret is not a secret")
+        raise WebhookError(EMPTY_SIGNING_SECRET)
     if secrets is None:  # pragma: no cover - no caller can reach this
-        raise WebhookError("a webhook signing secret cannot be stored without the instance's secret key")
+        raise WebhookError(NO_SECRET_KEY)
     return secrets.seal({HMAC_FIELD: secret.get_secret_value()}), secrets.key_id
 
 
@@ -304,7 +336,7 @@ async def create_webhook(
 ) -> MintedToken:
     """Declare a webhook and mint its token, which is returned here and never again."""
     if await find_webhook(session, pipeline.id, request.code) is not None:
-        raise DuplicateWebhook(f"pipeline {pipeline.code!r} already has a webhook coded {request.code!r}")
+        raise DuplicateWebhook(pipeline=repr(pipeline.code), code=repr(request.code))
     token = mint_token()
     envelope, key_id = seal_hmac(secrets, request.hmac_secret)
     webhook = WebhookTrigger(
@@ -414,15 +446,13 @@ def parse_body(body: bytes, *, max_bytes: int) -> JsonMap:
     if len(body) > max_bytes:
         # "at least", because the intake stops reading one byte past the limit rather than
         # buffering an unbounded body to measure it exactly.
-        raise DeliveryRefused(
-            f"the body is at least {len(body)} bytes, and this instance reads at most {max_bytes}", status=413
-        )
+        raise DeliveryRefused(BODY_TOO_LARGE, status=413, size=len(body), maximum=max_bytes)
     try:
         loaded: object = json.loads(body or b"{}")
     except ValueError as error:
-        raise DeliveryRefused(f"the body is not JSON: {error}") from error
+        raise DeliveryRefused(BODY_NOT_JSON, detail=str(error)) from error
     if not isinstance(loaded, dict):
-        raise DeliveryRefused(f"a webhook payload is a JSON object, not {type(loaded).__name__}")
+        raise DeliveryRefused(BODY_NOT_OBJECT, kind=type(loaded).__name__)
     return cast("JsonMap", loaded)
 
 
@@ -519,7 +549,7 @@ async def _accept(
     if not webhook.active:
         # Answered exactly as an unknown token is, so the holder of a revoked token cannot
         # learn that it used to address a real webhook.
-        raise DeliveryRefused("this webhook is disabled", status=404, public=UNKNOWN_TOKEN)
+        raise DeliveryRefused(WEBHOOK_DISABLED, status=404, public=UNKNOWN_TOKEN)
     expected_secret = open_hmac(services.secrets, webhook)
     if expected_secret is not None:
         verify_signature(expected_secret, body, signature)
@@ -528,20 +558,18 @@ async def _accept(
 
     pipeline = await session.get(Pipeline, webhook.pipeline_id)
     if pipeline is None:  # pragma: no cover - cascade removes the webhook
-        raise DeliveryRefused("the pipeline this webhook belongs to no longer exists", status=404)
+        raise DeliveryRefused(WEBHOOK_PIPELINE_GONE, status=404)
     if not pipeline.active:
-        raise DeliveryRefused(f"pipeline {pipeline.code!r} is deactivated", status=409)
+        raise DeliveryRefused(WEBHOOK_PIPELINE_INACTIVE, status=409, code=repr(pipeline.code))
     if pipeline.current_version is None:
-        raise DeliveryRefused(f"pipeline {pipeline.code!r} has no versions yet", status=409)
+        raise DeliveryRefused(WEBHOOK_PIPELINE_NO_VERSIONS, status=409, code=repr(pipeline.code))
     version = await _current_version(session, pipeline)
 
     definition = load_definition(version.document)
     try:
         definition.validate_params(params, services.format_checker)
     except ParameterError as error:
-        raise DeliveryRefused(
-            f"the mapped payload does not satisfy the pipeline's parameters: {error}", status=422
-        ) from error
+        raise DeliveryRefused(WEBHOOK_PARAMS_REFUSED, status=422, detail=str(error)) from error
     try:
         run = await create_run(
             session,
@@ -552,7 +580,7 @@ async def _accept(
             priority=webhook.priority,
         )
     except RunCreationError as error:
-        raise DeliveryRefused(str(error), status=409) from error
+        raise DeliveryRefused(WEBHOOK_RUN_REFUSED, status=409, detail=str(error)) from error
     return run, params, payload
 
 
@@ -565,7 +593,7 @@ async def _current_version(session: AsyncSession, pipeline: Pipeline) -> Pipelin
     )
     version = found.scalar_one_or_none()
     if version is None:  # pragma: no cover - current_version always names a row
-        raise DeliveryRefused(f"pipeline {pipeline.code!r} has no readable current version", status=409)
+        raise DeliveryRefused(WEBHOOK_PIPELINE_UNREADABLE, status=409, code=repr(pipeline.code))
     return version
 
 

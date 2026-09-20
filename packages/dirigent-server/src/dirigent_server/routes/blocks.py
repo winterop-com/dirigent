@@ -2,10 +2,12 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Query, status
 
 from dirigent_client.schemas import BlockEntry, BlockKind, Catalog
 from dirigent_server.dependencies import ServicesDep
+from dirigent_server.errors import Refusal
+from dirigent_server.messages import NO_BLOCK
 from dirigent_server.security import PrincipalDep
 from dirigent_server.transactions import Transactional
 
@@ -35,5 +37,5 @@ async def get_block(block_id: str, services: ServicesDep, principal: PrincipalDe
     """Serve one catalog entry."""
     entry = services.host.catalog().block(block_id)
     if entry is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"no block {block_id!r} is installed")
+        raise Refusal(NO_BLOCK, status=status.HTTP_404_NOT_FOUND, block_id=repr(block_id))
     return entry

@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query, Response, status
+from fastapi import APIRouter, Query, Response, status
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,11 +28,11 @@ from dirigent_core.documents import carried_refusal, load_document
 from dirigent_core.engine import Attribution, create_run
 from dirigent_core.engine.definition import load_definition
 from dirigent_core.engine.runs import Provenance, RunWindow
+from dirigent_core.messages import PIPELINE_DEACTIVATED, PIPELINE_NO_VERSIONS
 from dirigent_core.models import Pipeline
 from dirigent_core.pipelines import (
     NO_COUNTS,
     PipelineCounts,
-    UnknownPipeline,
     apply_document,
     delete_pipeline,
     export_pipeline,
@@ -46,8 +46,10 @@ from dirigent_core.pipelines import (
     set_active,
 )
 from dirigent_core.triggers.backfill import backfill
-from dirigent_core.triggers.schedules import find_schedule
+from dirigent_core.triggers.schedules import UnknownSchedule, find_schedule
 from dirigent_server.dependencies import ServicesDep, SessionDep
+from dirigent_server.errors import Refusal
+from dirigent_server.messages import DOCUMENT_REFUSED, PRUNE_NAMES_NOTHING
 from dirigent_server.pagination import DEFAULT_PAGE, AfterParam, LimitParam, clip, int_cursor
 from dirigent_server.security import AdminDep, OperatorDep, PrincipalDep
 from dirigent_server.transactions import Transactional
@@ -120,7 +122,12 @@ async def apply(
     definition = load_document(raw)
     refusal = carried_refusal(definition)
     if refusal is not None:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=[refusal])
+        raise Refusal(
+            DOCUMENT_REFUSED,
+            status=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            problems=[refusal],
+            detail=refusal.message,
+        )
     return await apply_document(
         session,
         services,
@@ -152,10 +159,7 @@ async def prune(
     instruction to turn everything off.
     """
     if not payload.keep and not dry_run:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=["keep names no codes, and pruning against an empty set would deactivate every directory pipeline"],
-        )
+        raise Refusal(PRUNE_NAMES_NOTHING, status=status.HTTP_422_UNPROCESSABLE_CONTENT)
     return await prune_absent(session, set(payload.keep), dry_run=dry_run)
 
 
@@ -290,9 +294,9 @@ async def start_run(
     """Validate parameters against the pipeline's schema and instantiate a run."""
     pipeline = await _require(session, code)
     if not pipeline.active:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"pipeline {code!r} is deactivated")
+        raise Refusal(PIPELINE_DEACTIVATED, status=status.HTTP_409_CONFLICT, code=repr(code))
     if pipeline.current_version is None:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"pipeline {code!r} has no versions yet")
+        raise Refusal(PIPELINE_NO_VERSIONS, status=status.HTTP_409_CONFLICT, code=repr(code))
     version = await get_version(session, pipeline)
     definition = load_definition(version.document)
     definition.validate_params(payload.params, services.format_checker)
@@ -346,15 +350,12 @@ async def start_backfill(
     del principal
     pipeline = await _require(session, code)
     if not pipeline.active:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"pipeline {code!r} is deactivated")
+        raise Refusal(PIPELINE_DEACTIVATED, status=status.HTTP_409_CONFLICT, code=repr(code))
     if pipeline.current_version is None:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"pipeline {code!r} has no versions yet")
+        raise Refusal(PIPELINE_NO_VERSIONS, status=status.HTTP_409_CONFLICT, code=repr(code))
     schedule = await find_schedule(session, pipeline.id, payload.schedule)
     if schedule is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"pipeline {code!r} has no schedule coded {payload.schedule!r}",
-        )
+        raise UnknownSchedule(code, payload.schedule)
     version = await get_version(session, pipeline)
     filled = await backfill(
         session,
@@ -383,16 +384,10 @@ async def start_backfill(
 
 
 async def _require(session: AsyncSession, code: str) -> Pipeline:
-    """Read a pipeline by code, translating "no such thing" into a 404."""
-    try:
-        return await require_pipeline(session, code)
-    except UnknownPipeline as error:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    """Read a pipeline by code, which refuses an unknown one as a 404 of its own."""
+    return await require_pipeline(session, code)
 
 
 async def _act(session: AsyncSession, code: str, *, active: bool) -> Pipeline:
-    """Activate or deactivate, translating "no such thing" into a 404."""
-    try:
-        return await set_active(session, code, active=active)
-    except UnknownPipeline as error:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    """Activate or deactivate, which refuses an unknown code as a 404 of its own."""
+    return await set_active(session, code, active=active)

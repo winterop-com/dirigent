@@ -1,6 +1,6 @@
 """Local accounts: the listing, creation, edits, activation, password resets, and their tokens."""
 
-from fastapi import APIRouter, HTTPException, Response, status
+from fastapi import APIRouter, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirigent_client.schemas import (
@@ -28,6 +28,8 @@ from dirigent_core.auth import (
 )
 from dirigent_core.models import User
 from dirigent_server.dependencies import SessionDep
+from dirigent_server.errors import Refusal
+from dirigent_server.messages import NO_USER, NO_USER_TOKEN
 from dirigent_server.pagination import DEFAULT_PAGE, AfterParam, LimitParam, clip, uuid_cursor
 from dirigent_server.security import AdminDep
 from dirigent_server.transactions import Transactional
@@ -44,7 +46,7 @@ async def find(session: AsyncSession, username: str) -> User:
     """Read one account by name, or say this instance has no such account."""
     row = await find_user(session, username)
     if row is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"no user named {username!r}")
+        raise Refusal(NO_USER, status=status.HTTP_404_NOT_FOUND, username=repr(username))
     return row
 
 
@@ -198,8 +200,5 @@ async def revoke_account_token(username: str, name: str, session: SessionDep, pr
     """Revoke that account's live tokens of the given name."""
     row = await find(session, username)
     if not await revoke_token(session, user_id=row.id, name=name):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"no live token named {name!r} for {username!r}",
-        )
+        raise Refusal(NO_USER_TOKEN, status=status.HTTP_404_NOT_FOUND, name=repr(name), username=repr(username))
     return Response(status_code=status.HTTP_204_NO_CONTENT)

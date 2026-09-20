@@ -4,7 +4,7 @@ from datetime import timedelta
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, Response, status
+from fastapi import APIRouter, Query, Response, status
 
 from dirigent_client.enums import NotificationStatus
 from dirigent_client.schemas import (
@@ -31,6 +31,8 @@ from dirigent_core.alerting import (
 )
 from dirigent_core.models import AlertRule, Connection, Notification, Pipeline, Run
 from dirigent_server.dependencies import ServicesDep, SessionDep
+from dirigent_server.errors import Refusal
+from dirigent_server.messages import NO_ALERT_RULE, NO_NOTIFICATION
 from dirigent_server.pagination import DEFAULT_PAGE, AfterParam, LimitParam, clip, uuid_cursor
 from dirigent_server.security import OperatorDep, PrincipalDep
 from dirigent_server.transactions import Transactional
@@ -254,7 +256,7 @@ async def _notification_or_404(session: SessionDep, notification_id: UUID) -> No
     """Find one notification, or refuse with the id that named nothing."""
     row = await find_notification(session, notification_id)
     if row is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"no notification {notification_id}")
+        raise Refusal(NO_NOTIFICATION, status=status.HTTP_404_NOT_FOUND, id=notification_id)
     return row
 
 
@@ -262,7 +264,7 @@ async def _rule_or_404(session: SessionDep, code: str) -> AlertRule:
     """Find one alert rule, or refuse with the code that named nothing."""
     rule = await find_rule(session, code)
     if rule is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"no alert rule coded {code!r}")
+        raise Refusal(NO_ALERT_RULE, status=status.HTTP_404_NOT_FOUND, code=repr(code))
     return rule
 
 

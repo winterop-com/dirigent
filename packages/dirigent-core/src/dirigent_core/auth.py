@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dirigent_client.enums import TokenKind, TriggerKind, UserRole
 from dirigent_core.errors import DomainError
 from dirigent_core.logging import get_logger
+from dirigent_core.messages import DUPLICATE_EMAIL, DUPLICATE_USER, LAST_ADMIN, WEAK_PASSWORD, WRONG_PASSWORD
 from dirigent_core.models import ApiToken, User, utcnow
 
 SESSION_LIFETIME = timedelta(days=14)
@@ -51,19 +52,22 @@ class AuthError(DomainError):
 class WeakPassword(AuthError):
     """A password was too short to be worth hashing."""
 
+    message = WEAK_PASSWORD
+
     def __init__(self) -> None:
         """Build a message stating the minimum length."""
-        super().__init__(f"a password must be at least {MIN_PASSWORD_LENGTH} characters")
+        super().__init__(minimum=MIN_PASSWORD_LENGTH)
 
 
 class DuplicateUser(AuthError):
     """An account already holds the requested username."""
 
     status = 409
+    message = DUPLICATE_USER
 
     def __init__(self, username: str) -> None:
         """Name the account already holding the username."""
-        super().__init__(f"a user named {username!r} already exists")
+        super().__init__(username=repr(username))
         self.username = username
 
 
@@ -71,10 +75,11 @@ class DuplicateEmail(AuthError):
     """An account already holds the requested email address."""
 
     status = 409
+    message = DUPLICATE_EMAIL
 
     def __init__(self, email: str) -> None:
         """Name the address already taken."""
-        super().__init__(f"a user with the email {email!r} already exists")
+        super().__init__(email=repr(email))
         self.email = email
 
 
@@ -82,10 +87,11 @@ class LastAdmin(AuthError):
     """A change would have left the instance with no active admin."""
 
     status = 409
+    message = LAST_ADMIN
 
     def __init__(self, username: str) -> None:
         """Name the account that would have been the last one able to manage this instance."""
-        super().__init__(f"{username!r} is the only active admin; promote another account before changing this one")
+        super().__init__(username=repr(username))
         self.username = username
 
 
@@ -93,10 +99,7 @@ class WrongPassword(AuthError):
     """A self-service password change presented the wrong current password."""
 
     status = 403
-
-    def __init__(self) -> None:
-        """State what did not match, without naming the account."""
-        super().__init__("the current password is not correct")
+    message = WRONG_PASSWORD
 
 
 class Principal(BaseModel):

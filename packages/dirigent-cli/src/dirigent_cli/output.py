@@ -19,6 +19,7 @@ from rich.table import Table
 from rich.text import Text
 
 from dirigent_client.schemas.common import Problem
+from dirigent_common import Issue, Message
 from dirigent_core.protocol import Format, Record, as_json, make
 
 #: Whether the environment asked for no colour. Rich decides colour when a console is built,
@@ -190,6 +191,18 @@ def problem_record(problem: Problem) -> "Record":
     )
 
 
+def _problem(message: Message, /, *, status: int, title: str, problems: Sequence[Issue], **params: Any) -> Problem:
+    """Build the problem one CLI refusal is written as, rendered from its catalogued message."""
+    return Problem(
+        status=status,
+        title=title,
+        detail=message.render(**params),
+        code=message.code,
+        params=params,
+        problems=list(problems),
+    )
+
+
 def emit_refusal(problem: Problem) -> None:
     """Write one refusal as a record, carrying the problem body it was built from.
 
@@ -201,9 +214,11 @@ def emit_refusal(problem: Problem) -> None:
     sys.stdout.flush()
 
 
-def emit_problem(detail_text: str, *, status: int = 1, title: str = "Error", problems: Sequence[str] = ()) -> None:
+def emit_problem(
+    message: Message, /, *, status: int = 1, title: str = "Error", problems: Sequence[Issue] = (), **params: Any
+) -> None:
     """Print a refusal the CLI itself decided on, in the shape the server's own would take."""
-    emit_refusal(Problem(status=status, title=title, detail=detail_text, problems=list(problems)))
+    emit_refusal(_problem(message, status=status, title=title, problems=problems, **params))
 
 
 def emit_fact(kind: str, /, **fields: Any) -> None:
@@ -225,9 +240,11 @@ def write_refusal(problem: Problem) -> None:
     Sink(_output).write(problem_record(problem))
 
 
-def refuse(detail_text: str, *, status: int = 1, title: str = "Error", problems: Sequence[str] = ()) -> None:
+def refuse(
+    message: Message, /, *, status: int = 1, title: str = "Error", problems: Sequence[Issue] = (), **params: Any
+) -> None:
     """Write a refusal the CLI decided on as a record, rendered where one was asked for."""
-    write_refusal(Problem(status=status, title=title, detail=detail_text, problems=list(problems)))
+    write_refusal(_problem(message, status=status, title=title, problems=problems, **params))
 
 
 #: How long one field's value may be before the summary *table* renders its shape instead.

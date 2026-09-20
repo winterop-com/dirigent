@@ -8,7 +8,7 @@ from typing import Annotated
 from uuid import UUID
 
 import sqlalchemy as sa
-from fastapi import APIRouter, Header, HTTPException, Query, Request, Response, status
+from fastapi import APIRouter, Header, Query, Request, Response, status
 from fastapi.responses import PlainTextResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -49,6 +49,18 @@ from dirigent_core.pipelines import UNWELL, FailedStep, carries_tag, failing_ste
 from dirigent_core.registry import unmet_worker_tags
 from dirigent_core.reporting import duration_ms, items_in_order, run_facts
 from dirigent_server.dependencies import ServicesDep, SessionDep, get_sessions
+from dirigent_server.errors import Refusal
+from dirigent_server.messages import (
+    ARTIFACT_EMPTY,
+    BAD_SINCE,
+    IDEMPOTENCY_KEY_REQUIRED,
+    NO_ARTIFACT,
+    NO_ATTEMPT,
+    NO_RUN,
+    NOT_A_DURATION,
+    RUN_DEFINITION_GONE,
+    TOO_MANY_TAILS,
+)
 from dirigent_server.pagination import DEFAULT_PAGE, AfterParam, LimitParam, clip, int_cursor, uuid_cursor
 from dirigent_server.security import OperatorDep, PrincipalDep
 from dirigent_server.transactions import Transactional
@@ -80,7 +92,7 @@ async def _run_row(session: AsyncSession, run_id: UUID) -> Run:
     """Read a run, or say this instance has no such run."""
     run = await session.get(Run, run_id)
     if run is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"no run {run_id}")
+        raise Refusal(NO_RUN, status=status.HTTP_404_NOT_FOUND, run_id=run_id)
     return run
 
 
@@ -89,7 +101,7 @@ async def _context(session: AsyncSession, run: Run) -> tuple[Pipeline, PipelineV
     pipeline = await session.get(Pipeline, run.pipeline_id)
     version = await session.get(PipelineVersion, run.pipeline_version_id)
     if pipeline is None or version is None:  # pragma: no cover - both are RESTRICT foreign keys
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="the run's definition is gone")
+        raise Refusal(RUN_DEFINITION_GONE, status=status.HTTP_409_CONFLICT)
     return pipeline, version, load_definition(version.ordered_document)
 
 
@@ -207,9 +219,9 @@ def _window(since: str) -> timedelta:
     try:
         parsed = parse_duration(since)
     except DurationError as error:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)) from error
+        raise Refusal(BAD_SINCE, status=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)) from error
     if not isinstance(parsed, timedelta):  # pragma: no cover - parse_duration returns one or raises
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"{since!r} is not a duration")
+        raise Refusal(NOT_A_DURATION, status=status.HTTP_422_UNPROCESSABLE_CONTENT, since=repr(since))
     return parsed
 
 
@@ -330,7 +342,7 @@ async def read_artifact(
     """
     reference = await session.get(ArtifactRef, artifact_id)
     if reference is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"no artifact {artifact_id}")
+        raise Refusal(NO_ARTIFACT, status=status.HTTP_404_NOT_FOUND, artifact_id=artifact_id)
     content_type = reference.content_type or JSON_CONTENT_TYPE
     if reference.inline_value is not None:
         inlined = reference.inline_value.get(TEXT_KEY)
@@ -338,7 +350,7 @@ async def read_artifact(
             return PlainTextResponse(inlined, media_type=content_type)
         return Response(canonical_json(reference.inline_value), media_type=JSON_CONTENT_TYPE)
     if reference.uri is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"artifact {artifact_id} holds no content")
+        raise Refusal(ARTIFACT_EMPTY, status=status.HTTP_404_NOT_FOUND, artifact_id=artifact_id)
     storage = await services.bound_storage(session)
     return StreamingResponse(storage.open_read(reference.uri), media_type=content_type)
 
@@ -395,13 +407,10 @@ async def retry(
 ) -> AttemptOut:
     """Create one manual attempt of a failed step, reading its upstream stored outputs."""
     if not idempotency_key:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="an Idempotency-Key header is required, so a retried request creates one attempt",
-        )
+        raise Refusal(IDEMPOTENCY_KEY_REQUIRED, status=status.HTTP_400_BAD_REQUEST)
     attempt = await session.get(StepAttempt, attempt_id)
     if attempt is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"no attempt {attempt_id}")
+        raise Refusal(NO_ATTEMPT, status=status.HTTP_404_NOT_FOUND, attempt_id=attempt_id)
     run = await _run_row(session, attempt.run_id)
     created = await retry_step(
         session,
@@ -478,10 +487,11 @@ def _claim(user_id: UUID) -> str:
     """
     watcher = str(user_id)
     if OPEN_TAILS.get(watcher, 0) >= MAX_TAILS_PER_PRINCIPAL:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=f"you already have {MAX_TAILS_PER_PRINCIPAL} streams open on this server",
+        raise Refusal(
+            TOO_MANY_TAILS,
+            status=status.HTTP_429_TOO_MANY_REQUESTS,
             headers={"retry-after": "5"},
+            maximum=MAX_TAILS_PER_PRINCIPAL,
         )
     return watcher
 

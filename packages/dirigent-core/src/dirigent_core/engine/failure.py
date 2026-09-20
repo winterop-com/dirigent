@@ -79,6 +79,11 @@ class Failure(BaseModel):
         return cls(code=message.code, message=message.render(**params), params=params, error_class=ErrorClass.REJECTED)
 
     @classmethod
+    def unknown(cls, message: Message, /, **params: Any) -> "Failure":
+        """Build a failure the engine itself raised that it cannot classify either way."""
+        return cls(code=message.code, message=message.render(**params), params=params, error_class=ErrorClass.UNKNOWN)
+
+    @classmethod
     def transient(cls, message: Message, /, **params: Any) -> "Failure":
         """Build a failure the engine itself raised that another attempt may survive."""
         return cls(code=message.code, message=message.render(**params), params=params, error_class=ErrorClass.TRANSIENT)

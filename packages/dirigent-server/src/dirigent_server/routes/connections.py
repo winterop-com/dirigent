@@ -7,19 +7,30 @@ redaction marker, and no endpoint reveals a stored credential. An update that se
 back keeps the secret it stands for, which reserves the literal marker as a secret value.
 """
 
+from typing import Any, cast
+
 import sqlalchemy as sa
-from fastapi import APIRouter, HTTPException, Response, status
+from fastapi import APIRouter, Response, status
 from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirigent_client.schemas import ConnectionIn, ConnectionOut, ConnectionUpdate, Page
-from dirigent_common import HealthReport, JsonMap
+from dirigent_common import HealthReport, JsonMap, validation_issues
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.models import Connection, utcnow
 from dirigent_core.secrets import REDACTED, redact, secret_fields
 from dirigent_server.dependencies import ServicesDep, SessionDep
+from dirigent_server.errors import Refusal
 from dirigent_server.logging import get_logger
+from dirigent_server.messages import (
+    CONNECTION_CONFIG_INVALID,
+    CONNECTION_EXISTS,
+    CONNECTION_REFERENCED,
+    NO_CONNECTION,
+    REDACTED_SECRET,
+    UNKNOWN_CONNECTION_KIND,
+)
 from dirigent_server.pagination import DEFAULT_PAGE, AfterParam, LimitParam, clip
 from dirigent_server.security import AdminDep, PrincipalDep
 from dirigent_server.transactions import Transactional
@@ -76,7 +87,7 @@ async def find(session: AsyncSession, code: str) -> Connection:
     found = await session.execute(sa.select(Connection).where(Connection.code == code))
     row = found.scalar_one_or_none()
     if row is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"no connection coded {code!r}")
+        raise Refusal(NO_CONNECTION, status=status.HTTP_404_NOT_FOUND, code=repr(code))
     return row
 
 
@@ -98,12 +109,11 @@ def restore_marked_secrets(row: Connection, config: JsonMap, services: EngineSer
     stored = services.secrets.open(row.secret_envelope, key_id=row.secret_key_id)
     empty = sorted(name for name in marked if stored.get(name) is None)
     if empty:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=(
-                f"{', '.join(empty)} came back as {REDACTED!r}, which is what a read shows for a secret "
-                f"that is set, not a secret. Send the real value, or leave the field out to keep what is stored."
-            ),
+        raise Refusal(
+            REDACTED_SECRET,
+            status=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            fields=", ".join(empty),
+            redacted=repr(REDACTED),
         )
     return {**config, **{name: stored[name] for name in marked}}
 
@@ -113,18 +123,23 @@ def seal(services: EngineServices, kind_id: str, config: JsonMap) -> tuple[JsonM
     contributed = services.host.connection_kinds.get(kind_id)
     if contributed is None:
         known = ", ".join(sorted(services.host.connection_kinds)) or "none are installed"
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"no connection kind {kind_id!r} is installed ({known})",
+        raise Refusal(
+            UNKNOWN_CONNECTION_KIND,
+            status=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            kind=repr(kind_id),
+            known=known,
         )
     try:
         validated = contributed.config_model.model_validate(config)
     except ValidationError as error:
         # include_input=False: the input here is a credential, and pydantic's default error
         # payload echoes the value that failed into the 422 body and whatever logs it.
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=error.errors(include_input=False),
+        issues = validation_issues(cast("list[dict[str, Any]]", error.errors(include_input=False)))
+        raise Refusal(
+            CONNECTION_CONFIG_INVALID,
+            status=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            problems=issues,
+            detail="; ".join(str(issue) for issue in issues),
         ) from error
     return services.secrets.encrypt_config(contributed.config_model, validated)
 
@@ -168,7 +183,7 @@ async def create_connection(
     """Validate a credential against its kind, seal its secret half, and store it."""
     existing = await session.execute(sa.select(Connection).where(Connection.code == payload.code))
     if existing.scalar_one_or_none() is not None:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"a connection coded {payload.code!r} exists")
+        raise Refusal(CONNECTION_EXISTS, status=status.HTTP_409_CONFLICT, code=repr(payload.code))
     public, envelope, key_id = seal(services, payload.kind, payload.config)
     row = Connection(
         code=payload.code,
@@ -242,10 +257,7 @@ async def delete_connection(code: str, session: SessionDep, principal: AdminDep)
     try:
         await session.flush()
     except IntegrityError as error:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"connection {code!r} is still referenced; delete what uses it first",
-        ) from error
+        raise Refusal(CONNECTION_REFERENCED, status=status.HTTP_409_CONFLICT, code=repr(code)) from error
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

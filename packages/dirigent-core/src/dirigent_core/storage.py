@@ -17,6 +17,7 @@ from uuid import UUID, uuid4
 from pydantic import BaseModel
 
 from dirigent_core.errors import DomainError
+from dirigent_core.messages import NOT_A_URI, OUTSIDE_ROOT, UNKNOWN_SCHEME, UNKNOWN_STORAGE_CONNECTION
 from dirigent_plugin import ByteSink, StatResult, StorageBackend
 
 CHUNK_SIZE: Final = 256 * 1024
@@ -31,29 +32,35 @@ class StorageError(DomainError):
 class UnknownScheme(StorageError):
     """A URI named a scheme no registered backend claims."""
 
+    message = UNKNOWN_SCHEME
+
     def __init__(self, scheme: str, known: Iterable[str]) -> None:
         """Name the scheme and the schemes that are registered."""
-        registered = ", ".join(sorted(known)) or "none"
-        super().__init__(f"no storage backend registered for scheme {scheme!r}; registered schemes: {registered}")
+        super().__init__(scheme=repr(scheme), registered=", ".join(sorted(known)) or "none")
         self.scheme = scheme
 
 
 class OutsideRoot(StorageError):
     """A ``file://`` URI resolved outside the configured artifact root."""
 
+    message = OUTSIDE_ROOT
+
     def __init__(self, uri: str, root: Path) -> None:
         """Name the URI and the boundary it crossed."""
-        super().__init__(f"{uri!r} resolves outside the artifact root {str(root)!r}")
+        super().__init__(uri=repr(uri), root=repr(str(root)))
         self.uri = uri
 
 
 class UnknownStorageConnection(StorageError):
     """A scheme is configured from a connection code this instance does not hold."""
 
+    message = UNKNOWN_STORAGE_CONNECTION
+
     def __init__(self, scheme: str, ref: str, known: Iterable[str]) -> None:
         """Name the scheme, the connection it is configured from, and the ones that exist."""
-        available = ", ".join(sorted(known)) or "none are configured"
-        super().__init__(f"no connection coded {ref!r} to configure the {scheme!r} scheme from ({available})")
+        super().__init__(
+            ref=repr(ref), scheme=repr(scheme), available=", ".join(sorted(known)) or "none are configured"
+        )
         self.scheme = scheme
         self.ref = ref
 
@@ -70,7 +77,7 @@ def parse_uri(uri: str) -> tuple[str, str]:
     """Split a URI into its scheme and the backend-specific remainder."""
     split = urlsplit(uri)
     if not split.scheme:
-        raise StorageError(f"{uri!r} is not a URI: it names no scheme")
+        raise StorageError(NOT_A_URI, uri=repr(uri))
     return split.scheme, f"{split.netloc}{split.path}"
 
 

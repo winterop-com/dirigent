@@ -43,6 +43,26 @@ from dirigent_core.engine.state import advance, lock_pipeline, lock_run
 from dirigent_core.errors import DomainError
 from dirigent_core.ids import uuid7
 from dirigent_core.logging import get_logger
+from dirigent_core.messages import (
+    BACKWARDS_WINDOW,
+    CHAIN_CYCLE,
+    CHAIN_TOO_DEEP,
+    CHILD_REFUSED,
+    FAN_OUT_NOT_A_LIST,
+    FAN_OUT_NOT_FANNING,
+    FAN_OUT_READS_OUTPUT,
+    NO_ATTEMPT_TO_RETRY,
+    NOT_RETRYABLE,
+    PARENT_GONE,
+    RETRY_CONCURRENCY,
+    RUN_PIPELINE_INACTIVE,
+    RUN_PIPELINE_NO_VERSIONS,
+    RUN_PIPELINE_UNREADABLE,
+    RUN_UNKNOWN_PIPELINE,
+    RUN_VERSION_GONE,
+    SELF_START,
+    STEP_REFUSED,
+)
 from dirigent_core.models import Pipeline, PipelineVersion, Run, RunItem, StepAttempt, utcnow
 from dirigent_core.storage import scratch_prefix
 from dirigent_plugin import RemoteHandle, RunRefused, RunSnapshot, RunState, StartedRun
@@ -90,10 +110,7 @@ class RunWindow(BaseModel):
     def _run_forwards(self) -> "RunWindow":
         """Refuse an empty or backwards interval, which no step could read as a window."""
         if self.start >= self.end:
-            raise ValueError(
-                f"a window runs forwards and covers something: {self.start.isoformat()} "
-                f"is not before {self.end.isoformat()}"
-            )
+            raise ValueError(BACKWARDS_WINDOW.render(start=self.start.isoformat(), end=self.end.isoformat()))
         return self
 
 
@@ -364,18 +381,14 @@ def resolve_fan_out(name: str, step: StepDefinition, scope: ReferenceScope) -> l
     if adopted is not None:
         grid = scope.grids.get(adopted)
         if grid is None:
-            raise FanOutError(f"step {name!r} maps over step {adopted!r}'s items, but {adopted!r} does not fan out")
+            raise FanOutError(FAN_OUT_NOT_FANNING, step=repr(name), adopted=repr(adopted))
         return list(grid)
     if "steps." in expression:
-        raise FanOutError(
-            f"step {name!r} maps over {expression!r}: fan-out is expanded when the run is created, so for_each "
-            f"may read params, run, and an upstream fan-out's grid as ${{steps.<name>.items}}, "
-            f"but not a step's output"
-        )
+        raise FanOutError(FAN_OUT_READS_OUTPUT, step=repr(name), expression=repr(expression))
     resolved = resolve(expression, scope)
     if not isinstance(resolved, list):
         raise FanOutError(
-            f"step {name!r} maps over {expression!r}, which resolved to {type(resolved).__name__}, not a list"
+            FAN_OUT_NOT_A_LIST, step=repr(name), expression=repr(expression), kind=type(resolved).__name__
         )
     return resolved
 
@@ -385,7 +398,7 @@ def _refuse_disabled_blocks(definition: PipelineDefinition, services: EngineServ
     for name, step in definition.steps.items():
         refusal = services.local_execution_refusal(step.block)
         if refusal is not None:
-            raise RunCreationError(f"step {name!r}: {refusal.message}")
+            raise RunCreationError(STEP_REFUSED, step=repr(name), detail=refusal.message)
 
 
 async def cancel_run(
@@ -594,12 +607,10 @@ async def retry_step(
     )
     attempts = list(rows.scalars())
     if not attempts:
-        raise RunCreationError(f"run {run.id} has no attempt of step {step_name!r} to retry")
+        raise RunCreationError(NO_ATTEMPT_TO_RETRY, run=run.id, step=repr(step_name))
     latest = attempts[0]
     if latest.status not in (AttemptStatus.FAILED, AttemptStatus.SKIPPED, AttemptStatus.CANCELLED):
-        raise RunCreationError(
-            f"step {step_name!r} is {latest.status.value}, and only a settled failure can be retried"
-        )
+        raise RunCreationError(NOT_RETRYABLE, step=repr(step_name), status=latest.status.value)
 
     await _admit_retry(session, services, run, definition, moment)
 
@@ -629,7 +640,7 @@ async def _definition_of(session: AsyncSession, run: Run) -> PipelineDefinition:
     """Read the pipeline definition of the version a run pins."""
     version = await session.get(PipelineVersion, run.pipeline_version_id)
     if version is None:  # pragma: no cover - a run always pins a version that exists
-        raise RunCreationError(f"run {run.id} pins a pipeline version that is gone")
+        raise RunCreationError(RUN_VERSION_GONE, run=run.id)
     return load_definition(version.document)
 
 
@@ -653,9 +664,7 @@ async def _admit_retry(
         case "skip" | "queue":
             for other in others:
                 if await _occupies_slot(session, other):
-                    raise RunCreationError(
-                        f"another run of pipeline {definition.code!r} is in flight; retry once it has finished"
-                    )
+                    raise RunCreationError(RETRY_CONCURRENCY, code=repr(definition.code))
         case "replace":
             for other in others:
                 await cancel_run(session, services, other, reason="replaced by a manual retry", now=moment)
@@ -772,7 +781,7 @@ class EngineRuns:
         async with self._scope() as session:
             parent = await session.get(Run, self.parent_run_id)
             if parent is None:  # pragma: no cover - the calling run exists by construction
-                raise RunRefused(f"run {self.parent_run_id} no longer exists")
+                raise RunRefused(PARENT_GONE, run=self.parent_run_id)
             await self._refuse_a_bad_chain(session, parent, pipeline, max_depth)
             version = await self._current_version(session, pipeline)
             try:
@@ -791,7 +800,7 @@ class EngineRuns:
                     priority=parent.priority,
                 )
             except (RunCreationError, ParameterError) as error:
-                raise RunRefused(f"a run of pipeline {pipeline!r} could not be started: {error}") from error
+                raise RunRefused(CHILD_REFUSED, pipeline=repr(pipeline), detail=str(error)) from error
         if run is None:
             return StartedRun(pipeline=pipeline)
         return StartedRun(pipeline=pipeline, run_id=run.id, state=RunState(run.status.value))
@@ -841,32 +850,25 @@ class EngineRuns:
         """Refuse a step that would start a pipeline already in this chain, or one hop too many."""
         own = await session.get(Pipeline, parent.pipeline_id)
         if own is not None and own.code == pipeline:
-            raise RunRefused(
-                f"pipeline {pipeline!r} cannot start itself; a step that targets its own pipeline is a cycle, "
-                f"not a loop"
-            )
+            raise RunRefused(SELF_START, pipeline=repr(pipeline))
         depth, ancestry = await chain_ancestry(session, parent)
         target = await session.execute(sa.select(Pipeline.id).where(Pipeline.code == pipeline))
         target_id = target.scalar_one_or_none()
         if target_id is not None and target_id in ancestry:
-            raise RunRefused(
-                f"pipeline {pipeline!r} is already running further up this chain, so starting it here is a cycle"
-            )
+            raise RunRefused(CHAIN_CYCLE, pipeline=repr(pipeline))
         if depth + 1 > max_depth:
-            raise RunRefused(
-                f"a run of pipeline {pipeline!r} would be {depth + 1} pipelines deep, and max_depth is {max_depth}"
-            )
+            raise RunRefused(CHAIN_TOO_DEEP, pipeline=repr(pipeline), depth=depth + 1, maximum=max_depth)
 
     async def _current_version(self, session: AsyncSession, code: str) -> PipelineVersion:
         """Read the version a started child pins, which is always the target's current one."""
         found = await session.execute(sa.select(Pipeline).where(Pipeline.code == code))
         pipeline = found.scalar_one_or_none()
         if pipeline is None:
-            raise RunRefused(f"this instance has no pipeline coded {code!r}")
+            raise RunRefused(RUN_UNKNOWN_PIPELINE, code=repr(code))
         if not pipeline.active:
-            raise RunRefused(f"pipeline {code!r} is deactivated")
+            raise RunRefused(RUN_PIPELINE_INACTIVE, code=repr(code))
         if pipeline.current_version is None:
-            raise RunRefused(f"pipeline {code!r} has no versions yet")
+            raise RunRefused(RUN_PIPELINE_NO_VERSIONS, code=repr(code))
         rows = await session.execute(
             sa.select(PipelineVersion).where(
                 PipelineVersion.pipeline_id == pipeline.id,
@@ -875,7 +877,7 @@ class EngineRuns:
         )
         version = rows.scalar_one_or_none()
         if version is None:  # pragma: no cover - current_version always names a row
-            raise RunRefused(f"pipeline {code!r} has no readable current version")
+            raise RunRefused(RUN_PIPELINE_UNREADABLE, code=repr(code))
         return version
 
 

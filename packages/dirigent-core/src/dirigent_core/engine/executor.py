@@ -19,7 +19,7 @@ from pydantic import BaseModel, ConfigDict, JsonValue, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from dirigent_client.enums import AttemptKind, AttemptStatus, LogLevel, RunStatus
-from dirigent_common import JsonMap, format_duration
+from dirigent_common import Issue, JsonMap, format_duration
 from dirigent_core import telemetry
 from dirigent_core.artifacts import persist_output
 from dirigent_core.database import session_scope, with_deadlock_retry
@@ -57,9 +57,24 @@ from dirigent_core.engine.services import EngineServices
 from dirigent_core.engine.state import advance, lock_run
 from dirigent_core.ids import uuid7
 from dirigent_core.logging import get_logger, log_context
+from dirigent_core.messages import (
+    BLOCK_NOT_INSTALLED,
+    CALL_EXCEEDED_TIMEOUT,
+    CALL_TIMED_OUT,
+    CONFIG_FAILED,
+    CONFIG_REFUSED,
+    DEADLINE_PASSED,
+    DEADLINE_SKIPPED,
+    GONE_PROBES,
+    ITEM_UNPAIRED,
+    REMOTE_JOB_FAILED,
+    REMOTE_JOB_GONE,
+    REMOTE_JOB_SAID,
+    STEP_NOT_IN_VERSION,
+)
 from dirigent_core.models import LogEntry, PipelineVersion, Run, RunItem, StepAttempt, utcnow
 from dirigent_core.storage import AttemptStorage, scratch_prefix
-from dirigent_plugin import AnyOperator, AnySensor, ErrorClass, NotYet, ProbeStatus, RemoteHandle, shell_string_fields
+from dirigent_plugin import AnyOperator, AnySensor, NotYet, ProbeStatus, RemoteHandle, shell_string_fields
 
 DEFAULT_PROBE_INTERVAL = timedelta(seconds=30)
 
@@ -195,7 +210,7 @@ class Engine:
                 run,
                 definition,
                 attempt,
-                Failure.rejected(f"step {attempt.step_name!r} is not in the pinned pipeline version"),
+                Failure.rejected(STEP_NOT_IN_VERSION, step=repr(attempt.step_name)),
                 now,
             )
             return None
@@ -220,7 +235,9 @@ class Engine:
             if unpaired is not None:
                 attempt.status = AttemptStatus.SKIPPED
                 attempt.finished_at = now
-                attempt.error = unpaired
+                attempt.error = unpaired.message
+                attempt.error_code = unpaired.code
+                attempt.error_params = unpaired.params
                 _release(attempt)
                 await self._advance(session, run, definition, now)
                 return None
@@ -251,11 +268,18 @@ class Engine:
                 item=item_value if has_item else None,
             )
         except (UnknownReference, ValidationError) as error:
-            await self._settle_and_advance(session, run, definition, attempt, Failure.rejected(str(error)), now)
+            await self._settle_and_advance(
+                session, run, definition, attempt, Failure.rejected(CONFIG_REFUSED, detail=str(error)), now
+            )
             return None
         except Exception as error:
             await self._settle_and_advance(
-                session, run, definition, attempt, Failure.rejected(f"{type(error).__name__}: {error}"), now
+                session,
+                run,
+                definition,
+                attempt,
+                Failure.rejected(CONFIG_FAILED, kind=type(error).__name__, detail=str(error)),
+                now,
             )
             return None
 
@@ -401,7 +425,7 @@ class Engine:
                     with self._timed(unit.block_id, "poke"):
                         return _read_poke(await sensor.poke(config, context))
                 if operator is None:  # pragma: no cover - the host resolved it above
-                    return Errored(failure=Failure.rejected(f"block {unit.block_id!r} is not installed"))
+                    return Errored(failure=Failure.rejected(BLOCK_NOT_INSTALLED, block=repr(unit.block_id)))
                 return await self._call_operator(operator, config, context, unit)
         except TimeoutError:
             return Errored(failure=timeout_failure(unit.step.timeout))
@@ -439,11 +463,14 @@ class Engine:
                     fetched = await operator.fetch(handle, config, context)
                 return Produced(output=fetched.model_dump(mode="json"))
             case ProbeStatus.FAILED:
-                return Errored(
-                    failure=Failure(message=probe.message or "the remote job failed", error_class=ErrorClass.UNKNOWN)
+                failed = (
+                    Failure.unknown(REMOTE_JOB_SAID, detail=probe.message)
+                    if probe.message
+                    else Failure.unknown(REMOTE_JOB_FAILED)
                 )
+                return Errored(failure=failed)
             case ProbeStatus.GONE:
-                return Vanished(message=probe.message or "the remote no longer knows this job")
+                return Vanished(message=probe.message or REMOTE_JOB_GONE.render())
 
     @contextlib.contextmanager
     def _timed(self, block_id: str, call: str) -> Generator[None]:
@@ -720,6 +747,8 @@ class Engine:
         attempt.status = AttemptStatus.SUCCEEDED
         attempt.finished_at = now
         attempt.error = None
+        attempt.error_code = None
+        attempt.error_params = None
         attempt.error_class = None
         attempt.waiting_message = None
         attempt.waiting_progress = None
@@ -747,7 +776,7 @@ class Engine:
             run,
             definition,
             attempt,
-            Failure.transient(f"{message} (after {attempt.gone_probes} consecutive GONE probes)"),
+            Failure.transient(GONE_PROBES, detail=message, probes=attempt.gone_probes),
             now,
         )
 
@@ -810,7 +839,9 @@ class Engine:
         if step.on_timeout is TimeoutAction.SKIP:
             attempt.status = AttemptStatus.SKIPPED
             attempt.finished_at = now
-            attempt.error = f"the deadline {attempt.deadline_at} passed; the step is skipped"
+            attempt.error = DEADLINE_SKIPPED.render(deadline=attempt.deadline_at)
+            attempt.error_code = DEADLINE_SKIPPED.code
+            attempt.error_params = {"deadline": str(attempt.deadline_at)}
             _release(attempt)
         else:
             await self._settle_failure(
@@ -818,7 +849,7 @@ class Engine:
                 run,
                 definition,
                 attempt,
-                Failure.rejected(f"the deadline {attempt.deadline_at} passed before the step finished"),
+                Failure.rejected(DEADLINE_PASSED, deadline=str(attempt.deadline_at)),
                 now,
                 allow_retry=False,
             )
@@ -839,6 +870,8 @@ class Engine:
         attempt.status = AttemptStatus.FAILED
         attempt.finished_at = now
         attempt.error = failure.message
+        attempt.error_code = failure.code
+        attempt.error_params = failure.params or None
         attempt.error_class = failure.error_class.value
         _release(attempt)
 
@@ -942,8 +975,8 @@ def _release(attempt: StepAttempt) -> None:
 def timeout_failure(timeout: timedelta | None) -> Failure:
     """Say that a call ran out of time, spelling the budget the way the step wrote it down."""
     if timeout is None:
-        return Failure.transient("the block call timed out")
-    return Failure.transient(f"the block call exceeded the step timeout {format_duration(timeout)}")
+        return Failure.transient(CALL_TIMED_OUT)
+    return Failure.transient(CALL_EXCEEDED_TIMEOUT, timeout=format_duration(timeout))
 
 
 def probe_interval(cadence: timedelta, probes: int) -> timedelta:
@@ -993,6 +1026,7 @@ def _trace_settlement(
         case AttemptStatus.FAILED:
             level, message = LogLevel.ERROR, "failed"
             fields["error_class"] = attempt.error_class
+            fields["error_code"] = attempt.error_code
             if attempt.error:
                 # The line has to say what failed on its own: the attempt row is not always
                 # beside it, and a log read tomorrow has only what was written today.
@@ -1103,7 +1137,7 @@ async def collect_item_outputs(
     return {attempt.step_name: attempt.output for attempt in rows.scalars()}
 
 
-async def _pair_refusal(session: AsyncSession, run_id: UUID, parent: str, item_index: int) -> str | None:
+async def _pair_refusal(session: AsyncSession, run_id: UUID, parent: str, item_index: int) -> Issue | None:
     """Say why an adopted item cannot run, or nothing when its match succeeded."""
     rows = await session.execute(
         sa.select(StepAttempt, RunItem)
@@ -1116,4 +1150,4 @@ async def _pair_refusal(session: AsyncSession, run_id: UUID, parent: str, item_i
     if pair is not None and pair[0].status is AttemptStatus.SUCCEEDED:
         return None
     key = pair[1].item_key if pair is not None else str(item_index)
-    return f"item {item_index} ({key!r}) of step {parent!r} did not succeed, so this item is skipped"
+    return Issue.of(ITEM_UNPAIRED, index=item_index, key=repr(key), step=repr(parent))

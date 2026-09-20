@@ -31,6 +31,8 @@ PIPELINE_IN_USE = PIPELINE.define(
     "pipeline {code} has {runs} run(s) still in flight and cannot be deleted; finish or cancel them first",
 )
 
+PIPELINE_DEACTIVATED = PIPELINE.define("deactivated", "pipeline {code} is deactivated")
+
 PIPELINE_NO_VERSIONS = PIPELINE.define("no_versions", "pipeline {code} has no versions yet")
 
 PIPELINE_NO_SUCH_VERSION = PIPELINE.define("no_such_version", "pipeline {code} has no version {version}")
@@ -549,6 +551,11 @@ RUN_UNKNOWN_CONNECTION = RUN.define("unknown_connection", "no connection coded {
 
 RUN_UNKNOWN_SCHEMA = RUN.define("unknown_schema", "no schema coded {code} ({available})")
 
+UNKNOWN_CONNECTION_KIND = RUN.define(
+    "unknown_connection_kind",
+    "connection {ref} has kind {kind}, which no installed plugin contributes",
+)
+
 STEP_NOT_IN_VERSION = RUN.define("step_not_in_version", "step {step} is not in the pinned pipeline version")
 
 CONFIG_REFUSED = RUN.define("config_refused", "{detail}")
@@ -630,6 +637,17 @@ RUN_PIPELINE_INACTIVE = RUN.define("pipeline_inactive", "pipeline {code} is deac
 RUN_PIPELINE_NO_VERSIONS = RUN.define("pipeline_no_versions", "pipeline {code} has no versions yet")
 
 RUN_PIPELINE_UNREADABLE = RUN.define("pipeline_unreadable", "pipeline {code} has no readable current version")
+
+REMOTE_JOB_FAILED = RUN.define("remote_job_failed", "the remote job failed")
+
+REMOTE_JOB_SAID = RUN.define("remote_job_said", "{detail}")
+
+REMOTE_JOB_GONE = RUN.define("remote_job_gone", "the remote no longer knows this job")
+
+ITEM_UNPAIRED = RUN.define(
+    "item_unpaired",
+    "item {index} ({key}) of step {step} did not succeed, so this item is skipped",
+)
 
 BACKWARDS_WINDOW = RUN.define(
     "backwards_window",

@@ -433,9 +433,9 @@ class RunState(StrEnum):
 class RunRefused(BlockFailure):
     """The instance refused to start the run a block asked for."""
 
-    def __init__(self, message: str) -> None:
+    def __init__(self, message: Message, /, **params: Any) -> None:
         """Carry the reason, classified as the configuration error it always is."""
-        super().__init__(message, error_class=ErrorClass.REJECTED)
+        super().__init__(message, error_class=ErrorClass.REJECTED, **params)
 
 
 class StartedRun(BaseModel):

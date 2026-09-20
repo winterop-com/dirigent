@@ -1,6 +1,6 @@
 """Logging in, logging out, and asking who you are."""
 
-from fastapi import APIRouter, HTTPException, Request, Response, status
+from fastapi import APIRouter, Request, Response, status
 
 from dirigent_client.enums import TokenKind
 from dirigent_client.schemas import (
@@ -26,7 +26,9 @@ from dirigent_core.auth import find_user as find_user_row
 from dirigent_core.models import User
 from dirigent_core.ratelimit import TokenBucket
 from dirigent_server.dependencies import SessionDep, SettingsDep
+from dirigent_server.errors import Refusal
 from dirigent_server.logging import get_logger
+from dirigent_server.messages import ACCOUNT_GONE, BAD_CREDENTIALS, NO_TOKEN, TOO_MANY_LOGINS
 from dirigent_server.pagination import DEFAULT_PAGE, AfterParam, LimitParam, clip, uuid_cursor
 from dirigent_server.security import (
     AdminDep,
@@ -66,7 +68,7 @@ async def login(
     _limit_login(request, payload.username, per_minute=settings.login_rate_per_minute)
     user = await authenticate(session, payload.username, payload.password.get_secret_value())
     if user is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid username or password")
+        raise Refusal(BAD_CREDENTIALS, status=status.HTTP_401_UNAUTHORIZED)
     issued = await issue_token(session, user, name="session", kind=TokenKind.SESSION, lifetime=SESSION_LIFETIME)
     set_session_cookie(
         response,
@@ -89,10 +91,11 @@ def _limit_login(request: Request, username: str, *, per_minute: int) -> None:
     for scope, key in (("address", f"address:{address}"), ("account", f"user:{username}")):
         if not LOGIN_BUCKETS.allow(key, per_minute=per_minute):
             _logger.warning("login rate limited", scope=scope, address=address, limit=per_minute)
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=f"too many login attempts; this instance accepts {per_minute} a minute",
+            raise Refusal(
+                TOO_MANY_LOGINS,
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
                 headers={"Retry-After": "60"},
+                per_minute=per_minute,
             )
 
 
@@ -199,7 +202,7 @@ async def create_api_token(payload: TokenRequest, session: SessionDep, principal
 async def revoke_api_token(name: str, session: SessionDep, principal: AdminDep) -> Response:
     """Revoke the caller's live tokens of the given name."""
     if not await revoke_token(session, user_id=principal.user_id, name=name):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"no live token named {name!r}")
+        raise Refusal(NO_TOKEN, status=status.HTTP_404_NOT_FOUND, name=repr(name))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -207,5 +210,5 @@ async def _require_user(session: SessionDep, username: str) -> User:
     """Read the account a principal names."""
     user = await find_user_row(session, username)
     if user is None:  # pragma: no cover - a resolved principal always has its row
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="the authenticated account is gone")
+        raise Refusal(ACCOUNT_GONE, status=status.HTTP_401_UNAUTHORIZED)
     return user

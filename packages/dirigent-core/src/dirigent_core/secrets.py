@@ -15,6 +15,7 @@ from pydantic import BaseModel, SecretStr
 
 from dirigent_common import JsonMap
 from dirigent_core.errors import DomainError
+from dirigent_core.messages import EMPTY_SECRET, SECRET_KEY_MISMATCH, SECRET_KEY_MISSING
 
 REDACTED = "***"
 
@@ -32,33 +33,28 @@ class SecretError(DomainError):
 class SecretKeyMissing(SecretError):
     """A secret had to be sealed or opened but the instance has no key configured."""
 
-    def __init__(self) -> None:
-        """Say exactly which variable to set, and how to generate a key."""
-        super().__init__(
-            "no secret key is configured: set DIRIGENT_SECRET_KEY before storing or reading "
-            "connection secrets (generate one with `dg secret-key`)"
-        )
+    message = SECRET_KEY_MISSING
 
 
 class EmptySecret(SecretError):
     """A required secret field was given an empty value, which is not a credential."""
 
+    message = EMPTY_SECRET
+
     def __init__(self, fields: list[str]) -> None:
         """Name the fields that came in empty."""
-        super().__init__(f"{', '.join(fields)} cannot be stored empty: a required secret needs a value")
+        super().__init__(fields=", ".join(fields))
         self.fields = fields
 
 
 class SecretKeyMismatch(SecretError):
     """An envelope could not be opened with the configured key."""
 
+    message = SECRET_KEY_MISMATCH
+
     def __init__(self, key_id: str | None) -> None:
         """Name the key that sealed the envelope."""
-        sealed_by = f" sealed by key {key_id}" if key_id else ""
-        super().__init__(
-            f"the configured DIRIGENT_SECRET_KEY cannot open this envelope{sealed_by}: "
-            "either the key changed or the row belongs to another instance"
-        )
+        super().__init__(sealed_by=f" sealed by key {key_id}" if key_id else "")
         self.key_id = key_id
 
 
