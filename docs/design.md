@@ -1603,10 +1603,14 @@ The survey of prior art collapses to a short list of scars this design answers:
   boards: typed ports drawing a `${steps.x.output}` reference as a data wire distinct from a
   bare `depends_on` edge.
 - **M4 - Adapter packs.** Domain plugin packages with fresh clients and a nightly
-  contract-test lane.
+  contract-test lane. *(Complete for the first pack: `dirigent-dhis2` lives in its own
+  repository and `dirigent-integration` assembles and tests the set; every further pack
+  repeats the shape.)*
 - **M5 - Hardening.** Log batching under load, OTel exporter polish and reference
-  dashboards, notifier channel packages, operational docs, poll-loop load test.
-  Retention landed early, ahead of this milestone.
+  dashboards, notifier channels, operational docs, load test. *(Complete. The log path
+  flushes on a size gate as well as the interval, `make load` measures it against a real
+  PostgreSQL, the OTLP overlay and Grafana dashboards ship in `infra/`, and
+  `docs/operations.md` is the operational reference.)*
 
 ## 17. Vocabulary
 
