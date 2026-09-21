@@ -37,10 +37,13 @@ from dirigent_block_execute.docker import (
 from dirigent_block_execute.environment import reject_reserved
 from dirigent_block_execute.messages import (
     BUILD_EXITED,
+    BUILD_PATHS_STAY_INSIDE,
     LOGIN_FAILED,
     NO_IMAGE_ID,
     NO_REGISTRY_CREDENTIAL,
     PUSH_EXITED,
+    PUSH_NEEDS_A_CONNECTION,
+    PUSH_NEEDS_A_TAG,
 )
 from dirigent_common import BlockModel, Duration
 from dirigent_plugin import (
@@ -115,18 +118,12 @@ class DockerBuildConfig(BlockModel):
     def _check_shape(self) -> "DockerBuildConfig":
         """Refuse an unbacked push, a context or Dockerfile that climbs out, and a reserved env inheritance."""
         if self.push and self.connection is None:
-            raise ValueError(
-                "docker.build cannot push without a connection: set connection to a docker connection "
-                "holding registry, username and password"
-            )
+            raise ValueError(PUSH_NEEDS_A_CONNECTION.render())
         if self.push and not self.tags:
-            raise ValueError("docker.build pushes the tags it built, so a push needs at least one tag")
+            raise ValueError(PUSH_NEEDS_A_TAG.render())
         for path in (self.context, self.dockerfile):
             if Path(path).is_absolute() or ".." in Path(path).parts:
-                raise ValueError(
-                    "the context and Dockerfile are paths inside the run's work directory, so they "
-                    "cannot be absolute or climb out"
-                )
+                raise ValueError(BUILD_PATHS_STAY_INSIDE.render())
         reject_reserved(self.env_allowlist)
         return self
 

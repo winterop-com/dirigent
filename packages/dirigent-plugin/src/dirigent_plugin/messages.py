@@ -26,3 +26,14 @@ NOT_AN_ARRAY = PLUGIN.define(
 )
 
 NOTHING_TO_CONVERT = PLUGIN.define("nothing_to_convert", "there is nothing at {uri} to convert")
+
+
+# What a config refuses at validation. Pydantic owns the code a validator's refusal reaches
+# the wire under, so these are rendered into the ``ValueError`` it wraps.
+
+UNSUPPORTED_API_VERSION = PLUGIN.define(
+    "unsupported_api_version",
+    "unsupported api_version {version}; this host speaks {host_version}",
+)
+
+DUPLICATE_ID = PLUGIN.define("duplicate_id", "duplicate {label} {value} in contribution")

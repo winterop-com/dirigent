@@ -29,6 +29,9 @@ from urllib.parse import quote, urlsplit, urlunsplit
 from pydantic import BaseModel, Field, JsonValue, SecretStr, model_validator
 
 from dirigent_block_queues.messages import (
+    BATCH_NEVER_TAKEN,
+    INLINE_PASSWORD,
+    NOT_AN_AMQP_URL,
     RABBIT_BODY_NOT_JSON,
     RABBIT_CONNECTION_REFUSED,
     RABBIT_DELIVERY_UNREADABLE,
@@ -91,12 +94,9 @@ class RabbitConnectionConfig(BlockModel):
         """Refuse a scheme that is not AMQP, and a password written into the URL."""
         split = urlsplit(self.url)
         if split.scheme not in AMQP_SCHEMES:
-            raise ValueError(f"a rabbitmq url is amqp or amqps, and {self.url!r} is neither")
+            raise ValueError(NOT_AN_AMQP_URL.render(url=repr(self.url)))
         if split.password is not None:
-            raise ValueError(
-                "this url carries a password inline, where it would sit unencrypted in a plain "
-                "field; take it out of the url and set the sealed password field instead"
-            )
+            raise ValueError(INLINE_PASSWORD.render())
         return self
 
     def dsn(self) -> str:
@@ -239,10 +239,7 @@ class RabbitConsumeConfig(BlockModel):
     def _check_shape(self) -> "RabbitConsumeConfig":
         """Refuse a batch that can never reach the size it is waiting for."""
         if self.min_messages > self.max_messages:
-            raise ValueError(
-                f"min_messages {self.min_messages} is above max_messages {self.max_messages}, "
-                "so this sensor would wait for a batch it never takes"
-            )
+            raise ValueError(BATCH_NEVER_TAKEN.render(minimum=self.min_messages, maximum=self.max_messages))
         return self
 
 

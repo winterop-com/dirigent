@@ -36,8 +36,12 @@ from dirigent_block_execute import secrets, subprocess
 from dirigent_block_execute.capture import log_stream, scrub, tail
 from dirigent_block_execute.messages import (
     CHECKOUT_OUTSIDE_THE_WORK_DIRECTORY,
+    CHECKOUT_STAYS_INSIDE,
     CHECKOUT_THROUGH_A_SYMLINK,
     GIT_EXITED,
+    GIT_KEY_NEEDS_SSH,
+    GIT_ONE_CREDENTIAL,
+    GIT_TOKEN_NEEDS_HTTPS,
     NO_GIT,
 )
 from dirigent_common import BlockModel, Duration, HealthReport
@@ -137,15 +141,12 @@ class GitConnectionConfig(BlockModel):
     def _check_shape(self) -> "GitConnectionConfig":
         """Refuse two credentials at once, and a credential that does not fit the remote's form."""
         if self.token is not None and self.ssh_key is not None:
-            raise ValueError(
-                "a git connection carries one credential: a token for an https remote or an "
-                "ssh_key for an ssh one, never both"
-            )
+            raise ValueError(GIT_ONE_CREDENTIAL.render())
         scheme = urlsplit(self.url).scheme
         if self.token is not None and scheme not in HTTP_SCHEMES:
-            raise ValueError(f"a token is HTTP basic auth, so the url must be http or https, not {self.url!r}")
+            raise ValueError(GIT_TOKEN_NEEDS_HTTPS.render(url=repr(self.url)))
         if self.ssh_key is not None and not _is_ssh(self.url):
-            raise ValueError(f"an ssh_key needs an ssh remote, and {self.url!r} is not one")
+            raise ValueError(GIT_KEY_NEEDS_SSH.render(url=repr(self.url)))
         return self
 
 
@@ -210,9 +211,7 @@ class GitCheckoutConfig(BlockModel):
     def _check_shape(self) -> "GitCheckoutConfig":
         """Refuse a target that is absolute or climbs out of the run's work directory."""
         if self.target and (Path(self.target).is_absolute() or ".." in Path(self.target).parts):
-            raise ValueError(
-                "a checkout target is a path inside the run's work directory, so it cannot be absolute or climb out"
-            )
+            raise ValueError(CHECKOUT_STAYS_INSIDE.render())
         return self
 
 

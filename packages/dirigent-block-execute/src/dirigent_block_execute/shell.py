@@ -14,7 +14,11 @@ from pydantic import BaseModel, Field, model_validator
 from dirigent_block_execute import subprocess
 from dirigent_block_execute.capture import log_stream, tail
 from dirigent_block_execute.environment import reject_reserved
-from dirigent_block_execute.messages import COMMAND_EXITED
+from dirigent_block_execute.messages import (
+    COMMAND_EXITED,
+    CWD_STAYS_INSIDE,
+    SHELL_ONE_FORM,
+)
 from dirigent_common import BlockModel, Duration
 from dirigent_plugin import (
     BlockFailure,
@@ -62,9 +66,9 @@ class ShellRunConfig(ShellVariables):
     def _require_one_form(self) -> "ShellRunConfig":
         """Reject a config that names both forms of the command, or neither."""
         if bool(self.argv) == bool(self.command):
-            raise ValueError("shell.run takes either argv or command, and exactly one of them")
+            raise ValueError(SHELL_ONE_FORM.render())
         if self.cwd and (Path(self.cwd).is_absolute() or ".." in Path(self.cwd).parts):
-            raise ValueError("cwd is a path inside the run's work directory, so it cannot be absolute or climb out")
+            raise ValueError(CWD_STAYS_INSIDE.render())
         reject_reserved(self.env_allowlist)
         return self
 

@@ -18,3 +18,9 @@ WEBHOOK_NO_SECRET = HTTP.define(
     "webhook.no_secret",
     "connection {connection} has no hmac_secret, so this POST cannot be signed",
 )
+
+
+# What a config refuses at validation. Pydantic owns the code a validator's refusal reaches
+# the wire under, so these are rendered into the ``ValueError`` it wraps.
+
+NO_TARGET = HTTP.define("no_target", "an HTTP block needs either a connection or an absolute url")

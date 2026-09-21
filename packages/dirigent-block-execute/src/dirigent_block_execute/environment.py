@@ -21,6 +21,10 @@ told, and the filter is what holds for a document that never passed validation.
 import os
 from collections.abc import Iterable, Mapping
 
+from dirigent_block_execute.messages import (
+    RESERVED_ENVIRONMENT,
+)
+
 #: Must stay in step with the prefix ``Settings`` reads.
 RESERVED_ENV_PREFIX = "DIRIGENT_"
 
@@ -34,11 +38,7 @@ def reject_reserved(allowlist: Iterable[str]) -> None:
     """Refuse an allowlist that reaches for the instance's own configuration."""
     reserved = sorted({name for name in allowlist if is_reserved(name)})
     if reserved:
-        raise ValueError(
-            f"env_allowlist may not inherit the instance's own configuration: {', '.join(reserved)}. "
-            f"{RESERVED_ENV_PREFIX}* holds this instance's secrets, including the envelope key for "
-            "every stored connection; pass what the step needs through env, or a connection."
-        )
+        raise ValueError(RESERVED_ENVIRONMENT.render(reserved=", ".join(reserved), prefix=RESERVED_ENV_PREFIX))
 
 
 def allowed(names: Iterable[str], environ: Mapping[str, str] | None = None) -> dict[str, str]:

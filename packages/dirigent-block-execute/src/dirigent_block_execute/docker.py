@@ -32,9 +32,20 @@ from dirigent_block_execute.capture import Drained, Ends, log_stream, scrub, tai
 from dirigent_block_execute.environment import allowed, reject_reserved
 from dirigent_block_execute.messages import (
     CONTAINER_GONE,
+    CREDENTIAL_IS_A_PAIR,
     DAEMON_REFUSED,
+    DOCKER_CONNECTION_NAMES_NEITHER,
+    MOUNTED_FILE_STAYS_INSIDE,
     NO_DAEMON,
+    NOT_A_DAEMON_SCHEME,
     OUTPUT_NOT_WRITTEN,
+    OUTPUT_STAYS_INSIDE,
+    REGISTRY_WITHOUT_A_CREDENTIAL,
+    RUN_ONE_CPU_FIELD,
+    RUN_ONE_DAEMON,
+    RUN_ONE_FORM,
+    TLS_IS_ALL_THREE,
+    TLS_NEEDS_TCP,
 )
 from dirigent_block_http.http import status_class
 from dirigent_common import BlockModel, Duration, HealthReport, Size
@@ -146,20 +157,18 @@ class DockerConnectionConfig(BlockModel):
     def _check_shape(self) -> "DockerConnectionConfig":
         """Refuse a daemon URL of an unknown form, half a TLS triple, and half a credential."""
         if self.host and not self.host.startswith(DAEMON_SCHEMES):
-            raise ValueError(f"a docker host is one of {', '.join(DAEMON_SCHEMES)}, and {self.host!r} is none of them")
+            raise ValueError(NOT_A_DAEMON_SCHEME.render(schemes=", ".join(DAEMON_SCHEMES), host=repr(self.host)))
         pems = [self.tls_ca, self.tls_cert, self.tls_key]
         if any(pem is not None for pem in pems) and not all(pem is not None for pem in pems):
-            raise ValueError("client TLS is all three of tls_ca, tls_cert and tls_key, or none of them")
+            raise ValueError(TLS_IS_ALL_THREE.render())
         if self.tls_key is not None and not self.host.startswith("tcp://"):
-            raise ValueError("client TLS is how a tcp:// daemon is reached, so the host must be a tcp:// one")
+            raise ValueError(TLS_NEEDS_TCP.render())
         if (self.password is not None) != bool(self.username):
-            raise ValueError("a registry credential is a username and a password together, never one of them")
+            raise ValueError(CREDENTIAL_IS_A_PAIR.render())
         if self.registry and self.password is None:
-            raise ValueError(f"a registry ({self.registry!r}) with no username and password authenticates to nothing")
+            raise ValueError(REGISTRY_WITHOUT_A_CREDENTIAL.render(registry=repr(self.registry)))
         if not self.host and self.password is None:
-            raise ValueError(
-                "a docker connection names a daemon, a registry credential, or both, and this names neither"
-            )
+            raise ValueError(DOCKER_CONNECTION_NAMES_NEITHER.render())
         return self
 
     @property
@@ -463,24 +472,19 @@ class DockerRunConfig(ShellVariables):
     def _check_shape(self) -> "DockerRunConfig":
         """Reject a config that names two commands, two CPU quotas, or a mount that climbs out."""
         if self.argv and self.command is not None:
-            raise ValueError(
-                "docker.run takes either argv or command, and never both; omit both to run the image's own entrypoint"
-            )
+            raise ValueError(RUN_ONE_FORM.render())
         if self.cpus is not None and self.nano_cpus is not None:
-            raise ValueError("docker.run takes either cpus or nano_cpus, and never both")
+            raise ValueError(RUN_ONE_CPU_FIELD.render())
         if self.connection is not None and self.socket_path is not None:
-            raise ValueError("a connection names the daemon, so docker.run takes either connection or socket_path")
+            raise ValueError(RUN_ONE_DAEMON.render())
         for name in (*self.inputs, *self.outputs):
             if not name or Path(name).is_absolute() or ".." in Path(name).parts:
-                raise ValueError("a mounted file is named inside its mount, so it cannot be absolute or climb out")
+                raise ValueError(MOUNTED_FILE_STAYS_INSIDE.render())
         for target in self.outputs.values():
             if "://" in target:
                 continue
             if Path(target).is_absolute() or ".." in Path(target).parts:
-                raise ValueError(
-                    "an output without a URI scheme is a path inside the run's work directory, so it "
-                    "cannot be absolute or climb out"
-                )
+                raise ValueError(OUTPUT_STAYS_INSIDE.render())
         reject_reserved(self.env_allowlist)
         return self
 

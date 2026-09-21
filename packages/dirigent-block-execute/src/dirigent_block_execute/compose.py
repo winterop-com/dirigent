@@ -48,7 +48,13 @@ from dirigent_block_execute.docker import (
     write_cli_config,
 )
 from dirigent_block_execute.environment import reject_reserved
-from dirigent_block_execute.messages import COMPOSE_DOWN_EXITED, COMPOSE_UP_EXITED
+from dirigent_block_execute.messages import (
+    COMPOSE_DOWN_EXITED,
+    COMPOSE_DOWN_ONE_SOURCE,
+    COMPOSE_PATHS_STAY_INSIDE,
+    COMPOSE_UP_EXITED,
+    COMPOSE_UP_ONE_SOURCE,
+)
 from dirigent_common import BlockModel, Duration
 from dirigent_plugin import (
     BlockFailure,
@@ -196,7 +202,7 @@ class DockerComposeUpConfig(BlockModel):
     def _check_shape(self) -> "DockerComposeUpConfig":
         """Reject a config that names both compose-file forms or neither, or a path that climbs out."""
         if bool(self.file) == bool(self.content):
-            raise ValueError("docker.compose.up takes either file or content, and exactly one of them")
+            raise ValueError(COMPOSE_UP_ONE_SOURCE.render())
         _reject_escaping((self.file, *self.env_files))
         reject_reserved(self.env_allowlist)
         return self
@@ -260,7 +266,7 @@ class DockerComposeDownConfig(BlockModel):
     def _check_shape(self) -> "DockerComposeDownConfig":
         """Reject two compose-file forms at once, or a path that climbs out of the work directory."""
         if self.file and self.content:
-            raise ValueError("docker.compose.down takes at most one of file or content")
+            raise ValueError(COMPOSE_DOWN_ONE_SOURCE.render())
         _reject_escaping((self.file, *self.env_files))
         reject_reserved(self.env_allowlist)
         return self
@@ -620,10 +626,7 @@ def _reject_escaping(paths: tuple[str | None, ...]) -> None:
     """Refuse a work-directory-relative path that is absolute or climbs out of the run's work directory."""
     for path in paths:
         if path and (Path(path).is_absolute() or ".." in Path(path).parts):
-            raise ValueError(
-                "a compose file or env file is a path inside the run's work directory, so it cannot "
-                "be absolute or climb out"
-            )
+            raise ValueError(COMPOSE_PATHS_STAY_INSIDE.render())
 
 
 def _workspace(ctx: StepContext) -> Path:

@@ -41,3 +41,14 @@ STATEMENT_LOADS_AN_EXTENSION = DUCKDB.define(
 )
 
 CONNECT_TIMED_OUT = DUCKDB.define("connect_timed_out", "the database did not answer within {timeout}")
+
+
+# What a config refuses at validation. Pydantic owns the code a validator's refusal reaches
+# the wire under, so these are rendered into the ``ValueError`` it wraps.
+
+READ_ONLY_IN_MEMORY = DUCKDB.define(
+    "read_only_in_memory",
+    "read_only has no meaning on duckdb:///:memory:, which duckdb refuses to open at all: "
+    "an in-memory database starts empty and a read-only one can never be filled, so the "
+    "connection would open on nothing; name a duckdb file, or drop read_only",
+)

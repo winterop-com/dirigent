@@ -65,3 +65,36 @@ KAFKA_PART_NOT_JSON = QUEUES.define(
 )
 
 KAFKA_NO_KEY_FIELD = QUEUES.define("kafka.no_key_field", "a record has no field {field} to take its key from")
+
+
+# What a config refuses at validation. Pydantic owns the code a validator's refusal reaches
+# the wire under, so these are rendered into the ``ValueError`` it wraps.
+
+NOT_AN_AMQP_URL = QUEUES.define("rabbit.not_an_amqp_url", "a rabbitmq url is amqp or amqps, and {url} is neither")
+
+INLINE_PASSWORD = QUEUES.define(
+    "inline_password",
+    "this url carries a password inline, where it would sit unencrypted in a plain "
+    "field; take it out of the url and set the sealed password field instead",
+)
+
+BATCH_NEVER_TAKEN = QUEUES.define(
+    "batch_never_taken",
+    "min_messages {minimum} is above max_messages {maximum}, so this sensor would wait for a batch it never takes",
+)
+
+SASL_NEEDS_A_CREDENTIAL = QUEUES.define(
+    "kafka.sasl_needs_a_credential",
+    "security {security} authenticates, so it needs a username and a password",
+)
+
+CREDENTIAL_UNUSED = QUEUES.define(
+    "kafka.credential_unused",
+    "security {security} carries no credential, so a username or password would go unused; "
+    "write sasl_ssl or sasl_plaintext to send one",
+)
+
+CA_UNUSED = QUEUES.define(
+    "kafka.ca_unused",
+    "security {security} does not use TLS, so a ca_certificate would go unused",
+)

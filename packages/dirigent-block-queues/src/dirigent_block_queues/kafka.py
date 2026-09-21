@@ -31,6 +31,9 @@ from typing import Any, ClassVar, Literal, Protocol, cast
 from pydantic import BaseModel, Field, JsonValue, SecretStr, ValidationError, model_validator
 
 from dirigent_block_queues.messages import (
+    BATCH_NEVER_TAKEN,
+    CA_UNUSED,
+    CREDENTIAL_UNUSED,
     KAFKA_BAD_ENVELOPE,
     KAFKA_CONNECTION_REFUSED,
     KAFKA_NO_KEY_FIELD,
@@ -39,6 +42,7 @@ from dirigent_block_queues.messages import (
     KAFKA_PUBLISH_FAILED,
     KAFKA_PUBLISH_TIMED_OUT,
     KAFKA_READ_FAILED,
+    SASL_NEEDS_A_CREDENTIAL,
 )
 from dirigent_common import BlockModel, Duration, HealthReport
 from dirigent_plugin import (
@@ -109,14 +113,11 @@ class KafkaConnectionConfig(BlockModel):
     def _check_shape(self) -> "KafkaConnectionConfig":
         """Refuse a credential that does not fit the security setting, in either direction."""
         if self.security in SASL_SECURITY and not (self.username and self.password):
-            raise ValueError(f"security {self.security!r} authenticates, so it needs a username and a password")
+            raise ValueError(SASL_NEEDS_A_CREDENTIAL.render(security=repr(self.security)))
         if self.security not in SASL_SECURITY and (self.username or self.password):
-            raise ValueError(
-                f"security {self.security!r} carries no credential, so a username or password would go unused; "
-                "write sasl_ssl or sasl_plaintext to send one"
-            )
+            raise ValueError(CREDENTIAL_UNUSED.render(security=repr(self.security)))
         if self.ca_certificate is not None and self.security not in TLS_SECURITY:
-            raise ValueError(f"security {self.security!r} does not use TLS, so a ca_certificate would go unused")
+            raise ValueError(CA_UNUSED.render(security=repr(self.security)))
         return self
 
 
@@ -296,10 +297,7 @@ class KafkaConsumeConfig(BlockModel):
     def _check_shape(self) -> "KafkaConsumeConfig":
         """Refuse a batch that can never reach the size it is waiting for."""
         if self.min_messages > self.max_messages:
-            raise ValueError(
-                f"min_messages {self.min_messages} is above max_messages {self.max_messages}, "
-                "so this sensor would wait for a batch it never takes"
-            )
+            raise ValueError(BATCH_NEVER_TAKEN.render(minimum=self.min_messages, maximum=self.max_messages))
         return self
 
 

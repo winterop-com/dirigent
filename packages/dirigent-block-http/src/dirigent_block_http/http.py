@@ -9,7 +9,11 @@ import httpx2
 from pydantic import BaseModel, Field, JsonValue, model_validator
 
 from dirigent_block_http.connections import HttpConnectionConfig
-from dirigent_block_http.messages import RESPONSE_TOO_LARGE, STATUS_REFUSED
+from dirigent_block_http.messages import (
+    NO_TARGET,
+    RESPONSE_TOO_LARGE,
+    STATUS_REFUSED,
+)
 from dirigent_common import BlockModel, Duration, Size
 from dirigent_plugin import (
     BlockFailure,
@@ -58,7 +62,7 @@ class HttpTarget(BlockModel):
     def _require_a_target(self) -> "HttpTarget":
         """Reject a config that names neither a connection nor an absolute URL."""
         if not self.connection and not self.url:
-            raise ValueError("an HTTP block needs either a connection or an absolute url")
+            raise ValueError(NO_TARGET.render())
         return self
 
 

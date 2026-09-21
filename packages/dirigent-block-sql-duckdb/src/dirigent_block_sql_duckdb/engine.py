@@ -43,6 +43,7 @@ from dirigent_block_sql_duckdb.messages import (
     NO_STORAGE_CONNECTION,
     PARAMETER_NAMES_STORAGE,
     PARAMETER_OUTSIDE_THE_RUN,
+    READ_ONLY_IN_MEMORY,
     STATEMENT_LOADS_AN_EXTENSION,
     STATEMENT_OUTSIDE_THE_RUN,
 )
@@ -86,11 +87,7 @@ class DuckdbEngine(SqlEngine):
     def validate(self, settings: SqlConnectionConfig, url: URL) -> None:
         """Refuse ``read_only`` on an in-memory database, which duckdb will not open at all."""
         if settings.read_only and _is_memory(url):
-            raise ValueError(
-                "read_only has no meaning on duckdb:///:memory:, which duckdb refuses to open at all: "
-                "an in-memory database starts empty and a read-only one can never be filled, so the "
-                "connection would open on nothing; name a duckdb file, or drop read_only"
-            )
+            raise ValueError(READ_ONLY_IN_MEMORY.render())
 
     def resolve(self, url: URL, ctx: StepContext) -> URL:
         """A duckdb database written as a relative path is a file in the run's work directory."""

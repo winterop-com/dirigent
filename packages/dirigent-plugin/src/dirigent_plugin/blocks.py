@@ -16,6 +16,10 @@ from pydantic.json_schema import JsonSchemaValue, SkipJsonSchema
 from pydantic_core import CoreSchema
 
 from dirigent_common import API_VERSION, SHELL_MEDIA_TYPE, BlockModel, HealthReport, Issue, JsonMap, Message
+from dirigent_plugin.messages import (
+    DUPLICATE_ID,
+    UNSUPPORTED_API_VERSION,
+)
 
 type RunId = UUID
 
@@ -756,7 +760,7 @@ class Contribution(BaseModel):
     def _check_api_version(cls, value: int) -> int:
         """Reject a contribution written against a different revision of this contract."""
         if value != API_VERSION:
-            raise ValueError(f"unsupported api_version {value}; this host speaks {API_VERSION}")
+            raise ValueError(UNSUPPORTED_API_VERSION.render(version=value, host_version=API_VERSION))
         return value
 
     @model_validator(mode="after")
@@ -779,7 +783,7 @@ def _require_unique(label: str, values: list[str]) -> None:
     seen: set[str] = set()
     for value in values:
         if value in seen:
-            raise ValueError(f"duplicate {label} {value!r} in contribution")
+            raise ValueError(DUPLICATE_ID.render(label=label, value=repr(value)))
         seen.add(value)
 
 

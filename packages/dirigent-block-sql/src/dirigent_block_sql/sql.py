@@ -29,7 +29,15 @@ from pydantic import BaseModel, Field, SecretStr, model_validator
 from sqlalchemy.engine import URL, make_url
 
 from dirigent_block_sql.engines import SqlSession, engine_for
-from dirigent_block_sql.messages import NO_JSON_SPELLING, READ_ONLY_CONNECTION, TOO_MANY_ROWS
+from dirigent_block_sql.messages import (
+    EMPTY_STATEMENT,
+    INLINE_PASSWORD,
+    MORE_THAN_ONE_STATEMENT,
+    NO_JSON_SPELLING,
+    NOT_A_DATABASE_URL,
+    READ_ONLY_CONNECTION,
+    TOO_MANY_ROWS,
+)
 from dirigent_common import (
     SQL_MEDIA_TYPE,
     BlockModel,
@@ -108,10 +116,7 @@ class SqlConnectionConfig(BlockModel):
         """Refuse a URL that is unparseable, carrying its own password, or one no engine opens."""
         url = _parse(self.url)
         if url.password is not None:
-            raise ValueError(
-                "this url carries a password inline, where it would sit unencrypted in a plain "
-                "field; take it out of the url and set the sealed password field instead"
-            )
+            raise ValueError(INLINE_PASSWORD.render())
         engine_for(url).validate(self, url)
         return self
 
@@ -258,7 +263,7 @@ class SqlExecuteConfig(BlockModel):
         """Refuse a list whose entries are empty or hold more than one statement each."""
         for index, statement in enumerate(self.statements):
             if not statement.strip():
-                raise ValueError(f"statement {index} is empty")
+                raise ValueError(EMPTY_STATEMENT.render(index=index))
             _check_single(statement)
         return self
 
@@ -324,7 +329,7 @@ def _parse(url: str) -> URL:
     try:
         return make_url(url)
     except sqlalchemy.exc.ArgumentError as error:
-        raise ValueError(f"{url!r} is not a database url: {error}") from error
+        raise ValueError(NOT_A_DATABASE_URL.render(url=repr(url), detail=str(error))) from error
 
 
 def _with_password(settings: SqlConnectionConfig) -> URL:
@@ -384,10 +389,7 @@ def _check_single(statement: str) -> None:
     """
     rest = _after_first_terminator(statement)
     if rest is not None and _stripped(rest):
-        raise ValueError(
-            "this is more than one statement: a ';' ends the first and there is more after it. "
-            "sql.query runs one statement, and sql.execute takes a list, one statement per entry"
-        )
+        raise ValueError(MORE_THAN_ONE_STATEMENT.render())
 
 
 def _after_first_terminator(statement: str) -> str | None:

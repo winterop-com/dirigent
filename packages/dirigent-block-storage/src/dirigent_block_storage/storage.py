@@ -19,6 +19,7 @@ from dirigent_block_storage.messages import (
     NOTHING_THERE,
     TOO_LARGE,
     UNREADABLE_AS_A_VALUE,
+    WRITE_TAKES_ONE_SOURCE,
 )
 from dirigent_common import BlockModel, Size, StorageUri
 from dirigent_plugin import (
@@ -110,8 +111,9 @@ class StorageWriteConfig(BlockModel):
         named = [name for name in ("text", "value") if getattr(self, name) is not None]
         if len(named) != 1:
             raise ValueError(
-                "a write needs either text or value"
-                f"{', and this step names both' if named else ', and this step names neither'}"
+                WRITE_TAKES_ONE_SOURCE.render(
+                    named=", and this step names both" if named else ", and this step names neither"
+                )
             )
         return self
 

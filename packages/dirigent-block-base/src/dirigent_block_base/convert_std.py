@@ -13,6 +13,32 @@ from typing import Any, Final, cast
 import yaml
 from pydantic import JsonValue
 
+from dirigent_block_base.messages import (
+    CSV_HEADER_REPEATED,
+    CSV_HEADER_UNNAMED,
+    CSV_NESTED_VALUE,
+    CSV_ROW_NOT_AN_OBJECT,
+    CSV_ROW_TOO_WIDE,
+    LINE_NOT_JSON,
+    NOT_A_JSON_ARRAY,
+    NOT_JSON,
+    NOT_UTF8,
+    NOT_YAML,
+    XML_ELEMENT_HAS_TEXT,
+    XML_EMPTY_ARRAY,
+    XML_HAS_A_DOCTYPE,
+    XML_KEY_IS_NO_NAME,
+    XML_NESTED_ARRAY,
+    XML_NULL_ATTRIBUTE,
+    XML_ONE_ROOT,
+    XML_ROOT_HAS_TEXT,
+    XML_TEXT_AND_CHILDREN,
+    XML_VALUE_IS_NOT_TEXT,
+    YAML_KEY_NOT_A_STRING,
+    YAML_NOT_A_NUMBER,
+    YAML_STREAM,
+    YAML_UNSPELLABLE,
+)
 from dirigent_plugin import Converter, TransformError
 
 #: The three spellings of a sequence of records, which convert between each other freely.
@@ -119,9 +145,7 @@ def _decode(source: bytes) -> str:
     try:
         return source.decode("utf-8")
     except UnicodeDecodeError as error:
-        raise TransformError(
-            f"the input is not UTF-8 text: {error.reason} at byte {error.start}; convert.std reads and writes UTF-8"
-        ) from error
+        raise TransformError(NOT_UTF8.render(reason=error.reason, position=error.start)) from error
 
 
 def _dump_json(value: JsonValue) -> bytes:
@@ -145,7 +169,7 @@ def _read_json_value(text: str) -> JsonValue:
     try:
         parsed: JsonValue = json.loads(text)
     except ValueError as error:
-        raise TransformError(f"the input is not JSON: {error}") from error
+        raise TransformError(NOT_JSON.render(detail=str(error))) from error
     return parsed
 
 
@@ -154,8 +178,7 @@ def _read_json(text: str, target_format: str) -> list[JsonValue]:
     parsed = _read_json_value(text)
     if not isinstance(parsed, list):
         raise TransformError(
-            f"json to {target_format} writes one {UNIT[target_format]} per element, so the input has to be "
-            f"a JSON array, and this one is {_named(parsed)}"
+            NOT_A_JSON_ARRAY.render(target_format=target_format, unit=UNIT[target_format], described=_named(parsed))
         )
     return parsed
 
@@ -169,7 +192,7 @@ def _read_ndjson(text: str) -> list[JsonValue]:
         try:
             records.append(json.loads(line))
         except ValueError as error:
-            raise TransformError(f"line {number} of the input is not JSON: {error}") from error
+            raise TransformError(LINE_NOT_JSON.render(number=number, detail=str(error))) from error
     return records
 
 
@@ -185,10 +208,7 @@ def _read_csv(text: str) -> list[JsonValue]:
         if not row:
             continue
         if len(row) > len(header):
-            raise TransformError(
-                f"row {number} of the csv has more cells than the header names columns, "
-                f"and a cell no column names has nowhere to go"
-            )
+            raise TransformError(CSV_ROW_TOO_WIDE.render(number=number))
         records.append({name: row[index] if index < len(row) else "" for index, name in enumerate(header)})
     return records
 
@@ -211,17 +231,11 @@ def _check_header(header: list[str]) -> None:
         positions.setdefault(name, []).append(index)
     unnamed = positions.pop("", None)
     if unnamed is not None:
-        raise TransformError(
-            f"the csv header has no name at {_columns_phrase(unnamed)}, and a record key names "
-            f"its column; name it before converting"
-        )
+        raise TransformError(CSV_HEADER_UNNAMED.render(columns=_columns_phrase(unnamed)))
     repeated = [(name, where) for name, where in positions.items() if len(where) > 1]
     if repeated:
         listed = "; ".join(f"{name!r} at {_columns_phrase(where)}" for name, where in repeated)
-        raise TransformError(
-            f"the csv header repeats a column name: {listed}; a record key names one column, "
-            f"so rename them before converting"
-        )
+        raise TransformError(CSV_HEADER_REPEATED.render(listed=listed))
 
 
 def _write(records: list[JsonValue], target_format: str) -> str:
@@ -241,7 +255,7 @@ def _write_csv(records: list[JsonValue]) -> str:
     header: list[str] = []
     for number, record in enumerate(records, start=1):
         if not isinstance(record, dict):
-            raise TransformError(f"row {number} of the input is {_named(record)}, and a csv row is a flat object")
+            raise TransformError(CSV_ROW_NOT_AN_OBJECT.render(number=number, described=_named(record)))
         rows.append(record)
         header.extend(key for key in record if key not in header)
     out = io.StringIO(newline="")
@@ -255,10 +269,7 @@ def _write_csv(records: list[JsonValue]) -> str:
 def _cell(value: JsonValue, number: int, key: str) -> str:
     """Render one value as csv text, refusing the nested ones csv has no spelling for."""
     if isinstance(value, dict | list):
-        raise TransformError(
-            f"row {number} has a nested value at {key!r}, and a csv cell holds one value; "
-            f"flatten it before converting, because writing it as text would not be the same content"
-        )
+        raise TransformError(CSV_NESTED_VALUE.render(number=number, key=repr(key)))
     if value is None:
         return ""
     if isinstance(value, str):
@@ -290,17 +301,14 @@ def _load_yaml(text: str) -> list[Any]:
     try:
         return list(yaml.load_all(text, Loader=_JsonSafeLoader))
     except yaml.YAMLError as error:
-        raise TransformError(f"the input is not YAML: {' '.join(str(error).split())}") from error
+        raise TransformError(NOT_YAML.render(detail=" ".join(str(error).split()))) from error
 
 
 def _read_yaml_document(text: str) -> JsonValue:
     """Read one YAML document as one value, refusing a stream that holds more than one."""
     documents = _load_yaml(text)
     if len(documents) > 1:
-        raise TransformError(
-            f"the input is a YAML stream of {len(documents)} documents, and yaml to json reads one document "
-            f"as one value; convert it to ndjson to write one line per document"
-        )
+        raise TransformError(YAML_STREAM.render(counted=len(documents)))
     return _as_json(documents[0], "$") if documents else None
 
 
@@ -335,10 +343,7 @@ def _as_json(value: Any, path: str) -> JsonValue:
         return value
     if isinstance(value, float):
         if math.isnan(value) or math.isinf(value):
-            raise TransformError(
-                f"the YAML number at {path} is {value}, and JSON writes no nan or infinity; "
-                f"quote it in the source to convert it as text"
-            )
+            raise TransformError(YAML_NOT_A_NUMBER.render(path=path, value=value))
         return value
     if isinstance(value, list):
         items = cast("Sequence[Any]", value)
@@ -347,13 +352,10 @@ def _as_json(value: Any, path: str) -> JsonValue:
         record: dict[str, JsonValue] = {}
         for key, item in cast("Mapping[Any, Any]", value).items():
             if not isinstance(key, str):
-                raise TransformError(
-                    f"the YAML mapping at {path} is keyed by {key!r}, and a JSON key is a string; "
-                    f"quote the key in the source to convert it"
-                )
+                raise TransformError(YAML_KEY_NOT_A_STRING.render(path=path, key=repr(key)))
             record[key] = _as_json(item, _step(path, key))
         return record
-    raise TransformError(f"the YAML value at {path} is {_unspellable(value)}")
+    raise TransformError(YAML_UNSPELLABLE.render(path=path, described=_unspellable(value)))
 
 
 def _dump_yaml(value: JsonValue) -> bytes:
@@ -389,10 +391,7 @@ def _refuse_doctype(text: str) -> None:
                 return
             position = end + 2
         elif text[position : position + 9].upper() == "<!DOCTYPE":
-            raise TransformError(
-                "the input carries a <!DOCTYPE declaration, and convert.std reads XML without a DTD, "
-                "because a DTD is where entities and the files they name enter a document"
-            )
+            raise TransformError(XML_HAS_A_DOCTYPE.render())
         else:
             return
 
@@ -432,10 +431,7 @@ def _stream_records(text: str) -> Iterator[JsonValue]:
                 continue
             number += 1
             if (root.text or "").strip():
-                raise TransformError(
-                    f"the element at {root.tag} has text beside its child elements, and the records "
-                    f"xml to ndjson writes are those children"
-                )
+                raise TransformError(XML_ROOT_HAS_TEXT.render(tag=root.tag))
             yield _element_value(element, f"{root.tag}/{element.tag}[{number}]")
             # The root keeps every child the walk has seen, so it holds the whole document
             # unless each record is dropped once it is written.
@@ -454,10 +450,7 @@ def _element_value(element: ET.Element, path: str) -> JsonValue:
             return text or None
         return {**attributes, TEXT_KEY: text} if text else attributes
     if text or any((child.tail or "").strip() for child in children):
-        raise TransformError(
-            f"the element at {path} has text beside its child elements, and this mapping keeps an "
-            f"element's text under {TEXT_KEY!r} only where the element has no children"
-        )
+        raise TransformError(XML_ELEMENT_HAS_TEXT.render(path=path, text_key=repr(TEXT_KEY)))
     value: dict[str, JsonValue] = dict(attributes)
     for number, child in enumerate(children, start=1):
         read = _element_value(child, f"{path}/{child.tag}[{number}]")
@@ -474,10 +467,7 @@ def _write_xml(value: JsonValue) -> bytes:
     """Write one JSON object of a single key as the document that key names the root of."""
     if not isinstance(value, dict) or len(value) != 1:
         shape = f"an object of {len(value)} keys" if isinstance(value, dict) else _named(value)
-        raise TransformError(
-            f"json to xml writes one root element, so the input has to be an object of exactly one key "
-            f"naming it, and this one is {shape}"
-        )
+        raise TransformError(XML_ONE_ROOT.render(shape=shape))
     tag, content = next(iter(value.items()))
     root = _element(tag, content, f"$.{tag}")
     written: bytes = ET.tostring(root, encoding="utf-8", xml_declaration=True)
@@ -487,7 +477,7 @@ def _write_xml(value: JsonValue) -> bytes:
 def _check_xml_name(name: str, path: str, what: str) -> None:
     """Refuse a key that is no XML name, because this mapping writes a key as a tag or an attribute."""
     if not XML_NAME.match(name):
-        raise TransformError(f"the key {name!r} at {path} is no XML name, and this mapping writes a key as {what}")
+        raise TransformError(XML_KEY_IS_NO_NAME.render(key=repr(name), path=path, what=what))
 
 
 def _element(tag: str, value: JsonValue, path: str) -> ET.Element:
@@ -498,9 +488,7 @@ def _element(tag: str, value: JsonValue, path: str) -> ET.Element:
         _fill_element(element, value, path)
         return element
     if isinstance(value, list):
-        raise TransformError(
-            f"the value at {path} is an array of arrays, and a tag repeated is as deep as a repeat goes"
-        )
+        raise TransformError(XML_NESTED_ARRAY.render(path=path))
     element.text = _text(value, path)
     return element
 
@@ -512,9 +500,7 @@ def _text(value: JsonValue, path: str) -> str | None:
     if isinstance(value, str):
         return value
     if isinstance(value, dict | list):
-        raise TransformError(
-            f"the value at {path} is {_named(value)}, and an XML attribute and an element's text hold text"
-        )
+        raise TransformError(XML_VALUE_IS_NOT_TEXT.render(path=path, described=_named(value)))
     return json.dumps(value)
 
 
@@ -522,17 +508,14 @@ def _fill_element(element: ET.Element, value: dict[str, JsonValue], path: str) -
     """Fill an element from its object: attributes, then text or children, never both."""
     children = {key: item for key, item in value.items() if not key.startswith(ATTRIBUTE_PREFIX) and key != TEXT_KEY}
     if TEXT_KEY in value and children:
-        raise TransformError(
-            f"the object at {path} has both {TEXT_KEY!r} and child keys, and this mapping keeps an "
-            f"element's text under {TEXT_KEY!r} only where the element has no children"
-        )
+        raise TransformError(XML_TEXT_AND_CHILDREN.render(path=path, text_key=repr(TEXT_KEY)))
     for key, item in value.items():
         if key.startswith(ATTRIBUTE_PREFIX):
             name = key[len(ATTRIBUTE_PREFIX) :]
             _check_xml_name(name, path, "an attribute's name")
             attribute = _text(item, _step(path, key))
             if attribute is None:
-                raise TransformError(f"the attribute {key!r} at {path} is null, and an XML attribute holds text")
+                raise TransformError(XML_NULL_ATTRIBUTE.render(key=repr(key), path=path))
             element.set(name, attribute)
         elif key == TEXT_KEY:
             element.text = _text(item, _step(path, key))
@@ -546,9 +529,6 @@ def _append_children(element: ET.Element, tag: str, value: JsonValue, path: str)
         element.append(_element(tag, value, path))
         return
     if not value:
-        raise TransformError(
-            f"the value at {path} is an empty array, and no elements at all is no key at all; "
-            f"drop the key to convert the object"
-        )
+        raise TransformError(XML_EMPTY_ARRAY.render(path=path))
     for index, item in enumerate(value):
         element.append(_element(tag, item, f"{path}[{index}]"))
