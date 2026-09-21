@@ -97,9 +97,10 @@ would have been. A report is never worth the run it describes.
 ## Sending a report somewhere
 
 A page a pipeline writes for somebody else is a step: `report.render` renders text from a
-Jinja template over the values it is given and hands that text on, and the step after it is
-what sends it anywhere -- a value travels through step outputs, `storage.write` is the only
-way one leaves the run and `storage.read` the only way one comes back in.
+Jinja template over the values it is given and hands that text on as its output's `text`,
+`content_type` and `text_bytes`. It saves nothing itself, so the step after it is what sends
+the page anywhere -- `storage.write`, `kafka.produce`, `rabbitmq.publish` or `webhook.post`,
+each reading `${steps.<render>.output.text}`.
 
 | Example | Where the page goes |
 | --- | --- |

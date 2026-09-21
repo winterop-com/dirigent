@@ -44,8 +44,9 @@ docker compose --project-directory . -f infra/compose.yaml up --build
 ```
 
 That runs `postgres`, an `s3` server with a one-shot `s3-bucket` job that creates its bucket,
-a one-shot `migrate` the rest wait on, `server`, and `worker`. Add `-d` to put them in the
-background. `make docker-run` is the same command.
+a one-shot `migrate` the rest wait on, `server`, a `docker` sidecar holding the daemon the
+worker's container steps use, and `worker`. Add `-d` to put them in the background.
+`make docker-run` is the same command.
 
 !!! note "Why not `docker compose up`"
 
@@ -75,11 +76,14 @@ dg apply examples/hello-world.yaml
 dg run hello-world --watch
 ```
 
-`--watch` streams the run and exits with its outcome.
+`--watch` streams the run and exits with its outcome. `hello-world` is one `value.const` step,
+which touches nothing, so a fresh instance runs it with no configuration at all.
 
-The first apply will refuse: `shell.run` executes code on a worker, and an instance allows no
-such block until it is told to, by name. Set it in `.env` -- a comma-separated list, not a
-JSON array -- and recreate the two services that read it:
+The next document you try probably needs one thing. `examples/graph/parallel-sleep.yaml`
+ends in a `shell.run` step, and applying it is refused with `steps.report.block` named:
+`shell.run` executes code on a worker, and an instance allows no such block until it is told
+to, by name. Set it in `.env` -- a comma-separated list, not a JSON array -- and recreate the
+two services that read it:
 
 ```bash
 DIRIGENT_ENABLED_UNSAFE_BLOCKS=shell.run

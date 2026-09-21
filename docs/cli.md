@@ -5,9 +5,17 @@ once: the operator's remote for a running instance, and the process entry point 
 runs. Nouns are subcommand groups matching the API resources; the only top-level verbs are
 the ones you reach for constantly.
 
-Nothing here is CLI-only behaviour. Every command maps onto an endpoint, so anything the CLI
-can do, the UI and a script can do too, and `--json` is valid on every command -- the server's
-own response, not a rendering of the table.
+Almost every command is one or more API calls, so what the CLI does here the UI and a script
+can do too. The exceptions are the process-side ones -- `dg db`, `dg system health`,
+`dg connection ensure`, `dg admin user create`, `dg prune`, `dg secret-key`, `dg init` and
+`dg run --local` -- which read the configured database or the local filesystem and present no
+token, because they are what runs where no server is answering yet.
+
+`--json` is a global option and asks for records at a terminal, which is what a pipe gets
+without asking. What it produces is the record protocol below rather than a dump of the
+server's response, except where a command answers with a single document. Two commands answer
+the same way whatever is asked of them, and they are named
+[further down](#records-when-nothing-is-watching).
 
 ## Trying it without installing anything
 
@@ -390,13 +398,11 @@ or `--schema` file still wins over both.
 stream reads as cause then effect:
 
 ```text
-  queued          fetch (http.request)
-  running         fetch (http.request)
-                  fetch | http call
-                  fetch | response body saved
-  succeeded       fetch (http.request)
-                  archive | copied
-  succeeded       archive (storage.copy)
+2026-01-01T18:22:23.019+01:00 [info    ] queued                         [step fetch] block=http.request attempt=1
+2026-01-01T18:22:23.297+01:00 [info    ] http call                      [log fetch] method=GET status=200 duration_ms=278
+2026-01-01T18:22:23.301+01:00 [info    ] succeeded                      [step fetch] block=http.request attempt=1 duration_ms=282
+2026-01-01T18:22:23.462+01:00 [info    ] copied                         [log archive] bytes=48219
+2026-01-01T18:22:23.470+01:00 [info    ] succeeded                      [step archive] block=storage.copy attempt=1 duration_ms=169
 ```
 
 `--watch` reads that order off one stream, `GET /runs/{id}/$events`, which carries the
@@ -704,9 +710,12 @@ artifact rather than showing a value you could not tell apart from an inlined on
 table does the same:
 
 ```text
-│ export │ storage.copy │ succeeded │ 1.2s │ artifact a.json (48.2 kB) │
-│        │              │           │      │ -d prints it              │
+│ step   │ block        │ outcome   │ after │ duration │ output                    │
+│ export │ storage.copy │ succeeded │ -     │ 1.2s     │ artifact a.json (48.2 kB) │
 ```
+
+`-d` adds what was stored underneath that line, so the artifact is named at every level and
+its value is there when it is asked for.
 
 ## Records when nothing is watching
 
@@ -762,7 +771,12 @@ verb and whose fields are the identity of what changed:
 | `db.upgraded` | `dg db upgrade` | `database`, `target`, and the `revision` it reached |
 | `validation` | `dg validate`, `dg pipeline validate` | `code`, `document`, `problems[]` of issues, and a valid pipeline's `steps[]` |
 | `validated` | `dg validate` | The closing count: `documents`, `invalid` |
+| `apply` | `dg apply` | One per document: under `fields`, the plan's `action` of `create`, `update`, `unchanged` or `invalid`, the `code` it applied under, and an invalid one's issues |
+| `prune` | `dg apply --prune` | The reconcile: under `fields`, the pipelines `pruned`, the `trigger_documents_removed` that went with them, and `dry_run` |
+| `prune` | `dg prune` | The retention sweep, in flat fields rather than under `fields`: `total`, `dry_run`, and a count per family; a sweep that ran adds the `artifacts` it deleted from storage |
+| `backfill` | `dg backfill` | `pipeline`, `schedule`, `dry_run`, `windows_total`, `runs_created`, and `windows[]` of `window_start`, `window_end` and the `run_id` each became |
 | `pipeline.activated` / `.deactivated` / `.deleted` | `dg pipeline …` | `code` |
+| `pipeline.created` | `dg pipeline new` | `code`, the `starter` it copied, the `path` it wrote, the copy's own `requires`, and the `preflight` list to work through |
 | `schedule.created` / `.paused` / `.resumed` / `.deleted` | `dg schedule …` | `code`, `pipeline`, and a live one's `clock`, `timezone`, `next_fire_at` |
 | `webhook.created` | `dg webhook create` | `code`, `pipeline`, the `url` to POST to, and the `token` itself, once |
 | `webhook.token_rotated` | `dg webhook rotate-token` | `code`, `pipeline`, `url`, and the new `token`, once |
@@ -770,7 +784,9 @@ verb and whose fields are the identity of what changed:
 | `alert_rule.created` / `.paused` / `.resumed` / `.deleted` | `dg alerts rules …` | `code`, `event`, `notifier`, and a new one's `scope`, `connection`, `throttle`, and `template` and `body` as booleans saying whether the rule carries one |
 | `notification.queued` | `dg alerts test` | `notification_id`, `notifier`, `connection`, `subject` |
 | `notification.retried` | `dg alerts retry` | `notification_id`, `notifier`, `subject`, `attempt`, `available_at` |
+| `connection.created` / `.updated` | `dg connection create`, `dg connection ensure` | `code`, `connection_kind`, `name`, `description`, and the `config` with every secret field redacted |
 | `connection.checked` | `dg connection check` | `code`, `healthy`, `detail`, `version` |
+| `connection.deleted` | `dg connection delete` | `code` |
 | `run.cancelled` | `dg runs cancel` | `run_id`, `status` |
 | `run.retried` | `dg runs retry` | `run_id`, `step`, `item`, and the `attempt` it minted |
 | `schema.created` | `dg schema create` | `code`, `name` |
@@ -780,9 +796,14 @@ verb and whose fields are the identity of what changed:
 | `token.issued` | `dg auth login`, `dg admin token create` | `username`, the token's `name`, and the `token` itself, once; a login adds the `url`, a mint the `prefix` |
 | `pipeline.exported` | `dg export` | `code`, the `version` asked for, the `document` it exported, and the `path` when `-f` wrote it |
 | `example.written` | `dg examples show -f` | `code`, and the `path` the document was written to |
+| `example.source` | `dg examples show` | The example itself: `code`, `name`, `description`, `tags`, `shelf`, `plugin`, `starter`, `requires`, and the `source` verbatim |
 | `run.detail` | `dg runs show` | The run, its `dag`, its `items` and its `attempts`, under `fields` |
 | `run.report` | `dg runs report` | What each step amounted to and how long it took, under `fields` |
 | `run.report_document` | `dg runs report --markdown` | `run_id`, and the markdown `document` the run rendered when it settled |
+| `run.profile` | `dg runs profile` | The chain that decided the run: `run_id`, `pipeline`, `status`, `duration_ms`, `critical_path`, and the `queued_ms`, `running_ms` and `waiting_ms` along it |
+| `run.profile.step` | `dg runs profile` | One step on that chain: `step`, `block`, `attempts`, `queued_ms`, `running_ms`, `waiting_ms` |
+| `run.profile.warning` | `dg runs profile` | One cause the timestamps prove: the `step` it is about and the `cause` |
+| `docker_reaped` | `dg docker reap` | One compose project: `project`, `run_id`, `run_status`, whether it was `torn_down`, and the `detail` when it was not |
 | `system.info` | `dg system info` | The instance the CLI is talking to, under `fields` |
 | `check` | `dg system health …` | One check: `check`, `status`, `probe`, the `code` of the message it found and its `params`, and what it found as the `message` |
 | `health` | `dg system health` | The closing verdict: `checked`, `healthy`, `absent`, `unhealthy` |
@@ -841,9 +862,9 @@ long run live, and a closing `run` line that never arrives means the run never s
 wrote, merged by timestamp so the stream reads as cause then effect:
 
 ```text
-18:22:23.019 info  step   fetch[temperature]     "running"  block=http.request  attempt=1
-18:22:23.297 info  log    fetch[temperature]     "http call"  method=GET  url=https://postman-echo.com/get  status=200  bytes=227  duration_ms=278
-18:22:23.301 info  step   fetch[temperature]     "succeeded"  block=http.request  attempt=1  duration_ms=282
+2026-01-01T18:22:23.019+01:00 [info    ] running                        [step fetch[temperature]] block=http.request attempt=1
+2026-01-01T18:22:23.297+01:00 [info    ] http call                      [log fetch[temperature]] method=GET url=https://postman-echo.com/get status=200 bytes=227 duration_ms=278
+2026-01-01T18:22:23.301+01:00 [info    ] succeeded                      [step fetch[temperature]] block=http.request attempt=1 duration_ms=282
 ```
 
 A step that fans out is labelled with the element it is working on, because four attempts of
@@ -1046,7 +1067,8 @@ and the server `DG_URL` or the profile names (this host's own loopback when noth
 A machine with no instance says so in one line. Naming a component is the assertion that it
 should be here, so a worker that is simply not there fails `dg system health worker` and does
 not fail `dg system health`; containers' HEALTHCHECKs use the named forms. Every form writes
-`check` records, ends with a `health` verdict, and exits 0 or 1.
+one `check` record per check and exits 0 or 1; the bare form adds a closing `health` verdict,
+because it is the one that checked more than one thing.
 
 ### `dg connection create`
 

@@ -17,7 +17,7 @@ the way a connection is:
 
 ```bash
 dg schema create schemas/acme-sites.json   # from a file
-dg schema create -                               # from stdin
+dg schema create -                         # from stdin
 dg schema list
 dg schema show acme-sites
 dg schema delete acme-sites
@@ -200,10 +200,11 @@ own data speaks:
 | `uuid4` | a random UUID (version 4) | `f47ac10b-58cc-4372-a567-0e02b2c3d479` |
 | `uuid7` | a time-ordered UUID (version 7) | `018f6d8e-1a2b-7c3d-8e4f-0123456789ab` |
 | `md5` | a 32-character hex digest | `d41d8cd98f00b204e9800998ecf8427e` |
-| `sha1` | a 40-character hex digest | ... |
-| `sha256` | a 64-character hex digest | ... |
-| `sha512` | a 128-character hex digest | ... |
+| `sha1` | a 40-character hex digest | `da39a3ee5e6b4b0d3255bfef95601890afd80709` |
+| `sha256` | a 64-character hex digest | `e3b0c442...b855` (64 hex characters) |
+| `sha512` | a 128-character hex digest | `cf83e135...3e27` (128 hex characters) |
 | `base64` | standard base-64, decodable | `aGVsbG8=` |
+| `humane-duration` | a duration in dirigent's own spelling, never ISO 8601 | `30s`, `1h30m` |
 
 So a record's `observed_at` is pinned as a real timestamp, not just any string:
 
