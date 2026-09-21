@@ -56,7 +56,7 @@ export function PanelSheet() {
                             openPanelTab(tab.id)
                         }}
                         className={cn(
-                            'min-h-10 flex-1 truncate px-2 text-xs text-muted-foreground hover:text-foreground',
+                            'min-h-finger flex-1 truncate px-2 text-xs text-muted-foreground hover:text-foreground',
                             open && tab.id === active && 'font-medium text-foreground',
                         )}
                     >

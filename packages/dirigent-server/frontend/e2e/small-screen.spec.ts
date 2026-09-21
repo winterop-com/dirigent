@@ -100,6 +100,36 @@ test('the panel is a sheet raised from the tab bar', async ({ page }) => {
     await expect(sheet).toBeHidden()
 })
 
+test('what a finger lands on is at least 42px tall', async ({ page }) => {
+    // The token every control below the breakpoint takes its minimum from.
+    const FINGER = 42
+
+    await page.goto('/schemas')
+    await page.getByRole('button', { name: 'New schema' }).click()
+    const footer = page.getByRole('dialog').locator('[data-slot="dialog-footer"]')
+    await expect(footer.getByRole('button', { name: 'Store' })).toBeVisible()
+
+    // The dialog scales in, so the boxes are read once every animation on it has finished.
+    await expect
+        .poll(async () => {
+            const boxes = await footer.getByRole('button').all()
+            const heights = await Promise.all(
+                boxes.map(async (button) => (await button.boundingBox())?.height ?? 0),
+            )
+            return heights.length > 0 && heights.every((height) => height >= FINGER)
+        })
+        .toBe(true)
+
+    await page.keyboard.press('Escape')
+
+    await page.goto(`/pipelines/${PIPELINE}`)
+    const tabs = page.locator('[data-panel-bar]').getByRole('button')
+    await expect(tabs.first()).toBeVisible()
+    for (const tab of await tabs.all()) {
+        expect((await tab.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(FINGER)
+    }
+})
+
 test('a dialog fills the screen, with its verbs at the foot', async ({ page }) => {
     await page.getByRole('button', { name: 'Open navigation' }).click()
     await page.getByRole('button', { name: 'Settings' }).click()

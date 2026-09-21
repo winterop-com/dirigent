@@ -501,7 +501,7 @@ function ShortcutsPane({ rows, apple }: { rows: SettingsRow[]; apple: boolean })
             {rows.map((row) => (
                 <div
                     key={row.id}
-                    className="row-hover -mx-2 flex min-h-10 items-center justify-between gap-4 border-b border-border px-2 last:border-b-0"
+                    className="row-hover -mx-2 flex min-h-finger items-center justify-between gap-4 border-b border-border px-2 last:border-b-0"
                 >
                     <p className="min-w-0 text-sm font-medium">{row.label}</p>
                     <KbdGroup>

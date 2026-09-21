@@ -35,9 +35,9 @@ export function Segmented<T extends string>({
         <div
             className={cn(
                 'flex overflow-hidden rounded-md border border-border',
-                // What a finger lands on is 40px tall, which is the rule every control here
-                // grows to below the breakpoint.
-                size === 'md' ? 'h-10 w-full md:h-8' : 'min-h-10 md:min-h-0',
+                // What a finger lands on is `--spacing-finger` tall, which is the rule every
+                // control here grows to below the breakpoint.
+                size === 'md' ? 'h-finger w-full md:h-8' : 'min-h-finger md:min-h-0',
             )}
             role="group"
             aria-label={label}
