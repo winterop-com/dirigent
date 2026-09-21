@@ -75,7 +75,6 @@ class UnknownPipeline(PipelineError):
     def __init__(self, code: str) -> None:
         """Name what was asked for."""
         super().__init__(code=repr(code))
-        self.code = code
 
 
 class PipelineInUse(PipelineError):
@@ -87,7 +86,6 @@ class PipelineInUse(PipelineError):
     def __init__(self, code: str, runs: int) -> None:
         """Say how much work is still in flight, and what to do about it."""
         super().__init__(code=repr(code), runs=runs)
-        self.code = code
         self.runs = runs
 
 

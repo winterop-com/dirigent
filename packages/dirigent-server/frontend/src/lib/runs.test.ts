@@ -25,6 +25,7 @@ const RUN: RunOut = {
     triggered_by_label: 'nightly',
     trace_id: null,
     error: null,
+    error_code: null,
     failed_step: null,
     started_at: '2026-03-04T11:00:00Z',
     finished_at: '2026-03-04T11:02:00Z',

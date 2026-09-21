@@ -11,15 +11,15 @@
  * the list is what is drawn.
  */
 
-import { ApiError, type Problem } from '@/lib/api'
+import { ApiError, type Issue, type Problem } from '@/lib/api'
 
 /** How the server joins its problems into one sentence. */
 const JOIN = '; '
 
 /** A refusal this bundle made itself, in the shape every refusal off the wire takes. */
-export function local(detail: string): Problem {
+export function local(detail: string, code = 'client.no_answer'): Problem {
     // No status phrase: nothing refused this over the wire, so the sentence is the whole of it.
-    return { status: 0, title: '', detail, problems: [], instance: null }
+    return { status: 0, title: '', detail, code, params: {}, problems: [], instance: null }
 }
 
 /** Whatever went wrong, as the one shape a refusal is read in. */
@@ -28,12 +28,18 @@ export function refusalOf(error: unknown): Problem {
     return local('The server did not answer.')
 }
 
+/** One issue as a line: its message, prefixed by where it is when it names a place. */
+export function issueLine(issue: Issue): string {
+    return issue.location === null ? issue.message : `${issue.location}: ${issue.message}`
+}
+
 /** What is drawn of a refusal: the sentence, and the failures it does not already spell out. */
 export function refusalLines(problem: Problem): { detail: string | null; problems: readonly string[] } {
     const detail = problem.detail.trim() === '' ? null : problem.detail
-    if (problem.problems.length === 0) return { detail, problems: [] }
-    if (detail === problem.problems.join(JOIN)) return { detail: null, problems: problem.problems }
-    return { detail, problems: problem.problems }
+    const listed = problem.problems.map(issueLine)
+    if (listed.length === 0) return { detail, problems: [] }
+    if (detail === listed.join(JOIN)) return { detail: null, problems: listed }
+    return { detail, problems: listed }
 }
 
 /** The one line a refusal is worth where there is no room for a card. */

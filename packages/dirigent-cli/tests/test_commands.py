@@ -320,7 +320,7 @@ def test_validate_refuses_a_reference_that_will_never_resolve(tmp_path: Path, se
     )
     result = machine("validate", str(path), "--server")
     assert result.exit_code == 1
-    assert any("undeclared parameter" in one for one in only(result.stdout, "validation")["problems"])
+    assert any("undeclared parameter" in one["message"] for one in only(result.stdout, "validation")["problems"])
 
 
 def test_validate_with_a_server_checks_the_catalog(tmp_path: Path, server: str) -> None:
@@ -329,7 +329,7 @@ def test_validate_with_a_server_checks_the_catalog(tmp_path: Path, server: str) 
     assert machine("validate", str(path)).exit_code == 0, "offline validation cannot see the catalog"
     result = machine("validate", str(path), "--server")
     assert result.exit_code == 1
-    assert any("no block" in one for one in only(result.stdout, "validation")["problems"])
+    assert any("no block" in one["message"] for one in only(result.stdout, "validation")["problems"])
     assert only(result.stdout, "validation")["code"] == "missing"
 
 
@@ -1357,7 +1357,7 @@ def test_an_unreachable_server_says_so_rather_than_traces_back(monkeypatch: pyte
     assert result.exit_code == 1
     refused = refusal(result.stdout)
     assert "cannot reach" in refused["message"]
-    assert any("dg dev" in problem for problem in refused["problems"]), (
+    assert any("dg dev" in problem["message"] for problem in refused["problems"]), (
         "a refused loopback connection does not say the local instance is not running"
     )
 

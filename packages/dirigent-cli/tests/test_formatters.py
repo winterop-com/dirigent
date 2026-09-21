@@ -318,7 +318,14 @@ def test_an_invalid_document_is_drawn_with_the_problems_its_record_carries() -> 
                 level="error",
                 message="invalid",
                 code="demo",
-                problems=["code: 'Not A Name' is not a code"],
+                problems=[
+                    {
+                        "code": "document.step_config_invalid",
+                        "message": "'Not A Name' is not a code",
+                        "params": {},
+                        "location": "code",
+                    }
+                ],
             )
         )
     )

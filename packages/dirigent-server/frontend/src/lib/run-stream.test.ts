@@ -234,6 +234,7 @@ function opened(): RunDetailOut {
             triggered_by_label: 'dev',
             trace_id: null,
             error: null,
+            error_code: null,
             failed_step: null,
             started_at: null,
             finished_at: null,

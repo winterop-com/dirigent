@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from dirigent_core.engine.definition import RetryPolicy
 from dirigent_core.engine.failure import Failure, backoff_delay, classify, should_retry
 from dirigent_plugin import BlockFailure, ErrorClass, Operator, OperatorSpec, RemoteHandle, StepContext
+from dirigent_testing.messages import TEST_REFUSAL
 
 
 class Config(BaseModel):
@@ -91,7 +92,8 @@ def test_backoff_is_never_negative() -> None:
 
 
 def test_a_block_owns_its_classification() -> None:
-    assert classify(HonestOperator(), BlockFailure("x", error_class=ErrorClass.TRANSIENT)) is ErrorClass.TRANSIENT
+    transient = BlockFailure(TEST_REFUSAL, error_class=ErrorClass.TRANSIENT, detail="x")
+    assert classify(HonestOperator(), transient) is ErrorClass.TRANSIENT
     assert classify(OpinionatedOperator(), RuntimeError("conflict")) is ErrorClass.REJECTED
 
 
@@ -100,7 +102,9 @@ def test_a_broken_classifier_falls_back_to_the_contract_default() -> None:
 
 
 def test_a_failure_carries_the_message_a_block_meant_to_send() -> None:
-    deliberate = Failure.of(HonestOperator(), BlockFailure("refused", error_class=ErrorClass.REJECTED))
+    deliberate = Failure.of(
+        HonestOperator(), BlockFailure(TEST_REFUSAL, error_class=ErrorClass.REJECTED, detail="refused")
+    )
     assert deliberate.message == "refused"
     assert deliberate.error_class is ErrorClass.REJECTED
 
@@ -110,5 +114,5 @@ def test_a_failure_carries_the_message_a_block_meant_to_send() -> None:
 
 
 def test_the_engine_can_raise_its_own_classified_failures() -> None:
-    assert Failure.rejected("bad config").error_class is ErrorClass.REJECTED
-    assert Failure.transient("network").error_class is ErrorClass.TRANSIENT
+    assert Failure.rejected(TEST_REFUSAL, detail="bad config").error_class is ErrorClass.REJECTED
+    assert Failure.transient(TEST_REFUSAL, detail="network").error_class is ErrorClass.TRANSIENT

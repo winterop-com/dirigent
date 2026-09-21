@@ -109,7 +109,16 @@ describe('a refusal', () => {
                     status: 422,
                     title: 'Unprocessable Content',
                     detail: 'body.steps.0.block_id: no such block',
-                    problems: ['body.steps.0.block_id: no such block'],
+                    code: 'server.request_invalid',
+                    params: { detail: 'body.steps.0.block_id: no such block' },
+                    problems: [
+                        {
+                            code: 'validation.missing',
+                            message: 'no such block',
+                            params: {},
+                            location: 'body.steps.0.block_id',
+                        },
+                    ],
                     instance: '/api/v1/pipelines/$apply',
                 },
                 false,
@@ -122,7 +131,8 @@ describe('a refusal', () => {
         const error = failure as ApiError
         expect(error.status).toBe(422)
         expect(error.problem.detail).toBe('body.steps.0.block_id: no such block')
-        expect(error.problem.problems).toEqual(['body.steps.0.block_id: no such block'])
+        expect(error.problem.code).toBe('server.request_invalid')
+        expect(error.problem.problems.map((one) => one.code)).toEqual(['validation.missing'])
     })
 
     test('that is not a problem document says what arrived instead of inventing a detail', () => {

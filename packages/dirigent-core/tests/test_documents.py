@@ -236,7 +236,7 @@ def test_an_unknown_dependency_is_refused() -> None:
 def test_a_tag_a_document_may_not_wear_is_refused_at_the_place_it_was_written(declared: str, problem: str) -> None:
     with pytest.raises(DocumentError) as raised:
         load_text(f"format: dirigent/v1\ncode: labelled\ntags: {declared}\nsteps:\n  a: {{ block: test.echo }}\n")
-    assert raised.value.problems[0].startswith(problem)
+    assert str(raised.value.problems[0]).startswith(problem)
 
 
 def test_a_document_wearing_too_many_tags_is_refused_by_the_count() -> None:
@@ -253,7 +253,9 @@ def test_a_misspelled_step_key_is_refused_and_the_right_one_is_named() -> None:
             "  a: { block: test.echo }\n"
             "  b: { block: test.echo, depend_on: [a] }\n"
         )
-    assert raised.value.problems == ["steps.b.depend_on: unknown key (did you mean 'depends_on'?)"]
+    assert [str(issue) for issue in raised.value.problems] == [
+        "steps.b.depend_on: unknown key (did you mean 'depends_on'?)"
+    ]
 
 
 @pytest.mark.parametrize(
@@ -281,7 +283,7 @@ def test_a_misspelled_step_key_is_refused_and_the_right_one_is_named() -> None:
 def test_a_key_the_format_does_not_define_is_refused_wherever_it_is_written(document: str, problem: str) -> None:
     with pytest.raises(DocumentError) as raised:
         load_text(document)
-    assert raised.value.problems == [problem]
+    assert [str(issue) for issue in raised.value.problems] == [problem]
 
 
 def test_a_misspelled_key_is_refused_rather_than_digesting_as_if_it_were_not_there() -> None:

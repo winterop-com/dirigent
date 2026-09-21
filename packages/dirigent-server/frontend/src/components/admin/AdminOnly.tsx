@@ -15,6 +15,8 @@ import { authStore, isAdmin } from '@/lib/auth'
 export const ADMIN_REFUSAL: Problem = {
     status: 403,
     title: 'Forbidden',
+    code: 'server.forbidden',
+    params: {},
     detail:
         "This screen is an admin's. Operators may define, run and observe pipelines; managing " +
         "accounts, tokens and connections is an admin's.",

@@ -71,7 +71,7 @@ async def test_a_validation_failure_carries_the_field_list_it_named() -> None:
     async with client_of(Recorder([refusal(422, "; ".join(problems), problems=problems)])) as dg:
         with pytest.raises(ValidationFailed) as raised:
             await dg.pipelines.run("demo", params={"day": 3})
-    assert raised.value.problems == problems
+    assert [issue.message for issue in raised.value.problems] == problems
 
 
 async def test_a_rate_limit_carries_how_long_the_server_asked_for() -> None:
@@ -129,7 +129,7 @@ async def test_a_detail_that_is_a_field_list_is_rendered_into_problems() -> None
     async with client_of(Recorder([answer])) as dg:
         with pytest.raises(ValidationFailed) as raised:
             await dg.pipelines.list()
-    assert raised.value.problems == ["body.name: field required"]
+    assert [str(issue) for issue in raised.value.problems] == ["body.name: field required"]
 
 
 async def test_an_unreachable_server_names_the_url_it_could_not_reach(no_sleep: list[float]) -> None:

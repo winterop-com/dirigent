@@ -486,7 +486,7 @@ def validate_command(
                 level="error",
                 message="invalid",
                 document=document.label,
-                problems=list(error.problems),
+                problems=[issue.model_dump(mode="json") for issue in error.problems],
             )
             failures += 1
     catalog: Catalog | None = None
@@ -520,7 +520,7 @@ def validate_command(
                 message="invalid",
                 code=definition.code,
                 document=label,
-                problems=[str(issue) for issue in issues],
+                problems=[issue.issue().model_dump(mode="json") for issue in issues],
             )
             failures += 1
             continue

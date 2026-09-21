@@ -41,6 +41,7 @@ function run(status: RunStatus, created: string, id = status + created): RunOut 
         triggered_by_label: null,
         trace_id: null,
         error: null,
+        error_code: null,
         failed_step: null,
         started_at: created,
         finished_at: null,

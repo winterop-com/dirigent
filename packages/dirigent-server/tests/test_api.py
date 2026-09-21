@@ -541,7 +541,7 @@ def test_a_document_that_is_not_dirigent_v1_is_refused_before_anything_else(clie
     response = client.post(f"{PREFIX}/pipelines/$apply", json={"document": {"code": "x", "steps": {}}})
     assert response.status_code == 422
     body = response.json()
-    assert "declares no format" in body["problems"][0]
+    assert "declares no format" in body["problems"][0]["message"]
     assert "declares no format" in body["detail"]
 
 

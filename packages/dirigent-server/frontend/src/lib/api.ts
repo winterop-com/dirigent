@@ -45,16 +45,45 @@ export interface AppConfig {
  * Mirrors `dirigent_client.schemas.Problem`. RFC 9457 with no `type` member: this server
  * never emits one, so nothing here may key off it.
  */
+export interface Issue {
+    /** The dotted code of the message this issue was rendered from. */
+    code: string
+    /** What is wrong, in the terms the person reading it is thinking in. */
+    message: string
+    /** The specifics the message rendered, for a re-render in another language. */
+    params: JsonMap
+    /** Where the problem is, as a dotted path, when the issue is addressed at a place. */
+    location: string | null
+}
+
 export interface Problem {
     status: number
     /** The status phrase, such as "Not Found". */
     title: string
     /** One sentence a person can act on. This is what a refusal card shows. */
     detail: string
+    /** The dotted code of the message the detail was rendered from. */
+    code: string
+    /** The specifics the detail rendered, for a re-render in another language. */
+    params: JsonMap
     /** The individual failures, when the refusal is a list of them rather than one. */
-    problems: string[]
+    problems: Issue[]
     /** The path that was asked for, redacted of any credential it carried. */
     instance: string | null
+}
+
+/** Read whatever a body put under `problems` as the issues it is meant to be. */
+function issuesOf(value: unknown): Issue[] {
+    if (!Array.isArray(value)) return []
+    return value.map((entry) => {
+        const one = (entry ?? {}) as Record<string, unknown>
+        return {
+            code: typeof one.code === 'string' ? one.code : '',
+            message: typeof one.message === 'string' ? one.message : String(entry),
+            params: (one.params ?? {}) as JsonMap,
+            location: typeof one.location === 'string' ? one.location : null,
+        }
+    })
 }
 
 /** A request the server refused, carrying the problem document it refused with. */
@@ -85,6 +114,8 @@ export function problemOf(status: number, body: unknown, path: string): Problem 
             status === 0
                 ? 'This server did not answer. It may be starting, or the connection was lost.'
                 : `The server answered ${String(status)} with no problem document.`,
+        code: status === 0 ? 'client.no_answer' : 'client.no_problem_document',
+        params: {},
         problems: [],
         instance: path,
     }
@@ -95,7 +126,9 @@ export function problemOf(status: number, body: unknown, path: string): Problem 
         status: typeof candidate.status === 'number' ? candidate.status : status,
         title: candidate.title,
         detail: candidate.detail,
-        problems: Array.isArray(candidate.problems) ? candidate.problems.map(String) : [],
+        code: typeof candidate.code === 'string' ? candidate.code : fallback.code,
+        params: (candidate.params ?? {}) as JsonMap,
+        problems: issuesOf(candidate.problems),
         instance: typeof candidate.instance === 'string' ? candidate.instance : path,
     }
 }

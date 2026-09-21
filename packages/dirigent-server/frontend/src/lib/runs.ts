@@ -56,6 +56,8 @@ export interface RunOut {
     triggered_by_label: string | null
     trace_id: string | null
     error: string | null
+    /** The dotted code of the refusal the error was rendered from. */
+    error_code: string | null
     /** The step whose first failed attempt this run holds, when it did not end well. */
     failed_step: string | null
     started_at: string | null
@@ -77,6 +79,10 @@ export interface AttemptOut {
     status: AttemptStatus
     run_item_id: string | null
     error: string | null
+    /** The dotted code of the refusal this attempt failed with. */
+    error_code: string | null
+    /** The specifics the refusal rendered, for a re-render in another language. */
+    error_params: JsonMap | null
     error_class: string | null
     output: JsonMap | null
     /** Where the output was written, when it was too large to inline on the artifact. */

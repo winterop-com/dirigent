@@ -88,7 +88,7 @@ def test_db_current_refuses_before_the_first_upgrade() -> None:
     assert result.exit_code == 1
     problem = refusal(result.stdout)
     assert "never been migrated" in problem["message"]
-    assert any("dg db upgrade" in one for one in problem["problems"])
+    assert any("dg db upgrade" in one["message"] for one in problem["problems"])
 
 
 def test_db_upgrade_then_current_reports_the_head(tmp_path: Path) -> None:
@@ -211,7 +211,7 @@ def test_the_scheduler_refuses_to_start_on_sqlite() -> None:
     assert result.exit_code == GUARD_EXIT
     problem = refusal(result.stdout)
     assert "advisory" in problem["message"]
-    assert any("dg dev" in one for one in problem["problems"])
+    assert any("dg dev" in one["message"] for one in problem["problems"])
 
 
 def test_the_worker_refuses_to_start_on_sqlite() -> None:
@@ -228,7 +228,7 @@ def test_the_server_refuses_to_embed_the_scheduler_on_sqlite() -> None:
     assert result.exit_code == GUARD_EXIT
     problem = refusal(result.stdout)
     assert "advisory lock" in problem["message"]
-    assert any("--no-scheduler" in one for one in problem["problems"])
+    assert any("--no-scheduler" in one["message"] for one in problem["problems"])
 
 
 def test_the_server_flag_switches_the_ui_off(monkeypatch: pytest.MonkeyPatch) -> None:

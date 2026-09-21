@@ -273,5 +273,5 @@ def test_a_pair_this_engine_does_not_convert_is_refused_naming_the_six() -> None
 
     refusals = ArrowConverter().check_config(config)
     assert len(refusals) == 1
-    assert "convert.arrow does not convert json to csv" in refusals[0]
-    assert "parquet to json" in refusals[0]
+    assert "convert.arrow does not convert json to csv" in refusals[0].message
+    assert "parquet to json" in refusals[0].message

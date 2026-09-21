@@ -64,7 +64,6 @@ class DuplicateSchedule(ScheduleError):
         """Name the pipeline and the schedule."""
         super().__init__(pipeline=repr(pipeline), code=repr(code))
         self.pipeline = pipeline
-        self.code = code
 
 
 class UnknownSchedule(ScheduleError):
@@ -77,7 +76,6 @@ class UnknownSchedule(ScheduleError):
         """Name the pipeline and the schedule."""
         super().__init__(pipeline=repr(pipeline), code=repr(code))
         self.pipeline = pipeline
-        self.code = code
 
 
 class ScheduleRequest(BaseModel):

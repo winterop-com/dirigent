@@ -128,9 +128,12 @@ async def domain_error(request: Request, error: Exception) -> JSONResponse:
     """Render a refusal raised anywhere in the domain, at the status its class carries."""
     if not isinstance(error, DomainError):  # pragma: no cover - registered for this class
         return await unhandled(request, error)
+    # A refusal that carries a list answers with the list: the problems are the refusal, and
+    # the sentence before them only repeats what the caller can read there.
+    listed = "; ".join(str(issue) for issue in error.problems)
     problem = render(
         error.status,
-        str(error),
+        listed or str(error),
         code=error.code,
         params=error.params,
         problems=error.problems,

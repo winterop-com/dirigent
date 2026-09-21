@@ -198,7 +198,9 @@ async def test_a_step_timeout_over_a_slow_engine_fires_rather_than_waiting_it_ou
 def test_check_config_returns_the_compile_error_for_a_bad_program() -> None:
     config = CaseTransformer.config_model.model_validate({"input": "ada", "program": "sideways"})
 
-    assert CaseTransformer().check_config(config) == ["'sideways' is not a case: write one of upper, lower"]
+    assert [issue.message for issue in CaseTransformer().check_config(config)] == [
+        "'sideways' is not a case: write one of upper, lower"
+    ]
 
 
 def test_check_config_is_silent_about_a_program_that_compiles() -> None:
@@ -242,7 +244,9 @@ async def test_a_source_that_is_not_there_is_rejected(block_ctx: FakeContext) ->
 def test_an_unsupported_pair_is_refused_at_apply_and_names_what_is_supported() -> None:
     config = NoopConverter.config_model.model_validate(PAIR | {"to": "z"})
 
-    assert NoopConverter().check_config(config) == ["convert.noop does not convert a to z (a to b)"]
+    assert [issue.message for issue in NoopConverter().check_config(config)] == [
+        "convert.noop does not convert a to z (a to b)"
+    ]
 
 
 async def test_an_unsupported_pair_that_reaches_a_run_is_rejected(block_ctx: FakeContext) -> None:
@@ -319,7 +323,7 @@ async def test_a_bad_program_fails_a_map_step_as_rejected(block_ctx: FakeContext
 def test_check_config_returns_the_compile_error_for_a_bad_map_program() -> None:
     config = UpperMapper.config_model.model_validate({"input": ["ada"], "program": "sideways"})
 
-    assert UpperMapper().check_config(config) == ["'sideways' is not a case: write upper"]
+    assert [issue.message for issue in UpperMapper().check_config(config)] == ["'sideways' is not a case: write upper"]
 
 
 async def test_a_filter_keeps_the_matching_elements_unmodified_and_in_order(block_ctx: FakeContext) -> None:
@@ -371,4 +375,4 @@ async def test_a_bad_program_fails_a_filter_step_as_rejected(block_ctx: FakeCont
 def test_check_config_returns_the_compile_error_for_a_bad_filter_program() -> None:
     config = ActiveFilterer.config_model.model_validate({"input": READINGS, "program": " "})
 
-    assert ActiveFilterer().check_config(config) == ["write the status to keep"]
+    assert [issue.message for issue in ActiveFilterer().check_config(config)] == ["write the status to keep"]

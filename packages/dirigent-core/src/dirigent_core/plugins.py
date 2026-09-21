@@ -99,7 +99,6 @@ class UnknownExample(PluginError):
             super().__init__(AMBIGUOUS_EXAMPLE, code=repr(code), plugins=" and ".join(repr(one) for one in plugins))
         else:
             super().__init__(code=repr(code))
-        self.code = code
         self.plugins = list(plugins)
         self.status = 409 if self.plugins else 404
 
