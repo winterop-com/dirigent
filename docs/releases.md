@@ -16,6 +16,31 @@ tag is what publishes: `.github/workflows/release.yaml` builds every package and
 to PyPI through trusted publishing, then builds the image from that commit and pushes it as
 `<version>` and `latest`. The two sibling repositories then relock against the tag and bump.
 
+## 0.17.3
+
+Released 2026-09-21. Every package in the workspace moves to 0.17.3 together.
+
+- **A copy names what the original carried.** A document may carry the connections and
+  schemas it needs to run alone under `dg run --local`, and a copy made from it, by
+  `dg pipeline new`, `dg init --pipeline` or the Examples screen, drops those sections and
+  names their codes under `requires` instead, so the copy applies to an instance as it is.
+  Carrying no longer disqualifies a starter, and the preflight names the real connection kind.
+  The conformance kit a pack runs accepts a step's connection whether the document carries it
+  or requires it. The dhis2 pack's separate starters shelf is gone; its starters are the
+  documents themselves.
+- **The source pane holds the text it was handed.** Opening the editor from a starter or a
+  file keeps the document's own text, comments included, until a structural edit; a typed
+  comment survives its parse too.
+- **A fetched result is committed before the outcome that settles it.** A worker that dies
+  between fetching a remote step's result and recording the outcome settles from the committed
+  result instead of fetching again. `fetch` is still at-least-once, and a repeat is now rare.
+- **A captured stream comes through the context.** `ctx.capture(name)` names the storage
+  object under the run's scratch and hands the block a sink and the URI; `shell.run`,
+  `docker.run`, the compose and build blocks and `git.checkout` no longer name storage
+  themselves. Output fields are unchanged; a capture's URI no longer ends in `.txt`.
+- **What a finger lands on is 42px tall.** One token, `--spacing-finger`, sizes every control
+  below the breakpoint, the dialog's Cancel included, which the old rule missed.
+
 ## 0.17.2
 
 Released 2026-09-21. Every package in the workspace moves to 0.17.2 together.

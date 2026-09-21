@@ -1,6 +1,6 @@
 [project]
 name = "dirigent-block-storage"
-version = "0.17.2"
+version = "0.17.3"
 description = "The storage block family for dirigent: copy, read, write, and wait for an object at a URI."
 readme = "README.md"
 requires-python = ">=3.13"
@@ -11,8 +11,8 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    "dirigent-common==0.17.2",
-    "dirigent-plugin==0.17.2",
+    "dirigent-common==0.17.3",
+    "dirigent-plugin==0.17.3",
 ]
 
 [project.entry-points."dirigent.plugins.v1"]
