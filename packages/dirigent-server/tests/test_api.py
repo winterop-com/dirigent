@@ -3,9 +3,8 @@
 import asyncio
 import json
 import threading
-import time
 import uuid
-from collections.abc import Iterator
+from collections.abc import Awaitable, Callable, Iterator, Sequence
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, ClassVar, cast
@@ -21,6 +20,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from pydantic import BaseModel, SecretStr
 
 from dirigent_client.enums import AttemptStatus, LogLevel, RunItemStatus, RunStatus, WorkerStatus
+from dirigent_client.schemas import LogEntryOut, Page, RunOut
 from dirigent_core.config import Settings
 from dirigent_core.database import create_engine, create_session_factory, session_scope
 from dirigent_core.models import (
@@ -1758,9 +1758,100 @@ def test_a_principal_cannot_hold_more_log_streams_than_the_cap(client: TestClien
     assert client.get(f"{PREFIX}/runs/{run_id}/$logs").status_code == 200, "a page is never refused"
 
 
-#: A stream is read whole, so what it saw change has to be written while it is open.
+#: A stream is read whole -- the test client runs a response to its end before it yields a line --
+#: so what a watcher saw change has to be written while the stream is open, and a writer cannot wait
+#: on what it was delivered. It waits on the poll that read the state it is about to move past: a
+#: frame is rendered from the snapshot its poll took, and a write landing after that read can no
+#: longer change what the frame says.
 INTERVAL = 0.05
-REPLAYED = 0.5
+
+#: How long a writer waits for the poll it is gated on before it calls the stream broken. The
+#: stream's own limit is held to twice it, so a gate that never opens fails the test rather than
+#: holding the response open for the hour the route allows a watcher.
+PATIENCE = 30.0
+
+#: One poll of the story stream; a writer reads the attempts, the log page and the run off it.
+type StoryRead = tuple[list[StepAttempt], Any, Page[LogEntryOut], RunOut | None, Any]
+
+
+class Polls:
+    """What a follow stream's polls have read, which is what a writer moves a run between."""
+
+    def __init__(self) -> None:
+        """Start with nothing read, and a condition every writer waits on."""
+        self._runs: list[RunStatus] = []
+        self._attempts: list[tuple[str, AttemptStatus]] = []
+        self._logs: list[str] = []
+        self._polled = threading.Condition()
+
+    def read(
+        self,
+        run: RunStatus | None = None,
+        attempts: Sequence[tuple[str, AttemptStatus]] = (),
+        logs: Sequence[str] = (),
+    ) -> None:
+        """Record what one poll read, and wake every writer waiting on it."""
+        with self._polled:
+            if run is not None:
+                self._runs.append(run)
+            self._attempts.extend(attempts)
+            self._logs.extend(logs)
+            self._polled.notify_all()
+
+    def saw_run(self, status: RunStatus, times: int = 1) -> None:
+        """Wait until this many polls have read the run in this state."""
+        self._until(lambda: self._runs.count(status) >= times, f"the run {status.value}, {times} time(s)")
+
+    def saw_attempt(self, step: str, status: AttemptStatus) -> None:
+        """Wait until a poll has read this step's attempt in this state."""
+        self._until(lambda: (step, status) in self._attempts, f"{step} {status.value}")
+
+    def saw_log(self, message: str) -> None:
+        """Wait until a poll has picked up this line."""
+        self._until(lambda: message in self._logs, f"the line {message!r}")
+
+    def _until(self, enough: Callable[[], bool], wanted: str) -> None:
+        with self._polled:
+            assert self._polled.wait_for(enough, timeout=PATIENCE), f"no poll of the stream read {wanted}"
+
+
+def watching[**P, T](read: Callable[P, Awaitable[T]], seen: Callable[[T], None]) -> Callable[P, Awaitable[T]]:
+    """Report what one poll read, and hand the read back untouched."""
+
+    async def poll(*args: P.args, **kwargs: P.kwargs) -> T:
+        found = await read(*args, **kwargs)
+        seen(found)
+        return found
+
+    return poll
+
+
+@pytest.fixture
+def polls(monkeypatch: pytest.MonkeyPatch) -> Polls:
+    """Poll the follow streams fast, and report what every poll of one read."""
+    from dirigent_server.routes import runs as runs_route
+
+    monkeypatch.setattr(runs_route, "FOLLOW_INTERVAL_SECONDS", INTERVAL)
+    monkeypatch.setattr(runs_route, "FOLLOW_MAX_SECONDS", PATIENCE * 2)
+    watched = Polls()
+
+    def story(found: StoryRead) -> None:
+        attempts, _, page, run, _ = found
+        watched.read(
+            run=None if run is None else run.status,
+            attempts=[(row.step_name, row.status) for row in attempts],
+            logs=[entry.message for entry in page.items],
+        )
+
+    def tail(found: tuple[Page[LogEntryOut], bool]) -> None:
+        page, _ = found
+        watched.read(logs=[entry.message for entry in page.items])
+
+    story_read = runs_route._story_read  # pyright: ignore[reportPrivateUsage] - the poll a writer waits on
+    tail_read = runs_route._tail_read  # pyright: ignore[reportPrivateUsage] - the same read, for the log tail
+    monkeypatch.setattr(runs_route, "_story_read", watching(story_read, story))
+    monkeypatch.setattr(runs_route, "_tail_read", watching(tail_read, tail))
+    return watched
 
 
 def rows_written(client: TestClient, *statements: sa.Executable) -> None:
@@ -1831,11 +1922,8 @@ def started_run(client: TestClient) -> UUID:
     return UUID(client.post(f"{PREFIX}/pipelines/api-demo/$run", json={"params": {}}).json()["run_id"])
 
 
-def test_the_event_stream_tells_the_run_story_in_order(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_the_event_stream_tells_the_run_story_in_order(client: TestClient, polls: Polls) -> None:
     """One stream carries the attempts as they move, the lines they wrote, and how it ended."""
-    from dirigent_server.routes import runs as runs_route
-
-    monkeypatch.setattr(runs_route, "FOLLOW_INTERVAL_SECONDS", INTERVAL)
     run_id = started_run(client)
     greet = attempt_id(client, run_id, "greet")
     began = datetime(2026, 1, 1, tzinfo=UTC)
@@ -1845,8 +1933,8 @@ def test_the_event_stream_tells_the_run_story_in_order(client: TestClient, monke
     )
 
     def finish() -> None:
-        """Move the run on while the stream is open, which is the only way it sees a change."""
-        time.sleep(REPLAYED)
+        """Move the run on once a poll has read the attempt running, the state it moves from."""
+        polls.saw_attempt("greet", AttemptStatus.RUNNING)
         rows_written(
             client,
             sa.insert(LogEntry).values(
@@ -1883,24 +1971,19 @@ def test_the_event_stream_tells_the_run_story_in_order(client: TestClient, monke
     assert story[5][1]["status"] == "succeeded"
 
 
-def test_the_event_stream_reports_a_run_that_started_before_it_settles(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_the_event_stream_reports_a_run_that_started_before_it_settles(client: TestClient, polls: Polls) -> None:
     """A watcher learns that a run is running when it starts, not when it ends."""
-    from dirigent_server.routes import runs as runs_route
-
-    monkeypatch.setattr(runs_route, "FOLLOW_INTERVAL_SECONDS", INTERVAL)
     run_id = started_run(client)
     began = datetime(2026, 1, 1, tzinfo=UTC)
 
     def move() -> None:
-        """Claim the run, then settle it, both while the stream is open."""
-        time.sleep(REPLAYED)
+        """Claim the run, then settle it, each once a poll has read the state before it."""
+        polls.saw_run(RunStatus.QUEUED)
         rows_written(
             client,
             sa.update(Run).where(Run.id == run_id).values(status=RunStatus.RUNNING, started_at=began),
         )
-        time.sleep(REPLAYED)
+        polls.saw_run(RunStatus.RUNNING)
         rows_written(
             client,
             sa.update(Run)
@@ -1922,16 +2005,13 @@ def test_the_event_stream_reports_a_run_that_started_before_it_settles(
     assert [name for name, _ in story[-2:]] == ["run", "end"], "the settled frame still ends the story"
 
 
-def test_an_unchanged_run_is_not_reported_twice(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_an_unchanged_run_is_not_reported_twice(client: TestClient, polls: Polls) -> None:
     """The stream reports a state, not a cycle: polls that found the same run say nothing."""
-    from dirigent_server.routes import runs as runs_route
-
-    monkeypatch.setattr(runs_route, "FOLLOW_INTERVAL_SECONDS", INTERVAL)
     run_id = started_run(client)
 
     def settle() -> None:
-        """Leave the run alone for several polls, then end it so the stream closes."""
-        time.sleep(REPLAYED)
+        """Leave the run alone for three polls, then end it so the stream closes."""
+        polls.saw_run(RunStatus.QUEUED, times=3)
         rows_written(
             client,
             sa.update(Run)
@@ -2034,12 +2114,9 @@ def test_log_entries_reach_the_event_stream_in_id_order(client: TestClient) -> N
 
 
 def test_a_line_flushed_while_a_step_runs_reaches_the_stream_before_its_outcome(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch
+    client: TestClient, polls: Polls
 ) -> None:
     """A worker flushes a running attempt's log, and a watcher reads it before the step ends."""
-    from dirigent_server.routes import runs as runs_route
-
-    monkeypatch.setattr(runs_route, "FOLLOW_INTERVAL_SECONDS", INTERVAL)
     run_id = started_run(client)
     greet = attempt_id(client, run_id, "greet")
     began = datetime(2026, 1, 1, tzinfo=UTC)
@@ -2049,10 +2126,10 @@ def test_a_line_flushed_while_a_step_runs_reaches_the_stream_before_its_outcome(
     )
 
     def work() -> None:
-        """Flush a line mid-attempt, and settle the step a poll later."""
-        time.sleep(REPLAYED)
+        """Flush a line mid-attempt, and settle the step once a poll has carried the line."""
+        polls.saw_attempt("greet", AttemptStatus.RUNNING)
         rows_written(client, log_row(run_id, greet, "still working", began + timedelta(seconds=1)))
-        time.sleep(REPLAYED)
+        polls.saw_log("still working")
         rows_written(
             client,
             sa.update(StepAttempt)
@@ -2544,21 +2621,16 @@ def test_a_version_cursor_walks_a_pipelines_history(client: TestClient) -> None:
     assert second["next"] is None
 
 
-def test_a_reconnect_resumes_the_log_tail_from_the_last_event_id(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_a_reconnect_resumes_the_log_tail_from_the_last_event_id(client: TestClient, polls: Polls) -> None:
     """A browser resends the id it last saw; the tail continues past it rather than from the top."""
-    from dirigent_server.routes import runs as runs_route
-
-    monkeypatch.setattr(runs_route, "FOLLOW_INTERVAL_SECONDS", INTERVAL)
     run_id = started_run(client)
     greet = attempt_id(client, run_id, "greet")
     began = datetime(2026, 1, 1, tzinfo=UTC)
     rows_written(client, log_row(run_id, greet, "first", began), log_row(run_id, greet, "second", began))
 
     def settle() -> None:
-        """Land one more line and end the run while the first stream is open."""
-        time.sleep(REPLAYED)
+        """Land one more line and end the run once the tail has carried the two before it."""
+        polls.saw_log("second")
         rows_written(
             client,
             log_row(run_id, greet, "third", began + timedelta(seconds=1)),
