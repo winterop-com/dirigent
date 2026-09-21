@@ -1,10 +1,13 @@
 """How a transaction is opened, and running one again when the database broke a deadlock."""
 
 import asyncio
+import sqlite3
+import threading
 import time
 from pathlib import Path
 from typing import Any
 
+import aiosqlite
 import pytest
 import sqlalchemy as sa
 from sqlalchemy.exc import DBAPIError, IntegrityError
@@ -16,6 +19,7 @@ from dirigent_core.database import (
     create_engine,
     create_session_factory,
     is_deadlock,
+    open_sqlite,
     session_scope,
     with_deadlock_retry,
 )
@@ -200,3 +204,27 @@ async def test_a_transaction_that_reads_before_it_writes_waits_for_the_lock(sqli
         assert list(codes) == ["applied", "held-by-the-worker"], "both transactions committed"
     finally:
         await engine.dispose()
+
+
+async def test_a_connection_that_never_opened_takes_its_thread_with_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every SQLite connection answers the loop from a worker thread, a refused one included.
+
+    A thread still running when the loop closes reports into nothing, which surfaces as a
+    RuntimeError raised in a thread against whatever happens to be running then.
+    """
+    blocker = tmp_path / "not-a-directory"
+    blocker.write_text("")
+    threads: list[threading.Thread] = []
+    connect = aiosqlite.connect
+
+    def recording(*args: Any, **kwargs: Any) -> aiosqlite.Connection:
+        connection = connect(*args, **kwargs)
+        threads.append(connection._thread)  # pyright: ignore[reportPrivateUsage] - the thread under test
+        return connection
+
+    monkeypatch.setattr(aiosqlite, "connect", recording)
+    with pytest.raises(sqlite3.OperationalError):
+        await open_sqlite(str(blocker / "dirigent.db"))
+    assert threads and not threads[0].is_alive(), "the connection's thread outlived the attempt that failed"

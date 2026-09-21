@@ -6,6 +6,7 @@ from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager, suppress
 from typing import Any, Final
 
+import aiosqlite
 import sqlalchemy as sa
 import structlog
 from sqlalchemy import event
@@ -78,11 +79,34 @@ def _configure_sqlite(engine: AsyncEngine) -> None:
         connection.exec_driver_sql("BEGIN IMMEDIATE")
 
 
+async def open_sqlite(*args: Any, **kwargs: Any) -> aiosqlite.Connection:
+    """Open one SQLite connection, waiting for its thread when the file will not open.
+
+    aiosqlite drives every connection from a worker thread that hands results back through
+    ``call_soon_threadsafe``. A connection that fails to open queues that thread's stop and
+    raises without waiting for it, so the thread can call into an event loop that has closed
+    in the meantime and die with ``RuntimeError: Event loop is closed``.
+    """
+    connection = aiosqlite.connect(*args, **kwargs)
+    worker = connection._thread  # pyright: ignore[reportPrivateUsage] - the driver's own thread
+    worker.daemon = True
+    try:
+        return await connection
+    except BaseException:
+        await asyncio.to_thread(worker.join)
+        raise
+
+
 def create_engine(settings: Settings) -> AsyncEngine:
     """Build the async engine for the configured database."""
     if settings.is_sqlite:
         ensure_sqlite_directory(settings)
-        engine = create_async_engine(settings.database_url, echo=settings.database_echo, future=True)
+        engine = create_async_engine(
+            settings.database_url,
+            echo=settings.database_echo,
+            future=True,
+            connect_args={"async_creator_fn": open_sqlite},
+        )
         _configure_sqlite(engine)
         return engine
     return create_async_engine(
