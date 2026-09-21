@@ -1842,7 +1842,7 @@ def runs_list(
 ) -> None:
     """List runs, newest first, or the ones whose pipeline wears every tag named."""
     if status is not None and status not in set(RunStatus):
-        fail(NOT_A_RUN_STATUS, status=repr(status), allowed=", ".join(sorted(RunStatus)))
+        fail(NOT_A_RUN_STATUS, value=repr(status), allowed=", ".join(sorted(RunStatus)))
     tags = tag or []
     with client_for(state_of(ctx)) as dg:
         rows = list(

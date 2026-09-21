@@ -167,7 +167,7 @@ UNSAFE_FOR_THE_INSTANCE = CLI.define(
     "for the instance:  export DIRIGENT_ENABLED_UNSAFE_BLOCKS='[\"shell.run\"]'",
 )
 
-NOT_A_RUN_STATUS = CLI.define("not_a_run_status", "{status} is not a run status ({allowed})")
+NOT_A_RUN_STATUS = CLI.define("not_a_run_status", "{value} is not a run status ({allowed})")
 
 NO_FAILURE_TO_RETRY = CLI.define("no_failure_to_retry", "run {run_id} has no settled failure of step {step} to retry")
 

@@ -83,6 +83,25 @@ def test_config_show_writes_the_effective_settings_as_a_record() -> None:
     assert "worker_concurrency" in settings
 
 
+def test_a_cli_message_never_names_a_param_the_refusal_helper_reserves() -> None:
+    """``refuse`` names status, title and problems itself, and a template field would shadow one."""
+    from dirigent_cli.messages import CLI, HEALTH
+
+    reserved = {"status", "title", "problems", "check", "probe"}
+    for catalogue in (CLI, HEALTH):
+        for message in catalogue.messages.values():
+            assert not (message.fields & reserved), (message.code, sorted(message.fields & reserved))
+
+
+def test_listing_runs_by_a_status_that_is_not_one_says_which_are() -> None:
+    result = runner.invoke(app, ["runs", "list", "--status", "bogus"])
+
+    assert result.exit_code == 1
+    problem = refusal(result.stdout)
+    assert problem["code"] == "cli.not_a_run_status"
+    assert "'bogus' is not a run status" in problem["message"]
+
+
 def test_db_current_refuses_before_the_first_upgrade() -> None:
     result = runner.invoke(app, ["db", "current"])
     assert result.exit_code == 1
