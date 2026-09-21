@@ -19,9 +19,10 @@ The mental model borrows the best noun from Airflow and rejects its authoring mo
 - **Sensors wait for the world.** A file appearing under a storage URI, an endpoint
   reporting ready, a time window opening. Sensors never block a worker: each poke is a
   scheduled, durable poll.
-- **Pipelines compose blocks into a DAG** in the UI, stored as data, validated against the
-  blocks' published schemas. No Python files to deploy, no drift between "the code" and
-  "what runs".
+- **Pipelines compose blocks into a DAG.** A pipeline is a document the instance validates
+  against the blocks' published schemas, stores as an immutable version, and runs -- written
+  in the UI or in YAML, and the same thing either way. What is stored is what runs, so there
+  is one artifact to review, deploy and diff.
 
 The async submit-then-probe pattern is not an integration detail, it is the engine's core
 primitive, because nearly every interesting external system works that way: publish a job,
@@ -62,14 +63,16 @@ collecting hooks hang off the same mechanism and neither is part of startup: `fo
 which the CLI collects when `dg format` needs a renderer, and `examples()`, which answers with
 the directories a distribution's example shelves live in and is called the first time
 something asks for the corpus, so a worker never walks a shelf. The core corpus ships as
-`dirigent-examples`, a distribution whose only contribution is its shelves. Everything
-at runtime bypasses it. The host builds a block-id index from the contributions and calls
-operator and sensor methods directly, gathers health checks itself, and reads config models
-straight off the contributed objects.
+`dirigent-examples`, a distribution whose only contribution is its shelves.
 
-An "adapter" is nothing special: it is a plugin package contributing a connection kind plus
-a family of operators and sensors for one external system. The core never learns the name of
-any external product.
+Once startup is over, nothing calls pluginkit again. The host builds a block-id index from
+the contributions and calls operator and sensor methods directly, gathers health checks
+itself, and reads config models straight off the contributed objects, so a block call costs
+what a method call costs.
+
+An "adapter" is a plugin package contributing a connection kind plus a family of operators
+and sensors for one external system -- the same six surfaces every other plugin uses, aimed
+at one product. The core never learns the name of any external product.
 
 ### Block semantics, precisely
 
@@ -132,8 +135,12 @@ answers with one; `convert` is the exception, because its operand is a storage o
 than a value, so it reads one URI and writes another the way `storage.copy` does. Safety is per kind through the gates that already
 exist: an engine that evaluates a program without executing code needs no allowlist entry,
 while one that runs a language runtime declares `local_execution` and goes behind
-`enabled_unsafe_blocks` like `shell.run`. [The transform page](transforms.md) has the whole
-of it.
+`enabled_unsafe_blocks` like `shell.run`. An engine that computes inside a C extension
+holding the interpreter's lock names the command that starts a `ProgramRunner` instead, and
+its programs are compiled and run in that process over a line protocol -- because a thread
+cannot be cancelled, so a step's timeout would never fire and the lease would never beat,
+while killing a process is what ends work there. [The transform page](transforms.md) has the
+whole of it.
 
 **Storage backends and notifiers are not steps.** Storage is invoked by blocks through
 `ctx.storage`; when data movement itself is a pipeline step, that is the `storage.copy`
@@ -216,14 +223,31 @@ built from the block's own catalogued message, so it carries a `code` and the `p
 rendered it beside the sentence. A config
 still carrying a `${...}` is not known yet and is left to the run.
 
+A refusal at run time is the same shape. A block raises
+`BlockFailure(MESSAGE, error_class=..., **params)`, where `MESSAGE` is an entry in the
+family's own catalogue: the exception carries the rendered sentence, the stable dotted `code`
+it was rendered from, and the `params` that filled it. Those three travel onto the attempt
+row, into the problem document, and into the `error` record a terminal or a pipe reads, so
+one failure is recognisable wherever it is met. A code is public API exactly as a block id
+is -- adding one is compatible, renaming one is not -- while the English is free to be
+reworded. [The conventions page](conventions.md#refusals-carry-a-code) has the prefix
+ownership rules.
+
 `StepContext` is the engine's side of the bargain: scoped, audited access to everything a
 block may touch, so blocks hold no global state and never construct their own clients. It
-carries `run_id`, `attempt`, `started_at`, `cursor`, resolved `params`, a scoped `log`,
-`connection(ref, model)`, `http(ref)`, `storage`, `scratch`, and `runs`. `started_at` is
+carries `run_id`, `attempt`, `step`, `run_item_id`, `started_at`, `cursor`, `inline_capture`,
+resolved `params`, a scoped `log`, `connection(ref, model)`, `storage_connection(scheme,
+model)`, `http(ref)`, `schema(code)`, `format_checker()`, `storage`, `scratch`, `capture`,
+`work`, and `runs`. `started_at` is
 when the attempt first started, unchanged by a later poke or a worker restart, so a wait
 measures itself from the attempt rather than from the poke that happens to observe it. `connection` is synchronous by contract, so
 the claim transaction snapshots the connection table for the attempt and secrets are opened
-here, on the worker path, and nowhere else. `log` entries are buffered and written in the
+here, on the worker path, and nowhere else. `capture` opens the storage object a block
+streams into and hands back the URI its output carries, which is how a block writes a stream
+without ever naming a URI of its own. `work` is the run's directory on this worker's own
+filesystem, for what a tool opens through the filesystem rather than through storage -- a
+checkout, a build context, a bind mount -- and it is local to that worker, so anything a
+later step must see goes to `scratch`. `log` entries are buffered and written in the
 same commit that records the attempt's outcome, so logs and outcome can never disagree.
 An attempt whose call wrote nothing of its own is not silent either: the engine writes one
 line as it settles -- `finished` with `duration_ms` and `output_bytes`, or `failed` with
@@ -232,7 +256,7 @@ like a run of shell steps. A block that kept its own account keeps it, and an at
 only parked writes nothing at all, which is what keeps a sensor poked once a second from
 filling the run with a line per poke.
 
-`runs` is the newest member and the only one that reaches back into the instance itself:
+`runs` is the one member that reaches back into the instance itself:
 
 ```python
 class Runs(Protocol):
@@ -309,10 +333,10 @@ dirigent/
     dirigent-plugin/       # the block contract: markers, specs, base models (tiny, stable)
     dirigent-client/       # the API contract: wire schemas, and the async Python SDK
     dirigent-core/         # engine: schema, queue, DAG walker, scheduler, plugin host
-    dirigent-block-*/      # the eight built-in block packages: base, http, storage,
-                           #   execute, sql, queues, jq, parquet
-    dirigent-block-duckdb/ # the duckdb engine of the sql family
-    dirigent-blocks/       # the umbrella: every family, and the outbound alert channels
+    dirigent-block-*/      # the nine built-in block packages: base, http, storage,
+                           #   execute, sql, queues, jq, parquet, duckdb
+    dirigent-blocks/       # the umbrella over the families, and the outbound alert channels
+    dirigent-examples/     # the example corpus: shelves of runnable documents, and starters
     dirigent-server/       # FastAPI app, auth, SSE, webhook endpoints
       frontend/            # the web UI, built into the server wheel
     dirigent-cli/          # `dirigent` / `dg`
@@ -320,12 +344,16 @@ dirigent/
     dirigent-testing/      # test doubles and pytest fixtures for writing blocks
 ```
 
+[The architecture page](architecture.md) draws the same nineteen packages as a dependency
+tree, and `packages/dirigent-common/tests/test_dependency_tree.py` asserts every edge in it.
+
 Two of these are contracts, and both must stay small and stable because other people write
 against them. `dirigent-plugin` is what a third-party block package imports. `dirigent-client`
 is what a program driving an instance imports, and it owns the pydantic schema of every
 request and response the REST API speaks: the server imports them from there rather than
 declaring its own, so a shape has exactly one definition and the two cannot drift. It depends
-on `dirigent-plugin`, `httpx2`, and `pydantic`, and on nothing else in the workspace, so
+on `dirigent-common`, `httpx2`, `pydantic` and `pyyaml`, and on nothing else in the
+workspace -- not even `dirigent-plugin`, because an SDK has no use for `Operator` -- so
 installing the SDK does not install the engine. Everything else can churn.
 
 **Package taxonomy.** Distribution names say what a package contributes, so `pip list` reads as
@@ -336,23 +364,34 @@ an inventory of what an instance can do:
 | `dirigent-block-*` | Operators and sensors that need no credential of their own: a family, or the engine or codec a package brings | `dirigent-block-http`, `dirigent-block-duckdb` |
 | `dirigent-storage-*` | A storage backend, registering a URI scheme | `dirigent-storage-s3` |
 | `dirigent-notify-*` | A notifier channel | `dirigent-notify-slack` |
-| `dirigent-<system>` | An adapter pack: one connection kind plus the blocks for one external system | `dirigent-acme` |
+| `dirigent-<system>` | An adapter pack: one connection kind plus the blocks for one external system | `dirigent-dhis2` |
 
 A block family may carry a notifier that needs no credential of its own, the way
 `dirigent-block-base` carries the `log` channel; a channel with a credential is a
 `dirigent-notify-*` package or the built-in pack's own.
 
-The two contract packages sit outside that scheme, because neither contributes anything to an
-instance: `dirigent-plugin` is what a block author writes against, and `dirigent-client` is
-what a program driving an instance writes against.
+The runtime packages sit outside that scheme, because none of them contributes blocks:
+`dirigent-common`, `-plugin`, `-client`, `-core`, `-server`, `-cli` and `-testing` are named
+for the role they play, and two of them are the contracts above. `dirigent-examples` is named
+for what it carries the same way -- a corpus rather than a role -- and its only contribution
+is its shelves.
 
-The built-in blocks ship as eight packages -- the families `dirigent-block-base`, `-http`,
-`-storage`, `-execute`, `-sql` and `-queues`, and `-jq` and `-parquet` for the engine and the
-codec they bring -- each a package and a plugin of its own, so a worker carries the
+The built-in blocks ship as nine packages -- the families `dirigent-block-base`, `-http`,
+`-storage`, `-execute`, `-sql` and `-queues`, and `-jq`, `-parquet` and `-duckdb` for the
+engine or codec they bring -- each a package and a plugin of its own, so a worker carries the
 dependencies of what it actually runs. `dirigent-blocks` is the umbrella over them: it depends
-on every one but `-parquet`, whose pyarrow outweighs the other seven together, and contributes
-the three outbound alert channels itself, so one install is still the standard library and
-parquet is the one codec added by name.
+on every one but `-parquet`, whose pyarrow outweighs the other eight together, and `-duckdb`,
+and contributes the three outbound alert channels itself. One install is still the standard
+library, and the two heavy engines are added by name.
+
+An engine of a family registers on that family's own entry-point group rather than on
+`dirigent.plugins.v1`, because a block cannot reach the plugin host: a family that takes
+engines opens a group of its own and collects them there. The `sql` family's group is
+`dirigent.sql.engines.v1` and its contract is `SqlEngine` -- the backend name a URL is
+recognised by, a `validate` that refuses a connection the engine cannot open, a `check` that
+reaches the database, and the `session` a step runs its statements in. `dirigent-block-duckdb`
+publishes itself there, and `sql.query` and `sql.execute` find it without either package
+naming the other.
 
 **One protocol note.** `ByteSink` is the write end of a storage stream: `async write(data) ->
 int`, and nothing else. It is deliberately not a file object, because a backend that has to
@@ -376,7 +415,7 @@ the database:
   between starts and migrated forward; `dg dev --wipe-state` empties it first, for a checkout
   whose baseline migration moved in place. Only a directory dirigent named itself goes.
 - **Typical production.** Three services: Postgres, `dg server` (API plus embedded
-  scheduler), and one `dg worker` -- which is what `infra/compose.yaml` at the repository root is.
+  scheduler), and one `dg worker` -- which is what `infra/compose.yaml` in this repository is.
   The scheduler is embedded by default because needing a fourth service just to get a clock
   is a poor default, and because leadership being an advisory lock means embedding it costs
   nothing when it later moves out.
@@ -457,12 +496,14 @@ Three clusters, with the boundary visible in the schema layout itself. All times
 | `Connection` | definition | A coded credential record of some plugin-provided kind: settings, secrets encrypted at rest, health-checkable. Used by block configs, storage backends, and notifiers alike. |
 | `Pipeline` | definition | A code plus immutable versions. Edits insert a new version; runs pin the version they started from, which is what makes run snapshots free. |
 | `Step` | definition | Lives inside the pipeline document, not in a table: block reference, config, `depends_on` edges plus trigger rule, retry policy, timeout, optional fan-out expression. Only attempts get rows. |
-| `Trigger` | triggers | Ad hoc is implicit; persisted triggers are schedules (cron / interval / one-time, own timezone, own parameters, precomputed `next_fire_at`) and webhooks (token hash, optional HMAC secret, payload-to-parameter mapping). |
+| `Schema` | definition | A named JSON Schema the instance holds, addressable by code and referenced by one. Its identity is read off the schema's own keywords -- `$id` is the code, `title` the name -- so what is stored is a portable schema and not a wrapper around one. |
+| `Trigger` | triggers | Ad hoc is implicit; persisted triggers are schedules (cron / interval / one-time, own timezone, own parameters, precomputed `next_fire_at`) and webhooks (token hash, optional HMAC secret, payload-to-parameter mapping). A `TriggerDocument` row is the third owner a schedule or webhook may have, beside a hand and a pipeline's own document. |
 | `Run` | execution | Pinned pipeline version, resolved parameters, `triggered_by` as a real reference, a `priority` pinned at creation, and an optional half-open `[window_start, window_end)` naming the logical interval the run covers. Terminal states include `completed_with_errors`. |
 | `RunItem` | execution | First-class fan-out: one row per mapped item with its own status and failing-step pointer, so a run over N inputs reads as a grid. |
 | `StepAttempt` | execution | One row per attempt: number, kind (automatic / manual), input, output reference, error, remote handle, lease, `available_at`, `next_poll_at`, timings. |
 | `ArtifactRef` | execution | The durable record of a step output: content type, size, digest, and either an inlined value or a URI into pluggable storage, never a worker-local path. |
 | `AlertRule` | definition | Event, scope (global or pipeline), notifier connection, message template, throttle. |
+| `Notification` | execution | One queued alert delivery, claimed and retried exactly like an attempt: the rule and run it came from, the channel, the rendered subject and body with the run snapshot they were rendered from, a lease, an attempt count, and a terminal status. Unique on `(alert_rule_id, run_id, event)`, which is the deduplication. |
 | `LogEntry` | execution | Append-only, scoped run / item / attempt, batched writes. Bounded by `retention_logs`, which is unset by default. |
 | `Worker` | execution | The registry: hostname, version, installed plugins, tags, last seen. Doubles as observability. |
 
@@ -539,11 +580,15 @@ walk away with the same attempt.
 **The step-attempt state machine.**
 
 ```text
-queued --claim--> running --submit--> waiting --terminal probe--> succeeded
-   ^                  |                     |                            failed
-   |                  |                     |                            skipped
-   +---- retry with backoff (new attempt row, available_at = now + backoff) ----+
+pending --edges satisfied--> queued --claim--> running --submit--> waiting --terminal probe--> succeeded
+                               ^                   |                    |                      failed
+                               |                   |                    |                      skipped
+                               |                   |                    |                      cancelled
+                               +---- retry with backoff (new attempt row, available_at = now + backoff) ----+
 ```
+
+An attempt is inserted `pending`, waiting on its `depends_on` edges, and the outcome
+transaction of the last prerequisite is what moves it to `queued`.
 
 Operators that finish synchronously skip `waiting` entirely; async operators and all
 sensors live in it. Waiting is durable data with a due time, which is why restarts are safe.
@@ -996,19 +1041,23 @@ POST          /api/v1/auth/logout            # + GET /auth/me
 POST          /api/v1/auth/password          # self-service; keeps this session, revokes the rest
 GET/POST      /api/v1/tokens                 # + DELETE /tokens/{name}
 GET/POST      /api/v1/users                  # + PATCH, /{username}/$deactivate, /$activate
+                                             # + /$reset-password, /{username}/tokens
 GET/POST      /api/v1/connections            # + /{code}, PATCH, DELETE, /{code}/$check
 GET           /api/v1/blocks                 # catalog: operators, sensors, schemes, notifiers
 GET           /api/v1/blocks/{id}            # one block's published schemas
+GET/POST      /api/v1/schemas                # named JSON Schemas; + /{code}, PATCH, DELETE
 GET           /api/v1/examples               # the installed corpus; filters: tag, shelf, plugin, starter
 GET           /api/v1/examples/{code}        # one document, with its source text
 GET           /api/v1/schema/document        # dirigent/v1 composed with this catalog's configs
 GET           /api/v1/pipelines              # + /{code}, /{code}/versions
 POST          /api/v1/pipelines/$apply       # a whole document; ?dry_run=true returns the plan
                                              # pause_schedules: true mints its new clocks paused
+POST          /api/v1/pipelines/$prune       # deactivate directory pipelines a set no longer names
 GET           /api/v1/pipelines/{code}/$export        # canonical YAML
 POST          /api/v1/pipelines/{code}/$validate      # re-check a stored version
-POST          /api/v1/pipelines/{code}/$activate      # + /$deactivate, DELETE ?force=true
+POST          /api/v1/pipelines/{code}/$activate      # + /$deactivate, DELETE
 POST          /api/v1/pipelines/{code}/$run           # parameters validated against the schema
+POST          /api/v1/pipelines/{code}/$backfill      # one run per window a cadence has gone past
 GET           /api/v1/runs                   # filters: pipeline, status, since
 GET           /api/v1/runs/{id}              # run + DAG view model + item and attempt counts
 GET           /api/v1/runs/{id}/items        # the fan-out grid, paged in creation order
@@ -1031,19 +1080,22 @@ size of a fan-out. The DAG is folded from grouped counts rather than from the ro
 what makes the detail one small query however many attempts a run holds. A watcher reads
 `$events` instead of any of it.
 
-M2 adds the trigger and alerting surface, plus the one route that is not under `/api/v1`:
+Then the trigger and alerting surface, and the one route that is not under `/api/v1`:
 
 ```text
 GET/POST      /api/v1/pipelines/{code}/triggers/schedules          # + /{schedule}, PATCH, DELETE
 POST          /api/v1/pipelines/{code}/triggers/schedules/{s}/$pause   # + /$resume
 GET           /api/v1/pipelines/{code}/triggers/schedules/{s}/firings
+POST          /api/v1/schedules/$preview                          # what a clock nobody declared would fire
 GET/POST      /api/v1/pipelines/{code}/triggers/webhooks           # + /{webhook}, DELETE
 POST          /api/v1/pipelines/{code}/triggers/webhooks/{w}/$rotate-token
 POST          /api/v1/pipelines/{code}/triggers/webhooks/{w}/$disable   # + /$enable
 GET           /api/v1/pipelines/{code}/triggers/webhooks/{w}/deliveries
-GET/POST      /api/v1/alert-rules                                  # + DELETE /{code}
+GET           /api/v1/trigger-documents                            # + /{code}, DELETE
+GET/POST      /api/v1/alert-rules                                  # + /{code}, PATCH, DELETE
 POST          /api/v1/alert-rules/$test                            # one message, real queue
-GET           /api/v1/notifications                                # the alert queue
+GET           /api/v1/notifications                                # the alert queue; + /{id}
+POST          /api/v1/notifications/{id}/$retry                    # put one back on the queue, due now
 POST          /hooks/{token}                                       # outside /api/v1 auth
 ```
 
@@ -1071,9 +1123,21 @@ and therefore the cursor, is per listing: `/runs`, the firings, the deliveries a
 notifications go newest first by id; `/pipelines`, `/connections`, the schedules and the
 webhooks go by code, `/workers` and `/users` by their own name and username; `/alert-rules`
 and `/tokens` by id; a pipeline's versions newest version first; `$logs` by log id, in write
-order. Three listings stay bare arrays because
-what bounds them is not the database: the block catalog is bounded by the installed code, and a
-`$validate` response by the document it checked.
+order. Two answers are not pages at all, because what bounds them is not the database: the
+block catalog is bounded by the installed code, and a `$validate` response by the document it
+checked.
+
+**Every refusal answers one shape.** A non-2xx response body is a `Problem`, and it has seven
+fields: `status`, the HTTP status repeated so a logged payload is self-contained; `title`, the
+status phrase; `detail`, one sentence a person can act on; `code`, the stable dotted code of
+the message the detail was rendered from; `params`, the specifics that filled the template, so
+another language can re-render it; `problems`, the list of `Issue`s when the refusal is a list
+of them rather than one, as a failed apply is; and `instance`, the path that was asked for,
+redacted of any credential it carried. Nothing else is ever returned on an error, so a client
+parses failures exactly once. The `code` and the `params` are what the CLI's `error` record and
+the attempt row carry too, which is how one failure is recognisable in a terminal, over the
+wire, and in a log a week later. `params` never carries a secret, a credential, or the value
+that failed validation.
 
 Two shapes are worth calling out. `$apply` takes a whole document rather than a patch, because
 the document is the unit a person edits and a version is immutable anyway. And the run detail
@@ -1129,8 +1193,8 @@ then several runs watched at once, not one run watched wastefully.
 server imports them, which is what makes "the client parses what the server writes" a property
 of the code rather than a thing to keep checking: there is one pydantic model per shape, and
 adding a field to a response is the same edit as adding it to what a client can read. The
-package is a leaf -- `dirigent-plugin`, `httpx2`, `pydantic` -- so a program that drives an
-instance installs the contract and the SDK without installing the engine.
+package is a leaf -- `dirigent-common`, `httpx2`, `pydantic`, `pyyaml` -- so a program that
+drives an instance installs the contract and the SDK without installing the engine.
 
 ## 12. Defining pipelines: one model, two editors
 
@@ -1209,7 +1273,9 @@ triggers:                              # optional, and travels with the document
 requires:                              # the preflight a shared document declares
   blocks: [http.request, storage.exists]
   connections: [modelling-api, ops-webhook]
+  pipelines: [region-summary]          # pipelines this one starts with pipeline.run
   storage: [s3]                        # named by scheme; a backend must claim each one
+  schemas: [climate-row]               # named JSON Schemas; the instance must hold each one
   workers: [docker]                    # capability tags a worker must carry to claim this
 
 report: {}                             # a settled run renders the built-in markdown document
@@ -1227,13 +1293,16 @@ Reading guide for the choices above:
   with the document rather than at the first run.
 - `for_each` is expanded when the run is created, so the item grid exists from the moment a
   run is visible. It may therefore read `params.*`, `run.*`, and an upstream fan-out's grid as
-  `${steps.<name>.items}`, but not a step's output; a fan-out whose cardinality depends on
-  upstream work is a later milestone.
-- `${...}` is the whole reference language (`params.*`, `steps.<name>.output.*`,
-  `steps.<name>.items`, `steps.<name>.item.output.*`, `item`,
-  `run.scratch`, `run.id`, `run.window.start`, `run.window.end`, `trigger.*`). There are no
-  expressions, loops, or conditionals in v1; logic lives in blocks and trigger rules, which is
-  what keeps documents reviewable. `$${...}` is the escape: it yields the literal `${...}`,
+  `${steps.<name>.items}`, but not a step's output: a grid drawn before the run starts cannot
+  be sized by work the run has not done yet.
+- `${...}` is the whole reference language, and it has four namespaces: `params.*`,
+  `steps.*` (`steps.<name>.output.*`, `steps.<name>.items`, `steps.<name>.item.output.*`),
+  `item`, and `run.*` (`run.scratch`, `run.id`, `run.window.start`, `run.window.end`). There
+  are no expressions, loops, or conditionals in v1; logic lives in blocks and trigger rules,
+  which is what keeps documents reviewable. A reference standing alone resolves to the typed
+  value, so `"${params.count}"` is an integer downstream, while one inside a larger string
+  interpolates; an unknown reference fails the attempt as `rejected` rather than resolving to
+  empty. `$${...}` is the escape: it yields the literal `${...}`,
   is never resolved and is never checked, which is how a compose file or a template reaches
   its tool with its own braces intact.
 - The format refuses a key it does not define, at every level: a document, a step, a retry
@@ -1249,6 +1318,24 @@ Reading guide for the choices above:
   the built-in document, and `report.template` is a Jinja template over the run's facts that
   is compiled at apply, so a syntax error is refused at `report.template` rather than at the
   first settlement. A document that declares no `report:` renders nothing.
+- A document may **carry** what it names, in top-level `connections:` and `schemas:` sections
+  keyed by code, so that it runs on its own under `dg run --local` and satisfies its own
+  references without a `requires` entry. A carried code resolves before any the instance
+  holds. Every door that *stores* a document refuses a carried one, and refuses it the same
+  way: applying puts the document in a version, an export and a diff, and a credential or a
+  copy of a shared resource has no business in any of the three. Carrying is therefore for a
+  standalone run, and a shared instance holds its connections and its schemas as their own
+  records.
+
+**A starter carries, a copy requires.** An example wearing the `starter` tag is a document
+somebody is meant to copy, and the copy is the text verbatim with its `code:` rewritten and
+the `starter` tag dropped -- so every teaching comment in it survives and there is no macro
+language. The one transformation is the rule above turned around: `dg pipeline new` and the
+UI's *Use as starter* strip each `connections:` and `schemas:` block the original carried and
+name every code it held under the copy's `requires:` instead. What ran alone becomes what says
+what it needs, and the preflight the command prints is the list to work through -- the
+`dg connection create` lines, each with the kind the carried definition named, the schemas to
+apply, the packs a block needs.
 
 **Tags say what a pipeline is for.** A corpus grows past the point where forty codes in a list
 mean anything, and `tags:` is how a document says which handful of them belong together --
@@ -1383,44 +1470,55 @@ with a test button, schedules with their next firing, alerting rules, and a dash
 The CLI is Typer plus rich, installed as `dirigent` with `dg` as the short alias. It is both
 the operator's remote (a server via `--profile` / `DG_URL` / `DG_TOKEN`) and the process
 entry point for containers. Nouns are subcommand groups matching the API resources; the only
-top-level verbs are the ones an operator reaches for constantly (`run`, `apply`, `export`,
-`validate`) and the process entry points. The terminal decides the output: a person at one reads the
+top-level verbs are the ones an operator reaches for constantly (`run`, `backfill`, `format`,
+`init`, `apply`, `export`, `validate`, `prune`, `secret-key`) and the process entry points.
+Help is arranged in six panels -- Run, Define, Connect, Triggers, Processes, Administration --
+so the list reads by what you came to do. The terminal decides the output: a person at one reads the
 rendering, and a pipe, a container or CI reads NDJSON, one record per line each carrying a
 `kind`, with a list or a show writing the server's own response, so a script that parses what
 it is given is reading the API. `--json` and `-o console` override the terminal either way.
 
 ```text
 # processes (container entry points)
-dg dev [--wipe-state]                   # standalone: SQLite, API + scheduler + worker
+dg dev [--wipe-state] [--seed DIR]      # standalone: SQLite, API + scheduler + worker
 dg server [--no-scheduler]              # API; the scheduler is embedded unless it is isolated
-dg worker [--concurrency N]
+dg worker [--concurrency N] [--tag T]
 dg scheduler                            # the clock on its own, when the API is scaled out
+dg docker reap                          # take down compose stacks this host still holds
 dg db upgrade | current | history
 
 # projects and definitions
-dg init [DIR] [--template local|compose|documents]
-dg apply [file|url|-] [--dry-run] [--as NAME] [--paused]      # no argument in a project: the whole project
-dg export NAME [-o FILE] [--version N]
+dg init [DIR] [--template local|compose|documents] [--service S] [--pack P] [--pipeline STARTER]
+dg apply [file|url|-] [--dry-run] [--as NAME] [--paused] [--prune]   # no argument in a project: the whole project
+dg export NAME [-f FILE] [--version N]
 dg validate [file|url] [--server]
-dg pipeline list | show | versions | activate | deactivate | delete NAME
+dg pipeline list | show | versions | validate | activate | deactivate | delete NAME
+dg pipeline new STARTER [--code X] [--dir DIR]        # copy a starter into this project
+dg examples list [--starter] [--shelf S] | show CODE  # the documents every installed plugin ships
+dg schema list | create file|- | show | delete CODE   # named JSON Schemas the instance holds
 
 # execution
-dg run NAME|file|url [-p key=value ...] [-P FILE] [--watch] [--local]
-dg runs list | show | cancel | report | logs [--follow] | retry RUN --step NAME
+dg run NAME|file|url [-p key=value ...] [-P FILE] [--watch] [--local] [--window START..END]
+dg runs list | show | cancel | report | profile | logs [--follow] | retry RUN --step NAME
+dg backfill PIPELINE --schedule S --from WHEN --to WHEN [--dry-run]   # the windows a cadence went past
+dg format [FILE]                        # render a kept or piped NDJSON stream for reading
 
 # triggers and alerting
 dg schedule create PIPELINE NAME --cron EXPR | --interval DUR | --at WHEN [--tz ZONE] [-p k=v] [-P FILE]
 dg schedule list | pause | resume | firings | delete PIPELINE NAME
 dg webhook create PIPELINE NAME [--map param='$.path'] [--hmac-secret S] [--rate-limit N]
 dg webhook list | rotate-token | deliveries | delete PIPELINE NAME
+dg trigger-document list | show | delete CODE         # clocks declared for a pipeline defined elsewhere
 dg alerts rules list | create NAME --event E --notifier N [--pipeline P] [--throttle DUR] | delete NAME
-dg alerts test NOTIFIER [--connection NAME] | dg alerts queue
+dg alerts test NOTIFIER [--connection NAME] | dg alerts queue | dg alerts retry ID
 
 # catalog, connections, operations
-dg blocks list [--kind operator|sensor] | show BLOCK_ID
-dg connection list | create KIND NAME --set field=value | show | check | delete NAME
-dg system info | dg system workers | dg config show | dg --version
-dg auth login | status
+dg blocks list [--kind operator|sensor] | show BLOCK_ID | new           # scaffold a block pack
+dg connection list | create KIND NAME --set field=value | show | check | delete | ensure NAME
+dg system info | dg system workers
+dg system health | health database | worker | server | scheduler     # one part, or the whole host
+dg config show | dg secret-key | dg prune [--runs DUR] [--logs DUR] [--dry-run] | dg --version
+dg auth login | status | password
 dg admin user create | list | password | dg admin token create | list | revoke
 ```
 
@@ -1458,9 +1556,11 @@ instance already has. Given a file, a URL, or `-`, it applies the document first
 instance in a temporary directory, with no server anywhere: the same apply, the same engine,
 the same worker loop, deleted afterwards. That is the quick-try and CI story, and the reason
 it is the same code path is that a local run that executed differently would prove nothing.
-`--connections FILE` supplies the credentials a serverless run has nowhere to read from, and
-`--enable-unsafe BLOCK` adds to the allowlist for one command rather than turning the gate
-off.
+`--connections FILE` supplies the credentials a serverless run has nowhere to read from,
+`--schema FILE` a named JSON Schema a gate resolves, `--also-apply FILE` another document the
+run needs -- a child `pipeline.run` starts, say -- and `--enable-unsafe BLOCK` adds to the
+allowlist for one command rather than turning the gate off. `--keep` and `--root DIR` leave
+the throwaway instance on disk for a failure worth looking at afterwards.
 
 **Parameters are built against the pipeline's own schema.** The CLI reads the schema before it
 sends anything, so `-p count=3` is an integer and `-p code=3` is a string when the schema says
@@ -1490,15 +1590,19 @@ for failed and cancelled, and zero with a warning for `completed_with_errors` un
 
 **Verbosity is a flag, not an environment variable.** The default output is the run, not the
 CLI: transitions and block output only. `-v` interleaves the engine's own INFO events and the
-API calls the CLI makes; `-vv` is DEBUG, with the libraries that log once per SQL statement or
-socket read capped so it stays readable; `--debug-all` lifts even that. Precedence is the flag,
-then `DIRIGENT_LOG_LEVEL`, then quiet.
+API calls the CLI makes; `-d` is DEBUG -- claims, references, probes and leases -- with the
+libraries that log once per SQL statement or socket read capped so it stays readable, and
+`--debug-all` lifts even that cap. Precedence is the flag, then `DIRIGENT_LOG_LEVEL`, then
+quiet. Diagnostics go to stderr and the command's answer to stdout, so `2>/dev/null` leaves a
+clean record stream whatever the verbosity.
 
 ## 14. Security posture
 
-- **Authentication in M1**: session login for the UI, API tokens for automation, a local user
-  table, single admin first with schema room for roles. An orchestrator is a credential vault
-  with an execute button; it does not ship open.
+- **Authentication in M1**: session login for the UI, API tokens for automation, and a local
+  user table carrying one of three instance-wide roles -- `admin` does everything, `operator`
+  defines, applies, runs, cancels and schedules but touches neither accounts nor connections,
+  and `viewer` reads and writes nothing. An orchestrator is a credential vault with an execute
+  button; it does not ship open.
 
   Sessions and API tokens are one table, `api_tokens`, because they are one thing: an opaque
   secret that authenticates as a user until it expires or is revoked. Keeping them apart would
@@ -1551,8 +1655,8 @@ then `DIRIGENT_LOG_LEVEL`, then quiet.
   against the pipeline's parameter schema. An unknown token and a disabled webhook answer
   identically, so the endpoint cannot be probed for which tokens once addressed something.
   Section 8 has the whole model.
-- **Attribution is a foreign key**: every run points at the user, schedule, webhook, or token
-  that started it.
+- **Attribution is a foreign key**: every run points at the user, token, schedule, webhook,
+  backfill, or parent run that started it.
 - **Outbound discipline**: timeouts on every call, TLS verification per connection, transport
   retries only for idempotent requests, error classification owned by blocks.
 - **Local execution is opt-in**: `shell.run`, `docker.run`, and any block whose spec sets
@@ -1617,9 +1721,9 @@ The survey of prior art collapses to a short list of scars this design answers:
   triggers and alerting pages, frontend-in-wheel packaging. *(Complete. The proof is a
   browser suite driving a real `dg dev`, plus `docs/ui-conventions.md`, which the gate
   scripts and the `ui-review` skill check every change against.)*
-- **M3 follow-ons.** The editor grows toward the node-editor direction on the design
-  boards: typed ports drawing a `${steps.x.output}` reference as a data wire distinct from a
-  bare `depends_on` edge.
+- **M3 follow-ons.** The node-editor direction on the design boards, still open: typed ports
+  that draw a `${steps.x.output}` reference as a data wire distinct from a bare `depends_on`
+  edge.
 - **M4 - Adapter packs.** Domain plugin packages with fresh clients and a nightly
   contract-test lane. *(Complete for the first pack: `dirigent-dhis2` lives in its own
   repository and `dirigent-integration` assembles and tests the set; every further pack
@@ -1665,9 +1769,9 @@ Engine and plugin terms:
 | Lost-job policy | Deadline plus fail-after-N-consecutive-`GONE`-probes: a remote system that forgot its job produces a failed step and an alert, never a hang. |
 | Error class | Block-assigned failure category driving retry: `rejected` is never retried, and `transient` and `unknown` both spend the step's retry budget. |
 | Catalog | The server's merged view of every plugin contribution, served at `/api/v1/blocks` and consumed by the UI to render forms. |
-| Contribution | What one plugin adds across the five surfaces, returned by its `contribute()` hook under the `dirigent.plugins.v1` entry-point group. |
+| Contribution | What one plugin adds across the six surfaces, returned by its `contribute()` hook under the `dirigent.plugins.v1` entry-point group. |
 | Scratch space | Run-scoped URI prefix on the default storage backend for intermediate artifacts. Swept with the run it belongs to, once `retention_runs` is set. |
-| `triggered_by` | Foreign key on every run to the user, schedule, webhook, or token that started it: attribution as data, not free text. |
+| `triggered_by` | A kind plus a foreign key on every run, naming what started it: `adhoc`, `user`, `api_token`, `schedule`, `webhook`, `backfill`, or `pipeline` -- the last pointing at the run whose step started this one. Attribution as data, not free text. |
 
 Naming stance in one line: where an existing term is dominant and means the same thing, reuse
 it exactly; where the dominant terms conflict or mislead, pick the boring word and document
