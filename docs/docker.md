@@ -33,8 +33,8 @@ export DIRIGENT_ENABLED_UNSAFE_BLOCKS='["docker.compose.up","docker.compose.down
 
 ## The daemon these blocks reach
 
-A block talks to whatever daemon `DOCKER_HOST` names, resolved the way the docker CLI resolves
-it:
+A block talks to whatever daemon `DOCKER_HOST` names, reading it and the TLS variables beside
+it the way the docker CLI does:
 
 | `DOCKER_HOST` | Reached as |
 | --- | --- |
@@ -42,6 +42,7 @@ it:
 | `unix:///path/to.sock` | that unix socket |
 | `tcp://host:port` | `http://host:port` |
 | `tcp://host:port` with `DOCKER_TLS_VERIFY=1` and `DOCKER_CERT_PATH` | `https://host:port` with the client `ca.pem`/`cert.pem`/`key.pem` |
+| any other scheme, `ssh://` included | refused: the daemon is reached over HTTP here, and nothing tunnels one |
 
 ### The reference shape: a dind sidecar
 
@@ -88,7 +89,7 @@ and how a build reaches a registry:
 
 | Field | What it holds |
 | --- | --- |
-| `host` | The daemon: `tcp://host:2376`, `ssh://user@host`, or `unix:///var/run/docker.sock`. Empty leaves the worker's own environment standing. |
+| `host` | The daemon, in one of the two schemes the worker speaks: `tcp://host:2376`, with the TLS triple below, or `unix:///var/run/docker.sock`. Empty leaves the worker's own environment standing. |
 | `tls_ca`, `tls_cert`, `tls_key` | The client TLS triple for a `tcp://` daemon, in PEM form. All three or none. |
 | `registry` | The registry a push authenticates to, such as `ghcr.io`. Empty means Docker Hub. |
 | `username`, `password` | The registry credential, together or not at all. |

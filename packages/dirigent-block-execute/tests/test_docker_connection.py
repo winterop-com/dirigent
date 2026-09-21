@@ -14,6 +14,7 @@ from pydantic import SecretStr, ValidationError
 
 from dirigent_block_execute.docker import (
     DAEMON_ENV,
+    DAEMON_SCHEMES,
     DaemonEndpoint,
     DockerConnectionConfig,
     DockerConnectionKind,
@@ -23,6 +24,7 @@ from dirigent_block_execute.docker import (
     resolve_endpoint,
     sealed,
 )
+from dirigent_block_execute.messages import NOT_A_DAEMON_SCHEME
 from dirigent_plugin import RemoteHandle
 from dirigent_testing import FakeContext
 
@@ -92,7 +94,7 @@ def scripted(
 def test_a_connection_names_a_daemon_a_registry_or_both() -> None:
     assert DockerConnectionConfig(host="tcp://dind:2376").host == "tcp://dind:2376"
     assert REGISTRY.authenticates is True
-    assert DockerConnectionConfig(host="ssh://build@host", username="u", password=SecretStr("p")).authenticates is True
+    assert DockerConnectionConfig(host="tcp://build:2375", username="u", password=SecretStr("p")).authenticates is True
 
 
 def test_a_connection_that_names_neither_is_refused() -> None:
@@ -101,8 +103,15 @@ def test_a_connection_that_names_neither_is_refused() -> None:
 
 
 def test_a_host_of_an_unknown_form_is_refused() -> None:
-    with pytest.raises(ValidationError, match="none of them"):
+    with pytest.raises(ValidationError, match="not one of them"):
         DockerConnectionConfig(host="https://dind:2376")
+
+
+def test_an_ssh_host_is_refused_because_the_worker_cannot_speak_it() -> None:
+    with pytest.raises(ValidationError) as refusal:
+        DockerConnectionConfig(host="ssh://user@host")
+    schemes = " or ".join(DAEMON_SCHEMES)
+    assert NOT_A_DAEMON_SCHEME.render(schemes=schemes, host="'ssh://user@host'") in str(refusal.value)
 
 
 def test_half_a_tls_triple_is_refused() -> None:
