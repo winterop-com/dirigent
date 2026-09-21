@@ -18,7 +18,7 @@ dirigent-block-http          http.request, http.ready, webhook.post            -
 dirigent-block-storage       copy, read, write, exists                         -> common, plugin
 dirigent-block-execute       shell, docker, compose, build, checkout           -> common, plugin, block-http
 dirigent-block-sql           sql.query, sql.execute                            -> common, plugin
-dirigent-block-transform-jq  transform.jq, map.jq, filter.jq                   -> common, plugin
+dirigent-block-jq            transform.jq, map.jq, filter.jq                   -> common, plugin
 dirigent-block-queues        kafka and rabbitmq                                -> common, plugin
 dirigent-block-parquet       convert.arrow, on pyarrow                         -> common, plugin
 dirigent-blocks              the umbrella, and the alert channels              -> common, plugin, every family

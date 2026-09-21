@@ -20,14 +20,14 @@ MODULES: Final[tuple[str, ...]] = (
     "dirigent_testing.messages",
     "dirigent_blocks.messages",
     "dirigent_block_base.messages",
+    "dirigent_block_duckdb.messages",
     "dirigent_block_execute.messages",
     "dirigent_block_http.messages",
+    "dirigent_block_jq.messages",
     "dirigent_block_parquet.messages",
     "dirigent_block_queues.messages",
     "dirigent_block_sql.messages",
-    "dirigent_block_sql_duckdb.messages",
     "dirigent_block_storage.messages",
-    "dirigent_block_transform_jq.messages",
 )
 
 #: Which package owns each prefix. A code is public API, so a prefix has exactly one owner.
@@ -60,9 +60,9 @@ OWNED: Final[dict[str, str]] = {
     "parquet": "dirigent-block-parquet",
     "queues": "dirigent-block-queues",
     "sql": "dirigent-block-sql",
-    "sql.duckdb": "dirigent-block-sql-duckdb",
+    "sql.duckdb": "dirigent-block-duckdb",
     "storage": "dirigent-block-storage",
-    "transform.jq": "dirigent-block-transform-jq",
+    "transform.jq": "dirigent-block-jq",
 }
 
 

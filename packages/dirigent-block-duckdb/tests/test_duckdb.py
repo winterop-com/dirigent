@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 from pydantic import SecretStr, ValidationError
 
+from dirigent_block_duckdb.engine import HTTPFS, S3StorageSettings, addresses_s3, s3_options
 from dirigent_block_sql.sql import (
     SqlConnectionConfig,
     SqlConnectionKind,
@@ -16,7 +17,6 @@ from dirigent_block_sql.sql import (
     SqlQueryOperator,
     SqlQueryOutput,
 )
-from dirigent_block_sql_duckdb.engine import HTTPFS, S3StorageSettings, addresses_s3, s3_options
 from dirigent_common import JsonMap
 from dirigent_plugin import BlockFailure, ErrorClass
 from dirigent_testing import FakeContext

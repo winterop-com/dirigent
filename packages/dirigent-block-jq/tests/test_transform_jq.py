@@ -9,14 +9,14 @@ from typing import Any
 
 import pytest
 
+from dirigent_block_jq import jq_runner
+from dirigent_block_jq.transform_jq import JqFilterer, JqMapper, JqProgramConfig, JqTransformer
 from dirigent_block_storage.storage import (
     StorageReadOperator,
     StorageReadOutput,
     StorageWriteOperator,
     StorageWriteOutput,
 )
-from dirigent_block_transform_jq import jq_runner
-from dirigent_block_transform_jq.transform_jq import JqFilterer, JqMapper, JqProgramConfig, JqTransformer
 from dirigent_common import JQ_MEDIA_TYPE
 from dirigent_plugin import (
     BlockFailure,

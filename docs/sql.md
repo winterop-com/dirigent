@@ -63,7 +63,7 @@ the package to add rather than an import error.
 
 **A backend that needs more than a driver is an engine package.** DuckDB has no async driver at
 all, so `duckdb:///warehouse.duckdb` and `duckdb:///:memory:` name it with no driver written and
-`dirigent-block-sql-duckdb` is what answers for them; without that package installed the
+`dirigent-block-duckdb` is what answers for them; without that package installed the
 connection is refused, naming the install. It is the [engine that reads
 files](#sql-over-files-duckdb), and [adding an engine](#adding-an-engine) is the contract it is
 written to.
@@ -179,7 +179,7 @@ own package rather than part of the family, because its binary is larger than ev
 driver put together and a worker that never runs a `duckdb://` url should not carry it:
 
 ```bash
-uv pip install dirigent-block-sql-duckdb
+uv pip install dirigent-block-duckdb
 ```
 
 **Reading a file.** `read_parquet` and `read_csv_auto` take the file as a **bound parameter**,
@@ -314,7 +314,7 @@ applies. A database that answers and refuses is **rejected**, and is not retried
 | --- | --- | --- | --- | --- |
 | PostgreSQL | `postgresql+asyncpg` | yes | yes | yes |
 | SQLite | `sqlite+aiosqlite` | yes | yes | no, the worker's deadline only |
-| DuckDB | `duckdb`, in a worker thread | with `dirigent-block-sql-duckdb` | yes, the file is opened read-only | yes, by interrupt |
+| DuckDB | `duckdb`, in a worker thread | with `dirigent-block-duckdb` | yes, the file is opened read-only | yes, by interrupt |
 | Anything else | its own async driver | no | no | no |
 
 A SQLite or DuckDB database written with a **relative** path -- `sqlite+aiosqlite:///demo.db`,
@@ -337,7 +337,7 @@ backend -- what `duckdb://` or `clickhouse://` names, one engine each -- and reg
 
 ```toml
 [project.entry-points."dirigent.sql.engines.v1"]
-duckdb = "dirigent_block_sql_duckdb:plugin"
+duckdb = "dirigent_block_duckdb:plugin"
 ```
 
 The contract is five decisions, and everything else about the two blocks is the same whichever

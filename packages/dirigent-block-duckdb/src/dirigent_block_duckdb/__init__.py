@@ -2,8 +2,8 @@
 
 from collections.abc import Sequence
 
+from dirigent_block_duckdb.engine import DuckdbEngine
 from dirigent_block_sql import SqlEngine
-from dirigent_block_sql_duckdb.engine import DuckdbEngine
 from dirigent_plugin import extension
 
 

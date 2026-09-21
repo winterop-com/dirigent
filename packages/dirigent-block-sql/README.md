@@ -10,5 +10,5 @@ Engines are packages. A backend that needs more than a driver implements `SqlEng
 registers under the `dirigent.sql.engines.v1` entry-point group, and the family asks it what a
 valid connection to that backend is, where a database written as a relative path lands, what a
 parameter becomes, how a check reaches it, and what a session on it is.
-`dirigent-block-sql-duckdb` is the first, and `duckdb:///warehouse.duckdb` works once it is
+`dirigent-block-duckdb` is the first, and `duckdb:///warehouse.duckdb` works once it is
 installed.

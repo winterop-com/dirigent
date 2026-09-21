@@ -10,14 +10,14 @@ resolution-markers = [
 [manifest]
 members = [
     "dirigent-block-base",
+    "dirigent-block-duckdb",
     "dirigent-block-execute",
     "dirigent-block-http",
+    "dirigent-block-jq",
     "dirigent-block-parquet",
     "dirigent-block-queues",
     "dirigent-block-sql",
-    "dirigent-block-sql-duckdb",
     "dirigent-block-storage",
-    "dirigent-block-transform-jq",
     "dirigent-blocks",
     "dirigent-cli",
     "dirigent-client",
@@ -952,6 +952,27 @@ requires-dist = [
 ]
 
 [[package]]
+name = "dirigent-block-duckdb"
+version = "0.16.7"
+source = { editable = "packages/dirigent-block-duckdb" }
+dependencies = [
+    { name = "dirigent-block-sql" },
+    { name = "dirigent-common" },
+    { name = "dirigent-plugin" },
+    { name = "duckdb" },
+    { name = "duckdb-engine" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "dirigent-block-sql", editable = "packages/dirigent-block-sql" },
+    { name = "dirigent-common", editable = "packages/dirigent-common" },
+    { name = "dirigent-plugin", editable = "packages/dirigent-plugin" },
+    { name = "duckdb", specifier = ">=1.4.0" },
+    { name = "duckdb-engine", specifier = ">=0.17.0" },
+]
+
+[[package]]
 name = "dirigent-block-execute"
 version = "0.16.7"
 source = { editable = "packages/dirigent-block-execute" }
@@ -985,6 +1006,23 @@ requires-dist = [
     { name = "dirigent-common", editable = "packages/dirigent-common" },
     { name = "dirigent-plugin", editable = "packages/dirigent-plugin" },
     { name = "httpx2", specifier = ">=2.12.0" },
+]
+
+[[package]]
+name = "dirigent-block-jq"
+version = "0.16.7"
+source = { editable = "packages/dirigent-block-jq" }
+dependencies = [
+    { name = "dirigent-common" },
+    { name = "dirigent-plugin" },
+    { name = "jq" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "dirigent-common", editable = "packages/dirigent-common" },
+    { name = "dirigent-plugin", editable = "packages/dirigent-plugin" },
+    { name = "jq", specifier = ">=1.8" },
 ]
 
 [[package]]
@@ -1041,27 +1079,6 @@ requires-dist = [
 ]
 
 [[package]]
-name = "dirigent-block-sql-duckdb"
-version = "0.16.7"
-source = { editable = "packages/dirigent-block-sql-duckdb" }
-dependencies = [
-    { name = "dirigent-block-sql" },
-    { name = "dirigent-common" },
-    { name = "dirigent-plugin" },
-    { name = "duckdb" },
-    { name = "duckdb-engine" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "dirigent-block-sql", editable = "packages/dirigent-block-sql" },
-    { name = "dirigent-common", editable = "packages/dirigent-common" },
-    { name = "dirigent-plugin", editable = "packages/dirigent-plugin" },
-    { name = "duckdb", specifier = ">=1.4.0" },
-    { name = "duckdb-engine", specifier = ">=0.17.0" },
-]
-
-[[package]]
 name = "dirigent-block-storage"
 version = "0.16.7"
 source = { editable = "packages/dirigent-block-storage" }
@@ -1077,23 +1094,6 @@ requires-dist = [
 ]
 
 [[package]]
-name = "dirigent-block-transform-jq"
-version = "0.16.7"
-source = { editable = "packages/dirigent-block-transform-jq" }
-dependencies = [
-    { name = "dirigent-common" },
-    { name = "dirigent-plugin" },
-    { name = "jq" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "dirigent-common", editable = "packages/dirigent-common" },
-    { name = "dirigent-plugin", editable = "packages/dirigent-plugin" },
-    { name = "jq", specifier = ">=1.8" },
-]
-
-[[package]]
 name = "dirigent-blocks"
 version = "0.16.7"
 source = { editable = "packages/dirigent-blocks" }
@@ -1102,10 +1102,10 @@ dependencies = [
     { name = "dirigent-block-base" },
     { name = "dirigent-block-execute" },
     { name = "dirigent-block-http" },
+    { name = "dirigent-block-jq" },
     { name = "dirigent-block-queues" },
     { name = "dirigent-block-sql" },
     { name = "dirigent-block-storage" },
-    { name = "dirigent-block-transform-jq" },
     { name = "dirigent-common" },
     { name = "dirigent-plugin" },
     { name = "httpx2" },
@@ -1118,10 +1118,10 @@ requires-dist = [
     { name = "dirigent-block-base", editable = "packages/dirigent-block-base" },
     { name = "dirigent-block-execute", editable = "packages/dirigent-block-execute" },
     { name = "dirigent-block-http", editable = "packages/dirigent-block-http" },
+    { name = "dirigent-block-jq", editable = "packages/dirigent-block-jq" },
     { name = "dirigent-block-queues", editable = "packages/dirigent-block-queues" },
     { name = "dirigent-block-sql", editable = "packages/dirigent-block-sql" },
     { name = "dirigent-block-storage", editable = "packages/dirigent-block-storage" },
-    { name = "dirigent-block-transform-jq", editable = "packages/dirigent-block-transform-jq" },
     { name = "dirigent-common", editable = "packages/dirigent-common" },
     { name = "dirigent-plugin", editable = "packages/dirigent-plugin" },
     { name = "httpx2", specifier = ">=2.12.0" },

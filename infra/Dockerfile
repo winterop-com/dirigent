@@ -39,14 +39,14 @@ COPY packages/dirigent-plugin/pyproject.toml packages/dirigent-plugin/
 COPY packages/dirigent-client/pyproject.toml packages/dirigent-client/
 COPY packages/dirigent-core/pyproject.toml packages/dirigent-core/
 COPY packages/dirigent-block-base/pyproject.toml packages/dirigent-block-base/
+COPY packages/dirigent-block-duckdb/pyproject.toml packages/dirigent-block-duckdb/
 COPY packages/dirigent-block-execute/pyproject.toml packages/dirigent-block-execute/
 COPY packages/dirigent-block-http/pyproject.toml packages/dirigent-block-http/
+COPY packages/dirigent-block-jq/pyproject.toml packages/dirigent-block-jq/
 COPY packages/dirigent-block-parquet/pyproject.toml packages/dirigent-block-parquet/
 COPY packages/dirigent-block-queues/pyproject.toml packages/dirigent-block-queues/
 COPY packages/dirigent-block-sql/pyproject.toml packages/dirigent-block-sql/
-COPY packages/dirigent-block-sql-duckdb/pyproject.toml packages/dirigent-block-sql-duckdb/
 COPY packages/dirigent-block-storage/pyproject.toml packages/dirigent-block-storage/
-COPY packages/dirigent-block-transform-jq/pyproject.toml packages/dirigent-block-transform-jq/
 COPY packages/dirigent-blocks/pyproject.toml packages/dirigent-blocks/
 COPY packages/dirigent-examples/pyproject.toml packages/dirigent-examples/
 COPY packages/dirigent-server/pyproject.toml packages/dirigent-server/

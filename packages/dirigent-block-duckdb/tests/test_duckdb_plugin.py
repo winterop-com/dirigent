@@ -2,10 +2,10 @@
 
 from pluginkit import PluginManager
 
+from dirigent_block_duckdb import DuckdbEngine, DuckdbEngines, plugin
 from dirigent_block_sql import ENGINES_GROUP
 from dirigent_block_sql import markers as sql_markers
 from dirigent_block_sql.engines import registry
-from dirigent_block_sql_duckdb import DuckdbEngine, DuckdbEngines, plugin
 from dirigent_plugin import PROJECT_NAME
 
 

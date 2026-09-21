@@ -39,14 +39,14 @@ Two properties are worth reading before a block is used:
 | [`docker.compose.down`](#dockercomposedown) | operator | execute | Tear a compose stack down on the worker. | `block-execute` |
 | [`docker.compose.up`](#dockercomposeup) | operator | execute | Bring a compose stack up on the worker. | `block-execute` |
 | [`docker.run`](#dockerrun) | operator | execute | Run a container on the worker. | `block-execute` |
-| [`filter.jq`](#filterjq) | operator | transform | Keep the elements of a list a jq program answers true for. | `block-transform-jq` |
+| [`filter.jq`](#filterjq) | operator | transform | Keep the elements of a list a jq program answers true for. | `block-jq` |
 | [`git.checkout`](#gitcheckout) | operator | git | Check a repository out into the run's work directory. | `block-execute` |
 | [`http.ready`](#httpready) | sensor | http | Wait for an HTTP endpoint to report ready. | `block-http` |
 | [`http.request`](#httprequest) | operator | http | Call an HTTP endpoint. | `block-http` |
 | [`kafka.consume`](#kafkaconsume) | sensor | kafka | Wait for messages on a Kafka topic. | `block-queues` |
 | [`kafka.produce`](#kafkaproduce) | operator | kafka | Publish records to a Kafka topic. | `block-queues` |
 | [`log.write`](#logwrite) | operator | log | Write a line to the run's log. | `block-base` |
-| [`map.jq`](#mapjq) | operator | transform | Replace every element of a list with what a jq program makes of it. | `block-transform-jq` |
+| [`map.jq`](#mapjq) | operator | transform | Replace every element of a list with what a jq program makes of it. | `block-jq` |
 | [`pipeline.run`](#pipelinerun) | operator | execute | Run another pipeline on this instance. | `block-base` |
 | [`rabbitmq.consume`](#rabbitmqconsume) | sensor | rabbitmq | Wait for messages on a RabbitMQ queue. | `block-queues` |
 | [`rabbitmq.publish`](#rabbitmqpublish) | operator | rabbitmq | Publish one message to an exchange. | `block-queues` |
@@ -60,7 +60,7 @@ Two properties are worth reading before a block is used:
 | [`storage.write`](#storagewrite) | operator | storage | Write a value or text to a storage URI. | `block-storage` |
 | [`time.sleep`](#timesleep) | sensor | time | Wait a fixed duration. | `block-base` |
 | [`time.window`](#timewindow) | sensor | time | Wait until the local clock is inside a time window. | `block-base` |
-| [`transform.jq`](#transformjq) | operator | transform | Reshape a value with a jq program. | `block-transform-jq` |
+| [`transform.jq`](#transformjq) | operator | transform | Reshape a value with a jq program. | `block-jq` |
 | [`validate.schema`](#validateschema) | operator | validate | Validate a value against a JSON Schema. | `block-base` |
 | [`value.const`](#valueconst) | operator | value | Emit a fixed value. | `block-base` |
 | [`webhook.post`](#webhookpost) | operator | webhook | POST a JSON body, optionally HMAC-signed. | `block-http` |
@@ -277,7 +277,7 @@ Contributed by `block-execute`. Not idempotent. **Runs code on the worker**, so 
 
 Keep the elements of a list a jq program answers true for.
 
-Contributed by `block-transform-jq`. Idempotent.
+Contributed by `block-jq`. Idempotent.
 
 **Config**
 
@@ -404,7 +404,7 @@ Contributed by `block-base`. Idempotent.
 
 Replace every element of a list with what a jq program makes of it.
 
-Contributed by `block-transform-jq`. Idempotent.
+Contributed by `block-jq`. Idempotent.
 
 **Config**
 
@@ -640,7 +640,7 @@ Contributed by `block-storage`. Idempotent.
 
 Reshape a value with a jq program.
 
-Contributed by `block-transform-jq`. Idempotent.
+Contributed by `block-jq`. Idempotent.
 
 **Config**
 

@@ -1,11 +1,11 @@
-# dirigent-block-sql-duckdb
+# dirigent-block-duckdb
 
 The DuckDB engine of dirigent's `sql` family. Install it beside `dirigent-block-sql` and a
 `sql` connection whose url is `duckdb:///warehouse.duckdb` or `duckdb:///:memory:` works like
 any other: the same two blocks, the same fields, the same rules.
 
 ```bash
-uv pip install dirigent-block-sql-duckdb
+uv pip install dirigent-block-duckdb
 ```
 
 It registers under the `dirigent.sql.engines.v1` entry-point group, so the family finds it with

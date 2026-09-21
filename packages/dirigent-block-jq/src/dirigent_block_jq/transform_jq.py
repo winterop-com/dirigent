@@ -20,13 +20,13 @@ from typing import Annotated, Any, ClassVar
 import jq
 from pydantic import BaseModel, Field, JsonValue
 
-from dirigent_block_transform_jq.messages import (
+from dirigent_block_jq.messages import (
     FILTER_ANSWER,
     FILTER_OUTPUT_COUNT,
     MAP_OUTPUT_COUNT,
     PROGRAM_REFUSED,
 )
-from dirigent_block_transform_jq.messages import NO_OUTPUT as NO_OUTPUT_MESSAGE
+from dirigent_block_jq.messages import NO_OUTPUT as NO_OUTPUT_MESSAGE
 from dirigent_common import JQ_MEDIA_TYPE
 from dirigent_plugin import Filterer, Mapper, ProgramConfig, RunnerEngine, Transformer, TransformError
 
