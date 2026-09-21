@@ -141,10 +141,9 @@ class DockerComposeUpConfig(BlockModel):
     pipeline document itself."""
 
     project_name: str | None = None
-    """The compose project (``-p``). Defaults to a deterministic name derived from the run id,
-
-    so this ``up``, the steps that drive it, and a later ``down`` all address the same project,
-    and two runs never collide."""
+    """The compose project (``-p``). Defaults to a deterministic name derived from the run id, so
+    this ``up``, the steps that drive it, and a later ``down`` all address the same project, and
+    two runs never collide."""
 
     profiles: list[str] = Field(default_factory=list[str])
     """Compose profiles to activate (``--profile``)."""
@@ -213,13 +212,11 @@ class DockerComposeDownConfig(BlockModel):
 
     project_name: str | None = None
     """The compose project (``-p``). Defaults to the same deterministic name ``up`` derives from
-
-    the run id, so a teardown step in the same run addresses the stack the ``up`` created with
-    no wiring from the author."""
+    the run id, so a teardown step in the same run addresses the stack the ``up`` created with no
+    wiring from the author."""
 
     file: str | None = None
     """A compose file, only if the CLI needs ``-f`` to resolve the project; a project tears down
-
     by its label alone otherwise. As a path inside the run's work directory."""
 
     content: str | None = None

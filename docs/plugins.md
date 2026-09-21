@@ -61,7 +61,8 @@ with no change to dirigent, no config file, and no registry to edit. Uninstall a
 
 `contribute()` returns one `Contribution` spanning the surfaces the host knows:
 
-- `operators` -- the blocks that do work and hand a typed output on
+- `operators` -- the blocks that do work and hand a typed output on,
+  [a transform engine](transforms.md#writing-an-engine) among them
 - `sensors` -- blocks that hold a run open until a condition is met
 - `connection_kinds` -- how an external system is described and authenticated, with a health
   check
@@ -210,9 +211,9 @@ Three rules make a cursor safe to rely on. It **replaces** rather than merges, s
 worth keeping is copied forward into each `NotYet`, and omitting it leaves the stored one as
 it is. It is **stored by the transaction that parks the attempt**, which makes advancing
 at-least-once: a worker that dies between the read and that commit leaves the older cursor
-behind, and the next poke reads the same ground again, so a poke must tolerate that. And it **lives only as long as the waiting attempt** -- a poke
-that succeeds ends the step, and nothing carries the cursor past it. Anything a downstream
-step needs belongs in the output.
+behind, and the next poke reads the same ground again, so a poke must tolerate that. And it
+**lives only as long as the waiting attempt** -- a poke that succeeds ends the step, and
+nothing carries the cursor past it. Anything a downstream step needs belongs in the output.
 
 ## A formatter is a second extension point
 
@@ -294,6 +295,33 @@ What the host reads is what every surface serves: `GET /api/v1/examples` and
 `dg pipeline new` for a document wearing the `starter` tag. A pack's shelves therefore reach
 a person the moment the pack is installed, with nothing to register beyond this hook.
 
+**The starter rule.** A document earns `starter` by being a real multi-step flow on a real
+source -- a public endpoint, or a service a connection names -- and it carries its own
+`connections:` and `schemas:` so that `dg run --local` runs it alone. `dg pipeline new <code>`
+copies its text verbatim into `pipelines/`, rewrites the `code:` line, drops `starter` from
+the tags, and moves each carried section into `requires:`, so the copy names the connections
+and schemas to create first instead of carrying them.
+
+## A SQL engine is a fourth extension point
+
+The `sql` family drives any backend a SQLAlchemy async driver reaches. A backend that needs
+more than a driver -- DuckDB, whose databases are files and which has no async driver at all
+-- is a package of its own, under a group the family scans for itself:
+
+```toml
+# the pack's pyproject.toml
+[project.entry-points."dirigent.sql.engines.v1"]
+duckdb = "dirigent_block_duckdb:plugin"
+```
+
+An engine subclasses `SqlEngine` from `dirigent_block_sql.engines`, claims the one backend a
+URL names it by, and answers five questions: `validate` refuses a connection it cannot open,
+`resolve` says where a database written as a relative path lands, `bind` says what a parameter
+becomes before the database sees it, `check` reaches the database for `dg connection check`,
+and `session` opens what a step runs its statements in. [Adding an
+engine](sql.md#adding-an-engine) is that contract in full, and `dirigent-block-duckdb` is the
+worked example. Nothing in `sql.query` or `sql.execute` changes for a new backend.
+
 ## How a pack connects systems together
 
 The surfaces are the vocabulary; the connecting happens in a pipeline. A **connection kind**
@@ -331,6 +359,19 @@ kind that names none of these fields still gets a client, with no base URL and n
 
 ## A pack in its own repository
 
+`dg blocks new <name>` writes a pack to start from: `dirigent-<name>`, with a
+`pyproject.toml` declaring the entry point, a plugin object, one operator, and a test that
+registers the pack through a plugin manager and calls that operator. `uv sync && uv run
+pytest` inside it passes from the first minute, so the first edit is a block rather than
+wiring.
+
+**What a pack is called** says what it contributes: `dirigent-<system>` for an adapter pack
+(`dirigent-dhis2`), `dirigent-block-<family or engine>` for blocks (`dirigent-block-parquet`,
+`dirigent-block-duckdb`), `dirigent-storage-<backend>` (`dirigent-storage-s3`), and
+`dirigent-notify-<channel>` for a channel. A runtime package is `dirigent-<role>` -- `core`,
+`server`, `cli`, `client`, `common`, `plugin`, `testing` -- and `dirigent-blocks` is the
+umbrella over the built-in `dirigent-block-*` families.
+
 Because the seam is one entry point and the contract is one package, a pack is a normal Python
 distribution that happens to be discovered. Moving one out of this monorepo into its own repo
 is mechanical:
@@ -339,14 +380,26 @@ is mechanical:
   **examples** -- the documents that exercise its blocks belong with the pack, not with
   dirigent, because they are meaningless without it installed. A pack's examples are validated
   in the pack's own CI against the catalog the pack itself contributes.
-- **What it depends on:** `dirigent-plugin` and `dirigent-common`, and nothing of
-  `dirigent-core`. That is the entire surface an out-of-repo pack targets, and the reason the
-  move is low-risk: the dependency points one way, at a small, versioned contract.
-- **How it stays compatible:** `dirigent-plugin` is versioned; the pack pins a compatible
-  range and `api_version` is the runtime handshake. The pack runs a conformance check against
-  the plugin version it targets in its own CI; dirigent keeps a thin smoke job that installs
-  the pack and confirms its catalog loads and its examples validate. A breaking change to the
-  plugin contract is a major bump with a migration note.
+- **What it depends on:** `dirigent-common` and `dirigent-plugin`, and nothing of
+  `dirigent-core`; `dirigent-testing` in its dev group, for the fixtures and the conformance
+  kit. All three come from PyPI pinned to one exact version (`dirigent-plugin==<version>`),
+  the version of the runtime the pack releases against. That is the entire surface an
+  out-of-repo pack targets, and the reason the move is low-risk: the dependency points one
+  way, at a small, versioned contract.
+- **How it checks itself:** `dirigent-testing` carries the conformance kit, and neither half
+  of it imports `dirigent-core`. `assert_contribution_conforms(contribution)` checks the
+  blocks a contribution provides are well-formed. `check_pack_examples(contribution,
+  directory)` checks each of the pack's own documents: that it is a `dirigent/v1` pipeline
+  coded after its file, that every block it names is one the pack contributes, that each
+  config fits that block's published schema, and that a connection a step names is one the
+  document accounts for -- carried in its own `connections:`, so the document runs alone under
+  `dg run --local`, or listed under `requires.connections`. Both answer with a list of
+  human-readable issues, and an empty list means it passed.
+- **How it stays compatible:** `api_version` on the `Contribution` is the runtime handshake,
+  and a pack written against another revision is refused at load rather than half-working.
+  Before 1.0 the contract changes directly: a dirigent release is a pack release at the same
+  version, and `dirigent-integration` assembles every pack and runs everyone's tests against
+  the new tips before a release is called done.
 
 The result is that a new integration is a repository, an entry point, and an install,
 developed and tested on its own cadence and wired into any instance the moment it is present.
@@ -359,8 +412,8 @@ From an empty directory to a running acme pipeline.
 
 ```bash
 uv init flows && cd flows
-uv add dirigent-cli dirigent-acme   # dirigent-cli brings the server, engine and built-in blocks; dirigent-acme is the adapter
-uv run dg init                         # scaffolds an instance, a first admin, and an example document
+uv add dirigent-cli dirigent-acme   # the runtime, the built-in blocks and the server, plus the pack
+uv run dg init                      # scaffolds an instance, a first admin, and an example document
 ```
 
 `uv add dirigent-acme` is the whole of installing the adapter: the entry point it declares is

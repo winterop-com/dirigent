@@ -22,8 +22,7 @@ class ValidateSchemaConfig(BlockModel):
     """The code of the schema the value must satisfy: one the instance holds, or one the
     document carries in its top-level ``schemas`` section. The named schema was validated when
     it was stored or applied, so nothing rechecks it here; a code no instance holds fails the
-    run at the gate. The Python attribute is renamed only to dodge a pydantic clash; a
-    document writes ``schema``."""
+    run at the gate."""
 
 
 class ValidateSchemaOutput(BlockModel):

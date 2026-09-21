@@ -6,9 +6,9 @@ The `sql.*` family reads from and writes to a database. It is two blocks:
   output.
 - [`sql.execute`](blocks.md#sqlexecute) runs a list of statements as one transaction.
 
-Reading a table and writing a table are the two most common things a pipeline does, and until
-these blocks the answer was `shell.run` with `psql`: an unsafe block, a credential on a command
-line, and a result that arrives as text somebody has to parse.
+Reading a table and writing a table are two of the most common things a pipeline does. The
+alternative is `shell.run` with `psql`: an unsafe block, a credential on a command line, and a
+result that arrives as text somebody has to parse.
 
 The blocks' fields are the generated [block reference](blocks.md); this page is the family: the
 connection kind that holds the database, how a value reaches a statement, what `max_rows`
@@ -156,7 +156,7 @@ steps:
 The line between the two shapes: the rows stay in the output when the next step reads them as
 a value, and get a write of their own when something outside the run reads them as a file. A
 few hundred rows a transform maps is the first; a table an export produces is the second.
-[`examples/sql/sql-query-to-storage.yaml`](https://github.com/winterop-com/dirigent/tree/main/packages/dirigent-examples/src/dirigent_examples/shelves/sql)
+[`examples/sql/sql-query-to-storage.yaml`](https://github.com/winterop-com/dirigent/blob/main/packages/dirigent-examples/src/dirigent_examples/shelves/sql/sql-query-to-storage.yaml)
 is the second, hop by hop.
 
 ## SQL over files: DuckDB
@@ -179,7 +179,7 @@ own package rather than part of the family, because its binary is larger than ev
 driver put together and a worker that never runs a `duckdb://` url should not carry it:
 
 ```bash
-uv pip install dirigent-block-duckdb
+uv add dirigent-block-duckdb
 ```
 
 **Reading a file.** `read_parquet` and `read_csv_auto` take the file as a **bound parameter**,
@@ -215,7 +215,7 @@ artifact rather than rows. It writes, so it is `sql.execute`:
 ```
 
 `(FORMAT parquet)` there writes a typed artifact the next pipeline reads back with
-`read_parquet`. [`examples/sql/duckdb-parquet-to-report.yaml`](https://github.com/winterop-com/dirigent/tree/main/packages/dirigent-examples/src/dirigent_examples/shelves/sql)
+`read_parquet`. [`examples/sql/duckdb-parquet-to-report.yaml`](https://github.com/winterop-com/dirigent/blob/main/packages/dirigent-examples/src/dirigent_examples/shelves/sql/duckdb-parquet-to-report.yaml)
 is both directions in one run.
 
 **A parameter that is a storage URI becomes a path.** On a duckdb connection, and on no other,
@@ -362,7 +362,7 @@ make docker-run-sql   # docker compose ... -f infra/compose.sql.yaml up
 
 `examples/sql/warehouse.sql` seeds it on first start with a `reader` role holding SELECT and
 nothing else, a `writer` role, and the `reading` table
-[`examples/sql/sql-postgres-readonly.yaml`](https://github.com/winterop-com/dirigent/tree/main/packages/dirigent-examples/src/dirigent_examples/shelves/sql)
+[`examples/sql/sql-postgres-readonly.yaml`](https://github.com/winterop-com/dirigent/blob/main/packages/dirigent-examples/src/dirigent_examples/shelves/sql/sql-postgres-readonly.yaml)
 queries. The two connections name the service:
 
 ```bash

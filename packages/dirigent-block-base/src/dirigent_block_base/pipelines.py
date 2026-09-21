@@ -62,7 +62,7 @@ class PipelineRunOutput(BlockModel):
 
     pipeline: str
     run_id: str | None = None
-    """The child run, or None when its concurrency policy meant no run was created."""
+    """The child run, or ``null`` when its concurrency policy meant no run was created."""
 
     status: str
     """The child's run status, ``started`` when this step did not wait, or ``skipped``."""

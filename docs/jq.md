@@ -1,9 +1,9 @@
 # jq
 
-Three of the four transform engines run jq programs -- `transform.jq` for a whole-value
-reshape, `map.jq` once per element, `filter.jq` as a per-element yes or no. What each block
-takes and promises is the [transforms page](transforms.md); this page is the language the
-programs are written in, taught on the shapes a pipeline actually moves.
+Three of the four transform blocks that ship run jq programs -- `transform.jq` for a
+whole-value reshape, `map.jq` once per element, `filter.jq` as a per-element yes or no. What
+each block takes and promises is the [transforms page](transforms.md); this page is the
+language the programs are written in, taught on the shapes a pipeline actually moves.
 
 jq is worth learning here because it is the reshape that costs nothing: a program is handed
 a value and returns values, opens no file and no socket, and so runs with no allowlist entry
