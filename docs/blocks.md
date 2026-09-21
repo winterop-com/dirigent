@@ -86,9 +86,9 @@ Contributed by `block-parquet`. Idempotent.
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `source` | `string` | yes |  | -- |
-| `target` | `string` | yes |  | -- |
-| `bytes_written` | `integer` | yes |  | -- |
+| `source` | `string` | yes |  | The URI the bytes were read from. |
+| `target` | `string` | yes |  | The URI the re-encoded bytes were written to. |
+| `bytes_written` | `integer` | yes |  | How many bytes the re-encoding wrote. |
 
 ### `convert.std`
 
@@ -109,9 +109,9 @@ Contributed by `block-base`. Idempotent.
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `source` | `string` | yes |  | -- |
-| `target` | `string` | yes |  | -- |
-| `bytes_written` | `integer` | yes |  | -- |
+| `source` | `string` | yes |  | The URI the bytes were read from. |
+| `target` | `string` | yes |  | The URI the re-encoded bytes were written to. |
+| `bytes_written` | `integer` | yes |  | How many bytes the re-encoding wrote. |
 
 ### `docker.build`
 
@@ -398,7 +398,7 @@ Contributed by `block-base`. Idempotent.
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `value` | `any` |  | `null` | -- |
+| `value` | `any` |  | `null` | The logged value, handed on unchanged. |
 
 ### `map.jq`
 
@@ -487,9 +487,9 @@ Contributed by `block-base`. Idempotent.
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `text` | `string` | yes |  | -- |
-| `content_type` | `string` | yes |  | -- |
-| `text_bytes` | `integer` | yes |  | -- |
+| `text` | `string` | yes |  | The rendered text, which a later step sends or writes out. |
+| `content_type` | `string` | yes |  | What the text is, as the config declared it. |
+| `text_bytes` | `integer` | yes |  | How many bytes the rendered text is. |
 
 ### `shell.run`
 
@@ -579,16 +579,16 @@ Contributed by `block-storage`. Idempotent.
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `source` | `string (storage-uri)` | yes |  | -- |
-| `target` | `string (storage-uri)` | yes |  | -- |
+| `source` | `string (storage-uri)` | yes |  | The URI the object is read from. |
+| `target` | `string (storage-uri)` | yes |  | The URI the object is written to, replacing whatever is there. |
 
 **Output**
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `source` | `string` | yes |  | -- |
-| `target` | `string` | yes |  | -- |
-| `bytes_copied` | `integer` | yes |  | -- |
+| `source` | `string` | yes |  | The URI the object was read from. |
+| `target` | `string` | yes |  | The URI it was written to. |
+| `bytes_copied` | `integer` | yes |  | How many bytes moved. |
 
 ### `storage.read`
 
@@ -608,10 +608,10 @@ Contributed by `block-storage`. Idempotent.
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `content_type` | `string` | yes |  | -- |
-| `text` | `string or null` |  | `null` | -- |
-| `value` | `any or null` |  | `null` | -- |
-| `bytes_read` | `integer` | yes |  | -- |
+| `content_type` | `string` | yes |  | What the object was read as. |
+| `text` | `string or null` |  | `null` | The object as text, set when its content type is not JSON. |
+| `value` | `any or null` |  | `null` | The object parsed as JSON, set when its content type is JSON. |
+| `bytes_read` | `integer` | yes |  | How many bytes were read. |
 
 ### `storage.write`
 
@@ -632,9 +632,9 @@ Contributed by `block-storage`. Idempotent.
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `uri` | `string` | yes |  | -- |
-| `bytes_written` | `integer` | yes |  | -- |
-| `content_type` | `string` | yes |  | -- |
+| `uri` | `string` | yes |  | The URI the object was written to. |
+| `bytes_written` | `integer` | yes |  | How many bytes were written. |
+| `content_type` | `string` | yes |  | What the object was recorded as. |
 
 ### `transform.jq`
 
@@ -717,11 +717,11 @@ Contributed by `block-http`. Not idempotent.
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `status` | `integer` | yes |  | -- |
-| `signed` | `boolean` | yes |  | -- |
-| `duration_ms` | `integer` | yes |  | -- |
-| `json_body` | `any or null` |  | `null` | -- |
-| `text` | `string or null` |  | `null` | -- |
+| `status` | `integer` | yes |  | The status code the receiver answered with. |
+| `signed` | `boolean` | yes |  | Whether the request carried an HMAC signature. |
+| `duration_ms` | `integer` | yes |  | How long the delivery took. |
+| `json_body` | `any or null` |  | `null` | The answer parsed as JSON, set when the receiver answered with JSON. |
+| `text` | `string or null` |  | `null` | The answer as text, set when it was not JSON. |
 
 ## Sensors
 
@@ -748,9 +748,9 @@ Contributed by `block-http`. Not idempotent. Polls every 1m unless the step says
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `status` | `integer` | yes |  | -- |
-| `duration_ms` | `integer` | yes |  | -- |
-| `matched` | `boolean` | yes |  | -- |
+| `status` | `integer` | yes |  | The status code the poke that succeeded was answered with. |
+| `duration_ms` | `integer` | yes |  | How long that poke took. |
+| `matched` | `boolean` | yes |  | Whether a `contains` matcher was part of readiness, which a ready answer satisfied. |
 
 ### `kafka.consume`
 
@@ -824,9 +824,9 @@ Contributed by `block-storage`. Not idempotent. Polls every 1m unless the step s
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `uri` | `string` | yes |  | -- |
-| `size` | `integer` | yes |  | -- |
-| `modified_at` | `string (date-time)` | yes |  | -- |
+| `uri` | `string` | yes |  | The URI the object was found at, which for a pattern is the object that matched. |
+| `size` | `integer` | yes |  | How large the object is, in bytes. |
+| `modified_at` | `string (date-time)` | yes |  | When the backend last recorded a write to it. |
 
 ### `time.sleep`
 

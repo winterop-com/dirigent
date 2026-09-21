@@ -45,8 +45,13 @@ class ReportRenderOutput(BlockModel):
     """The rendered text, for the step that sends it somewhere."""
 
     text: str
+    """The rendered text, which a later step sends or writes out."""
+
     content_type: str
+    """What the text is, as the config declared it."""
+
     text_bytes: int
+    """How many bytes the rendered text is."""
 
 
 class ReportRenderOperator(Operator[ReportRenderConfig, ReportRenderOutput]):

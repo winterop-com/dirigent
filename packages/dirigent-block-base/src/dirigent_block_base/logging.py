@@ -35,6 +35,7 @@ class LogWriteOutput(BlockModel):
     """The value that was logged, so the step is a pass-through rather than a dead end."""
 
     value: JsonValue = None
+    """The logged value, handed on unchanged."""
 
 
 class LogWriteOperator(Operator[LogWriteConfig, LogWriteOutput]):

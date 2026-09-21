@@ -281,8 +281,13 @@ class HttpReadyOutput(BlockModel):
     """The observation that a service is up, passed downstream like any output."""
 
     status: int
+    """The status code the poke that succeeded was answered with."""
+
     duration_ms: int
+    """How long that poke took."""
+
     matched: bool
+    """Whether a ``contains`` matcher was part of readiness, which a ready answer satisfied."""
 
 
 class HttpReadySensor(Sensor[HttpReadyConfig, HttpReadyOutput]):

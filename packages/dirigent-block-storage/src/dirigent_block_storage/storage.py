@@ -66,15 +66,23 @@ class StorageCopyConfig(BlockModel):
     """Which object to move, and where to put it."""
 
     source: StorageUri = Field(min_length=1)
+    """The URI the object is read from."""
+
     target: StorageUri = Field(min_length=1)
+    """The URI the object is written to, replacing whatever is there."""
 
 
 class StorageCopyOutput(BlockModel):
     """What the copy moved, so a downstream step can address the result."""
 
     source: str
+    """The URI the object was read from."""
+
     target: str
+    """The URI it was written to."""
+
     bytes_copied: int
+    """How many bytes moved."""
 
 
 class StorageCopyOperator(Operator[StorageCopyConfig, StorageCopyOutput]):
@@ -147,8 +155,13 @@ class StorageWriteOutput(BlockModel):
     """Where the object landed, so a downstream step can address it."""
 
     uri: str
+    """The URI the object was written to."""
+
     bytes_written: int
+    """How many bytes were written."""
+
     content_type: str
+    """What the object was recorded as."""
 
 
 class StorageWriteOperator(Operator[StorageWriteConfig, StorageWriteOutput]):
@@ -194,9 +207,16 @@ class StorageReadOutput(BlockModel):
     """What the object turned out to be, in the one field its content type decides."""
 
     content_type: str
+    """What the object was read as."""
+
     text: str | None = None
+    """The object as text, set when its content type is not JSON."""
+
     value: JsonValue | None = None
+    """The object parsed as JSON, set when its content type is JSON."""
+
     bytes_read: int
+    """How many bytes were read."""
 
 
 class StorageReadOperator(Operator[StorageReadConfig, StorageReadOutput]):
@@ -299,8 +319,13 @@ class StorageExistsOutput(BlockModel):
     """The observation that an object arrived, passed downstream like any output."""
 
     uri: str
+    """The URI the object was found at, which for a pattern is the object that matched."""
+
     size: int
+    """How large the object is, in bytes."""
+
     modified_at: datetime
+    """When the backend last recorded a write to it."""
 
 
 class StorageExistsSensor(Sensor[StorageExistsConfig, StorageExistsOutput]):
