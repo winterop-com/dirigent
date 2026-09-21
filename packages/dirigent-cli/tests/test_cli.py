@@ -88,6 +88,8 @@ def test_db_current_refuses_before_the_first_upgrade() -> None:
     assert result.exit_code == 1
     problem = refusal(result.stdout)
     assert "never been migrated" in problem["message"]
+    assert problem["code"] == "cli.never_migrated", "a refusal record is selectable by code"
+    assert problem["problems"][0]["code"] == "cli.run_db_upgrade"
     assert any("dg db upgrade" in one["message"] for one in problem["problems"])
 
 
@@ -665,6 +667,7 @@ def test_health_says_a_database_with_no_schema_is_not_ready(tmp_path: Path, noth
     database = next(check for check in checks if check["check"] == "database")
     assert database["status"] == "unhealthy"
     assert "dg db upgrade" in database["message"], "the one thing the operator has to do is not said"
+    assert database["code"] == "health.database.unmigrated", "a check is selectable by code, not by its English"
     assert [check["check"] for check in checks] == ["database", "server"], (
         "a database with no schema cannot be asked about workers or schedules, so it is not"
     )

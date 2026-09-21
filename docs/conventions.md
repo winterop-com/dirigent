@@ -140,6 +140,37 @@ line, which is why a record from a newer dirigent still reads. The test asserts 
 drawing; the few tests that cover a rendering call the formatter directly, in
 `test_formatters.py`, with colour set explicitly rather than taken from the terminal.
 
+## Refusals carry a code
+
+Every refusal dirigent produces is a catalogued `Message`: a stable dotted code, and one
+English template with named params. Nothing raises a free string. A block raises
+`BlockFailure(MESSAGE, error_class=..., **params)`, a domain refusal is a `DomainError`
+carrying its class's message or the one that applies, the engine's own failures are
+`Failure.rejected(MESSAGE, **params)`, and the CLI refuses with `refuse(MESSAGE, **params)`.
+Each carries `code` and `params` beside the rendered sentence, and the problem document, the
+attempt row and the `error` record all carry them onward.
+
+A code is stable API, exactly as a block id is: adding one is compatible, renaming one is
+not. The text is not -- it may be reworded whenever a better sentence is found, because what
+a reader holds on to is the code and what a translation replaces is the template.
+
+The text names the remedy. `no connection coded 'dhis2' (none are configured)` says what to
+do next; `invalid connection` does not. The params carry the specifics the template
+interpolates, and never a secret, a credential, or the value that failed validation -- the
+pydantic mapping names the kind of the input it refused and drops the input itself.
+
+A prefix has exactly one owner. A runtime package owns its own name (`common`, `plugin`,
+`client`, `server`, `cli`), a block family owns its family name (`http`, `storage`,
+`execute`, `sql`, `queues`, `base`, `parquet`), an engine inside a family owns two segments
+(`sql.duckdb`, `transform.jq`), the core owns one prefix per area (`auth`, `pipeline`,
+`document`, `schedule`, `webhook`, `alert`, `secret`, `artifacts`, `run`, `reference`,
+`host`, `parameter`, `schema`), and a pack's prefix is its pack name -- `dhis2` for
+`dirigent-dhis2`. `dirigent-common/tests/test_messages.py` walks every catalogue the
+workspace imports and fails when a prefix is unowned or a code is minted twice.
+
+Log lines are not refusals. `ctx.log.info`, a `process` record, a worker's heartbeat: those
+are events, they carry no code, and nothing here applies to them.
+
 ## Plugins are pluginkit, and files end in `.yaml`
 
 Any extension point -- blocks, connection kinds, storage backends, notifiers, format checkers

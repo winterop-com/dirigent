@@ -757,7 +757,7 @@ verb and whose fields are the identity of what changed:
 | `db.revision` | `dg db current` | `revision`, `head`, `at_head` |
 | `db.history` | `dg db history` | `history`, as alembic wrote it |
 | `db.upgraded` | `dg db upgrade` | `database`, `target`, and the `revision` it reached |
-| `validation` | `dg validate`, `dg pipeline validate` | `code`, `document`, `problems[]`, and a valid pipeline's `steps[]` |
+| `validation` | `dg validate`, `dg pipeline validate` | `code`, `document`, `problems[]` of issues, and a valid pipeline's `steps[]` |
 | `validated` | `dg validate` | The closing count: `documents`, `invalid` |
 | `pipeline.activated` / `.deactivated` / `.deleted` | `dg pipeline …` | `code` |
 | `schedule.created` / `.paused` / `.resumed` / `.deleted` | `dg schedule …` | `code`, `pipeline`, and a live one's `clock`, `timezone`, `next_fire_at` |
@@ -781,7 +781,7 @@ verb and whose fields are the identity of what changed:
 | `run.report` | `dg runs report` | What each step amounted to and how long it took, under `fields` |
 | `run.report_document` | `dg runs report --markdown` | `run_id`, and the markdown `document` the run rendered when it settled |
 | `system.info` | `dg system info` | The instance the CLI is talking to, under `fields` |
-| `check` | `dg system health …` | One check: `check`, `status`, `probe`, and what it found as the `message` |
+| `check` | `dg system health …` | One check: `check`, `status`, `probe`, the `code` of the message it found and its `params`, and what it found as the `message` |
 | `health` | `dg system health` | The closing verdict: `checked`, `healthy`, `absent`, `unhealthy` |
 | `auth` | `dg auth status` | `url`, `source`, `username`, `role`, `via` |
 | `user.created` | `dg admin user create` | `username`, `role`, `database` |
@@ -798,9 +798,13 @@ per-step summary the end-of-run table would have shown -- `steps[]` of `step`, `
 `status`, `depends_on`, `warnings`, `attempts`, `duration_ms`, `output`, `error`,
 `artifact_uri`, `artifact_bytes`, and `failures[]` for the ones that failed.
 
-An `error` object is the API's own problem shape -- `status`, `title`, `problems`, `instance`,
-with the detail as its `message` -- and a `kind` added, so one reader handles a refusal from
-the server and a refusal from the CLI the same way. Every guard the CLI itself decides on is
+An `error` object is the API's own problem shape -- `status`, `title`, `code`, `params`,
+`problems`, `instance`, with the detail as its `message` -- and a `kind` added, so one reader
+handles a refusal from the server and a refusal from the CLI the same way. `code` is the
+dotted code of the catalogued message the sentence was rendered from, stable across
+rewordings, and `params` carries what it interpolated; `problems` is a list of issues, each
+one `code`, `message`, `params` and a `location` where it is addressed at a place, so a
+reader picks refusals out by code rather than by matching their English. Every guard the CLI itself decides on is
 one of these -- `dg worker` or `dg scheduler` on SQLite, `dg dev` on PostgreSQL, an `-o` or a
 `dg format` argument that names nothing -- and the two that name a missing output or a missing
 formatter are written in the default one, since what was asked for is exactly what is missing.

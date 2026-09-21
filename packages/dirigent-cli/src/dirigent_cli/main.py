@@ -533,6 +533,8 @@ def _checked(checks: "Sequence[Check]", *, asserted: bool, summarise: bool = Fal
             check=check.check,
             status=check.status,
             probe=check.probe,
+            code=check.code,
+            params=check.params,
         )
     if summarise:
         from dirigent_cli.health import verdict

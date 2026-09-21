@@ -122,6 +122,7 @@ def _render_run(run: Run, pipeline: Pipeline, version: PipelineVersion, failed: 
         triggered_by_label=run.triggered_by_label,
         trace_id=telemetry.trace_id_of(run.traceparent),
         error=run.error or (failed.error if failed is not None else None),
+        error_code=run.error_code or (failed.code if failed is not None else None),
         failed_step=failed.step if failed is not None else None,
         started_at=run.started_at,
         finished_at=run.finished_at,

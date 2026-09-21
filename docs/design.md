@@ -207,10 +207,12 @@ class Sensor[ConfigT: BaseModel, OutputT: BaseModel](ABC):
     async def poke(self, config: ConfigT, ctx: StepContext) -> OutputT | NotYet: ...
 ```
 
-Every block also has a `check_config(config) -> list[str]`, defaulting to no issues. It is
+Every block also has a `check_config(config) -> list[Issue]`, defaulting to no issues. It is
 where a block makes the refusals its published JSON Schema cannot express -- a program that
 does not compile, a format pair it has no codec for -- and it runs at apply, against the
-step's validated config, with each string reported at that step's config location. A config
+step's validated config, with each issue reported at that step's config location. An issue is
+built from the block's own catalogued message, so it carries a `code` and the `params` that
+rendered it beside the sentence. A config
 still carrying a `${...}` is not known yet and is left to the run.
 
 `StepContext` is the engine's side of the bargain: scoped, audited access to everything a
@@ -1474,7 +1476,10 @@ block output merged by timestamp, so the stream reads as cause then effect. A wa
 that order off `GET /runs/{id}/$events`, which is where the merge happens; a local run has the
 engine in the same process and merges it there. When a step fails,
 both print the diagnosis before exiting: the failing step, its block, the error class the block
-assigned, the message, and that attempt's log lines. For a local run that is not a nicety --
+assigned, the message, the dotted code the message was rendered from, and that attempt's log
+lines. The code is on the attempt row and on the wire as `error_code`, with the params that
+rendered the sentence beside it as `error_params`, so the same failure is recognisable
+whether it is read in a terminal, in the API, or in a log a week later. For a local run that is not a nicety --
 the database is deleted on the way out, so a failure that is not read out there is a failure
 nobody can ever investigate. The exit code is the run's outcome: zero for succeeded, non-zero
 for failed and cancelled, and zero with a warning for `completed_with_errors` unless `--strict`.

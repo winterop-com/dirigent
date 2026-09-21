@@ -19,9 +19,7 @@ from dirigent_client.schemas.common import WireModel
 
 
 def test_a_shape_that_crossed_the_wire_cannot_be_edited_afterwards() -> None:
-    problem = Problem(
-        status=404, title="Not Found", detail="No pipeline goes by that name.", code="pipeline.unknown"
-    )
+    problem = Problem(status=404, title="Not Found", detail="No pipeline goes by that name.", code="pipeline.unknown")
     assert isinstance(problem, WireModel)
     with pytest.raises(ValidationError):
         setattr(problem, "status", 500)  # noqa: B010
