@@ -1,6 +1,6 @@
 [project]
 name = "dirigent-block-base"
-version = "0.17.2"
+version = "0.17.3"
 description = "The base block family for dirigent: logging, reporting, validation, values, time, pipeline.run, and the convert.std codec."
 readme = "README.md"
 requires-python = ">=3.13"
@@ -11,8 +11,8 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    "dirigent-common==0.17.2",
-    "dirigent-plugin==0.17.2",
+    "dirigent-common==0.17.3",
+    "dirigent-plugin==0.17.3",
     "jsonschema>=4.26.0",
     "pyyaml>=6.0.3",
     "structlog>=25.5.0",
