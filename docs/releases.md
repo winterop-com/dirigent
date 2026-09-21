@@ -16,6 +16,52 @@ tag is what publishes: `.github/workflows/release.yaml` builds every package and
 to PyPI through trusted publishing, then builds the image from that commit and pushes it as
 `<version>` and `latest`. The two sibling repositories then relock against the tag and bump.
 
+## 0.17.0
+
+Released 2026-09-21. Every package in the workspace moves to 0.17.0 together.
+
+- **The built-in pack is nine packages.** `dirigent-blocks` is now an umbrella over
+  `dirigent-block-base`, `-http`, `-storage`, `-execute`, `-sql`, `-duckdb`, `-jq`, `-queues`
+  and `-parquet`, each a plugin of its own, so a worker carries the dependencies of what it
+  runs. A block package is named for what it brings: a family when it brings no dependency,
+  the engine or codec when it does. `dirigent-parquet` is `dirigent-block-parquet`. Every
+  block id, group and connection kind is unchanged; a stored pipeline notices nothing. The
+  catalogue's `plugin` field names the family (`block-http`) where it said `builtin`.
+- **Three of the nine are on PyPI with this release.** `dirigent-block-base`, `-http` and
+  `-sql` publish now; the other six follow in 0.17.1 and 0.17.2, three per release, and until
+  then `pip install dirigent-cli` does not resolve. The image at
+  `ghcr.io/winterop-com/dirigent:0.17.0` carries all nine and is the way to run this version.
+- **SQL engines are packages.** `dirigent-block-sql` keeps the `sql` connection kind,
+  `sql.query`, `sql.execute` and the generic async SQLAlchemy path, and gains the `SqlEngine`
+  contract, contributed under the `dirigent.sql.engines.v1` entry-point group. DuckDB is
+  `dirigent-block-duckdb`; the `duckdb` extra is gone, and a URL naming an engine that is not
+  installed is refused with the install line.
+- **Every refusal carries a code.** A block failure, a domain error, the problem document, a
+  CLI refusal, a health check and a client error each carry a stable dotted `code` and the
+  `params` its text was rendered from, beside the English `message`. `Problem.problems` is a
+  list of issues (`code`, `message`, `params`, `location`) rather than strings; attempts,
+  runs and run items carry `error_code`. A pack raises `BlockFailure(MESSAGE, **params)` from
+  its own catalogue under its name. The text a person reads is unchanged.
+- **Out-of-process transform engines speak one protocol.** `dirigent-plugin` gains
+  `ProgramRunner` and `RunnerEngine`: a pool of runner processes, `compile` / `run` / `forget`
+  over JSON lines, and kill on cancel. The jq engine is the first runner, and a step's program
+  now crosses the pipe once rather than once per element.
+- **`dg health` lives under `dg system`.** `dg system health` and its named forms
+  `database | worker | scheduler | server` replace `dg health`; the compose healthchecks and
+  the scaffolded stack say `dg system health server` and `worker`.
+- **One handler renders every domain error.** Every refusal the core raises carries its HTTP
+  status, and the server renders it as the problem document in one place; the per-endpoint
+  translation is gone.
+- **A write names what the object is.** `Storage.open_write` takes a `content_type`, the S3
+  backend records it on the object, and `storage.read` gets it back.
+- **Packs by build argument.** `docker build --build-arg DIRIGENT_PACKS="dirigent-dhis2"`
+  installs packs into the stock image without a Dockerfile of its own.
+- **The ASGI factory is documented.** `dirigent_server.create_app` and `dirigent_cli.main:build_app`
+  are named in the server page with granian and hypercorn examples.
+- Also: every engine a test or a failed boot opens is disposed; the small-screen drawer asks
+  for focus until it lands; the M5 milestone is marked complete and the roadmap says what is
+  left.
+
 ## 0.16.7
 
 Released 2026-09-20. Every package in the workspace moves to 0.16.7 together.

@@ -1,6 +1,6 @@
 [project]
 name = "dirigent-block-sql"
-version = "0.16.7"
+version = "0.17.0"
 description = "The SQL block family for dirigent: sql.query, sql.execute, and the sql connection kind."
 readme = "README.md"
 requires-python = ">=3.13"
@@ -11,8 +11,8 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    "dirigent-common==0.16.7",
-    "dirigent-plugin==0.16.7",
+    "dirigent-common==0.17.0",
+    "dirigent-plugin==0.17.0",
     "sqlalchemy[asyncio]>=2.0.52",
 ]
 
