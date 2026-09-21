@@ -1,6 +1,6 @@
 [project]
 name = "dirigent-cli"
-version = "0.17.1"
+version = "0.17.2"
 description = "The dirigent command line interface (dirigent / dg)."
 readme = "README.md"
 requires-python = ">=3.13"
@@ -11,14 +11,14 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    "dirigent-block-execute==0.17.1",
-    "dirigent-blocks==0.17.1",
-    "dirigent-client==0.17.1",
-    "dirigent-common==0.17.1",
-    "dirigent-core==0.17.1",
-    "dirigent-examples==0.17.1",
-    "dirigent-plugin==0.17.1",
-    "dirigent-server==0.17.1",
+    "dirigent-block-execute==0.17.2",
+    "dirigent-blocks==0.17.2",
+    "dirigent-client==0.17.2",
+    "dirigent-common==0.17.2",
+    "dirigent-core==0.17.2",
+    "dirigent-examples==0.17.2",
+    "dirigent-plugin==0.17.2",
+    "dirigent-server==0.17.2",
     "httpx2>=2.12.0",
     "python-dotenv>=1.1.0",
     "pyyaml>=6.0.3",
