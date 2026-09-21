@@ -160,8 +160,8 @@ Contributed by `block-execute`. Not idempotent. **Runs code on the worker**, so 
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `project_name` | `string or null` |  | `null` | The compose project (`-p`). Defaults to the same deterministic name `up` derives from |
-| `file` | `string or null` |  | `null` | A compose file, only if the CLI needs `-f` to resolve the project; a project tears down |
+| `project_name` | `string or null` |  | `null` | The compose project (`-p`). Defaults to the same deterministic name `up` derives from the run id, so a teardown step in the same run addresses the stack the `up` created with no wiring from the author. |
+| `file` | `string or null` |  | `null` | A compose file, only if the CLI needs `-f` to resolve the project; a project tears down by its label alone otherwise. As a path inside the run's work directory. |
 | `content` | `string or null` |  | `null` | A compose file inline, written to the run's work directory, for the same reason as `file`. |
 | `profiles` | `string[]` |  |  | Compose profiles to activate, only meaningful alongside a `file`. |
 | `env_files` | `string[]` |  |  | Env files for compose to read, as paths inside the run's work directory (`--env-file`). |
@@ -196,7 +196,7 @@ Contributed by `block-execute`. Not idempotent. **Runs code on the worker**, so 
 | --- | --- | --- | --- | --- |
 | `file` | `string or null` |  | `null` | The compose file, as a path inside the run's work directory; never absolute, never climbing out. |
 | `content` | `string or null` |  | `null` | The compose file inline, written into the run's work directory before the CLI runs. |
-| `project_name` | `string or null` |  | `null` | The compose project (`-p`). Defaults to a deterministic name derived from the run id, |
+| `project_name` | `string or null` |  | `null` | The compose project (`-p`). Defaults to a deterministic name derived from the run id, so this `up`, the steps that drive it, and a later `down` all address the same project, and two runs never collide. |
 | `profiles` | `string[]` |  |  | Compose profiles to activate (`--profile`). |
 | `env_files` | `string[]` |  |  | Env files for compose to read, as paths inside the run's work directory (`--env-file`). |
 | `env` | `object of string` |  |  | Variables set for the CLI itself, such as those a compose file interpolates. |
@@ -440,7 +440,7 @@ Contributed by `block-base`. Not idempotent. Polls every 5s unless the step says
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `pipeline` | `string` | yes |  | -- |
-| `run_id` | `string or null` |  | `null` | The child run, or None when its concurrency policy meant no run was created. |
+| `run_id` | `string or null` |  | `null` | The child run, or `null` when its concurrency policy meant no run was created. |
 | `status` | `string` | yes |  | The child's run status, `started` when this step did not wait, or `skipped`. |
 
 ### `rabbitmq.publish`
@@ -666,7 +666,7 @@ Contributed by `block-base`. Idempotent.
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `input` | `any` |  | `null` | The value to check, normally a `${steps....}` reference to what an upstream step produced. An explicit null is a value like any other and is checked as one. |
-| `schema` | `string` | yes |  | The code of the schema the value must satisfy: one the instance holds, or one the document carries in its top-level `schemas` section. The named schema was validated when it was stored or applied, so nothing rechecks it here; a code no instance holds fails the run at the gate. The Python attribute is renamed only to dodge a pydantic clash; a document writes `schema`. |
+| `schema` | `string` | yes |  | The code of the schema the value must satisfy: one the instance holds, or one the document carries in its top-level `schemas` section. The named schema was validated when it was stored or applied, so nothing rechecks it here; a code no instance holds fails the run at the gate. |
 
 **Output**
 

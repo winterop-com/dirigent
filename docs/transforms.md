@@ -1,11 +1,12 @@
 # Transforms
 
-Reshaping data between two steps is the most ordinary thing a pipeline does, and for a long
-time the only way to do it here was `shell.run` behind the unsafe-block allowlist: a whole
-subprocess, and a permission a person should not have to grant to uppercase a field.
+Reshaping data between two steps is the most ordinary thing a pipeline does, and a transform
+is the block family for it: a step is handed a value and answers with one, so a reshape needs
+no `shell.run` and no entry in the unsafe-block allowlist.
 
-A transform is the answer, and it is deliberately not one blessed language. It is a small set
-of **verb contracts**, each implemented by pluggable **engine kinds**.
+A transform is a small set of **verb contracts**, each implemented by pluggable **engine
+kinds**, so the language a program is written in arrives with a package rather than being one
+choice the core made for everyone.
 
 ## Verbs and kinds
 
@@ -37,12 +38,13 @@ one element at a time and checks the length afterwards, and `filter` keeps the e
 was handed rather than anything the engine produced. An engine cannot break a promise the
 frame keeps for it.
 
-!!! note "Four engines ship"
+!!! note "Four blocks ship"
 
-    All four verbs ship with a jq engine -- `transform.jq`, `map.jq` and `filter.jq` -- and
-    `convert.std` is the one codec. All four are installed with the built-in block pack, and
-    none of them needs an allowlist entry. [The block reference](blocks.md) is generated from
-    the live catalog, so it is the honest answer to "what can I actually run".
+    The three program verbs ship with a jq engine -- `transform.jq`, `map.jq` and `filter.jq`,
+    from `dirigent-block-jq` -- and the `convert` verb ships with `convert.std`, the codec in
+    `dirigent-block-base`. `dirigent-blocks` installs all four, and none of them needs an
+    allowlist entry. [The block reference](blocks.md) is generated from the live catalog, so
+    it is the honest answer to "what can I actually run".
 
 ## What every transform takes
 
@@ -58,7 +60,7 @@ The output is one field, `value`, and a later step reads it with
 `${steps.<name>.output.value}`.
 
 **A value flows through step outputs.** `storage.read` is the only way one comes in from
-storage and `storage.write` the only way one goes out, so a transform never names a URI: a
+storage and `storage.write` the only way one goes out, so a program verb never names a URI: a
 stored document reaches a program through a read, and a reshaped value that should outlive
 the run leaves through a write.
 
@@ -80,14 +82,15 @@ steps:
       value: ${steps.reshape.output.value}
 ```
 
-An output too large to inline needs no write of its own: the engine spills it to the run's
+An output too large to inline needs no write of its own: the engine writes it to the run's
 scratch space, the instance setting [`inline_artifact_max`](settings.md) decides at what
-size, and the attempt row records where it went. What a `storage.write` step is for is a file
-the run means to produce -- one a later run, another system, or a person reads.
+size, and the step's `artifact_uri` records where it went. What a `storage.write` step is for
+is a file the run means to produce -- one a later run, another system, or a person reads.
 
-`examples/transform/` is the worked corpus for all of it: eleven documents, each prefixed with
-the engine kind that stars in it, every one of them running with no network and nothing on the
-allowlist. The README in that directory says which teaches what.
+`examples/transform/` is the worked corpus for all of it: eleven documents, the ones that star
+an engine prefixed with its kind and the rest named for the format they round-trip, every one
+of them running with no network and nothing on the allowlist. The README in that directory
+says which teaches what.
 
 `convert` is the exception, because its operand is a storage object rather than a value. It
 reads one URI and writes another, the way `storage.copy` does, and it has no program at all:
@@ -110,7 +113,7 @@ by `${steps.as_csv.output.target}` -- a `storage.copy` to where the file belongs
 
 ## `transform.jq`
 
-The engine that ships with the built-in pack. Its program is a [jq](https://jqlang.org)
+The engine `dirigent-block-jq` contributes. Its program is a [jq](https://jqlang.org)
 program -- [the jq page](jq.md) teaches the language on this corpus -- and the value it is
 handed is the input:
 
@@ -155,8 +158,8 @@ the same message again.
 
 jq opens no file and no socket: it is handed a value and returns values. So `transform.jq`
 is not code execution on the worker, declares no `local_execution`, and needs no entry in
-`DIRIGENT_ENABLED_UNSAFE_BLOCKS`. That is the whole point of the engine: the reshape that
-used to cost an instance an allowlisted `shell.run` now costs it nothing.
+`DIRIGENT_ENABLED_UNSAFE_BLOCKS`. That is the whole point of the engine: a reshape that would
+otherwise cost an instance an allowlisted `shell.run` costs it nothing.
 
 The program itself is evaluated in a jq process dirigent starts and holds, because the jq
 binding computes with the interpreter's lock held and would otherwise hold the worker's event
@@ -267,9 +270,9 @@ a program that reshapes an element is a map.jq or transform.jq step
 Both engines are sandboxed exactly as `transform.jq` is -- `env` and `$ENV` read an empty
 object -- and neither executes code on the worker, so neither needs an allowlist entry.
 
-`examples/transform/jq-filter-and-map.yaml` is the worked pipeline: the active readings kept, each one
-converted, and a whole-value reshape after them, which is the line between the three verbs
-drawn in one document.
+`examples/transform/jq-filter-and-map.yaml` is the worked pipeline: the active readings kept,
+each one converted, and a whole-value reshape after them, which is the line between the three
+verbs drawn in one document.
 
 ```bash
 dg run --local examples/transform/jq-filter-and-map.yaml
@@ -277,7 +280,7 @@ dg run --local examples/transform/jq-filter-and-map.yaml
 
 ## `convert.std`
 
-The codec that ships with the built-in pack, on the standard library and nothing else. It
+The codec `dirigent-block-base` contributes, on the standard library and nothing else. It
 converts between five formats, along the thirteen pairs it declares:
 
 | From | To | What it does |
@@ -396,9 +399,9 @@ invalid  daily-load  (pipelines/daily-load.yaml)
     ndjson to yaml, xml to json, xml to ndjson, yaml to json, yaml to ndjson)
 ```
 
-`examples/transform/std-convert-fan-out.yaml` is the worked pipeline: an inline csv re-encoded as json, a
-jq program reshaping it, a fan-out over the regions, and the result converted back to csv.
-It runs with no network and no allowlist.
+`examples/transform/std-convert-fan-out.yaml` is the worked pipeline: an inline csv re-encoded
+as json, a jq program reshaping it, a fan-out over the regions, and the result converted back
+to csv. It runs with no network and no allowlist.
 
 ```bash
 dg run --local examples/transform/std-convert-fan-out.yaml
@@ -598,9 +601,11 @@ for its whole run and gives it back after, so two steps never meet on one pipe, 
 that was killed is never handed out again. `outputs` is what the engine calls per value;
 compiling the program and releasing it are the frame's.
 
-A runner is any program, in any language, that reads its standard input and writes its
-standard output. It reads one JSON object per line and answers one JSON object per line, one
-reply per request and in the order the requests arrived, and it ends when the pipe closes:
+`ProgramRunner`, in `dirigent-plugin`, is the parent's half of the exchange: one process, its
+two pipes, and one reply read for each request sent. A runner is any program, in any language,
+that reads its standard input and writes its standard output. It reads one JSON object per
+line and answers one JSON object per line, one reply per request and in the order the requests
+arrived, and it ends when the pipe closes:
 
 | The request | The answer |
 | --- | --- |

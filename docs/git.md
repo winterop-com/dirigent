@@ -7,15 +7,14 @@ The `git.*` family puts an existing project into a run. It is one block today:
 
 Nothing else could do that. `storage.copy` moves one object at a time, the compose and build
 blocks read only what is already in the work directory, and `shell.run` with a `git clone` is
-an unsafe
-block on a worker that happens to have git and a network. With a checkout, a downstream
-[`docker.compose.up`](blocks.md#dockercomposeup) names its compose file, a
-[`docker.build`](blocks.md#dockerbuild) names its context, and a transform names its files, all
-relative to one directory.
+an unsafe block on a worker that happens to have git and a network. With a checkout, a
+downstream [`docker.compose.up`](blocks.md#dockercomposeup) names its compose file, a
+[`docker.build`](blocks.md#dockerbuild) names its context, and a transform names its files,
+all relative to one directory.
 
 The block's fields are the generated [block reference](blocks.md); this page is the family: the
-connection kind that holds the remote, what happens to a credential, and what the block does
-not do.
+connection kind that holds the remote, what happens to a credential, and the limits the block
+keeps.
 
 ## This is an ordinary block
 

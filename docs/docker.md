@@ -1,7 +1,6 @@
 # Docker
 
-The `docker.*` family runs containers as pipeline steps. It is three blocks today and is
-built to grow:
+The `docker.*` family runs containers as pipeline steps. It is four blocks:
 
 - [`docker.run`](blocks.md#dockerrun) runs **one container** and lets the engine probe it to
   completion. It speaks the Docker Engine HTTP API over the daemon socket.
@@ -148,9 +147,9 @@ On the compose stack the daemon mounts that directory at the same path the worke
 because a bind is resolved on the daemon's filesystem rather than the worker's. It is local to
 one worker, so a step that reads what another step put there must run on the same worker.
 
-v1 targets compose files that reference **pre-built images**. A compose file with `build:`
-stanzas needs its build contexts already in the work directory -- getting them there is the
-pipeline's job.
+The compose blocks are written for compose files that reference **pre-built images**. A
+compose file with `build:` stanzas needs its build contexts already in the work directory --
+getting them there is the pipeline's job, through a `git.checkout` or a `docker.run` output.
 
 ## The compose lifecycle
 

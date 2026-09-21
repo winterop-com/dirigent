@@ -26,7 +26,7 @@ cadence to the step's own `poll`, which both sensors default to `30s`.
 
 The blocks' fields are the generated [block reference](blocks.md); this page is the family: the
 two connection kinds, the cursor, when a message is acknowledged, what publishing promises, and
-what these blocks do not do.
+the limits the family keeps.
 
 ## These are ordinary blocks
 
@@ -159,10 +159,11 @@ the way every value comes in from storage -- `convert.std` re-spells the object 
 An element is read as an **envelope** when it is an object carrying `value` and nothing
 besides `key`, `value` and `headers`; every other element is itself the value. Two shapes
 rather than one because most topics carry values alone, so a list of documents from an earlier
-step publishes unchanged, while a key or a header has to be written somewhere. An object that means to be a value and would read as an envelope is written
-`{"value": {...}}`. A string value is sent as UTF-8 text and anything else as compact JSON, so a
-topic of JSON documents and a topic of plain lines are both writable; a null value is a record
-with no value at all, which is what a compacted topic reads as a tombstone.
+step publishes unchanged, while a key or a header has to be written somewhere. An object that
+means to be a value and would read as an envelope is written `{"value": {...}}`. A string value
+is sent as UTF-8 text and anything else as compact JSON, so a topic of JSON documents and a
+topic of plain lines are both writable; a null value is a record with no value at all, which is
+what a compacted topic reads as a tombstone.
 
 `key` names a field of each record's value to take the message key from, which is what puts
 every record sharing a key on one partition. An envelope's own `key` wins. A record that is not
