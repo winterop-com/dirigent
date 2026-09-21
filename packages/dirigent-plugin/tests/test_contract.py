@@ -2,7 +2,7 @@
 
 import tempfile
 from collections.abc import AsyncGenerator, AsyncIterator, Mapping
-from contextlib import AbstractAsyncContextManager
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Annotated, Any
@@ -18,6 +18,7 @@ import dirigent_plugin
 from dirigent_common import API_VERSION, SHELL_MEDIA_TYPE, JsonMap, base_format_checker
 from dirigent_plugin import (
     ByteSink,
+    Capture,
     ConnectionRef,
     Contribution,
     ErrorClass,
@@ -105,6 +106,19 @@ class NullRuns:
         return False
 
 
+class NullCapture:
+    """A captured stream over the null storage, carrying the URI it was opened under."""
+
+    def __init__(self, uri: str, sink: ByteSink) -> None:
+        """Bind the sink to the URI naming it."""
+        self.uri = uri
+        self._sink = sink
+
+    async def write(self, data: bytes) -> int:
+        """Append bytes to the stream and return how many were accepted."""
+        return await self._sink.write(data)
+
+
 class FakeContext:
     """A StepContext good enough to drive a block in a unit test."""
 
@@ -151,6 +165,17 @@ class FakeContext:
     def scratch(self) -> str:
         """Return the run-scoped URI prefix."""
         return f"memory://runs/{self.run_id}"
+
+    def capture(self, name: str, *, content_type: str = "text/plain") -> AbstractAsyncContextManager[Capture]:
+        """Open a captured stream; this fake's storage holds nothing, so writing it raises."""
+
+        @asynccontextmanager
+        async def opened() -> AsyncGenerator[Capture]:
+            uri = f"{self.scratch}/{self.step}/attempt-{self.attempt}-{name}"
+            async with self._storage.open_write(uri, content_type=content_type) as sink:
+                yield NullCapture(uri, sink)
+
+        return opened()
 
     @property
     def work(self) -> Path:

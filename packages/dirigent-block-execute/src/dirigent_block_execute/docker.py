@@ -582,21 +582,16 @@ class DockerRunOperator(Operator[DockerRunConfig, DockerRunOutput]):
 
     async def fetch(self, handle: RemoteHandle, config: DockerRunConfig, ctx: StepContext) -> DockerRunOutput:
         """Collect the exit code, the streams, and the declared files, then drop the container."""
-        artifacts = subprocess.prefix(ctx, "docker")
-        stdout_uri = f"{artifacts}-stdout.txt"
-        stderr_uri = f"{artifacts}-stderr.txt"
         with _material(config, ctx) as environ:
             async with _daemon(config, environ) as daemon:
                 inspected = await daemon.inspect(handle.ref)
                 if inspected is None:
                     raise BlockFailure(CONTAINER_GONE, error_class=ErrorClass.TRANSIENT, container=handle.ref[:12])
-                async with (
-                    ctx.storage.open_write(stdout_uri) as out_sink,
-                    ctx.storage.open_write(stderr_uri) as err_sink,
-                ):
+                async with ctx.capture("stdout") as out_sink, ctx.capture("stderr") as err_sink:
                     stdout, stderr = await drain_logs(
                         daemon, handle.ref, ctx.inline_capture, sinks=(out_sink, err_sink)
                     )
+                    stdout_uri, stderr_uri = out_sink.uri, err_sink.uri
                 collected = await _collect_outputs(config, handle, ctx)
                 # The run log gets only what the probes have not already streamed: the segment
                 # between the last committed cursor and the exit. The full read above is for

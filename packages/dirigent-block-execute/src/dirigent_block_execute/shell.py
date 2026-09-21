@@ -136,14 +136,9 @@ class ShellRunOperator(Operator[ShellRunConfig, ShellRunOutput]):
         workspace = subprocess.workspace(ctx, "shell")
         directory = workspace / config.cwd if config.cwd else workspace
         directory.mkdir(parents=True, exist_ok=True)
-        artifacts = subprocess.prefix(ctx, "shell")
-        stdout_uri = f"{artifacts}-stdout.txt"
-        stderr_uri = f"{artifacts}-stderr.txt"
-        code, out, err = await subprocess.run(
+        code, out, err, stdout_uri, stderr_uri = await subprocess.run(
             directory=directory,
             ctx=ctx,
-            stdout_uri=stdout_uri,
-            stderr_uri=stderr_uri,
             timeout_seconds=config.timeout.total_seconds(),
             environ=_environment(config, directory),
             argv=config.argv or None,

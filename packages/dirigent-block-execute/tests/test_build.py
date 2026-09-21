@@ -18,6 +18,7 @@ from dirigent_block_execute.build import (
 )
 from dirigent_block_execute.capture import Drained
 from dirigent_block_execute.docker import DockerConnectionConfig
+from dirigent_block_execute.subprocess import Ran
 from dirigent_plugin import BlockFailure, ErrorClass
 from dirigent_testing import FakeContext
 
@@ -438,12 +439,12 @@ async def test_a_build_against_a_connection_reaches_the_daemon_it_names(
 ) -> None:
     seen: list[dict[str, str]] = []
 
-    async def fake_run(**kwargs: Any) -> tuple[int, object, object]:
+    async def fake_run(**kwargs: Any) -> Ran:
         seen.append(dict(cast("dict[str, str]", kwargs["environ"])))
         Path(str(kwargs["directory"])).mkdir(parents=True, exist_ok=True)
         argv = cast("list[str]", kwargs["argv"])
         Path(argv[argv.index("--iidfile") + 1]).write_text(IMAGE_ID)
-        return 0, _empty(), _empty()
+        return Ran(0, _empty(), _empty(), "file://out", "file://err")
 
     monkeypatch.setattr("dirigent_block_execute.subprocess.run", fake_run)
     scripted_exec(monkeypatch, build_and_inspect)

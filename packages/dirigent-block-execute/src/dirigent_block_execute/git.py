@@ -381,16 +381,13 @@ class _Git:
         artifact rather than a buffer in the worker. Each command writes its own pair, named for
         its subcommand; the pair the last one wrote is what the output carries.
         """
-        artifacts = f"{subprocess.prefix(self.ctx, 'git')}-{argv[0]}"
-        stdout_uri = f"{artifacts}-stdout.txt"
-        stderr_uri = f"{artifacts}-stderr.txt"
-        code, out, err = await subprocess.run(
+        code, out, err, stdout_uri, stderr_uri = await subprocess.run(
             directory=directory,
             ctx=self.ctx,
-            stdout_uri=stdout_uri,
-            stderr_uri=stderr_uri,
             timeout_seconds=self.timeout,
             environ=self.environ,
+            stdout_name=f"{argv[0]}-stdout",
+            stderr_name=f"{argv[0]}-stderr",
             argv=[self.binary, *argv],
             what=f"git {argv[0]}",
             redact=self.secrets,

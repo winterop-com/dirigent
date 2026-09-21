@@ -611,8 +611,8 @@ async def test_the_output_names_both_streams_and_they_read_back(
 ) -> None:
     output = await checkout(install(local_ctx, public))
 
-    assert output.stdout_uri.endswith("attempt-1-clone-stdout.txt")
-    assert output.stderr_uri.endswith("attempt-1-clone-stderr.txt")
+    assert output.stdout_uri.endswith("attempt-1-clone-stdout")
+    assert output.stderr_uri.endswith("attempt-1-clone-stderr")
     assert local_ctx.storage.path_for(output.stdout_uri).exists()
     assert "Cloning into" in local_ctx.storage.path_for(output.stderr_uri).read_text()
 
@@ -622,7 +622,7 @@ async def test_a_commit_sha_names_the_fetch_that_brought_it(
 ) -> None:
     output = await checkout(install(local_ctx, public), ref=remote.first)
 
-    assert output.stderr_uri.endswith("attempt-1-fetch-stderr.txt")
+    assert output.stderr_uri.endswith("attempt-1-fetch-stderr")
     assert local_ctx.storage.path_for(output.stderr_uri).exists()
 
 

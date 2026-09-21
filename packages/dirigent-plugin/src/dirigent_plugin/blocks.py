@@ -367,6 +367,13 @@ class ByteSink(Protocol):
         ...
 
 
+class Capture(ByteSink, Protocol):
+    """The write end of a captured stream, carrying the URI the engine wrote it under."""
+
+    uri: str
+    """Where the whole of the stream is being written, which is what the block's output carries."""
+
+
 class Logger(Protocol):
     """The scoped, batched log writer a block is handed; it produces run-visible entries."""
 
@@ -570,6 +577,17 @@ class StepContext(Protocol):
     @property
     def scratch(self) -> str:
         """Return the run-scoped URI prefix for intermediate artifacts."""
+        ...
+
+    def capture(self, name: str, *, content_type: str = "text/plain") -> AbstractAsyncContextManager[Capture]:
+        """Open the storage object a stream this block captures is written to.
+
+        The engine names the object under the run's scratch prefix, after the step, the
+        fan-out item and the attempt, so two attempts of one step never write over each
+        other, and opens it with the content type given. A block writes the stream through
+        the sink as it arrives and puts the sink's ``uri`` in its output; a block never names
+        a storage URI of its own.
+        """
         ...
 
     @property

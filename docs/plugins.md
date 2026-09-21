@@ -159,6 +159,29 @@ beside the rendered sentence, so an operator can select one refusal out of a str
 prefix is its pack name, and it owns everything under it. A param never carries a secret: the
 connection's code names it, its credential does not appear.
 
+### A stream a block captures comes through the context
+
+A block that runs something which prints -- a process, a container, a remote job -- never
+names a storage URI of its own. It asks the context for a capture, writes the stream through
+it as it arrives, and puts the URI it is handed in its output:
+
+```python
+printed = 0
+async with ctx.capture("stdout") as sink:
+    async for chunk in job.stdout():
+        printed += await sink.write(chunk)
+return AcmeRunOutput(stdout_uri=sink.uri, stdout_bytes=printed)
+```
+
+The engine names the object under the run's scratch prefix, after the step, the fan-out item
+and the attempt, so a retry never writes over what the attempt before it printed. The name
+is what distinguishes one stream from another inside a step: `"stdout"` and `"stderr"`, or
+`f"{command}-stdout"` where a block runs several. `content_type` defaults to `text/plain`.
+
+How much of a stream a block may also inline in its output is `ctx.inline_capture`, in bytes.
+Inline the head, count the whole, say whether the two disagree, and leave the rest to the URI:
+a step that prints a gigabyte must be a file in storage, never a gigabyte in the worker.
+
 ### A sensor keeps its place in a cursor
 
 A sensor's `poke` runs once and returns: either the observation, which ends the step, or

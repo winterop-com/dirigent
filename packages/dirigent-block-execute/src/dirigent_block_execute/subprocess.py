@@ -14,6 +14,7 @@ import os
 import signal
 from collections.abc import Sequence
 from pathlib import Path
+from typing import NamedTuple
 
 from dirigent_block_execute.capture import Drained, LiveLines, drain
 from dirigent_block_execute.environment import allowed
@@ -24,20 +25,24 @@ from dirigent_plugin import BlockFailure, ErrorClass, StepContext
 BASELINE_ENV = ("PATH", "LANG", "LC_ALL", "TZ")
 
 
-def segment(ctx: StepContext, name: str) -> str:
-    """The path this attempt's files sit at, under either of the run's two roots.
+class Ran(NamedTuple):
+    """What one child process left behind: how it exited, both streams, and where they were written."""
 
-    ``{name}/{step}[/{item}]/attempt-{n}``. Both roots are the run's, so the step key and,
-    inside a fan-out, the item id are what keep two steps of one run and two items of one step
-    out of each other's files and working directories.
+    code: int
+    out: Drained
+    err: Drained
+    stdout_uri: str
+    stderr_uri: str
+
+
+def segment(ctx: StepContext, name: str) -> str:
+    """The path this attempt's files sit at, inside the run's work directory.
+
+    ``{name}/{step}[/{item}]/attempt-{n}``. The step key, and inside a fan-out the item id,
+    are what keep two steps of one run and two items of one step out of each other's files.
     """
     item = f"/{ctx.run_item_id}" if ctx.run_item_id is not None else ""
     return f"{name}/{ctx.step}{item}/attempt-{ctx.attempt}"
-
-
-def prefix(ctx: StepContext, name: str) -> str:
-    """The storage URI this attempt's artifact names are built on, under the run's scratch prefix."""
-    return f"{ctx.scratch.rstrip('/')}/{segment(ctx, name)}"
 
 
 def workspace(ctx: StepContext, name: str) -> Path:
@@ -59,22 +64,24 @@ async def run(
     *,
     directory: Path,
     ctx: StepContext,
-    stdout_uri: str,
-    stderr_uri: str,
     timeout_seconds: float,
     environ: dict[str, str],
+    stdout_name: str = "stdout",
+    stderr_name: str = "stderr",
     argv: list[str] | None = None,
     command: str | None = None,
     what: str = "the command",
     redact: Sequence[str] = (),
-) -> tuple[int, Drained, Drained]:
+) -> Ran:
     """Start the process, drain it under the timeout, and leave nothing of it behind.
 
-    Both pipes are read as the process writes them and written straight through to storage,
-    so what is held is two bounded ends of each stream rather than all of it: a process that
-    prints more than the worker has memory for is a file, not a dead worker. Each stream's
-    first lines go into the run log where they are printed, so a long command is visible
-    working; ``redact`` names the strings it was handed that must not reach one of them.
+    Both pipes are read as the process writes them and written straight through to a capture
+    the context opens and names, so what is held is two bounded ends of each stream rather
+    than all of it: a process that prints more than the worker has memory for is a file, not
+    a dead worker. The two names distinguish one command's streams from another's where a
+    step runs more than one. Each stream's first lines go into the run log where they are
+    printed, so a long command is visible working; ``redact`` names the strings it was
+    handed that must not reach one of them.
 
     The process leads a session of its own, so what it starts is killable with it: a command
     is usually ``sh -c``, and killing the shell alone leaves the children doing the work.
@@ -106,7 +113,7 @@ async def run(
     pgid = group_of(process)
     try:
         async with asyncio.timeout(timeout_seconds):
-            async with ctx.storage.open_write(stdout_uri) as out_sink, ctx.storage.open_write(stderr_uri) as err_sink:
+            async with ctx.capture(stdout_name) as out_sink, ctx.capture(stderr_name) as err_sink:
                 out, err = await asyncio.gather(
                     drain(
                         process.stdout,
@@ -126,7 +133,7 @@ async def run(
         raise BlockFailure(TIMED_OUT, error_class=ErrorClass.TRANSIENT, what=what, seconds=timeout_seconds) from error
     finally:
         await end(process, pgid)
-    return process.returncode or 0, out, err
+    return Ran(process.returncode or 0, out, err, out_sink.uri, err_sink.uri)
 
 
 async def output(
@@ -207,12 +214,12 @@ def kill(pgid: int, pid: int) -> None:
 
 __all__ = [
     "BASELINE_ENV",
+    "Ran",
     "end",
     "environment",
     "group_of",
     "kill",
     "output",
-    "prefix",
     "run",
     "segment",
     "workspace",
