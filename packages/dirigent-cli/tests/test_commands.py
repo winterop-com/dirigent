@@ -265,7 +265,7 @@ def test_init_ignores_instance_state_and_leaves_the_profiles_committable(tmp_pat
 def test_the_workflow_flag_adds_a_workflow(tmp_path: Path) -> None:
     result = invoke("init", str(tmp_path / "ci"), "--template", "documents", "--workflow")
     assert result.exit_code == 0
-    workflow = tmp_path / "ci" / ".github" / "workflows" / "dirigent.yml"
+    workflow = tmp_path / "ci" / ".github" / "workflows" / "dirigent.yaml"
     assert workflow.is_file()
     assert "dg apply --dry-run" in workflow.read_text()
 

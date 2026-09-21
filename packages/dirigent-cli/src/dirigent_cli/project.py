@@ -919,7 +919,7 @@ def scaffold(directory: Path, choices: InitChoices, *, version: str = "0.0.0") -
     _record(directory / "README.md", readme, written, skipped)
     _merge_ignore(directory / ".gitignore", ROOT_IGNORE_TEMPLATE, written, skipped)
     if choices.workflow:
-        written.append(_write(directory / ".github" / "workflows" / "dirigent.yml", WORKFLOW_TEMPLATE))
+        written.append(_write(directory / ".github" / "workflows" / "dirigent.yaml", WORKFLOW_TEMPLATE))
     if choices.stack:
         written.append(_write(directory / "compose.yaml", compose_document(choices, version)))
         written.append(_write(directory / "Dockerfile", dockerfile_document(choices, version)))

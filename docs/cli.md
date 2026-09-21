@@ -195,7 +195,7 @@ declared). Each service brings one example into `pipelines/` that uses it, `s3-h
 `docker-hello`, `kafka-hello` or `rabbitmq-hello`, runnable the day the stack is made.
 `--pack` adds a published pack pinned at this version, `dirigent-dhis2` today: a line in the
 stack's `Dockerfile`, or a dependency in `pyproject.toml` for the other two templates.
-`--workflow` writes `.github/workflows/dirigent.yml`, which applies the project on merge.
+`--workflow` writes `.github/workflows/dirigent.yaml`, which applies the project on merge.
 
 What it writes is a uv project. `pyproject.toml` depends on `dirigent-cli` at the version of
 the `dg` that scaffolded it, so `uv sync` builds the project's own environment and `uv run dg`
@@ -491,8 +491,10 @@ decides which records there are, and it decides that the same way under both out
 
 `-o` / `--output` is a global option, valid on every command and in any position: `-o json`
 (`--json` for short) forces records at a terminal, `-o console` forces the rendering into a
-pipe. It beats `DIRIGENT_LOG_FORMAT`, which is where a container names the spelling once and
-which accepts the same names. Precedence is the flag, then the environment, then the terminal.
+pipe. It beats the `log_format` setting, which is where a container, a project's `.env` or its
+`dirigent.yaml` names the spelling once, under the same names and through the layers every
+other setting is read from -- `DIRIGENT_LOG_FORMAT` is its environment variable. Precedence is
+the flag, then the setting, then the terminal.
 
 #### The console rendering
 

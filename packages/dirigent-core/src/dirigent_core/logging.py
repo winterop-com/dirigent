@@ -21,9 +21,6 @@ if TYPE_CHECKING:
 
 PACKAGE_LOGGER = "dirigent"
 
-#: Where a container names the spelling once, for a process and for a command alike.
-LOG_FORMAT_ENV = "DIRIGENT_LOG_FORMAT"
-
 #: Third-party loggers that ship their own handlers and must be pointed at ours instead.
 BRIDGED_LOGGERS = (
     "uvicorn",

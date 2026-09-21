@@ -112,7 +112,8 @@ A command writes one record per line to stdout -- no banner, no table, no colour
 stdout is not a terminal: a pipe, a container's log, an agent's shell and CI all read records
 without asking. At a terminal the same records are rendered, the way `dg format` renders
 them. `--json` asks for records on a terminal, `-o console` for the rendering into a pipe,
-`DIRIGENT_LOG_FORMAT` names either once, and `dg format` renders a stream that was kept or
+the `log_format` setting -- `DIRIGENT_LOG_FORMAT`, a project's `.env`, or its
+`dirigent.yaml` -- names either once, and `dg format` renders a stream that was kept or
 piped. Every record carries a `kind`, which is what a formatter dispatches on and what `jq`
 selects by, and it carries what its rendering needs, so no renderer reads the run a second
 time. A table is a rendering of a record, and it lives in the formatter, never in the

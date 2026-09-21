@@ -1838,7 +1838,7 @@ def runs_list(
         list[str] | None,
         typer.Option("--tag", help="Only runs whose pipeline wears this tag; repeat it to name more."),
     ] = None,
-    limit: Annotated[int, typer.Option(help="How many runs at most; the server decides when omitted.")] = RUNS_PAGE,
+    limit: Annotated[int, typer.Option(help=f"How many runs at most; {RUNS_PAGE} when omitted.")] = RUNS_PAGE,
 ) -> None:
     """List runs, newest first, or the ones whose pipeline wears every tag named."""
     if status is not None and status not in set(RunStatus):

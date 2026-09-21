@@ -1063,8 +1063,29 @@ def test_the_environment_names_the_spelling_when_no_flag_does(tmp_path: Path, mo
     named = invoke("run", "--local", document, "--enable-unsafe", "shell.run")
     assert all(parse(line) is not None for line in named.stdout.splitlines() if line.strip())
     monkeypatch.setenv("DIRIGENT_LOG_FORMAT", "console")
+    reset_settings_cache()
     shown = invoke("run", "--local", document, "--enable-unsafe", "shell.run")
     assert LINE.match(plain(shown.output).splitlines()[0]), shown.output
+
+
+def test_the_configuration_file_names_the_spelling_and_the_environment_beats_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """log_format is a setting, so a project's dirigent.yaml names the spelling once too.
+
+    Off a terminal records are what a command writes unasked, so a rendering here is the file
+    being read. The environment is the more specific layer and still wins over it.
+    """
+    monkeypatch.delenv(CONFIG_FILE_ENV, raising=False)
+    (tmp_path / "dirigent.yaml").write_text("enabled_unsafe_blocks: []\nlog_format: console\n")
+    reset_settings_cache()
+    document = str(write(tmp_path, HELLO))
+    shown = invoke("run", "--local", document, "--enable-unsafe", "shell.run")
+    assert LINE.match(plain(shown.output).splitlines()[0]), shown.output
+    monkeypatch.setenv("DIRIGENT_LOG_FORMAT", "json")
+    reset_settings_cache()
+    named = invoke("run", "--local", document, "--enable-unsafe", "shell.run")
+    assert all(parse(line) is not None for line in named.stdout.splitlines() if line.strip())
 
 
 def test_a_command_asked_for_nothing_writes_records(tmp_path: Path) -> None:
@@ -1256,7 +1277,22 @@ def test_a_terminal_gets_the_rendering_unasked_and_records_when_it_asks(monkeypa
     assert resolve_output(None, json_output=False) == "json"
     assert resolve_output("console", json_output=False) == "console"
     monkeypatch.setenv("DIRIGENT_LOG_FORMAT", "console")
+    reset_settings_cache()
     assert resolve_output(None, json_output=False) == "console"
+
+
+def test_the_log_format_setting_beats_the_terminal_and_loses_to_a_flag(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """At a terminal the rendering is the default, and the setting is how a project asks past it."""
+    from dirigent_cli.main import resolve_output
+
+    monkeypatch.delenv(CONFIG_FILE_ENV, raising=False)
+    (tmp_path / "dirigent.yaml").write_text("log_format: json\n")
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
+    reset_settings_cache()
+    assert resolve_output(None, json_output=False) == "json", "the file is read at a terminal too"
+    assert resolve_output("console", json_output=False) == "console", "a flag still wins over it"
 
 
 def test_a_process_record_follows_the_output_it_was_asked_for(capsys: pytest.CaptureFixture[str]) -> None:
