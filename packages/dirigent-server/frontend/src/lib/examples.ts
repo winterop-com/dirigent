@@ -232,15 +232,15 @@ export function requirementsSummary(items: readonly Requirement[]): string | nul
 }
 
 /**
- * What a document carries that an instance refuses to store, said as a phrase or not at all.
+ * What a document carries rather than requires, said as a phrase or not at all.
  *
- * A top-level `connections:` or `schemas:` section is a teaching aid: `dg run --local` reads
- * it and an apply refuses it, so the catalogue says so where somebody would otherwise copy it
- * and be refused.
+ * A top-level `connections:` or `schemas:` section is what makes a document run alone under
+ * `dg run --local`, and an apply refuses it, so the catalogue says the document holds one and
+ * that a copy of it names what it holds instead.
  */
 export function carriesNote(example: ExampleOut): string | null {
     if (example.carries.length === 0) return null
-    return `carries ${example.carries.join(' and ')}`
+    return `carries ${example.carries.join(' and ')}; a copy names them`
 }
 
 /** What a listing is narrowed to, which is the whole of this screen's address. */

@@ -271,9 +271,11 @@ menu on the Pipelines screen, on the Examples panel as *Use as starter*, and on 
 canvas of a new document; it opens a search over the installed starters, shelved by
 distribution and directory, with what each needs of this instance on the row. Choosing one
 makes the copy `dg pipeline new` would have written -- the document verbatim, the `code:` line
-the only thing rewritten and the `starter` tag dropped -- and opens the editor on it, on the
-source pane, where the code is renamed. Nothing is applied until you apply it, and the
-editor's panel says what is still missing.
+rewritten and the `starter` tag dropped -- and opens the editor on it, on the source pane,
+where the code is renamed. A copy names under `requires:` the connections and schemas the
+original carried, so the panel's preflight tells you what to create rather than the apply
+refusing the copy for holding them. Nothing is applied until you apply it, and the editor's
+panel says what is still missing.
 
 ## The real thing: three services
 

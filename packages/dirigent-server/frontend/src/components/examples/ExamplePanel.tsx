@@ -84,7 +84,7 @@ export function ExamplePanel({
                 {(example.starter || carries !== null) && (
                     <p className="flex flex-wrap items-center gap-2 pt-0.5">
                         {example.starter && <Badge variant="outline">Starter</Badge>}
-                        {carries !== null && <span className="text-xs text-warning">{carries}</span>}
+                        {carries !== null && <span className="text-xs text-muted-foreground">{carries}</span>}
                     </p>
                 )}
                 <Description text={example.description} />

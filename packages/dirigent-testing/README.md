@@ -7,6 +7,7 @@ Installing it registers the fixtures by entry point, so a block author writes no
 `call_block` validates a config the way the engine does before making the block's first call.
 
 `check_pack_examples` checks a pack's own example documents against its own `Contribution`
--- format, code, blocks, config schemas, and carried connections -- without importing
+-- format, code, blocks, config schemas, and the connections a step names, which the
+document may either carry or list under `requires.connections` -- without importing
 dirigent-core, and `assert_contribution_conforms` checks the blocks a contribution provides
 are well-formed. Both return a list of human-readable issues; an empty list means it passed.

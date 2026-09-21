@@ -235,7 +235,5 @@ def test_a_starter_clears_the_bar_for_being_copied(path: Path) -> None:
     definition = load_text(path.read_text())
     assert isinstance(definition, PipelineDefinition)
     assert len(definition.steps) >= 2, "a starter is a flow, not a single step"
-    assert not definition.connections, "a starter names its connections, it does not carry them"
-    assert not definition.schemas, "a starter names its schemas, it does not carry them"
     assert path.parent.name != "failure", "a starter is not a run that fails by design"
     assert definition.description, "a starter says what it is for"

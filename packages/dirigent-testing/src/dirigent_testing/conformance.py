@@ -6,8 +6,9 @@ conformance check re-derives the structural half here, over the pack's own ``Con
 and its own example documents. It is deliberately lighter than the engine's preflight: it
 proves an example is a well-formed ``dirigent/v1`` pipeline coded after its file, that every
 block it names is one the pack contributes, that each config fits that block's published
-schema, and that a named connection is carried by the document. It does not resolve
-references, run blocks, or reach for an instance.
+schema, and that a connection a step names is one the document accounts for -- carried, so
+the document runs alone, or named under ``requires``. It does not resolve references, run
+blocks, or reach for an instance.
 """
 
 import re
@@ -76,9 +77,9 @@ def check_pack_examples(contribution: Contribution, examples_dir: Path) -> list[
     is a ``dirigent/v1`` pipeline coded after its file with a description, that every block a
     step names is one ``contribution`` provides, that each step's config fits that block's
     published ``config_schema`` (a ``${...}`` value is left for the run), and that a connection
-    a step names is carried by the document's own ``connections`` block. Every issue is a
-    human-readable line prefixed with the file it was found in; an empty list means the
-    examples conform.
+    a step names is either carried by the document's own ``connections`` block or named under
+    its ``requires.connections``. Every issue is a human-readable line prefixed with the file
+    it was found in; an empty list means the examples conform.
     """
     blocks = _blocks_by_id(contribution)
     issues: list[str] = []
@@ -118,13 +119,23 @@ def _check_document(path: Path, label: Path, blocks: dict[str, AnyOperator | Any
     if not document.get("description"):
         issues.append(f"{label}: has no description")
 
-    connections = document.get("connections")
-    known = set(cast("JsonMap", connections)) if isinstance(connections, dict) else set[str]()
     steps = document.get("steps")
     if isinstance(steps, dict):
+        known = _known_connections(document)
         for name, step in cast("JsonMap", steps).items():
             issues.extend(_check_step(label, str(name), step, blocks, known))
     return issues
+
+
+def _known_connections(document: JsonMap) -> set[str]:
+    """Every connection code a document accounts for: the ones it carries and the ones it names."""
+    carried = document.get("connections")
+    known = set(cast("JsonMap", carried)) if isinstance(carried, dict) else set[str]()
+    requires = document.get("requires")
+    named = cast("JsonMap", requires).get("connections") if isinstance(requires, dict) else None
+    if isinstance(named, list):
+        known |= {one for one in cast("list[object]", named) if isinstance(one, str)}
+    return known
 
 
 def _check_step(
@@ -134,7 +145,10 @@ def _check_step(
     blocks: dict[str, AnyOperator | AnySensor],
     connections: set[str],
 ) -> list[str]:
-    """Check one step: the block it names, the config it carries, the connection it references."""
+    """Check one step: the block it names, the config it carries, the connection it references.
+
+    ``connections`` is every code the document accounts for, carried or required.
+    """
     if not isinstance(step, dict):
         return [f"{label}: step {name!r} is not a mapping"]
     step_map = cast("JsonMap", step)
@@ -152,7 +166,9 @@ def _check_step(
 
     named = config.get("connection")
     if isinstance(named, str) and not _REFERENCE.search(named) and named not in connections:
-        issues.append(f"{label}: step {name!r} names connection {named!r}, which the document does not carry")
+        issues.append(
+            f"{label}: step {name!r} names connection {named!r}, which the document neither carries nor requires"
+        )
     return issues
 
 

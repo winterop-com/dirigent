@@ -180,8 +180,8 @@ describe('the corpus as a whole', () => {
         expect(counted.get('shell.run')).toBeUndefined()
     })
 
-    it('says what a document carries that an instance refuses', () => {
-        expect(carriesNote(CORPUS[3] as ExampleOut)).toBe('carries connections')
+    it('says what a document carries and what a copy of it does instead', () => {
+        expect(carriesNote(CORPUS[3] as ExampleOut)).toBe('carries connections; a copy names them')
         expect(carriesNote(CORPUS[1] as ExampleOut)).toBeNull()
     })
 

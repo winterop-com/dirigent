@@ -7,8 +7,11 @@ from typer.testing import CliRunner
 
 from clisupport import of_kind, only, records, refusal, rows
 from dirigent_cli.main import app, hoist_globals
-from dirigent_cli.starters import instantiate, preflight, summary
+from dirigent_cli.starters import carried_kinds, instantiate, preflight, summary
 from dirigent_client import Requirements
+from dirigent_core.documents import carried_refusal, load_pipeline_text, load_text
+from dirigent_core.engine.definition import PipelineDefinition
+from dirigent_core.plugins import load_plugin_host
 
 runner = CliRunner(env={"COLUMNS": "200", "TERMINAL_WIDTH": "200"})
 
@@ -30,6 +33,51 @@ tags:
   - open-data
   - starter
   - http
+
+steps: {}
+"""
+
+CARRYING = """\
+format: dirigent/v1
+kind: pipeline
+code: a-starter
+tags: [http, starter]
+
+# Carried so the document runs alone.
+# The password below is a demo string.
+connections:
+  echo:
+    kind: http
+    config:
+      base_url: https://postman-echo.com
+
+# A comment that belongs to the steps.
+steps:
+  one:
+    block: http.request
+    config:
+      connection: echo
+"""
+
+REQUIRING = """\
+format: dirigent/v1
+kind: pipeline
+code: a-starter
+tags: [http, starter]
+
+requires:
+  blocks:
+    - http.request
+  connections:
+    - named
+
+connections:
+  echo:
+    kind: http
+
+schemas:
+  reading:
+    type: object
 
 steps: {}
 """
@@ -78,16 +126,80 @@ def test_a_step_named_code_is_never_rewritten() -> None:
     assert "code: mine" in copied
 
 
+def test_a_carried_connection_becomes_one_the_copy_requires() -> None:
+    copied = instantiate(CARRYING, "mine")
+    assert "connections:\n  echo:" not in copied
+    assert "requires:\n  connections:\n    - echo\n" in copied
+    assert "# Carried so the document runs alone." not in copied
+    assert "# A comment that belongs to the steps.\nsteps:" in copied
+    assert "      connection: echo" in copied, "a step keeps the code it names"
+
+
+def test_a_requires_that_is_there_is_extended_rather_than_written_again() -> None:
+    copied = instantiate(REQUIRING, "mine")
+    assert "  connections:\n    - named\n    - echo\n" in copied
+    assert "  schemas:\n    - reading\n" in copied
+    assert copied.count("requires:") == 1
+    assert "\nconnections:" not in copied and "\nschemas:" not in copied
+
+
+def test_a_flow_list_under_requires_is_extended_in_place() -> None:
+    source = REQUIRING.replace("  connections:\n    - named\n", "  connections: [named]\n")
+    assert "  connections: [named, echo]" in instantiate(source, "mine")
+
+
+def test_a_document_carrying_nothing_is_copied_as_it_stands() -> None:
+    assert instantiate(FLOW, "mine") == FLOW.replace("code: a-starter", "code: mine").replace(
+        "[open-data, http, starter]", "[open-data, http]"
+    )
+
+
+def test_a_copy_of_a_shipped_document_names_what_it_carried() -> None:
+    shown = only(machine("examples", "show", "connections-referenced-vs-carried", "--local").stdout, "example.source")
+    copied = instantiate(shown["source"], "mine")
+    definition = load_pipeline_text(copied)
+    assert not definition.connections, "a copy carries nothing an instance would refuse"
+    assert definition.requires.connections == ["postman-echo", "echo-carried"]
+    assert copied.startswith("# Naming a connection, and carrying one")
+    assert "# Carried, for the case with no instance to name one on." not in copied
+
+
+def test_every_shipped_document_copies_to_one_an_instance_would_store() -> None:
+    """The rewrite is text level, so the corpus is its test: every shipped document, as written."""
+    entries = load_plugin_host().examples()
+    assert entries
+    for entry in entries:
+        original = load_text(entry.source)
+        if not isinstance(original, PipelineDefinition):
+            continue
+        copied = load_text(instantiate(entry.source, "a-copy"))
+        assert isinstance(copied, PipelineDefinition), entry.path
+        assert carried_refusal(copied) is None, f"{entry.path}: the copy still carries what an apply refuses"
+        assert set(original.connections) <= set(copied.requires.connections), entry.path
+        assert set(original.schemas) <= set(copied.requires.schemas), entry.path
+        assert set(original.requires.connections) <= set(copied.requires.connections), entry.path
+
+
+def test_the_kind_of_a_carried_connection_is_read_off_its_definition() -> None:
+    assert carried_kinds(CARRYING) == {"echo": "http"}
+    assert carried_kinds(FLOW) == {}
+
+
 def test_a_requirements_summary_counts_what_a_document_needs() -> None:
     assert summary(Requirements()) == "-"
     assert summary(Requirements(connections=["a", "b"], schemas=["c"])) == "2 connections, 1 schema"
 
 
 def test_the_preflight_names_the_commands_that_create_what_is_missing() -> None:
-    lines = preflight(Requirements(connections=["warehouse"], schemas=["reading"], workers=["docker"]))
+    lines = preflight(Requirements(connections=["warehouse"], schemas=["reading"], workers=["docker"]), {})
     assert lines[0] == "dg connection create KIND warehouse"
     assert lines[1] == "dg schema create reading.json --code reading"
     assert lines[-1] == "a worker carrying the docker tag"
+
+
+def test_the_preflight_names_the_kind_of_a_connection_the_source_carried() -> None:
+    lines = preflight(Requirements(connections=["echo", "warehouse"]), {"echo": "http"})
+    assert lines == ["dg connection create http echo", "dg connection create KIND warehouse"]
 
 
 def test_examples_list_emits_one_record_per_row() -> None:

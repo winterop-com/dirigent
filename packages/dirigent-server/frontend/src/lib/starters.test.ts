@@ -30,6 +30,49 @@ tags:
 steps: {}
 `
 
+const CARRYING = `format: dirigent/v1
+kind: pipeline
+code: a-starter
+tags: [http, starter]
+
+# Carried so the document runs alone.
+# The password below is a demo string.
+connections:
+  echo:
+    kind: http
+    config:
+      base_url: https://postman-echo.com
+
+# A comment that belongs to the steps.
+steps:
+  one:
+    block: http.request
+    config:
+      connection: echo
+`
+
+const REQUIRING = `format: dirigent/v1
+kind: pipeline
+code: a-starter
+tags: [http, starter]
+
+requires:
+  blocks:
+    - http.request
+  connections:
+    - named
+
+connections:
+  echo:
+    kind: http
+
+schemas:
+  reading:
+    type: object
+
+steps: {}
+`
+
 describe('instantiate', () => {
     it('rewrites the code and drops the starter tag from a flow list', () => {
         const copied = instantiate(FLOW, 'mine')
@@ -77,5 +120,37 @@ describe('instantiate', () => {
     it('leaves a document with no tags entry alone but for its code', () => {
         const source = 'format: dirigent/v1\ncode: a-starter\nsteps: {}\n'
         expect(instantiate(source, 'mine')).toBe('format: dirigent/v1\ncode: mine\nsteps: {}\n')
+    })
+
+    it('turns a carried connection into one the copy requires', () => {
+        const copied = instantiate(CARRYING, 'mine')
+        expect(copied).not.toContain('connections:\n  echo:')
+        expect(copied).toContain('requires:\n  connections:\n    - echo\n')
+        expect(copied).not.toContain('# Carried so the document runs alone.')
+        expect(copied).toContain('# A comment that belongs to the steps.\nsteps:')
+        expect(copied).toContain('      connection: echo')
+    })
+
+    it('extends a requires that is there rather than writing a second one', () => {
+        const copied = instantiate(REQUIRING, 'mine')
+        expect(copied).toContain('  connections:\n    - named\n    - echo\n')
+        expect(copied).toContain('  schemas:\n    - reading\n')
+        expect(copied.split('requires:').length - 1).toBe(1)
+        expect(copied).not.toContain('\nconnections:')
+        expect(copied).not.toContain('\nschemas:')
+    })
+
+    it('extends a flow list under requires in place', () => {
+        const source = REQUIRING.replace('  connections:\n    - named\n', '  connections: [named]\n')
+        expect(instantiate(source, 'mine')).toContain('  connections: [named, echo]')
+    })
+
+    it('copies a document that carries nothing as it stands', () => {
+        expect(instantiate(FLOW, 'mine')).toBe(
+            FLOW.replace('code: a-starter', 'code: mine').replace(
+                '[open-data, http, starter]',
+                '[open-data, http]',
+            ),
+        )
     })
 })

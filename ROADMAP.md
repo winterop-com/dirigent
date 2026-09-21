@@ -346,8 +346,3 @@ requires touching the engine. None is near-term.
   tooltip trigger (28px) and the `API` chip (24px) do not. Widening the rule to links and every
   trigger is the change, and it needs the same live review in both palettes.
 
-- **A pack's examples carry their demo connection, so none of them is a starter.** The dhis2
-  pack's shelves carry a connection by convention, so `dg run --local` works standalone, and
-  its check insists on it; its starters are therefore twins on a `starters/` shelf that name
-  the connection under `requires` instead. One rule for both, carrying for local runs and
-  requiring for copies, would remove the duplication.

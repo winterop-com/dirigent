@@ -2873,8 +2873,9 @@ def pipeline_new(
 ) -> None:
     """Copy a starter into this project as a pipeline of its own.
 
-    The copy is the starter's text verbatim, with the top-level `code:` rewritten and the
-    `starter` tag dropped, so every teaching comment in it survives. What it needs from the
+    The copy is the starter's text verbatim, with the top-level `code:` rewritten, the
+    `starter` tag dropped, and the connections and schemas the original carried named under
+    `requires:` instead, so every teaching comment in it survives. What it needs from the
     instance is the copy's own `requires`, which this prints as the list to work through.
     """
     entry = _example(state_of(ctx), starter, local=local)
@@ -2902,5 +2903,5 @@ def pipeline_new(
         code=new_code,
         starter=entry.code,
         requires=copied.model_dump(mode="json"),
-        preflight=starters.preflight(copied),
+        preflight=starters.preflight(copied, starters.carried_kinds(entry.source)),
     )
