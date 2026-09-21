@@ -86,7 +86,8 @@ def test_a_backfill_answer_counts_the_runs_it_actually_created() -> None:
     assert accepted.created == 1
 
 
-def test_an_attempt_on_the_wire_carries_neither_of_the_engines_bookmarks() -> None:
-    """A handle and a cursor are the engine's own resumption state, not a reader's."""
+def test_an_attempt_on_the_wire_carries_none_of_the_engines_bookmarks() -> None:
+    """A handle, a cursor and a fetched payload are the engine's resumption state, not a reader's."""
     assert "remote_handle" not in AttemptOut.model_fields
     assert "poke_cursor" not in AttemptOut.model_fields
+    assert "fetched_output" not in AttemptOut.model_fields

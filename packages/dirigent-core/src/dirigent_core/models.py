@@ -288,6 +288,10 @@ class StepAttempt(Entity):
 
     remote_handle: Mapped[JsonMap | None] = mapped_column(JsonDocument)
 
+    fetched_output: Mapped[JsonMap | None] = mapped_column(JsonDocument)
+    """The result a fetch returned, committed before the outcome so a worker that dies
+    between the two settles from it rather than fetching again."""
+
     poke_cursor: Mapped[JsonMap | None] = mapped_column(JsonDocument)
     """How far a sensor's poke has read, handed to the next poke as ``ctx.cursor``."""
 

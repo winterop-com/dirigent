@@ -1,9 +1,10 @@
 """The engine proper: claim, call one block, record the outcome, ready the dependents.
 
 Two invariants carry everything here. One transaction per state transition, so there is no
-window in which a step is finished but its dependents have not been told. And a remote
-handle is committed on its own the moment ``execute`` returns it, so submit-then-crash
-recovers into polling rather than into a duplicate job.
+window in which a step is finished but its dependents have not been told. And what a remote
+call hands back is committed on its own the moment it arrives -- the handle ``execute``
+returns, and the result ``fetch`` returns -- so a crash recovers into polling or settling
+rather than into a duplicate job or a second fetch.
 """
 
 import asyncio
@@ -97,6 +98,8 @@ class Produced(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     output: JsonMap
+    fetched: bool = False
+    """True when a fetch returned this output and nothing has committed it yet."""
 
 
 class Submitted(BaseModel):
@@ -320,6 +323,7 @@ class Engine:
             schemas=await load_schemas(session),
             traceparent=run.traceparent,
             remote_handle=RemoteHandle.model_validate(attempt.remote_handle) if attempt.remote_handle else None,
+            fetched_output=attempt.fetched_output,
             poke_cursor=attempt.poke_cursor,
             deadline_at=attempt.deadline_at,
             gone_probes=attempt.gone_probes,
@@ -376,6 +380,8 @@ class Engine:
                 telemetry.record_failure(span, result.failure.message)
             if isinstance(result, Submitted):
                 await self.record_handle(unit, result.handle)
+            if isinstance(result, Produced) and result.fetched:
+                await self._record_fetched(unit, result.output)
             await self._record(
                 unit,
                 result,
@@ -440,6 +446,8 @@ class Engine:
         unit: ClaimedUnit,
     ) -> CallResult:
         """Drive an operator's half of the contract: execute once, then probe and fetch."""
+        if unit.fetched_output is not None:
+            return Produced(output=unit.fetched_output)
         if not unit.is_probe or unit.remote_handle is None:
             with self._timed(unit.block_id, "execute"):
                 produced = await operator.execute(config, context)
@@ -460,8 +468,8 @@ class Engine:
                 )
             case ProbeStatus.SUCCEEDED:
                 with self._timed(unit.block_id, "fetch"):
-                    fetched = await operator.fetch(handle, config, context)
-                return Produced(output=fetched.model_dump(mode="json"))
+                    retrieved = await operator.fetch(handle, config, context)
+                return Produced(output=retrieved.model_dump(mode="json"), fetched=True)
             case ProbeStatus.FAILED:
                 failed = (
                     Failure.unknown(REMOTE_JOB_SAID, detail=probe.message)
@@ -531,6 +539,24 @@ class Engine:
                 self._log_lost_lease(unit, attempt, "remote handle")
                 return
             attempt.remote_handle = handle.model_dump(mode="json")
+
+    async def _record_fetched(self, unit: ClaimedUnit, output: JsonMap) -> None:
+        """Commit a fetched result on its own, before the outcome that settles it."""
+        await with_deadlock_retry(lambda: self._record_fetched_once(unit, output))
+
+    async def _record_fetched_once(self, unit: ClaimedUnit, output: JsonMap) -> None:
+        """Run that transaction once; the caller runs it again after a deadlock.
+
+        It locks the run and then writes the attempt, the order every outcome uses and the
+        opposite of the claim's. Nothing of it survives a rollback, so it is safe to repeat.
+        """
+        async with session_scope(self.sessions) as session:
+            await lock_run(session, unit.run_id)
+            attempt = await session.get(StepAttempt, unit.attempt_id)
+            if attempt is None or not self._holds_lease(unit, attempt):
+                self._log_lost_lease(unit, attempt, "fetched result")
+                return
+            attempt.fetched_output = output
 
     async def _cancel_what_was_just_submitted(
         self,
@@ -746,6 +772,7 @@ class Engine:
         )
         attempt.status = AttemptStatus.SUCCEEDED
         attempt.finished_at = now
+        attempt.fetched_output = None
         attempt.error = None
         attempt.error_code = None
         attempt.error_params = None
