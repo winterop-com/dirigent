@@ -337,11 +337,3 @@ requires touching the engine. None is near-term.
   moves to a warehouse by changing the connection. Where an engine has a bulk path the family
   lacks, such as ClickHouse's insert of a parquet artifact, that is one more verb on the same
   blocks. None of this is near-term.
-
-## Known debt
-
-- **Some phone controls still sit under the finger rule.** The 42px minimum reaches the
-  primitives that carry a `data-slot`; a drawer link (a plain anchor, 36px), a dropdown or
-  tooltip trigger (28px) and the `API` chip (24px) do not. Widening the rule to links and every
-  trigger is the change, and it needs the same live review in both palettes.
-

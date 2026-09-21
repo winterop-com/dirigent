@@ -360,6 +360,7 @@ function StepMenuAt({
             <DropdownMenuTrigger
                 aria-label={step}
                 tabIndex={-1}
+                data-menu-anchor
                 className="pointer-events-none fixed size-0"
                 style={{ left: at.x, top: at.y }}
             />

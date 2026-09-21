@@ -221,7 +221,7 @@ export function RailEntry({ entry, collapsed }: { entry: NavEntry; collapsed: bo
             aria-label={entry.label}
             className={({ isActive }) =>
                 cn(
-                    'flex items-center gap-3 rounded-l-sm rounded-r-md border-l-2 px-3 py-2 text-sm transition-colors',
+                    'control-link flex items-center gap-3 rounded-l-sm rounded-r-md border-l-2 px-3 py-2 text-sm transition-colors',
                     collapsed && 'mx-auto size-9 justify-center rounded-md border-l-0 p-0',
                     isActive
                         ? 'border-sidebar-primary bg-sidebar-accent font-medium text-sidebar-accent-foreground'

@@ -106,7 +106,9 @@ export function SettingsDialog({
                                             type="button"
                                             aria-current={category.id === active}
                                             className={cn(
-                                                'block w-full rounded-md px-2 py-1 text-left text-sm',
+                                                // A category is a destination inside the sheet,
+                                                // and takes the row a drawer entry takes.
+                                                'flex min-h-finger w-full items-center rounded-md px-2 py-1 text-left text-sm md:min-h-0',
                                                 category.id === active
                                                     ? 'bg-primary/15 font-medium text-foreground'
                                                     : 'text-muted-foreground hover:bg-accent',

@@ -115,7 +115,7 @@ export function NavDrawer({
                     <NavLink
                         to={DASHBOARD_PATH}
                         aria-label="dirigent"
-                        className="flex items-center gap-2 rounded-md focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                        className="control-link flex items-center gap-2 rounded-md focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
                     >
                         <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
                             <Waypoints className="size-4" aria-hidden />
