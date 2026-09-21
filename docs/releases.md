@@ -16,6 +16,47 @@ tag is what publishes: `.github/workflows/release.yaml` builds every package and
 to PyPI through trusted publishing, then builds the image from that commit and pushes it as
 `<version>` and `latest`. The two sibling repositories then relock against the tag and bump.
 
+## 0.18.0
+
+Released 2026-09-22. Every package in the workspace moves to 0.18.0 together, and so do
+`dirigent-dhis2` and `dirigent-integration`.
+
+This is the base release. 0.17.0 to 0.17.2 carried one change spread over three tags, because
+PyPI lets three new projects wait at a time: the built-in pack became nine `dirigent-block-*`
+packages and they reached PyPI three per release. 0.18.0 is the first version since with every
+package published at one number and nothing in flight. Start here: `uv tool install
+dirigent-cli`, or the image at `ghcr.io/winterop-com/dirigent:0.18.0`.
+
+- **`${artifacts}` names the instance's durable storage root.** A document had one storage
+  anchor, `${run.scratch}`, and retention sweeps it with the run. `${artifacts}/<path>` is the
+  other: kept until somebody deletes it, whatever scheme serves the root, so a document that
+  keeps something carries a location that works on any instance. The recipe
+  `storage-keep-past-the-run` writes once to each anchor so the difference shows in one run.
+- **A lost artifact object refuses by name.** A database restored without its artifact store
+  has rows naming objects that are gone. Every read path now answers
+  `artifacts.object_missing` with the URI, the run and the attempt, and the remedy, instead of
+  an empty body or a stack trace. The backup section of the operations guide is a procedure
+  for both halves: the dump, the artifact copy, the order, the restore, and what to do when the
+  two disagree.
+- **`log_format` is a setting.** `DIRIGENT_LOG_FORMAT` is the environment spelling of a
+  setting that a project's `.env` and `dirigent.yaml` also carry; the output decision reads
+  it through the same layers as every other setting. Flags win over the setting, the setting
+  wins over the terminal, and the default is unset so the terminal decides.
+- **The finger rule reaches every control a phone shows.** Below the breakpoint the 42px
+  minimum reached the primitives and nothing else: filters, the instance menu, the drawer's
+  entries and the `API` chip stood at 24 to 36px. It now reaches every trigger and every link
+  drawn as a control, and the UI conventions say what it does not reach.
+- **A docker connection speaks the schemes the worker speaks.** `tcp://` with TLS and
+  `unix://`. An `ssh://` host was accepted and then silently ran containers on the worker's own
+  daemon; it is refused now, at the connection and in a worker's `DOCKER_HOST` alike, with
+  `execute.not_a_daemon_scheme`.
+- **The scaffolded workflow is `dirigent.yaml`.** `dg init --workflow` wrote `.yml`; YAML files
+  dirigent owns end in `.yaml`. `dg runs list --limit` says its default in its help.
+- **The documentation reads true.** Every page was read against the code it describes and
+  fixed where it was stale or oddly put: package names, install lines, command spellings, the
+  problem document's shape, the reference grammar, the hello-world start off a PyPI install.
+  The block reference names every field. A broken anchor fails the strict docs build.
+
 ## 0.17.3
 
 Released 2026-09-21. Every package in the workspace moves to 0.17.3 together.
