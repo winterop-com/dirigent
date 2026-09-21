@@ -6,6 +6,13 @@ STORAGE = Catalogue("storage")
 
 NOTHING_THERE = STORAGE.define("nothing_there", "there is nothing at {source}")
 
+NOTHING_IN_SCRATCH = STORAGE.define(
+    "nothing_in_scratch",
+    "there is nothing at {source}, which is under this run's own scratch prefix: either no "
+    "step wrote it, or the artifact root was not restored beside the database that names it; "
+    "restore the artifact root, or run the pipeline again from its inputs",
+)
+
 TOO_LARGE = STORAGE.define(
     "too_large",
     "{source} is larger than max_size ({maximum} bytes); raise max_size, "

@@ -1,10 +1,12 @@
-import { describe, expect, test } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vitest'
 
+import { ApiError, forgetConfig } from '@/lib/api'
 import {
     artifactPath,
     artifactUrl,
     artifactsPath,
     MARKDOWN_CONTENT_TYPE,
+    readReportDocument,
     reportArtifact,
     type ArtifactOut,
 } from '@/lib/artifacts'
@@ -61,5 +63,51 @@ describe('artifactsPath', () => {
 
     test('a following page carries the cursor it continues from', () => {
         expect(artifactsPath('run-1', 'cursor-2', 50)).toBe('/runs/run-1/artifacts?limit=50&after=cursor-2')
+    })
+})
+
+/** One canned answer, in the shape `fetch` hands back for a body read either way. */
+function answer(status: number, body: unknown): Response {
+    return {
+        ok: status < 400,
+        status,
+        json: () => Promise.resolve(body),
+        text: () => Promise.resolve(JSON.stringify(body)),
+    } as unknown as Response
+}
+
+/** The refusal an artifact read answers with when the object its row names is not in storage. */
+const OBJECT_MISSING = {
+    status: 404,
+    title: 'Not Found',
+    detail:
+        'there is nothing at file:///artifacts/runs/r/report.md: run r (attempt -) has an artifact ' +
+        'row and storage has no object; restore the artifact root from the backup that matches ' +
+        'this database, or prune the run',
+    code: 'artifacts.object_missing',
+    params: { uri: 'file:///artifacts/runs/r/report.md', run: 'r', attempt: '-' },
+    problems: [],
+}
+
+describe('readReportDocument', () => {
+    afterEach(() => {
+        vi.unstubAllGlobals()
+        forgetConfig()
+    })
+
+    test('a document whose object is gone reaches the screen as the refusal it is', async () => {
+        const report = artifact({ step_name: null, content_type: MARKDOWN_CONTENT_TYPE })
+        vi.stubGlobal('fetch', (url: string) => {
+            if (url === '/config.json')
+                return Promise.resolve(answer(200, { api_prefix: '/api/v1', version: '0' }))
+            if (url.includes('/runs/')) return Promise.resolve(answer(200, { items: [report], next: null }))
+            return Promise.resolve(answer(404, OBJECT_MISSING))
+        })
+
+        const refused = await readReportDocument('r').catch((error: unknown) => error)
+
+        expect(refused).toBeInstanceOf(ApiError)
+        expect((refused as ApiError).problem.code).toBe('artifacts.object_missing')
+        expect((refused as ApiError).problem.detail).toContain('restore the artifact root')
     })
 })

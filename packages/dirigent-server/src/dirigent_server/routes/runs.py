@@ -30,7 +30,7 @@ from dirigent_client.schemas import (
 )
 from dirigent_common.durations import DurationError, parse_duration
 from dirigent_core import telemetry
-from dirigent_core.artifacts import JSON_CONTENT_TYPE, TEXT_KEY, canonical_json
+from dirigent_core.artifacts import JSON_CONTENT_TYPE, TEXT_KEY, canonical_json, open_artifact
 from dirigent_core.database import session_scope
 from dirigent_core.engine.definition import PipelineDefinition, load_definition
 from dirigent_core.engine.runs import cancel_run, retry_step
@@ -353,7 +353,7 @@ async def read_artifact(
     if reference.uri is None:
         raise Refusal(ARTIFACT_EMPTY, status=status.HTTP_404_NOT_FOUND, artifact_id=artifact_id)
     storage = await services.bound_storage(session)
-    return StreamingResponse(storage.open_read(reference.uri), media_type=content_type)
+    return StreamingResponse(await open_artifact(storage, reference), media_type=content_type)
 
 
 async def _spilled(

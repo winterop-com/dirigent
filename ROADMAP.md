@@ -145,12 +145,6 @@ stays clean, and every example stays executable.
 
 ## Wanted
 
-- **Restoring both halves of the state.** The database is the system of record, but artifact
-  bytes are not in it, so a restore from `pg_dump` alone leaves artifact references pointing
-  at objects that are gone. The backup section says the database is complete "except artifact
-  bytes"; that caveat deserves a procedure. Wanted: what to back up for each storage backend,
-  a restore sequence covering both halves, and what to expect when they disagree -- a run
-  whose artifacts are missing should fail readably rather than confusingly.
 - **Importance, which is not urgency.** A pipeline can matter enormously and still be content
   to run at three in the morning behind everything else. Priority answers when work is
   claimed; nothing today says how much a pipeline MATTERS, and the two must not be the same

@@ -692,28 +692,115 @@ There is no supported migration path from a SQLite instance to a PostgreSQL one.
 
 **The database is the system of record.** Definitions, every version of them, all run history,
 connections and their sealed secrets, tokens, schedules, webhooks, and log entries are all
-rows. A consistent dump of the PostgreSQL database is a complete backup of everything except
-artifact bytes.
+rows. What a dump of it does not hold is the artifact bytes those rows name, so the state is
+two halves: back them up together, restore them together, and know what each one alone leaves.
+
+**`DIRIGENT_SECRET_KEY` is neither half.** Back it up somewhere that is *not* beside the
+database dump. A backup containing both the sealed envelopes and the key that opens them is
+not an encrypted backup. Without the key, a restored database has connections whose secrets
+can never be read, and there is no way to recover them other than re-entering the credentials.
+
+### Backing up the database
+
+One database, one dump. Everything is in the database `DIRIGENT_DATABASE_URL` names -- no
+second schema, no side store:
 
 ```bash
 pg_dump --format=custom dirigent > dirigent.dump
 ```
 
-**Two things live outside it.**
+On the compose stack that is the `postgres` service, whose files live on the named `postgres`
+volume:
 
-- **`DIRIGENT_SECRET_KEY`.** Back it up somewhere that is *not* beside the database dump. A
-  backup containing both the sealed envelopes and the key that opens them is not an encrypted
-  backup. Without the key, a restored database has connections whose secrets can never be
-  read, and there is no way to recover them other than re-entering the credentials.
-- **The artifact store.** Whatever `DIRIGENT_ARTIFACT_ROOT` points at: a directory for
-  `file://`, a bucket for `s3://`. It holds each run's scratch prefix
-  (`<artifact-root>/runs/<run-id>/...`) and any step output too large to inline. Back it up
-  with the tool that fits the backend -- a filesystem snapshot, or the object store's own
-  versioning and replication.
+```bash
+docker compose exec -T postgres pg_dump -U dirigent --format=custom dirigent > dirigent.dump
+```
 
-**Restore** is the database, then the artifact store, then the key in the environment. Bring
-the schema to head with `dg db upgrade` before starting the server, in case the backup predates
-the running version.
+A snapshot of the volume is a copy of the files rather than of the database, and is consistent
+only with the service stopped. `pg_dump` needs no downtime, which is what makes it the nightly
+job.
+
+**Take the database dump first, and copy the artifacts after it.** The two halves are copied at
+different moments whatever the order, so choose which disagreement the pair is left with. A
+dump older than the artifact copy leaves objects no row names, which cost storage and nothing
+else. A dump newer than it leaves rows naming objects that are gone, which is the half of the
+state a reader actually hits.
+
+### Backing up the artifact store
+
+Whatever `DIRIGENT_ARTIFACT_ROOT` points at, and all of it: the root holds one prefix per run
+(`<artifact root>/runs/<run id>/...`), carrying every step output too large to inline, every
+captured stream, and the run's report document. An artifact row names its object by absolute
+URI, so a backup that covers part of the tree restores part of the history.
+
+- **`file://` is a directory.** The default is `./.dirigent/state/artifacts`. Copy the whole
+  tree with the workers stopped, or take a filesystem snapshot (LVM, ZFS, a cloud disk
+  snapshot) and copy that. A live copy is not worthless -- the backend stages every write
+  beside its target and renames it on close, so a file caught mid-write is a `.partial` file
+  and never a truncated artifact -- but only a snapshot or a stopped worker gives you a tree
+  that agrees with itself.
+- **`s3://` is a bucket and a prefix.** Back it up with the store's own machinery rather than
+  by copying it out: turn on **bucket versioning**, so an overwrite or a delete is recoverable
+  in place, and add a **replication rule to a second bucket**, so there is a copy somewhere the
+  first bucket's credentials cannot reach. That second bucket is also where the nightly
+  `pg_dump` belongs: both halves, one place, one age. Without replication, `aws s3 sync` or
+  `mc mirror` on the same schedule as the dump is the same idea done by hand.
+
+### Restoring both halves
+
+1. **The key, in the environment.** `DIRIGENT_SECRET_KEY` must be the one that sealed the
+   connections in the dump.
+2. **The database.** `pg_restore -d dirigent dirigent.dump` into an empty database, or
+   `pg_restore --clean --if-exists -d dirigent dirigent.dump` over the one that is there.
+3. **The artifact store, at the address the rows name.** An artifact row carries an absolute
+   URI -- `file:///srv/dirigent/artifacts/runs/...`, `s3://dirigent/artifacts/runs/...` -- so
+   the bytes go back to the same directory, or the same bucket and prefix.
+   `DIRIGENT_ARTIFACT_ROOT` says where *new* artifacts are written; it does not redirect the
+   ones already recorded, and a `file://` root pointed somewhere else refuses every older row
+   as `artifacts.outside_root` rather than reading the wrong place.
+4. **The schema, then the proof.** `dg db upgrade` in case the dump predates the running
+   version, `dg db current` for the revision the database is now at, and
+   `dg system health database` for the one line that says it answers *and* holds the schema
+   this code expects.
+5. **The server, then the workers.** Nothing resumes until a worker claims work, so the server
+   goes first: the run list and the event stream are then already there to watch what the
+   workers pick up.
+
+### When the two disagree
+
+**A database newer than its artifacts** -- the state a restore from `pg_dump` alone leaves --
+has rows naming objects that are not there. Every read of one refuses and names what is
+missing:
+
+- `GET /artifacts/{id}` answers **404** with `artifacts.object_missing`, carrying the URI, the
+  run and the attempt. Everything reading an artifact reads it through there: the run screen's
+  Report tab draws that sentence where the document would be, the Output tab's download link
+  answers the problem document, and `dg runs report --markdown` writes it as an `error` record.
+- A step reading an earlier step's output through `storage.read` or `storage.copy` fails the
+  attempt with `storage.nothing_in_scratch`, rejected rather than retried, because no retry
+  will put the object back.
+
+Both name the same two ways out: restore the artifact root from the backup that matches this
+database, or [prune](#pruning-by-hand) the runs whose bytes are gone with
+`dg prune --runs <age>`, which keeps the history from that age on.
+
+No health check will say it first. Readiness asks the database, and nothing probes the artifact
+root, so a restored instance reads as healthy until something reads an artifact.
+
+**Artifacts newer than the database** -- the state the recommended order leaves -- has objects
+no row names. Nothing reads them, and retention never sweeps them: the sweep deletes a run's
+scratch prefix by walking the run's row, and a prefix with no row is never visited. They cost
+storage and nothing else, and a prefix listing against the run ids finds them:
+
+```bash
+docker compose exec -T postgres psql -U dirigent -Atd dirigent -c 'select id from runs' | sort > runs.txt
+mc ls <alias>/<bucket>/artifacts/runs/ | awk '{print $NF}' | tr -d / | sort > prefixes.txt
+comm -13 runs.txt prefixes.txt
+```
+
+For a `file://` root, `ls <artifact root>/runs | sort > prefixes.txt` is the second line. Read
+what comes out before deleting it: a run still in flight when the dump was taken is on that
+list too, and its prefix is the only copy of what it had written.
 
 **A note on what a restore means for in-flight work.** Because there is no in-memory scheduler
 state anywhere, a restored database resumes: attempts that were `queued` are claimed again,

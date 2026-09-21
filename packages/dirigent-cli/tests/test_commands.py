@@ -1545,8 +1545,12 @@ def test_every_single_read_answers_with_a_record_naming_its_kind(tmp_path: Path,
             assert record.get("kind"), f"{argv} wrote a record with no kind: {record}"
 
 
-def _write_report(tmp_path: Path, run_id: str, text: str) -> None:
-    """Store one report document for a run, the way the engine's settlement does."""
+def _write_report(tmp_path: Path, run_id: str, text: str, *, uri: str | None = None) -> None:
+    """Store one report document for a run, the way the engine's settlement does.
+
+    A ``uri`` stores the row the way a document too large to inline is stored, whether or not
+    anything was written there.
+    """
     from uuid import UUID
 
     import sqlalchemy as sa
@@ -1565,7 +1569,9 @@ def _write_report(tmp_path: Path, run_id: str, text: str) -> None:
                         run_id=UUID(run_id),
                         content_type="text/markdown",
                         size_bytes=len(text.encode()),
-                        inline_value={"text": text},
+                        inline_value=None if uri else {"text": text},
+                        uri=uri,
+                        scheme="file" if uri else None,
                     )
                 )
         finally:
@@ -1587,6 +1593,24 @@ def test_a_runs_report_document_is_written_as_the_markdown_it_is(tmp_path: Path,
     rendered = invoke("runs", "report", run_id, "--markdown")
     assert rendered.exit_code == 0
     assert rendered.output == "# cli-demo run succeeded\n"
+
+
+def test_a_report_document_whose_object_is_gone_is_written_as_an_error_record(tmp_path: Path, server: str) -> None:
+    """A database restored without its artifact root refuses the read and names the remedy."""
+    apply_document(tmp_path)
+    assert invoke("run", "cli-demo").exit_code == 0
+    run_id = latest_run()
+    lost = tmp_path / "artifacts" / "runs" / run_id / "report.md"
+    _write_report(tmp_path, run_id, "# never restored\n", uri=f"file://{lost}")
+
+    result = machine("runs", "report", run_id, "--markdown")
+
+    assert result.exit_code == 1
+    written = refusal(result.stdout)
+    assert written["code"] == "artifacts.object_missing"
+    assert written["params"]["uri"] == f"file://{lost}"
+    assert written["params"]["run"] == run_id
+    assert "restore the artifact root" in written["message"]
 
 
 def test_a_run_that_rendered_no_document_says_how_to_ask_for_one(tmp_path: Path, server: str) -> None:

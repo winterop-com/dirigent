@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field, JsonValue, model_validator
 from dirigent_block_storage.messages import (
     NOT_JSON,
     NOT_UTF8,
+    NOTHING_IN_SCRATCH,
     NOTHING_THERE,
     TOO_LARGE,
     UNREADABLE_AS_A_VALUE,
@@ -50,6 +51,17 @@ OCTET_STREAM = "application/octet-stream"
 TEXT_TYPES = ("application/x-ndjson", "application/yaml", "application/xml")
 
 
+def _nothing_there(source: str, ctx: StepContext) -> BlockFailure:
+    """The refusal of a source no object answers at, told apart by where the source is.
+
+    A URI under the run's scratch is one the engine wrote and a row of this run names, so its
+    absence is a half-restored instance or a step that never ran. A URI anywhere else is one
+    the pipeline named, and nothing but the pipeline knows what should be there.
+    """
+    message = NOTHING_IN_SCRATCH if source.startswith(ctx.scratch.rstrip("/")) else NOTHING_THERE
+    return BlockFailure(message, error_class=ErrorClass.REJECTED, source=source)
+
+
 class StorageCopyConfig(BlockModel):
     """Which object to move, and where to put it."""
 
@@ -76,7 +88,7 @@ class StorageCopyOperator(Operator[StorageCopyConfig, StorageCopyOutput]):
         """Copy source to target through the storage facade, refusing a missing source."""
         found = await ctx.storage.stat(config.source)
         if found is None:
-            raise BlockFailure(NOTHING_THERE, error_class=ErrorClass.REJECTED, source=config.source)
+            raise _nothing_there(config.source, ctx)
         copied = 0
         async with ctx.storage.open_write(config.target, content_type=found.content_type) as sink:
             async for chunk in ctx.storage.open_read(config.source):
@@ -198,7 +210,7 @@ class StorageReadOperator(Operator[StorageReadConfig, StorageReadOutput]):
         """Resolve what the object is, read it bounded, and decode it accordingly."""
         found = await ctx.storage.stat(config.source)
         if found is None:
-            raise BlockFailure(NOTHING_THERE, error_class=ErrorClass.REJECTED, source=config.source)
+            raise _nothing_there(config.source, ctx)
         if found.size > config.max_size:
             raise _too_large(config)
         content_type = _content_type(config, found)
