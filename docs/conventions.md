@@ -143,7 +143,7 @@ drawing; the few tests that cover a rendering call the formatter directly, in
 ## Refusals carry a code
 
 Every refusal dirigent produces is a catalogued `Message`: a stable dotted code, and one
-English template with named params. Nothing raises a free string. A block raises
+English template with named params. A block raises
 `BlockFailure(MESSAGE, error_class=..., **params)`, a domain refusal is a `DomainError`
 carrying its class's message or the one that applies, the engine's own failures are
 `Failure.rejected(MESSAGE, **params)`, and the CLI refuses with `refuse(MESSAGE, **params)`.
@@ -167,6 +167,12 @@ A prefix has exactly one owner. A runtime package owns its own name (`common`, `
 `host`, `parameter`, `schema`), and a pack's prefix is its pack name -- `dhis2` for
 `dirigent-dhis2`. `dirigent-common/tests/test_messages.py` walks every catalogue the
 workspace imports and fails when a prefix is unowned or a code is minted twice.
+
+An exception a package raises for itself, and catches before it answers -- the CLI's
+`ParamError`, `SourceError` and `ProfileError`, a transform engine's `TransformError` -- is
+not a refusal until it is one. The refusal is the `refuse` or the `BlockFailure` that catches
+it, which carries the code; the sentence it caught rides along as that refusal's `detail`
+param. What must never happen is a refusal reaching a person under no code at all.
 
 Log lines are not refusals. `ctx.log.info`, a `process` record, a worker's heartbeat: those
 are events, they carry no code, and nothing here applies to them.
