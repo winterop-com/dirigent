@@ -20,10 +20,15 @@ the same way whatever is asked of them, and they are named
 ## Trying it without installing anything
 
 ```bash
-dg run --local examples/hello-world.yaml
+dg examples show hello-world --local -f hello-world.yaml
+dg run --local hello-world.yaml
 ```
 
 Installing `dg` is the first step of [getting started](getting-started.md).
+
+`dg examples show --local` reads the corpus installed beside `dg`, so the document comes from
+the install and no checkout is needed; `-` on stdin and a URL are the other two ways to hand
+`dg run --local` a document.
 
 `dg run --local` applies and runs a document in a throwaway SQLite instance in a temporary
 directory, and deletes it afterwards. No server, no Docker, no database. It is the same
@@ -191,8 +196,8 @@ under that key from its first command, with nothing to export. Give the password
 worker, and may repeat: `s3` (object storage, on unless the flag says otherwise; off means
 artifacts on a volume), `docker` (the workers' own daemon, so the `docker.*` blocks run),
 `kafka` and `rabbitmq` (a broker, with its connection bootstrapped and a `hello` topic or queue
-declared). Each service brings one example into `pipelines/` that uses it, `s3-hello`,
-`docker-hello`, `kafka-hello` or `rabbitmq-hello`, runnable the day the stack is made.
+declared). `--pipeline` names a starter to copy into `pipelines/`, and may repeat; with none
+named, `pipelines/` is created empty and `dg pipeline new` is how a document arrives later.
 `--pack` adds a published pack pinned at this version, `dirigent-dhis2` today: a line in the
 stack's `Dockerfile`, or a dependency in `pyproject.toml` for the other two templates.
 `--workflow` writes `.github/workflows/dirigent.yaml`, which applies the project on merge.
