@@ -54,9 +54,9 @@ TEXT_TYPES = ("application/x-ndjson", "application/yaml", "application/xml")
 def _nothing_there(source: str, ctx: StepContext) -> BlockFailure:
     """The refusal of a source no object answers at, told apart by where the source is.
 
-    A URI under the run's scratch is one the engine wrote and the run's own database row
-    names, so its absence is a half-restored instance as much as a step that never ran; a URI
-    anywhere else is one the pipeline named, and nothing but the pipeline knows what is there.
+    A URI under the run's scratch is one the engine wrote and a row of this run names, so its
+    absence is a half-restored instance or a step that never ran. A URI anywhere else is one
+    the pipeline named, and nothing but the pipeline knows what should be there.
     """
     message = NOTHING_IN_SCRATCH if source.startswith(ctx.scratch.rstrip("/")) else NOTHING_THERE
     return BlockFailure(message, error_class=ErrorClass.REJECTED, source=source)

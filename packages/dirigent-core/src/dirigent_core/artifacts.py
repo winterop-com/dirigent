@@ -39,7 +39,6 @@ class ObjectMissing(DomainError):
             run=str(reference.run_id),
             attempt=str(reference.step_attempt_id) if reference.step_attempt_id else NO_ATTEMPT,
         )
-        self.uri = reference.uri
 
 
 def canonical_json(value: object) -> bytes:
