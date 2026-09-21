@@ -1,6 +1,7 @@
 # dirigent
 
-**A pipeline orchestrator where pipelines are data, not Python files.**
+**A pipeline orchestrator. A pipeline is a document: an instance validates it, stores it as an
+immutable version, and runs it.**
 
 Dirigent runs directed graphs of work: fetch this, wait for that, fan out over those, and tell
 someone if it breaks. It knows nothing about any particular system -- every integration arrives
@@ -38,7 +39,7 @@ thousand rows.
   a `one_failed` edge, drawn in the graph.
 - **One database, no broker.** One transaction per state transition, so no outbox and no
   reconciliation bugs. Scaling out is more replicas pointed at the same PostgreSQL.
-- **It does not ship open.** An orchestrator is a credential vault with an execute button.
+- **It ships closed.** An orchestrator is a credential vault with an execute button.
   Authentication from the first milestone, connection secrets encrypted at rest, and blocks that
   execute code on a worker disabled unless the instance explicitly allowlists them.
 
@@ -48,7 +49,16 @@ The fastest way to see it work needs no server, no database, and no Docker:
 
 ```bash
 uv tool install dirigent-cli
-dg run --local examples/hello-world.yaml
+dg run --local - <<'YAML'
+format: dirigent/v1
+kind: pipeline
+code: hello-world
+steps:
+  greet:
+    block: value.const
+    config:
+      value: hello from dirigent
+YAML
 ```
 
 ```text
@@ -65,9 +75,10 @@ steps
 └───────┴─────────────┴───────────┴───────┴──────────┴───────────────────────────┘
 ```
 
-`--local` applies and runs the document in a throwaway SQLite instance in a temporary
-directory, with no server anywhere: the same apply, the same engine, the same worker loop,
-deleted afterwards. A local run that executed differently would prove nothing.
+`-` is the document on stdin; a path or a URL works the same way. `--local` applies and runs
+it in a throwaway SQLite instance in a temporary directory, with no server anywhere: the same
+apply, the same engine, the same worker loop, deleted afterwards. A local run that executed
+differently would prove nothing.
 
 [Getting started](getting-started.md) takes it from there -- `dg dev` for a laptop instance,
 then the three-service compose stack, an admin account, and a token.

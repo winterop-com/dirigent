@@ -15,15 +15,17 @@ and one send against a public service, end to end;
 [**the tutorial**](https://winterop-com.github.io/dirigent/tutorial/) then builds one realistic
 pipeline, breaks it on purpose, and puts it on a schedule.
 
-A generic pipeline orchestrator. Pipelines are data, composed from pluggable building blocks
-(operators, sensors, storage backends, notifiers) and executed as a DAG on a durable
-Postgres-backed engine.
+A generic pipeline orchestrator. A pipeline is a document: an instance validates it, stores it
+as an immutable version, and runs it as a DAG on a durable Postgres-backed engine. What a step
+does comes from a pluggable building block -- an operator, a sensor, a storage backend, a
+notifier.
 
 Dirigent knows nothing about any particular system. Integrations arrive as plugin packages,
 and the block catalog they contribute is what the UI renders as forms, so installing a plugin
 extends the product without a frontend release.
 
-It borrows the best noun from Airflow and rejects its authoring model:
+It borrows the best noun from Airflow, and keeps the definition in a document the instance
+stores:
 
 - **Operators do work.** Call an HTTP API, run a transform, copy between storage backends,
   submit a remote job. An operator either finishes synchronously with an output, or returns a
@@ -31,7 +33,8 @@ It borrows the best noun from Airflow and rejects its authoring model:
 - **Sensors wait for the world.** A file appearing at a URI, an endpoint reporting ready, a
   time window opening. Sensors never block a worker: each poke is a scheduled, durable poll.
 - **Pipelines compose blocks into a DAG**, stored as data and validated against the blocks'
-  published schemas. No Python files to deploy, no drift between "the code" and "what runs".
+  published schemas. The document in git is the version the instance holds and the engine
+  executes, so what a reader reviews is what runs.
 
 The async submit-then-probe pattern is the engine's core primitive, not an integration
 detail, because nearly every interesting external system works that way: publish a job, then
@@ -44,12 +47,22 @@ The fastest way to see it work needs no server, no database, and no Docker:
 
 ```bash
 uv tool install dirigent-cli
-dg run --local examples/hello-world.yaml
+dg run --local - <<'YAML'
+format: dirigent/v1
+kind: pipeline
+code: hello-world
+steps:
+  greet:
+    block: value.const
+    config:
+      value: hello from dirigent
+YAML
 ```
 
-That applies the document and runs it in a throwaway SQLite instance in a temporary
-directory, streams what each step does, and deletes the database afterwards. It is the same
-apply, the same engine, and the same worker loop a real instance uses.
+`-` is the document on stdin; a path or a URL works the same way. That applies the document and
+runs it in a throwaway SQLite instance in a temporary directory, streams what each step does,
+and deletes the database afterwards. It is the same apply, the same engine, and the same worker
+loop a real instance uses.
 
 Then the real loop, in one process on one SQLite file:
 
