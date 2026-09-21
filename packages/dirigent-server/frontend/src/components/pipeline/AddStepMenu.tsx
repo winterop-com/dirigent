@@ -115,6 +115,7 @@ export function AddStepMenuAt({
             <DropdownMenuTrigger
                 aria-label={ADD_STEP_LABEL}
                 tabIndex={-1}
+                data-menu-anchor
                 className="pointer-events-none fixed size-0"
                 style={{ left: at.x, top: at.y }}
             />

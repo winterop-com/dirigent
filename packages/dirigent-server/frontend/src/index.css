@@ -1430,23 +1430,47 @@ html.dark[data-theme='contrast'],
    --------------------------------------------------------------------------- */
 @media (max-width: 767px) {
     /* `dialog-close` is here because a dialog's Cancel and its corner X are `Button`s that
-       `DialogClose` renders, and the wrapper's slot is the one that reaches the element. */
+       `DialogClose` renders, and the wrapper's slot is the one that reaches the element.
+
+       A TRIGGER CARRIES THE TRIGGER'S SLOT AND NOT THE BUTTON'S. A menu or a tooltip rendered
+       through a `Button` overwrites `data-slot`, so a rule naming the button alone reaches
+       neither the listings' filters, nor the instance menu, nor the palette button.
+
+       `control-link` IS A LINK DRAWN AS A CONTROL -- a drawer entry, a chip on a header strip,
+       a row that navigates. An anchor carries no slot, and a finger does not know an anchor
+       from a button.
+
+       `data-menu-anchor` IS NOT A CONTROL AT ALL. A menu opened at a point -- the canvas's
+       right-click menus -- anchors a zero-sized trigger under the cursor, and a finger never
+       lands on it because nothing draws it. */
     [data-slot='button'],
     [data-slot='dialog-close'],
     [data-slot='tabs-trigger'],
     [data-slot='select-trigger'],
+    [data-slot='dropdown-menu-trigger']:not([data-menu-anchor]),
+    [data-slot='tooltip-trigger'],
     [data-slot='input'],
+    [data-slot='command-input'],
     [data-slot='dropdown-menu-item'],
     [data-slot='dropdown-menu-radio-item'],
     [data-slot='dropdown-menu-checkbox-item'],
     [data-slot='command-item'],
-    [data-slot='combobox-item'] {
+    [data-slot='combobox-item'],
+    .control-link {
         min-height: var(--spacing-finger);
     }
     /* A square control stays square: a 42px tall icon button 28px wide is a target on one
        axis only. */
     [data-slot='button'],
-    [data-slot='dialog-close'] {
+    [data-slot='dialog-close'],
+    [data-slot='dropdown-menu-trigger']:not([data-menu-anchor]),
+    [data-slot='tooltip-trigger'] {
+        min-inline-size: var(--spacing-finger);
+    }
+    /* The canvas's cluster is the graph library's button rather than one of ours, and a zoom
+       step is pressed with a thumb like everything else. */
+    .react-flow.dg-graph .react-flow__controls-button {
+        min-height: var(--spacing-finger);
         min-inline-size: var(--spacing-finger);
     }
 }

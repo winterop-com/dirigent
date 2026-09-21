@@ -90,7 +90,7 @@ export function HealthPanel({ rows, note, reading }: { rows: HealthRow[]; note: 
                                 ) : (
                                     <Link
                                         to={to}
-                                        className="flex items-center gap-3 px-3 py-1.5 hover:bg-accent/60"
+                                        className="control-link flex items-center gap-3 px-3 py-1.5 hover:bg-accent/60"
                                     >
                                         {body}
                                     </Link>

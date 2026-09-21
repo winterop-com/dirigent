@@ -128,6 +128,27 @@ test('what a finger lands on is at least 42px tall', async ({ page }) => {
     for (const tab of await tabs.all()) {
         expect((await tab.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(FINGER)
     }
+
+    // A LINK DRAWN AS A CONTROL IS A CONTROL. The drawer's entries are anchors and the `API`
+    // chip is one, so neither carries a primitive's slot to take the minimum from.
+    await page.goto('/pipelines')
+    await page.getByRole('button', { name: 'Open navigation' }).click()
+    const drawer = page.locator('[data-nav-drawer]')
+    await expect(drawer.getByRole('link', { name: 'Runs' })).toBeVisible()
+    for (const entry of await drawer.getByRole('link').all()) {
+        expect((await entry.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(FINGER)
+    }
+    await page.keyboard.press('Escape')
+
+    // A TRIGGER CARRIES THE TRIGGER'S SLOT IN PLACE OF THE BUTTON'S, which is how a listing's
+    // filters stayed 28px while every other control grew.
+    const filter = page.getByRole('button', { name: 'Filter by tag' })
+    await expect(filter).toBeVisible()
+    expect((await filter.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(FINGER)
+
+    const api = page.getByRole('link', { name: 'API' })
+    await expect(api).toBeVisible()
+    expect((await api.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(FINGER)
 })
 
 test('a dialog fills the screen, with its verbs at the foot', async ({ page }) => {

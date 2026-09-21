@@ -850,11 +850,23 @@ small screen" where the verbs were, and carries the document's identity and noth
 version it is at is along the foot already, and a fact appears once on a screen. A graph is still
 read, a step is still chosen, and a run is still watched.
 
-**Every control a finger lands on is at least 42px tall.** The height is one token,
-`--spacing-finger`, and below the breakpoint every control takes its minimum from it: as a
-variant on the shared control classes in `index.css` against the generated primitives' slots,
-and as `h-finger` or `min-h-finger` where a component draws a control of its own. No screen
-sizes a control for a phone itself.
+**Every control a finger lands on is at least 42px tall, whatever element it is made of.**
+The height is one token, `--spacing-finger`, and below the breakpoint every control takes its
+minimum from it: in `index.css` against the generated primitives' slots, against every trigger
+-- a menu's and a tooltip's carry the trigger's slot in place of the button's, so naming the
+button alone misses every filter, the instance menu and the palette button -- and against
+`control-link`, which is what a link drawn as a control wears: a drawer entry, a chip on a
+header strip, a row that navigates. The canvas's zoom cluster is sized there as well, being
+the graph library's button rather than one of ours. Where a component draws a control of its
+own it is `h-finger` or `min-h-finger`. A control drawn as a square takes the width too,
+because a 42px tall target 28px wide is a target on one axis only. No screen sizes a control
+for a phone itself.
+
+**Text inside content is not a control.** A card's title link, a timestamp, the link in a
+heading and a tag chip a row wears are the row's words rather than something drawn to be
+pressed; they keep the size the type scale gives them, and the row holding them is what the
+finger has -- which is `min-h-finger` already. The rule is about what the app draws as a
+control, and that is what makes it checkable.
 
 ## An option wears what its value wears
 
