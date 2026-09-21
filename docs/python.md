@@ -349,6 +349,11 @@ def test_it_refuses_a_program_it_cannot_compile():
     assert refused[0].message == "'sideways' is not a case: write upper or lower"
 ```
 
+A pack asserts on two more: `assert_contribution_conforms(contribution)` lists the ways its
+blocks are malformed, and `check_pack_examples(contribution, examples_dir)` lists everything
+wrong with its example documents read against its own catalog -- an empty list from each is
+what its CI expects.
+
 The transform frames build on exactly this, and [the transform page](transforms.md) is where
 writing an engine is taught.
 
