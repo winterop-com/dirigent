@@ -160,13 +160,15 @@ interpolates, and never a secret, a credential, or the value that failed validat
 pydantic mapping names the kind of the input it refused and drops the input itself.
 
 A prefix has exactly one owner. A runtime package owns its own name (`common`, `plugin`,
-`client`, `server`, `cli`), a block family owns its family name (`http`, `storage`,
-`execute`, `sql`, `queues`, `base`, `parquet`), an engine inside a family owns two segments
-(`sql.duckdb`, `transform.jq`), the core owns one prefix per area (`auth`, `pipeline`,
-`document`, `schedule`, `webhook`, `alert`, `secret`, `artifacts`, `run`, `reference`,
-`host`, `parameter`, `schema`), and a pack's prefix is its pack name -- `dhis2` for
-`dirigent-dhis2`. `dirigent-common/tests/test_messages.py` walks every catalogue the
-workspace imports and fails when a prefix is unowned or a code is minted twice.
+`client`, `server`, `cli`, `testing`), and one package may own a second where a family of
+refusals is its own thing: `validation` beside `common` for the pydantic mapping, `health`
+beside `cli` for the checks, `notify` for the built-in notifiers. A block family owns its
+family name (`base`, `execute`, `http`, `parquet`, `queues`, `sql`, `storage`), an engine
+inside a family owns two segments (`sql.duckdb`, `transform.jq`), and the core owns one
+prefix per area (`auth`, `pipeline`, `document`, `schedule`, `webhook`, `alert`, `secret`,
+`artifacts`, `run`, `reference`, `host`, `parameter`, `schema`). A pack's prefix is its pack
+name -- `dhis2` for `dirigent-dhis2`. `dirigent-common/tests/test_messages.py` walks every
+catalogue the workspace imports and fails when a prefix is unowned or a code is minted twice.
 
 An exception a package raises for itself, and catches before it answers -- the CLI's
 `ParamError`, `SourceError` and `ProfileError`, a transform engine's `TransformError` -- is
