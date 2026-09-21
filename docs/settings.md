@@ -49,7 +49,7 @@ environment, and the server inside one never opens the file.
 | `log_flush_batch` | `DIRIGENT_LOG_FLUSH_BATCH` | `100` | How many buffered entries write themselves without waiting for the flush interval. |
 | `sweep_interval` | `DIRIGENT_SWEEP_INTERVAL` | `"30s"` | How often a worker runs the crash-recovery sweeper over expired leases. |
 | `stuck_run` | `DIRIGENT_STUCK_RUN` | `"1h"` | A running run with no attempt progress for this long is flagged as stuck. |
-| `stale_worker` | `DIRIGENT_STALE_WORKER` | `"15m"` | A worker whose registry row is older than this has that row reaped by the sweeper. |
+| `stale_worker` | `DIRIGENT_STALE_WORKER` | `"15m"` | A worker whose last heartbeat is older than this has its registry row reaped by the sweeper. |
 | `docker_reap_interval` | `DIRIGENT_DOCKER_REAP_INTERVAL` | `"5m"` | How often a docker-capable worker looks for compose stacks whose run has ended. |
 | `docker_reap_grace` | `DIRIGENT_DOCKER_REAP_GRACE` | `"10m"` | How old a compose project must be before the reaper will consider it at all. |
 | `retention_runs` | `DIRIGENT_RETENTION_RUNS` | `null` | How long a settled run is kept, with its items, attempts, artifacts and alerts. |

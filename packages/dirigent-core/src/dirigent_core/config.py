@@ -164,7 +164,9 @@ class Settings(BaseSettings):
     log_format: Literal["console", "json"] = "console"
     """How a command spells a log line: ``console`` for a person, ``json`` for a collector.
 
-    The four process commands write NDJSON whatever this says.
+    ``DIRIGENT_LOG_FORMAT`` in the process environment is what a command reads, and with
+    nothing named the terminal decides: a terminal is rendered to and a pipe, a container's
+    log or CI gets records, ``dg dev`` and ``dg server`` included.
     """
 
     artifact_root: str = f"file://./{STATE_DIR}/artifacts"
@@ -248,7 +250,7 @@ class Settings(BaseSettings):
     """A running run with no attempt progress for this long is flagged as stuck."""
 
     stale_worker: Duration = Field(default=timedelta(minutes=15), gt=timedelta(0))
-    """A worker whose registry row is older than this has that row reaped by the sweeper."""
+    """A worker whose last heartbeat is older than this has its registry row reaped by the sweeper."""
 
     docker_reap_interval: Duration = timedelta(minutes=5)
     """How often a docker-capable worker looks for compose stacks whose run has ended.

@@ -60,18 +60,19 @@ One per API resource, and the method names are the CLI's verbs.
 | Accessor | What it reaches |
 | --- | --- |
 | `dg.pipelines` | `list`, `get`, `apply`, `prune`, `versions`, `export`, `validate`, `activate`, `deactivate`, `delete`, `run`, `backfill` |
-| `dg.runs` | `list`, `get`, `items`, `attempts`, `cancel`, `retry`, `logs`, `report`, `wait`, `follow_logs`, `events` |
+| `dg.runs` | `list`, `get`, `items`, `attempts`, `artifacts`, `artifact_text`, `cancel`, `retry`, `logs`, `report`, `report_document`, `wait`, `follow_logs`, `events` |
 | `dg.schedules` | `list`, `get`, `create`, `update`, `pause`, `resume`, `firings`, `delete` |
 | `dg.webhooks` | `list`, `get`, `create`, `rotate_token`, `enable`, `disable`, `deliveries`, `delete` |
 | `dg.trigger_documents` | `list`, `get`, `delete` |
-| `dg.alerts` | `rules`, `create_rule`, `delete_rule`, `test`, `notifications` |
+| `dg.alerts` | `rules`, `create_rule`, `update_rule`, `set_rule_paused`, `delete_rule`, `test`, `notifications`, `notification`, `retry` |
 | `dg.connections` | `list`, `get`, `create`, `update`, `delete`, `check` |
 | `dg.schemas` | `list`, `get`, `create`, `update`, `delete` |
 | `dg.blocks` | `catalog`, `get` |
+| `dg.examples` | `list`, `get` |
 | `dg.workers` | `list` |
 | `dg.system` | `info`, `health`, `ready` |
 | `dg.auth` | `login`, `logout`, `whoami`, `change_password` |
-| `dg.admin` | `users.list`, `users.create`, `users.update`, `users.deactivate`, `users.activate`, `tokens.list`, `tokens.create`, `tokens.revoke` |
+| `dg.admin` | `users.list`, `users.create`, `users.update`, `users.deactivate`, `users.activate`, `users.reset_password`, `users.tokens`, `users.create_token`, `users.revoke_token`, `tokens.list`, `tokens.create`, `tokens.revoke` |
 
 Anything addressable is addressed by its `code`, which is the first positional argument
 wherever one is taken: `dg.pipelines.get("daily-load")`,
@@ -132,7 +133,11 @@ It never cancels the run; `runs.cancel` is a separate decision.
 
 ## Error handling
 
-Every refusal is a `DirigentError` carrying `status`, `url`, and the parsed `problem`:
+Every refusal is a `DirigentError` carrying `status`, `url`, the parsed `problem`, and the
+three the problem is read through: `code`, the dotted code of the catalogued message the
+sentence was rendered from; `params`, what that message interpolated; and `problems`, the
+`Issue` list when the refusal is a list of failures rather than one. Branch on `code` rather
+than on the English, which is rewritten whenever a better sentence is found.
 
 | Exception | When |
 | --- | --- |
@@ -153,11 +158,15 @@ from dirigent_client import NotFound, ValidationFailed
 try:
     await dg.pipelines.run("daily-load", params=params)
 except ValidationFailed as refusal:
-    for problem in refusal.problems:
-        print(problem)
+    for issue in refusal.problems:
+        print(issue.code, issue.location, issue.message)
 except NotFound as refusal:
-    print(refusal.message)
+    print(refusal.code, refusal.message)
 ```
+
+An `Issue` is `code`, `message`, `params`, and a `location` where the failure is addressed at
+a place -- `params.day`, `steps.load.config` -- so a caller reports where a document is wrong
+without parsing a sentence for it.
 
 `NotDirigent` is worth handling separately: nothing is wrong with the request, the URL is
 pointing at the wrong thing. The client decides it by the absence of `X-Dirigent-Version`,
@@ -361,11 +370,26 @@ Two things worth knowing if you go that way. Every error response has one shape:
 {
   "status": 422,
   "title": "Unprocessable Content",
-  "detail": "params.day: Input should be a valid string",
-  "problems": ["params.day: Input should be a valid string"],
+  "detail": "body.priority: Input should be 'low', 'normal' or 'high'",
+  "code": "server.request_invalid",
+  "params": {"detail": "body.priority: Input should be 'low', 'normal' or 'high'"},
+  "problems": [
+    {
+      "code": "validation.enum",
+      "message": "Input should be 'low', 'normal' or 'high'",
+      "params": {"loc": ["body", "priority"], "input_kind": "str", "msg": "Input should be 'low', 'normal' or 'high'"},
+      "location": "body.priority"
+    }
+  ],
   "instance": "/api/v1/pipelines/daily-load/$run"
 }
 ```
+
+`status`, `title`, `detail`, `code`, `params`, `problems` and `instance` are the whole of it,
+on every error response. `detail` is the one sentence to show a person and `code` is the
+stable dotted name to branch on; `problems` is the list when a refusal is several failures,
+each an issue with a `code`, a `message`, its own `params`, and a `location` when it is
+addressed at a place.
 
 And a `$` in a path is deliberate: `$apply`, `$run`, `$logs`, `$cancel`, `$check` are actions
 rather than resources, and the sigil is what keeps them from ever colliding with a code. It

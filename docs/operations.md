@@ -357,7 +357,7 @@ that carries a `triggers:` section is a live clock the moment it is stored, so a
 twenty of them at once can put twenty firings into a queue before anybody has looked at the
 first. `--paused` creates the schedules that apply mints already paused: the row is inserted
 paused rather than paused a moment later, so there is no window in which a due schedule is
-live. `dg schedule resume PIPELINE NAME` starts each one when you mean it to.
+live. `dg schedule resume PIPELINE CODE` starts each one when you mean it to.
 
 It reaches only what the apply creates. A schedule the instance already holds is operational
 state -- an operator paused it, or resumed it, and an apply has no business overruling either
@@ -518,7 +518,19 @@ image with the pack line commented out, and a compose stack that builds and runs
 **What the image carries beside the daemon.** `infra/Dockerfile` installs `docker-ce-cli`
 with the **compose** and **buildx** plugins, which is what `docker.compose.up`,
 `docker.compose.down` and `docker.build` shell out to, and `git` with `openssh-client`, which
-is what `git.checkout` shells out to and, for an `ssh://` remote, what git runs in turn.
+is what `git.checkout` shells out to and, for an `ssh://` remote, what git runs in turn. It
+also installs duckdb's `httpfs` extension as the user the image runs as, so a `sql.*` step
+reaching `s3://` loads it rather than fetching a binary mid-run.
+
+**Which dirigent packages the image holds.** The build is `uv sync --all-packages`, so the
+image carries the whole workspace: the runtime packages, the nine `dirigent-block-*` families
+(`base`, `duckdb`, `execute`, `http`, `jq`, `parquet`, `queues`, `sql`, `storage`), the
+`dirigent-blocks` umbrella that is the built-in pack, `dirigent-storage-s3`
+and `dirigent-examples`. `dirigent-block-duckdb` and `dirigent-block-parquet` are opt-in
+outside the image -- the umbrella depends on neither, so installing `dirigent-blocks` does not
+bring them -- and inside it they are installed like everything else. That is why the compose
+stack has `convert.arrow` in its catalog and drives a `duckdb://` url through the duckdb
+engine with nothing added.
 
 ### Deployment identity
 
@@ -750,7 +762,8 @@ been pointed at the wrong port -- at, for instance, the documentation site on 33
 
 Process-side, in the sense `dg db upgrade` is: it needs no token, reads the configured
 database directly, and asks a server only over plain HTTP. It writes one `check` record per
-check plus a closing `health` verdict, like every other command, and exits `0` or `1`.
+check and exits `0` or `1`. The bare form adds a closing `health` verdict, because it is the
+one that checked more than one thing; a named form writes its single `check` and stops.
 
 Bare, it answers "is my instance OK?" for **the instance this shell resolves**: the
 configured database, every worker that instance has, its schedules, and the server -- the one
@@ -908,7 +921,7 @@ containers and not only the server. See [telemetry](telemetry.md).
 | Readiness | `GET /health/ready`, unauthenticated. 503 means a check reported unhealthy | none |
 | Database connections | `SELECT count(*) FROM pg_stat_activity WHERE datname = 'dirigent'`, against the ceiling in [scaling workers](#scaling-workers). A pool checkout that waits past `DIRIGENT_DATABASE_POOL_TIMEOUT` raises in the process log | none |
 | Alert delivery itself | `dg alerts queue`, which shows what is pending, sent, or failed. A notifier that has quietly stopped delivering is otherwise invisible, because the thing that would tell you is the notifier | none |
-| Schedules firing late | `dg schedule firings PIPELINE SCHEDULE`, whose rows carry the slot each firing owed against the moment it happened. Nothing reports the backlog as a number | `dirigent.scheduler.lag`. A standby scheduler reports zero, so take the max |
+| Schedules firing late | `dg schedule firings PIPELINE CODE`, whose rows carry the slot each firing owed against the moment it happened. Nothing reports the backlog as a number | `dirigent.scheduler.lag`. A standby scheduler reports zero, so take the max |
 
 **Alert rules are the closest thing to paging that exists in the product.** A rule binds an
 event -- `run_failed`, `run_completed_with_errors`, `run_succeeded`, `run_stuck` -- at a scope

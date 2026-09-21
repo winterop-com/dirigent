@@ -396,7 +396,7 @@ it mapped to, the source address, and the run id or the reason. This is why a re
 the delivery path is a *returned value* rather than a raised exception: the row explaining why
 a call was refused is written in the same transaction, and an exception escaping would roll
 back exactly the evidence someone debugging their sender needs. Read it with `dg webhook
-deliveries PIPELINE NAME`.
+deliveries PIPELINE CODE`.
 
 Note the asymmetry that follows from the two paragraphs above: a *refused* delivery leaves a
 row, a *throttled* one does not. If a sender insists it has been calling all night and the
@@ -540,7 +540,7 @@ worker path, at the moment a pipeline needs a credential.
 Given what the code supports, rotating a key means re-entering the credentials:
 
 1. Record which connections exist and what their non-secret settings are (`dg connection
-   list`, and `dg connection show NAME` for each). The secrets are not readable; you need them
+   list`, and `dg connection show CODE` for each). The secrets are not readable; you need them
    from wherever you actually keep them.
 2. Stop the writers, or accept a window in which runs needing a credential fail.
 3. Set the new `DIRIGENT_SECRET_KEY` on every process.
