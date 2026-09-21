@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+from collections.abc import AsyncGenerator
 from contextlib import suppress
 from typing import Final
 from uuid import UUID
@@ -9,6 +10,8 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirigent_common import JsonMap
+from dirigent_core.errors import DomainError
+from dirigent_core.messages import OBJECT_MISSING
 from dirigent_core.models import ArtifactRef, StepAttempt
 from dirigent_core.storage import Storage, StorageError, join_uri, parse_uri
 
@@ -18,6 +21,25 @@ MARKDOWN_CONTENT_TYPE: Final = "text/markdown"
 
 #: The key a text document inlines under, so an inline row is still a JSON document.
 TEXT_KEY: Final = "text"
+
+#: What an artifact row belonging to the run rather than to a step attempt names as its attempt.
+NO_ATTEMPT: Final = "-"
+
+
+class ObjectMissing(DomainError):
+    """The object this row names is not in storage."""
+
+    status = 404
+    message = OBJECT_MISSING
+
+    def __init__(self, reference: ArtifactRef) -> None:
+        """Name the object that is gone, and the run and attempt whose row still names it."""
+        super().__init__(
+            uri=reference.uri or "",
+            run=str(reference.run_id),
+            attempt=str(reference.step_attempt_id) if reference.step_attempt_id else NO_ATTEMPT,
+        )
+        self.uri = reference.uri
 
 
 def canonical_json(value: object) -> bytes:
@@ -108,6 +130,24 @@ async def persist_document(
     return reference
 
 
+async def present_uri(storage: Storage, reference: ArtifactRef) -> str:
+    """Return the URI a row names once storage confirms the object is there, or refuse.
+
+    A database restored without the artifact root it was taken beside still holds every row,
+    so the object is stat-ed before it is opened: a read that refuses here names what is gone,
+    where one that opened the stream first would break mid-body with the status already sent.
+    """
+    uri = reference.uri or ""
+    if await storage.stat(uri) is None:
+        raise ObjectMissing(reference)
+    return uri
+
+
+async def open_artifact(storage: Storage, reference: ArtifactRef) -> AsyncGenerator[bytes]:
+    """Open the stored object a row names for streaming, refusing before the first byte."""
+    return storage.open_read(await present_uri(storage, reference))
+
+
 async def load_document(storage: Storage, reference: ArtifactRef) -> str:
     """Read a text document back, from the row when it inlined and from storage when it did not."""
     if reference.inline_value is not None:
@@ -115,7 +155,7 @@ async def load_document(storage: Storage, reference: ArtifactRef) -> str:
         return inlined if isinstance(inlined, str) else ""
     if reference.uri is None:
         return ""
-    return (await storage.read_bytes(reference.uri)).decode()
+    return (await storage.read_bytes(await present_uri(storage, reference))).decode()
 
 
 async def load_artifact(session: AsyncSession, storage: Storage, artifact_id: UUID) -> JsonMap | None:
@@ -127,6 +167,6 @@ async def load_artifact(session: AsyncSession, storage: Storage, artifact_id: UU
         return reference.inline_value
     if reference.uri is None:
         return None
-    payload = await storage.read_bytes(reference.uri)
+    payload = await storage.read_bytes(await present_uri(storage, reference))
     loaded: JsonMap = json.loads(payload)
     return loaded

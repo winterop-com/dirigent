@@ -3,10 +3,20 @@
 import json
 from typing import Any
 
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from dirigent_client.enums import AttemptStatus
-from dirigent_core.artifacts import canonical_json, digest_of, load_artifact, persist_output
+from dirigent_core.artifacts import (
+    ObjectMissing,
+    canonical_json,
+    digest_of,
+    load_artifact,
+    load_document,
+    open_artifact,
+    persist_document,
+    persist_output,
+)
 from dirigent_core.database import session_scope
 from dirigent_core.ids import uuid7
 from dirigent_core.models import ArtifactRef, Pipeline, PipelineVersion, Run, StepAttempt
@@ -104,3 +114,82 @@ async def test_an_artifact_with_neither_a_value_nor_a_uri_reads_as_nothing(
         artifact_id = empty.id
     async with sessions() as session:
         assert await load_artifact(session, services.storage, artifact_id) is None
+
+
+async def test_an_artifact_whose_object_is_gone_names_what_is_missing(
+    sessions: async_sessionmaker[AsyncSession], services: Any
+) -> None:
+    """A database restored without its artifact root reads as one refusal, not a stack trace."""
+    attempt = await make_attempt(sessions)
+    payload = {"rows": ["x" * 100 for _ in range(50)]}
+    async with session_scope(sessions) as session:
+        stored = await session.get(StepAttempt, attempt.id)
+        assert stored is not None
+        reference = await persist_output(session, services.storage, stored, payload, inline_max_bytes=64)
+        artifact_id, uri = reference.id, reference.uri
+
+    assert uri is not None
+    await services.storage.delete(uri)
+
+    async with sessions() as session:
+        with pytest.raises(ObjectMissing) as raised:
+            await load_artifact(session, services.storage, artifact_id)
+
+    assert raised.value.code == "artifacts.object_missing"
+    assert raised.value.status == 404
+    assert raised.value.params == {"uri": uri, "run": str(attempt.run_id), "attempt": str(attempt.id)}
+    assert "restore the artifact root" in str(raised.value)
+
+
+async def test_a_document_whose_object_is_gone_refuses_for_the_run_itself(
+    sessions: async_sessionmaker[AsyncSession], services: Any
+) -> None:
+    attempt = await make_attempt(sessions)
+    async with session_scope(sessions) as session:
+        reference = await persist_document(
+            session,
+            services.storage,
+            attempt.run_id,
+            name="report.md",
+            text="# a report\n" * 20,
+            content_type="text/markdown",
+            inline_max_bytes=8,
+        )
+        uri = reference.uri
+        artifact_id = reference.id
+
+    assert uri is not None
+    await services.storage.delete(uri)
+
+    async with sessions() as session:
+        document = await session.get(ArtifactRef, artifact_id)
+        assert document is not None
+        with pytest.raises(ObjectMissing) as raised:
+            await load_document(services.storage, document)
+
+    assert raised.value.params["attempt"] == "-"
+    assert raised.value.params["run"] == str(attempt.run_id)
+
+
+async def test_a_stored_artifact_is_streamed_only_once_storage_answers_for_it(
+    sessions: async_sessionmaker[AsyncSession], services: Any
+) -> None:
+    """The refusal lands before the stream opens, so a reader never starts a body that breaks."""
+    attempt = await make_attempt(sessions)
+    payload = {"rows": ["y" * 100 for _ in range(50)]}
+    async with session_scope(sessions) as session:
+        stored = await session.get(StepAttempt, attempt.id)
+        assert stored is not None
+        reference = await persist_output(session, services.storage, stored, payload, inline_max_bytes=64)
+        artifact_id, uri = reference.id, reference.uri
+
+    async with sessions() as session:
+        found = await session.get(ArtifactRef, artifact_id)
+        assert found is not None
+        chunks = [chunk async for chunk in await open_artifact(services.storage, found)]
+        assert json.loads(b"".join(chunks)) == payload
+
+        assert uri is not None
+        await services.storage.delete(uri)
+        with pytest.raises(ObjectMissing):
+            await open_artifact(services.storage, found)

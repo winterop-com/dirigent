@@ -268,6 +268,17 @@ async def test_reading_nothing_is_rejected_rather_than_retried(ctx: FakeContext)
         await call_block(StorageReadOperator(), {"source": "file://drops/absent.json"}, ctx)
 
     assert raised.value.error_class is ErrorClass.REJECTED
+    assert raised.value.code == "storage.nothing_there"
+
+
+async def test_reading_nothing_from_the_runs_own_scratch_names_the_artifact_root(ctx: FakeContext) -> None:
+    """An earlier step's output that is gone is a half-restored instance, and says so."""
+    with pytest.raises(BlockFailure) as raised:
+        await call_block(StorageReadOperator(), {"source": f"{ctx.scratch}/outputs/earlier.json"}, ctx)
+
+    assert raised.value.code == "storage.nothing_in_scratch"
+    assert raised.value.error_class is ErrorClass.REJECTED
+    assert "restore the artifact root" in str(raised.value)
 
 
 def test_the_write_and_read_operators_declare_themselves_idempotent() -> None:

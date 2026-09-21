@@ -75,6 +75,13 @@ UNKNOWN_STORAGE_CONNECTION = ARTIFACTS.define(
     "no connection coded {ref} to configure the {scheme} scheme from ({available})",
 )
 
+OBJECT_MISSING = ARTIFACTS.define(
+    "object_missing",
+    "there is nothing at {uri}: run {run} (attempt {attempt}) has an artifact row and storage "
+    "has no object; restore the artifact root from the backup that matches this database, "
+    "or prune the run",
+)
+
 
 HOST = Catalogue("host")
 

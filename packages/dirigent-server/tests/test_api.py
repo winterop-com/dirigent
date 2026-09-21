@@ -2814,6 +2814,28 @@ def test_an_artifact_this_instance_never_wrote_is_a_404(client: TestClient) -> N
     assert client.get(f"{PREFIX}/artifacts/{uuid7()}").status_code == 404
 
 
+def test_an_artifact_whose_object_is_gone_is_refused_rather_than_half_streamed(
+    client: TestClient, settings: Settings
+) -> None:
+    """A database restored without its artifact root answers the read, and says what is missing."""
+    run_id = started_run(client)
+    root = Path(settings.artifact_root.removeprefix("file://"))
+    lost = root / "runs" / str(run_id) / "report.md"
+    rows_written(
+        client,
+        artifact_row(run_id, content_type="text/markdown", size_bytes=18, uri=f"file://{lost}", scheme="file"),
+    )
+
+    artifact = client.get(f"{PREFIX}/runs/{run_id}/artifacts").json()["items"][0]
+    response = client.get(f"{PREFIX}/artifacts/{artifact['id']}")
+
+    assert response.status_code == 404
+    problem = response.json()
+    assert problem["code"] == "artifacts.object_missing"
+    assert problem["params"] == {"uri": f"file://{lost}", "run": str(run_id), "attempt": "-"}
+    assert "restore the artifact root" in problem["detail"]
+
+
 #: The connection the storage scheme is configured from below, and the credential it carries.
 STORAGE_CONNECTION = "artifacts"
 STORAGE_CREDENTIAL = "the stored credential"
