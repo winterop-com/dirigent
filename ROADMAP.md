@@ -346,24 +346,6 @@ requires touching the engine. None is near-term.
   tooltip trigger (28px) and the `API` chip (24px) do not. Widening the rule to links and every
   trigger is the change, and it needs the same live review in both palettes.
 
-- **`fetch` is at-least-once, and no key we hold can make it exactly-once.** A worker that
-  fetches a result and then dies before the outcome commits leaves the attempt waiting with
-  its handle, so the next claim probes and fetches again. The `idempotency_key` the schema
-  carries is no help: it de-duplicates *retries of a step within a run*, which is a person
-  clicking twice, and it never leaves this instance. Exactly-once across a boundary we do not
-  control is not achievable at all -- it needs the remote and our database in one transaction
-  -- so what was left of the debt was a contract that claimed otherwise. `fetch` now says it
-  is at-least-once, in the docstring plugin authors read and in the design spec, and
-  `test_a_worker_that_dies_after_fetching_fetches_again_and_settles_once` pins the guarantee
-  the engine does make: however many times a result is fetched, one attempt settles once.
-  What remains is a judgement, not a defect: whether to commit the fetched payload in its own
-  transaction before settling, the way a submitted handle is already committed on its own.
-  That makes a repeat fetch rare rather than routine -- a replay would find the payload and
-  skip straight to settling -- at the cost of one more commit per remote step and a column to
-  hold it. Worth doing when a block appears whose fetch is genuinely expensive; not worth it
-  for reading logs off a container or downloading a result file, which is every remote block
-  we ship, and which a repeat costs almost nothing.
-
 - **A pack's examples carry their demo connection, so none of them is a starter.** The dhis2
   pack's shelves carry a connection by convention, so `dg run --local` works standalone, and
   its check insists on it; its starters are therefore twins on a `starters/` shelf that name

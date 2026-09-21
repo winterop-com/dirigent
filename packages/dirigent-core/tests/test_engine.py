@@ -2069,6 +2069,25 @@ async def test_a_remote_handle_is_refused_when_the_lease_was_stolen(
         assert after.remote_handle is None
 
 
+async def test_a_fetched_payload_is_refused_when_the_lease_was_stolen(
+    engine: Engine, sessions: Any, services: EngineServices
+) -> None:
+    """The fetch-window commit is fenced too, or a live attempt settles from an abandoned call."""
+    definition = PipelineDefinition(code="fenced-payload", steps=steps(job=StepDefinition(block="test.remote")))
+    await start(sessions, services, definition)
+    unit = await engine.claim()
+    assert unit is not None
+    async with session_scope(sessions) as session:
+        await sweep_leases(session, now=_after_lease(services))
+
+    await engine._record_fetched(unit, {"ref": "job-1", "result": "done"})  # pyright: ignore[reportPrivateUsage]
+
+    async with sessions() as session:
+        after = await session.get(StepAttempt, unit.attempt_id)
+        assert after is not None
+        assert after.fetched_output is None
+
+
 async def test_an_outcome_is_refused_when_the_same_worker_reclaimed_the_attempt(
     engine: Engine, sessions: Any, services: EngineServices
 ) -> None:
@@ -2581,19 +2600,26 @@ async def test_a_run_created_with_no_exporter_carries_no_trace_context(sessions:
     assert run.traceparent is None
 
 
-async def test_a_worker_that_dies_after_fetching_fetches_again_and_settles_once(
-    engine: Engine, sessions: Any, services: EngineServices, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Fetch is at-least-once: the outcome commit is the only thing that ends an attempt.
+# -- a fetched result ------------------------------------------------------------
 
-    A worker that has fetched and then dies leaves the attempt waiting with its handle, so
-    the next claim probes and fetches again. What must not happen twice is the settling.
-    """
-    definition = PipelineDefinition(
+
+def remote_job() -> PipelineDefinition:
+    """A one-step pipeline whose operator submits, is probed once, and is fetched."""
+    return PipelineDefinition(
         code="crashed-after-fetch",
         steps=steps(job=StepDefinition(block="test.remote", poll=timedelta(seconds=1))),
     )
-    run = await start(sessions, services, definition)
+
+
+async def test_a_worker_that_dies_after_fetching_settles_from_the_committed_payload(
+    engine: Engine, sessions: Any, services: EngineServices, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A fetched result is committed on its own, before the outcome that settles it.
+
+    A worker that has fetched and then dies leaves the payload on the attempt, so the claim
+    that picks the attempt up settles from it rather than probing and fetching again.
+    """
+    run = await start(sessions, services, remote_job())
     submit = await engine.claim()
     assert submit is not None
     await engine.run_unit(submit)
@@ -2607,7 +2633,53 @@ async def test_a_worker_that_dies_after_fetching_fetches_again_and_settles_once(
     with pytest.raises(RuntimeError):
         await engine.run_unit(probe)
     assert RemoteOperator.fetches == ["job-1"], "the result was fetched, and the outcome was lost"
+    fetched = await attempts_of(sessions, run.id)
+    assert fetched[0].fetched_output == {"ref": "job-1", "result": "done"}, "the payload was not committed"
     monkeypatch.undo()
+
+    async with session_scope(sessions) as session:
+        assert await sweep_leases(session, now=_after_lease(services)) == [probe.attempt_id]
+    await drain(engine, start_at=_after_lease(services), step=timedelta(seconds=2))
+
+    assert RemoteOperator.submissions == ["job-1"], "the work went out twice"
+    assert RemoteOperator.probes == ["job-1"], "a payload already in hand was probed for again"
+    assert RemoteOperator.fetches == ["job-1"], "a payload already in hand was fetched again"
+    assert (await reload(sessions, run.id)).status is RunStatus.SUCCEEDED
+    settled = [attempt for attempt in await attempts_of(sessions, run.id) if attempt.finished_at is not None]
+    assert len(settled) == 1, "one attempt settled once, however many times it was claimed"
+    assert settled[0].output == {"ref": "job-1", "result": "done"}
+    assert settled[0].fetched_output is None, "the settled output is where the payload lives"
+
+
+async def test_a_worker_that_dies_before_the_payload_commits_fetches_again_and_settles_once(
+    engine: Engine, sessions: Any, services: EngineServices, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Fetch is still at-least-once: a worker can die between fetching and that commit.
+
+    Nothing of the call is written until the payload's transaction, so the next claim probes
+    and fetches again. What must not happen twice is the settling.
+    """
+    run = await start(sessions, services, remote_job())
+    submit = await engine.claim()
+    assert submit is not None
+    await engine.run_unit(submit)
+
+    once = iter([True])
+    original = Engine._record_fetched  # pyright: ignore[reportPrivateUsage] - the seam the death lands on
+
+    async def die_first(self: Engine, *args: Any, **kwargs: Any) -> None:
+        if next(once, False):
+            raise RuntimeError("the worker died between fetching and committing the payload")
+        await original(self, *args, **kwargs)
+
+    monkeypatch.setattr(Engine, "_record_fetched", die_first)
+    probe = await engine.claim(now=utcnow() + timedelta(seconds=2))
+    assert probe is not None
+    with pytest.raises(RuntimeError):
+        await engine.run_unit(probe)
+    assert RemoteOperator.fetches == ["job-1"], "the result was fetched, and the payload was lost"
+    lost = await attempts_of(sessions, run.id)
+    assert lost[0].fetched_output is None, "the payload the worker died before committing was written"
 
     async with session_scope(sessions) as session:
         assert await sweep_leases(session, now=_after_lease(services)) == [probe.attempt_id]
@@ -2619,6 +2691,33 @@ async def test_a_worker_that_dies_after_fetching_fetches_again_and_settles_once(
     settled = [attempt for attempt in await attempts_of(sessions, run.id) if attempt.finished_at is not None]
     assert len(settled) == 1, "one attempt settled once, however many times it was fetched"
     assert settled[0].output == {"ref": "job-1", "result": "done"}
+
+
+async def test_a_payload_the_database_aborted_is_written_by_the_retry(
+    engine: Engine, sessions: Any, services: EngineServices, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Committing the payload is its own transaction, and takes the run lock like an outcome.
+
+    A deadlock the retry does not catch leaves the worker holding a result it never wrote
+    down, and the attempt is probed and fetched again from the start.
+    """
+    run = await start(sessions, services, remote_job())
+
+    once = iter([True])
+    original = Engine._record_fetched_once  # pyright: ignore[reportPrivateUsage] - the seam a deadlock lands on
+
+    async def deadlock_first(self: Engine, *args: Any, **kwargs: Any) -> None:
+        if next(once, False):
+            raise DBAPIError("SELECT 1", None, _Aborted(DEADLOCK))
+        await original(self, *args, **kwargs)
+
+    monkeypatch.setattr(Engine, "_record_fetched_once", deadlock_first)
+    await drain(engine, step=timedelta(seconds=2))
+
+    assert RemoteOperator.fetches == ["job-1"], "the retry fetched the result a second time"
+    attempts = await attempts_of(sessions, run.id)
+    assert attempts[0].status is AttemptStatus.SUCCEEDED, "the retry wrote the payload the first run lost"
+    assert attempts[0].output == {"ref": "job-1", "result": "done"}
 
 
 # -- a sensor's cursor -----------------------------------------------------------

@@ -82,15 +82,16 @@ remote work, and must never poll inside itself; returning a `RemoteHandle` is ho
 "this continues elsewhere". `probe` must be side-effect-free and safely callable any number
 of times from any worker, and must map the remote system's vocabulary honestly, including
 "the remote no longer knows this job" as `GONE`. `fetch` runs after a successful probe and is
-the place for expensive result retrieval; it is **at-least-once**, because the only thing that
-ends an attempt is the transaction recording its outcome, so a worker that dies between
-fetching and that commit leaves the attempt to be probed and fetched again -- retrieve a
-result, never consume one. A probe may return `meta`, which becomes the handle every later
-probe and the eventual fetch receives, so an adapter streaming a remote system's log into the
-run has somewhere to record how far it has read; it replaces the handle's metadata rather
-than merging into it, and it is **at-least-once** for the same reason `fetch` is, since the
-cursor is written by the transaction that parks the attempt -- a probe must tolerate reading
-the same ground twice, and the lines it appends may repeat. `cancel` is best-effort and
+the place for expensive result retrieval. What it returns is committed in a transaction of
+its own before the outcome settles the attempt, so a replay finds the result and settles from
+it rather than asking for it again. It is still **at-least-once**, because a worker can die
+between fetching and that commit, which leaves the attempt to be probed and fetched again --
+retrieve a result, never consume one. A probe may return `meta`, which becomes the handle
+every later probe and the eventual fetch receives, so an adapter streaming a remote system's
+log into the run has somewhere to record how far it has read; it replaces the handle's
+metadata rather than merging into it, and it is **at-least-once** as well, since the cursor
+is written by the transaction that parks the attempt -- a probe must tolerate reading the
+same ground twice, and the lines it appends may repeat. `cancel` is best-effort and
 idempotent. A synchronous operator is simply one whose `execute` always returns an
 output: same class, no separate concept.
 

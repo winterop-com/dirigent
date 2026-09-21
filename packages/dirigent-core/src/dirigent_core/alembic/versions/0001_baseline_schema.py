@@ -809,6 +809,9 @@ def upgrade() -> None:
             "remote_handle", sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"), nullable=True
         ),
         sa.Column(
+            "fetched_output", sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"), nullable=True
+        ),
+        sa.Column(
             "poke_cursor", sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"), nullable=True
         ),
         sa.Column("gone_probes", sa.Integer(), server_default=sa.text("0"), nullable=False),

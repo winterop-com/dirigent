@@ -60,6 +60,9 @@ class ClaimedUnit(BaseModel):
     """The run's trace context, so an attempt's span joins the trace the run started in."""
 
     remote_handle: RemoteHandle | None = None
+    fetched_output: JsonMap | None = None
+    """The result a previous call already fetched and committed, which settles this claim."""
+
     poke_cursor: JsonMap | None = None
     """The cursor the last committed poke returned, handed to the next one."""
 

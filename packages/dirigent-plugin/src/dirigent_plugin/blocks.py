@@ -631,9 +631,10 @@ class Operator[ConfigT: BaseModel, OutputT: BaseModel](ABC):
     async def fetch(self, handle: RemoteHandle, config: ConfigT, ctx: StepContext) -> OutputT:
         """Retrieve the result after a probe reported SUCCEEDED; safe to call again.
 
-        The only thing that ends an attempt is the transaction recording its outcome, and a
-        worker that dies between fetching and that commit leaves the attempt to be claimed,
-        probed and fetched again. So this is at-least-once: retrieve, do not consume.
+        What comes back is committed on its own before the outcome settles the attempt, so a
+        replay finds the result and never asks for it twice. A worker that dies between
+        fetching and that commit leaves the attempt to be claimed, probed and fetched again,
+        so this is still at-least-once: retrieve, do not consume.
         """
         raise NotImplementedError(f"{type(self).__name__} returned a RemoteHandle but does not implement fetch()")
 
