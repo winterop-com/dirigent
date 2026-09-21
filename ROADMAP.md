@@ -84,6 +84,16 @@ stays clean, and every example stays executable.
    wired through a connection kind, with a client written fresh or wrapping a stable one, and
    assembled by `dirigent-integration`. Open for the program: generalising
    `dirigent-integration`'s dev-dep filter beyond one pack's client prefix.
+2. **A full pass over the documentation.** Twenty-seven pages, and most were written before
+   the built-in pack became nine packages, engines became packages, refusals gained codes and
+   `dg health` moved under `dg system`. Read every page as a newcomer would and fix what is
+   wrong, stale or oddly put. The index's first line, "pipelines are data, not Python files",
+   is the kind of phrasing to replace: say what a pipeline is (a document the instance
+   validates, stores and runs), not what it is not. Check every page against the code it
+   describes: package names, install lines, command spellings, record fields, the problem
+   document's shape, the taxonomy, the tutorial's transcript and screenshots (re-shot on the
+   release the page claims). One PR per page or small group, each read end to end, and the
+   README's opening paragraph with them.
 
 ## Open questions
 
