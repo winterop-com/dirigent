@@ -188,6 +188,7 @@ class SqlQueryOutput(BlockModel):
     """The column names, in the order the query selected them."""
 
     duration_ms: int
+    """How long the query took."""
 
 
 class SqlQueryOperator(Operator[SqlQueryConfig, SqlQueryOutput]):
@@ -275,6 +276,7 @@ class SqlExecuteOutput(BlockModel):
     """Rows affected by each statement, in order; ``-1`` where the driver does not say."""
 
     duration_ms: int
+    """How long the transaction took."""
 
 
 class SqlExecuteOperator(Operator[SqlExecuteConfig, SqlExecuteOutput]):

@@ -1,19 +1,16 @@
 /**
- * One screen's walk through a cursor-paged listing.
+ * One screen's walk through a cursor-paged listing: the reads, and the recheck of a listing
+ * that is being watched.
  *
- * `lib/paging` decides what each answer does to the rows; this is the part that needs a browser:
- * the reads, and the recheck when a tab comes back into view.
+ * THE QUESTION IS PART OF THE STATE. The rows are held beside the question they were read for,
+ * so a question nobody is asking any more has no rows rather than the wrong ones. An answer
+ * carries the question it answers all the way to the fold: one whose question has been left
+ * behind changes nothing, so a read still in flight when the filters change cannot put its
+ * rows, or its question, back into what is held.
  *
- * THE QUESTION IS PART OF THE STATE. A screen whose filters changed is asking a different
- * question, and the rows read for the old one are not an answer to it -- so the rows are held
- * beside the question they were read for, and a question nobody is asking any more has no rows
- * rather than the wrong ones. An answer carries the question it answers all the way to the fold:
- * one whose question has been left behind changes nothing, so a read still in flight when the
- * filters change cannot put its rows, or its question, back into what is held.
- *
- * THE RECHECK IS NOT A POLL. Nothing here runs on a timer. A tab nobody is looking at costs this
- * server nothing, and a tab that comes back reads page one once -- which for a newest-first
- * listing is exactly the rows that arrived while it was away.
+ * THE RECHECK FOLDS IN AT THE HEAD. A pulsed listing reads page one again every few watched
+ * seconds and prepends what is new; a hidden tab pulses not at all, and one that comes back
+ * reads page one immediately. A beat that fails changes nothing and the next one asks again.
  */
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'

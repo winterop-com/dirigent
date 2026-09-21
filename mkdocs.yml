@@ -64,6 +64,9 @@ nav:
       - UI conventions: ui-conventions.md
       - Releases: releases.md
 
+validation:
+  anchors: warn
+
 extra_css:
   - stylesheets/print.css
 

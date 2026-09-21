@@ -61,6 +61,8 @@ class PipelineRunOutput(BlockModel):
     """What the child run amounted to, which downstream steps reference by field."""
 
     pipeline: str
+    """The pipeline this step ran, by code."""
+
     run_id: str | None = None
     """The child run, or ``null`` when its concurrency policy meant no run was created."""
 

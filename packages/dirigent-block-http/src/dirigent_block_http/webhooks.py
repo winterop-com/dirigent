@@ -71,10 +71,19 @@ class WebhookPostOutput(BlockModel):
     """What the receiver said, which downstream steps reference by field."""
 
     status: int
+    """The status code the receiver answered with."""
+
     signed: bool
+    """Whether the request carried an HMAC signature."""
+
     duration_ms: int
+    """How long the delivery took."""
+
     json_body: JsonValue | None = None
+    """The answer parsed as JSON, set when the receiver answered with JSON."""
+
     text: str | None = None
+    """The answer as text, set when it was not JSON."""
 
 
 class WebhookPostOperator(Operator[WebhookPostConfig, WebhookPostOutput]):

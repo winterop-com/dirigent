@@ -133,8 +133,14 @@ class HttpRequestConfig(HttpTarget):
     """What one HTTP call sends, and which responses count as success."""
 
     method: HttpMethod = "GET"
+    """The method the request is sent with."""
+
     query: dict[str, str | int | float | bool] = Field(default_factory=dict[str, str | int | float | bool])
+    """Query parameters appended to the URL, each value written as text."""
+
     headers: dict[str, str] = Field(default_factory=dict[str, str])
+    """Headers sent with the request."""
+
     body: JsonValue | None = None
     """What the request sends, usually a reference to what an earlier step produced.
 
@@ -187,7 +193,11 @@ class HttpRequestOutput(BlockModel):
     """What one HTTP call observed, which downstream steps reference by field."""
 
     status: int
+    """The status code the service answered with."""
+
     headers: dict[str, str]
+    """The response headers, keyed by lowercase name."""
+
     body: JsonValue = None
     """What the service answered: the parsed document when it is JSON, else the text."""
 
@@ -195,6 +205,7 @@ class HttpRequestOutput(BlockModel):
     """How many bytes the answer was."""
 
     duration_ms: int
+    """How long the call took."""
 
 
 class HttpRequestOperator(Operator[HttpRequestConfig, HttpRequestOutput]):
@@ -270,8 +281,13 @@ class HttpReadyOutput(BlockModel):
     """The observation that a service is up, passed downstream like any output."""
 
     status: int
+    """The status code the poke that succeeded was answered with."""
+
     duration_ms: int
+    """How long that poke took."""
+
     matched: bool
+    """Whether a ``contains`` matcher was part of readiness, which a ready answer satisfied."""
 
 
 class HttpReadySensor(Sensor[HttpReadyConfig, HttpReadyOutput]):

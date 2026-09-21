@@ -43,21 +43,18 @@ const runId = (run: RunOut) => run.id
  *
  * WHAT IS FILTERED HERE IS WHAT THE SERVER FILTERS. `GET /runs` narrows by pipeline, by status,
  * by how far back to look and by the tags the run's pipeline wears, so the bar offers those
- * four. A fifth control would narrow the rows that happen to have been loaded rather than the
- * listing, and would answer a question nobody asked as though it were the one they did.
+ * four and no control narrows only the rows that happen to have been loaded.
  *
- * NO ROW WEARS A TAG. A run row already names its pipeline, and repeating that pipeline's
- * vocabulary on every run of it would be the same words down the whole column.
+ * NO ROW WEARS A TAG. The tags the bar narrows by are the pipeline's, and a run row names its
+ * pipeline.
  *
- * NOTHING POLLS. A run's own screen holds a stream; a listing does not, because a page of fifty
- * rows re-read every few seconds is fifty rows of load for a tab nobody may be looking at.
- * Coming back to the tab re-reads the first page once, and what arrived while it was away is
- * what the pill counts.
+ * IT IS RE-READ ON THE APP'S CADENCE. The listing pulses at whatever the refresh control is
+ * set to, page one folded in at the head, and coming back to a hidden tab re-reads it at once;
+ * what arrived while it was away is what the pill counts.
  *
  * THE ADDRESS OPENS THE FILTERS, AND THE CONTROLS OWN THEM AFTER THAT. A number on the dashboard
  * links here narrowed the way it was counted, so the query is where this screen starts; from
- * then on the bar is what says what is filtered, and a control that rewrote the address would
- * put a history entry behind every keystroke.
+ * then on the bar is what says what is filtered, and no control writes the address back.
  */
 export function Runs() {
     const navigate = useNavigate()

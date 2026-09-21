@@ -111,8 +111,13 @@ class ConvertOutput(BlockModel):
     """Where the re-encoding read from and wrote to, so a later step can address the result."""
 
     source: str
+    """The URI the bytes were read from."""
+
     target: str
+    """The URI the re-encoded bytes were written to."""
+
     bytes_written: int
+    """How many bytes the re-encoding wrote."""
 
 
 class Engine(ABC):

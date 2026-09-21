@@ -11,9 +11,10 @@ by the owner.
 
 ## How
 
-1. Build the branch (`bun run build` — the e2e and the browser serve `dist`, and a stale
-   bundle reviews the wrong code) and open every screen the diff touches, dark palette first,
-   then light.
+1. Build the branch with `make ui-static` — the e2e suite serves `frontend/dist`, and a
+   checkout's `dg dev` serves the packaged `dirigent-server/src/dirigent_server/static/` when
+   it holds a bundle, else `frontend/dist`, so a stale bundle reviews the wrong code — then
+   open every screen the diff touches, dark palette first, then light.
 2. Walk the checklist below per screen. Screenshot anything that fails.
 3. Small findings: fix on the branch. Judgment calls: put them to the owner before merging.
 

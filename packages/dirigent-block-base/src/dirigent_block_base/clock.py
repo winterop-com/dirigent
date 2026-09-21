@@ -88,6 +88,7 @@ class TimeWindowOutput(BlockModel):
     """When the window this poke fell inside opened, not when the poke happened."""
 
     timezone: str
+    """The timezone the clock was read in."""
 
 
 class TimeWindowSensor(Sensor[TimeWindowConfig, TimeWindowOutput]):
