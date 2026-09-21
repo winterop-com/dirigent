@@ -15,6 +15,7 @@ from pydantic import BaseModel, JsonValue
 from dirigent_common import format_checker_with
 from dirigent_plugin import (
     ByteSink,
+    Capture,
     FormatCheck,
     RunRefused,
     RunSnapshot,
@@ -69,6 +70,19 @@ class FakeSink:
     def close(self) -> None:
         """Finish the file."""
         self._handle.close()
+
+
+class FakeCapture:
+    """A captured stream in a test: a sink carrying the URI it was opened under."""
+
+    def __init__(self, uri: str, sink: ByteSink) -> None:
+        """Bind the sink to the URI naming it."""
+        self.uri = uri
+        self._sink = sink
+
+    async def write(self, data: bytes) -> int:
+        """Append bytes to the stream and return how many were accepted."""
+        return await self._sink.write(data)
 
 
 class FakeStorage:
@@ -236,6 +250,22 @@ class FakeContext:
     def scratch(self) -> str:
         """The run-scoped URI prefix."""
         return self.scratch_uri
+
+    def capture(self, name: str, *, content_type: str = "text/plain") -> AbstractAsyncContextManager[Capture]:
+        """Open a captured stream under the scratch prefix, named as the engine names it."""
+        uri = f"{self.scratch_uri.rstrip('/')}/{self._segment()}-{name}"
+
+        @asynccontextmanager
+        async def opened() -> AsyncGenerator[Capture]:
+            async with self.storage.open_write(uri, content_type=content_type) as sink:
+                yield FakeCapture(uri, sink)
+
+        return opened()
+
+    def _segment(self) -> str:
+        """The path this attempt's captures sit under: the step, the fan-out item, and the attempt."""
+        item = f"/{self.run_item_id}" if self.run_item_id is not None else ""
+        return f"{self.step}{item}/attempt-{self.attempt}"
 
     @property
     def work(self) -> Path:

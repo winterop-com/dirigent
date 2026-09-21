@@ -176,22 +176,18 @@ class DockerBuildOperator(Operator[DockerBuildConfig, DockerBuildOutput]):
         if config.push and (settings is None or not settings.authenticates):
             raise BlockFailure(NO_REGISTRY_CREDENTIAL, error_class=ErrorClass.REJECTED)
         timeout = config.timeout.total_seconds()
-        artifacts = subprocess.prefix(ctx, "build")
-        stdout_uri = f"{artifacts}-stdout.txt"
-        build_log_uri = f"{artifacts}-build.log"
 
         with sealed(settings, root, isolate_config=config.push) as material:
             environ = daemon_environment(
                 subprocess.environment([*DAEMON_ENV, *config.env_allowlist], config.env, root), material
             )
             write_cli_config(root / ".docker")
-            code, out, err = await subprocess.run(
+            code, out, err, stdout_uri, build_log_uri = await subprocess.run(
                 directory=root,
                 ctx=ctx,
-                stdout_uri=stdout_uri,
-                stderr_uri=build_log_uri,
                 timeout_seconds=timeout,
                 environ=environ,
+                stderr_name="build.log",
                 argv=build_argv(config, context, iidfile),
                 what="docker buildx build",
                 redact=material.secrets,

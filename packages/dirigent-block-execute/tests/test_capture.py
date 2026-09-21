@@ -81,11 +81,9 @@ async def test_a_secret_never_reaches_a_live_line(local_ctx: FakeContext) -> Non
     from dirigent_block_execute import subprocess
 
     workspace = subprocess.workspace(local_ctx.as_context(), "shell")
-    code, out, err = await subprocess.run(
+    code, out, err, _stdout_uri, _stderr_uri = await subprocess.run(
         directory=workspace,
         ctx=local_ctx.as_context(),
-        stdout_uri=f"{local_ctx.scratch}/out.txt",
-        stderr_uri=f"{local_ctx.scratch}/err.txt",
         timeout_seconds=30,
         environ=subprocess.environment([], {}, workspace),
         command="echo 'token s3cret in the clear'; echo 's3cret again' 1>&2",

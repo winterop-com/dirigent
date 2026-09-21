@@ -165,12 +165,12 @@ stays clean, and every example stays executable.
 - **What an artifact is.** Today an artifact is exactly one thing: a step's structured
   output, kept inline when small and written to `outputs/<attempt-id>.json` when not, with a
   digest, a size, and links to run, attempt and step. The files a block actually writes are
-  not artifacts: `http.request --save_to`, `shell.run`'s captured streams and
-  `storage.copy`'s target are storage URIs mentioned inside an output, with no row of their
-  own. So the thing a person most wants -- the fetched payload, the command's stdout -- is
-  untracked, while the small JSON that merely names it is tracked. Three consequences:
-  `dg artifact` has no subcommands, so nothing can be listed or downloaded; retention cannot
-  clean up files it holds no reference to; and a run cannot answer what it produced.
+  not artifacts: `shell.run`'s captured streams and `storage.copy`'s target are storage URIs
+  mentioned inside an output, with no row of their own. So the thing a person most wants --
+  the fetched payload, the command's stdout -- is untracked, while the small JSON that merely
+  names it is tracked. Three consequences: `dg artifact` has no subcommands, so nothing can
+  be listed or downloaded; retention cannot clean up files it holds no reference to; and a
+  run cannot answer what it produced.
   Which way to close it is genuinely open. Either a block DECLARES a URI as an output and the
   engine tracks, lists, retains and serves it -- which makes downloads, retention and the
   future run view work from one concept -- or artifacts stay strictly the step's return value
@@ -369,9 +369,3 @@ requires touching the engine. None is near-term.
   its check insists on it; its starters are therefore twins on a `starters/` shelf that name
   the connection under `requires` instead. One rule for both, carrying for local runs and
   requiring for copies, would remove the duplication.
-
-- **The capture URIs are the last storage a block writes on its own.** `shell.run`,
-  `docker.run`, `git.checkout` and the compose and build blocks spill stdout and stderr to
-  `stdout_uri`/`stderr_uri` themselves, and `docker.run` stages `inputs` and `outputs` through
-  mounts. The rule that a value moves through outputs and storage has two doors stops at them
-  for now; a later pass decides what capture looks like under it.

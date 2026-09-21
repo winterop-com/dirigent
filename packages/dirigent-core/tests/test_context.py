@@ -1,9 +1,17 @@
-"""Tests for the client core builds from a connection config it reads structurally."""
+"""Tests for the context the engine hands a block: the client it builds, and where a capture lands."""
+
+from datetime import UTC, datetime
+from pathlib import Path
+from uuid import UUID, uuid4
 
 import httpx2
 from pydantic import BaseModel, SecretStr
 
-from dirigent_core.engine.context import build_http_client
+from dirigent_common import base_format_checker
+from dirigent_core.engine.context import BufferedLogger, EngineStepContext, build_http_client
+from dirigent_core.secrets import SecretBox
+from dirigent_core.storage import Storage, build_storage
+from dirigent_testing import FakeRuns
 
 
 class _TokenConfig(BaseModel):
@@ -82,3 +90,67 @@ def test_a_config_naming_no_fields_gets_a_bare_client() -> None:
 
     assert client.auth is None
     assert "authorization" not in client.headers
+
+
+# -- where a captured stream lands -----------------------------------------------
+
+
+def _context(
+    storage: Storage, scratch: str, work_root: Path, *, attempt: int = 1, item: UUID | None = None
+) -> EngineStepContext:
+    """A context bound to one attempt of one step, carrying what a capture reads."""
+    run_id = uuid4()
+    return EngineStepContext(
+        run_id=run_id,
+        step="load",
+        run_item_id=item,
+        attempt=attempt,
+        started_at=datetime.now(UTC),
+        inline_capture=8 * 1024,
+        params={},
+        log=BufferedLogger(run_id=run_id, step_name="load", limit=100, batch=10),
+        storage=storage,
+        scratch=scratch,
+        work_root=str(work_root),
+        connections={},
+        connection_models={},
+        secrets=SecretBox(None),
+        runs=FakeRuns(),
+        format_checker=base_format_checker(),
+    )
+
+
+async def test_a_capture_is_named_under_the_scratch_prefix_and_reads_back(tmp_path: Path) -> None:
+    scratch = f"file://{tmp_path}/runs/one"
+
+    async with _context(build_storage(f"file://{tmp_path}"), scratch, tmp_path).capture("stdout") as sink:
+        await sink.write(b"printed")
+
+    assert sink.uri == f"{scratch}/load/attempt-1-stdout"
+    assert (tmp_path / "runs/one/load/attempt-1-stdout").read_bytes() == b"printed"
+
+
+async def test_two_attempts_of_one_step_capture_to_different_objects(tmp_path: Path) -> None:
+    """The attempt is in the name, so a retry never writes over what the first attempt printed."""
+    storage = build_storage(f"file://{tmp_path}")
+    scratch = f"file://{tmp_path}/runs/one"
+
+    async with _context(storage, scratch, tmp_path, attempt=1).capture("stdout") as first:
+        await first.write(b"first")
+    async with _context(storage, scratch, tmp_path, attempt=2).capture("stdout") as second:
+        await second.write(b"second")
+
+    assert first.uri != second.uri
+    assert (tmp_path / "runs/one/load/attempt-1-stdout").read_bytes() == b"first"
+    assert (tmp_path / "runs/one/load/attempt-2-stdout").read_bytes() == b"second"
+
+
+async def test_a_fan_out_item_captures_under_its_own_path(tmp_path: Path) -> None:
+    """Two items of one step run the same block at the same attempt, so the item id parts them."""
+    scratch = f"file://{tmp_path}/runs/one"
+    item = uuid4()
+
+    async with _context(build_storage(f"file://{tmp_path}"), scratch, tmp_path, item=item).capture("err") as sink:
+        await sink.write(b"one item")
+
+    assert sink.uri == f"{scratch}/load/{item}/attempt-1-err"

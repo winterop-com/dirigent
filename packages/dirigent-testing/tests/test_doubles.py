@@ -112,6 +112,30 @@ class Credential(BaseModel):
     token: str
 
 
+async def test_a_capture_lands_under_the_scratch_prefix_with_the_type_it_was_opened_with(
+    block_ctx: FakeContext,
+) -> None:
+    """The double names a capture as the engine does, so a block's URI assertions hold in a test."""
+    async with block_ctx.capture("stdout") as sink:
+        await sink.write(b"printed")
+
+    assert sink.uri == f"{block_ctx.scratch}/step/attempt-1-stdout"
+    assert block_ctx.storage.path_for(sink.uri).read_bytes() == b"printed"
+    assert block_ctx.storage.content_types[sink.uri] == "text/plain"
+
+
+async def test_two_attempts_of_one_step_capture_to_different_objects(block_ctx: FakeContext) -> None:
+    async with block_ctx.capture("stdout") as first:
+        await first.write(b"first")
+    block_ctx.attempt = 2
+    async with block_ctx.capture("stdout") as second:
+        await second.write(b"second")
+
+    assert first.uri != second.uri
+    assert block_ctx.storage.path_for(first.uri).read_bytes() == b"first"
+    assert block_ctx.storage.path_for(second.uri).read_bytes() == b"second"
+
+
 def test_the_context_resolves_a_connection_the_test_installed(block_ctx: FakeContext) -> None:
     block_ctx.connections["acme"] = Credential(token="secret")
 

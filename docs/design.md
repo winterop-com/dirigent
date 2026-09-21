@@ -950,9 +950,12 @@ Dirigent standardizes the reference, not the format or the backend:
   block reads or writes storage for a value of its own. A step that has a value hands it to a
   write, and a step that needs one takes it from a read. The blocks whose operation *is* a
   storage object keep their URIs, because nothing about them is a value: `storage.copy`,
-  `storage.exists`, and the converters, which read one URI and write another. What bounds a
-  value carried this way is the cap above: the attempt keeps it whole, and
-  `inline_artifact_max` decides only where the artifact copy lives.
+  `storage.exists`, and the converters, which read one URI and write another. A captured
+  stream is a storage object of that kind, and a block still never names one: `ctx.capture`
+  opens it, names it under the run's scratch after the step and the attempt, and hands back
+  the URI the block's output carries. What bounds a value carried this way is the cap above:
+  the attempt keeps it whole, and `inline_artifact_max` decides only where the artifact copy
+  lives.
 - **A write is all or nothing, whatever the backend.** The mechanism differs and the contract
   does not: `file://` stages beside the target and renames on close, and `s3://` buffers until
   the multipart threshold, uploads parts as they fill, completes on a clean exit, and aborts

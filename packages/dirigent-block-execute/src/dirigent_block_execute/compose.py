@@ -342,7 +342,6 @@ class DockerComposeUpOperator(Operator[DockerComposeUpConfig, DockerComposeUpOut
         assert compose_file is not None
         project = config.project_name or _default_project(ctx)
         timeout = config.timeout.total_seconds()
-        stdout_uri, stderr_uri = _artifact_uris(ctx, "up")
 
         with sealed(_connection(config.connection, ctx), root) as material:
             environ = daemon_environment(
@@ -350,13 +349,13 @@ class DockerComposeUpOperator(Operator[DockerComposeUpConfig, DockerComposeUpOut
             )
             write_cli_config(root / ".docker")
             try:
-                code, out, err = await subprocess.run(
+                code, out, err, stdout_uri, stderr_uri = await subprocess.run(
                     directory=root,
                     ctx=ctx,
-                    stdout_uri=stdout_uri,
-                    stderr_uri=stderr_uri,
                     timeout_seconds=timeout,
                     environ=environ,
+                    stdout_name="up-stdout",
+                    stderr_name="up-stderr",
                     argv=up_argv(config, project, compose_file, root),
                     what="docker compose up",
                 )
@@ -411,20 +410,19 @@ class DockerComposeDownOperator(Operator[DockerComposeDownConfig, DockerComposeD
         compose_file = _compose_file(config.file, config.content, ctx, root)
         project = config.project_name or _default_project(ctx)
         timeout = config.timeout.total_seconds()
-        stdout_uri, stderr_uri = _artifact_uris(ctx, "down")
 
         with sealed(_connection(config.connection, ctx), root) as material:
             environ = daemon_environment(
                 subprocess.environment([*DAEMON_ENV, *config.env_allowlist], config.env, root), material
             )
             write_cli_config(root / ".docker")
-            code, out, err = await subprocess.run(
+            code, out, err, stdout_uri, stderr_uri = await subprocess.run(
                 directory=root,
                 ctx=ctx,
-                stdout_uri=stdout_uri,
-                stderr_uri=stderr_uri,
                 timeout_seconds=timeout,
                 environ=environ,
+                stdout_name="down-stdout",
+                stderr_name="down-stderr",
                 argv=down_argv(config, project, compose_file, root),
                 what="docker compose down",
             )
@@ -654,12 +652,6 @@ def _compose_file(file: str | None, content: str | None, ctx: StepContext, root:
 def _work_relative(path: Path, root: Path) -> str:
     """A compose file's path as a later step would name it, relative to the run's work directory."""
     return str(path.relative_to(root))
-
-
-def _artifact_uris(ctx: StepContext, action: str) -> tuple[str, str]:
-    """Where the CLI's two streams are written for this attempt."""
-    root = f"{subprocess.prefix(ctx, 'compose')}-{action}"
-    return f"{root}-stdout.txt", f"{root}-stderr.txt"
 
 
 def _default_project(ctx: StepContext) -> str:

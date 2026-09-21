@@ -6,7 +6,8 @@ long step is visible working and its last lines still land with the outcome.
 """
 
 import asyncio
-from collections.abc import Mapping
+from collections.abc import AsyncGenerator, Mapping
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from fnmatch import fnmatch
 from pathlib import Path
@@ -26,7 +27,7 @@ from dirigent_core.messages import RUN_UNKNOWN_CONNECTION, RUN_UNKNOWN_SCHEMA, U
 from dirigent_core.models import Connection, Schema
 from dirigent_core.secrets import SecretBox
 from dirigent_core.storage import AttemptStorage, Storage, connection_binder, work_dir
-from dirigent_plugin import BlockFailure, ConnectionRef, ErrorClass, Logger, Runs
+from dirigent_plugin import BlockFailure, ByteSink, Capture, ConnectionRef, ErrorClass, Logger, Runs
 
 #: What an HTTP connection is assumed to call its fields, so core can build a client for
 #: any connection kind without importing the package that contributed it.
@@ -230,6 +231,19 @@ class BufferedLogger(BaseModel):
             self.full.set()
 
 
+class CapturedStream:
+    """A sink that carries the URI the engine opened it under, for a block to put in its output."""
+
+    def __init__(self, uri: str, sink: ByteSink) -> None:
+        """Bind the storage sink to the URI naming it."""
+        self.uri = uri
+        self._sink = sink
+
+    async def write(self, data: bytes) -> int:
+        """Append bytes to the stream and return how many were accepted."""
+        return await self._sink.write(data)
+
+
 class EngineStepContext:
     """The concrete StepContext the engine hands a block for exactly one call."""
 
@@ -296,6 +310,26 @@ class EngineStepContext:
     def scratch(self) -> str:
         """Return the run-scoped URI prefix for intermediate artifacts."""
         return self._scratch
+
+    def capture(self, name: str, *, content_type: str = "text/plain") -> AbstractAsyncContextManager[Capture]:
+        """Open the storage object a block's named stream is written to, under the run's scratch."""
+        uri = f"{self._scratch.rstrip('/')}/{self._segment()}-{name}"
+
+        @asynccontextmanager
+        async def opened() -> AsyncGenerator[Capture]:
+            async with self.storage.open_write(uri, content_type=content_type) as sink:
+                yield CapturedStream(uri, sink)
+
+        return opened()
+
+    def _segment(self) -> str:
+        """The path this attempt's captures sit under: the step, the fan-out item, and the attempt.
+
+        ``{step}[/{item}]/attempt-{n}``. The step key is unique within the run and the item id
+        within a fan-out, so no two attempts of one run write over each other's streams.
+        """
+        item = f"/{self.run_item_id}" if self.run_item_id is not None else ""
+        return f"{self.step}{item}/attempt-{self.attempt}"
 
     @property
     def work(self) -> Path:
