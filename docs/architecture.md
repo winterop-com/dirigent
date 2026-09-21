@@ -1,34 +1,44 @@
 # Architecture
 
-Dirigent is one `uv` workspace of eighteen packages. This page says what each is for, what may
+Dirigent is one `uv` workspace of nineteen packages. This page says what each is for, what may
 depend on what, and **where a new thing goes** -- so the answer is a rule rather than a guess.
 
 ## The tree
 
 ```text
-dirigent-common              value types and shared schemas                    -> nothing
-dirigent-plugin              the block contract                                -> common
-dirigent-client              wire schemas and the SDK                          -> common
-dirigent-core                engine, scheduler, triggers, alerting             -> common, plugin, client
-dirigent-server              the API and auth                                  -> common, client, core
-dirigent-cli                 the commands                                      -> common, client, core, server, blocks
-dirigent-examples            the example corpus                                -> common, plugin, client
-dirigent-block-base          log, report, validate, value, time, run, convert  -> common, plugin
-dirigent-block-http          http.request, http.ready, webhook.post            -> common, plugin
-dirigent-block-storage       copy, read, write, exists                         -> common, plugin
-dirigent-block-execute       shell, docker, compose, build, checkout           -> common, plugin, block-http
-dirigent-block-sql           sql.query, sql.execute                            -> common, plugin
-dirigent-block-jq            transform.jq, map.jq, filter.jq                   -> common, plugin
-dirigent-block-queues        kafka and rabbitmq                                -> common, plugin
-dirigent-block-parquet       convert.arrow, on pyarrow                         -> common, plugin
-dirigent-blocks              the umbrella, and the alert channels              -> common, plugin, every family
-dirigent-storage-s3          an adapter pack, and the shape of others          -> common, plugin
-dirigent-testing             doubles and fixtures for testing a block          -> common, plugin
+dirigent-common          value types and shared schemas                 -> nothing
+dirigent-plugin          the block contract                             -> common
+dirigent-client          wire schemas and the SDK                       -> common
+dirigent-core            engine, scheduler, triggers, alerting          -> common, plugin, client
+dirigent-server          the API and auth                               -> common, plugin, client, core, examples
+dirigent-cli             the commands                                   -> common, plugin, client, core, server,
+                                                                           blocks, block-execute, examples
+dirigent-examples        the example corpus                             -> common, plugin, client
+dirigent-block-base      log, report, validate, value, time, convert,
+                         pipeline.run, and the log alert channel        -> common, plugin
+dirigent-block-http      http.request, http.ready, webhook.post         -> common, plugin
+dirigent-block-storage   copy, read, write, exists                      -> common, plugin
+dirigent-block-execute   shell, docker, compose, build, checkout        -> common, plugin, block-http
+dirigent-block-sql       sql.query, sql.execute                         -> common, plugin
+dirigent-block-duckdb    the duckdb engine of the sql family            -> common, plugin, block-sql
+dirigent-block-jq        transform.jq, map.jq, filter.jq                -> common, plugin
+dirigent-block-queues    kafka and rabbitmq                             -> common, plugin
+dirigent-block-parquet   convert.arrow, on pyarrow                      -> common, plugin
+dirigent-blocks          the umbrella, and the alert channels           -> common, plugin, block-base,
+                                                                           block-execute, block-http, block-jq,
+                                                                           block-queues, block-sql, block-storage
+dirigent-storage-s3      an adapter pack, and the shape of others       -> common, plugin
+dirigent-testing         doubles and fixtures for testing a block       -> common, plugin
 ```
+
+Two block packages are outside the umbrella and installed by name: `dirigent-block-parquet`,
+whose pyarrow outweighs the other eight together, and `dirigent-block-duckdb`, which
+registers on the sql family's own entry-point group rather than on the plugin group.
 
 Edges point down and never back up. `packages/dirigent-common/tests/test_dependency_tree.py`
 asserts every one of them, from the metadata *and* from what the source actually imports --
-because a package can declare the right thing and still reach past it.
+because a package can declare the right thing and still reach past it. A line above is the
+most a package may depend on; several depend on less.
 
 ## Where a new thing goes
 
@@ -42,8 +52,13 @@ because a package can declare the right thing and still reach past it.
 | An HTTP route, or how a request is authenticated | `server` |
 | A command, or how one is rendered | `cli` |
 | A block anybody would want | the `dirigent-block-*` family it belongs to |
+| An engine or codec a family runs programs through -- duckdb, jq, arrow | its own `dirigent-block-*` package |
 | A block or backend for one external system | an adapter pack |
 | A double or fixture a block author writes tests against | `testing` |
+
+The full naming taxonomy -- what `dirigent-block-*`, `dirigent-storage-*`, `dirigent-notify-*`
+and `dirigent-<system>` each mean -- is in
+[the design document](design.md#3-stack-and-workspace).
 
 The question that decides it is **who else needs this**. A thing two packages need belongs
 below both, and `common` is what makes that possible: without something beneath `plugin`, a
@@ -70,9 +85,10 @@ connect or the read.
 client are shared, the registration is that family's. A pack that wants the kind itself
 depends on that one family rather than on everything.
 
-## What is not settled
+## What `common` deliberately does not hold
 
-The helpers many plugins will reuse -- the submit-probe-fetch shape, error classification from
-a response, remote status mapping, paging -- are named in the roadmap as belonging in `common`
-and are not there yet. Build the first adapter pack watching for what the second would
-duplicate, and lift that as it appears rather than guessing now.
+The helpers several packs would plausibly share -- the submit-probe-fetch shape, error
+classification from a response, remote status mapping, paging -- are not in `common`, and
+neither are `status_class`, `is_success` and `ErrorClass`. The rule is duplication first: a
+helper moves down when a second adapter pack repeats it, not when somebody guesses that one
+might. Build a pack watching for what the next one would copy, and lift that when it appears.

@@ -80,8 +80,9 @@ at the first write.
 For **assertion**: dirigent ships base formats (`ulid`, `uuid4`, `uuid7`, `md5`, `sha256`,
 `base64`, ...) on top of the standard ones, so a schema writing `format: uuid7` rejects a v4.
 Both are the same mechanism -- a non-standard `format` string -- pointed at discovery in one
-case and value-checking in the other. See [jq](jq.md)'s companion, the JSON Schema guide, for
-the format-versus-pattern rule. JSON Schema itself is targeted at Draft 2020-12 throughout.
+case and value-checking in the other. A pack contributes its own through the formats surface,
+and [the JSON Schema guide](json-schema.md) has the format-versus-pattern rule. JSON Schema
+itself is targeted at Draft 2020-12 throughout.
 
 ## `models` are ORM, `schemas` cross a boundary
 
@@ -111,11 +112,17 @@ A command writes one record per line to stdout -- no banner, no table, no colour
 stdout is not a terminal: a pipe, a container's log, an agent's shell and CI all read records
 without asking. At a terminal the same records are rendered, the way `dg format` renders
 them. `--json` asks for records on a terminal, `-o console` for the rendering into a pipe,
-and `DIRIGENT_LOG_FORMAT` names either once. Every record carries a `kind`, which is what a
-formatter dispatches on and what `jq` selects by, and it carries what its rendering needs, so
-no renderer reads the run a second time. A table is a rendering of a record, and it lives in
-the formatter, never in the command. There is no exception: `dg dev` at a terminal renders
-its lines, and `dg init` in a pipe writes records.
+`DIRIGENT_LOG_FORMAT` names either once, and `dg format` renders a stream that was kept or
+piped. Every record carries a `kind`, which is what a formatter dispatches on and what `jq`
+selects by, and it carries what its rendering needs, so no renderer reads the run a second
+time. A table is a rendering of a record, and it lives in the formatter, never in the
+command. `dg dev` at a terminal renders its lines and `dg init` in a pipe writes records:
+the rule reaches every command.
+
+Two commands answer with one plain line at a terminal and in a pipe alike, because the value
+is the whole output and there is nothing to dispatch on: `dg --version`, which behaves like
+`--help`, and `dg secret-key`, so `DIRIGENT_SECRET_KEY=$(dg secret-key)` works in a shell and
+in a `.env`.
 
 ### Giving a command a record
 
@@ -133,8 +140,8 @@ and which of the two happens is the invocation's business.
 The rendering is the formatter's. A fact that fits one line needs nothing more -- the console
 line already carries the message and every field. A fact that does not fit a line carries the
 bulk in a field named in `summaries.BULKY`, so it stays off the line, and gets an entry in
-`summaries.RENDERERS` keyed by its `kind` that draws it: `version` draws a table of packages,
-`validation` draws the problems and the document's graph. A kind with no entry renders as its
+`summaries.RENDERERS` keyed by its `kind` that draws it: `run` draws the run's steps and
+timings, `validation` the problems and the document's graph. A kind with no entry renders as its
 line, which is why a record from a newer dirigent still reads. The test asserts on records --
 `only(stdout, "schedule.paused")["code"]`, `refusal(stdout)["problems"]` -- and never on the
 drawing; the few tests that cover a rendering call the formatter directly, in
@@ -188,11 +195,12 @@ like `mkdocs.yml`, keeps the name the tool expects.
 
 ## The test lanes, and the one that never gates
 
-The fast lane (`make test`) runs on SQLite and is what every change is held to. Beside it are
-lanes a marker keeps out of the default selection, each run on demand: `postgres` for what
-only a real PostgreSQL proves, `s3` for a real object store, `docker` for a real daemon,
-`queues` for real brokers, and `e2e` for the product driven the way a person drives it. CI
-runs each of them as a job of its own.
+The fast lane (`make test`) runs on SQLite and is what every change is held to. Four markers
+are deselected by default and each has its own target and its own CI job: `postgres` for what
+only a real PostgreSQL proves, `s3` for a real object store, `docker` for a real daemon, and
+`queues` for real brokers. `e2e` -- the product driven through `dg` as a person drives it --
+is marked so `make e2e` can run it alone, but it is *in* the fast lane and gates every change
+with the rest.
 
 `load` is the exception that never runs in the gate. `make load` fans a run out over fifty
 attempts logging five thousand lines each, against a real PostgreSQL, and writes what the log
