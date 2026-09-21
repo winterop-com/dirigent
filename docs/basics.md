@@ -747,7 +747,7 @@ uv run dg run echo-failures --watch
 
 *One attempt, with three allowed. A rejected failure never touches the budget.*
 
-![The same run with the unlucky step selected: three attempts, each one transient, seven seconds from the first to the last.](images/basics/run-retried.png)
+![The same run with the unlucky step selected: three attempts, each one transient, eight seconds from the first to the last.](images/basics/run-retried.png)
 
 *The same budget, spent. Every attempt is a row of its own, with its own resolved config and its own logs, which is what makes a retry auditable rather than a counter.*
 
