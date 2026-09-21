@@ -309,6 +309,40 @@ describe('the store the whole screen reads', () => {
         expect(stepNames(state.local)).toEqual(['parse', 'report'])
     })
 
+    test('shows text that was typed as it was typed, comments and all', () => {
+        loadDocument('convert-one', document())
+        const typed = `# what this pipeline is for\n${toYaml(document())}`
+        writeSource(typed)
+        const state = documentStore.get()
+        expect(state.source).toBe(typed)
+        expect(stepNames(state.local)).toEqual(['parse', 'report'])
+    })
+
+    test('a structural edit drops the text, because no renderer can produce it', () => {
+        loadDocument('convert-one', document())
+        writeSource(`# what this pipeline is for\n${toYaml(document())}`)
+        changeDocument((current) => withStepConfig(current, 'parse', { from: 'csv' }))
+        expect(documentStore.get().source).toBeNull()
+    })
+
+    test('text that does not parse leaves the text the pane holds alone', () => {
+        loadDocument('convert-one', document())
+        const typed = `# what this pipeline is for\n${toYaml(document())}`
+        writeSource(typed)
+        writeSource('steps:\n  parse: [')
+        const state = documentStore.get()
+        expect(state.source).toBe(typed)
+        expect(state.draft).toBe('steps:\n  parse: [')
+        expect(state.parseError).not.toBeNull()
+    })
+
+    test('reverting goes back to rendering the document', () => {
+        loadDocument('convert-one', document())
+        writeSource(`# what this pipeline is for\n${toYaml(document())}`)
+        revertDocument()
+        expect(documentStore.get().source).toBeNull()
+    })
+
     test('refuses an edit from another tab while the source does not parse', () => {
         loadDocument('convert-one', document())
         writeSource('steps:\n  parse: [')
@@ -351,6 +385,7 @@ describe('the store the whole screen reads', () => {
             code: null,
             applied: null,
             local: null,
+            source: null,
             draft: null,
             parseError: null,
         })
@@ -378,6 +413,39 @@ describe('a document nothing has applied', () => {
         expect(state.applied).toBeNull()
         expect(state.local).toEqual(newDocument())
         expect(state.parseError).toBeNull()
+    })
+
+    test('opens on the text it was handed, comments and all', () => {
+        const starter = [
+            '# Render a page of markdown and put it in a file.',
+            '#',
+            '# TO MAKE IT YOURS: change the template.',
+            'format: dirigent/v1',
+            'kind: pipeline',
+            'code: report-to-file',
+            'steps:',
+            '  page:',
+            '    block: report.render',
+            '',
+        ].join('\n')
+        startDocument(starter)
+        const state = documentStore.get()
+        expect(state.source).toBe(starter)
+        expect(state.local?.code).toBe('report-to-file')
+        expect(stepNames(state.local)).toEqual(['page'])
+    })
+
+    test('opens on no text at all when nothing was handed in', () => {
+        startDocument()
+        expect(documentStore.get().source).toBeNull()
+    })
+
+    test('keeps text that does not parse as the draft, with no document text to show', () => {
+        startDocument('steps:\n  parse: [')
+        const state = documentStore.get()
+        expect(state.source).toBeNull()
+        expect(state.draft).toBe('steps:\n  parse: [')
+        expect(state.parseError).not.toBeNull()
     })
 
     test('is edited like any other: the source pane writes it and the graph reads it', () => {

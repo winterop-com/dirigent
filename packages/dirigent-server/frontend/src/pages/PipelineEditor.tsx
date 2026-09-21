@@ -164,6 +164,7 @@ export function PipelineEditor() {
     const [picking, setPicking] = useState(false)
 
     const local = state.code === code ? state.local : null
+    const source = state.code === code ? state.source : null
     const edits = useMemo(() => editsIn(state.applied, local), [state.applied, local])
     // A BOX IS MARKED AGAINST A VERSION, so a document nothing has applied marks none of them.
     // Every step of a draft differs from nothing at all, and a canvas where each one said
@@ -512,6 +513,7 @@ export function PipelineEditor() {
                 render: () => (
                     <SourceTab
                         document={local}
+                        source={source}
                         schema={schema}
                         parseError={state.parseError}
                         readOnly={small}
@@ -530,6 +532,7 @@ export function PipelineEditor() {
         schemas,
         selected,
         small,
+        source,
         state.parseError,
         stepRead,
         unmet,

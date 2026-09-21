@@ -15,6 +15,11 @@ import { toYaml } from '@/lib/pipeline-document'
  * one that did and no other tab may write to it -- a form quietly replacing half-fixed text is
  * worse than a form that says it cannot.
  *
+ * THE TEXT IT WAS HANDED IS WHAT IT SHOWS. A document that arrived as text -- a starter, a picked
+ * file, something typed here -- is shown in that text, comments and blank lines and all, for as
+ * long as no structural edit has moved past it. After one, there is text no renderer can produce
+ * from the document, so the pane renders the document instead.
+ *
  * THE YAML IS RENDERED HERE, NOT SERVED. `GET /pipelines/{name}/$export` is the canonical text
  * and orders the steps topologically; this renders the document as it stands, in the order it is
  * held in, so what is edited and what is read back are the same thing. An apply canonicalises it.
@@ -29,6 +34,7 @@ const SETTLE_MS = 250
 
 export function SourceTab({
     document,
+    source,
     schema,
     parseError,
     onWrite,
@@ -36,6 +42,8 @@ export function SourceTab({
 }: {
     /** The local document, or null when the pipeline has no version yet. */
     document: JsonMap | null
+    /** The text the document arrived as, or null once a structural edit re-rendered it. */
+    source: string | null
     /** The JSON Schema the editor checks against, or null when it could not be read. */
     schema: JsonMap | null
     /** Why the text in the pane is not a document, or null. */
@@ -44,7 +52,7 @@ export function SourceTab({
     /** Below the breakpoint a document is read rather than written. */
     readOnly?: boolean
 }) {
-    const rendered = useMemo(() => (document === null ? '' : toYaml(document)), [document])
+    const rendered = useMemo(() => source ?? (document === null ? '' : toYaml(document)), [document, source])
     const [text, setText] = useState(rendered)
     const typed = useRef(false)
     const timer = useRef<ReturnType<typeof setTimeout> | null>(null)

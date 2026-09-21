@@ -4,7 +4,9 @@
  * THE EDITOR IS LOCAL UNTIL IT IS APPLIED. A pipeline is a versioned document and the only way
  * to change one is to apply a whole new one, so this screen edits a copy: the graph, the step
  * form and the source pane are three readings of the same local document, and the count of
- * unapplied edits is the difference between it and the version the instance holds.
+ * unapplied edits is the difference between it and the version the instance holds. The text the
+ * document arrived as is kept beside it as `source` until a structural edit, so a comment a
+ * starter or a picked file carries is still there to read.
  *
  * IT IS A MODULE STORE because three unrelated parts of the screen read it -- a node on the
  * canvas, a chip in the topbar, a pane in the right panel -- and none of them is inside the
@@ -30,13 +32,27 @@ export interface DocumentState {
     applied: JsonMap | null
     /** The document as edited here, which is what the graph draws and what an apply sends. */
     local: JsonMap | null
+    /**
+     * The text the source pane shows while it is the document, handed in or typed.
+     *
+     * Null once a structural edit has moved past it, and the pane renders the document from
+     * then on: nothing re-keys text and keeps its comments where they were.
+     */
+    source: string | null
     /** What the source pane holds while it does not parse, or null when the two agree. */
     draft: string | null
     /** Why the draft is not a document. */
     parseError: string | null
 }
 
-const NOTHING: DocumentState = { code: null, applied: null, local: null, draft: null, parseError: null }
+const NOTHING: DocumentState = {
+    code: null,
+    applied: null,
+    local: null,
+    source: null,
+    draft: null,
+    parseError: null,
+}
 
 export const documentStore = createStore<DocumentState>(NOTHING)
 
@@ -57,6 +73,7 @@ export function loadDocument(code: string, applied: JsonMap | null): void {
         code,
         applied,
         local: applied === null ? null : clone(applied),
+        source: null,
         draft: null,
         parseError: null,
     })
@@ -84,6 +101,7 @@ export function startDocument(source?: string): void {
         code: NEW_DOCUMENT,
         applied: null,
         local: newDocument(),
+        source: null,
         draft: null,
         parseError: null,
     })
@@ -98,6 +116,9 @@ export function forgetDocument(): void {
 /**
  * Change the local document, unless the source pane is holding text that does not parse.
  *
+ * The text the document arrived as is dropped here: the change is not in it, so from now on the
+ * source pane renders the document.
+ *
  * Answers whether the change was made, so a caller can say why it was not.
  */
 export function changeDocument(change: (document: JsonMap) => JsonMap): boolean {
@@ -107,12 +128,15 @@ export function changeDocument(change: (document: JsonMap) => JsonMap): boolean 
     // A change that changed nothing publishes nothing: drawing an edge the document already
     // has is a gesture, not an edit, and it must not count as one.
     if (next === state.local) return true
-    documentStore.set({ ...state, local: next })
+    documentStore.set({ ...state, local: next, source: null })
     return true
 }
 
 /**
  * Take the source pane's text as the document.
+ *
+ * The text becomes the source the pane shows, so a comment somebody typed is still there after
+ * it parsed.
  *
  * Text that does not parse is kept as the draft and the local document is left alone, so the
  * other tabs go on showing the last document there was rather than nothing.
@@ -124,7 +148,7 @@ export function writeSource(text: string): void {
         documentStore.set({ ...state, draft: text, parseError: read.message })
         return
     }
-    documentStore.set({ ...state, local: read.document, draft: null, parseError: null })
+    documentStore.set({ ...state, local: read.document, source: text, draft: null, parseError: null })
 }
 
 /** Throw the local edits away and go back to what the instance holds. */
@@ -133,6 +157,7 @@ export function revertDocument(): void {
     documentStore.set({
         ...state,
         local: state.applied === null ? null : clone(state.applied),
+        source: null,
         draft: null,
         parseError: null,
     })
