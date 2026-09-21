@@ -204,7 +204,7 @@ steps:
     assert check_pack_examples(CONTRIBUTION, tmp_path) == []
 
 
-def test_a_connection_the_document_does_not_carry_is_reported(tmp_path: Path) -> None:
+def test_a_connection_the_document_requires_satisfies_the_step(tmp_path: Path) -> None:
     _write(
         tmp_path,
         "demo-greet.yaml",
@@ -212,7 +212,31 @@ def test_a_connection_the_document_does_not_carry_is_reported(tmp_path: Path) ->
 format: dirigent/v1
 kind: pipeline
 code: demo-greet
-description: The step names a connection nothing carries.
+description: The step names a connection the document requires of the instance.
+requires:
+  connections:
+    - demo-conn
+steps:
+  hello:
+    block: demo.greet
+    config:
+      name: ada
+      connection: demo-conn
+""",
+    )
+
+    assert check_pack_examples(CONTRIBUTION, tmp_path) == []
+
+
+def test_a_connection_the_document_does_not_account_for_is_reported(tmp_path: Path) -> None:
+    _write(
+        tmp_path,
+        "demo-greet.yaml",
+        """
+format: dirigent/v1
+kind: pipeline
+code: demo-greet
+description: The step names a connection nothing accounts for.
 steps:
   hello:
     block: demo.greet
@@ -226,7 +250,7 @@ steps:
 
     assert len(issues) == 1
     assert "absent-conn" in issues[0]
-    assert "does not carry" in issues[0]
+    assert "neither carries nor requires" in issues[0]
 
 
 def test_a_well_formed_contribution_conforms() -> None:

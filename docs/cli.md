@@ -133,12 +133,15 @@ dg pipeline new http-post-report              # writes pipelines/http-post-repor
 dg pipeline new http-post-report --code weekly-report --dir pipelines
 ```
 
-The copy is the starter's text verbatim: only the top-level `code:` is rewritten and the
+The copy is the starter's text verbatim: the top-level `code:` is rewritten and the
 `starter` tag dropped, so every teaching comment in it survives and no macro language is
-involved. Its knobs are its own `params`, and its preflight is its own `requires`, which the
-command prints as the list to work through -- the `dg connection create` lines, the schemas to
-apply, the packs a block needs. A code that is not in the catalogue, or one that is an example
-and not a starter, is refused and nothing is written; so is a file that is already there.
+involved. The connections and schemas the original carried, so that it ran alone under
+`dg run --local`, are named under the copy's `requires:` instead, so the preflight tells you
+what to create. Its knobs are its own `params`, and its preflight is its own `requires`,
+which the command prints as the list to work through -- the `dg connection create` lines,
+each with the kind the carried definition named, the schemas to apply, the packs a block
+needs. A code that is not in the catalogue, or one that is an example and not a starter, is
+refused and nothing is written; so is a file that is already there.
 
 ## Projects
 

@@ -343,7 +343,7 @@ function exampleColumns(
                             {carries !== null && (
                                 <span
                                     className="shrink-0 text-xs text-muted-foreground"
-                                    title="An instance refuses a document that carries these, so a copy has to create them instead."
+                                    title="An instance refuses a document that carries these, so a copy names them under requires instead."
                                 >
                                     {carries}
                                 </span>
