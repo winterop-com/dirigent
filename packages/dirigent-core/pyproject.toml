@@ -1,6 +1,6 @@
 [project]
 name = "dirigent-core"
-version = "0.16.7"
+version = "0.17.0"
 description = "Dirigent engine core: schema, configuration, and plugin host."
 readme = "README.md"
 requires-python = ">=3.13"
@@ -17,9 +17,9 @@ dependencies = [
     "asyncpg>=0.31.0",
     "cronsim>=2.7",
     "cryptography>=46.0.5",
-    "dirigent-client==0.16.7",
-    "dirigent-common==0.16.7",
-    "dirigent-plugin==0.16.7",
+    "dirigent-client==0.17.0",
+    "dirigent-common==0.17.0",
+    "dirigent-plugin==0.17.0",
     "jsonschema>=4.26.0",
     "opentelemetry-api>=1.44.0",
     "pydantic-settings>=2.15.0",
