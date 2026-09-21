@@ -7,6 +7,15 @@ code disagrees with this document, one of the two is a bug.
 Nothing here is about what the screens show. That is decided per screen, from a design board,
 and each one arrives as its own change. What follows is the frame every screen is built inside.
 
+**Every UI change is walked against this page in the live browser before its PR merges**, which
+is what the `ui-review` skill does. Build the branch first -- `make ui-static`, because a checkout's
+`dg dev` serves the packaged bundle where there is one -- then open every screen the diff touches
+in the dark mode and again in the light one, at 390x844 as well as at a desk width: the finger
+rule, a listing's card form and the panel sheet exist only below the breakpoint. Screenshots go
+under `.playwright-mcp/review/`, which is never committed, and the PR body says the pass ran and
+what it changed. A change to a token is read in all three palettes. A convention that proves
+wrong is changed on this page first and in the code second.
+
 ## The stack
 
 | Piece | What | Why it and not the obvious alternative |
@@ -17,7 +26,7 @@ and each one arrives as its own change. What follows is the frame every screen i
 | Components | shadcn on **Base UI** (`@base-ui/react`), style `base-nova` | The generated files in `src/components/ui/` are pristine and never hand-edited |
 | Graphs | `@xyflow/react` for the canvas, `elkjs` for the layout | React Flow draws what it is given and decides no geometry; elk's layered algorithm is what places a DAG. Both are loaded lazily -- see below |
 | Editor | `monaco-editor` with `monaco-yaml` | A pipeline document is YAML checked against a schema, and squiggling an unknown key where an apply would refuse it needs a language server rather than a textarea. Its own lazy chunk, behind `CodePane`, which is what every screen that writes source mounts -- a document, and a config field whose schema says it carries a program |
-| YAML | `yaml` | A document crosses the wire as JSON and is written by people as text, so both screens that touch one parse or render it here. The apply dialog imports it inside its handler; the editor's source pane has it in its own chunk |
+| YAML | `yaml` | A document crosses the wire as JSON and is written by people as text, and `lib/pipeline-document` is the one place it is parsed and rendered. Nothing in the entry chunk reaches that module, so the parser rides in the chunks of the screens that read a document |
 | Markdown | `marked`, for its lexer only | A description is authored markdown and has to render as prose. Nothing here produces an HTML string, so what is drawn is a token tree React escapes -- see `lib/markdown` |
 | Palette | cmdk | |
 | Toasts | sonner | |
@@ -33,29 +42,33 @@ from `@/components/ui/*` and nothing else reaches for `@base-ui/react` directly.
 what lets the component layer be swapped without a change anywhere above it, and other apps in
 this family are on a different primitive underneath the same imports.
 
-**A screen whose dependencies no other screen has is a lazy route.** React Flow and elk together
-are larger than the whole of the rest of this bundle, and only the two graph screens -- run
-detail and the pipeline editor -- draw one, so `src/App.tsx` reaches both through `React.lazy`
-and a `Suspense` whose fallback is the same `PageState` loading card every read shows. The entry
-chunk is what every reader pays for on every screen; anything that only one screen needs belongs
-in that screen's own chunk -- which is also why the connections and triggers screens are lazy,
-each carrying the form, the dialogs and the panels nothing else uses.
+**A screen whose dependencies no other screen has is a lazy route.** `src/App.tsx` reaches it
+through `React.lazy` and a `Suspense` whose fallback is the same `PageState` loading card every
+read shows. The entry chunk is what every reader pays for on every screen, so it holds the login
+screen, the two listings this app is mostly read through -- pipelines and runs -- and the 404,
+and everything else is fetched when it is opened: run detail and the pipeline editor, because
+React Flow and elk together are larger than the whole of the rest of this bundle; the dashboard
+at `/`, which composes a screenful of reads nothing else composes; connections, triggers,
+schemas, blocks and examples, each carrying the forms, the dialogs and the panels nothing else
+uses; and the four admin screens, which most readers of this app are never offered.
 
 **A chunk inside a lazy route is the same rule again.** Monaco is larger than React Flow and elk
-put together, and three places write source in it -- the pipeline editor's source pane, the apply
-dialog on the listing, which is not a lazy route at all, and a step config field whose schema
-published a `contentMediaType`. All three mount `CodePane`, and that is the one `React.lazy`
-reaching `CodeEditor`: opening a pipeline does not fetch an editor, opening its source tab or a
-jq step does, and the dialog costs the entry chunk the few hundred bytes of a `Suspense`
-rather than a megabyte of editor. Only the editor and the two contributions it hosts -- YAML and
-shell -- are imported by path, `monaco-editor` as a whole registers seventy languages, and its two
-web workers are `?worker` imports, which vite emits as chunks of their own.
+put together, and every pane in this app that writes source or windows it mounts
+`components/pipeline/CodePane`: the editor's source pane, a step config field whose schema
+published a `contentMediaType`, a schema document, an alert rule's expression, an example's text,
+and the read-only window a produced value is opened in. `CodePane` is the one `React.lazy`
+reaching `CodeEditor`, so opening a pipeline does not fetch an editor and opening its source tab
+or a jq step does. `monaco-editor` as a whole registers every language it ships, so what is
+imported by path is the api entry, the suggest controller a schema-checked buffer cannot do
+without, and the languages a field can carry -- YAML, shell, twig, SQL and JSON. jq has no monaco
+grammar and is registered in `CodeEditor` as a Monarch tokeniser. Its three web workers are
+`?worker` imports, which vite emits as chunks of their own.
 
 **A chunk two screens want is fetched before either is asked for.** `warmEditor` is that same
 import, fired by the shell once there is a session and the browser is idle -- `lib/idle` is
-`requestIdleCallback` where there is one and a timer where there is not -- so the first source tab
-or apply dialog of a session opens against a chunk that has already landed. Nothing waits on it,
-it happens once, and the login screen is outside the shell and asks for none of it.
+`requestIdleCallback` where there is one and a timer where there is not -- so the first source
+tab, jq step or output window of a session opens against a chunk that has already landed. Nothing
+waits on it, it happens once, and the login screen is outside the shell and asks for none of it.
 
 **oxfmt owns whitespace, quotes, semicolons and the order of Tailwind classes**, at four spaces,
 single quotes outside JSX, no semicolons and a print width of 110. Nothing about that is worth an
@@ -64,9 +77,12 @@ opinion in review: run `make ui-fmt`. The generated files in `src/components/ui/
 unformatted file fails the gate before anything else is read.
 
 `make ui` builds the bundle, `make ui-dev` serves it with hot reload against a running `dg dev`,
-`make ui-lint` and `make ui-test` are the gate, and `make ui-e2e` drives a real server in a
-browser. The gate is wired into `make check` behind a check for bun, so a machine without bun
-gets a loud skip rather than a failure.
+`make ui-lint` and `make ui-test` are the gate, `make ui-e2e` drives a real server in a browser
+and `make ui-shots` photographs every screen for the gallery. `make ui-static` puts the built
+bundle where the server wheel packages it, and it comes before every e2e run and every live
+review, because that packaged copy is what a checkout's `dg dev` serves. The gate is wired into
+`make check` behind a check for bun, so a machine without bun gets a loud skip rather than a
+failure.
 
 ## Three type sizes, and the named sizes outside them
 
@@ -138,11 +154,13 @@ palette, so a component designed against the rungs still reads -- except where a
 point is the ground it commits to, and `contrast` collapses page and card onto one white and one
 black, drawing every card by its edge instead.
 
-**The surface ladder** runs six rungs, and each one has to be seen: `--background` under
-`--sidebar` under `--card` under `--secondary` (which is also `--input`), then two lines --
-`--border` divides rows inside a panel, `--border-strong` separates panels. Ink runs
-`--foreground`, `--muted-foreground` for a hint, `--faint` for a timestamp beside a name. Every
-surface holds hue 255 at chroma at or below 0.017, so a long list reads as a surface.
+**The surface ladder** runs `--background` under `--sidebar` under `--card` under
+`--secondary`, and each rung has to be seen. A control has a ground of its own, `--field`, a rung
+below the page in a dark mode and above it in a light one, and it is edged in `--input`;
+`--muted` is the wash a row takes under the pointer. Two lines divide: `--border` between rows
+inside a panel, `--border-strong` between panels. Ink runs `--foreground`, `--muted-foreground`
+for a hint, `--faint` for a timestamp beside a name. Every surface holds hue 255 at chroma at or
+below 0.017, so a long list reads as a surface.
 
 **The identity colour is amber**, and it is spent on action and nothing else: a primary button,
 the active rail entry, a focus ring. It sits on `--primary` / `--primary-foreground`, because that
@@ -165,8 +183,11 @@ press.
 `RunStatus` and `AttemptStatus` from `dirigent_client.enums`, so a status string off the wire
 indexes a token with no translation table. Each has an `-ink` twin: the token fills a chip at 14%
 alpha and the ink is what is legible on it -- the `.status-chip` class in `index.css` is that
-rule, written once. `skipped` is drawn in neutral with a dashed edge, because a skipped step did
-not happen and has not earned a colour.
+rule, written once. A delivery is a machine of its own, so `--status-sending` and `--status-sent`
+are `NotificationStatus`'s live states written as the run states they mean -- in flight is
+running, arrived is succeeded -- and a palette that moves those moves these. `skipped` is drawn
+in neutral with a dashed edge, because a skipped step did not happen and has not earned a
+colour.
 
 Four semantic aliases sit over the top for anything that is not a run: `--good` is succeeded,
 `--critical` is failed, `--warning` is completed-with-errors, `--info` is running. Each has an
@@ -293,12 +314,11 @@ and a stale frame not moving a settled state backwards are decisions a Node test
 
 ## Stores, not a query library
 
-There is no react-query, swr, or zustand here.
-
-A page holds its own reads in `useState`. A fact that genuinely spans screens -- who is signed in,
-whether the rail is collapsed, which palette is painted -- is a module store from
-`src/lib/store.ts`, read in a component through `useStore`. `store.ts` imports no React, so a
-store is exercised in plain Node.
+A page holds its own reads in `useState`, and a fact that genuinely spans screens -- who is
+signed in, whether the rail is collapsed, which palette is painted, how often a watched screen
+reads itself again -- is a module store from `src/lib/store.ts`, read in a component through
+`useStore`. `store.ts` imports no React, so a store is exercised in plain Node. That is the whole
+of the state layer: no react-query, no swr, no zustand.
 
 The rule that makes it work: a store publishes only when its value actually changed by `Object.is`,
 and holds the reference it was given, so `useSyncExternalStore` sees a stable snapshot and does
@@ -421,14 +441,16 @@ the heading row, the striping, the row that reaches for the next page and the li
 foot; a screen decides its columns and what each cell says, and nothing else. Where a row opens
 something beside the table -- a connection's form, a trigger's history -- the screen passes
 `onSelect`, and the row answers Enter and Space as well as a click, because a row only a pointer
-can open is a row some people cannot.
+can open is a row some people cannot. **The column header is sticky**: rows scroll beneath it
+inside the listing's own scroll container, and the header keeps the card's ground so no row ever
+shows through it.
 
-**There are no page numbers, because this API has no pages.** Every listing is a keyset walk
-answering rows and an opaque cursor, and no total -- so what the foot can honestly say is how
-many rows have been read and whether there are more. `lib/paging` is what an answer does to the
-rows already held, as pure functions over the state; `hooks/use-paged` is the part that needs a
-browser, and it holds the question beside the rows so an answer to filters somebody has since
-changed cannot land on the screen.
+**Every listing is a keyset walk**, answering rows and an opaque cursor and no total, so there
+are no page numbers and what the foot can honestly say is how many rows have been read and
+whether there are more. `lib/paging` is what an answer does to the rows already held, as pure
+functions over the state; `hooks/use-paged` is the part that needs a browser, and it holds the
+question beside the rows so an answer to filters somebody has since changed cannot land on the
+screen.
 
 **A trigger row is two fixed lines.** The lead cell is `headingOf`'s pair -- the title, and the
 code beneath it in mono only where the title is not already the code -- and everything else the
@@ -443,18 +465,33 @@ a listing -- what this instance has installed, how the last day of runs came out
 read function's identity is the question, and an answer to a question nobody is asking any more is
 discarded rather than left on screen.
 
-**Nothing polls.** A run's own screen holds one event stream; a listing holds none, because a
-page re-read every few seconds is load for a tab nobody may be looking at. A tab that comes back
-into view re-reads page one once and puts what is new at the head, matched by id, so a row
-already on screen is refreshed in place rather than moved -- and the count of what arrived is
-what the pill on the runs screen offers.
+**A screen that watches beats, and the rest are read when they are opened.** A run's own screen
+holds one event stream and needs nothing beside it. Three screens go stale standing still -- the
+runs listing, the dashboard and the admin overview -- so each reads itself again on the one
+cadence `lib/refresh` holds for the whole app: off, or five seconds to five minutes, thirty by
+default, chosen from the split refresh control and answering the same everywhere it is offered.
+`hooks/use-heartbeat` is the beat. It fires only while the tab is visible, because a screen
+nobody can see asking anyway is heat, and it fires at once when the tab comes back, so what a
+reader returns to is the present. A beat is quiet: what is on screen stays until the answer
+lands, a beat that fails changes nothing and the next one asks again, and a listing's beat folds
+page one in at the head matched by id -- so a row already on screen is refreshed in place rather
+than moved, and the count of what arrived is the pill the runs screen offers.
 
 **A filter is the server's or it is not offered.** `GET /runs` narrows by pipeline, by status,
 by how far back to look and by the tags the run's pipeline wears, and those four are what the
 runs screen has. A control for something the server cannot filter would narrow whichever rows
 happen to have been loaded while appearing to answer the question it asks. Where a screen does
 narrow what it has loaded -- finding a pipeline among the pages read so far -- the foot already
-states how many rows those are.
+states how many rows those are. A corpus is the exception, and it is one because nothing in it is
+unread: the block catalog and the examples screen are answered whole by what this build
+installed, so every control on them narrows all of it and their empty state can say a search
+found nothing rather than that there is nothing yet.
+
+**An examples row says what a copy of it would have to change.** A document carrying a top-level
+`connections:` or `schemas:` section is what runs alone under `dg run --local`, and an apply
+refuses it, so the row states `carries connections; a copy names them` -- `carriesNote` in
+`lib/examples` -- and a starter's copy names them under `requires` instead. A document carrying
+neither says nothing, because a column saying "nothing" of a hundred rows is a column of noise.
 
 **A tag filter is a set, and its members stand beside the control.** `tag` repeats on the wire
 and repeating it narrows, so the control is a menu of checkboxes rather than a choice, and each
@@ -502,17 +539,6 @@ stands beside the control as chips that take themselves off.
 **A count says what it counts.** `rowsRead` writes "1 pipeline", "50 runs, more to load": the noun
 is the row's, singular where there is one of it, and a listing with a cursor left says so. A bare
 number along a foot reads as a total, and a keyset walk has no total to state.
-
-A dependency one screen needs is fetched when it is needed, and that is not always a whole lazy
-route. Monaco and its workers are larger than the rest of the bundle together, so `CodePane` is
-the one dynamic import of them and every pane that writes source goes through it -- a reader who
-never opens one never downloads the editor.
-
-**A document is written in one editor wherever it is written.** The editor's source pane and a
-step config field whose schema says it carries a program are the same Monaco against the same
-`GET /schema/document` -- a key no block takes is squiggled where it was typed rather than
-reported a round trip later. Each pane names its own buffer, because monaco holds one model per
-uri and two panes sharing a name would share a document.
 
 ## A graph is a shape, and each screen reduces its own to it
 
@@ -575,9 +601,17 @@ table back.
 
 **A field that carries a program is edited as one.** A string whose schema published a
 `contentMediaType` -- `application/jq` for the three jq verbs, `text/x-shellscript` for the shell
-string `shell.run` and `docker.run` take -- gets the same Monaco a document is written in, through
-the same `CodePane`, so a jq program is read on the lines it was written on. The schema is what
-decides this and nothing else: every other string stays one line, however long a value it holds.
+string `shell.run` and `docker.run` take, `application/sql` for a query, `text/x-jinja` for a
+report's template -- gets the same Monaco a document is written in, through the same `CodePane`,
+so a jq program is read on the lines it was written on. `dirigent_common.programs` is where the
+four are spelled, and the schema is what decides this and nothing else: every other string stays
+one line, however long a value it holds.
+
+**A document is written in one editor wherever it is written.** The editor's source pane and a
+step config field whose schema says it carries a program are the same Monaco against the same
+`GET /schema/document` -- a key no block takes is squiggled where it was typed rather than
+reported a round trip later. Each pane names its own buffer, because monaco holds one model per
+uri and two panes sharing a name would share a document.
 
 **A field that names a thing shows the thing.** A string property carrying `x-dirigent-ref` holds
 the code of a connection or a schema, and under the box the form draws what that code resolves to,
@@ -641,19 +675,19 @@ source pane are three readings of it, and the count of unapplied edits is the di
 it and the version the instance holds. It is a module store because those three are not inside
 one another.
 
-**A pipeline that does not exist yet is edited in the same screen.** `/pipelines/new` is the
+**A pipeline that does not exist yet is edited in the same screen.** `/pipelines/$new` is the
 editor with no pipeline behind it: the local document is a skeleton nothing has applied, so
 everything in it is editable, the code among it. Validate is the same dry run against the draft;
 Run is shut, because `$run` runs the version the instance holds and there is not one. The first
 apply creates the pipeline and the screen goes to the address it will answer at from then on --
-which is why a static `pipelines/new` route sits beside the dynamic `pipelines/:code`, and why the
-button that opens it is the primary one on the listing while the apply dialog, which is the door
-for a document written somewhere else, is the quiet one beside it.
+which is why a static `pipelines/$new` route sits beside the dynamic `pipelines/:code`, and why
+`New` is the primary half of the listing's split button while the two doors for a document
+written somewhere else, `From a starter` and `From file…`, are in the menu beside it.
 
 **A document opens on the source that holds it.** The editor's panel opens on the step tab,
 because a pipeline is read a step at a time, and choosing a box on the canvas opens that tab
 rather than whichever one was last in front of somebody. The exception is a document that arrived
-as text: `From file...` on the listing hands the editor what it read and `From a starter` hands
+as text: `From file…` on the listing hands the editor what it read and `From a starter` hands
 it the copy it made, and the editor opens on the source pane, which is where that document
 actually is. A blank `/pipelines/$new` opens on the step tab like every other screen -- the canvas
 says how to add the first step, and the source, whose schema would mark an empty `steps` map
@@ -737,9 +771,11 @@ one place a real `KeyboardEvent` is read.
 
 ## Panels are sized in pixels
 
-The rail has two widths and nothing between them: 200px with labels, 56px of icons with the labels
-back as tooltips. It is not draggable -- a rail's width is a property of its longest label rather
-than of the work in front of somebody.
+The rail is 240px with labels and 56px of icons with the labels back as tooltips, and the width
+it shows labels at is dragged between 160 and 320 -- narrower and the labels it exists for
+truncate, wider is dead space the longest label left behind. `lib/panels` holds those numbers
+beside the two widths and the open flag, each read out of storage as its store is built, so the
+shell renders at its settled size on the first paint rather than snapping into it.
 
 **What is in the right panel is the screen's.** The panel itself is drawn once, in
 `components/RightPanel`, and a screen fills it with `fillPanel` from an effect that returns the
@@ -786,10 +822,11 @@ bar's -- and an instant is the house's relative form rather than a locale string
 
 **Settings lives at the bottom of the rail's column**, in that bar; the instance's identity --
 a dot, its name and environment from `/system/info`, its version -- lives at the right of the
-topbar, and opens the health popover. The rail's own entries are **single-line labels**: what
-this app is made of is Pipelines, Runs, Schedules, Connections and Blocks, and a word that names
-one of those needs no gloss under it. The line each entry carries about itself is data on the
-entry, and the command palette is where it is read.
+topbar, and opens the health popover. The rail's own entries are **single-line labels** --
+Dashboard, Pipelines, Runs, Triggers, Connections, Blocks, Examples and Schemas, with the admin
+section under them -- and a word that names one of those needs no gloss under it. `lib/nav` is
+the array the rail draws and the palette offers, and the line an entry carries about itself is
+data on the entry that the palette reads.
 
 ## Small screens
 
@@ -857,10 +894,12 @@ minimum from it: in `index.css` against the generated primitives' slots, against
 button alone misses every filter, the instance menu and the palette button -- and against
 `control-link`, which is what a link drawn as a control wears: a drawer entry, a chip on a
 header strip, a row that navigates. The canvas's zoom cluster is sized there as well, being
-the graph library's button rather than one of ours. Where a component draws a control of its
-own it is `h-finger` or `min-h-finger`. A control drawn as a square takes the width too,
-because a 42px tall target 28px wide is a target on one axis only. No screen sizes a control
-for a phone itself.
+the graph library's button rather than one of ours. A menu opened at a point rather than under a
+control -- the canvas's right-click menus -- anchors a zero-sized trigger at the cursor, and
+`data-menu-anchor` keeps the rule off that one, because nothing draws it and no finger lands on
+it. Where a component draws a control of its own it is `h-finger` or `min-h-finger`. A control
+drawn as a square takes the width too, because a 42px tall target 28px wide is a target on one
+axis only. No screen sizes a control for a phone itself.
 
 **Text inside content is not a control.** A card's title link, a timestamp, the link in a
 heading and a tag chip a row wears are the row's words rather than something drawn to be
@@ -1103,22 +1142,21 @@ answers the arrow keys.
 
 A page is a title, and a section heading is a heading. **An empty state states the fact** --
 "No runs." -- and adds a second plain sentence only where the way in is not on the screen, such
-as a document key or a CLI verb. A listing carries an `API` chip linking `/docs#/<tag>`, the fragment Swagger UI writes
-on its own tag headings, so the requests behind a screen are one click away. Every screen states
-its own two facts along the foot through `lib/screen-status`, including the ones that are still
-stubs.
+as a document key or a CLI verb. It never narrates a button that is on the screen: what New does
+is what New says. A listing carries an `API` chip linking `/docs#/<tag>`, the fragment Swagger UI
+writes on its own tag headings, so the requests behind a screen are one click away. Every screen
+states its own two facts along the foot through `lib/screen-status`, the address nothing answers
+for included.
 
 ## The palette's anatomy
 
-A 760px card at 15% from the top: a search row, shelved rows, a footer of key chips. **The
+A 768px card at 15% from the top: a search row, shelved rows, a footer of key chips. **The
 screen's own shelf leads** -- `shelve` in `lib/palette` puts every shelf whose rows claim
 `screen` first, and the heading is free to name what it is scoped to, such as the run being
 read. **A row is an icon tile and a title, nothing else.** What an action says about itself
 (`hint`) feeds the filter and is never drawn: beside every title it is a column of glosses
 saying what the titles already say. A row with no icon gets the neutral glyph rather than a
-gap. **The filter is `filterActions`, not cmdk's** --
-cmdk's own scoring is off, because it ranks by fuzzy match over rendered text and would put a
-screen's name below whichever row shares more letters with the query.
+gap.
 
 ## Adding a screen
 
@@ -1155,8 +1193,6 @@ not go on a settings row.
 - The status bar's note exists only when it is stateful -- the editor's shape and warnings,
   the run's settled tone, the workers' health. A static note restating the screen is noise.
 - A section heading over a headed table carries no gloss; the headers name the columns.
-- An empty state states the fact and stops, naming a way in only when that way is not on
-  the screen.
 - A dialog's description earns its lines by teaching semantics the controls cannot show
   (what sealing a secret means), never by describing the dialog.
 
@@ -1179,17 +1215,12 @@ the instance and the version the door answers for. A line saying what the produc
 marketing on the one screen whose only question is who is asking, and the graph behind the lockup
 already says what is through the door.
 
+## A create button says `New`
 
-- A list's column header is sticky: rows scroll beneath it inside the list's own scroll container, and the header keeps the card background so rows never show through.
+On a screen whose heading names the noun, the primary create button says `New` alone: the screen
+supplies the object. The full name stays on the control's `aria-label`, on the palette action,
+which is offered from every screen and so needs the noun, and on whatever the button opens. A
+screen offering more than one create -- Users and tokens, Triggers -- keeps the noun on each
+button, because `New` alone would not say which.
 
-## Create actions
-
-- On a screen whose heading names the noun, the primary create button says `New` alone --
-  the screen supplies the object. The full name stays on the control's `aria-label`, on the
-  palette action (global scope needs the noun), and on whatever the button opens.
-- The one exception is a screen offering more than one create -- Users and tokens, Triggers --
-  where each button keeps its noun, because `New` alone would not say which.
-- An empty state states the fact and stops. It names a way in only when that way is not on
-  the screen -- a document key, a CLI verb -- and never narrates a visible button: what New
-  does is what New says.
 
