@@ -504,15 +504,15 @@ is the row's, singular where there is one of it, and a listing with a cursor lef
 number along a foot reads as a total, and a keyset walk has no total to state.
 
 A dependency one screen needs is fetched when it is needed, and that is not always a whole lazy
-route. The YAML parser the apply dialog needs is an `await import('yaml')` inside the handler
-that sends a document, so a reader who never applies one never downloads it, and the editor it
-writes the document in arrives the same way.
+route. Monaco and its workers are larger than the rest of the bundle together, so `CodePane` is
+the one dynamic import of them and every pane that writes source goes through it -- a reader who
+never opens one never downloads the editor.
 
-**A document is written in one editor wherever it is written.** The dialog on the listing takes a
-whole `dirigent/v1` document, which is the same thing the source pane holds, so it holds the same
-Monaco against the same `GET /schema/document` -- a key no block takes is squiggled where it was
-typed rather than reported a round trip later. Each pane names its own buffer, because monaco
-holds one model per uri and two panes sharing a name would share a document.
+**A document is written in one editor wherever it is written.** The editor's source pane and a
+step config field whose schema says it carries a program are the same Monaco against the same
+`GET /schema/document` -- a key no block takes is squiggled where it was typed rather than
+reported a round trip later. Each pane names its own buffer, because monaco holds one model per
+uri and two panes sharing a name would share a document.
 
 ## A graph is a shape, and each screen reduces its own to it
 
@@ -653,10 +653,11 @@ for a document written somewhere else, is the quiet one beside it.
 **A document opens on the source that holds it.** The editor's panel opens on the step tab,
 because a pipeline is read a step at a time, and choosing a box on the canvas opens that tab
 rather than whichever one was last in front of somebody. The exception is a document that arrived
-as text: `From file...` on the listing hands the editor what it read, and the editor opens on the
-source pane, which is where that document actually is. A blank `/pipelines/$new` opens on the step
-tab like every other screen -- the canvas says how to add the first step, and the source, whose
-schema would mark an empty `steps` map before anything had been done, is a tab away.
+as text: `From file...` on the listing hands the editor what it read and `From a starter` hands
+it the copy it made, and the editor opens on the source pane, which is where that document
+actually is. A blank `/pipelines/$new` opens on the step tab like every other screen -- the canvas
+says how to add the first step, and the source, whose schema would mark an empty `steps` map
+before anything had been done, is a tab away.
 
 **The step panel reads the config first, then the engine, then the name.** What a step does is the
 block's own config, so the panel opens on that form, folded the way every generated form is. The
@@ -684,11 +685,14 @@ would write nothing it stands in outline beside Validate, which is what it would
 the last one that parsed and nothing else may write to it. A form quietly replacing text somebody
 is halfway through fixing is worse than a form that says it cannot.
 
-**The YAML in the source pane is rendered here, not served.** `GET /pipelines/{code}/$export` is
-the canonical text: it orders steps topologically and keys the way a digest is taken over. The
-pane renders the local document as it stands, in the order it is held in, so what is edited and
-what is read back are the same thing -- which means the text can differ from a later `$export` of
-the same document in key order and in nothing else. An apply canonicalises it.
+**The source pane holds the text it was handed, then renders the document.** A document that
+arrived as text -- a picked file, a starter's copy, something typed into the pane -- is shown in
+that text, comments and blank lines and all, until a structural edit moves past it; from the first
+edit on the canvas or in the step form, the pane renders the local document, because no renderer
+can put a comment back. `GET /pipelines/{code}/$export` stays the canonical text: it orders steps
+topologically and keys the way a digest is taken over, while the pane renders the document in the
+order it is held in, so what is edited and what is read back are the same thing. An apply
+canonicalises it.
 
 **The editor's schema comes from the instance.** `GET /schema/document` answers with
 `dirigent/v1` composed with this instance's own block config schemas, one `if`/`then` case per

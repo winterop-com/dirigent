@@ -363,11 +363,6 @@ requires touching the engine. None is near-term.
   for reading logs off a container or downloading a result file, which is every remote block
   we ship, and which a repeat costs almost nothing.
 
-- **A starter's comments reach `dg pipeline new` and not the editor.** From a starter opens
-  the editor through the same path as From file, which renders the parsed document, so the
-  teaching comments a starter carries are lost in the browser and kept on disk. The editor's
-  source pane would have to hold the text it was handed until the first structural edit.
-
 - **A pack's examples carry their demo connection, so none of them is a starter.** The dhis2
   pack's shelves carry a connection by convention, so `dg run --local` works standalone, and
   its check insists on it; its starters are therefore twins on a `starters/` shelf that name

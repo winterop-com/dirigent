@@ -35,6 +35,20 @@ function rowOf(page: Page, code: string): Locator {
 }
 
 /**
+ * Scroll an editor pane until the text asked for is among the lines it is drawing.
+ *
+ * Monaco puts the lines in view in the DOM and no others, so text under a long header is not
+ * there to assert on until the pane has been scrolled down to it. The pane the wheel turns is
+ * whichever one the pointer is over, so the caller hovers it first.
+ */
+async function scrollToText(page: Page, lines: Locator, text: string): Promise<void> {
+    await expect(async () => {
+        await page.mouse.wheel(0, 150)
+        await expect(lines).toContainText(text, { timeout: 500 })
+    }).toPass({ timeout: 30_000 })
+}
+
+/**
  * Open a row's panel by its identity cell.
  *
  * A tag on a row is the filter's own door, so the middle of a row is a button that narrows the
@@ -134,18 +148,19 @@ test('From a starter opens the editor on a copy with the starter tag gone', asyn
     const editor = page.getByTestId('code-editor').first()
     await expect(editor.locator('.monaco-editor')).toBeVisible({ timeout: 30_000 })
 
+    // THE PANE HOLDS THE TEXT IT WAS HANDED. A starter is copied for its teaching header, so
+    // the header is what the editor opens on, the same text `dg pipeline new` writes to disk.
+    const lines = editor.locator('.view-lines')
+    await expect(lines).toContainText(STARTER_COMMENT, { timeout: 30_000 })
+    await editor.hover()
+
     // ONLY THE TWO LINES ARE REWRITTEN. The code is the starter's until somebody changes it,
     // and `starter` is off the tags, so the copy cannot claim to be one. The rest of the
     // document is the starter's, down to the parameter defaults.
-    //
-    // The editor renders the document it parsed rather than the text it was handed, so what is
-    // asserted here is the copy as a document: the comments are `dg pipeline new`'s half.
-    const lines = editor.locator('.view-lines')
-    await expect(lines).toContainText(`code: ${STARTER}`, { timeout: 30_000 })
-    const around = await lines.innerText()
-    expect(around).toContain('tags:')
-    expect(around).toContain('recipes')
-    expect(around).not.toContain('starter')
+    await scrollToText(page, lines, 'tags:')
+    await expect(lines).toContainText(`code: ${STARTER}`)
+    await expect(lines).toContainText('recipes')
+    await expect(lines).not.toContainText('starter')
 })
 
 test('the Blocks screen links to the shipped documents that require a block', async ({ page }) => {

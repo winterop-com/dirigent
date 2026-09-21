@@ -35,6 +35,9 @@ const NAMELESS = {
     steps: { total: { block: 'transform.jq', config: { input: [1, 2, 3], program: 'add' } } },
 }
 
+/** A line no renderer would put back, so seeing it proves the pane holds the file's own text. */
+const TYPED_COMMENT = '# Typed, comment and all, then picked off disk.'
+
 /**
  * A document small enough to type, applied through the dialog rather than through the API.
  *
@@ -42,7 +45,8 @@ const NAMELESS = {
  * one invocation of this suite: without it the second run of the file applies a document the
  * instance already holds, and the plan is `unchanged` rather than the write being asserted on.
  */
-const TYPED = `format: dirigent/v1
+const TYPED = `${TYPED_COMMENT}
+format: dirigent/v1
 kind: pipeline
 code: typed-in-the-browser
 name: Typed in the browser
@@ -227,11 +231,13 @@ test('a file picked on the listing lands in the new-document editor, and applyin
     const chooser = await picking
     await chooser.setFiles({ name: 'typed.yaml', mimeType: 'text/yaml', buffer: Buffer.from(TYPED) })
 
-    // The document arrives in the editor, which opens on the step tab; the file's own text is
-    // on the source pane a tab away.
+    // The document arrives in the editor, and the source pane holds the file's own text --
+    // comments and all, because nothing has re-rendered it from the document yet.
     await expect(page).toHaveURL(/\/pipelines\/\$new$/)
     await page.locator('aside').getByRole('tab', { name: 'Source' }).click()
-    await expect(page.getByTestId('code-editor').locator('.view-lines')).toContainText('typed-in-the-browser')
+    const lines = page.getByTestId('code-editor').locator('.view-lines')
+    await expect(lines).toContainText('typed-in-the-browser')
+    await expect(lines).toContainText(TYPED_COMMENT)
 
     await page.getByRole('button', { name: 'Apply', exact: true }).click()
     const dialog = page.getByRole('dialog')
