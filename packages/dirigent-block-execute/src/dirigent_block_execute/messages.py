@@ -125,7 +125,7 @@ CWD_STAYS_INSIDE = EXECUTE.define(
 
 NOT_A_DAEMON_SCHEME = EXECUTE.define(
     "not_a_daemon_scheme",
-    "a docker host is one of {schemes}, and {host} is none of them",
+    "a docker host is {schemes}, and {host} is not one of them",
 )
 
 TLS_IS_ALL_THREE = EXECUTE.define(

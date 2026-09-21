@@ -292,6 +292,14 @@ def test_a_tcp_docker_host_resolves_to_an_http_base_url(monkeypatch: pytest.Monk
     assert endpoint.cert is None
 
 
+def test_a_docker_host_in_a_scheme_the_worker_cannot_speak_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("DOCKER_HOST", "ssh://build@host")
+    with pytest.raises(BlockFailure) as refusal:
+        resolve_endpoint(None)
+    assert refusal.value.code == "execute.not_a_daemon_scheme"
+    assert refusal.value.error_class is ErrorClass.REJECTED
+
+
 def test_a_tcp_docker_host_with_tls_resolves_to_https_with_client_certs(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DOCKER_HOST", "tcp://dind:2376")
     monkeypatch.setenv("DOCKER_TLS_VERIFY", "1")

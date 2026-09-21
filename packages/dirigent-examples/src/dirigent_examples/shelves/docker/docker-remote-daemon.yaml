@@ -26,8 +26,9 @@
 # only as a 0600 file under the run's work directory that goes when the step leaves. A client
 # key for a docker daemon is a credential for root on whatever that daemon runs on.
 #
-# TO MAKE IT YOURS: point host at your own daemon. A daemon that needs no TLS -- an ssh://
-# host, or a unix socket on another path -- takes host alone and none of the three PEMs.
+# TO MAKE IT YOURS: point host at your own daemon. The worker speaks tcp:// and unix://, and
+# a daemon that needs no TLS -- a unix socket on another path -- takes host alone and none of
+# the three PEMs.
 
 format: dirigent/v1
 kind: pipeline

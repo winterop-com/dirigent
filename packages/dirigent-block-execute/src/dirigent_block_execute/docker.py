@@ -109,8 +109,8 @@ NOT_FOUND = 404
 CONFLICT = 409
 
 
-#: The schemes a daemon URL may be written in, which are the ones the docker CLI accepts.
-DAEMON_SCHEMES = ("tcp://", "ssh://", "unix://")
+#: The schemes a daemon URL may be written in, which are the ones the worker speaks.
+DAEMON_SCHEMES = ("tcp://", "unix://")
 
 #: What a registry credential that names no registry authenticates to.
 DOCKER_HUB = "docker.io"
@@ -123,7 +123,7 @@ class DockerConnectionConfig(BlockModel):
     """A daemon to reach, a registry to authenticate to, or both."""
 
     host: str = ""
-    """The daemon, as ``tcp://host:2376``, ``ssh://user@host`` or ``unix:///var/run/docker.sock``.
+    """The daemon, as ``tcp://host:2376`` or ``unix:///var/run/docker.sock``.
 
     Left empty, a step using this connection reaches the daemon the worker's own environment
     names, which is what a step naming no connection does."""
@@ -157,7 +157,7 @@ class DockerConnectionConfig(BlockModel):
     def _check_shape(self) -> "DockerConnectionConfig":
         """Refuse a daemon URL of an unknown form, half a TLS triple, and half a credential."""
         if self.host and not self.host.startswith(DAEMON_SCHEMES):
-            raise ValueError(NOT_A_DAEMON_SCHEME.render(schemes=", ".join(DAEMON_SCHEMES), host=repr(self.host)))
+            raise ValueError(NOT_A_DAEMON_SCHEME.render(schemes=" or ".join(DAEMON_SCHEMES), host=repr(self.host)))
         pems = [self.tls_ca, self.tls_cert, self.tls_key]
         if any(pem is not None for pem in pems) and not all(pem is not None for pem in pems):
             raise ValueError(TLS_IS_ALL_THREE.render())
@@ -1153,6 +1153,9 @@ def resolve_endpoint(explicit_socket: str | None, environ: Mapping[str, str] | N
     pipeline's containers off the host. ``DOCKER_TLS_VERIFY`` with ``DOCKER_CERT_PATH`` turns
     that into https with client certificates, the way the docker CLI reads the same variables.
 
+    A ``DOCKER_HOST`` in any other scheme is refused instead of resolving to the local socket:
+    the daemon is reached over HTTP here, and nothing tunnels an ``ssh://`` one.
+
     ``environ`` is what a step with a ``docker`` connection reads instead of the worker's own.
     """
     source = os.environ if environ is None else environ
@@ -1173,6 +1176,13 @@ def resolve_endpoint(explicit_socket: str | None, environ: Mapping[str, str] | N
     if host.startswith("unix://"):
         socket = host.removeprefix("unix://") or DEFAULT_SOCKET_PATH
         return DaemonEndpoint(DAEMON_BASE_URL, socket, True, None, socket)
+    if host:
+        raise BlockFailure(
+            NOT_A_DAEMON_SCHEME,
+            error_class=ErrorClass.REJECTED,
+            schemes=" or ".join(DAEMON_SCHEMES),
+            host=repr(host),
+        )
     return DaemonEndpoint(DAEMON_BASE_URL, DEFAULT_SOCKET_PATH, True, None, DEFAULT_SOCKET_PATH)
 
 
