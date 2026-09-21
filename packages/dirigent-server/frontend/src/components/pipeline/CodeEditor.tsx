@@ -41,10 +41,8 @@ import 'monaco-editor/esm/vs/language/json/monaco.contribution'
  * binding: a `$name` and a `.path` are the two things a reader tells apart at a glance, so the
  * binding gets an ink of its own and nothing else about the palette learns the language exists.
  *
- * IT IS LOADED IN ITS OWN CHUNK. Monaco and its two workers are the largest thing this app can
- * pull, so nothing imports this file by name: `CodePane` beside it is the one dynamic import,
- * and the source tab, the apply dialog and a step's program field all reach the editor
- * through it.
+ * IT IS LOADED IN ITS OWN CHUNK. Nothing imports this file by name: `CodePane` beside it is
+ * the one dynamic import, and every screen that writes source reaches the editor through it.
  *
  * EVERY EDITOR HAS ITS OWN MODEL. A model is registered under a uri and monaco holds one
  * instance per uri, so two panes sharing a path would share a buffer -- the caller names the
