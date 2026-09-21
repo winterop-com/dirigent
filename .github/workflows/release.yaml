@@ -109,10 +109,12 @@ jobs:
           name: dist
           path: dist/
 
-      # No password: the action exchanges the runner's OIDC token with PyPI.
+      # No password: the action exchanges the runner's OIDC token with PyPI. A file PyPI
+      # already holds is skipped, so a rerun after a partial upload publishes the rest.
       - uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist/${{ matrix.package }}/
+          skip-existing: true
 
   # Both platforms, on docker's reusable builder: it sets up QEMU and buildx, tags from the
   # git tag through metadata-action, and pushes one multi-platform manifest.
