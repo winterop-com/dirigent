@@ -23,6 +23,7 @@ from dirigent_block_base.messages import (
     NOT_A_JSON_ARRAY,
     NOT_JSON,
     NOT_UTF8,
+    NOT_XML,
     NOT_YAML,
     XML_ELEMENT_HAS_TEXT,
     XML_EMPTY_ARRAY,
@@ -410,7 +411,7 @@ def _parse_xml(text: str) -> ET.Element:
     try:
         return ET.fromstring(text.encode())
     except ET.ParseError as error:
-        raise TransformError(f"the input is not XML: {error}") from error
+        raise TransformError(NOT_XML.render(detail=str(error))) from error
 
 
 def _stream_records(text: str) -> Iterator[JsonValue]:
@@ -437,7 +438,7 @@ def _stream_records(text: str) -> Iterator[JsonValue]:
             # unless each record is dropped once it is written.
             root.clear()
     except ET.ParseError as error:
-        raise TransformError(f"the input is not XML: {error}") from error
+        raise TransformError(NOT_XML.render(detail=str(error))) from error
 
 
 def _element_value(element: ET.Element, path: str) -> JsonValue:

@@ -14,3 +14,14 @@ NOT_DIRIGENT = CLIENT.define(
 NO_PROBLEM_DOCUMENT = CLIENT.define("no_problem_document", "{detail}")
 
 NO_ANSWER = CLIENT.define("no_answer", "{detail}")
+
+
+# What a wire shape refuses at validation. Pydantic owns the code a validator's refusal
+# reaches the wire under, so these are rendered into the ``ValueError`` it wraps.
+
+EMPTY_LOG_LEVEL_PATTERN = CLIENT.define("empty_log_level_pattern", "log_levels: a pattern may not be empty")
+
+WINDOW_HAS_TWO_ENDS = CLIENT.define(
+    "window_has_two_ends",
+    "a window has two ends: give both window_start and window_end, or neither",
+)

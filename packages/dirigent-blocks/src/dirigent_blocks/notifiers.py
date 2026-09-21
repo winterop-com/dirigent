@@ -13,6 +13,16 @@ import aiosmtplib
 import httpx2
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, ValidationError, model_validator
 
+from dirigent_blocks.messages import (
+    EMAIL_IS_MISSING,
+    SLACK_ANSWERED_OTHERWISE,
+    SLACK_HAS_NEITHER,
+    SLACK_REFUSED,
+    SLACK_TOKEN_NEEDS_A_CHANNEL,
+    SLACK_TWO_WAYS,
+    SLACK_WEBHOOK_HAS_A_CHANNEL,
+    WEBHOOK_HAS_NO_URL,
+)
 from dirigent_common import BlockModel, Duration, HealthReport
 from dirigent_plugin import AlertMessage, ConnectionKind, Notifier
 
@@ -58,7 +68,7 @@ class WebhookNotifier(Notifier):
         """
         settings = WebhookNotifierConfig.model_validate(config.model_dump())
         if not settings.url:
-            raise ValueError("the webhook notifier has no url; set one on the connection this rule delivers through")
+            raise ValueError(WEBHOOK_HAS_NO_URL.render())
         headers = _webhook_headers(settings)
         async with httpx2.AsyncClient(
             timeout=settings.timeout.total_seconds(),
@@ -171,11 +181,11 @@ class SlackNotifierConfig(BlockModel):
     def _check_one_form(self) -> "SlackNotifierConfig":
         """Refuse a config that names both doors, or a token with nowhere to post it."""
         if self.webhook_url is not None and self.bot_token is not None:
-            raise ValueError("set webhook_url or bot_token, not both: they are two ways to reach the same channel")
+            raise ValueError(SLACK_TWO_WAYS.render())
         if self.webhook_url is not None and self.channel:
-            raise ValueError("a webhook_url carries its own channel; drop channel or use bot_token instead")
+            raise ValueError(SLACK_WEBHOOK_HAS_A_CHANNEL.render())
         if self.bot_token is not None and not self.channel:
-            raise ValueError("a bot_token needs a channel to post to: a channel id, or #name")
+            raise ValueError(SLACK_TOKEN_NEEDS_A_CHANNEL.render())
         return self
 
 
@@ -205,10 +215,7 @@ class SlackNotifier(Notifier):
                 token=settings.bot_token.get_secret_value(),
             )
             return
-        raise ValueError(
-            "the slack notifier has no webhook_url and no bot_token; "
-            "set one on the connection this rule delivers through"
-        )
+        raise ValueError(SLACK_HAS_NEITHER.render())
 
 
 class SlackConnectionKind(ConnectionKind):
@@ -296,7 +303,7 @@ async def _post_slack(settings: SlackNotifierConfig, url: str, body: dict[str, o
         return
     answer = _slack_answer(response)
     if not answer.ok:
-        raise SlackError(f"slack refused the message: {answer.error}")
+        raise SlackError(SLACK_REFUSED.render(detail=answer.error))
 
 
 class SlackAnswer(BaseModel):
@@ -314,7 +321,7 @@ def _slack_answer(response: httpx2.Response) -> SlackAnswer:
     try:
         return SlackAnswer.model_validate(response.json())
     except ValidationError as error:
-        raise SlackError(f"slack answered something that is not a result: {error}") from error
+        raise SlackError(SLACK_ANSWERED_OTHERWISE.render(detail=str(error))) from error
 
 
 class EmailNotifierConfig(BlockModel):
@@ -364,9 +371,7 @@ class EmailNotifier(Notifier):
         settings = EmailNotifierConfig.model_validate(config.model_dump())
         missing = _missing_email_settings(settings)
         if missing:
-            raise ValueError(
-                f"the email notifier has no {missing}; set it on the connection this rule delivers through"
-            )
+            raise ValueError(EMAIL_IS_MISSING.render(missing=missing))
         use_tls, start_tls = _tls_modes(settings)
         await aiosmtplib.send(
             mail_of(settings, message),

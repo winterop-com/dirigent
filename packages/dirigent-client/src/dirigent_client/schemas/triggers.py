@@ -13,6 +13,9 @@ from dirigent_client.enums import (
     ScheduleKind,
     WebhookOutcome,
 )
+from dirigent_client.messages import (
+    EMPTY_LOG_LEVEL_PATTERN,
+)
 from dirigent_client.schemas.common import WireModel
 from dirigent_common import EntityName, JsonMap
 from dirigent_common.durations import Duration
@@ -47,7 +50,7 @@ class ScheduleIn(BaseModel):
     def _a_pattern_names_something(cls, value: dict[str, LogLevel] | None) -> dict[str, LogLevel] | None:
         """Refuse an empty pattern, which would match nothing and say nothing."""
         if value is not None and any(not pattern for pattern in value):
-            raise ValueError("log_levels: a pattern may not be empty")
+            raise ValueError(EMPTY_LOG_LEVEL_PATTERN.render())
         return value
 
 
