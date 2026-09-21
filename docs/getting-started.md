@@ -42,15 +42,25 @@ make install          # uv sync --all-packages
 uv run dg --version
 ```
 
-Every `dg` below becomes `uv run dg` in a source checkout. `make check` is the read-only gate
-CI runs -- ruff, mypy, pyright, and the fast test lane.
+Every `dg` below becomes `uv run dg` in a source checkout. `make check` is the read-only gate:
+ruff, mypy, pyright, the UI's own checks, and the fast test lane. `make gate` is what CI runs,
+which is the same static half with the tests once under coverage.
 
 ## The zero-setup smoke test
 
 The fastest way to see it work needs no server, no database, and no Docker:
 
 ```bash
-dg run --local examples/hello-world.yaml
+dg run --local - <<'YAML'
+format: dirigent/v1
+kind: pipeline
+code: hello-world
+steps:
+  greet:
+    block: value.const
+    config:
+      value: hello from dirigent
+YAML
 ```
 
 ```text
@@ -67,10 +77,11 @@ steps
 └───────┴─────────────┴───────────┴───────┴──────────┴───────────────────────────┘
 ```
 
-`--local` applies and runs the document in a throwaway SQLite instance in a temporary
-directory, streams what each step does, and deletes the database on the way out. It is the
-same apply, the same engine, and the same worker loop a real instance uses -- a local run that
-executed differently would prove nothing.
+`-` is the document on stdin, which is why this needs no file; a path or a URL works the same
+way. `--local` applies and runs it in a throwaway SQLite instance in a temporary directory,
+streams what each step does, and deletes the database on the way out. It is the same apply, the
+same engine, and the same worker loop a real instance uses -- a local run that executed
+differently would prove nothing.
 
 Nothing was granted for this: `value.const` only emits its configured value. A block that
 executes code on the worker -- `shell.run`, `docker.run` -- is refused unless allowlisted by
@@ -87,7 +98,7 @@ The exit code is the run's outcome, so this works in CI directly. See
 dg dev
 ```
 
-One asyncio process containing four things:
+One asyncio process holding four parts, and the file they coordinate through:
 
 - the **API**, on `http://127.0.0.1:3333`, with its OpenAPI viewer at `/docs`,
 - the **web UI**, served at `/` by the same process, from the bundle in the installed package
@@ -163,7 +174,7 @@ extra steps, and giving one thing two names helps nobody.
 ## The first real run
 
 ```bash
-dg init my-pipelines --password "the one you will use"
+dg init my-pipelines --template local --password "the one you will use"
 cd my-pipelines
 uv sync
 uv run dg dev                    # in a second terminal, in this directory; it keeps running
@@ -190,9 +201,10 @@ from the `pyproject.toml` it wrote, which pins the dirigent that scaffolded it -
 `--wipe-state` here: it would empty the directory `dg init` just filled and mint a development
 admin of its own, leaving the token in `.env` addressing an account that no longer exists.
 `dg init --template documents` stops after the documents, which is what to use when the
-instance is somebody else's server. At a terminal, `dg init hello` with no flags opens one
-form that asks all of this: where it runs, the stack's services, packs, a workflow, and the
-first admin.
+instance is somebody else's server. `--template` is also what decides whether you are asked:
+at a terminal, `dg init hello` with none of the shape flags opens one form that asks all of
+this -- where it runs, the stack's services, packs, a workflow, and the first admin -- and
+naming a template answers the first question, so the command runs straight through.
 
 ![The dg init form](images/init-form.svg)
 
@@ -241,9 +253,11 @@ commit. `dg apply --dry-run` prints the plan without writing.
 
 `dg examples list` is the corpus this instance ships -- every installed plugin's documents,
 the packs' included. One that wears the `starter` tag may be copied into the project with
-`dg pipeline new CODE`, which writes `pipelines/CODE.yaml` verbatim, rewriting only the
-`code:` line and dropping that tag, and then says what the instance has to hold before it will
-apply. `dg examples show CODE` prints any of them without copying.
+`dg pipeline new CODE`, which writes `pipelines/CODE.yaml` verbatim: it rewrites the `code:`
+line, drops that tag, and lifts every section the original carried -- its `connections:`, its
+`schemas:` -- into `requires:` instead, because an instance refuses to store a document that
+carries one. It then says what the instance has to hold before it will apply.
+`dg examples show CODE` prints any of them without copying.
 
 `dg run report-to-file --watch` starts a run and streams its step transitions and block output
 until it settles, then exits with the run's outcome.
@@ -286,19 +300,21 @@ panel says what is still missing.
     in, which is useful once you know what you are choosing between.
 
 
-`infra/compose.yaml` at the repository root is the shape to start from in production. Four services,
-three of them long-lived:
+`infra/compose.yaml` at the repository root is the shape to start from in production. Three of
+its services are dirigent's own processes, and the rest are what they stand on:
 
 | Service | What it is | Why it is separate |
 | --- | --- | --- |
 | `postgres` | PostgreSQL 17 | All coordination lives here. There is no broker and no second store |
-| `migrate` | A one-shot `dg db upgrade` that the other two wait on | Scaling the server out must not mean N processes racing to migrate one schema |
-| `server` | `dg server`: the API, with the scheduler embedded | Needing a fourth service just to get a clock is a poor default. Leadership is an advisory lock, so embedding it costs nothing when it later moves out |
+| `s3` | Object storage for artifacts, with a one-shot `s3-bucket` creating the bucket | A step's output must be readable by whichever worker claims the next step, which a container-local disk is not |
+| `migrate` | A one-shot `dg db upgrade`, and the connection the bucket is reached through, that the other two wait on | Scaling the server out must not mean N processes racing to migrate one schema |
+| `server` | `dg server`: the API, with the scheduler embedded | Needing a service of its own just to get a clock is a poor default. Leadership is an advisory lock, so embedding it costs nothing when it later moves out |
+| `docker` | A Docker daemon of the worker's own | The `docker.*` blocks drive it over TLS, so a pipeline's containers are never the host's and no host socket is mounted anywhere |
 | `worker` | `dg worker`: claims due work, executes it, probes what is waiting | Execution scales independently of the API. A worker opens no port and nothing connects to it |
 
-All four are built from one image in which `dg server`, `dg worker`, and `dg scheduler` are the
-same code with different entry points. Everything the services share is a database URL and a
-secret key.
+`migrate`, `server` and `worker` are one image in which `dg server`, `dg worker`, and
+`dg scheduler` are the same code with different entry points. Everything those three share is a
+database URL, a secret key, and where artifacts live.
 
 ### Configure it
 
@@ -451,7 +467,7 @@ wrong place, or nothing is listening.
 
 ```bash
 dg auth status                     # which URL, from which source, and whether it authenticates
-curl -sI http://localhost:3333/health | grep -i x-dirigent-version
+curl -s -D - -o /dev/null http://localhost:3333/health | grep -i x-dirigent-version
 ```
 
 Every response a dirigent server sends carries `X-Dirigent-Version`. If that header is absent,

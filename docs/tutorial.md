@@ -54,26 +54,29 @@ export DG_TOKEN=C_8u-blmgbzhoV2nbonBBxnxjZUqRflUIb0Oy81BE-g
 ## 2. Scaffold a project
 
 ```bash
-dg init regional
+dg init regional --template documents
 cd regional
 ```
 
 ```text
-Created a local project in regional:
-  + regional/dirigent.yaml
-  + regional/.dirigent/profiles.yaml
-  + regional/.dirigent/.gitignore
-  + regional/dirigent.example.yaml
-  + regional/pyproject.toml
-  + regional/README.md
-  + regional/.gitignore
+2026-01-01T18:22:31.702+01:00 [info    ] scaffolded                     [project.scaffolded] directory=/home/you/dirigent-tutorial/regional template=documents version=0.17.3
+Created a documents project in /home/you/dirigent-tutorial/regional:
+  + dirigent.yaml
+  + .dirigent/profiles.yaml
+  + .dirigent/.gitignore
+  + dirigent.example.yaml
+  + pyproject.toml
+  + README.md
+  + .gitignore
 
-That is a working set of documents, and no instance: nothing is running yet.
-  An instance here:  dg dev  (its database and artifacts live in .dirigent/state)
-  One that exists:   export DG_URL=... DG_TOKEN=...
-
-Then dg apply --dry-run, and dg apply.
+That is a working set of documents and no instance: nothing is running yet.
+  Initialise one here:  dg init
+  Or address one that exists:  export DG_URL=... DG_TOKEN=...
 ```
+
+`--template documents` writes the documents alone, against an instance somebody else runs --
+here, the `dg dev` of step 1. The other two templates initialise an instance as well:
+`--template local` a `dg dev` one in this directory, `--template compose` a container stack.
 
 `dirigent.yaml` says where the documents live and which profile to use;
 `.dirigent/profiles.yaml` says which server that profile means and how to get a token for it
@@ -175,9 +178,11 @@ Worth reading before you run it:
   renders, and the validation a webhook's mapped payload has to satisfy. `day` is required;
   `regions` has a default.
 
-  Note the quotes around the region names. Unquoted, YAML would read `no` as the boolean
-  `false`, and `items: {type: string}` would then refuse the default -- a footgun worth
-  meeting once, deliberately, rather than at five in the morning.
+  Note the quotes around the region names. These three need none, but a document is read with
+  YAML 1.1 booleans, so a bare `no`, `on` or `y` in a list of codes arrives as `true` or
+  `false` rather than as the word -- a footgun worth meeting once, deliberately, rather than at
+  five in the morning. Dates are safe: the loader's timestamp resolver is taken out, so
+  `2026-01-15` stays the string a `format: date` parameter wants.
 
 - **`wait_for_window` is a sensor**, so `poll`, `deadline`, and `on_timeout` apply. These are
   step-level, not part of the block's config, because they are engine semantics and mean the
@@ -224,8 +229,17 @@ dg validate
 ```
 
 ```text
-valid    regional-load  (document, offline)
+2026-01-01T18:22:41.109+01:00 [info    ] valid                          [validation] code=regional-load document=/home/you/regional/pipelines/regional-load.yaml checked="document, offline"
+  each step under the last one it waits for
+    wait_for_window  (time.window)
+      fetch_manifest  (http.request)
+        push  (http.request)
+          notify_failure  (http.request)  when one_failed
+2026-01-01T18:22:41.111+01:00 [info    ] valid                          [validated] documents=1 invalid=0
 ```
+
+The tree is the graph as the document draws it: each step under the last one it waits for,
+its block beside it, and an edge rule named when it is not the default `all_success`.
 
 `dg validate` needs no server. It checks the envelope, the key grammars, the graph -- that it
 is acyclic, that every `depends_on` names a step that exists -- and the syntax of every
@@ -241,6 +255,12 @@ dg apply --dry-run
 
 ```text
 create regional-load  version 1 (/home/you/regional/pipelines/regional-load.yaml)
+
+steps of regional-load  each step under the last one it waits for
+  wait_for_window  (time.window)
+    fetch_manifest  (http.request)
+      push  (http.request)
+        notify_failure  (http.request)  when one_failed
 Nothing was written: this was a dry run.
 ```
 
@@ -272,18 +292,26 @@ dg run regional-load -p day=2026-01-15 --watch
 cause and then effect:
 
 ```text
-started run 01a04d50-9c18-70f2-a9f8-b0914f5b07fe of regional-load
-  queued          wait_for_window (time.window)
-                  wait_for_window | the window is open
-  succeeded       wait_for_window (time.window)
-                  fetch_manifest | http call
-  succeeded       fetch_manifest (http.request)
-  failed          push (http.request)
-                  notify_failure | http call
-  succeeded       notify_failure (http.request)
+2026-01-01T18:23:02.459+01:00 [info    ] started                        [run] pipeline=regional-load run_id=01a04d50-9c18-70f2-a9f8-b0914f5b07fe local=false
+2026-01-01T18:23:02.453+01:00 [info    ] queued                         [step wait_for_window] block=time.window attempt=1
+2026-01-01T18:23:02.453+01:00 [info    ] queued                         [step fetch_manifest] block=http.request attempt=1
+2026-01-01T18:23:02.779+01:00 [info    ] the window is open             [log wait_for_window] timezone=Europe/Oslo
+2026-01-01T18:23:02.779+01:00 [info    ] succeeded                      [step wait_for_window] block=time.window attempt=1 duration_ms=9
+2026-01-01T18:23:02.454+01:00 [info    ] queued                         [step push[east]] block=http.request attempt=1
+2026-01-01T18:23:02.455+01:00 [info    ] queued                         [step push[west]] block=http.request attempt=1
+2026-01-01T18:23:02.455+01:00 [info    ] queued                         [step push[north]] block=http.request attempt=1
+2026-01-01T18:23:03.536+01:00 [info    ] http call                      [log fetch_manifest] method=GET url=https://postman-echo.com/get status=200 bytes=227 duration_ms=250
+2026-01-01T18:23:03.538+01:00 [info    ] succeeded                      [step fetch_manifest] block=http.request attempt=1 duration_ms=256
+2026-01-01T18:23:03.798+01:00 [info    ] failed                         [step push[east]] block=http.request attempt=1
+2026-01-01T18:23:03.798+01:00 [info    ] failed                         [step push[west]] block=http.request attempt=1
+2026-01-01T18:23:03.798+01:00 [info    ] failed                         [step push[north]] block=http.request attempt=1
+2026-01-01T18:23:04.099+01:00 [info    ] http call                      [log notify_failure] method=POST url=https://postman-echo.com/post status=200 bytes=388 duration_ms=285
+2026-01-01T18:23:04.100+01:00 [info    ] succeeded                      [step notify_failure] block=http.request attempt=1 duration_ms=302
+2026-01-01T18:23:04.918+01:00 [error   ] failed                         [run] pipeline=regional-load run_id=01a04d50-9c18-70f2-a9f8-b0914f5b07fe pipeline_version=1 triggered_by="dev (token dev)" duration_ms=1330 items_total=3 items_failed=3 exit_code=1 priority=normal
 ```
 
-Then the summary:
+Each item of a fan-out is named as `push[east]`, so three regions read as three lines rather
+than one. Then the summary, and under it a steps table with one row per item:
 
 ```text
 run 01a04d50-9c18-70f2-a9f8-b0914f5b07fe
@@ -306,8 +334,7 @@ item, so a fan-out tells you whether one region is broken or all of them are:
 
 ```text
 push failed  http.request, attempt 1, rejected
-  ${steps.fetch_manifest.output.json_body.args.day} cannot be resolved: steps.fetch_manifest.output has no 'json_body'
-(body, body_bytes, duration_ms, headers, status)
+  ${steps.fetch_manifest.output.json_body.args.day} cannot be resolved: steps.fetch_manifest.output has no 'json_body' (body, body_bytes, duration_ms, headers, status)
 ```
 
 There are three things in that line, and each is worth stopping on.
@@ -354,9 +381,9 @@ dg runs retry 01a04d50-9c18-70f2-a9f8-b0914f5b07fe --step push --failed-items
 ```
 
 ```text
-queued attempt 2 of push
-queued attempt 2 of push
-queued attempt 2 of push
+2026-01-01T18:24:13.165+01:00 [info    ] queued                         [run.retried push[east]] run_id=01a04d50-9c18-70f2-a9f8-b0914f5b07fe attempt=2
+2026-01-01T18:24:13.171+01:00 [info    ] queued                         [run.retried push[west]] run_id=01a04d50-9c18-70f2-a9f8-b0914f5b07fe attempt=2
+2026-01-01T18:24:13.177+01:00 [info    ] queued                         [run.retried push[north]] run_id=01a04d50-9c18-70f2-a9f8-b0914f5b07fe attempt=2
 ```
 
 Three items, three manual attempts. `--failed-items` retries every failed item of a fan-out;
@@ -373,17 +400,24 @@ dg runs show 01a04d50-9c18-70f2-a9f8-b0914f5b07fe
 run 01a04d50-9c18-70f2-a9f8-b0914f5b07fe
 pipeline      regional-load (version 1)
 status        failed
+triggered by  dev (token dev)
+started       2026-01-01 18:23:02
+finished      2026-01-01 18:24:13
+trace         -
+error         -
 
 steps
-┏━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━┓
-┃ step            ┃ block        ┃ outcome   ┃ after           ┃ attempts ┃ items ┃
-┡━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━┩
-│ wait_for_window │ time.window  │ succeeded │ -               │ 1        │ -     │
-│ fetch_manifest  │ http.request │ succeeded │ wait_for_window │ 1        │ -     │
-│ push            │ http.request │ failed    │ fetch_manifest  │ 6        │ 0/3   │
-│ notify_failure  │ http.request │ succeeded │ push            │ 1        │ -     │
-└─────────────────┴──────────────┴───────────┴─────────────────┴──────────┴───────┘
+┏━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━┳━━━━━━━┓
+┃ step            ┃ block        ┃ outcome   ┃ after           ┃ attempts ┃ queued ┃ running ┃ waiting ┃ items ┃
+┡━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━╇━━━━━━━┩
+│ wait_for_window │ time.window  │ succeeded │ -               │ 1        │ 0.3s   │ 0.0s    │ 0.0s    │ -     │
+│ fetch_manifest  │ http.request │ succeeded │ wait_for_window │ 1        │ 0.5s   │ 0.3s    │ 0.0s    │ -     │
+│ push            │ http.request │ failed    │ fetch_manifest  │ 6        │ 0.0s   │ 0.0s    │ 0.0s    │ 0/3   │
+│ notify_failure  │ http.request │ succeeded │ push            │ 1        │ 0.0s   │ 0.3s    │ 0.0s    │ -     │
+└─────────────────┴──────────────┴───────────┴─────────────────┴──────────┴────────┴─────────┴─────────┴───────┘
 ```
+
+An `items` table follows it, one row per element of the fan-out with the error it carried.
 
 Six attempts now, and the same failure. **A run pins the pipeline version it started from, and
 that never changes.** This run is version 1 forever, so retrying a step of it re-executes
@@ -427,42 +461,52 @@ dg run regional-load -p day=2026-01-15 --watch
 ```
 
 ```text
-started run 01a04d50-f29a-7160-93cc-8df15a364242 of regional-load
-  queued          wait_for_window (time.window)
-                  wait_for_window | the window is open
-  succeeded       wait_for_window (time.window)
-  running         fetch_manifest (http.request)
-                  fetch_manifest | http call
-  succeeded       fetch_manifest (http.request)
-                  push | http call
-  succeeded       push (http.request)
-                  push | http call
-                  push | http call
-  skipped         notify_failure (http.request)
+2026-01-01T18:26:48.744+01:00 [info    ] started                        [run] pipeline=regional-load run_id=01a04d50-f29a-7160-93cc-8df15a364242 local=false
+2026-01-01T18:26:48.738+01:00 [info    ] queued                         [step wait_for_window] block=time.window attempt=1
+2026-01-01T18:26:48.739+01:00 [info    ] queued                         [step fetch_manifest] block=http.request attempt=1
+2026-01-01T18:26:49.020+01:00 [info    ] the window is open             [log wait_for_window] timezone=Europe/Oslo
+2026-01-01T18:26:49.021+01:00 [info    ] succeeded                      [step wait_for_window] block=time.window attempt=1 duration_ms=8
+2026-01-01T18:26:49.112+01:00 [info    ] queued                         [step push[east]] block=http.request attempt=1
+2026-01-01T18:26:49.112+01:00 [info    ] queued                         [step push[west]] block=http.request attempt=1
+2026-01-01T18:26:49.112+01:00 [info    ] queued                         [step push[north]] block=http.request attempt=1
+2026-01-01T18:26:50.381+01:00 [info    ] http call                      [log fetch_manifest] method=GET url=https://postman-echo.com/get status=200 bytes=227 duration_ms=345
+2026-01-01T18:26:50.382+01:00 [info    ] succeeded                      [step fetch_manifest] block=http.request attempt=1 duration_ms=363
+2026-01-01T18:26:50.848+01:00 [info    ] http call                      [log push[west]] method=POST url=https://postman-echo.com/post status=200 bytes=408 duration_ms=290
+2026-01-01T18:26:50.849+01:00 [info    ] http call                      [log push[north]] method=POST url=https://postman-echo.com/post status=200 bytes=410 duration_ms=287
+2026-01-01T18:26:50.849+01:00 [info    ] http call                      [log push[east]] method=POST url=https://postman-echo.com/post status=200 bytes=408 duration_ms=296
+2026-01-01T18:26:50.852+01:00 [info    ] succeeded                      [step push[west]] block=http.request attempt=1 duration_ms=298
+2026-01-01T18:26:50.853+01:00 [info    ] succeeded                      [step push[north]] block=http.request attempt=1 duration_ms=295
+2026-01-01T18:26:50.875+01:00 [info    ] succeeded                      [step push[east]] block=http.request attempt=1 duration_ms=327
+2026-01-01T18:26:50.875+01:00 [info    ] skipped                        [step notify_failure] block=http.request attempt=1
+2026-01-01T18:26:51.581+01:00 [info    ] succeeded                      [run] pipeline=regional-load run_id=01a04d50-f29a-7160-93cc-8df15a364242 pipeline_version=2 triggered_by="dev (token dev)" duration_ms=1383 items_total=3 items_failed=0 exit_code=0 priority=normal
 run 01a04d50-f29a-7160-93cc-8df15a364242
 pipeline      regional-load (version 2)
 status        succeeded
 triggered by  dev (token dev)
-duration      1.3s
+duration      1.4s
 items         3/3
 
 steps
-┏━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━┓
-┃ step            ┃ block        ┃ outcome   ┃ attempts ┃ duration ┃ error ┃
-┡━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━┩
-│ wait_for_window │ time.window  │ succeeded │ 1        │ 0.0s     │ -     │
-│ fetch_manifest  │ http.request │ succeeded │ 1        │ 0.3s     │ -     │
-│ push            │ http.request │ succeeded │ 3        │ 0.3s     │ -     │
-│ notify_failure  │ http.request │ skipped   │ 1        │ -        │ -     │
-└─────────────────┴──────────────┴───────────┴──────────┴──────────┴───────┘
+┏━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━┓
+┃ step            ┃ block        ┃ outcome   ┃ after           ┃ attempts ┃ duration ┃ error ┃
+┡━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━┩
+│ wait_for_window │ time.window  │ succeeded │ -               │ 1        │ 0.0s     │ -     │
+│ fetch_manifest  │ http.request │ succeeded │ wait_for_window │ 1        │ 0.4s     │ -     │
+│ push[east]      │ http.request │ succeeded │ fetch_manifest  │ 1        │ 0.3s     │ -     │
+│ push[west]      │ http.request │ succeeded │ fetch_manifest  │ 1        │ 0.3s     │ -     │
+│ push[north]     │ http.request │ succeeded │ fetch_manifest  │ 1        │ 0.3s     │ -     │
+│ notify_failure  │ http.request │ skipped   │ push            │ 1        │ -        │ -     │
+└─────────────────┴──────────────┴───────────┴─────────────────┴──────────┴──────────┴───────┘
 ```
+
+An `outputs` table follows, one row per step, with what each produced.
 
 `items 3/3`, and version 2. Two details in there:
 
-- `push` shows **3 attempts** and succeeded. That is one attempt per run item, not three tries
-  of one thing. The three `push | http call` lines are interleaved because the three items ran
-  concurrently -- the fan-out is parallel, and the transitions arrive in whatever order they
-  finish.
+- `push` is **three rows**, one per region, each with one attempt. That is the fan-out, not
+  three tries of one thing: every item has its own status, its own retry budget and its own
+  row. Their `http call` lines are interleaved because the three ran concurrently, and the
+  transitions arrive in whatever order they finish.
 - `notify_failure` is **skipped**, not omitted. Its `one_failed` edge became permanently
   unsatisfiable the moment `push` succeeded, so the engine settled it as skipped rather than
   leaving it pending forever. Every step in the graph reaches a terminal state on every run,
@@ -480,13 +524,27 @@ The four codes are in [the command line](cli.md#watching-a-run).
 
 ## 11. Put it on a schedule
 
+A schedule fires the pipeline unattended, so it has to carry the parameters nobody will be
+there to type. Leave them out and the creation is refused:
+
 ```bash
 dg schedule create regional-load nightly --cron "0 5 * * *" --tz Europe/Oslo
 ```
 
 ```text
-created schedule nightly on regional-load: 0 5 * * * Europe/Oslo
-  next firing 2026-08-30 05:00:00
+2026-01-01T18:27:33.796+01:00 [error   ] parameter (root) is invalid: 'day' is a required property [error] status=422 title="Unprocessable Content" code=schedule.params params={"detail":"parameter (root) is invalid: 'day' is a required property"} instance=/api/v1/pipelines/regional-load/triggers/schedules
+```
+
+`day` is required and has no default, so a schedule without it could only ever produce failed
+firings. Give it one with `-p`, the same builder `dg run` uses, so a typo is refused here
+rather than discovered at five in the morning:
+
+```bash
+dg schedule create regional-load nightly --cron "0 5 * * *" --tz Europe/Oslo -p day=2026-01-15
+```
+
+```text
+2026-01-01T18:27:44.172+01:00 [info    ] created                        [schedule.created] code=nightly pipeline=regional-load clock="0 5 * * *" timezone=Europe/Oslo next_fire_at="2026-01-02 04:00:00+00:00"
 ```
 
 ```bash
@@ -498,17 +556,15 @@ schedules of regional-load
 ┏━━━━━━━━━┳━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━┓
 ┃ code    ┃ name ┃ clock     ┃ timezone    ┃ paused ┃ next firing         ┃ last fired ┃
 ┡━━━━━━━━━╇━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━┩
-│ nightly │ -    │ 0 5 * * * │ Europe/Oslo │ no     │ 2026-08-30 05:00:00 │ -          │
+│ nightly │ -    │ 0 5 * * * │ Europe/Oslo │ no     │ 2026-01-02 05:00:00 │ -          │
 └─────────┴──────┴───────────┴─────────────┴────────┴─────────────────────┴────────────┘
 ```
 
-Note that this schedule has no `-p day=...`, and it was accepted anyway. It will not work:
-`day` is required, so every firing will be refused when it tries to create a run, and land in
-the firing history as a failed firing -- readable with `dg schedule firings regional-load
-nightly`. For a real nightly run this schedule needs its own parameter override, added with
-`-p day=...`. What `dg schedule create` *does* check is the shape of the overrides you do give
-it, against the pipeline's own parameter schema, using the same builder `dg run` uses -- so a
-typo is refused when the schedule is created rather than discovered at five in the morning.
+A fixed `day` is the wrong answer for a real nightly load, of course: it would reload the
+fifteenth of January every morning. A schedule-fired run already knows the slot it covers --
+`${run.window.start}` and `${run.window.end}` are that half-open interval, derived from the
+cadence and the firing's own due time -- so a step that reads the window needs no date
+parameter at all. `dg schedule firings regional-load nightly` is what each firing did.
 
 A schedule carries its own timezone, and several per pipeline is the design rather than a
 workaround: nightly against staging and weekly against production is two schedules on one
@@ -538,7 +594,7 @@ dg alerts rules create load-failed \
 ```
 
 ```text
-created alert rule load-failed: run_failed on regional-load
+2026-01-01T18:28:59.547+01:00 [info    ] created                        [alert_rule.created] code=load-failed event=run_failed scope=regional-load notifier=log template=false body=false throttle=15m
 ```
 
 ```bash

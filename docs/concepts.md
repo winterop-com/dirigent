@@ -193,7 +193,8 @@ Also called a **RunItem**. When a step declares `for_each`, the run gets one ite
 of that list, each with its own status, its own error, and its own retry.
 
 Fan-out cardinality is fixed when the run is created, not while it executes, which is why
-`for_each` may read `params.*` and `run.*` but not another step's output. The practical
+`for_each` reads `params.*`, `run.*`, and the grid an upstream fan-out already has -- every
+one of them known before anything executes -- and never a step's output. The practical
 payoff is that the item grid exists from the moment a run is visible: a run over five hundred
 inputs reads as a grid of five hundred outcomes rather than one opaque failure.
 

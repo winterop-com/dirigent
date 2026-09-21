@@ -48,7 +48,7 @@ uv sync
 ```
 
 ```text
-2026-09-20T00:00:26.319+02:00 [info    ] initialised                    [instance.initialised] directory=/home/you/basics state=.dirigent/state schema=0001_baseline admin=admin template=local version=0.16.7
+2026-09-20T00:00:26.319+02:00 [info    ] initialised                    [instance.initialised] directory=/home/you/basics state=.dirigent/state schema=0001_baseline admin=admin template=local version=0.17.3
 ```
 
 It creates the state directory, migrates the schema, creates the first admin, and mints that
@@ -375,8 +375,12 @@ uv run dg apply
 ```
 
 ```text
-2026-09-17T04:01:16.458+02:00 [error   ] this document carries its own schemas (echo-reading), which an instance will not store: create them with `dg schema create` and let the document name them in requires.schemas [error] status=422 title="Unprocessable Content" instance=/api/v1/pipelines/$apply
+2026-09-17T04:01:16.458+02:00 [error   ] this document carries its own schemas (echo-reading), which an instance will not store: create them with `dg schema create` and let the document name them in requires.schemas [error] status=422 title="Unprocessable Content" code=server.document_refused params={"detail":"this document carries its own schemas (echo-reading), which an instance will not store: create them with `dg schema create` and let the document name them in requires.schemas"} instance=/api/v1/pipelines/$apply
+  - this document carries its own schemas (echo-reading), which an instance will not store: create them with `dg schema create` and let the document name them in requires.schemas
 ```
+
+Every refusal reads that way: the sentence, then `code`, the stable dotted name of the refusal,
+`params`, what the sentence was built from, and the `problems` list rendered under it.
 
 That refusal is the rule worth learning early: **a server stores no schema a document carries**,
 exactly as it stores no connection a document carries. A schema is a thing the instance holds
@@ -823,10 +827,11 @@ examples
 uv run dg pipeline new http-fetch-validate-transform-validate-post
 ```
 
-It copies the document into `pipelines/` verbatim -- comments and all -- rewriting only the
-`code:` line, and then says what the instance still has to hold before it will apply. The
-Examples screen in the UI is the same catalogue, and it says per document what this instance is
-missing.
+It copies the document into `pipelines/` verbatim -- comments and all -- rewriting the `code:`
+line, dropping the `starter` tag, and lifting whatever the original carried, a `schemas:`
+section like the one above included, into `requires:` instead, because an instance stores
+neither. It then says what the instance still has to hold before it will apply. The Examples
+screen in the UI is the same catalogue, and it says per document what this instance is missing.
 
 - [**The block reference**](blocks.md) is every block's config and output, exactly as the
   catalog publishes them.
