@@ -25,6 +25,7 @@ from dirigent_block_execute.compose import (
 )
 from dirigent_plugin import BlockFailure, ErrorClass
 from dirigent_testing import FakeContext
+from dirigent_testing.messages import TEST_REFUSAL
 
 WEB_CONTAINER: dict[str, object] = {
     "Id": "web123",
@@ -420,7 +421,10 @@ async def test_an_up_that_times_out_tears_the_half_built_stack_down(
 ) -> None:
     """The CLI never reports an exit code, and containers it already started are still up."""
     calls = scripted_exec(monkeypatch, lambda argv: FakeProcess(0))
-    failing_run(monkeypatch, BlockFailure("docker compose up did not finish", error_class=ErrorClass.TRANSIENT))
+    failing_run(
+        monkeypatch,
+        BlockFailure(TEST_REFUSAL, error_class=ErrorClass.TRANSIENT, detail="docker compose up did not finish"),
+    )
 
     with pytest.raises(BlockFailure):
         await DockerComposeUpOperator().execute(DockerComposeUpConfig(content="services: {}"), local_ctx.as_context())

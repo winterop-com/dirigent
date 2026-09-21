@@ -55,6 +55,7 @@ def refusal(
     status: int,
     detail: str,
     *,
+    code: str = "server.request_invalid",
     problems: list[str] | None = None,
     headers: dict[str, str] | None = None,
 ) -> httpx2.Response:
@@ -65,7 +66,12 @@ def refusal(
             "status": status,
             "title": "Error",
             "detail": detail,
-            "problems": problems or [],
+            "code": code,
+            "params": {},
+            "problems": [
+                {"code": "validation.string_type", "message": one, "params": {}, "location": None}
+                for one in problems or []
+            ],
             "instance": "/api/v1/somewhere",
         },
         headers={**STAMPED, **(headers or {})},

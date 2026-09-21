@@ -20,14 +20,18 @@ from typing import Annotated, Any, ClassVar
 import jq
 from pydantic import BaseModel, Field, JsonValue
 
+from dirigent_block_transform_jq.messages import (
+    FILTER_ANSWER,
+    FILTER_OUTPUT_COUNT,
+    MAP_OUTPUT_COUNT,
+    PROGRAM_REFUSED,
+)
+from dirigent_block_transform_jq.messages import NO_OUTPUT as NO_OUTPUT_MESSAGE
 from dirigent_common import JQ_MEDIA_TYPE
 from dirigent_plugin import Filterer, Mapper, ProgramConfig, RunnerEngine, Transformer, TransformError
 
 #: What a program producing nothing is told to write instead.
-NO_OUTPUT = (
-    "the program produced no output, and a transform step has to produce one; "
-    "a program that means 'possibly nothing' emits [] or null explicitly"
-)
+NO_OUTPUT = NO_OUTPUT_MESSAGE.render()
 
 #: Wraps the author's program so jq's ``env`` and ``$ENV`` read an empty object instead of
 #: the worker's environment, which is where dirigent's own secrets live. The program keeps
@@ -60,7 +64,7 @@ class JqEngine(RunnerEngine):
             libjq.compile(program)
             libjq.compile(self.source(program))
         except ValueError as error:
-            raise TransformError(str(error).strip()) from error
+            raise TransformError(PROGRAM_REFUSED.render(detail=str(error).strip())) from error
 
 
 class JqProgramConfig(ProgramConfig):
@@ -120,11 +124,7 @@ class JqMapper(JqEngine, Mapper):
         """Run the program over one element, and take its single output as the replacement."""
         produced = self.outputs(compiled, value)
         if len(produced) != 1:
-            raise TransformError(
-                f"the program produced {len(produced)} outputs, and a map replaces an element with "
-                f"exactly one; a program that drops elements is a filter.jq step, and one that "
-                f"changes how many there are is a transform.jq step"
-            )
+            raise TransformError(MAP_OUTPUT_COUNT.render(produced=len(produced)))
         return produced[0]
 
 
@@ -148,14 +148,8 @@ class JqFilterer(JqEngine, Filterer):
         """Run the program over one element, and read its single boolean output as the verdict."""
         produced = self.outputs(compiled, value)
         if len(produced) != 1:
-            raise TransformError(
-                f"the program produced {len(produced)} outputs, and a filter answers one true or false "
-                f"per element; a program that reshapes an element is a map.jq or transform.jq step"
-            )
+            raise TransformError(FILTER_OUTPUT_COUNT.render(produced=len(produced)))
         answer = produced[0]
         if not isinstance(answer, bool):
-            raise TransformError(
-                f"the program answered {json.dumps(answer)}, and a filter answers true or false; jq's "
-                f"truthiness is not applied, so a program meaning 'has readings' writes '.count > 0'"
-            )
+            raise TransformError(FILTER_ANSWER.render(answer=json.dumps(answer)))
         return answer

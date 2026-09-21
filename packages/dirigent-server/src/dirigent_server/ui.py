@@ -15,7 +15,7 @@ then a real file, and the shell is the last resort.
 
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request, status
+from fastapi import FastAPI, Request, status
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from starlette.responses import Response
 from starlette.staticfiles import StaticFiles
@@ -23,7 +23,8 @@ from starlette.types import Scope
 
 from dirigent_core import __version__
 from dirigent_core.config import Settings
-from dirigent_server.errors import http_error
+from dirigent_server.errors import Refusal, http_error
+from dirigent_server.messages import NO_ICON
 
 #: The file whose presence means a bundle was built, rather than the directory existing.
 INDEX_FILENAME = "index.html"
@@ -191,7 +192,7 @@ def _add_favicon_route(app: FastAPI, directory: Path) -> None:
         for path, media_type in icons:
             if path.is_file():
                 return FileResponse(path, media_type=media_type, headers={"cache-control": REVALIDATE})
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="this bundle carries no icon")
+        raise Refusal(NO_ICON, status=status.HTTP_404_NOT_FOUND)
 
 
 def _add_refusal_route(app: FastAPI) -> None:

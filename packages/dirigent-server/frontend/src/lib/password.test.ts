@@ -9,6 +9,8 @@ const WRONG: Problem = {
     status: 403,
     title: 'Forbidden',
     detail: 'the current password is not correct',
+    code: 'auth.wrong_password',
+    params: {},
     problems: [],
     instance: '/api/v1/auth/password',
 }

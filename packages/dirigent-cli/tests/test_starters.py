@@ -160,7 +160,7 @@ def test_pipeline_new_refuses_an_example_that_is_not_a_starter(tmp_path: Path) -
     assert result.exit_code == 1
     refused = refusal(result.stdout)
     assert "not a starter" in refused["message"]
-    assert any("'starter' tag" in problem for problem in refused["problems"])
+    assert any("'starter' tag" in problem["message"] for problem in refused["problems"])
     assert not list(tmp_path.glob("*.yaml"))
 
 

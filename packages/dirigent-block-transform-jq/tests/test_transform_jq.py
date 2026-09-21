@@ -76,7 +76,7 @@ def test_a_bad_program_is_refused_at_apply_with_jqs_own_message() -> None:
     issues = JqTransformer().check_config(config)
 
     assert len(issues) == 1
-    assert "syntax error, unexpected end of file" in issues[0]
+    assert "syntax error, unexpected end of file" in issues[0].message
 
 
 def test_a_program_that_compiles_is_passed_without_comment() -> None:
@@ -177,8 +177,8 @@ def test_a_bad_map_or_filter_program_is_refused_at_apply_with_jqs_own_message() 
     config = JqMapper.config_model.model_validate({"input": CELSIUS, "program": "{station, "})
 
     assert len(JqMapper().check_config(config)) == 1
-    assert "syntax error" in JqMapper().check_config(config)[0]
-    assert "syntax error" in JqFilterer().check_config(config)[0]
+    assert "syntax error" in JqMapper().check_config(config)[0].message
+    assert "syntax error" in JqFilterer().check_config(config)[0].message
 
 
 async def test_the_worker_environment_is_not_readable_through_a_map_program(ctx: FakeContext) -> None:

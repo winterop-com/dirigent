@@ -6,6 +6,10 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from dirigent_block_base.messages import (
+    EMPTY_WINDOW,
+    NOT_A_TIMEZONE,
+)
 from dirigent_common import BlockModel, Duration
 from dirigent_plugin import NotYet, Sensor, SensorSpec, StepContext
 
@@ -48,17 +52,14 @@ class TimeWindowConfig(BlockModel):
         try:
             ZoneInfo(value)
         except (ZoneInfoNotFoundError, ValueError) as error:
-            raise ValueError(f"{value!r} is not an IANA timezone name, such as 'Europe/Oslo' or 'UTC'") from error
+            raise ValueError(NOT_A_TIMEZONE.render(value=repr(value))) from error
         return value
 
     @model_validator(mode="after")
     def _check_window(self) -> "TimeWindowConfig":
         """Reject a window of zero width, which no clock is ever inside."""
         if self.after == self.before:
-            raise ValueError(
-                f"a window from {self.after} to {self.before} is empty; "
-                f"omit the sensor rather than writing a window nothing falls in"
-            )
+            raise ValueError(EMPTY_WINDOW.render(after=self.after, before=self.before))
         return self
 
     @property

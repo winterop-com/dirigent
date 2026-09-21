@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dirigent_client.enums import LogLevel
 from dirigent_common import JsonMap
 from dirigent_core.logging import debug_kept, get_logger
+from dirigent_core.messages import RUN_UNKNOWN_CONNECTION, RUN_UNKNOWN_SCHEMA, UNKNOWN_CONNECTION_KIND
 from dirigent_core.models import Connection, Schema
 from dirigent_core.secrets import SecretBox
 from dirigent_core.storage import AttemptStorage, Storage, connection_binder, work_dir
@@ -45,24 +46,6 @@ DEFAULT_API_TOKEN_SCHEME = "ApiToken"
 DEFAULT_HTTP_TIMEOUT = 30.0
 
 _logger = get_logger("block")
-
-
-class UnknownConnection(BlockFailure):
-    """A block asked for a connection this instance does not have."""
-
-    def __init__(self, ref: str, known: list[str]) -> None:
-        """Name the connection and the ones that exist, and refuse to retry."""
-        available = ", ".join(sorted(known)) or "none are configured"
-        super().__init__(f"no connection coded {ref!r} ({available})", error_class=ErrorClass.REJECTED)
-
-
-class UnknownSchema(BlockFailure):
-    """A block asked for a named schema this instance does not hold."""
-
-    def __init__(self, code: str, known: list[str]) -> None:
-        """Name the schema and the ones that exist, and refuse to retry."""
-        available = ", ".join(sorted(known)) or "none are held"
-        super().__init__(f"no schema coded {code!r} ({available})", error_class=ErrorClass.REJECTED)
 
 
 class ConnectionRecord(BaseModel):
@@ -334,7 +317,12 @@ class EngineStepContext:
         """Resolve a connection by code, opened and validated against the block's own model."""
         record = self._connections.get(ref)
         if record is None:
-            raise UnknownConnection(ref, list(self._connections))
+            raise BlockFailure(
+                RUN_UNKNOWN_CONNECTION,
+                error_class=ErrorClass.REJECTED,
+                ref=repr(ref),
+                available=_listed(self._connections, "none are configured"),
+            )
         return self._secrets.decrypt_config(model, record.config, record.envelope, key_id=record.key_id)
 
     def storage_connection[C: BaseModel](self, scheme: str, model: type[C]) -> C | None:
@@ -346,7 +334,12 @@ class EngineStepContext:
         """Resolve a named JSON Schema by code, as the claim transaction snapshotted it."""
         body = self._schemas.get(code)
         if body is None:
-            raise UnknownSchema(code, list(self._schemas))
+            raise BlockFailure(
+                RUN_UNKNOWN_SCHEMA,
+                error_class=ErrorClass.REJECTED,
+                code=repr(code),
+                available=_listed(self._schemas, "none are held"),
+            )
         return body
 
     def format_checker(self) -> FormatChecker:
@@ -357,14 +350,23 @@ class EngineStepContext:
         """Build an HTTP client for a connection read by code, already carrying its settings."""
         record = self._connections.get(ref)
         if record is None:
-            raise UnknownConnection(ref, list(self._connections))
+            raise BlockFailure(
+                RUN_UNKNOWN_CONNECTION,
+                error_class=ErrorClass.REJECTED,
+                ref=repr(ref),
+                available=_listed(self._connections, "none are configured"),
+            )
         model = self._connection_models.get(record.kind)
         if model is None:
             raise BlockFailure(
-                f"connection {ref!r} has kind {record.kind!r}, which no installed plugin contributes",
-                error_class=ErrorClass.REJECTED,
+                UNKNOWN_CONNECTION_KIND, error_class=ErrorClass.REJECTED, ref=repr(ref), kind=repr(record.kind)
             )
         return build_http_client(self.connection(ref, model))
+
+
+def _listed(known: "Mapping[str, object]", empty: str) -> str:
+    """Name what the instance does hold, or say plainly that it holds none."""
+    return ", ".join(sorted(known)) or empty
 
 
 def build_http_client(config: BaseModel) -> httpx2.AsyncClient:

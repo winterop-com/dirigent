@@ -37,6 +37,16 @@ from dirigent_block_sql.engines import (
     under_work,
 )
 from dirigent_block_sql.sql import SqlConnectionConfig
+from dirigent_block_sql_duckdb.messages import (
+    CONNECT_TIMED_OUT,
+    NO_HTTPFS,
+    NO_STORAGE_CONNECTION,
+    PARAMETER_NAMES_STORAGE,
+    PARAMETER_OUTSIDE_THE_RUN,
+    READ_ONLY_IN_MEMORY,
+    STATEMENT_LOADS_AN_EXTENSION,
+    STATEMENT_OUTSIDE_THE_RUN,
+)
 from dirigent_common import BlockModel, HealthReport, JsonMap
 from dirigent_plugin import BlockFailure, ErrorClass, StepContext
 
@@ -77,11 +87,7 @@ class DuckdbEngine(SqlEngine):
     def validate(self, settings: SqlConnectionConfig, url: URL) -> None:
         """Refuse ``read_only`` on an in-memory database, which duckdb will not open at all."""
         if settings.read_only and _is_memory(url):
-            raise ValueError(
-                "read_only has no meaning on duckdb:///:memory:, which duckdb refuses to open at all: "
-                "an in-memory database starts empty and a read-only one can never be filled, so the "
-                "connection would open on nothing; name a duckdb file, or drop read_only"
-            )
+            raise ValueError(READ_ONLY_IN_MEMORY.render())
 
     def resolve(self, url: URL, ctx: StepContext) -> URL:
         """A duckdb database written as a relative path is a file in the run's work directory."""
@@ -202,9 +208,7 @@ def _file(name: str, uri: str, ctx: StepContext) -> str:
     split = urlsplit(uri)
     if split.scheme in REMOTE_STORAGE:
         raise BlockFailure(
-            f"parameter {name!r} names {split.scheme}:// storage, and duckdb reads a file through the "
-            f"worker's own filesystem here; copy it into the run's scratch space with storage.copy first",
-            error_class=ErrorClass.REJECTED,
+            PARAMETER_NAMES_STORAGE, error_class=ErrorClass.REJECTED, name=repr(name), scheme=split.scheme
         )
     # An s3:// URI is handed over whole: the session loads httpfs and gives duckdb the
     # scheme's own credentials, so duckdb opens the object rather than a path.
@@ -217,9 +221,11 @@ def _file(name: str, uri: str, ctx: StepContext) -> str:
     if not any(path.is_relative_to(root) for root in roots):
         named = ", ".join(str(root) for root in roots)
         raise BlockFailure(
-            f"parameter {name!r} names {uri}, which is outside this run's own directories ({named}); a "
-            f"query reads and writes the files of the run it belongs to",
+            PARAMETER_OUTSIDE_THE_RUN,
             error_class=ErrorClass.REJECTED,
+            name=repr(name),
+            uri=uri,
+            named=named,
         )
     # A ``COPY ... TO`` names a file duckdb creates but not a directory it creates.
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -247,19 +253,11 @@ def _open_s3(connection: Connection, ctx: StepContext) -> None:
     """
     config = ctx.storage_connection(S3, S3StorageSettings)
     if config is None:
-        raise BlockFailure(
-            f"this statement names {S3}:// storage and no connection is bound to the {S3} scheme, so "
-            f"duckdb has no endpoint or credential to open it with; set DIRIGENT_STORAGE_CONNECTIONS",
-            error_class=ErrorClass.REJECTED,
-        )
+        raise BlockFailure(NO_STORAGE_CONNECTION, error_class=ErrorClass.REJECTED, scheme=S3)
     try:
         connection.execute(sqlalchemy.text(f"LOAD {HTTPFS}"))
     except sqlalchemy.exc.DatabaseError as error:
-        raise BlockFailure(
-            f"duckdb could not load its {HTTPFS} extension, which is what reads {S3}:// here; install "
-            f"it once on this worker with duckdb -c 'INSTALL {HTTPFS}'",
-            error_class=ErrorClass.REJECTED,
-        ) from error
+        raise BlockFailure(NO_HTTPFS, error_class=ErrorClass.REJECTED, extension=HTTPFS, scheme=S3) from error
     for name, value in s3_options(config):
         _set(connection, name, value)
     # These statements autobegin a transaction, and the step opens its own straight after.
@@ -314,17 +312,9 @@ def _refusal(error: Exception, roots: list[Path]) -> BlockFailure | None:
     text = str(error).lower()
     if DENIED_PATH in text:
         named = ", ".join(str(root) for root in roots)
-        return BlockFailure(
-            f"this statement names a file outside the run's own directories ({named}), which is all a "
-            f"statement reads and writes here; copy it into the run's scratch space with storage.copy first",
-            error_class=ErrorClass.REJECTED,
-        )
+        return BlockFailure(STATEMENT_OUTSIDE_THE_RUN, error_class=ErrorClass.REJECTED, named=named)
     if DENIED_EXTENSION in text:
-        return BlockFailure(
-            "this statement loads a duckdb extension, and a session carries only the extensions it "
-            "was opened with; a bucket a statement names is opened through its storage connection",
-            error_class=ErrorClass.REJECTED,
-        )
+        return BlockFailure(STATEMENT_LOADS_AN_EXTENSION, error_class=ErrorClass.REJECTED)
     return None
 
 
@@ -348,8 +338,7 @@ class _Session:
         except TimeoutError as error:
             await asyncio.to_thread(self.engine.dispose)
             raise BlockFailure(
-                f"the database did not answer within {self.settings.connect_timeout}",
-                error_class=ErrorClass.TRANSIENT,
+                CONNECT_TIMED_OUT, error_class=ErrorClass.TRANSIENT, timeout=self.settings.connect_timeout
             ) from error
         except BaseException:
             await asyncio.to_thread(self.engine.dispose)

@@ -5,7 +5,7 @@ reading the ones the instance holds, and removing one with the rows it owns.
 """
 
 import sqlalchemy as sa
-from fastapi import APIRouter, HTTPException, Response, status
+from fastapi import APIRouter, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirigent_client.schemas import Page, TriggerDocumentDetail, TriggerDocumentOut
@@ -17,6 +17,8 @@ from dirigent_core.trigger_documents import (
     owned_codes,
 )
 from dirigent_server.dependencies import SessionDep
+from dirigent_server.errors import Refusal
+from dirigent_server.messages import NO_TRIGGER_DOCUMENT
 from dirigent_server.pagination import DEFAULT_PAGE, AfterParam, LimitParam, clip
 from dirigent_server.security import OperatorDep, PrincipalDep
 from dirigent_server.transactions import Transactional
@@ -99,7 +101,7 @@ async def _require(session: AsyncSession, code: str) -> TriggerDocument:
     """Read a triggers document by code, translating "no such thing" into a 404."""
     row = await find_trigger_document(session, code)
     if row is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"no triggers document coded {code!r}")
+        raise Refusal(NO_TRIGGER_DOCUMENT, status=status.HTTP_404_NOT_FOUND, code=repr(code))
     return row
 
 

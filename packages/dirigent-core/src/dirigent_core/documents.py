@@ -14,7 +14,7 @@ from jsonschema.validators import extend as extend_validator  # pyright: ignore[
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, ValidationError
 
 from dirigent_client.schemas import Catalog, ValidationIssue
-from dirigent_common import STORAGE_URI_FORMAT, JsonMap, base_format_checker
+from dirigent_common import STORAGE_URI_FORMAT, Issue, JsonMap, Message, base_format_checker, validation_issue
 from dirigent_core.engine.definition import (
     FORMAT_V1,
     KIND_PIPELINE,
@@ -27,6 +27,53 @@ from dirigent_core.engine.definition import (
 )
 from dirigent_core.engine.references import has_reference, references_in
 from dirigent_core.errors import DomainError
+from dirigent_core.messages import (
+    ADOPTED_NOT_FAN_OUT,
+    ADOPTED_NOT_UPSTREAM,
+    ADOPTION_ONE_FAILED,
+    CARRIED_CONNECTIONS,
+    CARRIED_SCHEMA_INVALID,
+    CARRIED_SCHEMAS,
+    DOCUMENT_EMPTY,
+    DOCUMENT_UNSATISFIED,
+    FOR_EACH_LITERAL,
+    FOR_EACH_READS_ITEM,
+    FOR_EACH_READS_OUTPUT,
+    NO_FORMAT,
+    NOT_A_MAPPING,
+    NOT_YAML,
+    PARAMS_SCHEMA_INVALID,
+    REFERENCE_GRID_IN_CONFIG,
+    REFERENCE_MALFORMED_ITEM,
+    REFERENCE_MALFORMED_RUN,
+    REFERENCE_MALFORMED_STEP,
+    REFERENCE_NAMES_NOTHING,
+    REFERENCE_NO_FAN_OUT,
+    REFERENCE_NOT_PAIRED,
+    REFERENCE_NOT_UPSTREAM,
+    REFERENCE_UNDECLARED_PARAM,
+    REFERENCE_UNKNOWN_NAMESPACE,
+    REFERENCE_UNKNOWN_STEP,
+    REQUIRED_BLOCK_MISSING,
+    REQUIRED_CONNECTION_MISSING,
+    REQUIRED_PIPELINE_MISSING,
+    REQUIRED_SCHEMA_MISSING,
+    SCHEDULE_PARAMS_REFUSED,
+    SCHEDULE_REFUSED,
+    STEP_BLOCK_MISSING,
+    STEP_CONFIG_INVALID,
+    STEP_CONNECTION_MISSING,
+    STEP_SCHEMA_MISSING,
+    STEP_UNSAFE_BLOCK,
+    STORAGE_SCHEME_MISSING,
+    TARGET_PIPELINE_INACTIVE,
+    TARGET_PIPELINE_MISSING,
+    UNKNOWN_DOCUMENT_KIND,
+    WEBHOOK_MAPPING_REFUSED,
+    WORKER_TAGS_MISSING,
+    WRONG_DOCUMENT_KIND,
+    WRONG_FORMAT,
+)
 
 #: High enough that the canonical dump never folds a line, which would shift the digest.
 YAML_WIDTH: Final = 10_000
@@ -89,16 +136,16 @@ class CanonicalDumper(yaml.SafeDumper):
 class DocumentError(DomainError):
     """A document could not be read at all, or did not satisfy the format."""
 
-    def __init__(self, message: str, problems: Iterable[str] = ()) -> None:
+    def __init__(self, message: Message, /, *, problems: Iterable[Issue] = (), **params: Any) -> None:
         """Carry the whole list of problems a document has."""
-        self._problems = list(problems) or [message]
-        detail = "; ".join(self._problems)
-        super().__init__(message if detail == message else f"{message}: {detail}")
+        super().__init__(message, **params)
+        self._problems = list(problems) or [Issue(code=self.code, message=self.args[0], params=self.params)]
 
-    @property
-    def problems(self) -> list[str]:
-        """Every problem the document has, which is the message itself when it has only the one."""
-        return self._problems
+    def __str__(self) -> str:
+        """Render the refusal as its sentence, with every problem the document has after it."""
+        listed = "; ".join(str(issue) for issue in self._problems)
+        sentence = str(self.args[0])
+        return sentence if listed == sentence else f"{sentence}: {listed}"
 
 
 def parse_text(text: str) -> JsonMap:
@@ -106,11 +153,11 @@ def parse_text(text: str) -> JsonMap:
     try:
         loaded = safe_load(text)
     except yaml.YAMLError as error:
-        raise DocumentError(f"the document is not valid YAML or JSON: {error}") from error
+        raise DocumentError(NOT_YAML, detail=str(error)) from error
     if loaded is None:
-        raise DocumentError("the document is empty")
+        raise DocumentError(DOCUMENT_EMPTY)
     if not isinstance(loaded, dict):
-        raise DocumentError(f"a document is a mapping, not {type(loaded).__name__}")
+        raise DocumentError(NOT_A_MAPPING, kind=type(loaded).__name__)
     return cast("JsonMap", loaded)
 
 
@@ -127,7 +174,7 @@ def load_document(raw: JsonMap) -> Document:
     try:
         return MODELS[kind].model_validate(raw)
     except ValidationError as error:
-        raise DocumentError("the document does not satisfy dirigent/v1", _readable(error, kind)) from error
+        raise DocumentError(DOCUMENT_UNSATISFIED, problems=_readable(error, kind), format=FORMAT_V1) from error
 
 
 def load_text(text: str) -> Document:
@@ -135,7 +182,7 @@ def load_text(text: str) -> Document:
     return load_document(parse_text(text))
 
 
-def carried_refusal(definition: Document) -> str | None:
+def carried_refusal(definition: Document) -> Issue | None:
     """Why an instance will not store this document, or ``None`` when it will.
 
     A document may carry its own connections and its own schemas so that it runs alone under
@@ -146,17 +193,9 @@ def carried_refusal(definition: Document) -> str | None:
     if not isinstance(definition, PipelineDefinition):
         return None
     if definition.connections:
-        named = ", ".join(sorted(definition.connections))
-        return (
-            f"this document carries its own connections ({named}), which an instance will not store: "
-            "create them with `dg connection create` and let the document name them"
-        )
+        return Issue.of(CARRIED_CONNECTIONS, named=", ".join(sorted(definition.connections)))
     if definition.schemas:
-        named = ", ".join(sorted(definition.schemas))
-        return (
-            f"this document carries its own schemas ({named}), which an instance will not store: "
-            "create them with `dg schema create` and let the document name them in requires.schemas"
-        )
+        return Issue.of(CARRIED_SCHEMAS, named=", ".join(sorted(definition.schemas)))
     return None
 
 
@@ -164,7 +203,7 @@ def load_pipeline_text(text: str) -> PipelineDefinition:
     """Read a document that must be a pipeline, naming the kind it turned out to be."""
     definition = load_text(text)
     if not isinstance(definition, PipelineDefinition):
-        raise DocumentError(f"this is a `kind: {definition.kind}` document, and a pipeline document was wanted")
+        raise DocumentError(WRONG_DOCUMENT_KIND, kind=definition.kind)
     return definition
 
 
@@ -172,26 +211,25 @@ def _check_envelope(raw: JsonMap) -> str:
     """Refuse a document whose format tag is missing, or whose kind is neither of the two."""
     declared = raw.get("format")
     if declared is None:
-        raise DocumentError(f"the document declares no format; add `format: {FORMAT_V1}`")
+        raise DocumentError(NO_FORMAT, format=FORMAT_V1)
     if declared != FORMAT_V1:
-        raise DocumentError(f"this instance reads {FORMAT_V1} documents, and this one declares {declared!r}")
+        raise DocumentError(WRONG_FORMAT, expected=FORMAT_V1, declared=repr(declared))
     kind = raw.get("kind", KIND_PIPELINE)
     if kind not in MODELS:
         known = " and ".join(f"`kind: {name}`" for name in MODELS)
-        raise DocumentError(f"{FORMAT_V1} defines {known}, and this document declares {kind!r}")
+        raise DocumentError(UNKNOWN_DOCUMENT_KIND, format=FORMAT_V1, known=known, kind=repr(kind))
     return str(kind)
 
 
-def _readable(error: ValidationError, kind: str = KIND_PIPELINE) -> list[str]:
+def _readable(error: ValidationError, kind: str = KIND_PIPELINE) -> list[Issue]:
     """Render pydantic's errors as document paths."""
-    problems: list[str] = []
+    issues: list[Issue] = []
     for detail in error.errors():
-        location = ".".join(str(part) for part in detail["loc"]) or "(document)"
-        if detail["type"] == "extra_forbidden":
-            problems.append(f"{location}: unknown key{_did_you_mean(detail['loc'], kind)}")
-            continue
-        problems.append(f"{location}: {detail['msg']}")
-    return problems
+        entry = cast("dict[str, Any]", detail)
+        suggestion = _did_you_mean(detail["loc"], kind) if detail["type"] == "extra_forbidden" else ""
+        issue = validation_issue(entry, suggestion=suggestion)
+        issues.append(issue if issue.location else issue.model_copy(update={"location": "(document)"}))
+    return issues
 
 
 def _did_you_mean(location: tuple[int | str, ...], kind: str) -> str:
@@ -385,12 +423,7 @@ def worker_routing_issues(definition: PipelineDefinition, carried: set[str]) -> 
     missing = [tag for tag in definition.requires.workers if tag not in carried]
     if not missing:
         return []
-    return [
-        ValidationIssue(
-            location="requires.workers",
-            message=(f"no live worker carries {', '.join(missing)}; a run of this pipeline would wait until one does"),
-        )
-    ]
+    return [ValidationIssue.of(WORKER_TAGS_MISSING, location="requires.workers", tags=", ".join(missing))]
 
 
 def _params_schema_issues(definition: PipelineDefinition) -> list[ValidationIssue]:
@@ -406,13 +439,11 @@ def _params_schema_issues(definition: PipelineDefinition) -> list[ValidationIssu
     except SchemaError as error:
         where = "/".join(str(part) for part in error.absolute_path)
         return [
-            ValidationIssue(
+            ValidationIssue.of(
+                PARAMS_SCHEMA_INVALID,
                 location="params",
-                message=(
-                    "the parameter schema is not itself valid JSON Schema"
-                    + (f" at {where}" if where else "")
-                    + f": {error.message}"
-                ),
+                at=f" at {where}" if where else "",
+                detail=error.message,
             )
         ]
     return []
@@ -431,13 +462,11 @@ def _carried_schema_issues(definition: PipelineDefinition) -> list[ValidationIss
         except SchemaError as error:
             where = "/".join(str(part) for part in error.absolute_path)
             issues.append(
-                ValidationIssue(
+                ValidationIssue.of(
+                    CARRIED_SCHEMA_INVALID,
                     location=f"schemas.{code}",
-                    message=(
-                        "the carried schema is not itself valid JSON Schema"
-                        + (f" at {where}" if where else "")
-                        + f": {error.message}"
-                    ),
+                    at=f" at {where}" if where else "",
+                    detail=error.message,
                 )
             )
     return issues
@@ -472,14 +501,24 @@ def _trigger_issues(
             check_schedule(ScheduleRequest.from_spec(spec))
         except (ScheduleError, ValidationError) as error:
             issues.append(
-                ValidationIssue(location=f"triggers.schedules[{index}].{spec.code}", message=str(error).strip())
+                ValidationIssue.of(
+                    SCHEDULE_REFUSED,
+                    location=f"triggers.schedules[{index}].{spec.code}",
+                    detail=str(error).strip(),
+                )
             )
         if not check_params or not isinstance(pins_against, PipelineDefinition):
             continue
         try:
             check_schedule_params(pins_against, spec.params, format_checker)
         except ScheduleError as error:
-            issues.append(ValidationIssue(location=f"triggers.schedules[{index}].params", message=str(error).strip()))
+            issues.append(
+                ValidationIssue.of(
+                    SCHEDULE_PARAMS_REFUSED,
+                    location=f"triggers.schedules[{index}].params",
+                    detail=str(error).strip(),
+                )
+            )
     if not check_params or not isinstance(pins_against, PipelineDefinition):
         return issues
     for index, hook in enumerate(definition.triggers.webhooks):
@@ -487,7 +526,11 @@ def _trigger_issues(
             check_webhook_mapping(pins_against, hook.params_from_payload)
         except WebhookError as error:
             issues.append(
-                ValidationIssue(location=f"triggers.webhooks[{index}].params_from_payload", message=str(error).strip())
+                ValidationIssue.of(
+                    WEBHOOK_MAPPING_REFUSED,
+                    location=f"triggers.webhooks[{index}].params_from_payload",
+                    detail=str(error).strip(),
+                )
             )
     return issues
 
@@ -503,25 +546,9 @@ def _triggers_document_issues(
     if not check_target:
         return _trigger_issues(definition, format_checker, check_params=False)
     if target is None:
-        return [
-            ValidationIssue(
-                location="pipeline",
-                message=(
-                    f"no pipeline coded {definition.pipeline!r} exists on this instance; "
-                    "apply it before the document that schedules it"
-                ),
-            )
-        ]
+        return [ValidationIssue.of(TARGET_PIPELINE_MISSING, location="pipeline", code=repr(definition.pipeline))]
     if not target.active:
-        return [
-            ValidationIssue(
-                location="pipeline",
-                message=(
-                    f"the pipeline coded {definition.pipeline!r} is inactive; "
-                    "activate it before the document that schedules it"
-                ),
-            )
-        ]
+        return [ValidationIssue.of(TARGET_PIPELINE_INACTIVE, location="pipeline", code=repr(definition.pipeline))]
     return _trigger_issues(definition, format_checker, against=target.definition)
 
 
@@ -536,35 +563,28 @@ def _requirement_issues(
     """Check the ``requires`` preflight first, with one complete list of what is missing."""
     installed = {entry.id for entry in catalog.blocks}
     issues = [
-        ValidationIssue(
-            location=f"requires.blocks.{index}",
-            message=f"block {block!r} is not installed on this instance",
-        )
+        ValidationIssue.of(REQUIRED_BLOCK_MISSING, location=f"requires.blocks.{index}", block=repr(block))
         for index, block in enumerate(definition.requires.blocks)
         if block not in installed
     ]
     issues.extend(
-        ValidationIssue(
-            location=f"requires.connections.{index}",
-            message=f"no connection coded {name!r} exists on this instance",
-        )
+        ValidationIssue.of(REQUIRED_CONNECTION_MISSING, location=f"requires.connections.{index}", code=repr(name))
         for index, name in enumerate(definition.requires.connections)
         if name not in connections
     )
     issues.extend(
-        ValidationIssue(
-            location=f"requires.pipelines.{index}",
-            message=(f"no pipeline coded {name!r} exists on this instance; apply it before the document that runs it"),
-        )
+        ValidationIssue.of(REQUIRED_PIPELINE_MISSING, location=f"requires.pipelines.{index}", code=repr(name))
         for index, name in enumerate(definition.requires.pipelines)
         if name not in pipelines and name != definition.code
     )
     if schemes is not None:
         registered = ", ".join(sorted(schemes)) or "none are registered"
         issues.extend(
-            ValidationIssue(
+            ValidationIssue.of(
+                STORAGE_SCHEME_MISSING,
                 location=f"requires.storage.{index}",
-                message=f"no storage backend claims {scheme!r} ({registered})",
+                scheme=repr(scheme),
+                registered=registered,
             )
             for index, scheme in enumerate(definition.requires.storage)
             if scheme not in schemes
@@ -572,9 +592,8 @@ def _requirement_issues(
     if schemas is not None:
         held = ", ".join(sorted(schemas)) or "none are held"
         issues.extend(
-            ValidationIssue(
-                location=f"requires.schemas.{index}",
-                message=f"no schema coded {name!r} exists on this instance ({held})",
+            ValidationIssue.of(
+                REQUIRED_SCHEMA_MISSING, location=f"requires.schemas.{index}", code=repr(name), held=held
             )
             for index, name in enumerate(definition.requires.schemas)
             if name not in schemas
@@ -598,10 +617,7 @@ def _step_block_issues(
         entry = catalog.block(step.block)
         if entry is None:
             issues.append(
-                ValidationIssue(
-                    location=f"steps.{name}.block",
-                    message=f"no block {step.block!r} is installed; install the plugin package that contributes it",
-                )
+                ValidationIssue.of(STEP_BLOCK_MISSING, location=f"steps.{name}.block", block=repr(step.block))
             )
             continue
         malformed = _config_issues(name, step.config, entry.config_schema)
@@ -631,10 +647,12 @@ def _block_refusals(
         validated = block.config_model.model_validate(config)
     except ValidationError:
         return []
-    return [
-        ValidationIssue(location=f"steps.{step}.config", message=message)
-        for message in cast("list[str]", block.check_config(validated))
-    ]
+    return [_at(f"steps.{step}.config", issue) for issue in cast("list[Issue]", block.check_config(validated))]
+
+
+def _at(location: str, issue: Issue) -> ValidationIssue:
+    """Address a block's own issue at the place in the document it belongs to."""
+    return ValidationIssue(location=location, message=issue.message, code=issue.code, params=issue.params)
 
 
 def _allowlist_issues(step: str, block: str, entry: Any, allowed: set[str] | None) -> list[ValidationIssue]:
@@ -647,13 +665,7 @@ def _allowlist_issues(step: str, block: str, entry: Any, allowed: set[str] | Non
         return []
     permitted = ", ".join(sorted(allowed)) or "none"
     return [
-        ValidationIssue(
-            location=f"steps.{step}.block",
-            message=(
-                f"block {block!r} executes code on the worker and DIRIGENT_ENABLED_UNSAFE_BLOCKS "
-                f"does not name it (currently allowed: {permitted})"
-            ),
-        )
+        ValidationIssue.of(STEP_UNSAFE_BLOCK, location=f"steps.{step}.block", block=repr(block), permitted=permitted)
     ]
 
 
@@ -693,9 +705,11 @@ def _scheme_issues(step: str, config: JsonMap, schema: JsonMap, schemes: set[str
             continue
         registered = ", ".join(sorted(schemes)) or "none are registered"
         issues.append(
-            ValidationIssue(
+            ValidationIssue.of(
+                STORAGE_SCHEME_MISSING,
                 location=f"steps.{step}.config.{key}",
-                message=f"no storage backend claims {scheme!r} ({registered})",
+                scheme=repr(scheme),
+                registered=registered,
             )
         )
     return issues
@@ -713,9 +727,10 @@ def _config_issues(step: str, config: JsonMap, schema: JsonMap) -> list[Validati
     for error in sorted(found, key=lambda item: [str(part) for part in item.absolute_path]):
         path = ".".join(str(part) for part in error.absolute_path)
         issues.append(
-            ValidationIssue(
+            ValidationIssue.of(
+                STEP_CONFIG_INVALID,
                 location=f"steps.{step}.config" + (f".{path}" if path else ""),
-                message=error.message,
+                detail=error.message,
             )
         )
     return issues
@@ -728,9 +743,11 @@ def _connection_issues(step: str, config: JsonMap, connections: set[str]) -> lis
         return []
     available = ", ".join(sorted(connections)) or "this instance has no connections"
     return [
-        ValidationIssue(
+        ValidationIssue.of(
+            STEP_CONNECTION_MISSING,
             location=f"steps.{step}.config.connection",
-            message=f"no connection coded {named!r} exists ({available})",
+            code=repr(named),
+            available=available,
         )
     ]
 
@@ -744,9 +761,8 @@ def _schema_issues(step: str, config: JsonMap, schemas: set[str] | None) -> list
         return []
     available = ", ".join(sorted(schemas)) or "this instance holds no schemas"
     return [
-        ValidationIssue(
-            location=f"steps.{step}.config.schema",
-            message=f"no schema coded {named!r} exists ({available})",
+        ValidationIssue.of(
+            STEP_SCHEMA_MISSING, location=f"steps.{step}.config.schema", code=repr(named), available=available
         )
     ]
 
@@ -762,7 +778,7 @@ def _reference_issues(definition: PipelineDefinition) -> list[ValidationIssue]:
         for reference in sorted(set(references_in(cast("JsonValue", step.config)))):
             problem = _reference_problem(reference.strip(), definition, name, upstream, declared, family)
             if problem is not None:
-                issues.append(ValidationIssue(location=f"steps.{name}.config", message=problem))
+                issues.append(_at(f"steps.{name}.config", problem))
         issues.extend(_fan_out_literal_issues(name, step.for_each))
         issues.extend(_adoption_issues(definition, name))
         # for_each carries one extra rule: cardinality is fixed when the run is created, so
@@ -770,7 +786,7 @@ def _reference_issues(definition: PipelineDefinition) -> list[ValidationIssue]:
         for reference in sorted(set(references_in(cast("JsonValue", step.for_each)))):
             problem = _for_each_problem(reference.strip(), definition, name, declared)
             if problem is not None:
-                issues.append(ValidationIssue(location=f"steps.{name}.for_each", message=problem))
+                issues.append(_at(f"steps.{name}.for_each", problem))
     return issues
 
 
@@ -778,15 +794,7 @@ def _fan_out_literal_issues(step: str, for_each: str | list[JsonValue] | None) -
     """Refuse a ``for_each`` string that interpolates nothing, since it stays a string at run time."""
     if not isinstance(for_each, str) or has_reference(for_each):
         return []
-    return [
-        ValidationIssue(
-            location=f"steps.{step}.for_each",
-            message=(
-                f"for_each is a literal string, not a list: {for_each!r} maps over nothing. "
-                "Write a list, or an interpolation such as ${params.regions}"
-            ),
-        )
-    ]
+    return [ValidationIssue.of(FOR_EACH_LITERAL, location=f"steps.{step}.for_each", for_each=repr(for_each))]
 
 
 def _adoption_issues(definition: PipelineDefinition, step: str) -> list[ValidationIssue]:
@@ -797,15 +805,7 @@ def _adoption_issues(definition: PipelineDefinition, step: str) -> list[Validati
     """
     if definition.steps[step].adopted_grid is None or definition.steps[step].rule is not TriggerRule.ONE_FAILED:
         return []
-    return [
-        ValidationIssue(
-            location=f"steps.{step}.rule",
-            message=(
-                "a step that maps over another fan-out's items cannot use one_failed, which is ready "
-                "before that fan-out has finished producing them"
-            ),
-        )
-    ]
+    return [ValidationIssue.of(ADOPTION_ONE_FAILED, location=f"steps.{step}.rule")]
 
 
 def _for_each_problem(
@@ -813,35 +813,28 @@ def _for_each_problem(
     definition: PipelineDefinition,
     step: str,
     declared: set[str] | None,
-) -> str | None:
+) -> Issue | None:
     """Say what is wrong with a reference inside ``for_each``, or nothing when it will resolve."""
     parts = [part for part in reference.split(".") if part]
     match parts:
         case ["steps", target, "items"] if definition.steps[step].adopted_grid == target:
             return _adopted_grid_problem(reference, definition, step, target)
         case ["steps", *_]:
-            return (
-                f"${{{reference}}} reads a step's output, and fan-out is expanded when the run is created: "
-                "for_each may read params, run, and an upstream fan-out's grid as ${steps.<name>.items}, "
-                "but not a step's output"
-            )
+            return Issue.of(FOR_EACH_READS_OUTPUT, reference=reference)
         case ["item", *_]:
-            return f"${{{reference}}} reads the fan-out item, which does not exist yet inside for_each itself"
+            return Issue.of(FOR_EACH_READS_ITEM, reference=reference)
         case _:
             return _reference_problem(reference, definition, step, set(), declared, set())
 
 
-def _adopted_grid_problem(reference: str, definition: PipelineDefinition, step: str, target: str) -> str | None:
+def _adopted_grid_problem(reference: str, definition: PipelineDefinition, step: str, target: str) -> Issue | None:
     """Say why a step cannot map over the grid it named, or nothing when it may."""
     if target not in definition.steps:
-        return f"${{{reference}}} names step {target!r}, which this pipeline does not have"
+        return Issue.of(REFERENCE_UNKNOWN_STEP, reference=reference, step=repr(target))
     if not definition.steps[target].is_fan_out:
-        return f"${{{reference}}} maps over step {target!r}'s items, but {target!r} has no for_each"
+        return Issue.of(ADOPTED_NOT_FAN_OUT, reference=reference, target=repr(target))
     if target not in definition.steps[step].depends_on:
-        return (
-            f"${{{reference}}} maps over step {target!r}'s items, so {target!r} must be a direct "
-            f"prerequisite of {step!r}; add it to depends_on"
-        )
+        return Issue.of(ADOPTED_NOT_UPSTREAM, reference=reference, target=repr(target), step=repr(step))
     return None
 
 
@@ -852,7 +845,7 @@ def _reference_problem(
     upstream: set[str],
     declared: set[str] | None,
     family: set[str],
-) -> str | None:
+) -> Issue | None:
     """Say what is wrong with one reference, or nothing when it will resolve.
 
     ``family`` names the fan-outs this step shares a grid with, which are the only steps whose
@@ -861,55 +854,46 @@ def _reference_problem(
     parts = [part for part in reference.split(".") if part]
     match parts:
         case []:
-            return "${} names nothing"
+            return Issue.of(REFERENCE_NAMES_NOTHING)
         case ["params", parameter, *_] if declared is not None and parameter not in declared:
             available = ", ".join(sorted(declared)) or "the pipeline declares no parameters"
-            return f"${{{reference}}} reads an undeclared parameter ({available})"
+            return Issue.of(REFERENCE_UNDECLARED_PARAM, reference=reference, available=available)
         case ["params", *_]:
             return None
         case ["item", *_]:
             if not definition.steps[step].is_fan_out:
-                return f"${{{reference}}} reads the fan-out item, but step {step!r} has no for_each"
+                return Issue.of(REFERENCE_NO_FAN_OUT, reference=reference, step=repr(step))
             return None
         case ["steps", target, "output", *_]:
             if target not in definition.steps:
-                return f"${{{reference}}} names step {target!r}, which this pipeline does not have"
+                return Issue.of(REFERENCE_UNKNOWN_STEP, reference=reference, step=repr(target))
             if target not in upstream:
-                return (
-                    f"${{{reference}}} reads step {target!r}, which is not a prerequisite of {step!r}; "
-                    f"add it to depends_on"
-                )
+                return Issue.of(REFERENCE_NOT_UPSTREAM, reference=reference, target=repr(target), step=repr(step))
             return None
         case ["steps", target, "items"]:
-            return (
-                f"${{{reference}}} names the list step {target!r} maps over, which only for_each reads; "
-                f"inside config, read the matching item with ${{steps.{target}.item.output.<field>}}"
-            )
+            return Issue.of(REFERENCE_GRID_IN_CONFIG, reference=reference, target=repr(target), bare_target=target)
         case ["steps", target, "item", "output", *_]:
             if target not in definition.steps:
-                return f"${{{reference}}} names step {target!r}, which this pipeline does not have"
+                return Issue.of(REFERENCE_UNKNOWN_STEP, reference=reference, step=repr(target))
             if target not in family:
-                return (
-                    f"${{{reference}}} reads step {target!r}'s matching item, but {step!r} does not fan over "
-                    f"{target!r}'s items; write for_each: ${{steps.{target}.items}}"
+                return Issue.of(
+                    REFERENCE_NOT_PAIRED,
+                    reference=reference,
+                    target=repr(target),
+                    step=repr(step),
+                    bare_target=target,
                 )
             return None
         case ["steps", _, "item", *_]:
-            return f"${{{reference}}} is malformed: a matching item reads steps.<name>.item.output.<field>"
+            return Issue.of(REFERENCE_MALFORMED_ITEM, reference=reference)
         case ["steps", *_]:
-            return (
-                f"${{{reference}}} is malformed: a step reference reads steps.<name>.output.<field>, "
-                "steps.<name>.items, or steps.<name>.item.output.<field>"
-            )
+            return Issue.of(REFERENCE_MALFORMED_STEP, reference=reference)
         case ["run", "scratch"] | ["run", "id"] | ["run", "window", "start"] | ["run", "window", "end"]:
             return None
         case ["run", *_]:
-            return (
-                f"${{{reference}}} is malformed: run exposes only run.scratch, run.id, "
-                "run.window.start and run.window.end"
-            )
+            return Issue.of(REFERENCE_MALFORMED_RUN, reference=reference)
         case [namespace, *_]:
-            return f"${{{reference}}} names {namespace!r}, which is not one of params, steps, item, run"
+            return Issue.of(REFERENCE_UNKNOWN_NAMESPACE, reference=reference, namespace=repr(namespace))
         case _:  # pragma: no cover - every shape above is total over a list of strings
             return None
 

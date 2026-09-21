@@ -6,7 +6,8 @@ from jsonschema import Draft202012Validator
 from jsonschema import ValidationError as SchemaValidationError
 from pydantic import BaseModel, Field, JsonValue
 
-from dirigent_common import BlockModel
+from dirigent_block_base.messages import VALUE_REFUSED
+from dirigent_common import BlockModel, Issue
 from dirigent_plugin import BlockFailure, ErrorClass, Operator, OperatorSpec, SchemaRef, StepContext
 
 
@@ -60,10 +61,12 @@ class ValidateSchemaOperator(Operator[ValidateSchemaConfig, ValidateSchemaOutput
         errors: Any = validator.iter_errors(config.input)  # pyright: ignore[reportUnknownMemberType]
         first = next(iter(sorted(errors, key=_where)), None)
         if first is not None:
-            raise BlockFailure(f"at {first.json_path}: {first.message}", error_class=ErrorClass.REJECTED)
+            raise BlockFailure(
+                VALUE_REFUSED, error_class=ErrorClass.REJECTED, location=first.json_path, detail=first.message
+            )
         return ValidateSchemaOutput(value=config.input)
 
-    def check_config(self, config: BaseModel) -> list[str]:
+    def check_config(self, config: BaseModel) -> list[Issue]:
         """Nothing to check at apply: the named schema was validated when it was stored or applied.
 
         A carried schema is checked at apply by the document format; an instance schema was

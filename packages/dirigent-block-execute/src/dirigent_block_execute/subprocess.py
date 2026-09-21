@@ -17,6 +17,7 @@ from pathlib import Path
 
 from dirigent_block_execute.capture import Drained, LiveLines, drain
 from dirigent_block_execute.environment import allowed
+from dirigent_block_execute.messages import TIMED_OUT
 from dirigent_plugin import BlockFailure, ErrorClass, StepContext
 
 #: Inherited whether or not a step's allowlist names them.
@@ -122,10 +123,7 @@ async def run(
                 )
             await process.wait()
     except TimeoutError as error:
-        raise BlockFailure(
-            f"{what} did not finish within {timeout_seconds}s",
-            error_class=ErrorClass.TRANSIENT,
-        ) from error
+        raise BlockFailure(TIMED_OUT, error_class=ErrorClass.TRANSIENT, what=what, seconds=timeout_seconds) from error
     finally:
         await end(process, pgid)
     return process.returncode or 0, out, err
@@ -162,10 +160,7 @@ async def output(
         async with asyncio.timeout(timeout_seconds):
             out, err = await process.communicate(stdin)
     except TimeoutError as error:
-        raise BlockFailure(
-            f"{what} did not finish within {timeout_seconds}s",
-            error_class=ErrorClass.TRANSIENT,
-        ) from error
+        raise BlockFailure(TIMED_OUT, error_class=ErrorClass.TRANSIENT, what=what, seconds=timeout_seconds) from error
     finally:
         await end(process, pgid)
     return process.returncode or 0, out, err

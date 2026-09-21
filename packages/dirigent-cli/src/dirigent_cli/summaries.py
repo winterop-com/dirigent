@@ -356,12 +356,16 @@ def _db_history(record: Record) -> RenderableType | None:
 
 def _problems(record: Record) -> list[RenderableType]:
     """Render what a refusal or a check found wrong, one line each."""
-    found: list[RenderableType] = [f"  [red]-[/] {escape(text)}" for text in _texts(record, "problems")]
-    found.extend(
-        f"  [red]-[/] {escape(str(one.get('location')))}: {escape(str(one.get('message')))}"
-        for one in _mappings(record, "issues")
-    )
+    found: list[RenderableType] = [f"  [red]-[/] {escape(_located(one))}" for one in _mappings(record, "problems")]
+    found.extend(f"  [red]-[/] {escape(_located(one))}" for one in _mappings(record, "issues"))
     return found
+
+
+def _located(one: Mapping[str, object]) -> str:
+    """Render one issue as its message, prefixed by where it is when it names a place."""
+    where = one.get("location")
+    message = str(one.get("message"))
+    return f"{where}: {message}" if where else message
 
 
 def _refusal(record: Record) -> RenderableType | None:

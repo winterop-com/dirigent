@@ -32,7 +32,15 @@ export const NO_PASSWORD: PasswordForm = { current: '', next: '' }
 
 /** A refusal this form made, in the shape every refusal in this app takes. */
 function refused(detail: string): Problem {
-    return { status: 0, title: 'Not accepted', detail, problems: [], instance: null }
+    return {
+        status: 0,
+        title: 'Not accepted',
+        detail,
+        code: 'auth.weak_password',
+        params: {},
+        problems: [],
+        instance: null,
+    }
 }
 
 /** What the form itself refuses, or nothing when there is a request to make. */

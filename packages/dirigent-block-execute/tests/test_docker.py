@@ -30,6 +30,7 @@ from dirigent_block_execute.docker import (
 from dirigent_common import SHELL_MEDIA_TYPE
 from dirigent_plugin import BlockFailure, ErrorClass, ProbeResult, ProbeStatus, RemoteHandle
 from dirigent_testing import FakeContext
+from dirigent_testing.messages import TEST_REFUSAL
 
 CONTAINER_ID = "c0ffee1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
 
@@ -466,7 +467,8 @@ def test_an_unreachable_daemon_is_transient() -> None:
     operator = DockerRunOperator()
     assert operator.classify_error(FileNotFoundError("no socket there")) is ErrorClass.TRANSIENT
     assert operator.classify_error(httpx2.ConnectError("refused")) is ErrorClass.TRANSIENT
-    assert operator.classify_error(BlockFailure("no", error_class=ErrorClass.REJECTED)) is ErrorClass.REJECTED
+    refused = BlockFailure(TEST_REFUSAL, error_class=ErrorClass.REJECTED, detail="no")
+    assert operator.classify_error(refused) is ErrorClass.REJECTED
 
 
 async def test_a_mount_is_bound_from_the_work_directory_whatever_scratch_is(

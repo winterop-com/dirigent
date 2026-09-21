@@ -2,6 +2,8 @@
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from dirigent_common import Issue, JsonMap
+
 
 class WireModel(BaseModel):
     """A frozen shape that crosses the wire."""
@@ -21,7 +23,13 @@ class Problem(WireModel):
     detail: str
     """One sentence a person can act on."""
 
-    problems: list[str] = Field(default_factory=list[str])
+    code: str
+    """The dotted code of the message the detail was rendered from."""
+
+    params: JsonMap = Field(default_factory=dict)
+    """The specifics the detail rendered, for a re-render in another language."""
+
+    problems: list[Issue] = Field(default_factory=list[Issue])
     """The individual failures, when the refusal is a list of them rather than one."""
 
     instance: str | None = None

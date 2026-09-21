@@ -43,7 +43,7 @@ async def test_a_content_type_the_step_names_is_carried_to_the_sink(ctx: FakeCon
 def test_a_template_that_does_not_compile_is_refused_at_apply_with_its_line() -> None:
     refusals = ReportRenderOperator().check_config(ReportRenderConfig(template="ok\n{% for row in rows %}\n"))
     assert len(refusals) == 1
-    assert refusals[0].startswith("line 2: Unexpected end of template")
+    assert refusals[0].message.startswith("line 2: Unexpected end of template")
 
 
 async def test_more_text_than_the_cap_is_rejected_rather_than_retried(ctx: FakeContext) -> None:

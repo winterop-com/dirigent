@@ -259,8 +259,10 @@ are not.
   A caller writes the path the OpenAPI document writes -- `/pipelines`, `/auth/me` -- and never
   the prefix.
 - **A refusal is an `ApiError`** carrying the problem document: `status`, `title`, `detail`,
-  `problems`, `instance`. There is no `type` member; this server emits none, so nothing may key
-  off one. `apiJson` throws it; `apiFetch` hands back the `Response` for a caller that cares about
+  `code`, `params`, `problems`, `instance`. `code` is the dotted code of the catalogued message
+  the detail was rendered from and `problems` is a list of issues, each with its own `code`,
+  `message`, `params` and `location`. There is no `type` member; this server emits none, so
+  nothing may key off one. `apiJson` throws it; `apiFetch` hands back the `Response` for a caller that cares about
   a particular status.
 - **A path outside the versioned API is read through `rootFetch`.** The probes under `/health`
   answer at the root whatever prefix the API mounted at, and readiness answers 503 carrying the

@@ -44,6 +44,8 @@ class RunOut(WireModel):
     trace_id: str | None = None
     error: str | None = None
     """What went wrong: the reason a cancel gave, else what the first failed attempt said."""
+    error_code: str | None = None
+    """The dotted code of the refusal the error was rendered from."""
     failed_step: str | None = None
     """The step whose first failed attempt this run holds, when it did not end well."""
     started_at: datetime | None = None
@@ -73,6 +75,10 @@ class AttemptOut(WireModel):
     status: AttemptStatus
     run_item_id: UUID | None = None
     error: str | None = None
+    error_code: str | None = None
+    """The dotted code of the refusal this attempt failed with."""
+    error_params: JsonMap | None = None
+    """The specifics the refusal rendered, for a re-render in another language."""
     error_class: str | None = None
     output: JsonMap | None = None
     output_uri: str | None = None
@@ -118,6 +124,8 @@ class ItemOut(WireModel):
     status: RunItemStatus
     failing_step: str | None = None
     error: str | None = None
+    error_code: str | None = None
+    """The dotted code of the refusal the error was rendered from."""
 
 
 class ArtifactOut(WireModel):

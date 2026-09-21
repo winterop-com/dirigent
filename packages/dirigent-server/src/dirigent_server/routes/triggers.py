@@ -10,7 +10,7 @@ from types import MappingProxyType
 from uuid import UUID
 
 import sqlalchemy as sa
-from fastapi import APIRouter, HTTPException, Response, status
+from fastapi import APIRouter, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirigent_client.enums import LogLevel
@@ -37,9 +37,11 @@ from dirigent_core.models import (
     WebhookDelivery,
     WebhookTrigger,
 )
-from dirigent_core.pipelines import UnknownPipeline, get_version, require_pipeline
+from dirigent_core.pipelines import get_version, require_pipeline
 from dirigent_core.triggers import (
     ScheduleRequest,
+    UnknownSchedule,
+    UnknownWebhook,
     WebhookRequest,
     check_schedule_params,
     check_webhook_mapping,
@@ -486,11 +488,8 @@ async def _check_mapping(session: AsyncSession, pipeline_id: UUID, payload: Webh
 
 
 async def _require(session: AsyncSession, code: str) -> Pipeline:
-    """Read a pipeline by code, translating "no such thing" into a 404."""
-    try:
-        return await require_pipeline(session, code)
-    except UnknownPipeline as error:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    """Read a pipeline by code, which refuses an unknown one as a 404 of its own."""
+    return await require_pipeline(session, code)
 
 
 async def _require_schedule(session: AsyncSession, pipeline_code: str, code: str) -> Schedule:
@@ -498,10 +497,7 @@ async def _require_schedule(session: AsyncSession, pipeline_code: str, code: str
     pipeline = await _require(session, pipeline_code)
     schedule = await find_schedule(session, pipeline.id, code)
     if schedule is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"pipeline {pipeline_code!r} has no schedule coded {code!r}",
-        )
+        raise UnknownSchedule(pipeline_code, code)
     return schedule
 
 
@@ -510,8 +506,5 @@ async def _require_webhook(session: AsyncSession, pipeline_code: str, code: str)
     pipeline = await _require(session, pipeline_code)
     webhook = await find_webhook(session, pipeline.id, code)
     if webhook is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"pipeline {pipeline_code!r} has no webhook coded {code!r}",
-        )
+        raise UnknownWebhook(pipeline_code, code)
     return webhook

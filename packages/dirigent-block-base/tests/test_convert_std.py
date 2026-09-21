@@ -214,7 +214,9 @@ def test_a_pair_that_is_no_conversion_at_all_is_refused_at_apply_naming_the_ones
         {"source": SOURCE_URI, "target": TARGET_URI, "from": "csv", "to": "csv"}
     )
 
-    assert StdConverter().check_config(config) == [f"convert.std does not convert csv to csv ({SUPPORTED})"]
+    assert [issue.message for issue in StdConverter().check_config(config)] == [
+        f"convert.std does not convert csv to csv ({SUPPORTED})"
+    ]
 
 
 def test_a_format_this_engine_never_heard_of_is_refused_the_same_way() -> None:
@@ -222,7 +224,9 @@ def test_a_format_this_engine_never_heard_of_is_refused_the_same_way() -> None:
         {"source": SOURCE_URI, "target": TARGET_URI, "from": "json", "to": "parquet"}
     )
 
-    assert StdConverter().check_config(config) == [f"convert.std does not convert json to parquet ({SUPPORTED})"]
+    assert [issue.message for issue in StdConverter().check_config(config)] == [
+        f"convert.std does not convert json to parquet ({SUPPORTED})"
+    ]
 
 
 def test_a_supported_pair_is_passed_without_comment() -> None:

@@ -22,6 +22,7 @@ from dirigent_core.engine.runs import Attribution, RunWindow, create_run
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.errors import DomainError
 from dirigent_core.logging import get_logger
+from dirigent_core.messages import BACKFILL_ONE_TIME, BACKFILL_TOO_MANY
 from dirigent_core.models import PipelineVersion, Schedule
 from dirigent_core.triggers.schedules import occurrences_between, window_for
 
@@ -59,24 +60,19 @@ def windows_of(schedule: Schedule, *, start: datetime, end: datetime) -> list[Ru
     adjacent backfills tile the interval between them without overlapping or leaving a gap.
     """
     if schedule.kind is ScheduleKind.ONE_TIME:
-        raise BackfillError(
-            f"schedule {schedule.code!r} fires once at one instant, so it has no cadence to "
-            "enumerate; a backfill needs a cron or an interval schedule"
-        )
+        raise BackfillError(BACKFILL_ONE_TIME, code=repr(schedule.code))
     occurrences = list(islice(occurrences_between(schedule, start=start, end=end), COUNT_CEILING + 1))
     if len(occurrences) > BACKFILL_CAP:
-        raise BackfillError(_too_many(schedule, start, end, len(occurrences)))
+        raise BackfillError(
+            BACKFILL_TOO_MANY,
+            cap=BACKFILL_CAP,
+            code=repr(schedule.code),
+            start=start.isoformat(),
+            end=end.isoformat(),
+            counted=(f"more than {COUNT_CEILING}" if len(occurrences) > COUNT_CEILING else str(len(occurrences))),
+        )
     windows = [window_for(schedule, occurrence) for occurrence in occurrences]
     return [window for window in windows if window is not None]
-
-
-def _too_many(schedule: Schedule, start: datetime, end: datetime, counted: int) -> str:
-    """Say what was asked for, what the cap is, and how much of it the interval enumerated."""
-    how_many = f"more than {COUNT_CEILING}" if counted > COUNT_CEILING else str(counted)
-    return (
-        f"a backfill creates at most {BACKFILL_CAP} runs, and {schedule.code!r} over "
-        f"{start.isoformat()}..{end.isoformat()} enumerates {how_many}; narrow the interval"
-    )
 
 
 async def backfill(

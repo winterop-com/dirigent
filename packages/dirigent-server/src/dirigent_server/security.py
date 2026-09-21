@@ -16,25 +16,34 @@ is what the cross-site guard below requires. A bearer token is not ambient and i
 from collections.abc import Awaitable, Callable
 from typing import Annotated
 
-from fastapi import FastAPI, HTTPException, Request, Response, Security, status
+from fastapi import FastAPI, Request, Response, Security, status
 from fastapi.security import APIKeyCookie, HTTPAuthorizationCredentials, HTTPBearer
 
 from dirigent_core.auth import Principal, resolve_token
 from dirigent_core.config import Settings
 from dirigent_core.logging import redact_path
 from dirigent_server.dependencies import SessionDep
-from dirigent_server.errors import answer, render
+from dirigent_server.errors import Refusal, answer, render
+from dirigent_server.messages import (
+    CROSS_SITE as CROSS_SITE_MESSAGE,
+)
+from dirigent_server.messages import (
+    FORBIDDEN as FORBIDDEN_MESSAGE,
+)
+from dirigent_server.messages import (
+    UNAUTHENTICATED as UNAUTHENTICATED_MESSAGE,
+)
 
 SESSION_COOKIE = "dirigent_session"
 
 BEARER_PREFIX = "Bearer "
 
 #: Must not hint at which credential would have worked.
-UNAUTHENTICATED = "authentication required: present a bearer token or log in"
+UNAUTHENTICATED = UNAUTHENTICATED_MESSAGE.render()
 
 #: One detail for both role refusals, saying neither which role would have sufficed nor what
 #: any role may do: a refusal is not the place to teach the permission model.
-FORBIDDEN = "not permitted for your role"
+FORBIDDEN = FORBIDDEN_MESSAGE.render()
 
 #: Declared so the schemes reach the OpenAPI document; without them every operation renders
 #: as open and a generated client has no place to put a token. ``auto_error=False`` on both,
@@ -63,10 +72,7 @@ SAME_SITE_FETCH = frozenset({"same-origin", "none"})
 #: person into an account the attacker controls, and every later action is attributed there.
 LOGIN_PATH = "/auth/login"
 
-CROSS_SITE = (
-    "this write was initiated by another site, and a session cookie may not be spent across "
-    "origins; automation authenticating with a bearer token is unaffected"
-)
+CROSS_SITE = CROSS_SITE_MESSAGE.render()
 
 
 def presented_secret(request: Request) -> str | None:
@@ -97,9 +103,9 @@ async def optional_principal(
 async def require_principal(principal: Annotated[Principal | None, Security(optional_principal)]) -> Principal:
     """Refuse a request that carries no valid credential."""
     if principal is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=UNAUTHENTICATED,
+        raise Refusal(
+            UNAUTHENTICATED_MESSAGE,
+            status=status.HTTP_401_UNAUTHORIZED,
             headers={"WWW-Authenticate": "Bearer"},
         )
     return principal
@@ -108,14 +114,14 @@ async def require_principal(principal: Annotated[Principal | None, Security(opti
 async def require_operator(principal: Annotated[Principal, Security(require_principal)]) -> Principal:
     """Refuse a request from an account that may only read."""
     if not principal.may_operate:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=FORBIDDEN)
+        raise Refusal(FORBIDDEN_MESSAGE, status=status.HTTP_403_FORBIDDEN)
     return principal
 
 
 async def require_admin(principal: Annotated[Principal, Security(require_principal)]) -> Principal:
     """Refuse a request from an account that may not manage accounts, tokens, or connections."""
     if not principal.is_admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=FORBIDDEN)
+        raise Refusal(FORBIDDEN_MESSAGE, status=status.HTTP_403_FORBIDDEN)
     return principal
 
 
@@ -159,7 +165,14 @@ def install_cross_site_guard(app: FastAPI, settings: Settings) -> None:
         request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
         if spends_the_cookie(request, prefix) and initiated_elsewhere(request):
-            return answer(render(status.HTTP_403_FORBIDDEN, CROSS_SITE, instance=redact_path(request.url.path)))
+            return answer(
+                render(
+                    status.HTTP_403_FORBIDDEN,
+                    CROSS_SITE,
+                    code=CROSS_SITE_MESSAGE.code,
+                    instance=redact_path(request.url.path),
+                )
+            )
         return await call_next(request)
 
 

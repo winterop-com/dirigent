@@ -726,7 +726,7 @@ def test_an_empty_signing_secret_is_refused_rather_than_sealed() -> None:
 def test_a_code_that_addresses_no_trigger_says_which_pipeline_it_looked_in() -> None:
     assert str(UnknownWebhook("daily-load", "inbound")) == "pipeline 'daily-load' has no webhook coded 'inbound'"
     assert str(UnknownSchedule("daily-load", "nightly")) == "pipeline 'daily-load' has no schedule coded 'nightly'"
-    assert UnknownSchedule("daily-load", "nightly").code == "nightly"
+    assert UnknownSchedule("daily-load", "nightly").params["code"] == "'nightly'"
 
 
 async def test_a_skip_policy_accepts_the_delivery_and_starts_no_run(

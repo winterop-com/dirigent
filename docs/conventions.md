@@ -140,6 +140,45 @@ line, which is why a record from a newer dirigent still reads. The test asserts 
 drawing; the few tests that cover a rendering call the formatter directly, in
 `test_formatters.py`, with colour set explicitly rather than taken from the terminal.
 
+## Refusals carry a code
+
+Every refusal dirigent produces is a catalogued `Message`: a stable dotted code, and one
+English template with named params. A block raises
+`BlockFailure(MESSAGE, error_class=..., **params)`, a domain refusal is a `DomainError`
+carrying its class's message or the one that applies, the engine's own failures are
+`Failure.rejected(MESSAGE, **params)`, and the CLI refuses with `refuse(MESSAGE, **params)`.
+Each carries `code` and `params` beside the rendered sentence, and the problem document, the
+attempt row and the `error` record all carry them onward.
+
+A code is stable API, exactly as a block id is: adding one is compatible, renaming one is
+not. The text is not -- it may be reworded whenever a better sentence is found, because what
+a reader holds on to is the code and what a translation replaces is the template.
+
+The text names the remedy. `no connection coded 'dhis2' (none are configured)` says what to
+do next; `invalid connection` does not. The params carry the specifics the template
+interpolates, and never a secret, a credential, or the value that failed validation -- the
+pydantic mapping names the kind of the input it refused and drops the input itself.
+
+A prefix has exactly one owner. A runtime package owns its own name (`common`, `plugin`,
+`client`, `server`, `cli`, `testing`), and one package may own a second where a family of
+refusals is its own thing: `validation` beside `common` for the pydantic mapping, `health`
+beside `cli` for the checks, `notify` for the built-in notifiers. A block family owns its
+family name (`base`, `execute`, `http`, `parquet`, `queues`, `sql`, `storage`), an engine
+inside a family owns two segments (`sql.duckdb`, `transform.jq`), and the core owns one
+prefix per area (`auth`, `pipeline`, `document`, `schedule`, `webhook`, `alert`, `secret`,
+`artifacts`, `run`, `reference`, `host`, `parameter`, `schema`). A pack's prefix is its pack
+name -- `dhis2` for `dirigent-dhis2`. `dirigent-common/tests/test_messages.py` walks every
+catalogue the workspace imports and fails when a prefix is unowned or a code is minted twice.
+
+An exception a package raises for itself, and catches before it answers -- the CLI's
+`ParamError`, `SourceError` and `ProfileError`, a transform engine's `TransformError` -- is
+not a refusal until it is one. The refusal is the `refuse` or the `BlockFailure` that catches
+it, which carries the code; the sentence it caught rides along as that refusal's `detail`
+param. What must never happen is a refusal reaching a person under no code at all.
+
+Log lines are not refusals. `ctx.log.info`, a `process` record, a worker's heartbeat: those
+are events, they carry no code, and nothing here applies to them.
+
 ## Plugins are pluginkit, and files end in `.yaml`
 
 Any extension point -- blocks, connection kinds, storage backends, notifiers, format checkers

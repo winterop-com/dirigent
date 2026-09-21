@@ -28,6 +28,20 @@ from urllib.parse import quote, urlsplit, urlunsplit
 
 from pydantic import BaseModel, Field, JsonValue, SecretStr, model_validator
 
+from dirigent_block_queues.messages import (
+    BATCH_NEVER_TAKEN,
+    INLINE_PASSWORD,
+    NOT_AN_AMQP_URL,
+    RABBIT_BODY_NOT_JSON,
+    RABBIT_CONNECTION_REFUSED,
+    RABBIT_DELIVERY_UNREADABLE,
+    RABBIT_NO_EXCHANGE,
+    RABBIT_NO_QUEUE,
+    RABBIT_NOTHING_BOUND,
+    RABBIT_PUBLISH_FAILED,
+    RABBIT_PUBLISH_TIMED_OUT,
+    RABBIT_READ_FAILED,
+)
 from dirigent_common import BlockModel, Duration, HealthReport
 from dirigent_plugin import (
     BlockFailure,
@@ -80,12 +94,9 @@ class RabbitConnectionConfig(BlockModel):
         """Refuse a scheme that is not AMQP, and a password written into the URL."""
         split = urlsplit(self.url)
         if split.scheme not in AMQP_SCHEMES:
-            raise ValueError(f"a rabbitmq url is amqp or amqps, and {self.url!r} is neither")
+            raise ValueError(NOT_AN_AMQP_URL.render(url=repr(self.url)))
         if split.password is not None:
-            raise ValueError(
-                "this url carries a password inline, where it would sit unencrypted in a plain "
-                "field; take it out of the url and set the sealed password field instead"
-            )
+            raise ValueError(INLINE_PASSWORD.render())
         return self
 
     def dsn(self) -> str:
@@ -228,10 +239,7 @@ class RabbitConsumeConfig(BlockModel):
     def _check_shape(self) -> "RabbitConsumeConfig":
         """Refuse a batch that can never reach the size it is waiting for."""
         if self.min_messages > self.max_messages:
-            raise ValueError(
-                f"min_messages {self.min_messages} is above max_messages {self.max_messages}, "
-                "so this sensor would wait for a batch it never takes"
-            )
+            raise ValueError(BATCH_NEVER_TAKEN.render(minimum=self.min_messages, maximum=self.max_messages))
         return self
 
 
@@ -271,9 +279,7 @@ class RabbitConsumeSensor(Sensor[RabbitConsumeConfig, RabbitConsumeOutput]):
         try:
             connection = await connect(settings)
         except Exception as error:
-            raise BlockFailure(
-                f"the rabbitmq broker refused the connection: {error}", error_class=classify(error)
-            ) from error
+            raise BlockFailure(RABBIT_CONNECTION_REFUSED, error_class=classify(error), detail=str(error)) from error
         try:
             queue = await _queue(connection, config)
             taken = await _drain(queue, config)
@@ -306,7 +312,9 @@ class RabbitConsumeSensor(Sensor[RabbitConsumeConfig, RabbitConsumeOutput]):
         except BlockFailure:
             raise
         except Exception as error:
-            raise BlockFailure(f"reading {config.queue!r} failed: {error}", error_class=classify(error)) from error
+            raise BlockFailure(
+                RABBIT_READ_FAILED, error_class=classify(error), queue=repr(config.queue), detail=str(error)
+            ) from error
         finally:
             await connection.close()
 
@@ -322,8 +330,7 @@ async def _queue(connection: Connection, config: RabbitConsumeConfig) -> Queue:
         return await channel.get_queue(config.queue, ensure=True)
     except Exception as error:
         raise BlockFailure(
-            f"the broker has no queue {config.queue!r}: {error}",
-            error_class=ErrorClass.REJECTED,
+            RABBIT_NO_QUEUE, error_class=ErrorClass.REJECTED, queue=repr(config.queue), detail=str(error)
         ) from error
 
 
@@ -361,8 +368,11 @@ async def _decoded(taken: list[Delivery], config: RabbitConsumeConfig) -> list[R
                 for held in taken:
                     await held.nack(requeue=True)
             raise BlockFailure(
-                f"delivery {delivery.delivery_tag} of the {len(taken)} taken did not read: {error}",
+                RABBIT_DELIVERY_UNREADABLE,
                 error_class=classify(error),
+                tag=delivery.delivery_tag,
+                taken=len(taken),
+                detail=str(error),
             ) from error
     return messages
 
@@ -411,10 +421,7 @@ def decode(raw: bytes, form: Payload) -> JsonValue:
     try:
         return cast("JsonValue", json.loads(raw.decode("utf-8")))
     except (UnicodeDecodeError, json.JSONDecodeError) as error:
-        raise BlockFailure(
-            f"a message body is not the json this step reads: {error}",
-            error_class=ErrorClass.REJECTED,
-        ) from error
+        raise BlockFailure(RABBIT_BODY_NOT_JSON, error_class=ErrorClass.REJECTED, detail=str(error)) from error
 
 
 class RabbitPublishConfig(BlockModel):
@@ -490,9 +497,7 @@ class RabbitPublishOperator(Operator[RabbitPublishConfig, RabbitPublishOutput]):
         try:
             connection = await connect(settings)
         except Exception as error:
-            raise BlockFailure(
-                f"the rabbitmq broker refused the connection: {error}", error_class=classify(error)
-            ) from error
+            raise BlockFailure(RABBIT_CONNECTION_REFUSED, error_class=classify(error), detail=str(error)) from error
         body = config.payload()
         content_type = config.declared_content_type()
         try:
@@ -508,18 +513,24 @@ class RabbitPublishOperator(Operator[RabbitPublishConfig, RabbitPublishOutput]):
             raise
         except DeliveryError as error:
             raise BlockFailure(
-                f"nothing on exchange {config.exchange!r} takes routing key {config.routing_key!r}: "
-                "declare the queue, or name an exchange it is bound to",
+                RABBIT_NOTHING_BOUND,
                 error_class=ErrorClass.REJECTED,
+                exchange=repr(config.exchange),
+                routing_key=repr(config.routing_key),
             ) from error
         except TimeoutError as error:
             raise BlockFailure(
-                f"publishing to {config.routing_key!r} did not finish within {config.timeout}",
+                RABBIT_PUBLISH_TIMED_OUT,
                 error_class=ErrorClass.TRANSIENT,
+                routing_key=repr(config.routing_key),
+                timeout=config.timeout,
             ) from error
         except Exception as error:
             raise BlockFailure(
-                f"publishing to {config.routing_key!r} failed: {error}", error_class=classify(error)
+                RABBIT_PUBLISH_FAILED,
+                error_class=classify(error),
+                routing_key=repr(config.routing_key),
+                detail=str(error),
             ) from error
         finally:
             await connection.close()
@@ -545,8 +556,7 @@ async def _exchange(channel: Channel, config: RabbitPublishConfig) -> Exchange:
         return await channel.get_exchange(config.exchange, ensure=True)
     except Exception as error:
         raise BlockFailure(
-            f"the broker has no exchange {config.exchange!r}: {error}",
-            error_class=ErrorClass.REJECTED,
+            RABBIT_NO_EXCHANGE, error_class=ErrorClass.REJECTED, exchange=repr(config.exchange), detail=str(error)
         ) from error
 
 

@@ -34,6 +34,16 @@ from pydantic import BaseModel, Field, SecretStr, model_validator
 
 from dirigent_block_execute import secrets, subprocess
 from dirigent_block_execute.capture import log_stream, scrub, tail
+from dirigent_block_execute.messages import (
+    CHECKOUT_OUTSIDE_THE_WORK_DIRECTORY,
+    CHECKOUT_STAYS_INSIDE,
+    CHECKOUT_THROUGH_A_SYMLINK,
+    GIT_EXITED,
+    GIT_KEY_NEEDS_SSH,
+    GIT_ONE_CREDENTIAL,
+    GIT_TOKEN_NEEDS_HTTPS,
+    NO_GIT,
+)
 from dirigent_common import BlockModel, Duration, HealthReport
 from dirigent_plugin import (
     BlockFailure,
@@ -131,15 +141,12 @@ class GitConnectionConfig(BlockModel):
     def _check_shape(self) -> "GitConnectionConfig":
         """Refuse two credentials at once, and a credential that does not fit the remote's form."""
         if self.token is not None and self.ssh_key is not None:
-            raise ValueError(
-                "a git connection carries one credential: a token for an https remote or an "
-                "ssh_key for an ssh one, never both"
-            )
+            raise ValueError(GIT_ONE_CREDENTIAL.render())
         scheme = urlsplit(self.url).scheme
         if self.token is not None and scheme not in HTTP_SCHEMES:
-            raise ValueError(f"a token is HTTP basic auth, so the url must be http or https, not {self.url!r}")
+            raise ValueError(GIT_TOKEN_NEEDS_HTTPS.render(url=repr(self.url)))
         if self.ssh_key is not None and not _is_ssh(self.url):
-            raise ValueError(f"an ssh_key needs an ssh remote, and {self.url!r} is not one")
+            raise ValueError(GIT_KEY_NEEDS_SSH.render(url=repr(self.url)))
         return self
 
 
@@ -204,9 +211,7 @@ class GitCheckoutConfig(BlockModel):
     def _check_shape(self) -> "GitCheckoutConfig":
         """Refuse a target that is absolute or climbs out of the run's work directory."""
         if self.target and (Path(self.target).is_absolute() or ".." in Path(self.target).parts):
-            raise ValueError(
-                "a checkout target is a path inside the run's work directory, so it cannot be absolute or climb out"
-            )
+            raise ValueError(CHECKOUT_STAYS_INSIDE.render())
         return self
 
 
@@ -254,11 +259,7 @@ class GitCheckoutOperator(Operator[GitCheckoutConfig, GitCheckoutOutput]):
         remote = public_url(settings.url)
         binary = shutil.which("git", path=subprocess.environment([], {}, root).get("PATH"))
         if binary is None:
-            raise BlockFailure(
-                "git is not on the worker's PATH, so nothing here can check a repository out; "
-                "the worker image installs it, a bare host may not",
-                error_class=ErrorClass.REJECTED,
-            )
+            raise BlockFailure(NO_GIT, error_class=ErrorClass.REJECTED)
 
         with credentials(settings, root) as sealed:
             environ = {**subprocess.environment([], {}, root), **sealed.environ}
@@ -365,7 +366,7 @@ class _Git:
         code, out, err = await self.call(directory, *argv)
         if code != 0:
             detail = tail(err, redact=self.secrets) or tail(out, redact=self.secrets) or "no output"
-            raise BlockFailure(f"git {argv[0]} exited {code}: {detail}", error_class=classify(err))
+            raise BlockFailure(GIT_EXITED, error_class=classify(err), command=argv[0], code=code, detail=detail)
         return out
 
     async def read(self, directory: Path, *argv: str) -> str:
@@ -400,7 +401,7 @@ class _Git:
         log_stream(self.ctx, "stderr", err, self.secrets)
         if code != 0:
             detail = tail(err.tail, redact=self.secrets) or tail(out.tail, redact=self.secrets) or "no output"
-            raise BlockFailure(f"git {argv[0]} exited {code}: {detail}", error_class=classify(err.tail))
+            raise BlockFailure(GIT_EXITED, error_class=classify(err.tail), command=argv[0], code=code, detail=detail)
 
 
 async def _standing(git: _Git, config: GitCheckoutConfig, destination: Path, remote: str) -> bool:
@@ -504,16 +505,21 @@ def _destination(root: Path, target: str) -> Path:
         walked = walked / part
         if walked.is_symlink():
             raise BlockFailure(
-                f"the checkout target {target!r} leads through the symlink {walked}, which can point "
-                f"anywhere; a target is a path of real directories under the run's work directory {base}",
+                CHECKOUT_THROUGH_A_SYMLINK,
                 error_class=ErrorClass.REJECTED,
+                target=repr(target),
+                walked=walked,
+                base=base,
             )
     destination = walked / parts[-1] if parts else walked
     landing = destination.parent.resolve()
     if landing != base and base not in landing.parents:
         raise BlockFailure(
-            f"the checkout target {target!r} lands at {destination}, which is outside the run's work directory {base}",
+            CHECKOUT_OUTSIDE_THE_WORK_DIRECTORY,
             error_class=ErrorClass.REJECTED,
+            target=repr(target),
+            destination=destination,
+            base=base,
         )
     return destination
 

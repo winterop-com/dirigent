@@ -231,7 +231,9 @@ async def test_a_runner_that_ran_a_step_is_handed_to_the_next_one(
 def test_an_engine_that_reads_its_own_language_refuses_a_bad_program_at_apply() -> None:
     config = EchoMapper.config_model.model_validate({"input": READINGS, "program": "quadruple"})
 
-    assert EchoMapper().check_config(config) == ["quadruple is not a program this engine knows"]
+    assert [issue.message for issue in EchoMapper().check_config(config)] == [
+        "quadruple is not a program this engine knows"
+    ]
 
 
 def test_an_engine_that_reads_no_program_leaves_a_bad_one_to_the_step() -> None:

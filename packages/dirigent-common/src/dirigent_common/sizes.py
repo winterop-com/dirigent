@@ -11,6 +11,8 @@ from typing import Annotated, Final
 
 from pydantic import AfterValidator, BeforeValidator, PlainSerializer, WithJsonSchema
 
+from dirigent_common.messages import NEGATIVE_SIZE, NOT_A_SIZE
+
 #: Ordered largest first; the greedy rendering in :func:`format_size` depends on it.
 UNITS: Final[tuple[tuple[str, int], ...]] = (
     ("tb", 1024**4),
@@ -40,7 +42,7 @@ class NegativeSize(ValueError):
 
     def __init__(self, value: object) -> None:
         """Name the value, since the fix is always to drop the sign."""
-        super().__init__(f"{value!r} is negative, and a size is a quantity of bytes: it cannot run backwards")
+        super().__init__(NEGATIVE_SIZE.render(value=repr(value)))
 
 
 class SizeError(ValueError):
@@ -48,11 +50,7 @@ class SizeError(ValueError):
 
     def __init__(self, value: object) -> None:
         """Name the value and the grammar, because the fix is always a spelling change."""
-        super().__init__(
-            f"{value!r} is not a size: write a number of bytes, or a unit-suffixed amount such as "
-            f"'512kb', '64mb', '1.5gb' (units: b, kb, mb, gb, tb, and the kib/mib/gib/tib spelling of each, "
-            f"all powers of 1024)"
-        )
+        super().__init__(NOT_A_SIZE.render(value=repr(value)))
 
 
 def parse_size(value: object) -> object:

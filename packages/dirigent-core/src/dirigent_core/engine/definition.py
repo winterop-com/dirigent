@@ -14,6 +14,19 @@ from dirigent_client.schemas import Requirements
 from dirigent_common import TEMPLATE_MEDIA_TYPE, EntityName, JsonMap, StepName, TemplateError, compile_template
 from dirigent_common.durations import Duration
 from dirigent_core.errors import DomainError
+from dirigent_core.messages import (
+    BAD_TAG,
+    DUPLICATE_TAG,
+    DUPLICATE_TRIGGER_CODES,
+    PARAMETER_INVALID,
+    PARAMETER_SCHEMA_INVALID,
+    SCHEDULE_ONE_CLOCK,
+    SELF_DEPENDENCY,
+    STEP_CYCLE,
+    TEMPLATE_REFUSED,
+    TOO_MANY_TAGS,
+    UNKNOWN_DEPENDENCY,
+)
 from dirigent_plugin import BLOCK_ID_PATTERN
 
 FORMAT_V1: Final = "dirigent/v1"
@@ -208,7 +221,7 @@ class ScheduleSpec(BaseModel):
         declared = [field for field in ("cron", "interval", "at") if getattr(self, field) is not None]
         if len(declared) != 1:
             named = ", ".join(declared) or "none"
-            raise ValueError(f"schedule {self.code!r} must declare exactly one of cron, interval, or at ({named})")
+            raise ValueError(SCHEDULE_ONE_CLOCK.render(code=repr(self.code), named=named))
         anchored = anchor_naive_moment(self.at, self.timezone)
         return self if anchored is self.at else self.model_copy(update={"at": anchored})
 
@@ -257,7 +270,7 @@ class ReportSpec(BaseModel):
             try:
                 compile_template(template)
             except TemplateError as error:
-                raise ValueError(str(error)) from error
+                raise ValueError(TEMPLATE_REFUSED.render(detail=str(error))) from error
         return template
 
 
@@ -323,19 +336,15 @@ class PipelineDefinition(BaseModel):
         to reapply.
         """
         if len(tags) > MAX_TAGS:
-            raise ValueError(f"a document declares at most {MAX_TAGS} tags, and this one declares {len(tags)}")
+            raise ValueError(TOO_MANY_TAGS.render(maximum=MAX_TAGS, counted=len(tags)))
         normalised: list[str] = []
         seen: set[str] = set()
         for index, written in enumerate(tags):
             tag = written.lower()
             if _TAG.fullmatch(tag) is None or len(tag) > TAG_MAX_LENGTH:
-                raise ValueError(
-                    f"tags[{index}] {written!r} is not a valid tag: a tag is lowercased, and what is left "
-                    f"must be letters, digits and hyphens, start with a letter or digit, and be at most "
-                    f"{TAG_MAX_LENGTH} characters"
-                )
+                raise ValueError(BAD_TAG.render(index=index, tag=repr(written), maximum=TAG_MAX_LENGTH))
             if tag in seen:
-                raise ValueError(f"tags[{index}] {tag!r} is declared twice; a tag says one thing once")
+                raise ValueError(DUPLICATE_TAG.render(index=index, tag=repr(tag)))
             seen.add(tag)
             normalised.append(tag)
         return normalised
@@ -346,9 +355,9 @@ class PipelineDefinition(BaseModel):
         for name, step in self.steps.items():
             for dependency in step.depends_on:
                 if dependency == name:
-                    raise ValueError(f"step {name!r} depends on itself")
+                    raise ValueError(SELF_DEPENDENCY.render(step=repr(name)))
                 if dependency not in self.steps:
-                    raise ValueError(f"step {name!r} depends on unknown step {dependency!r}")
+                    raise ValueError(UNKNOWN_DEPENDENCY.render(step=repr(name), dependency=repr(dependency)))
         _require_acyclic(self.steps)
         _require_unique_trigger_codes(self.triggers)
         return self
@@ -417,15 +426,12 @@ class PipelineDefinition(BaseModel):
             Draft202012Validator(self.params, format_checker=format_checker).validate(resolved)  # pyright: ignore[reportUnknownMemberType]
         except SchemaValidationError as error:
             location = "/".join(str(part) for part in error.absolute_path) or "(root)"
-            raise ParameterError(f"parameter {location} is invalid: {error.message}") from error
+            raise ParameterError(PARAMETER_INVALID, location=location, detail=error.message) from error
         except Exception as error:
             # Anything but a validation error here is the pipeline's schema failing, not the
             # supplied parameters: an unknown type, an unresolvable $ref, a subschema that is
             # not a schema. Each raises a different jsonschema type, several of them private.
-            raise ParameterError(
-                f"the pipeline's parameter schema is not itself valid JSON Schema ({_schema_problem(error)}); "
-                "apply a corrected document to fix it"
-            ) from error
+            raise ParameterError(PARAMETER_SCHEMA_INVALID, problem=_schema_problem(error)) from error
         return resolved
 
 
@@ -544,7 +550,7 @@ def _require_unique_trigger_codes(triggers: TriggerSpecs) -> None:
     ):
         duplicates = sorted({code for code in codes if codes.count(code) > 1})
         if duplicates:
-            raise ValueError(f"duplicate {label} codes: {', '.join(duplicates)}")
+            raise ValueError(DUPLICATE_TRIGGER_CODES.render(label=label, codes=", ".join(duplicates)))
 
 
 def _require_acyclic(steps: dict[str, StepDefinition]) -> None:
@@ -553,7 +559,7 @@ def _require_acyclic(steps: dict[str, StepDefinition]) -> None:
     while remaining:
         ready = {name for name, pending in remaining.items() if not pending}
         if not ready:
-            raise ValueError(f"the steps {sorted(remaining)} form a cycle")
+            raise ValueError(STEP_CYCLE.render(steps=sorted(remaining)))
         for name in ready:
             del remaining[name]
         for pending in remaining.values():

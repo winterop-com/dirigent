@@ -11,10 +11,11 @@ from dirigent_common import format_checker_with
 from dirigent_core.config import Settings
 from dirigent_core.engine.context import load_connections
 from dirigent_core.engine.failure import Failure
+from dirigent_core.messages import UNSAFE_BLOCK
 from dirigent_core.plugins import PluginHost
 from dirigent_core.secrets import SecretBox
 from dirigent_core.storage import AttemptStorage, Storage, UnknownStorageConnection, build_storage, connection_binder
-from dirigent_plugin import AnyOperator, AnySensor, ErrorClass
+from dirigent_plugin import AnyOperator, AnySensor
 
 
 class EngineServices(BaseModel):
@@ -87,10 +88,4 @@ class EngineServices(BaseModel):
             return None
         if block_id in self.settings.enabled_unsafe_blocks:
             return None
-        return Failure(
-            message=(
-                f"block {block_id!r} executes code on the worker and is disabled; "
-                f"add it to DIRIGENT_ENABLED_UNSAFE_BLOCKS to allow it"
-            ),
-            error_class=ErrorClass.REJECTED,
-        )
+        return Failure.rejected(UNSAFE_BLOCK, block=repr(block_id))

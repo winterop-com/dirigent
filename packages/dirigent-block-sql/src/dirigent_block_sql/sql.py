@@ -29,6 +29,15 @@ from pydantic import BaseModel, Field, SecretStr, model_validator
 from sqlalchemy.engine import URL, make_url
 
 from dirigent_block_sql.engines import SqlSession, engine_for
+from dirigent_block_sql.messages import (
+    EMPTY_STATEMENT,
+    INLINE_PASSWORD,
+    MORE_THAN_ONE_STATEMENT,
+    NO_JSON_SPELLING,
+    NOT_A_DATABASE_URL,
+    READ_ONLY_CONNECTION,
+    TOO_MANY_ROWS,
+)
 from dirigent_common import (
     SQL_MEDIA_TYPE,
     BlockModel,
@@ -107,10 +116,7 @@ class SqlConnectionConfig(BlockModel):
         """Refuse a URL that is unparseable, carrying its own password, or one no engine opens."""
         url = _parse(self.url)
         if url.password is not None:
-            raise ValueError(
-                "this url carries a password inline, where it would sit unencrypted in a plain "
-                "field; take it out of the url and set the sealed password field instead"
-            )
+            raise ValueError(INLINE_PASSWORD.render())
         engine_for(url).validate(self, url)
         return self
 
@@ -257,7 +263,7 @@ class SqlExecuteConfig(BlockModel):
         """Refuse a list whose entries are empty or hold more than one statement each."""
         for index, statement in enumerate(self.statements):
             if not statement.strip():
-                raise ValueError(f"statement {index} is empty")
+                raise ValueError(EMPTY_STATEMENT.render(index=index))
             _check_single(statement)
         return self
 
@@ -287,9 +293,7 @@ class SqlExecuteOperator(Operator[SqlExecuteConfig, SqlExecuteOutput]):
         settings = ctx.connection(config.connection, SqlConnectionConfig)
         if settings.read_only:
             raise BlockFailure(
-                f"connection {config.connection!r} is read_only, and sql.execute writes; "
-                f"read it with sql.query, or point this step at a connection that may write",
-                error_class=ErrorClass.REJECTED,
+                READ_ONLY_CONNECTION, error_class=ErrorClass.REJECTED, connection=repr(config.connection)
             )
         url = _resolved(settings, ctx)
         engine = engine_for(url)
@@ -325,7 +329,7 @@ def _parse(url: str) -> URL:
     try:
         return make_url(url)
     except sqlalchemy.exc.ArgumentError as error:
-        raise ValueError(f"{url!r} is not a database url: {error}") from error
+        raise ValueError(NOT_A_DATABASE_URL.render(url=repr(url), detail=str(error))) from error
 
 
 def _with_password(settings: SqlConnectionConfig) -> URL:
@@ -356,10 +360,7 @@ async def _inline(result: Any, max_rows: int) -> JsonList:
     async for batch in _batches(result):
         rows.extend(spelled_row(one) for one in batch)
         if len(rows) > max_rows:
-            raise BlockFailure(
-                f"the query returned more than max_rows ({max_rows}) rows; raise max_rows, or narrow the query",
-                error_class=ErrorClass.REJECTED,
-            )
+            raise BlockFailure(TOO_MANY_ROWS, error_class=ErrorClass.REJECTED, maximum=max_rows)
     return rows
 
 
@@ -375,9 +376,7 @@ def spelled_row(row: Any) -> JsonMap:
     try:
         return {name: spelled(value) for name, value in mapping.items()}
     except ValueError as error:
-        raise BlockFailure(
-            f"a column of this result has no JSON spelling: {error}", error_class=ErrorClass.REJECTED
-        ) from error
+        raise BlockFailure(NO_JSON_SPELLING, error_class=ErrorClass.REJECTED, detail=str(error)) from error
 
 
 def _check_single(statement: str) -> None:
@@ -390,10 +389,7 @@ def _check_single(statement: str) -> None:
     """
     rest = _after_first_terminator(statement)
     if rest is not None and _stripped(rest):
-        raise ValueError(
-            "this is more than one statement: a ';' ends the first and there is more after it. "
-            "sql.query runs one statement, and sql.execute takes a list, one statement per entry"
-        )
+        raise ValueError(MORE_THAN_ONE_STATEMENT.render())
 
 
 def _after_first_terminator(statement: str) -> str | None:

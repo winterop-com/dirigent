@@ -111,6 +111,54 @@ serves. What reads it is the step form: a field typed either way is drawn with t
 under it -- the connection's settings and health, or the schema's body -- and a link to that
 thing's own screen.
 
+### A refusal a block makes carries a code
+
+A block never refuses with a free string. Every refusal it can make is a catalogued
+`Message`: a stable dotted code, and one English template with named params. A pack keeps
+them in a `messages.py` of its own, under a `Catalogue` named for the pack:
+
+```python
+from dirigent_common import Catalogue
+
+ACME = Catalogue("acme")
+
+NO_CREDENTIAL = ACME.define(
+    "no_credential",
+    "connection {connection} has no api_key, and {url} accepts none without one",
+)
+
+REJECTED = ACME.define("rejected", "{method} {url} answered {status}: {detail}")
+```
+
+`BlockFailure` takes the message and the params it renders, beside the classification the
+engine retries on:
+
+```python
+raise BlockFailure(
+    REJECTED,
+    error_class=ErrorClass.REJECTED,
+    method=config.method,
+    url=request_url(config),
+    status=response.status_code,
+    detail=body.get("message", ""),
+)
+```
+
+`check_config` answers with issues built the same way, from the same catalogue:
+
+```python
+def check_config(self, config: BaseModel) -> list[Issue]:
+    if not isinstance(config, AcmePushConfig) or config.batch_size <= MAX_BATCH:
+        return []
+    return [Issue.of(BATCH_TOO_LARGE, asked=config.batch_size, maximum=MAX_BATCH)]
+```
+
+The attempt row, the run event and the problem document all carry the code and the params
+beside the rendered sentence, so an operator can select one refusal out of a stream with
+`jq 'select(.error_code == "acme.rejected")'` however the English is later reworded. A pack's
+prefix is its pack name, and it owns everything under it. A param never carries a secret: the
+connection's code names it, its credential does not appear.
+
 ### A sensor keeps its place in a cursor
 
 A sensor's `poke` runs once and returns: either the observation, which ends the step, or

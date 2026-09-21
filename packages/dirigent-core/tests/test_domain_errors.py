@@ -2,9 +2,30 @@
 
 import importlib
 
+from dirigent_common import Issue
 from dirigent_core.documents import DocumentError
 from dirigent_core.errors import DomainError
+from dirigent_core.messages import DOCUMENT_UNSATISFIED, STEP_CONFIG_INVALID
 from dirigent_core.pipelines import UnknownPipeline
+
+#: Which prefix each core area's refusals are minted under. A code is public API.
+OWNED_PREFIXES = frozenset(
+    {
+        "alert",
+        "artifacts",
+        "auth",
+        "document",
+        "host",
+        "parameter",
+        "pipeline",
+        "reference",
+        "run",
+        "schedule",
+        "schema",
+        "secret",
+        "webhook",
+    }
+)
 
 #: Every module that declares a refusal. Imported here so the walk below sees them all.
 MODULES = (
@@ -51,6 +72,18 @@ def test_every_refusal_carries_a_status_the_api_can_answer_with() -> None:
 
 
 def test_a_refusal_carries_no_problems_unless_it_was_given_a_list() -> None:
+    listed = [Issue.of(STEP_CONFIG_INVALID, location="steps.push.config", detail="steps is required")]
+
     assert UnknownPipeline("nightly").problems == []
-    assert DocumentError("refused", ["steps is required"]).problems == ["steps is required"]
-    assert DocumentError("refused").problems == ["refused"]
+    assert DocumentError(DOCUMENT_UNSATISFIED, problems=listed, format="dirigent/v1").problems == listed
+    alone = DocumentError(DOCUMENT_UNSATISFIED, format="dirigent/v1")
+    assert [issue.message for issue in alone.problems] == ["the document does not satisfy dirigent/v1"]
+
+
+def test_every_refusal_carries_a_code_under_a_prefix_the_core_owns() -> None:
+    assert UnknownPipeline("nightly").code == "pipeline.unknown"
+    for one in sorted(_refusals(), key=lambda found: found.__name__):
+        message = getattr(one, "message", None)
+        if message is None:  # a base class raised with whichever message applies
+            continue
+        assert message.code.split(".")[0] in OWNED_PREFIXES, (one.__name__, message.code)

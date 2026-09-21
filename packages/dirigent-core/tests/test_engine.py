@@ -65,6 +65,7 @@ from dirigent_core.plugins import PluginHost
 from dirigent_core.secrets import SecretBox
 from dirigent_core.storage import FileStorageBackend, FileStorageConfig, Storage, parse_uri
 from dirigent_plugin import ByteSink, ErrorClass, ProbeStatus, RemoteHandle
+from dirigent_testing.messages import TEST_REFUSAL
 from engineblocks import (
     ChattyOperator,
     CursorSensor,
@@ -2878,6 +2879,30 @@ async def test_a_failed_attempt_traces_its_error_beside_the_class(
     assert isinstance(entries[0].fields["duration_ms"], int)
     assert "output_bytes" not in entries[0].fields
     assert settled.error == "the file was not there"
+
+
+async def test_a_failed_attempt_lands_the_code_and_the_params_the_block_refused_with(
+    engine: Engine, sessions: Any, services: EngineServices
+) -> None:
+    """A refusal is recognisable by its code however its English is later reworded."""
+    definition = PipelineDefinition(
+        code="coded",
+        steps=steps(
+            only=StepDefinition(
+                block="test.fail",
+                config={"message": "the file was not there", "error_class": "rejected", "key": "coded"},
+            )
+        ),
+    )
+    run = await start(sessions, services, definition)
+    await drain(engine)
+
+    settled = (await attempts_of(sessions, run.id))[0]
+    entries = await logs_of(sessions, run.id)
+    assert settled.error_code == TEST_REFUSAL.code
+    assert settled.error_params == {"detail": "the file was not there"}
+    assert entries[0].fields is not None
+    assert entries[0].fields["error_code"] == TEST_REFUSAL.code
 
 
 async def test_a_block_that_kept_its_own_account_is_not_told_it_finished_twice(

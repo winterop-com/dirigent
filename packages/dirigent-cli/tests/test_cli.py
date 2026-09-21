@@ -83,12 +83,33 @@ def test_config_show_writes_the_effective_settings_as_a_record() -> None:
     assert "worker_concurrency" in settings
 
 
+def test_a_cli_message_never_names_a_param_the_refusal_helper_reserves() -> None:
+    """``refuse`` names status, title and problems itself, and a template field would shadow one."""
+    from dirigent_cli.messages import CLI, HEALTH
+
+    reserved = {"status", "title", "problems", "check", "probe"}
+    for catalogue in (CLI, HEALTH):
+        for message in catalogue.messages.values():
+            assert not (message.fields & reserved), (message.code, sorted(message.fields & reserved))
+
+
+def test_listing_runs_by_a_status_that_is_not_one_says_which_are() -> None:
+    result = runner.invoke(app, ["runs", "list", "--status", "bogus"])
+
+    assert result.exit_code == 1
+    problem = refusal(result.stdout)
+    assert problem["code"] == "cli.not_a_run_status"
+    assert "'bogus' is not a run status" in problem["message"]
+
+
 def test_db_current_refuses_before_the_first_upgrade() -> None:
     result = runner.invoke(app, ["db", "current"])
     assert result.exit_code == 1
     problem = refusal(result.stdout)
     assert "never been migrated" in problem["message"]
-    assert any("dg db upgrade" in one for one in problem["problems"])
+    assert problem["code"] == "cli.never_migrated", "a refusal record is selectable by code"
+    assert problem["problems"][0]["code"] == "cli.run_db_upgrade"
+    assert any("dg db upgrade" in one["message"] for one in problem["problems"])
 
 
 def test_db_upgrade_then_current_reports_the_head(tmp_path: Path) -> None:
@@ -211,7 +232,7 @@ def test_the_scheduler_refuses_to_start_on_sqlite() -> None:
     assert result.exit_code == GUARD_EXIT
     problem = refusal(result.stdout)
     assert "advisory" in problem["message"]
-    assert any("dg dev" in one for one in problem["problems"])
+    assert any("dg dev" in one["message"] for one in problem["problems"])
 
 
 def test_the_worker_refuses_to_start_on_sqlite() -> None:
@@ -228,7 +249,7 @@ def test_the_server_refuses_to_embed_the_scheduler_on_sqlite() -> None:
     assert result.exit_code == GUARD_EXIT
     problem = refusal(result.stdout)
     assert "advisory lock" in problem["message"]
-    assert any("--no-scheduler" in one for one in problem["problems"])
+    assert any("--no-scheduler" in one["message"] for one in problem["problems"])
 
 
 def test_the_server_flag_switches_the_ui_off(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -665,6 +686,7 @@ def test_health_says_a_database_with_no_schema_is_not_ready(tmp_path: Path, noth
     database = next(check for check in checks if check["check"] == "database")
     assert database["status"] == "unhealthy"
     assert "dg db upgrade" in database["message"], "the one thing the operator has to do is not said"
+    assert database["code"] == "health.database.unmigrated", "a check is selectable by code, not by its English"
     assert [check["check"] for check in checks] == ["database", "server"], (
         "a database with no schema cannot be asked about workers or schedules, so it is not"
     )

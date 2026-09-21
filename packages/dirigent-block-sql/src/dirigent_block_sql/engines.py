@@ -29,6 +29,13 @@ from sqlalchemy.sql.elements import TextClause
 
 from dirigent_block_sql import markers
 from dirigent_block_sql.markers import ENGINES_GROUP
+from dirigent_block_sql.messages import (
+    CONNECT_TIMED_OUT,
+    DRIVER_NOT_INSTALLED,
+    ENGINE_PACKAGE_MISSING,
+    NO_ASYNC_DRIVER,
+    READ_ONLY_UNSUPPORTED,
+)
 from dirigent_common import HealthReport, JsonMap
 from dirigent_plugin import PROJECT_NAME, BlockFailure, ErrorClass, StepContext
 
@@ -152,19 +159,11 @@ class SqlAlchemyEngine(SqlEngine):
         if "+" not in url.drivername:
             package = KNOWN_ENGINE_PACKAGES.get(backend)
             if package is not None:
-                raise ValueError(f"{backend} needs the engine package: uv pip install {package}")
-            raise ValueError(
-                f"{url.drivername!r} names no driver, and these blocks speak to a database over an "
-                f"async one; write the driver in the url, as in "
-                f"{url.drivername}+asyncpg:// or {url.drivername}+aiosqlite://"
-            )
+                raise ValueError(ENGINE_PACKAGE_MISSING.render(backend=backend, package=package))
+            raise ValueError(NO_ASYNC_DRIVER.render(driver=repr(url.drivername), driver_name=url.drivername))
         if settings.read_only and backend not in READ_ONLY:
             supported = ", ".join(sorted(READ_ONLY))
-            raise ValueError(
-                f"read_only has no meaning on {backend}: only {supported} can be told to "
-                f"refuse writes for the length of a session, and a connection that cannot be "
-                f"is not marked as one that is"
-            )
+            raise ValueError(READ_ONLY_UNSUPPORTED.render(backend=backend, supported=supported))
 
     def resolve(self, url: URL, ctx: StepContext) -> URL:
         """A sqlite database written as a relative path is a file in the run's work directory."""
@@ -280,10 +279,11 @@ def _engine(url: URL) -> AsyncEngine:
         driver = url.drivername.partition("+")[2]
         package = DRIVER_PACKAGE.get(driver, driver)
         raise BlockFailure(
-            f"the {driver!r} driver this url names is not installed on the worker; add the {package!r} "
-            f"package to the image, or use a driver that ships with it "
-            f"({', '.join(['asyncpg', 'aiosqlite'])})",
+            DRIVER_NOT_INSTALLED,
             error_class=ErrorClass.REJECTED,
+            driver=repr(driver),
+            package=repr(package),
+            shipped=", ".join(["asyncpg", "aiosqlite"]),
         ) from error
 
 
@@ -305,8 +305,7 @@ class _Session:
         except TimeoutError as error:
             await self.engine.dispose()
             raise BlockFailure(
-                f"the database did not answer within {self.settings.connect_timeout}",
-                error_class=ErrorClass.TRANSIENT,
+                CONNECT_TIMED_OUT, error_class=ErrorClass.TRANSIENT, timeout=self.settings.connect_timeout
             ) from error
         except BaseException:
             await self.engine.dispose()

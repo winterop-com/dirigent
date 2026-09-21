@@ -2,13 +2,18 @@
 
 from datetime import datetime
 from enum import StrEnum
+from typing import Any
 from uuid import UUID
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from dirigent_client.enums import DocumentKind, LogLevel, ProvenanceSource, RunPriority, RunStatus
+from dirigent_client.messages import (
+    EMPTY_LOG_LEVEL_PATTERN,
+    WINDOW_HAS_TWO_ENDS,
+)
 from dirigent_client.schemas.common import WireModel
-from dirigent_common import EntityName, JsonMap
+from dirigent_common import EntityName, Issue, JsonMap, Message
 
 
 class Requirements(WireModel):
@@ -155,14 +160,14 @@ class RunRequest(BaseModel):
     def _a_pattern_names_something(cls, value: dict[str, LogLevel] | None) -> dict[str, LogLevel] | None:
         """Refuse an empty pattern, which would match nothing and say nothing."""
         if value is not None and any(not pattern for pattern in value):
-            raise ValueError("log_levels: a pattern may not be empty")
+            raise ValueError(EMPTY_LOG_LEVEL_PATTERN.render())
         return value
 
     @model_validator(mode="after")
     def _a_window_has_two_ends(self) -> "RunRequest":
         """Refuse a half-declared window, which no step could read as an interval."""
         if (self.window_start is None) != (self.window_end is None):
-            raise ValueError("a window has two ends: give both window_start and window_end, or neither")
+            raise ValueError(WINDOW_HAS_TWO_ENDS.render())
         if self.window_start is not None and self.window_end is not None and self.window_start >= self.window_end:
             raise ValueError(
                 f"a window runs forwards and covers something: {self.window_start.isoformat()} "
@@ -245,6 +250,21 @@ class ValidationIssue(WireModel):
 
     message: str
     """What is wrong, in the terms the person editing the document is thinking in."""
+
+    code: str
+    """The dotted code of the message this issue was rendered from."""
+
+    params: JsonMap = Field(default_factory=dict)
+    """The specifics the message rendered, for a re-render in another language."""
+
+    @classmethod
+    def of(cls, message: Message, /, *, location: str, **params: Any) -> "ValidationIssue":
+        """Build an issue by rendering a catalogued message with its params."""
+        return cls(location=location, message=message.render(**params), code=message.code, params=params)
+
+    def issue(self) -> Issue:
+        """Render this document issue as the one issue shape a refusal carries."""
+        return Issue(code=self.code, message=self.message, params=self.params, location=self.location)
 
     def __str__(self) -> str:
         """Render the issue as one line."""

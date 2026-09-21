@@ -33,6 +33,17 @@ from dirigent_core.engine.services import EngineServices
 from dirigent_core.errors import DomainError
 from dirigent_core.ids import uuid7
 from dirigent_core.logging import get_logger
+from dirigent_core.messages import (
+    ALERT_UNKNOWN_CONNECTION,
+    ALERT_UNKNOWN_PIPELINE,
+    ALERT_VERSION_GONE,
+    BAD_ALERT_TEMPLATE,
+    DUPLICATE_RULE,
+    NOTIFICATION_IN_FLIGHT,
+    NOTIFIER_NOT_ON_WORKER,
+    SCOPE_NEEDS_PIPELINE,
+    UNKNOWN_NOTIFIER,
+)
 from dirigent_core.models import (
     AlertRule,
     Connection,
@@ -78,6 +89,7 @@ class NotificationInFlight(AlertError):
     """A notification a worker is delivering was asked to go back on the queue."""
 
     status = 409
+    message = NOTIFICATION_IN_FLIGHT
 
 
 class AlertRuleRequest(BaseModel):
@@ -164,9 +176,9 @@ async def create_rule(session: AsyncSession, services: EngineServices, request: 
     """Declare an alert rule, refusing a notifier or a scope this instance cannot honour."""
     if request.notifier not in services.host.notifiers:
         installed = ", ".join(sorted(services.host.notifiers)) or "none are installed"
-        raise AlertError(f"no notifier {request.notifier!r} is installed ({installed})")
+        raise AlertError(UNKNOWN_NOTIFIER, notifier=repr(request.notifier), installed=installed)
     if await find_rule(session, request.code) is not None:
-        raise AlertError(f"an alert rule coded {request.code!r} already exists")
+        raise AlertError(DUPLICATE_RULE, code=repr(request.code))
     check_templates(template=request.template, body=request.body)
     pipeline_id = await _scope_pipeline(session, request)
     connection_id = await _connection_id(session, request.connection) if request.connection else None
@@ -197,7 +209,7 @@ def check_templates(*, template: str | None = None, body: str | None = None) -> 
         try:
             compile_template(source)
         except TemplateError as error:
-            raise AlertError(f"{field} is not a Jinja template: {error}") from error
+            raise AlertError(BAD_ALERT_TEMPLATE, field=field, detail=str(error)) from error
 
 
 async def _scope_pipeline(session: AsyncSession, request: AlertRuleRequest) -> UUID | None:
@@ -205,11 +217,11 @@ async def _scope_pipeline(session: AsyncSession, request: AlertRuleRequest) -> U
     if request.scope is AlertScope.GLOBAL:
         return None
     if not request.pipeline:
-        raise AlertError("a pipeline-scoped rule has to name the pipeline it watches")
+        raise AlertError(SCOPE_NEEDS_PIPELINE)
     found = await session.execute(sa.select(Pipeline).where(Pipeline.code == request.pipeline))
     pipeline = found.scalar_one_or_none()
     if pipeline is None:
-        raise AlertError(f"no pipeline coded {request.pipeline!r}")
+        raise AlertError(ALERT_UNKNOWN_PIPELINE, code=repr(request.pipeline))
     return pipeline.id
 
 
@@ -218,7 +230,7 @@ async def _connection_id(session: AsyncSession, code: str) -> UUID:
     found = await session.execute(sa.select(Connection).where(Connection.code == code))
     connection = found.scalar_one_or_none()
     if connection is None:
-        raise AlertError(f"no connection coded {code!r}")
+        raise AlertError(ALERT_UNKNOWN_CONNECTION, code=repr(code))
     return connection.id
 
 
@@ -475,7 +487,7 @@ async def _facts_of(session: AsyncSession, run: Run, *, base_url: str | None, re
 
     version = await session.get(PipelineVersion, run.pipeline_version_id)
     if version is None:  # pragma: no cover - a run always pins a version that exists
-        raise AlertError(f"run {run.id} pins a pipeline version that is gone")
+        raise AlertError(ALERT_VERSION_GONE, run=run.id)
     definition = load_definition(version.document)
     return await facts_of_run(session, run, definition, base_url=base_url, rendered_at=rendered_at)
 
@@ -633,7 +645,7 @@ async def queue_test_message(
     """
     if notifier not in services.host.notifiers:
         installed = ", ".join(sorted(services.host.notifiers)) or "none are installed"
-        raise AlertError(f"no notifier {notifier!r} is installed ({installed})")
+        raise AlertError(UNKNOWN_NOTIFIER, notifier=repr(notifier), installed=installed)
     context: JsonMap = {"run": {"pipeline": "(test)", "status": "succeeded"}, "report": None}
     notification = Notification(
         alert_rule_id=None,
@@ -725,7 +737,7 @@ async def send_notification(
     try:
         notifier = services.host.notifiers.get(notification.notifier)
         if notifier is None:
-            raise AlertError(f"notifier {notification.notifier!r} is not installed on this worker")
+            raise AlertError(NOTIFIER_NOT_ON_WORKER, notifier=repr(notification.notifier))
         connection = await session.get(Connection, notification.connection_id) if notification.connection_id else None
         config = notifier_config(services, notifier, connection)
         await session.commit()
@@ -940,7 +952,7 @@ async def retry_notification(
     would hand the same message to a second worker.
     """
     if notification.status is NotificationStatus.SENDING:
-        raise NotificationInFlight("a worker is delivering this one; wait for it to finish or fail")
+        raise NotificationInFlight
     notification.status = NotificationStatus.PENDING
     notification.available_at = now or utcnow()
     notification.attempt = 0

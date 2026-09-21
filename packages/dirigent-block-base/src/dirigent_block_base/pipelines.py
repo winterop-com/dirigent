@@ -6,6 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, JsonValue
 
+from dirigent_block_base.messages import CHILD_RUN_GONE, NOT_A_RUN_HANDLE
 from dirigent_common import BlockModel, EntityName
 from dirigent_plugin import (
     BlockFailure,
@@ -127,10 +128,7 @@ class PipelineRunOperator(Operator[PipelineRunConfig, PipelineRunOutput]):
         """Report the settled child: which run it was, and what it settled as."""
         snapshot = await ctx.runs.snapshot(_run_id(handle))
         if snapshot is None:
-            raise BlockFailure(
-                f"run {handle.ref} disappeared before its result could be read",
-                error_class=ErrorClass.TRANSIENT,
-            )
+            raise BlockFailure(CHILD_RUN_GONE, error_class=ErrorClass.TRANSIENT, run=handle.ref)
         ctx.log.info(
             "child run finished",
             pipeline=config.pipeline,
@@ -156,7 +154,7 @@ def _run_id(handle: RemoteHandle) -> UUID:
     try:
         return UUID(handle.ref)
     except ValueError as error:
-        raise BlockFailure(f"the handle {handle.ref!r} does not name a run", error_class=ErrorClass.REJECTED) from error
+        raise BlockFailure(NOT_A_RUN_HANDLE, error_class=ErrorClass.REJECTED, handle=repr(handle.ref)) from error
 
 
 def _progress_message(snapshot: RunSnapshot) -> str:

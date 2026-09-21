@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { ApiError, type Problem } from '@/lib/api'
+import { ApiError, type Issue, type Problem } from '@/lib/api'
 import { local, refusalLine, refusalLines, refusalOf } from '@/lib/refusal'
 
 /** One refusal as this server writes it: a status phrase for a title, and a sentence to act on. */
@@ -9,10 +9,17 @@ function problem(over: Partial<Problem> = {}): Problem {
         status: 422,
         title: 'Unprocessable Content',
         detail: 'the document was refused',
+        code: 'document.unsatisfied',
+        params: {},
         problems: [],
         instance: '/api/v1/pipelines/$apply',
         ...over,
     }
+}
+
+/** One issue as the server writes it, addressed at the place in the document that is wrong. */
+function issue(location: string, message: string): Issue {
+    return { code: 'document.step_config_invalid', message, params: {}, location }
 }
 
 describe('what a refusal is made of', () => {
@@ -30,6 +37,8 @@ describe('what a refusal is made of', () => {
             status: 0,
             title: '',
             detail: 'That is not JSON.',
+            code: 'client.no_answer',
+            params: {},
             problems: [],
             instance: null,
         })
@@ -43,16 +52,17 @@ describe('which parts of a refusal are worth drawing', () => {
 
     test('failures that say more than the sentence are drawn beside it', () => {
         const lines = refusalLines(
-            problem({ detail: 'the document was refused', problems: ['steps.a: unknown block'] }),
+            problem({ detail: 'the document was refused', problems: [issue('steps.a', 'unknown block')] }),
         )
         expect(lines).toEqual({ detail: 'the document was refused', problems: ['steps.a: unknown block'] })
     })
 
     test('a sentence that is the failures joined is not said twice', () => {
-        const listed = ['steps.a: unknown block', 'steps.b: depends on nothing']
-        expect(refusalLines(problem({ detail: listed.join('; '), problems: listed }))).toEqual({
+        const listed = [issue('steps.a', 'unknown block'), issue('steps.b', 'depends on nothing')]
+        const drawn = ['steps.a: unknown block', 'steps.b: depends on nothing']
+        expect(refusalLines(problem({ detail: drawn.join('; '), problems: listed }))).toEqual({
             detail: null,
-            problems: listed,
+            problems: drawn,
         })
     })
 
@@ -67,7 +77,7 @@ describe('a refusal in one line', () => {
     })
 
     test('the failures, where the sentence is only their joining', () => {
-        const listed = ['a: no', 'b: no']
-        expect(refusalLine(problem({ detail: listed.join('; '), problems: listed }))).toBe('a: no; b: no')
+        const listed = [issue('a', 'no'), issue('b', 'no')]
+        expect(refusalLine(problem({ detail: 'a: no; b: no', problems: listed }))).toBe('a: no; b: no')
     })
 })

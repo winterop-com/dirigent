@@ -46,6 +46,7 @@ from dirigent_plugin import (
     merge_contributions,
     shell_string_fields,
 )
+from dirigent_testing.messages import TEST_REFUSAL
 from toy import EchoConfig, EchoOperator, ShelvesPlugin, TickConfig, TickSensor, ToyPlugin, plugin
 
 
@@ -93,7 +94,7 @@ class NullRuns:
 
     async def start(self, pipeline: str, params: Mapping[str, JsonValue], *, max_depth: int) -> StartedRun:
         """Refuse every start, since this instance has no pipelines."""
-        raise RunRefused(f"this instance has no pipeline coded {pipeline!r}")
+        raise RunRefused(TEST_REFUSAL, detail=f"this instance has no pipeline coded {pipeline!r}")
 
     async def snapshot(self, run_id: RunId) -> RunSnapshot | None:
         """Report that no such run exists."""
@@ -269,7 +270,7 @@ def test_classify_default_maps_http_status(status: int, expected: ErrorClass) ->
 
 
 def test_classify_default_honours_an_explicit_block_failure() -> None:
-    failure = dirigent_plugin.BlockFailure("refused", error_class=ErrorClass.REJECTED)
+    failure = dirigent_plugin.BlockFailure(TEST_REFUSAL, error_class=ErrorClass.REJECTED, detail="refused")
     assert classify_default(failure) == ErrorClass.REJECTED
     assert str(failure) == "refused"
 
@@ -457,7 +458,7 @@ def test_a_snapshot_never_reports_more_than_finished() -> None:
 
 
 def test_a_refused_run_is_never_retried() -> None:
-    refusal = RunRefused("this instance has no pipeline coded 'child'")
+    refusal = RunRefused(TEST_REFUSAL, detail="this instance has no pipeline coded 'child'")
     assert refusal.error_class is ErrorClass.REJECTED
     assert classify_default(refusal) is ErrorClass.REJECTED
 

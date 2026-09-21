@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dirigent_client.schemas import Materialized, ValidationIssue
 from dirigent_core.engine.definition import Document, TriggerSpecs
 from dirigent_core.logging import get_logger
+from dirigent_core.messages import TRIGGER_OWNED_ELSEWHERE
 from dirigent_core.models import Pipeline, Schedule, TriggerDocument, WebhookTrigger
 from dirigent_core.triggers.schedules import (
     ScheduleRequest,
@@ -201,11 +202,13 @@ async def owner_issues(
             if row is None or row.trigger_document_id == owner:
                 continue
             issues.append(
-                ValidationIssue(
+                ValidationIssue.of(
+                    TRIGGER_OWNED_ELSEWHERE,
                     location=f"triggers.{label}s[{index}].code",
-                    message=(
-                        f"{label} {code!r} on pipeline {pipeline.code!r} is declared by {_owner_of(row, documents)}"
-                    ),
+                    label=label,
+                    code=repr(code),
+                    pipeline=repr(pipeline.code),
+                    owner=_owner_of(row, documents),
                 )
             )
     return issues

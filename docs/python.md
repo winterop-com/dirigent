@@ -325,17 +325,19 @@ one test's environment; request it from your own conftest to run a suite against
 
 A block's contract has one more method worth testing directly. `check_config(config)` returns
 the extra refusals the block makes at apply, beyond what its schema already says -- a program
-that does not compile, a format pair it cannot convert between -- as a list of strings. It
+that does not compile, a format pair it cannot convert between -- as a list of `Issue`. It
 defaults to returning nothing, so a block that has no such refusals implements nothing. The
 instance calls it while applying a document, against the step's validated config, and shows
-each string as an issue at `steps.<name>.config`, which is why it is worth an assertion of
-its own:
+each issue at `steps.<name>.config`, which is why it is worth an assertion of its own:
 
 ```python
 def test_it_refuses_a_program_it_cannot_compile():
     config = Recase.config_model.model_validate({"input": "ada", "program": "sideways"})
 
-    assert Recase().check_config(config) == ["'sideways' is not a case: write upper or lower"]
+    refused = Recase().check_config(config)
+
+    assert [issue.code for issue in refused] == ["recase.not_a_case"]
+    assert refused[0].message == "'sideways' is not a case: write upper or lower"
 ```
 
 The transform frames build on exactly this, and [the transform page](transforms.md) is where

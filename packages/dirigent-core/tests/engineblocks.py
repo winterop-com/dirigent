@@ -26,6 +26,7 @@ from dirigent_plugin import (
     TransformError,
     extension,
 )
+from dirigent_testing.messages import TEST_REFUSAL
 
 
 class EchoConfig(BlockModel):
@@ -125,7 +126,7 @@ class FailOperator(Operator[FailConfig, FailOutput]):
         seen = FailOperator.attempts.get(config.key, 0) + 1
         FailOperator.attempts[config.key] = seen
         if seen <= config.fail_times:
-            raise BlockFailure(config.message, error_class=config.error_class)
+            raise BlockFailure(TEST_REFUSAL, error_class=config.error_class, detail=config.message)
         return FailOutput(attempts=seen)
 
 
@@ -298,7 +299,7 @@ class TickSensor(Sensor[TickConfig, TickOutput]):
         seen = TickSensor.pokes.get(config.key, 0) + 1
         TickSensor.pokes[config.key] = seen
         if config.raises:
-            raise BlockFailure("the world is unreadable", error_class=ErrorClass.TRANSIENT)
+            raise BlockFailure(TEST_REFUSAL, error_class=ErrorClass.TRANSIENT, detail="the world is unreadable")
         if seen <= config.ready_after:
             if config.says:
                 return NotYet(

@@ -21,6 +21,7 @@ from dirigent_cli.health import (
     verdict,
     worker_check,
 )
+from dirigent_cli.messages import DATABASE_OK, SERVER_NOT_SERVING, WORKER_ALL_STOPPED, WORKER_BEATING, WORKER_SILENT
 from dirigent_client.enums import ScheduleKind, WorkerStatus
 from dirigent_core.config import Settings
 from dirigent_core.database import create_engine, create_session_factory
@@ -266,9 +267,9 @@ def test_liveness_and_readiness_ask_different_questions(settings: Settings, monk
 
 def test_a_check_fails_the_command_only_where_it_should() -> None:
     """Absent is a failure where the caller named the component, and nowhere else."""
-    absent = Check(check="worker", status="absent", detail="none here")
-    broken = Check(check="worker", status="unhealthy", detail="stopped beating")
-    fine = Check(check="worker", status="healthy", detail="beating")
+    absent = Check.of(WORKER_ALL_STOPPED, check="worker", status="absent", place="")
+    broken = Check.of(WORKER_SILENT, check="worker", status="unhealthy", noun="the worker", quiet=90)
+    fine = Check.of(WORKER_BEATING, check="worker", status="healthy", hostname="here")
 
     assert [absent.failed(asserted=False), absent.failed(asserted=True)] == [False, True]
     assert [broken.failed(asserted=False), broken.failed(asserted=True)] == [True, True]
@@ -300,9 +301,9 @@ async def test_a_database_with_no_schema_names_the_command_that_fixes_it(tmp_pat
 def test_the_verdict_counts_absent_apart_from_healthy() -> None:
     """Nothing here is a different fact from nothing wrong here."""
     checks = [
-        Check(check="database", status="healthy", detail=""),
-        Check(check="worker", status="absent", detail=""),
-        Check(check="server", status="unhealthy", detail=""),
+        Check.of(DATABASE_OK, check="database", status="healthy", where="here", stamped="head"),
+        Check.of(WORKER_ALL_STOPPED, check="worker", status="absent", place=""),
+        Check.of(SERVER_NOT_SERVING, check="server", status="unhealthy", where="here"),
     ]
 
     summary = verdict(checks)

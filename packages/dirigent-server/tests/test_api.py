@@ -541,7 +541,7 @@ def test_a_document_that_is_not_dirigent_v1_is_refused_before_anything_else(clie
     response = client.post(f"{PREFIX}/pipelines/$apply", json={"document": {"code": "x", "steps": {}}})
     assert response.status_code == 422
     body = response.json()
-    assert "declares no format" in body["problems"][0]
+    assert "declares no format" in body["problems"][0]["message"]
     assert "declares no format" in body["detail"]
 
 
@@ -810,6 +810,33 @@ def test_the_runs_listing_says_what_the_step_a_run_failed_at_said(client: TestCl
     failed = next(row for row in rows if row["id"] == str(run_id))
     assert failed["error"] == "the host refused the connection"
     assert failed["failed_step"] == "greet"
+
+
+def test_a_failed_attempt_carries_its_code_and_its_params_onto_the_wire(client: TestClient) -> None:
+    """A refusal is selectable by code wherever it is read, so the attempt carries it whole."""
+    apply_document(client, DOCUMENT)
+    run_id = UUID(client.post(f"{PREFIX}/pipelines/api-demo/$run", json={"params": {}}).json()["run_id"])
+    rows_written(
+        client,
+        sa.update(StepAttempt)
+        .where(StepAttempt.run_id == run_id)
+        .values(
+            status=AttemptStatus.FAILED,
+            error="no connection coded 'acme' (none are configured)",
+            error_code="run.unknown_connection",
+            error_params={"ref": "'acme'", "available": "none are configured"},
+            error_class="rejected",
+        ),
+        sa.update(Run).where(Run.id == run_id).values(status=RunStatus.FAILED, finished_at=datetime.now(UTC)),
+    )
+
+    attempt = client.get(f"{PREFIX}/runs/{run_id}/attempts").json()["items"][0]
+    listed = next(row for row in client.get(f"{PREFIX}/runs").json()["items"] if row["id"] == str(run_id))
+
+    assert attempt["error_code"] == "run.unknown_connection"
+    assert attempt["error_params"] == {"ref": "'acme'", "available": "none are configured"}
+    assert attempt["error_class"] == "rejected"
+    assert listed["error_code"] == "run.unknown_connection", "the listing reads the failed attempt's code"
 
 
 def test_one_pipelines_runs_and_triggers_are_never_counted_against_another(client: TestClient) -> None:

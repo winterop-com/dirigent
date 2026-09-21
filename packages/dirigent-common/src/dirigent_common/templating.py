@@ -8,6 +8,13 @@ import jinja2
 import jinja2.sandbox
 
 from dirigent_common.durations import format_duration
+from dirigent_common.messages import (
+    RENDER_TOO_LARGE,
+    TEMPLATE_FAILED,
+    TEMPLATE_LINE,
+    TEMPLATE_NO_INCLUDE,
+    TEMPLATE_NO_SUCH_TEMPLATE,
+)
 from dirigent_common.sizes import format_size
 
 
@@ -20,7 +27,7 @@ class RenderTooLarge(Exception):
 
     def __init__(self, limit: int) -> None:
         """Name the cap, since the fix is a smaller template or a larger setting."""
-        super().__init__(f"the rendered text exceeded {format_size(limit)}")
+        super().__init__(RENDER_TOO_LARGE.render(limit=format_size(limit)))
         self.limit = limit
 
 
@@ -118,7 +125,7 @@ def compile_template(source: str) -> jinja2.Template:
     try:
         return ENVIRONMENT.from_string(source)
     except jinja2.TemplateSyntaxError as error:
-        raise TemplateError(f"line {error.lineno}: {error.message}") from error
+        raise TemplateError(TEMPLATE_LINE.render(line=error.lineno, detail=error.message)) from error
 
 
 def render(source: str | jinja2.Template, context: Mapping[str, Any], *, max_bytes: int) -> str:
@@ -144,14 +151,14 @@ def render(source: str | jinja2.Template, context: Mapping[str, Any], *, max_byt
     except RenderTooLarge:
         raise
     except (jinja2.TemplateNotFound, jinja2.TemplatesNotFound) as error:
-        raise TemplateError(f"no template named {error.message}: a template cannot pull in another") from error
+        raise TemplateError(TEMPLATE_NO_SUCH_TEMPLATE.render(name=error.message)) from error
     except (jinja2.UndefinedError, jinja2.exceptions.SecurityError) as error:
-        raise TemplateError(str(error)) from error
+        raise TemplateError(TEMPLATE_FAILED.render(detail=str(error))) from error
     except TypeError as error:
         # With no loader, include, import and extends fail here rather than at compile.
         if "no loader" in str(error):
-            raise TemplateError("a template cannot include, import or extend another") from error
-        raise TemplateError(str(error)) from error
+            raise TemplateError(TEMPLATE_NO_INCLUDE.render()) from error
+        raise TemplateError(TEMPLATE_FAILED.render(detail=str(error))) from error
     except Exception as error:
-        raise TemplateError(f"{type(error).__name__}: {error}") from error
+        raise TemplateError(TEMPLATE_FAILED.render(detail=f"{type(error).__name__}: {error}")) from error
     return "".join(chunks)

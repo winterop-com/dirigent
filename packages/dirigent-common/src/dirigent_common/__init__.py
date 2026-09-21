@@ -19,6 +19,14 @@ from dirigent_common.durations import (
 )
 from dirigent_common.formats import base_format_checker, format_checker_with
 from dirigent_common.formatters import Formatter
+from dirigent_common.messages import (
+    Catalogue,
+    Issue,
+    Message,
+    MessageError,
+    validation_issue,
+    validation_issues,
+)
 from dirigent_common.names import (
     EMAIL_MAX_LENGTH,
     EMAIL_PATTERN,
@@ -68,6 +76,7 @@ __all__ = [
     "STEP_NAME_MAX_LENGTH",
     "STEP_NAME_PATTERN",
     "BlockModel",
+    "Catalogue",
     "Duration",
     "DurationError",
     "Email",
@@ -76,8 +85,11 @@ __all__ = [
     "HealthReport",
     "HttpConnectionConfig",
     "HumaneJsonSchema",
+    "Issue",
     "JsonList",
     "JsonMap",
+    "Message",
+    "MessageError",
     "NegativeDuration",
     "NegativeSize",
     "RenderTooLarge",
@@ -100,4 +112,6 @@ __all__ = [
     "spelled",
     "step_name_error",
     "to_timedelta",
+    "validation_issue",
+    "validation_issues",
 ]

@@ -283,8 +283,8 @@ async def _apply_one(
     walked[definition.code] = ref
     carried = carried_refusal(definition)
     if carried is not None:
-        summary.refused.append(RefusedDocument(path=ref, code=definition.code, message=carried))
-        _logger.warning("directory document refused", path=ref, pipeline=definition.code, error=carried)
+        summary.refused.append(RefusedDocument(path=ref, code=definition.code, message=carried.message))
+        _logger.warning("directory document refused", path=ref, pipeline=definition.code, error=carried.message)
         return
     try:
         async with session_scope(sessions) as session:

@@ -15,7 +15,11 @@ from pydantic import BaseModel, ConfigDict, Field, GetJsonSchemaHandler, JsonVal
 from pydantic.json_schema import JsonSchemaValue, SkipJsonSchema
 from pydantic_core import CoreSchema
 
-from dirigent_common import API_VERSION, SHELL_MEDIA_TYPE, BlockModel, HealthReport, JsonMap
+from dirigent_common import API_VERSION, SHELL_MEDIA_TYPE, BlockModel, HealthReport, Issue, JsonMap, Message
+from dirigent_plugin.messages import (
+    DUPLICATE_ID,
+    UNSUPPORTED_API_VERSION,
+)
 
 type RunId = UUID
 
@@ -47,12 +51,15 @@ class ErrorClass(StrEnum):
 
 
 class BlockFailure(Exception):
-    """A failure a block reports deliberately, carrying its own error classification."""
+    """A failure a block reports deliberately, carrying its code and its classification."""
 
-    def __init__(self, message: str, *, error_class: ErrorClass = ErrorClass.UNKNOWN) -> None:
-        """Record the message and the class the engine should retry (or not retry) on."""
-        super().__init__(message)
-        self.message = message
+    def __init__(self, message: Message, /, *, error_class: ErrorClass = ErrorClass.UNKNOWN, **params: Any) -> None:
+        """Render the catalogued message and record the class the engine retries (or not) on."""
+        rendered = message.render(**params)
+        super().__init__(rendered)
+        self.code = message.code
+        self.message = rendered
+        self.params: JsonMap = dict(params)
         self.error_class = error_class
 
     def __str__(self) -> str:
@@ -430,9 +437,9 @@ class RunState(StrEnum):
 class RunRefused(BlockFailure):
     """The instance refused to start the run a block asked for."""
 
-    def __init__(self, message: str) -> None:
+    def __init__(self, message: Message, /, **params: Any) -> None:
         """Carry the reason, classified as the configuration error it always is."""
-        super().__init__(message, error_class=ErrorClass.REJECTED)
+        super().__init__(message, error_class=ErrorClass.REJECTED, **params)
 
 
 class StartedRun(BaseModel):
@@ -616,10 +623,10 @@ class Operator[ConfigT: BaseModel, OutputT: BaseModel](ABC):
         """Best-effort, idempotent cancellation; False means the remote could not be told."""
         return False
 
-    def check_config(self, config: BaseModel) -> list[str]:
+    def check_config(self, config: BaseModel) -> list[Issue]:
         """List the extra refusals this block makes at apply, beyond what its schema says.
 
-        Each string is shown against the step's config location, so a document is refused
+        Each issue is shown against the step's config location, so a document is refused
         before it is stored rather than the first time it runs.
         """
         return []
@@ -641,10 +648,10 @@ class Sensor[ConfigT: BaseModel, OutputT: BaseModel](ABC):
         """Observe the world once, read-only and briefly; NotYet is not a failure."""
         ...
 
-    def check_config(self, config: BaseModel) -> list[str]:
+    def check_config(self, config: BaseModel) -> list[Issue]:
         """List the extra refusals this block makes at apply, beyond what its schema says.
 
-        Each string is shown against the step's config location, so a document is refused
+        Each issue is shown against the step's config location, so a document is refused
         before it is stored rather than the first time it runs.
         """
         return []
@@ -753,7 +760,7 @@ class Contribution(BaseModel):
     def _check_api_version(cls, value: int) -> int:
         """Reject a contribution written against a different revision of this contract."""
         if value != API_VERSION:
-            raise ValueError(f"unsupported api_version {value}; this host speaks {API_VERSION}")
+            raise ValueError(UNSUPPORTED_API_VERSION.render(version=value, host_version=API_VERSION))
         return value
 
     @model_validator(mode="after")
@@ -776,7 +783,7 @@ def _require_unique(label: str, values: list[str]) -> None:
     seen: set[str] = set()
     for value in values:
         if value in seen:
-            raise ValueError(f"duplicate {label} {value!r} in contribution")
+            raise ValueError(DUPLICATE_ID.render(label=label, value=repr(value)))
         seen.add(value)
 
 

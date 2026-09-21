@@ -35,6 +35,16 @@ from dirigent_block_execute.docker import (
     write_cli_config,
 )
 from dirigent_block_execute.environment import reject_reserved
+from dirigent_block_execute.messages import (
+    BUILD_EXITED,
+    BUILD_PATHS_STAY_INSIDE,
+    LOGIN_FAILED,
+    NO_IMAGE_ID,
+    NO_REGISTRY_CREDENTIAL,
+    PUSH_EXITED,
+    PUSH_NEEDS_A_CONNECTION,
+    PUSH_NEEDS_A_TAG,
+)
 from dirigent_common import BlockModel, Duration
 from dirigent_plugin import (
     BlockFailure,
@@ -108,18 +118,12 @@ class DockerBuildConfig(BlockModel):
     def _check_shape(self) -> "DockerBuildConfig":
         """Refuse an unbacked push, a context or Dockerfile that climbs out, and a reserved env inheritance."""
         if self.push and self.connection is None:
-            raise ValueError(
-                "docker.build cannot push without a connection: set connection to a docker connection "
-                "holding registry, username and password"
-            )
+            raise ValueError(PUSH_NEEDS_A_CONNECTION.render())
         if self.push and not self.tags:
-            raise ValueError("docker.build pushes the tags it built, so a push needs at least one tag")
+            raise ValueError(PUSH_NEEDS_A_TAG.render())
         for path in (self.context, self.dockerfile):
             if Path(path).is_absolute() or ".." in Path(path).parts:
-                raise ValueError(
-                    "the context and Dockerfile are paths inside the run's work directory, so they "
-                    "cannot be absolute or climb out"
-                )
+                raise ValueError(BUILD_PATHS_STAY_INSIDE.render())
         reject_reserved(self.env_allowlist)
         return self
 
@@ -170,11 +174,7 @@ class DockerBuildOperator(Operator[DockerBuildConfig, DockerBuildOutput]):
         iidfile.parent.mkdir(parents=True, exist_ok=True)
         settings = ctx.connection(config.connection, DockerConnectionConfig) if config.connection else None
         if config.push and (settings is None or not settings.authenticates):
-            raise BlockFailure(
-                "docker.build cannot push through a connection with no registry credential: set "
-                "username and password on the docker connection, and registry unless it is Docker Hub",
-                error_class=ErrorClass.REJECTED,
-            )
+            raise BlockFailure(NO_REGISTRY_CREDENTIAL, error_class=ErrorClass.REJECTED)
         timeout = config.timeout.total_seconds()
         artifacts = subprocess.prefix(ctx, "build")
         stdout_uri = f"{artifacts}-stdout.txt"
@@ -203,14 +203,11 @@ class DockerBuildOperator(Operator[DockerBuildConfig, DockerBuildOutput]):
                 detail = (
                     tail(err.tail, redact=material.secrets) or tail(out.tail, redact=material.secrets) or "no output"
                 )
-                raise BlockFailure(f"docker build exited {code}: {detail}", error_class=_classify(err.tail))
+                raise BlockFailure(BUILD_EXITED, error_class=_classify(err.tail), code=code, detail=detail)
 
             image_id = iidfile.read_text().strip() if iidfile.exists() else ""
             if not image_id:
-                raise BlockFailure(
-                    "docker build reported success but wrote no image id to the iidfile",
-                    error_class=ErrorClass.UNKNOWN,
-                )
+                raise BlockFailure(NO_IMAGE_ID, error_class=ErrorClass.UNKNOWN)
             size_bytes = await _image_size(config, image_id, root, environ, timeout)
             pushed, digests = await _push(config, settings, root, environ, material, timeout, ctx)
         ctx.log.info("image built", image_id=image_id[:19], size_bytes=size_bytes, tags=", ".join(config.tags))
@@ -269,7 +266,7 @@ async def _push(
     if code != 0:
         detail = tail(err, redact=material.secrets) or f"docker login exited {code}"
         raise BlockFailure(
-            f"docker login to {settings.registry_name} failed: {detail}", error_class=ErrorClass.REJECTED
+            LOGIN_FAILED, error_class=ErrorClass.REJECTED, registry=settings.registry_name, detail=detail
         )
     pushed: list[str] = []
     digests: dict[str, str] = {}
@@ -284,7 +281,7 @@ async def _push(
             )
             if code != 0:
                 detail = tail(err, redact=material.secrets) or tail(out, redact=material.secrets) or "no output"
-                raise BlockFailure(f"docker push {tag} exited {code}: {detail}", error_class=_classify(err))
+                raise BlockFailure(PUSH_EXITED, error_class=_classify(err), tag=tag, code=code, detail=detail)
             found = PUSHED_DIGEST.search(scrub(out.decode("utf-8", errors="replace"), material.secrets))
             if found is not None:
                 digests[tag] = found.group(1)

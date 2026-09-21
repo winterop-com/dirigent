@@ -26,6 +26,7 @@ from dirigent_block_http.http import (
     request_url,
     status_class,
 )
+from dirigent_block_http.messages import WEBHOOK_NO_SECRET, WEBHOOK_STATUS_REFUSED
 from dirigent_common import BlockModel, Size
 from dirigent_plugin import BlockFailure, ConnectionRef, ErrorClass, Operator, OperatorSpec, RemoteHandle, StepContext
 
@@ -114,8 +115,10 @@ class WebhookPostOperator(Operator[WebhookPostConfig, WebhookPostOutput]):
         )
         if not is_success(response.status_code, config.success_status):
             raise BlockFailure(
-                f"the receiver at {request_url(config)} answered {response.status_code}",
+                WEBHOOK_STATUS_REFUSED,
                 error_class=status_class(response.status_code),
+                url=request_url(config),
+                status=response.status_code,
             )
         parsed, text = decode(response, answered)
         return WebhookPostOutput(
@@ -143,8 +146,5 @@ def _secret(config: WebhookPostConfig, ctx: StepContext) -> bytes | None:
         return None
     connection = ctx.connection(config.sign_with, HttpConnectionConfig)
     if connection.hmac_secret is None:
-        raise BlockFailure(
-            f"connection {config.sign_with!r} has no hmac_secret, so this POST cannot be signed",
-            error_class=ErrorClass.REJECTED,
-        )
+        raise BlockFailure(WEBHOOK_NO_SECRET, error_class=ErrorClass.REJECTED, connection=repr(config.sign_with))
     return connection.hmac_secret.get_secret_value().encode()

@@ -20,7 +20,15 @@ function page(ids: string[], next: string | null = null): Page<Row> {
     return { items: ids.map((id) => ({ id })), next }
 }
 
-const REFUSAL: Problem = { status: 500, title: 'Server Error', detail: 'no', problems: [], instance: '/runs' }
+const REFUSAL: Problem = {
+    status: 500,
+    title: 'Server Error',
+    detail: 'no',
+    code: 'server.internal',
+    params: {},
+    problems: [],
+    instance: '/runs',
+}
 
 describe('a cursor-paged listing', () => {
     it('starts with nothing read and nothing to continue from', () => {

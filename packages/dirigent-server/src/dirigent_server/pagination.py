@@ -11,7 +11,10 @@ from collections.abc import Callable
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import HTTPException, Query, status
+from fastapi import Query, status
+
+from dirigent_server.errors import Refusal
+from dirigent_server.messages import BAD_CURSOR
 
 DEFAULT_PAGE = 50
 
@@ -37,9 +40,8 @@ def uuid_cursor(after: str | None) -> UUID | None:
     try:
         return UUID(after)
     except ValueError as error:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"after={after!r} is not a cursor this listing gave out",
+        raise Refusal(
+            BAD_CURSOR, status=status.HTTP_422_UNPROCESSABLE_CONTENT, name="after", after=repr(after)
         ) from error
 
 
@@ -50,7 +52,4 @@ def int_cursor(after: str | None, *, name: str = "after") -> int | None:
     try:
         return int(after)
     except ValueError as error:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"{name}={after!r} is not a cursor this listing gave out",
-        ) from error
+        raise Refusal(BAD_CURSOR, status=status.HTTP_422_UNPROCESSABLE_CONTENT, name=name, after=repr(after)) from error
