@@ -16,6 +16,14 @@ tag is what publishes: `.github/workflows/release.yaml` builds every package and
 to PyPI through trusted publishing, then builds the image from that commit and pushes it as
 `<version>` and `latest`. The two sibling repositories then relock against the tag and bump.
 
+## 0.17.2
+
+Released 2026-09-21. Every package in the workspace moves to 0.17.2 together.
+
+- **Every block family is on PyPI.** `dirigent-block-duckdb`, `-jq` and `-parquet` publish
+  with this tag, completing the nine. `pip install dirigent-cli` resolves again, and
+  `uv tool upgrade dirigent-cli` moves an installed tool. Nothing else changed.
+
 ## 0.17.1
 
 Released 2026-09-21. Every package in the workspace moves to 0.17.1 together.
