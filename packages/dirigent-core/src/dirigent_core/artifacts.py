@@ -129,7 +129,7 @@ async def persist_document(
     return reference
 
 
-async def present_uri(storage: Storage, reference: ArtifactRef) -> str:
+async def _present_uri(storage: Storage, reference: ArtifactRef) -> str:
     """Return the URI a row names once storage confirms the object is there, or refuse.
 
     A database restored without the artifact root it was taken beside still holds every row,
@@ -144,7 +144,7 @@ async def present_uri(storage: Storage, reference: ArtifactRef) -> str:
 
 async def open_artifact(storage: Storage, reference: ArtifactRef) -> AsyncGenerator[bytes]:
     """Open the stored object a row names for streaming, refusing before the first byte."""
-    return storage.open_read(await present_uri(storage, reference))
+    return storage.open_read(await _present_uri(storage, reference))
 
 
 async def load_document(storage: Storage, reference: ArtifactRef) -> str:
@@ -154,7 +154,7 @@ async def load_document(storage: Storage, reference: ArtifactRef) -> str:
         return inlined if isinstance(inlined, str) else ""
     if reference.uri is None:
         return ""
-    return (await storage.read_bytes(await present_uri(storage, reference))).decode()
+    return (await storage.read_bytes(await _present_uri(storage, reference))).decode()
 
 
 async def load_artifact(session: AsyncSession, storage: Storage, artifact_id: UUID) -> JsonMap | None:
@@ -166,6 +166,6 @@ async def load_artifact(session: AsyncSession, storage: Storage, artifact_id: UU
         return reference.inline_value
     if reference.uri is None:
         return None
-    payload = await storage.read_bytes(await present_uri(storage, reference))
+    payload = await storage.read_bytes(await _present_uri(storage, reference))
     loaded: JsonMap = json.loads(payload)
     return loaded

@@ -784,6 +784,9 @@ Both name the same two ways out: restore the artifact root from the backup that 
 database, or [prune](#pruning-by-hand) the runs whose bytes are gone with
 `dg prune --runs <age>`, which keeps the history from that age on.
 
+No health check will say it first. Readiness asks the database, and nothing probes the artifact
+root, so a restored instance reads as healthy until something reads an artifact.
+
 **Artifacts newer than the database** -- the state the recommended order leaves -- has objects
 no row names. Nothing reads them, and retention never sweeps them: the sweep deletes a run's
 scratch prefix by walking the run's row, and a prefix with no row is never visited. They cost
