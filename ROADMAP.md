@@ -82,8 +82,7 @@ stays clean, and every example stays executable.
 1. **Adapter packs.** Every further pack takes the shape `dirigent-dhis2` set: its own
    repository, its own examples and tests, self-testing against `dirigent-plugin`'s main,
    wired through a connection kind, with a client written fresh or wrapping a stable one, and
-   assembled by `dirigent-integration`. Open for the program: generalising
-   `dirigent-integration`'s dev-dep filter beyond one pack's client prefix.
+   assembled by `dirigent-integration`.
 2. **A full pass over the documentation.** Twenty-seven pages, and most were written before
    the built-in pack became nine packages, engines became packages, refusals gained codes and
    `dg health` moved under `dg system`. Read every page as a newcomer would and fix what is
