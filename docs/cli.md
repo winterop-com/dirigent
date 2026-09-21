@@ -899,8 +899,8 @@ dg run --local --root ./.dirigent-local ./document.yaml
 ```
 
 `${run.scratch}` stays per run, under `runs/<id>`, so a document that wants a path two runs
-share -- yesterday's list a sensor waits for, say -- writes it at `file://DIR/artifacts/<name>`
-instead.
+share -- yesterday's list a sensor waits for, say -- writes it at `${artifacts}/<name>`
+instead, which is the root itself and therefore `file://DIR/artifacts/<name>` here.
 
 `dg runs show --json` writes one `run.detail` record whose `fields` carry the run, its DAG,
 its items and its attempts, which the CLI composes: the server answers the run and its counts,

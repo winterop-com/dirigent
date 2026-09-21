@@ -207,7 +207,7 @@ Worth reading before you run it:
   vocabulary, and a reader can see the failure path by looking at the graph.
 
 - **`${...}` is the whole reference language.** `params.*`, `steps.<name>.output.*`,
-  `steps.<name>.items`, `steps.<name>.item.output.*`, `item`, `run.*`, `trigger.*`. No expressions, no loops, no conditionals -- logic lives in blocks and
+  `steps.<name>.items`, `steps.<name>.item.output.*`, `item`, `run.*`, `artifacts`, `trigger.*`. No expressions, no loops, no conditionals -- logic lives in blocks and
   in edge rules, which is what keeps a document reviewable. There is nothing to trim or format
   with either, so a captured stream arrives exactly as the command wrote it: `${steps.x.output.stdout}`
   from an `echo` carries its trailing newline. Where that matters, print without one --

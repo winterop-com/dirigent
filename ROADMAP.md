@@ -178,15 +178,6 @@ stays clean, and every example stays executable.
   lives in object storage anyway, where a URI and a bucket policy may be all the tracking
   anyone needs.
 
-- **A portable way to address durable storage.** A document's only storage anchor is
-  `${run.scratch}`, which is run-scoped and swept by retention. Writing something meant to
-  outlive its run has no portable form: `file://kept/x.json` puts `kept` in the URI's host
-  position and `file:///kept/x.json` is absolute, and both resolve outside the artifact root
-  and are refused. Only an absolute path naming the instance's own root works, which a
-  portable document cannot contain. Wanted: a root-relative reference (`${artifacts}/...`, or
-  a documented root-relative URI form) so "fetch it and keep it" is expressible. Until then
-  the answer is an `s3://` URI through the connection the compose stack already bootstraps.
-
 - **A TUI for watching a run.** A scrolling stream is the wrong shape for a DAG: it cannot
   show a step updating in place, a fan-out's item grid, or logs beside structure. Wanted: a
   Textual app over `dirigent-client` -- the run's graph with live per-step state, items,

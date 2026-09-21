@@ -44,6 +44,7 @@ from dirigent_core.messages import (
     NOT_YAML,
     PARAMS_SCHEMA_INVALID,
     REFERENCE_GRID_IN_CONFIG,
+    REFERENCE_MALFORMED_ARTIFACTS,
     REFERENCE_MALFORMED_ITEM,
     REFERENCE_MALFORMED_RUN,
     REFERENCE_MALFORMED_STEP,
@@ -892,6 +893,10 @@ def _reference_problem(
             return None
         case ["run", *_]:
             return Issue.of(REFERENCE_MALFORMED_RUN, reference=reference)
+        case ["artifacts"]:
+            return None
+        case ["artifacts", *_]:
+            return Issue.of(REFERENCE_MALFORMED_ARTIFACTS, reference=reference)
         case [namespace, *_]:
             return Issue.of(REFERENCE_UNKNOWN_NAMESPACE, reference=reference, namespace=repr(namespace))
         case _:  # pragma: no cover - every shape above is total over a list of strings

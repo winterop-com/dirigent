@@ -64,7 +64,11 @@ UNKNOWN_SCHEME = ARTIFACTS.define(
     "no storage backend registered for scheme {scheme}; registered schemes: {registered}",
 )
 
-OUTSIDE_ROOT = ARTIFACTS.define("outside_root", "{uri} resolves outside the artifact root {root}")
+OUTSIDE_ROOT = ARTIFACTS.define(
+    "outside_root",
+    "{uri} resolves outside the artifact root {root}; write ${{artifacts}}/<path> for an object "
+    "kept under this instance's root, or ${{run.scratch}}/<path> for one swept with the run",
+)
 
 UNKNOWN_STORAGE_CONNECTION = ARTIFACTS.define(
     "unknown_connection",
@@ -317,9 +321,15 @@ REFERENCE_MALFORMED_RUN = DOCUMENT.define(
     "${{{reference}}} is malformed: run exposes only run.scratch, run.id, run.window.start and run.window.end",
 )
 
+REFERENCE_MALFORMED_ARTIFACTS = DOCUMENT.define(
+    "reference_malformed_artifacts",
+    "${{{reference}}} is malformed: artifacts is the storage root itself and has no fields; "
+    "write ${{artifacts}}/<path>",
+)
+
 REFERENCE_UNKNOWN_NAMESPACE = DOCUMENT.define(
     "reference_unknown_namespace",
-    "${{{reference}}} names {namespace}, which is not one of params, steps, item, run",
+    "${{{reference}}} names {namespace}, which is not one of params, steps, item, run, artifacts",
 )
 
 FOR_EACH_READS_OUTPUT = DOCUMENT.define(
@@ -509,7 +519,7 @@ NO_ITEM = _unresolved("no_item", "this step does not fan out, so there is no ite
 
 UNKNOWN_NAMESPACE = _unresolved(
     "unknown_namespace",
-    "{namespace} is not a namespace; the reference language has params, steps, item, and run",
+    "{namespace} is not a namespace; the reference language has params, steps, item, run, and artifacts",
 )
 
 NO_OUTPUT = _unresolved("no_output", "step {step} has no stored output ({available})")
@@ -534,6 +544,11 @@ MALFORMED_STEP = _unresolved(
 MALFORMED_RUN = _unresolved(
     "malformed_run",
     "run exposes only run.scratch, run.id, run.window.start and run.window.end",
+)
+
+MALFORMED_ARTIFACTS = _unresolved(
+    "malformed_artifacts",
+    "artifacts is the storage root itself and has no fields; write ${{artifacts}}/<path>",
 )
 
 NO_WINDOW = _unresolved(

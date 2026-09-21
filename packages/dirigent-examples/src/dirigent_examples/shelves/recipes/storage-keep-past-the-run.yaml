@@ -1,0 +1,116 @@
+# Fetch something and keep it, at a location the run does not own.
+#
+# In:  a query the echo service reflects back.
+# Out: the same body written twice -- once to the run's scratch, once to a kept location --
+#      and a summary naming both URIs side by side.
+#
+# TWO ANCHORS, TWO LIFETIMES. A document never names a directory or a bucket, only one of the
+# two prefixes the engine resolves for it:
+#
+#   ${run.scratch}   this run's own prefix, <root>/runs/<run id>/... Retention sweeps it when
+#                    the run is pruned, so it is where a working copy goes: a payload handed
+#                    to the next step, a captured stream, anything nobody needs next month.
+#   ${artifacts}     the instance's storage root itself. Retention deletes run prefixes and
+#                    nothing else under it, so an object written here stays until somebody
+#                    deletes it. This is where "fetch it and keep it" lands.
+#
+# Both resolve against whichever backend the instance is configured with -- a directory on a
+# single node, a bucket where an s3 connection serves the scheme -- so the two steps below
+# are the same document on either, and neither carries a path a second instance would have to
+# rewrite. A URI naming the root directly cannot do that: file://kept/x.json reads `kept` as
+# a host, file:///kept/x.json is an absolute path, and the backend refuses both for being
+# outside its root.
+#
+# THE KEY IS STABLE, NOT DATED. ${params.name} is one name and a rerun overwrites it, which
+# is what makes this the newest copy rather than a pile nobody prunes. Where a history is
+# wanted instead, the key goes under a date -- storage-copy-dated-archive.yaml is that
+# layout, and the same choice of prefix applies to it.
+#
+# WHAT --local DOES WITH IT. A plain --local run builds a throwaway instance and deletes it at
+# the end, so the kept object outlives the run but not the instance. Give the run a root of
+# its own and it is still there afterwards, and a second run finds the first run's copy:
+#
+#   dg run --local --root ./.dirigent-local examples/recipes/storage-keep-past-the-run.yaml
+#   ls ./.dirigent-local/artifacts/kept
+#
+# To change it: point DIRIGENT_ARTIFACT_ROOT at s3://<bucket>/<prefix> and the kept object is
+# an object in that bucket, with nothing in this document changed.
+#
+#   dg run --local examples/recipes/storage-keep-past-the-run.yaml
+#   dg run --local examples/recipes/storage-keep-past-the-run.yaml -p name=stations
+
+format: dirigent/v1
+kind: pipeline
+code: storage-keep-past-the-run
+name: Something kept past its run
+description: Fetch a body, write a working copy to the run's scratch and a kept copy under the artifact root, and read the kept one back.
+
+tags: [recipes, http, storage, transform, starter]
+
+requires:
+  blocks:
+    - http.request
+    - storage.write
+    - storage.read
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    name:
+      type: string
+      default: latest
+      description: The name the kept object carries; stable, so a rerun replaces it.
+    station:
+      type: string
+      default: st-1
+      description: A query value, echoed back inside the fetched body.
+
+steps:
+  fetch:
+    block: http.request
+    config:
+      url: https://postman-echo.com/get
+      method: GET
+      query:
+        station: ${params.station}
+      max_response: 1mb
+      timeout: 30s
+
+  working:
+    block: storage.write
+    depends_on: [fetch]
+    config:
+      # The run's own prefix: gone when retention prunes the run.
+      target: ${run.scratch}/fetched.json
+      value: ${steps.fetch.output.body}
+
+  keep:
+    block: storage.write
+    depends_on: [fetch]
+    config:
+      # The root itself: nothing sweeps this, so the object is here until somebody removes it.
+      target: ${artifacts}/kept/${params.name}.json
+      value: ${steps.fetch.output.body}
+
+  back:
+    block: storage.read
+    depends_on: [keep]
+    config:
+      # Where the write said the object landed, not the same path typed twice.
+      source: ${steps.keep.output.uri}
+      max_size: 1mb
+
+  where:
+    block: transform.jq
+    depends_on: [working, back]
+    config:
+      input:
+        swept: ${steps.working.output.uri}
+        kept: ${steps.keep.output.uri}
+        station: ${steps.back.output.value.args.station}
+      program: |
+        {kept, swept, station,
+         # The run id is in one of the two URIs and not in the other, which is the whole
+         # difference between them.
+         kept_is_run_scoped: (.kept | contains("/runs/"))}
