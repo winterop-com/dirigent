@@ -247,6 +247,7 @@ async def create_run(
         scope = ReferenceScope(
             params=resolved_params,
             scratch=scratch_prefix(services.settings.artifact_root, run_id),
+            artifacts=services.storage.artifact_root,
             run_id=run_id,
             window_start=window.start if window is not None else None,
             window_end=window.end if window is not None else None,

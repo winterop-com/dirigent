@@ -26,6 +26,7 @@ def scope() -> ReferenceScope:
         item="oslo",
         has_item=True,
         scratch="file://artifacts/runs/1",
+        artifacts="file://artifacts",
         run_id=RUN_ID,
     )
 
@@ -67,13 +68,23 @@ def test_the_run_namespace_exposes_scratch_and_id(scope: ReferenceScope) -> None
     assert resolve("${run.id}", scope) == str(RUN_ID)
 
 
+def test_artifacts_names_the_storage_root_the_run_is_written_under(scope: ReferenceScope) -> None:
+    assert resolve("${artifacts}", scope) == "file://artifacts"
+    assert resolve("${artifacts}/kept/report.md", scope) == "file://artifacts/kept/report.md"
+
+
+def test_artifacts_is_the_whole_reference_and_has_no_fields(scope: ReferenceScope) -> None:
+    with pytest.raises(UnknownReference, match="artifacts is the storage root itself"):
+        resolve("${artifacts.kept}", scope)
+
+
 def test_a_boolean_interpolates_as_json_and_none_as_empty(scope: ReferenceScope) -> None:
     wide = ReferenceScope(params={"on": True, "off": False, "gap": None})
     assert resolve("v=${params.on},${params.off},${params.gap}", wide) == "v=true,false,"
 
 
 def test_an_unknown_namespace_names_the_language(scope: ReferenceScope) -> None:
-    with pytest.raises(UnknownReference, match="params, steps, item, and run"):
+    with pytest.raises(UnknownReference, match="params, steps, item, run, and artifacts"):
         resolve("${secrets.token}", scope)
 
 

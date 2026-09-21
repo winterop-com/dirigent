@@ -976,6 +976,10 @@ Dirigent standardizes the reference, not the format or the backend:
   (`<artifact-root>/runs/<run-id>/...`) on the configured default backend. A pruned run takes
   its prefix with it, and `retention_scratch` is how an instance whose bucket somebody else
   reaps says not to. Until `retention_runs` is set, a prefix survives its run.
+- **The root itself is addressable.** `${artifacts}` resolves to the artifact root, whatever
+  scheme serves it, so `${artifacts}/kept/report.md` is a durable location a portable document
+  can name. Retention deletes `runs/<run-id>` prefixes and nothing else under the root, so what
+  a document keeps there stays until somebody deletes it.
 - **`file://` is rooted.** The local backend resolves every URI inside the configured
   artifact root and refuses anything outside it, so a stored pipeline cannot turn a copy
   step into an arbitrary-file read. A write becomes visible only once it finished, because
@@ -1295,14 +1299,17 @@ Reading guide for the choices above:
   run is visible. It may therefore read `params.*`, `run.*`, and an upstream fan-out's grid as
   `${steps.<name>.items}`, but not a step's output: a grid drawn before the run starts cannot
   be sized by work the run has not done yet.
-- `${...}` is the whole reference language, and it has four namespaces: `params.*`,
+- `${...}` is the whole reference language, and it has five namespaces: `params.*`,
   `steps.*` (`steps.<name>.output.*`, `steps.<name>.items`, `steps.<name>.item.output.*`),
-  `item`, and `run.*` (`run.scratch`, `run.id`, `run.window.start`, `run.window.end`). There
-  are no expressions, loops, or conditionals in v1; logic lives in blocks and trigger rules,
-  which is what keeps documents reviewable. A reference standing alone resolves to the typed
-  value, so `"${params.count}"` is an integer downstream, while one inside a larger string
-  interpolates; an unknown reference fails the attempt as `rejected` rather than resolving to
-  empty. `$${...}` is the escape: it yields the literal `${...}`,
+  `item`, `run.*` (`run.scratch`, `run.id`, `run.window.start`, `run.window.end`), and
+  `artifacts`. `${run.scratch}` is the run's own prefix and retention sweeps it with the run;
+  `${artifacts}` is the instance's storage root, which nothing sweeps, so a document that
+  keeps something writes it at `${artifacts}/<path>`. There are no expressions, loops, or
+  conditionals in v1; logic lives in blocks and trigger rules, which is what keeps documents
+  reviewable. A reference standing alone resolves to the typed value, so `"${params.count}"`
+  is an integer downstream, while one inside a larger string interpolates; an unknown
+  reference fails the attempt as `rejected` rather than resolving to empty. `$${...}` is the
+  escape: it yields the literal `${...}`,
   is never resolved and is never checked, which is how a compose file or a template reaches
   its tool with its own braces intact.
 - The format refuses a key it does not define, at every level: a document, a step, a retry

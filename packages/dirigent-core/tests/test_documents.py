@@ -525,6 +525,7 @@ def test_an_item_reference_outside_a_fan_out_is_refused(host: PluginHost) -> Non
         ("${nonsense.x}", "not one of params"),
         ("${run.nope}", "run.scratch"),
         ("${steps.a}", "malformed"),
+        ("${artifacts.kept}", "artifacts is the storage root itself"),
     ],
 )
 def test_the_reference_language_is_checked_at_apply_time(host: PluginHost, reference: str, expected: str) -> None:
@@ -533,6 +534,14 @@ def test_the_reference_language_is_checked_at_apply_time(host: PluginHost, refer
     )
     issues = validate_against_catalog(definition, host.catalog())
     assert expected in issues[0].message
+
+
+def test_an_artifacts_reference_passes_apply_time(host: PluginHost) -> None:
+    definition = load_text(
+        "format: dirigent/v1\ncode: kept\nsteps:\n"
+        "  a: { block: test.echo, config: {value: '${artifacts}/kept/report.md'} }\n"
+    )
+    assert validate_against_catalog(definition, host.catalog()) == []
 
 
 @pytest.mark.parametrize("reference", ["${run.window.start}", "${run.window.end}"])

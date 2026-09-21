@@ -82,6 +82,7 @@ and a parameter away in the others:
 | File | The question it answers |
 | --- | --- |
 | [storage-write-then-read.yaml](storage-write-then-read.yaml) | How do I park a payload in storage and pick it up again a step later? |
+| [storage-keep-past-the-run.yaml](storage-keep-past-the-run.yaml) | How do I keep something past the run that wrote it, without naming a directory or a bucket? |
 | [storage-copy-dated-archive.yaml](storage-copy-dated-archive.yaml) | How do I keep a dated copy, and what should the key layout be? |
 | [storage-exists-gate.yaml](storage-exists-gate.yaml) | How do I wait for an object, and what stops me reading a half-written one? |
 | [large-output-to-storage.yaml](large-output-to-storage.yaml) | What happens to a payload past the inline threshold, and what should I do about it? |

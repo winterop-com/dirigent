@@ -152,6 +152,10 @@ A run has two places to put things, and they are not the same place:
 | Who can read it | Every worker | Only the worker that wrote it |
 | What goes there | A step's output, a saved payload, a captured stream | A checkout, a build context, a compose file, a bind mount, a duckdb file |
 
+A step also names the artifact root itself as `${artifacts}`, which is where something meant
+to outlive its run goes: `${artifacts}/kept/report.md` is a durable location under whichever
+backend the instance uses, and retention never reaches it.
+
 Everything a later step must read goes to scratch, because which worker claims that step is
 not knowable in advance. But some things are not bytes a block hands over -- they are
 directories a tool opens. `git.checkout` shells out to git, `docker.build` gives buildx a
@@ -1166,6 +1170,10 @@ a row deleted first would leave bytes nothing points at and nothing would ever f
 storage refuses -- a read-only volume, an expired credential -- that run is left whole, rows
 and all, and tried again on the next sweep. Set `retention_scratch=false` where something
 else owns the bucket's lifecycle, such as an S3 expiry rule.
+
+**Only a run's own prefix is swept.** The sweep deletes `runs/<run id>` under the artifact
+root and nothing else, so an object a document wrote at `${artifacts}/...` outside that prefix
+survives every run and stays until somebody deletes it.
 
 ### The sweep
 

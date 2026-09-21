@@ -255,6 +255,7 @@ class Engine:
             item_outputs=item_outputs,
             paired=frozenset(family),
             scratch=scratch,
+            artifacts=self.services.storage.artifact_root,
             run_id=run.id,
             window_start=run.window_start,
             window_end=run.window_end,

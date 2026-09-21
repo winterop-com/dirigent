@@ -1,6 +1,6 @@
 # Every ${...} form the reference language allows, each used once, in one document.
 #
-# THERE ARE FOUR NAMESPACES AND NOTHING ELSE. No expressions, no arithmetic, no conditionals,
+# THERE ARE FIVE NAMESPACES AND NOTHING ELSE. No expressions, no arithmetic, no conditionals,
 # no functions, no defaults, no coalescing. A reference names a value or it does not resolve.
 #
 #   params.<name>                a run parameter
@@ -17,6 +17,7 @@
 #   run.scratch                  this run's own directory under the artifact root
 #   run.window.start             the start of the interval this run covers
 #   run.window.end               the end of it, exclusive
+#   artifacts                    the instance's storage root, which no run owns
 #
 # TWO RULES ABOUT WHAT A REFERENCE BECOMES:
 #
@@ -53,8 +54,8 @@ kind: pipeline
 code: references-cheat-sheet
 name: The whole reference language
 description: |
-  Four namespaces -- `params`, `steps`, `item`, `run` -- and no expressions, conditionals or
-  functions anywhere.
+  Five namespaces -- `params`, `steps`, `item`, `run`, `artifacts` -- and no expressions,
+  conditionals or functions anywhere.
 
   A whole reference resolves to the typed value; one inside a larger string interpolates as
   text; an unknown one is rejected rather than resolved to empty. Needs `--window`.
@@ -108,6 +109,9 @@ steps:
         # run: the two values every run has.
         run_id: "${run.id}"
         scratch: "${run.scratch}"
+        # artifacts: the storage root itself, which outlives every run written under it.
+        # ${run.scratch} is swept when the run is pruned; ${artifacts}/... is not.
+        artifacts: "${artifacts}"
         # run.window: only on a run that carries one. Half-open, so start is included and
         # end is not.
         window_start: "${run.window.start}"

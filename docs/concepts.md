@@ -416,7 +416,14 @@ on another machine, possibly days later on a manual retry -- so it is a URI or i
 never a path.
 
 Each run also gets a scratch prefix (`<artifact-root>/runs/<run-id>/...`) for intermediate
-files. A pruned run takes its scratch with it; see [retention](operations.md#retention).
+files, which a step names as `${run.scratch}`. A pruned run takes its scratch with it; see
+[retention](operations.md#retention).
+
+`${artifacts}` names the root itself, and the two are the whole choice a document makes about
+where bytes go: `${run.scratch}/x.json` is swept when the run is pruned, and
+`${artifacts}/kept/x.json` is kept until somebody deletes it. Both resolve against whichever
+backend the instance is configured with, so neither puts a local path or a bucket name in the
+document.
 
 Detail: [design.md section 10](design.md#10-storage).
 

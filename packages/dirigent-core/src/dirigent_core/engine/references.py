@@ -1,8 +1,12 @@
 """``${...}`` reference resolution: the whole reference language, and nothing more.
 
-There are no expressions, loops, or conditionals, and four namespaces: ``params.*``,
-``steps.*``, ``item``, and ``run.scratch`` / ``run.id`` / ``run.window.start`` /
-``run.window.end``.
+There are no expressions, loops, or conditionals, and five namespaces: ``params.*``,
+``steps.*``, ``item``, ``run.scratch`` / ``run.id`` / ``run.window.start`` /
+``run.window.end``, and ``artifacts``.
+
+``run.scratch`` is the run's own prefix, which retention sweeps with the run; ``artifacts`` is
+the instance's storage root, which nothing sweeps, so ``${artifacts}/kept/x.json`` is how a
+document names an object meant to outlive the run that wrote it.
 
 ``steps`` has three forms: ``steps.<name>.output.*`` is a step's stored output,
 ``steps.<name>.items`` is the list a fan-out maps over and only ``for_each`` reads it, and
@@ -29,6 +33,7 @@ from dirigent_common import JsonMap, Message
 from dirigent_core.errors import DomainError
 from dirigent_core.messages import (
     ITEM_FAILED,
+    MALFORMED_ARTIFACTS,
     MALFORMED_RUN,
     MALFORMED_STEP,
     NAMES_NOTHING,
@@ -93,6 +98,9 @@ class ReferenceScope(BaseModel):
     """The steps whose grid this one shares, and whose matching item it may therefore read."""
 
     scratch: str = ""
+    artifacts: str = ""
+    """The instance's storage root, which outlives every run written under it."""
+
     run_id: UUID | None = None
 
     window_start: datetime | None = None
@@ -287,6 +295,10 @@ def lookup(reference: str, scope: ReferenceScope) -> JsonValue:
             return _step_output(reference, parts, scope)
         case "run":
             return _run_value(reference, parts, scope)
+        case "artifacts":
+            if parts[1:]:
+                raise UnknownReference(MALFORMED_ARTIFACTS, reference=reference)
+            return scope.artifacts
         case unknown:
             raise UnknownReference(UNKNOWN_NAMESPACE, reference=reference, namespace=repr(unknown))
 
