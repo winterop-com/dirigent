@@ -850,9 +850,11 @@ small screen" where the verbs were, and carries the document's identity and noth
 version it is at is along the foot already, and a fact appears once on a screen. A graph is still
 read, a step is still chosen, and a run is still watched.
 
-**Every control a finger lands on is at least 40px tall.** That is a variant on the shared
-control classes in `index.css`, against the generated primitives' slots, so a screen never
-sizes a button for a phone itself.
+**Every control a finger lands on is at least 42px tall.** The height is one token,
+`--spacing-finger`, and below the breakpoint every control takes its minimum from it: as a
+variant on the shared control classes in `index.css` against the generated primitives' slots,
+and as `h-finger` or `min-h-finger` where a component draws a control of its own. No screen
+sizes a control for a phone itself.
 
 ## An option wears what its value wears
 

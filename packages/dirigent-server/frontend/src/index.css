@@ -45,6 +45,9 @@
     --spacing-shell-top: 46px;
     --spacing-shell-foot: 46px;
 
+    /* What a finger lands on is this tall below the breakpoint. */
+    --spacing-finger: 42px;
+
     /* The radius ladder, stated rather than derived: 4 for a chip, 6 for a control and a
        card, 8 for a panel. */
     --radius-sm: 4px;
@@ -1418,15 +1421,18 @@ html.dark[data-theme='contrast'],
 }
 
 /* ---------------------------------------------------------------------------
-   WHAT A FINGER LANDS ON IS 40px TALL.
+   WHAT A FINGER LANDS ON IS 42px TALL.
 
    A 28px control is a comfortable pointer target and a miss for a thumb, so below the
    breakpoint every control the design system draws grows to the size a finger needs -- said
-   once here, against the generated primitives' slots, so no screen sizes a button for a phone
-   itself.
+   once here as `--spacing-finger`, against the generated primitives' slots, so no screen sizes
+   a button for a phone itself.
    --------------------------------------------------------------------------- */
 @media (max-width: 767px) {
+    /* `dialog-close` is here because a dialog's Cancel and its corner X are `Button`s that
+       `DialogClose` renders, and the wrapper's slot is the one that reaches the element. */
     [data-slot='button'],
+    [data-slot='dialog-close'],
     [data-slot='tabs-trigger'],
     [data-slot='select-trigger'],
     [data-slot='input'],
@@ -1435,11 +1441,12 @@ html.dark[data-theme='contrast'],
     [data-slot='dropdown-menu-checkbox-item'],
     [data-slot='command-item'],
     [data-slot='combobox-item'] {
-        min-height: 2.5rem;
+        min-height: var(--spacing-finger);
     }
-    /* A square control stays square: a 40px tall icon button 28px wide is a target on one
+    /* A square control stays square: a 42px tall icon button 28px wide is a target on one
        axis only. */
-    [data-slot='button'] {
-        min-inline-size: 2.5rem;
+    [data-slot='button'],
+    [data-slot='dialog-close'] {
+        min-inline-size: var(--spacing-finger);
     }
 }

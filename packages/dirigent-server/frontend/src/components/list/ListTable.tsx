@@ -175,7 +175,7 @@ export function ListTable<T>({
                                     key={rowKey(row)}
                                     {...chooses(row)}
                                     className={cn(
-                                        'row-hover flex min-h-10 flex-col justify-center gap-2 px-3 py-3',
+                                        'row-hover flex min-h-finger flex-col justify-center gap-2 px-3 py-3',
                                         selected?.(row) === true && 'bg-accent/70',
                                         onSelect !== undefined && 'cursor-pointer',
                                         rowClassName?.(row),

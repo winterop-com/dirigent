@@ -341,9 +341,10 @@ requires touching the engine. None is near-term.
 
 ## Known debt
 
-- **The phone sheet's footer controls are 40px tall.** That is the finger target the UI
-  conventions state, and the small-screen brief asked for 44px; whether the rule moves to 44
-  is undecided, and if it does the conventions change first and then the one `index.css` block.
+- **Some phone controls still sit under the finger rule.** The 42px minimum reaches the
+  primitives that carry a `data-slot`; a drawer link (a plain anchor, 36px), a dropdown or
+  tooltip trigger (28px) and the `API` chip (24px) do not. Widening the rule to links and every
+  trigger is the change, and it needs the same live review in both palettes.
 
 - **`fetch` is at-least-once, and no key we hold can make it exactly-once.** A worker that
   fetches a result and then dies before the outcome commits leaves the attempt waiting with
