@@ -51,7 +51,7 @@ from dirigent_client.enums import UserRole
 from dirigent_common import Issue
 from dirigent_core import migrations
 from dirigent_core.config import STATE_DIR, Settings, get_settings, redacted_url, reset_settings_cache
-from dirigent_core.logging import LOG_FORMAT_ENV, configure_logging, silence_stdout
+from dirigent_core.logging import configure_logging, silence_stdout
 from dirigent_core.protocol import FORMATS, Format, Record, make
 from dirigent_core.telemetry import configure_telemetry
 
@@ -194,14 +194,15 @@ def main_callback(
 
 
 def resolve_output(named: str | None, *, json_output: bool) -> Format:
-    """Resolve the output: the flag, then the environment, then the terminal.
+    """Resolve the output: the flag, then the ``log_format`` setting, then the terminal.
 
-    ``--json`` is the same request as ``--output json``, and the environment is where a
-    container says it once. Unasked, a terminal gets the rendering and anything else gets
+    ``--json`` is the same request as ``--output json``. ``log_format`` is where a container,
+    a project's ``.env`` or its ``dirigent.yaml`` says it once, read through the same layers
+    every other setting is. Unasked, a terminal gets the rendering and anything else gets
     NDJSON: a pipe, a container's log, an agent's shell and CI are never terminals, so a
     script reads records without asking, and a person reads lines without asking.
     """
-    chosen = named or ("json" if json_output else None) or os.environ.get(LOG_FORMAT_ENV)
+    chosen = named or ("json" if json_output else None) or get_settings().log_format
     if chosen is None:
         return "console" if sys.stdout.isatty() else "json"
     resolved = chosen.lower()

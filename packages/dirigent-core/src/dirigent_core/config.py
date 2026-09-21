@@ -161,12 +161,12 @@ class Settings(BaseSettings):
     """How loud the process log is. This is the process log; a run's own telemetry is the
     ``log_entries`` table, and a CLI ``-v`` or ``--debug`` flag wins over this."""
 
-    log_format: Literal["console", "json"] = "console"
-    """How a command spells a log line: ``console`` for a person, ``json`` for a collector.
+    log_format: Literal["console", "json"] | None = None
+    """How a command spells its output and its logs: ``console`` renders, ``json`` writes records.
 
-    ``DIRIGENT_LOG_FORMAT`` in the process environment is what a command reads, and with
-    nothing named the terminal decides: a terminal is rendered to and a pipe, a container's
-    log or CI gets records, ``dg dev`` and ``dg server`` included.
+    Unset, the terminal decides: a terminal gets the rendering, and a pipe, a container's log,
+    an agent's shell and CI get NDJSON, ``dg dev`` and ``dg server`` included. A command's
+    ``--json`` or ``-o console`` wins over it.
     """
 
     artifact_root: str = f"file://./{STATE_DIR}/artifacts"

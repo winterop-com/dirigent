@@ -244,7 +244,7 @@ class InitForm(App[InitChoices | None]):
         elif choices.instance:
             files += [".env", ".dirigent/state/"]
         if choices.workflow:
-            files.append(".github/workflows/dirigent.yml")
+            files.append(".github/workflows/dirigent.yaml")
         self.query_one("#files", Label).update("Will write: " + ", ".join(files))
 
     def on_button_pressed(self, event: Button.Pressed) -> None:

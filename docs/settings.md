@@ -31,7 +31,7 @@ environment, and the server inside one never opens the file.
 | `ui_enabled` | `DIRIGENT_UI_ENABLED` | `true` | Whether the server serves the bundled web UI beside the API. |
 | `ui_dir` | `DIRIGENT_UI_DIR` | `null` | A built web UI bundle to serve, instead of the one installed with the server. |
 | `log_level` | `DIRIGENT_LOG_LEVEL` | `"INFO"` | How loud the process log is. This is the process log; a run's own telemetry is the `log_entries` table, and a CLI `-v` or `--debug` flag wins over this. |
-| `log_format` | `DIRIGENT_LOG_FORMAT` | `"console"` | How a command spells a log line: `console` for a person, `json` for a collector. |
+| `log_format` | `DIRIGENT_LOG_FORMAT` | `null` | How a command spells its output and its logs: `console` renders, `json` writes records. |
 | `artifact_root` | `DIRIGENT_ARTIFACT_ROOT` | `"file://./.dirigent/state/artifacts"` | Default storage backend URI prefix for run scratch space and artifacts. |
 | `work_root` | `DIRIGENT_WORK_ROOT` | `"./.dirigent/state/work"` | Directory on this worker's own filesystem where a run's local working files go. |
 | `storage_connections` | `DIRIGENT_STORAGE_CONNECTIONS` | `{}` | Which connection configures each storage scheme, as `scheme -> connection code`. |
