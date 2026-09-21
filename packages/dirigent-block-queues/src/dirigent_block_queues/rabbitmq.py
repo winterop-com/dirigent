@@ -247,10 +247,20 @@ class RabbitMessage(BlockModel):
     """One message, as a downstream step reads it."""
 
     routing_key: str | None = None
+    """The key the message was published with, where the broker reported one."""
+
     exchange: str | None = None
+    """The exchange it came through, where the broker reported one."""
+
     delivery_tag: int | None = None
+    """The broker's tag for this delivery on the channel that read it."""
+
     body: JsonValue = None
+    """The message body, decoded the way ``value_format`` says it is written."""
+
     headers: dict[str, JsonValue] = Field(default_factory=dict[str, JsonValue])
+    """The headers the publisher set."""
+
     timestamp: datetime | None = None
     """When the publisher stamped the message, when it stamped one at all."""
 
@@ -259,7 +269,10 @@ class RabbitConsumeOutput(BlockModel):
     """The batch a poke succeeded on."""
 
     messages: list[RabbitMessage]
+    """The messages this poke drained."""
+
     count: int
+    """How many messages the batch holds."""
 
 
 class RabbitConsumeSensor(Sensor[RabbitConsumeConfig, RabbitConsumeOutput]):
@@ -472,6 +485,7 @@ class RabbitPublishOutput(BlockModel):
     """How many messages the broker took, which is one."""
 
     message_bytes: int
+    """How many bytes of body were handed to the broker."""
 
 
 class RabbitPublishOperator(Operator[RabbitPublishConfig, RabbitPublishOutput]):

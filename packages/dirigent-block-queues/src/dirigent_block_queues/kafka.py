@@ -305,21 +305,36 @@ class KafkaMessage(BlockModel):
     """One message, as a downstream step reads it."""
 
     topic: str
+    """The topic the message was read from."""
+
     partition: int
+    """The partition it was read from."""
+
     offset: int
+    """Its offset on that partition."""
+
     key: JsonValue = None
+    """The message key, decoded the way ``key_format`` says it is written."""
+
     value: JsonValue = None
+    """The message value, decoded the way ``value_format`` says it is written."""
+
     timestamp: datetime
     """When the broker recorded the message."""
 
     headers: dict[str, str] = Field(default_factory=dict[str, str])
+    """The headers the broker carried with it, each value as text."""
 
 
 class KafkaConsumeOutput(BlockModel):
     """The batch a poke succeeded on, and where it left the topic."""
 
     messages: list[KafkaMessage]
+    """The messages this poke read, partition by partition."""
+
     count: int
+    """How many messages the batch holds."""
+
     cursor: dict[str, int]
     """The offset each partition is read up to, keyed by partition number as a string.
 
@@ -536,12 +551,14 @@ class KafkaProduceOutput(BlockModel):
     """How many records the broker acknowledged."""
 
     topic: str
+    """The topic the records were published to."""
 
     offsets: dict[str, int]
     """The offset of the last record written to each partition, keyed by partition number as a
     string. A partition this publish did not write to is not in the map."""
 
     duration_ms: int
+    """How long the publish took."""
 
     sent_bytes: int
     """How many bytes of keys and values were handed to the client."""

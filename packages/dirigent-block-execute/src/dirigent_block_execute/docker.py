@@ -493,6 +493,7 @@ class DockerRunOutput(BlockModel):
     """What the container did, with its full streams and produced files addressable as artifacts."""
 
     exit_code: int
+    """The status the container exited with."""
 
     stdout: str
     """The head of what the container printed, cut at the instance's inline capture size.
@@ -521,7 +522,11 @@ class DockerRunOutput(BlockModel):
     """Whether ``stderr`` above is short of the stream, which is an independent question."""
 
     container_id: str
+    """The container that ran, by the id the daemon gave it."""
+
     image: str
+    """The image the container ran."""
+
     outputs: dict[str, str] = Field(default_factory=dict[str, str])
     """Where each declared output was written, by the name the config gave it: the storage URI,
     or the path relative to the run's work directory it landed at."""

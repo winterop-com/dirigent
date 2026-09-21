@@ -260,7 +260,7 @@ Contributed by `block-execute`. Not idempotent. **Runs code on the worker**, so 
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `exit_code` | `integer` | yes |  | -- |
+| `exit_code` | `integer` | yes |  | The status the container exited with. |
 | `stdout` | `string` | yes |  | The head of what the container printed, cut at the instance's inline capture size. |
 | `stderr` | `string` | yes |  | The head of what the container printed to stderr, cut the same way. |
 | `stdout_uri` | `string` | yes |  | Where the whole of stdout was written; never truncated, whatever the field above holds. |
@@ -269,8 +269,8 @@ Contributed by `block-execute`. Not idempotent. **Runs code on the worker**, so 
 | `stderr_bytes` | `integer` | yes |  | How much it printed to stderr altogether. |
 | `stdout_truncated` | `boolean` | yes |  | Whether `stdout` above is short of the stream. Only the inline copy is ever cut. |
 | `stderr_truncated` | `boolean` | yes |  | Whether `stderr` above is short of the stream, which is an independent question. |
-| `container_id` | `string` | yes |  | -- |
-| `image` | `string` | yes |  | -- |
+| `container_id` | `string` | yes |  | The container that ran, by the id the daemon gave it. |
+| `image` | `string` | yes |  | The image the container ran. |
 | `outputs` | `object of string` |  |  | Where each declared output was written, by the name the config gave it: the storage URI, or the path relative to the run's work directory it landed at. |
 
 ### `filter.jq`
@@ -335,9 +335,9 @@ Contributed by `block-http`. Not idempotent.
 | `path` | `string` |  | `"/"` | The path resolved against the connection's base URL. |
 | `timeout` | `string (humane-duration) or null` |  | `null` | Overrides the connection's timeout for this call alone. |
 | `follow_redirects` | `boolean` |  | `false` | Whether a 3xx is followed rather than returned as the answer. |
-| `method` | `"GET" or "POST" or "PUT" or "PATCH" or "DELETE" or "HEAD" or "OPTIONS"` |  | `"GET"` | -- |
-| `query` | `object of string or integer or number or boolean` |  |  | -- |
-| `headers` | `object of string` |  |  | -- |
+| `method` | `"GET" or "POST" or "PUT" or "PATCH" or "DELETE" or "HEAD" or "OPTIONS"` |  | `"GET"` | The method the request is sent with. |
+| `query` | `object of string or integer or number or boolean` |  |  | Query parameters appended to the URL, each value written as text. |
+| `headers` | `object of string` |  |  | Headers sent with the request. |
 | `body` | `any or null` |  | `null` | What the request sends, usually a reference to what an earlier step produced. |
 | `content_type` | `string or null` |  | `null` | The content type the body is sent with, overriding the default for what it carries. |
 | `success_status` | `integer[]` |  |  | Status codes that count as success; empty means any 2xx. |
@@ -347,11 +347,11 @@ Contributed by `block-http`. Not idempotent.
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `status` | `integer` | yes |  | -- |
-| `headers` | `object of string` | yes |  | -- |
+| `status` | `integer` | yes |  | The status code the service answered with. |
+| `headers` | `object of string` | yes |  | The response headers, keyed by lowercase name. |
 | `body` | `any` |  | `null` | What the service answered: the parsed document when it is JSON, else the text. |
 | `body_bytes` | `integer` | yes |  | How many bytes the answer was. |
-| `duration_ms` | `integer` | yes |  | -- |
+| `duration_ms` | `integer` | yes |  | How long the call took. |
 
 ### `kafka.produce`
 
@@ -375,9 +375,9 @@ Contributed by `block-queues`. Not idempotent.
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `produced` | `integer` | yes |  | How many records the broker acknowledged. |
-| `topic` | `string` | yes |  | -- |
+| `topic` | `string` | yes |  | The topic the records were published to. |
 | `offsets` | `object of integer` | yes |  | The offset of the last record written to each partition, keyed by partition number as a string. A partition this publish did not write to is not in the map. |
-| `duration_ms` | `integer` | yes |  | -- |
+| `duration_ms` | `integer` | yes |  | How long the publish took. |
 | `sent_bytes` | `integer` | yes |  | How many bytes of keys and values were handed to the client. |
 
 ### `log.write`
@@ -439,7 +439,7 @@ Contributed by `block-base`. Not idempotent. Polls every 5s unless the step says
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `pipeline` | `string` | yes |  | -- |
+| `pipeline` | `string` | yes |  | The pipeline this step ran, by code. |
 | `run_id` | `string or null` |  | `null` | The child run, or `null` when its concurrency policy meant no run was created. |
 | `status` | `string` | yes |  | The child's run status, `started` when this step did not wait, or `skipped`. |
 
@@ -466,7 +466,7 @@ Contributed by `block-queues`. Not idempotent.
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `published` | `integer` | yes |  | How many messages the broker took, which is one. |
-| `message_bytes` | `integer` | yes |  | -- |
+| `message_bytes` | `integer` | yes |  | How many bytes of body were handed to the broker. |
 
 ### `report.render`
 
@@ -512,7 +512,7 @@ Contributed by `block-execute`. Not idempotent. **Runs code on the worker**, so 
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `exit_code` | `integer` | yes |  | -- |
+| `exit_code` | `integer` | yes |  | The status the command exited with. |
 | `stdout` | `string` | yes |  | The head of what the command printed, cut at the instance's inline capture size. |
 | `stderr` | `string` | yes |  | The head of what the command printed to stderr, cut the same way. |
 | `stdout_uri` | `string` | yes |  | Where the whole of stdout was written; never truncated, whatever the field above holds. |
@@ -542,7 +542,7 @@ Contributed by `block-sql`. Not idempotent.
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `row_counts` | `integer[]` | yes |  | Rows affected by each statement, in order; `-1` where the driver does not say. |
-| `duration_ms` | `integer` | yes |  | -- |
+| `duration_ms` | `integer` | yes |  | How long the transaction took. |
 
 ### `sql.query`
 
@@ -567,7 +567,7 @@ Contributed by `block-sql`. Idempotent.
 | `rows` | `any[]` | yes |  | The rows as objects keyed by column name, which a later step reads or writes out. |
 | `row_count` | `integer` | yes |  | How many rows the query returned. |
 | `columns` | `string[]` | yes |  | The column names, in the order the query selected them. |
-| `duration_ms` | `integer` | yes |  | -- |
+| `duration_ms` | `integer` | yes |  | How long the query took. |
 
 ### `storage.copy`
 
@@ -777,8 +777,8 @@ Contributed by `block-queues`. Not idempotent. Polls every 30s unless the step s
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `messages` | `object[]` | yes |  | -- |
-| `count` | `integer` | yes |  | -- |
+| `messages` | `object[]` | yes |  | The messages this poke read, partition by partition. |
+| `count` | `integer` | yes |  | How many messages the batch holds. |
 | `cursor` | `object of integer` | yes |  | The offset each partition is read up to, keyed by partition number as a string. |
 
 ### `rabbitmq.consume`
@@ -804,8 +804,8 @@ Contributed by `block-queues`. Not idempotent. Polls every 30s unless the step s
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `messages` | `object[]` | yes |  | -- |
-| `count` | `integer` | yes |  | -- |
+| `messages` | `object[]` | yes |  | The messages this poke drained. |
+| `count` | `integer` | yes |  | How many messages the batch holds. |
 
 ### `storage.exists`
 
@@ -867,7 +867,7 @@ Contributed by `block-base`. Not idempotent. Polls every 1m unless the step says
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `entered_at` | `string (date-time)` | yes |  | When the window this poke fell inside opened, not when the poke happened. |
-| `timezone` | `string` | yes |  | -- |
+| `timezone` | `string` | yes |  | The timezone the clock was read in. |
 
 ## Other surfaces
 

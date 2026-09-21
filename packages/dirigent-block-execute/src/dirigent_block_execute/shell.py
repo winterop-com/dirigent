@@ -77,6 +77,7 @@ class ShellRunOutput(BlockModel):
     """What the command did, with its full streams addressable as artifacts."""
 
     exit_code: int
+    """The status the command exited with."""
 
     stdout: str
     """The head of what the command printed, cut at the instance's inline capture size.
