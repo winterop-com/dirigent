@@ -82,15 +82,11 @@ jobs:
           - dirigent-plugin
           - dirigent-client
           - dirigent-core
+          # A block family joins the matrix once PyPI holds a pending publisher for it; PyPI
+          # allows three pending at a time, so the families arrive three per release.
           - dirigent-block-base
-          - dirigent-block-duckdb
-          - dirigent-block-execute
           - dirigent-block-http
-          - dirigent-block-jq
-          - dirigent-block-parquet
-          - dirigent-block-queues
           - dirigent-block-sql
-          - dirigent-block-storage
           - dirigent-blocks
           - dirigent-examples
           - dirigent-server
