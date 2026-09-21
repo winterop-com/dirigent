@@ -30,6 +30,12 @@ from pydantic import BaseModel, ConfigDict, Field, JsonValue, SecretStr, model_v
 from dirigent_block_execute import secrets, subprocess
 from dirigent_block_execute.capture import Drained, Ends, log_stream, scrub, tail
 from dirigent_block_execute.environment import allowed, reject_reserved
+from dirigent_block_execute.messages import (
+    CONTAINER_GONE,
+    DAEMON_REFUSED,
+    NO_DAEMON,
+    OUTPUT_NOT_WRITTEN,
+)
 from dirigent_block_http.http import status_class
 from dirigent_common import BlockModel, Duration, HealthReport, Size
 from dirigent_plugin import (
@@ -579,10 +585,7 @@ class DockerRunOperator(Operator[DockerRunConfig, DockerRunOutput]):
             async with _daemon(config, environ) as daemon:
                 inspected = await daemon.inspect(handle.ref)
                 if inspected is None:
-                    raise BlockFailure(
-                        f"container {handle.ref[:12]} disappeared before its result could be collected",
-                        error_class=ErrorClass.TRANSIENT,
-                    )
+                    raise BlockFailure(CONTAINER_GONE, error_class=ErrorClass.TRANSIENT, container=handle.ref[:12])
                 async with (
                     ctx.storage.open_write(stdout_uri) as out_sink,
                     ctx.storage.open_write(stderr_uri) as err_sink,
@@ -776,8 +779,10 @@ async def _collect_outputs(config: DockerRunConfig, handle: RemoteHandle, ctx: S
         produced = directory / name
         if not produced.is_file():
             raise BlockFailure(
-                f"the container did not write the declared output {name!r} to {config.outputs_path}",
+                OUTPUT_NOT_WRITTEN,
                 error_class=ErrorClass.REJECTED,
+                name=repr(name),
+                path=config.outputs_path,
             )
         if "://" in target:
             written = 0
@@ -1020,10 +1025,10 @@ class DockerDaemon:
             cause = exc.__cause__ if isinstance(exc.__cause__, OSError) else None
             missing = cause is not None and cause.errno == errno.ENOENT
             raise BlockFailure(
-                f"the Docker daemon at {self.socket} did not answer ({exc}); a worker in a "
-                f"container has no daemon unless the host's socket is mounted into it, and "
-                f"mounting it grants the container root on the host",
+                NO_DAEMON,
                 error_class=ErrorClass.REJECTED if missing else ErrorClass.TRANSIENT,
+                socket=self.socket,
+                detail=str(exc),
             ) from exc
 
     async def pull(self, image: str, timeout: float) -> None:
@@ -1234,8 +1239,10 @@ def _require_ok(response: httpx2.Response, action: str) -> None:
     if response.status_code < BAD_REQUEST:
         return
     raise BlockFailure(
-        f"the daemon refused to {action}: {_daemon_message(response)}",
+        DAEMON_REFUSED,
         error_class=status_class(response.status_code),
+        action=action,
+        detail=_daemon_message(response),
     )
 
 

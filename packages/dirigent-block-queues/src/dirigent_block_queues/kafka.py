@@ -30,6 +30,16 @@ from typing import Any, ClassVar, Literal, Protocol, cast
 
 from pydantic import BaseModel, Field, JsonValue, SecretStr, ValidationError, model_validator
 
+from dirigent_block_queues.messages import (
+    KAFKA_BAD_ENVELOPE,
+    KAFKA_CONNECTION_REFUSED,
+    KAFKA_NO_KEY_FIELD,
+    KAFKA_NO_TOPIC,
+    KAFKA_PART_NOT_JSON,
+    KAFKA_PUBLISH_FAILED,
+    KAFKA_PUBLISH_TIMED_OUT,
+    KAFKA_READ_FAILED,
+)
 from dirigent_common import BlockModel, Duration, HealthReport
 from dirigent_plugin import (
     BlockFailure,
@@ -339,9 +349,7 @@ class KafkaConsumeSensor(Sensor[KafkaConsumeConfig, KafkaConsumeOutput]):
             await consumer.start()
         except Exception as error:
             await close(consumer)
-            raise BlockFailure(
-                f"the kafka cluster refused the connection: {error}", error_class=classify(error)
-            ) from error
+            raise BlockFailure(KAFKA_CONNECTION_REFUSED, error_class=classify(error), detail=str(error)) from error
         try:
             await _position(consumer, config, offsets)
             fetched = await consumer.getmany(
@@ -369,7 +377,9 @@ class KafkaConsumeSensor(Sensor[KafkaConsumeConfig, KafkaConsumeOutput]):
         except BlockFailure:
             raise
         except Exception as error:
-            raise BlockFailure(f"reading {config.topic!r} failed: {error}", error_class=classify(error)) from error
+            raise BlockFailure(
+                KAFKA_READ_FAILED, error_class=classify(error), topic=repr(config.topic), detail=str(error)
+            ) from error
         finally:
             await close(consumer)
 
@@ -569,9 +579,7 @@ class KafkaProduceOperator(Operator[KafkaProduceConfig, KafkaProduceOutput]):
         try:
             await producer.start()
         except Exception as error:
-            raise BlockFailure(
-                f"the kafka cluster refused the connection: {error}", error_class=classify(error)
-            ) from error
+            raise BlockFailure(KAFKA_CONNECTION_REFUSED, error_class=classify(error), detail=str(error)) from error
         offsets: dict[str, int] = {}
         produced = 0
         sent_bytes = 0
@@ -591,12 +599,14 @@ class KafkaProduceOperator(Operator[KafkaProduceConfig, KafkaProduceOutput]):
             raise
         except TimeoutError as error:
             raise BlockFailure(
-                f"publishing to {config.topic!r} did not finish within {config.timeout}",
+                KAFKA_PUBLISH_TIMED_OUT,
                 error_class=ErrorClass.TRANSIENT,
+                topic=repr(config.topic),
+                timeout=config.timeout,
             ) from error
         except Exception as error:
             raise BlockFailure(
-                f"publishing to {config.topic!r} failed: {error}", error_class=classify(error)
+                KAFKA_PUBLISH_FAILED, error_class=classify(error), topic=repr(config.topic), detail=str(error)
             ) from error
         finally:
             await producer.stop()
@@ -617,7 +627,7 @@ class KafkaProduceOperator(Operator[KafkaProduceConfig, KafkaProduceOutput]):
 async def _check_topic(producer: Producer, topic: str) -> None:
     """Refuse a topic the cluster does not have, before a record is handed to the client."""
     if topic not in await producer.topics():
-        raise BlockFailure(f"the cluster has no topic {topic!r}", error_class=ErrorClass.REJECTED)
+        raise BlockFailure(KAFKA_NO_TOPIC, error_class=ErrorClass.REJECTED, topic=repr(topic))
 
 
 def _outgoing(config: KafkaProduceConfig) -> Iterator[OutgoingRecord]:
@@ -632,10 +642,7 @@ def _envelope(element: JsonValue) -> OutgoingRecord:
         try:
             return OutgoingRecord.model_validate(element)
         except ValidationError as error:
-            raise BlockFailure(
-                f"a record envelope is not one this step can send: {error}",
-                error_class=ErrorClass.REJECTED,
-            ) from error
+            raise BlockFailure(KAFKA_BAD_ENVELOPE, error_class=ErrorClass.REJECTED, detail=str(error)) from error
     return OutgoingRecord(value=element)
 
 
@@ -644,7 +651,7 @@ def _keyed(record: OutgoingRecord, field: str | None) -> OutgoingRecord:
     if field is None or record.key is not None:
         return record
     if not isinstance(record.value, dict) or field not in record.value:
-        raise BlockFailure(f"a record has no field {field!r} to take its key from", error_class=ErrorClass.REJECTED)
+        raise BlockFailure(KAFKA_NO_KEY_FIELD, error_class=ErrorClass.REJECTED, field=repr(field))
     return record.model_copy(update={"key": record.value[field]})
 
 
@@ -707,7 +714,7 @@ async def _position(consumer: Consumer, config: KafkaConsumeConfig, offsets: dic
     await consumer.prime(config.topic)
     partitions = consumer.partitions_for_topic(config.topic)
     if not partitions:
-        raise BlockFailure(f"the cluster has no topic {config.topic!r}", error_class=ErrorClass.REJECTED)
+        raise BlockFailure(KAFKA_NO_TOPIC, error_class=ErrorClass.REJECTED, topic=repr(config.topic))
     if config.group_id is not None and not offsets:
         consumer.subscribe([config.topic])
         return
@@ -784,8 +791,7 @@ def decode(raw: bytes | None, form: Payload, what: str) -> JsonValue:
         return cast("JsonValue", json.loads(raw.decode("utf-8")))
     except (UnicodeDecodeError, json.JSONDecodeError) as error:
         raise BlockFailure(
-            f"a message {what} is not the json this step reads: {error}",
-            error_class=ErrorClass.REJECTED,
+            KAFKA_PART_NOT_JSON, error_class=ErrorClass.REJECTED, part=what, detail=str(error)
         ) from error
 
 

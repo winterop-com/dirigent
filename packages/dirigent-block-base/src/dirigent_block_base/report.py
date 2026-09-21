@@ -4,9 +4,11 @@ from typing import Annotated, Any, ClassVar
 
 from pydantic import BaseModel, Field
 
+from dirigent_block_base.messages import TEMPLATE_FAILED, TEMPLATE_REFUSED
 from dirigent_common import (
     TEMPLATE_MEDIA_TYPE,
     BlockModel,
+    Issue,
     JsonMap,
     RenderTooLarge,
     Size,
@@ -68,17 +70,17 @@ class ReportRenderOperator(Operator[ReportRenderConfig, ReportRenderOutput]):
         try:
             text = render(config.template, config.values, max_bytes=int(config.max_size))
         except (RenderTooLarge, TemplateError) as error:
-            raise BlockFailure(str(error), error_class=ErrorClass.REJECTED) from error
+            raise BlockFailure(TEMPLATE_FAILED, error_class=ErrorClass.REJECTED, detail=str(error)) from error
         size = len(text.encode())
         ctx.log.info("rendered", content_type=config.content_type, text_bytes=size)
         return ReportRenderOutput(text=text, content_type=config.content_type, text_bytes=size)
 
-    def check_config(self, config: BaseModel) -> list[str]:
+    def check_config(self, config: BaseModel) -> list[Issue]:
         """Compile the template at apply, so a bad one is refused before the document is stored."""
         if not isinstance(config, ReportRenderConfig):
             return []
         try:
             compile_template(config.template)
         except TemplateError as error:
-            return [str(error)]
+            return [Issue.of(TEMPLATE_REFUSED, detail=str(error))]
         return []

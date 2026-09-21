@@ -23,6 +23,7 @@ from dirigent_plugin import (
     StatResult,
     StepContext,
 )
+from dirigent_testing.messages import TEST_REFUSAL
 
 
 class RecordingLogger:
@@ -179,7 +180,7 @@ class FakeRuns:
         """Record the start and answer with a run, a skip, or the refusal the test installed."""
         self.started.append((pipeline, dict(params), max_depth))
         if self.refusal is not None:
-            raise RunRefused(self.refusal)
+            raise RunRefused(TEST_REFUSAL, detail=self.refusal)
         if pipeline in self.skip:
             return StartedRun(pipeline=pipeline)
         run_id = self.hold(pipeline)

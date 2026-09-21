@@ -9,6 +9,22 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 from pydantic import JsonValue
 
+from dirigent_block_parquet.messages import (
+    BINARY_COLUMN,
+    CSV_HEADER_REPEATED,
+    CSV_HEADER_UNNAMED,
+    CSV_ROW_TOO_WIDE,
+    LINE_NOT_JSON,
+    MIXED_COLUMN,
+    NESTED_COLUMN,
+    NESTED_VALUE,
+    NO_JSON_SPELLING,
+    NOT_A_JSON_ARRAY,
+    NOT_JSON,
+    NOT_PARQUET,
+    NOT_UTF8,
+    RECORD_NOT_AN_OBJECT,
+)
 from dirigent_common import spelled
 from dirigent_plugin import Converter, TransformError
 
@@ -53,17 +69,16 @@ def _read_parquet(source: bytes, target_format: str) -> list[dict[str, JsonValue
     try:
         table = pq.read_table(pa.BufferReader(source))  # pyright: ignore[reportUnknownMemberType]
     except pa.ArrowInvalid as error:
-        raise TransformError(f"the input is not parquet: {error}") from error
+        raise TransformError(NOT_PARQUET.render(detail=str(error))) from error
     for name, kind in zip(table.schema.names, table.schema.types, strict=True):
         if pa.types.is_nested(kind):
             raise TransformError(
-                f"column {name!r} is {kind}, and a nested column has no "
-                f"{target_format} {UNIT[target_format]} spelling; flatten it before converting"
+                NESTED_COLUMN.render(
+                    column=repr(name), kind=kind, target_format=target_format, unit=UNIT[target_format]
+                )
             )
         if pa.types.is_binary(kind) or pa.types.is_large_binary(kind) or pa.types.is_fixed_size_binary(kind):
-            raise TransformError(
-                f"column {name!r} holds raw bytes, which have no JSON spelling; decode or drop it before converting"
-            )
+            raise TransformError(BINARY_COLUMN.render(column=repr(name)))
     return [{key: _spelled(value) for key, value in row.items()} for row in table.to_pylist()]
 
 
@@ -73,7 +88,7 @@ def _spelled(value: object) -> JsonValue:
         return spelled(value)
     except ValueError as error:
         # A schema check above rules out nested and binary columns, so nothing else arrives.
-        raise TransformError(str(error)) from error
+        raise TransformError(NO_JSON_SPELLING.render(detail=str(error))) from error
 
 
 def _read_text(source: bytes, source_format: str, target_format: str) -> list[dict[str, JsonValue]]:
@@ -81,18 +96,14 @@ def _read_text(source: bytes, source_format: str, target_format: str) -> list[di
     try:
         text = source.decode("utf-8")
     except UnicodeDecodeError as error:
-        raise TransformError(
-            f"the input is not UTF-8 text: {error.reason} at byte {error.start}; a text format is UTF-8"
-        ) from error
+        raise TransformError(NOT_UTF8.render(reason=error.reason, position=error.start)) from error
     if source_format == "csv":
         return _read_csv(text)
     values = _read_json_values(text, source_format, target_format)
     records: list[dict[str, JsonValue]] = []
     for number, value in enumerate(values, start=1):
         if not isinstance(value, dict):
-            raise TransformError(
-                f"{UNIT[source_format]} {number} of the input is not an object, and a parquet row is a flat object"
-            )
+            raise TransformError(RECORD_NOT_AN_OBJECT.render(unit=UNIT[source_format], number=number))
         records.append(value)
     return records
 
@@ -103,12 +114,9 @@ def _read_json_values(text: str, source_format: str, target_format: str) -> list
         try:
             parsed: JsonValue = json.loads(text)
         except ValueError as error:
-            raise TransformError(f"the input is not JSON: {error}") from error
+            raise TransformError(NOT_JSON.render(detail=str(error))) from error
         if not isinstance(parsed, list):
-            raise TransformError(
-                f"json to {target_format} writes one {UNIT[target_format]} per element, "
-                f"so the input has to be a JSON array"
-            )
+            raise TransformError(NOT_A_JSON_ARRAY.render(target_format=target_format, unit=UNIT[target_format]))
         return parsed
     values: list[JsonValue] = []
     for number, line in enumerate(text.splitlines(), start=1):
@@ -117,7 +125,7 @@ def _read_json_values(text: str, source_format: str, target_format: str) -> list
         try:
             values.append(json.loads(line))
         except ValueError as error:
-            raise TransformError(f"line {number} of the input is not JSON: {error}") from error
+            raise TransformError(LINE_NOT_JSON.render(number=number, detail=str(error))) from error
     return values
 
 
@@ -133,10 +141,7 @@ def _read_csv(text: str) -> list[dict[str, JsonValue]]:
         if not row:
             continue
         if len(row) > len(header):
-            raise TransformError(
-                f"row {number} of the csv has more cells than the header names columns, "
-                f"and a cell no column names has nowhere to go"
-            )
+            raise TransformError(CSV_ROW_TOO_WIDE.render(number=number))
         records.append({name: row[index] if index < len(row) else "" for index, name in enumerate(header)})
     return records
 
@@ -159,17 +164,11 @@ def _check_header(header: list[str]) -> None:
         positions.setdefault(name, []).append(index)
     unnamed = positions.pop("", None)
     if unnamed is not None:
-        raise TransformError(
-            f"the csv header has no name at {_columns_phrase(unnamed)}, and a record key names "
-            f"its column; name it before converting"
-        )
+        raise TransformError(CSV_HEADER_UNNAMED.render(columns=_columns_phrase(unnamed)))
     repeated = [(name, where) for name, where in positions.items() if len(where) > 1]
     if repeated:
         listed = "; ".join(f"{name!r} at {_columns_phrase(where)}" for name, where in repeated)
-        raise TransformError(
-            f"the csv header repeats a column name: {listed}; a record key names one column, "
-            f"so rename them before converting"
-        )
+        raise TransformError(CSV_HEADER_REPEATED.render(listed=listed))
 
 
 #: The arrow type each column kind writes as. A column every row leaves null carries no
@@ -209,10 +208,7 @@ def _columns(records: list[dict[str, JsonValue]]) -> dict[str, str]:
             elif {settled, kind} == {"integer", "number"}:
                 kinds[key] = "number"
             elif settled != kind:
-                raise TransformError(
-                    f"column {key!r} holds both {settled} and {kind} values, and a parquet "
-                    f"column carries one type; reshape it before converting"
-                )
+                raise TransformError(MIXED_COLUMN.render(column=repr(key), settled=settled, kind=kind))
     for key in {name for record in records for name in record}:
         kinds.setdefault(key, "string")
     return kinds
@@ -223,10 +219,7 @@ def _kind(value: JsonValue, number: int, key: str) -> str | None:
     if value is None:
         return None
     if isinstance(value, dict | list):
-        raise TransformError(
-            f"row {number} has a nested value at {key!r}, and this codec writes flat "
-            f"columns; flatten it before converting"
-        )
+        raise TransformError(NESTED_VALUE.render(number=number, key=repr(key)))
     # Before the integer check, because a bool is an int in Python and is not one in JSON.
     if isinstance(value, bool):
         return "boolean"

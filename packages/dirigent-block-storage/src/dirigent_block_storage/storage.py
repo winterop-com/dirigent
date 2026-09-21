@@ -13,6 +13,13 @@ from typing import ClassVar, cast
 
 from pydantic import BaseModel, Field, JsonValue, model_validator
 
+from dirigent_block_storage.messages import (
+    NOT_JSON,
+    NOT_UTF8,
+    NOTHING_THERE,
+    TOO_LARGE,
+    UNREADABLE_AS_A_VALUE,
+)
 from dirigent_common import BlockModel, Size, StorageUri
 from dirigent_plugin import (
     BlockFailure,
@@ -68,7 +75,7 @@ class StorageCopyOperator(Operator[StorageCopyConfig, StorageCopyOutput]):
         """Copy source to target through the storage facade, refusing a missing source."""
         found = await ctx.storage.stat(config.source)
         if found is None:
-            raise BlockFailure(f"there is nothing at {config.source}", error_class=ErrorClass.REJECTED)
+            raise BlockFailure(NOTHING_THERE, error_class=ErrorClass.REJECTED, source=config.source)
         copied = 0
         async with ctx.storage.open_write(config.target, content_type=found.content_type) as sink:
             async for chunk in ctx.storage.open_read(config.source):
@@ -189,7 +196,7 @@ class StorageReadOperator(Operator[StorageReadConfig, StorageReadOutput]):
         """Resolve what the object is, read it bounded, and decode it accordingly."""
         found = await ctx.storage.stat(config.source)
         if found is None:
-            raise BlockFailure(f"there is nothing at {config.source}", error_class=ErrorClass.REJECTED)
+            raise BlockFailure(NOTHING_THERE, error_class=ErrorClass.REJECTED, source=config.source)
         if found.size > config.max_size:
             raise _too_large(config)
         content_type = _content_type(config, found)
@@ -212,9 +219,7 @@ def _content_type(config: StorageReadConfig, found: StatResult) -> str:
     if _is_json(resolved) or resolved.startswith("text/") or resolved in TEXT_TYPES:
         return resolved
     raise BlockFailure(
-        f"{config.source} is {resolved}, which this step has no way to read as a value; "
-        f"set content_type to say what it really is, or move the bytes with storage.copy",
-        error_class=ErrorClass.REJECTED,
+        UNREADABLE_AS_A_VALUE, error_class=ErrorClass.REJECTED, source=config.source, content_type=resolved
     )
 
 
@@ -243,11 +248,7 @@ async def _read_bounded(config: StorageReadConfig, ctx: StepContext) -> bytes:
 
 def _too_large(config: StorageReadConfig) -> BlockFailure:
     """The refusal of an object bigger than the step said it would hold."""
-    return BlockFailure(
-        f"{config.source} is larger than max_size ({config.max_size} bytes); raise max_size, "
-        f"or move the bytes with storage.copy instead of carrying them",
-        error_class=ErrorClass.REJECTED,
-    )
+    return BlockFailure(TOO_LARGE, error_class=ErrorClass.REJECTED, source=config.source, maximum=config.max_size)
 
 
 def _as_text(config: StorageReadConfig, payload: bytes) -> str:
@@ -256,8 +257,7 @@ def _as_text(config: StorageReadConfig, payload: bytes) -> str:
         return payload.decode()
     except UnicodeDecodeError as error:
         raise BlockFailure(
-            f"{config.source} is not the utf-8 its content type promises: {error}",
-            error_class=ErrorClass.REJECTED,
+            NOT_UTF8, error_class=ErrorClass.REJECTED, source=config.source, detail=str(error)
         ) from error
 
 
@@ -267,8 +267,7 @@ def _as_value(config: StorageReadConfig, payload: bytes) -> JsonValue:
         return cast("JsonValue", json.loads(payload))
     except ValueError as error:
         raise BlockFailure(
-            f"{config.source} is not the json its content type promises: {error}",
-            error_class=ErrorClass.REJECTED,
+            NOT_JSON, error_class=ErrorClass.REJECTED, source=config.source, detail=str(error)
         ) from error
 
 

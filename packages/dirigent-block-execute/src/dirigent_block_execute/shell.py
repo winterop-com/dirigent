@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field, model_validator
 from dirigent_block_execute import subprocess
 from dirigent_block_execute.capture import log_stream, tail
 from dirigent_block_execute.environment import reject_reserved
+from dirigent_block_execute.messages import COMMAND_EXITED
 from dirigent_common import BlockModel, Duration
 from dirigent_plugin import (
     BlockFailure,
@@ -149,8 +150,10 @@ class ShellRunOperator(Operator[ShellRunConfig, ShellRunOutput]):
         ctx.log.info("command finished", exit_code=code, stdout_bytes=out.total_bytes, stderr_bytes=err.total_bytes)
         if code != 0:
             raise BlockFailure(
-                f"the command exited {code}: {tail(err.tail) or tail(out.tail) or 'no output'}",
+                COMMAND_EXITED,
                 error_class=ErrorClass.UNKNOWN,
+                code=code,
+                detail=tail(err.tail) or tail(out.tail) or "no output",
             )
         printed = out.captured(ctx.inline_capture)
         failed = err.captured(ctx.inline_capture)

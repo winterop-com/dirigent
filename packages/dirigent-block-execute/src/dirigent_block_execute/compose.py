@@ -48,6 +48,7 @@ from dirigent_block_execute.docker import (
     write_cli_config,
 )
 from dirigent_block_execute.environment import reject_reserved
+from dirigent_block_execute.messages import COMPOSE_DOWN_EXITED, COMPOSE_UP_EXITED
 from dirigent_common import BlockModel, Duration
 from dirigent_plugin import (
     BlockFailure,
@@ -367,7 +368,7 @@ class DockerComposeUpOperator(Operator[DockerComposeUpConfig, DockerComposeUpOut
                 if config.cleanup:
                     await _cleanup(config, project, compose_file, root, environ, CLEANUP_TIMEOUT_SECONDS, ctx)
                 detail = tail(err.tail) or tail(out.tail) or "no output"
-                raise BlockFailure(f"docker compose up exited {code}: {detail}", error_class=_classify(err.tail))
+                raise BlockFailure(COMPOSE_UP_EXITED, error_class=_classify(err.tail), code=code, detail=detail)
 
             services, networks, default_network = await read_status(
                 config.socket_path, config.api_timeout.total_seconds(), project, environ
@@ -426,7 +427,7 @@ class DockerComposeDownOperator(Operator[DockerComposeDownConfig, DockerComposeD
         ctx.log.info("docker compose down finished", project=project, exit_code=code)
         if code != 0:
             detail = tail(err.tail) or tail(out.tail) or "no output"
-            raise BlockFailure(f"docker compose down exited {code}: {detail}", error_class=_classify(err.tail))
+            raise BlockFailure(COMPOSE_DOWN_EXITED, error_class=_classify(err.tail), code=code, detail=detail)
         return DockerComposeDownOutput(project=project, stdout_uri=stdout_uri, stderr_uri=stderr_uri)
 
 

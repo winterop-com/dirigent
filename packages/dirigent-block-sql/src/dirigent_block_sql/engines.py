@@ -29,6 +29,7 @@ from sqlalchemy.sql.elements import TextClause
 
 from dirigent_block_sql import markers
 from dirigent_block_sql.markers import ENGINES_GROUP
+from dirigent_block_sql.messages import CONNECT_TIMED_OUT, DRIVER_NOT_INSTALLED
 from dirigent_common import HealthReport, JsonMap
 from dirigent_plugin import PROJECT_NAME, BlockFailure, ErrorClass, StepContext
 
@@ -280,10 +281,11 @@ def _engine(url: URL) -> AsyncEngine:
         driver = url.drivername.partition("+")[2]
         package = DRIVER_PACKAGE.get(driver, driver)
         raise BlockFailure(
-            f"the {driver!r} driver this url names is not installed on the worker; add the {package!r} "
-            f"package to the image, or use a driver that ships with it "
-            f"({', '.join(['asyncpg', 'aiosqlite'])})",
+            DRIVER_NOT_INSTALLED,
             error_class=ErrorClass.REJECTED,
+            driver=repr(driver),
+            package=repr(package),
+            shipped=", ".join(["asyncpg", "aiosqlite"]),
         ) from error
 
 
@@ -305,8 +307,7 @@ class _Session:
         except TimeoutError as error:
             await self.engine.dispose()
             raise BlockFailure(
-                f"the database did not answer within {self.settings.connect_timeout}",
-                error_class=ErrorClass.TRANSIENT,
+                CONNECT_TIMED_OUT, error_class=ErrorClass.TRANSIENT, timeout=self.settings.connect_timeout
             ) from error
         except BaseException:
             await self.engine.dispose()

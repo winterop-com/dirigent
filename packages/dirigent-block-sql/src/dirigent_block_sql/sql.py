@@ -29,6 +29,7 @@ from pydantic import BaseModel, Field, SecretStr, model_validator
 from sqlalchemy.engine import URL, make_url
 
 from dirigent_block_sql.engines import SqlSession, engine_for
+from dirigent_block_sql.messages import NO_JSON_SPELLING, READ_ONLY_CONNECTION, TOO_MANY_ROWS
 from dirigent_common import (
     SQL_MEDIA_TYPE,
     BlockModel,
@@ -287,9 +288,7 @@ class SqlExecuteOperator(Operator[SqlExecuteConfig, SqlExecuteOutput]):
         settings = ctx.connection(config.connection, SqlConnectionConfig)
         if settings.read_only:
             raise BlockFailure(
-                f"connection {config.connection!r} is read_only, and sql.execute writes; "
-                f"read it with sql.query, or point this step at a connection that may write",
-                error_class=ErrorClass.REJECTED,
+                READ_ONLY_CONNECTION, error_class=ErrorClass.REJECTED, connection=repr(config.connection)
             )
         url = _resolved(settings, ctx)
         engine = engine_for(url)
@@ -356,10 +355,7 @@ async def _inline(result: Any, max_rows: int) -> JsonList:
     async for batch in _batches(result):
         rows.extend(spelled_row(one) for one in batch)
         if len(rows) > max_rows:
-            raise BlockFailure(
-                f"the query returned more than max_rows ({max_rows}) rows; raise max_rows, or narrow the query",
-                error_class=ErrorClass.REJECTED,
-            )
+            raise BlockFailure(TOO_MANY_ROWS, error_class=ErrorClass.REJECTED, maximum=max_rows)
     return rows
 
 
@@ -375,9 +371,7 @@ def spelled_row(row: Any) -> JsonMap:
     try:
         return {name: spelled(value) for name, value in mapping.items()}
     except ValueError as error:
-        raise BlockFailure(
-            f"a column of this result has no JSON spelling: {error}", error_class=ErrorClass.REJECTED
-        ) from error
+        raise BlockFailure(NO_JSON_SPELLING, error_class=ErrorClass.REJECTED, detail=str(error)) from error
 
 
 def _check_single(statement: str) -> None:

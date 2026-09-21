@@ -9,6 +9,7 @@ import httpx2
 from pydantic import BaseModel, Field, JsonValue, model_validator
 
 from dirigent_block_http.connections import HttpConnectionConfig
+from dirigent_block_http.messages import RESPONSE_TOO_LARGE, STATUS_REFUSED
 from dirigent_common import BlockModel, Duration, Size
 from dirigent_plugin import (
     BlockFailure,
@@ -119,11 +120,7 @@ async def read_bounded(response: httpx2.Response, limit: int) -> bytes:
     async for chunk in response.aiter_bytes():
         total += len(chunk)
         if total > limit:
-            raise BlockFailure(
-                f"the response is larger than max_response ({limit} bytes) and is not being read; "
-                f"raise max_response, or ask the endpoint for less",
-                error_class=ErrorClass.REJECTED,
-            )
+            raise BlockFailure(RESPONSE_TOO_LARGE, error_class=ErrorClass.REJECTED, limit=limit)
         chunks.append(chunk)
     return b"".join(chunks)
 
@@ -232,8 +229,11 @@ class HttpRequestOperator(Operator[HttpRequestConfig, HttpRequestOutput]):
         )
         if not is_success(response.status_code, config.success_status):
             raise BlockFailure(
-                f"{config.method} {request_url(config)} answered {response.status_code}",
+                STATUS_REFUSED,
                 error_class=status_class(response.status_code),
+                method=config.method,
+                url=request_url(config),
+                status=response.status_code,
             )
         return HttpRequestOutput(
             status=response.status_code,
