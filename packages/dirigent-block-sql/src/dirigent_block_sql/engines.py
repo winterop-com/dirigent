@@ -71,7 +71,7 @@ DRIVER_PACKAGE: Final = {
 
 #: The package each backend that is an engine rather than a driver is carried by, for the
 #: install line a URL naming one is refused with when it is not installed.
-KNOWN_ENGINE_PACKAGES: Final = {"duckdb": "dirigent-block-sql-duckdb"}
+KNOWN_ENGINE_PACKAGES: Final = {"duckdb": "dirigent-block-duckdb"}
 
 
 class DuplicateEngine(Exception):

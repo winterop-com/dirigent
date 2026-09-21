@@ -1,7 +1,7 @@
 [project]
-name = "dirigent-block-transform-jq"
+name = "dirigent-block-duckdb"
 version = "0.16.7"
-description = "The jq engine for dirigent's transform verbs: transform.jq, map.jq and filter.jq."
+description = "The DuckDB engine of dirigent's sql family: sql.query and sql.execute over files."
 readme = "README.md"
 requires-python = ">=3.13"
 license = "LicenseRef-Proprietary"
@@ -11,18 +11,21 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
+    "dirigent-block-sql==0.16.7",
     "dirigent-common==0.16.7",
     "dirigent-plugin==0.16.7",
-    "jq>=1.8",
+    "duckdb>=1.4.0",
+    "duckdb-engine>=0.17.0",
 ]
 
-[project.entry-points."dirigent.plugins.v1"]
-block-transform-jq = "dirigent_block_transform_jq:plugin"
+[project.entry-points."dirigent.sql.engines.v1"]
+duckdb = "dirigent_block_duckdb:plugin"
 
 [build-system]
 requires = ["uv_build>=0.12.0,<0.13.0"]
 build-backend = "uv_build"
 
 [tool.uv.sources]
+dirigent-block-sql = { workspace = true }
 dirigent-common = { workspace = true }
 dirigent-plugin = { workspace = true }

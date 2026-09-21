@@ -28,16 +28,7 @@ from sqlalchemy.engine import URL, Connection, Engine, create_engine
 from sqlalchemy.pool import NullPool
 from sqlalchemy.sql.elements import TextClause
 
-from dirigent_block_sql.engines import (
-    CHECK_TIMEOUT_SECONDS,
-    OUTSIDE_A_RUN,
-    SqlEngine,
-    SqlSession,
-    reason,
-    under_work,
-)
-from dirigent_block_sql.sql import SqlConnectionConfig
-from dirigent_block_sql_duckdb.messages import (
+from dirigent_block_duckdb.messages import (
     CONNECT_TIMED_OUT,
     NO_HTTPFS,
     NO_STORAGE_CONNECTION,
@@ -47,6 +38,15 @@ from dirigent_block_sql_duckdb.messages import (
     STATEMENT_LOADS_AN_EXTENSION,
     STATEMENT_OUTSIDE_THE_RUN,
 )
+from dirigent_block_sql.engines import (
+    CHECK_TIMEOUT_SECONDS,
+    OUTSIDE_A_RUN,
+    SqlEngine,
+    SqlSession,
+    reason,
+    under_work,
+)
+from dirigent_block_sql.sql import SqlConnectionConfig
 from dirigent_common import BlockModel, HealthReport, JsonMap
 from dirigent_plugin import BlockFailure, ErrorClass, StepContext
 

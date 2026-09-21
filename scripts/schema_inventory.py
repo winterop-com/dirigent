@@ -21,9 +21,9 @@ PACKAGES = (
     "dirigent_block_http",
     "dirigent_block_queues",
     "dirigent_block_sql",
-    "dirigent_block_sql_duckdb",
+    "dirigent_block_duckdb",
     "dirigent_block_storage",
-    "dirigent_block_transform_jq",
+    "dirigent_block_jq",
     "dirigent_storage_s3",
     "dirigent_block_parquet",
 )

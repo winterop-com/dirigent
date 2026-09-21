@@ -1,4 +1,4 @@
-# dirigent-block-transform-jq
+# dirigent-block-jq
 
 The jq engine for the transform verbs: `transform.jq` reshapes a whole value with a jq
 program, `map.jq` replaces every element of a list with what a program makes of it, and

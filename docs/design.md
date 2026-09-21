@@ -308,9 +308,9 @@ dirigent/
     dirigent-plugin/       # the block contract: markers, specs, base models (tiny, stable)
     dirigent-client/       # the API contract: wire schemas, and the async Python SDK
     dirigent-core/         # engine: schema, queue, DAG walker, scheduler, plugin host
-    dirigent-block-*/      # the eight built-in block families: base, http, storage,
-                           #   execute, sql, transform-jq, queues, parquet
-    dirigent-block-sql-duckdb/  # the duckdb engine of the sql family
+    dirigent-block-*/      # the eight built-in block packages: base, http, storage,
+                           #   execute, sql, queues, jq, parquet
+    dirigent-block-duckdb/ # the duckdb engine of the sql family
     dirigent-blocks/       # the umbrella: every family, and the outbound alert channels
     dirigent-server/       # FastAPI app, auth, SSE, webhook endpoints
       frontend/            # the web UI, built into the server wheel
@@ -332,8 +332,7 @@ an inventory of what an instance can do:
 
 | Prefix | Contributes | Example |
 | --- | --- | --- |
-| `dirigent-block-*` | Operators and sensors that need no credential of their own | `dirigent-block-parquet` |
-| `dirigent-block-sql-<engine>` | An engine of the `sql` family, registered under `dirigent.sql.engines.v1` | `dirigent-block-sql-duckdb` |
+| `dirigent-block-*` | Operators and sensors that need no credential of their own: a family, or the engine or codec a package brings | `dirigent-block-http`, `dirigent-block-duckdb` |
 | `dirigent-storage-*` | A storage backend, registering a URI scheme | `dirigent-storage-s3` |
 | `dirigent-notify-*` | A notifier channel | `dirigent-notify-slack` |
 | `dirigent-<system>` | An adapter pack: one connection kind plus the blocks for one external system | `dirigent-acme` |
@@ -346,12 +345,13 @@ The two contract packages sit outside that scheme, because neither contributes a
 instance: `dirigent-plugin` is what a block author writes against, and `dirigent-client` is
 what a program driving an instance writes against.
 
-The built-in blocks ship as eight families -- `dirigent-block-base`, `-http`, `-storage`,
-`-execute`, `-sql`, `-transform-jq`, `-queues` and `-parquet` -- each a package and a plugin of
-its own, so a worker carries the dependencies of what it actually runs. `dirigent-blocks` is
-the umbrella over them: it depends on every family but `-parquet`, whose pyarrow outweighs
-the other seven together, and contributes the three outbound alert channels itself, so one
-install is still the standard library and parquet is the one codec added by name.
+The built-in blocks ship as eight packages -- the families `dirigent-block-base`, `-http`,
+`-storage`, `-execute`, `-sql` and `-queues`, and `-jq` and `-parquet` for the engine and the
+codec they bring -- each a package and a plugin of its own, so a worker carries the
+dependencies of what it actually runs. `dirigent-blocks` is the umbrella over them: it depends
+on every one but `-parquet`, whose pyarrow outweighs the other seven together, and contributes
+the three outbound alert channels itself, so one install is still the standard library and
+parquet is the one codec added by name.
 
 **One protocol note.** `ByteSink` is the write end of a storage stream: `async write(data) ->
 int`, and nothing else. It is deliberately not a file object, because a backend that has to

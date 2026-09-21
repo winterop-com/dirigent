@@ -1,7 +1,7 @@
 # SQL over files: DuckDB reads a parquet artifact and writes a csv one.
 #
 # NEEDS NOTHING BUT THE ENGINE: no network, no daemon, no server, no allowlist. It does need
-# duckdb on the worker, which is the dirigent-block-sql-duckdb package, and convert.arrow, which
+# duckdb on the worker, which is the dirigent-block-duckdb package, and convert.arrow, which
 # is the dirigent-block-parquet pack.
 #   dg run --local examples/sql/duckdb-parquet-to-report.yaml --keep
 # docs/sql.md is the family's home.

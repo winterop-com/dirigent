@@ -85,10 +85,10 @@ stays clean, and every example stays executable.
    assembled by `dirigent-integration`. Open for the program: generalising
    `dirigent-integration`'s dev-dep filter beyond one pack's client prefix.
 2. **Publish the block families.** `dirigent-block-http`, `-storage`, `-execute`, `-sql`,
-   `-sql-duckdb`, `-transform-jq`, `-queues`, `-base` and `-parquet` build with the workspace and
-   are not on PyPI. Before the next release: a PyPI project and a `pypi-<name>` environment
-   for each, then their names in `release.yaml`'s matrix. Until then a release would publish
-   an umbrella whose dependencies nothing can install.
+   `-duckdb`, `-jq`, `-queues`, `-base` and `-parquet` build with the workspace and are not
+   on PyPI. Before the next release: a PyPI project and a `pypi-<name>` environment for
+   each, then their names in `release.yaml`'s matrix. Until then a release would publish an
+   umbrella whose dependencies nothing can install.
 
 ## Open questions
 
@@ -286,12 +286,11 @@ requires touching the engine. None is near-term.
   - **Codecs.** More formats on `convert`, each a pair the engine declares and the frame
     refuses where it is not supported, so a new one touches nothing else. A codec that costs
     nothing but the standard library joins `convert.std` in `dirigent-block-base`; one with a
-    dependency of its own is a package, `dirigent-block-convert-<format>`, so an instance
-    pays for the formats it reads. `dirigent-block-parquet` takes that name when a second
-    such codec appears.
+    dependency of its own is a package named for the format it brings,
+    `dirigent-block-<format>`, so an instance pays for the formats it reads.
   - **Other engines for the verbs that exist.** A `js` kind on bun and a docker-backed kind
-    are the obvious two. An engine is a package named for itself,
-    `dirigent-block-transform-<engine>` -- `-js`, `-docker` -- contributing its
+    are the obvious two. An engine is a package named for the engine it brings,
+    `dirigent-block-<engine>` -- `-js` on bun, `-docker` -- contributing its
     `transform.<kind>`, `map.<kind>` and `filter.<kind>` blocks through `contribute()`, so a
     worker installs the engines it runs and carries neither the others' dependencies nor
     their blocks in its catalog. One that evaluates programs out of process speaks the runner
@@ -328,12 +327,12 @@ requires touching the engine. None is near-term.
   answer is validated against the schema before it counts. Not for now.
 
 - **The datastores we actually use, as engines of the `sql.*` family.** ClickHouse first,
-  Apache Doris after it, each a `dirigent-block-sql-<engine>` package on the engine contract --
-  the backend it claims, what a valid connection to it is, how a parameter is bound and a
-  session made read-only -- so a document written against SQLite or DuckDB moves to a warehouse
-  by changing the connection. Where an engine has a bulk path the family lacks, such as
-  ClickHouse's insert of a parquet artifact, that is one more verb on the same blocks. None of
-  this is near-term.
+  Apache Doris after it, `dirigent-block-clickhouse` and `dirigent-block-doris`, each on the
+  engine contract -- the backend it claims, what a valid connection to it is, how a parameter
+  is bound and a session made read-only -- so a document written against SQLite or DuckDB
+  moves to a warehouse by changing the connection. Where an engine has a bulk path the family
+  lacks, such as ClickHouse's insert of a parquet artifact, that is one more verb on the same
+  blocks. None of this is near-term.
 
 ## Known debt
 

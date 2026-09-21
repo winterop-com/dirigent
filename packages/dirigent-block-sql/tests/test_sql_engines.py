@@ -95,4 +95,4 @@ def test_a_url_naming_an_engine_package_that_is_not_installed_names_the_install(
     monkeypatch.setattr(engines, "_installed", lambda: registry(group=NO_GROUP))
     with pytest.raises(ValidationError) as raised:
         SqlConnectionConfig(url="duckdb:///warehouse.duckdb")
-    assert "uv pip install dirigent-block-sql-duckdb" in str(raised.value)
+    assert "uv pip install dirigent-block-duckdb" in str(raised.value)
