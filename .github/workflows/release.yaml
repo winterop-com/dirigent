@@ -83,8 +83,14 @@ jobs:
           - dirigent-client
           - dirigent-core
           - dirigent-block-base
+          - dirigent-block-duckdb
+          - dirigent-block-execute
           - dirigent-block-http
+          - dirigent-block-jq
+          - dirigent-block-parquet
+          - dirigent-block-queues
           - dirigent-block-sql
+          - dirigent-block-storage
           - dirigent-blocks
           - dirigent-examples
           - dirigent-server
