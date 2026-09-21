@@ -82,6 +82,9 @@ jobs:
           - dirigent-plugin
           - dirigent-client
           - dirigent-core
+          - dirigent-block-base
+          - dirigent-block-http
+          - dirigent-block-sql
           - dirigent-blocks
           - dirigent-examples
           - dirigent-server

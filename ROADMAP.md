@@ -84,10 +84,11 @@ stays clean, and every example stays executable.
    wired through a connection kind, with a client written fresh or wrapping a stable one, and
    assembled by `dirigent-integration`. Open for the program: generalising
    `dirigent-integration`'s dev-dep filter beyond one pack's client prefix.
-2. **Publish the block families.** `dirigent-block-http`, `-storage`, `-execute`, `-sql`,
-   `-duckdb`, `-jq`, `-queues`, `-base` and `-parquet` build with the workspace and are not
-   on PyPI. Before the next release: a PyPI project and a `pypi-<name>` environment for
-   each, then their names in `release.yaml`'s matrix. Until then a release would publish an
+2. **Publish the block families.** `dirigent-block-base`, `-http` and `-sql` are in
+   `release.yaml`'s matrix with their environments, and PyPI holds a pending publisher for
+   each; the next tag creates the projects. `-storage`, `-execute`, `-queues`, `-duckdb`,
+   `-jq` and `-parquet` still need a pending publisher and a `pypi-<name>` environment, three
+   at a time, then their names in the matrix. Until all nine exist a release publishes an
    umbrella whose dependencies nothing can install.
 
 ## Open questions
