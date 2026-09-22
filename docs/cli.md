@@ -1331,9 +1331,9 @@ The channels a rule may name, and what each one needs minted for it, are in
 
 `dg alerts test` names the notifier rather than the connection, with `--connection` as an
 option: a test has no rule to read a target from, and the channel is what is being tested. The
-message goes through the same queue and the same notifier
-call a real alert does, because a test that took a shortcut would prove only that the shortcut
-works -- so it appears in `dg alerts queue` and is delivered by a worker, not by the API.
+message goes through the same queue and the same notifier call a real alert does, because a test
+that took a shortcut would prove only that the shortcut works -- so it appears in
+`dg alerts queue` and is delivered by a worker, not by the API.
 
 `dg alerts rules pause` holds a rule's deliveries and `resume` lets them go again. Pausing is
 instance state on the row rather than something the rule declares, so a rule held here keeps

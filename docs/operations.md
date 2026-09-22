@@ -1090,8 +1090,8 @@ dg alerts rules create page-ops --event run_failed --connection ops-slack
 ```
 
 The web UI asks the same question once: *New rule* offers one **Deliver through** picker
-listing the log first and then every connection an installed notifier can send through, and
-says underneath which sender the chosen row implies.
+listing the log first and then every connection an installed notifier can send through, each row
+wearing the kind it delivers by.
 
 Four channels ship built in.
 
