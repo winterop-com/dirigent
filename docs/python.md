@@ -331,6 +331,14 @@ engine does, and then makes the block's first call: an operator's `execute` or a
 directory, an HTTP client built on a handler the test installs, and an in-memory runs facade.
 `defaults_only_environment` is the fixture that takes `DIRIGENT_*`, `DG_*` and `OTEL_*` out of
 one test's environment; request it from your own conftest to run a suite against defaults.
+`no_connection_outlives_its_loop` fails a test that ends with a database connection it opened
+still open, which otherwise surfaces much later as a `RuntimeError` raised in a thread against
+some unrelated test; one line in your conftest holds a whole suite to it:
+
+```python
+@pytest.fixture(autouse=True)
+def _no_connection_outlives_its_loop(no_connection_outlives_its_loop): ...
+```
 
 A block's contract has one more method worth testing directly. `check_config(config)` returns
 the extra refusals the block makes at apply, beyond what its schema already says -- a program
