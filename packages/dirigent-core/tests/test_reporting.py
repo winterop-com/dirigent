@@ -7,7 +7,6 @@ from uuid import UUID
 
 import pytest
 import sqlalchemy as sa
-from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from dirigent_client.enums import AlertEvent, LogLevel, RunItemStatus, RunStatus

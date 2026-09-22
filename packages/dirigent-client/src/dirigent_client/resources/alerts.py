@@ -74,9 +74,7 @@ class Alerts(Resource):
         A field this call was not given is absent from the body, which is how the endpoint
         tells "leave it alone" from "clear it".
         """
-        named = query(
-            paused=paused, template=template, body=body, importance=importance, connection=connection
-        )
+        named = query(paused=paused, template=template, body=body, importance=importance, connection=connection)
         body_json = AlertRuleUpdate.model_validate(named).model_dump(mode="json", exclude_unset=True)
         return await self._one(AlertRuleOut, "PATCH", f"/alert-rules/{code}", json=body_json)
 

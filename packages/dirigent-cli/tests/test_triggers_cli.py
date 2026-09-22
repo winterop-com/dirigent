@@ -609,9 +609,7 @@ def test_a_notification_is_put_back_on_the_queue_from_the_command_line(server: s
 
 
 def test_a_rule_delivers_through_the_notifier_its_connections_kind_names(server: str) -> None:
-    stored = invoke(
-        "connection", "ensure", "webhook", "ops-hook", "--set", "url=https://ops.example.org/hooks"
-    )
+    stored = invoke("connection", "ensure", "webhook", "ops-hook", "--set", "url=https://ops.example.org/hooks")
     assert stored.exit_code == 0, stored.output
     created = machine("alerts", "rules", "create", "page-ops", "--event", "run_failed", "--connection", "ops-hook")
     assert created.exit_code == 0, created.output
