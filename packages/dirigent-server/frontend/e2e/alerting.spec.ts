@@ -76,6 +76,13 @@ test('a rule is declared from the screen, and appears in the listing it was decl
     await expect(dialog.getByLabel('Deliver through')).toHaveValue('The process log')
     await expect(dialog.getByLabel('Notifier')).toHaveCount(0)
 
+    // A target is a channel, so every row of the picker wears its kind's mark.
+    await dialog.getByLabel('Deliver through').click()
+    const logRow = page.getByRole('option', { name: 'The process log' })
+    await expect(logRow.locator('[data-slot="mark"]')).toHaveCount(1)
+    await logRow.click()
+    await expect(dialog.getByLabel('Deliver through')).toHaveValue('The process log')
+
     await dialog.getByLabel('Throttle').fill('15m')
     await expect(create).toBeEnabled()
     await create.click()
@@ -89,6 +96,8 @@ test('a rule is declared from the screen, and appears in the listing it was decl
     await expect(row).toContainText('log')
     await expect(row).toContainText('15m')
     await expect(row).toContainText('active')
+    // The target cell wears the same mark the picker offered it under.
+    await expect(row.locator('td').filter({ hasText: 'log' }).locator('[data-slot="mark"]')).toHaveCount(1)
 })
 
 test.describe('on a phone', () => {
@@ -161,8 +170,12 @@ test('a rule is paused from its panel, and the row says so', async ({ page }) =>
     await ruleRow(page).getByText(RULE.name, { exact: true }).click()
     const panel = page.getByRole('tabpanel')
     await expect(panel.getByText(RULE.code)).toBeVisible()
-    // The panel says the target the same way the listing does: the log, for a rule naming nothing.
+    // The panel says the target the same way the listing does: the log, for a rule naming nothing,
+    // wearing the channel's own mark.
     await expect(panel.getByText('Delivers through')).toBeVisible()
+    const target = panel.locator('dt', { hasText: 'Delivers through' }).locator('xpath=following-sibling::dd')
+    await expect(target).toContainText('log')
+    await expect(target.locator('[data-slot="mark"]')).toHaveCount(1)
 
     await panel.getByRole('button', { name: 'Pause' }).click()
     await expect(panel.getByRole('button', { name: 'Resume' })).toBeVisible()

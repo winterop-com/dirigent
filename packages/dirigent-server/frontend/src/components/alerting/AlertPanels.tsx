@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 
 import { Description } from '@/components/Description'
 import { Instant } from '@/components/Instant'
+import { Mark } from '@/components/Mark'
 import { CodePane } from '@/components/pipeline/CodePane'
 import { ProgramReference } from '@/components/pipeline/ProgramReference'
 import { Refusable } from '@/components/Refusable'
@@ -31,6 +32,7 @@ import {
     type NotificationOut,
 } from '@/lib/alerting'
 import type { Problem } from '@/lib/api'
+import { channelGlyph } from '@/lib/glyphs'
 import { headingOf, type Addressable } from '@/lib/identity'
 import { refusalOf } from '@/lib/refusal'
 
@@ -441,11 +443,21 @@ const notificationId = (row: NotificationOut) => row.id
  * THE CONNECTION IS THE TARGET AND THE SENDER FOLLOWS FROM IT, so the code leads and the
  * notifier stands beside it as the quiet word saying which kind of channel that code is. A rule
  * that names no connection has nothing but the sender to show, and that sender is `log`.
+ *
+ * A TARGET IS A CHANNEL, so it leads with the mark the strip's chips lead with.
  */
 export function Target({ notifier, connection }: { notifier: string; connection: string | null }) {
-    if (connection === null) return <span className="text-sm">{notifier}</span>
+    if (connection === null) {
+        return (
+            <span className="flex items-center gap-1.5">
+                <Mark glyph={channelGlyph(notifier)} />
+                <span className="text-sm">{notifier}</span>
+            </span>
+        )
+    }
     return (
-        <span className="flex flex-wrap items-baseline gap-1.5">
+        <span className="flex flex-wrap items-center gap-1.5">
+            <Mark glyph={channelGlyph(notifier)} />
             <span className="font-mono text-xs">{connection}</span>
             <span className="text-xs text-muted-foreground">{notifier}</span>
         </span>
