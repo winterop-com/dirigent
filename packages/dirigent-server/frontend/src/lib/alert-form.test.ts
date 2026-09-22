@@ -1,6 +1,14 @@
 import { describe, expect, test } from 'vitest'
 
-import { given, needsConnection, unreadyRule, unreadyTest } from '@/lib/alert-form'
+import {
+    ANY_IMPORTANCE,
+    floorChosen,
+    given,
+    IMPORTANCE_FLOORS,
+    needsConnection,
+    unreadyRule,
+    unreadyTest,
+} from '@/lib/alert-form'
 import type { RuleDraft } from '@/lib/alert-form'
 
 function aDraft(over: Partial<RuleDraft> = {}): RuleDraft {
@@ -104,5 +112,22 @@ describe('what a box left empty sends', () => {
 
     test('a body keeps the lines it was written on', () => {
         expect(given('{{ run.pipeline }}\n\n{{ report }}\n')).toBe('{{ run.pipeline }}\n\n{{ report }}')
+    })
+})
+
+describe('the floor a rule fires at', () => {
+    test('offers any first, then every importance least to most', () => {
+        expect(IMPORTANCE_FLOORS.map((one) => one.value)).toEqual([
+            ANY_IMPORTANCE,
+            'routine',
+            'normal',
+            'critical',
+        ])
+        expect(IMPORTANCE_FLOORS.map((one) => one.label)).toEqual(['Any', 'Routine', 'Normal', 'Critical'])
+    })
+
+    test('sends no floor at all where any was chosen, and the level where one was', () => {
+        expect(floorChosen(ANY_IMPORTANCE)).toBeNull()
+        expect(floorChosen('critical')).toBe('critical')
     })
 })

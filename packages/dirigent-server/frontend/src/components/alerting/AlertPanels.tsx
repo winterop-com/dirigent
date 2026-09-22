@@ -18,6 +18,7 @@ import { BODY_HINT, given, SUBJECT_HINT, TEMPLATE_MEDIA_TYPE } from '@/lib/alert
 import {
     deleteRule,
     eventLabel,
+    importanceNote,
     NO_FILTERS,
     readNotifications,
     retryNotification,
@@ -98,7 +99,16 @@ export function RulePanel({
 
             <dl className="space-y-1.5">
                 <Fact label="Event">{eventLabel(rule.event)}</Fact>
-                <Fact label="Scope">{scopeNote(rule)}</Fact>
+                <Fact label="Scope">
+                    <span className="flex flex-wrap items-baseline gap-x-1.5">
+                        {scopeNote(rule)}
+                        {importanceNote(rule.importance) !== null && (
+                            <span className="text-xs text-muted-foreground">
+                                {importanceNote(rule.importance)}
+                            </span>
+                        )}
+                    </span>
+                </Fact>
                 <Fact label="Delivers through">
                     <Channel notifier={rule.notifier} connection={rule.connection} />
                 </Fact>

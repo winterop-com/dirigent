@@ -32,6 +32,28 @@ export interface LastRun {
     failed_step: string | null
 }
 
+/** How much a pipeline matters when it goes wrong, which is not when its work is claimed. `Importance`. */
+export type Importance = 'routine' | 'normal' | 'critical'
+
+/** Every importance, least first, which is the order a control offers them in. */
+export const IMPORTANCES: readonly Importance[] = ['routine', 'normal', 'critical']
+
+/** What an importance is drawn as, or null where it is drawn as nothing. */
+export interface ImportanceMark {
+    label: string
+    className: string
+}
+
+/**
+ * Decide how a pipeline's importance is drawn beside its title.
+ *
+ * Only `critical` is marked: routine and normal are what almost every pipeline is, and a word
+ * drawn on every row would say nothing.
+ */
+export function importanceMark(importance: Importance): ImportanceMark | null {
+    return importance === 'critical' ? { label: 'critical', className: 'text-critical' } : null
+}
+
 /** A pipeline as a listing shows it. `PipelineOut`. */
 export interface PipelineOut {
     id: string
@@ -42,6 +64,8 @@ export interface PipelineOut {
     description: string | null
     /** What the current document says this pipeline is for, in the order it wrote them. */
     tags: string[]
+    /** How much the current document says this pipeline matters. */
+    importance: Importance
     active: boolean
     current_version: number | null
     active_runs: number
@@ -255,6 +279,12 @@ export function paramsOf(document: JsonMap | null): JsonMap | null {
 export function priorityOf(document: JsonMap | null): RunPriority {
     const priority = document?.priority
     return priority === 'low' || priority === 'high' ? priority : 'normal'
+}
+
+/** How much a document says its pipeline matters, which is what an alert rule reads. */
+export function importanceOf(document: JsonMap | null): Importance {
+    const importance = document?.importance
+    return importance === 'routine' || importance === 'critical' ? importance : 'normal'
 }
 
 /** Read a pipeline and the document its current version holds. */

@@ -17,6 +17,7 @@ import { usePaged } from '@/hooks/use-paged'
 import { EVENT_LABELS } from '@/lib/alert-form'
 import {
     channelsOf,
+    importanceNote,
     NOTIFICATION_STATUSES,
     readAlertRules,
     readNotifications,
@@ -416,6 +417,24 @@ function useChannels(): { rows: ChannelRow[]; read: boolean } {
     return { rows, read: notifiers !== null && connections !== null }
 }
 
+/**
+ * What a rule watches: the pipeline or the whole instance, and the floor it fires at.
+ *
+ * A pipeline's code is mono and the floor is a phrase, so the two are set apart rather than
+ * joined into one string a single face would have to carry.
+ */
+function Scope({ rule }: { rule: AlertRuleOut }) {
+    const floor = importanceNote(rule.importance)
+    return (
+        <span className="flex flex-wrap items-baseline gap-x-1.5">
+            <span className={rule.scope === 'pipeline' ? 'font-mono text-xs' : 'text-sm'}>
+                {scopeNote(rule)}
+            </span>
+            {floor !== null && <span className="text-xs text-muted-foreground">{floor}</span>}
+        </span>
+    )
+}
+
 const RULE_COLUMNS: Column<AlertRuleOut>[] = [
     {
         id: 'rule',
@@ -442,11 +461,7 @@ const RULE_COLUMNS: Column<AlertRuleOut>[] = [
     {
         id: 'scope',
         header: 'Scope',
-        cell: (rule) => (
-            <span className={rule.scope === 'pipeline' ? 'font-mono text-xs' : 'text-sm'}>
-                {scopeNote(rule)}
-            </span>
-        ),
+        cell: (rule) => <Scope rule={rule} />,
     },
     {
         id: 'delivers',

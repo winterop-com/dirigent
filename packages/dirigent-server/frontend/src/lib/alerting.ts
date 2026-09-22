@@ -16,6 +16,7 @@
 import { apiJson, apiSend, type Page } from '@/lib/api'
 import { type ConnectionOut } from '@/lib/connections'
 import { PAGE } from '@/lib/paging'
+import type { Importance } from '@/lib/pipelines'
 
 /** What a rule watches for. `AlertEvent` in dirigent_client.enums. */
 export type AlertEvent = 'run_failed' | 'run_completed_with_errors' | 'run_succeeded' | 'run_stuck'
@@ -52,6 +53,8 @@ export interface AlertRuleOut {
     scope: AlertScope
     /** The pipeline a scoped rule watches, or null for a global one. */
     pipeline: string | null
+    /** The least importance a pipeline must carry before this rule fires; null fires for every one. */
+    importance: Importance | null
     notifier: string
     /** The connection this channel delivers through, or null where the channel needs none. */
     connection: string | null
@@ -77,6 +80,7 @@ export interface AlertRuleIn {
     notifier: string
     scope: AlertScope
     pipeline: string | null
+    importance: Importance | null
     connection: string | null
     template: string | null
     body: string | null
@@ -150,6 +154,16 @@ export function matchNote(rule: AlertRuleOut): string {
 /** Where a rule delivers: every pipeline, or the one it watches. */
 export function scopeNote(rule: AlertRuleOut): string {
     return rule.scope === 'pipeline' && rule.pipeline !== null ? rule.pipeline : 'every pipeline'
+}
+
+/**
+ * The floor a rule fires at, or nothing where it fires whatever the pipeline is worth.
+ *
+ * It stands beside the scope rather than in a column of its own: almost every rule names no
+ * importance at all, so the column would be empty down its whole length.
+ */
+export function importanceNote(importance: Importance | null): string | null {
+    return importance === null ? null : `${importance} and above`
 }
 
 /** Whether a rule is delivering at all: a paused one matches nothing the engine settles. */

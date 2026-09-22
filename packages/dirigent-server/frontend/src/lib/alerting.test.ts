@@ -4,6 +4,7 @@ import {
     channelsOf,
     channelView,
     deliverySettled,
+    importanceNote,
     notificationsPath,
     ruleLive,
     scopeNote,
@@ -23,6 +24,7 @@ function aRule(over: Partial<AlertRuleOut> = {}): AlertRuleOut {
         event: 'run_failed',
         scope: 'global',
         pipeline: null,
+        importance: null,
         notifier: 'log',
         connection: null,
         template: null,
@@ -76,6 +78,16 @@ describe('what a rule watches', () => {
 
     test('a scope that names no pipeline still reads as every one rather than as nothing', () => {
         expect(scopeNote(aRule({ scope: 'pipeline', pipeline: null }))).toBe('every pipeline')
+    })
+
+    test('a rule naming a floor says it and every level above it', () => {
+        expect(importanceNote('critical')).toBe('critical and above')
+        expect(importanceNote('routine')).toBe('routine and above')
+    })
+
+    test('a rule naming none says nothing, because it fires whatever a pipeline is worth', () => {
+        expect(importanceNote(null)).toBeNull()
+        expect(importanceNote(aRule().importance)).toBeNull()
     })
 })
 

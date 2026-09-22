@@ -53,6 +53,8 @@ import {
 } from '@/lib/pipeline-document'
 import { issuesNote } from '@/lib/pipeline-plan'
 import {
+    importanceMark,
+    importanceOf,
     readDocumentSchema,
     readPipeline,
     readVersions,
@@ -62,6 +64,7 @@ import {
 import { anythingUnmet, unmetIn, unmetLines } from '@/lib/requirements'
 import { EVERY_RUN, readRuns, type RunOut } from '@/lib/runs'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
+import { cn } from '@/lib/utils'
 
 /**
  * One pipeline: its document as a graph, the step in front of somebody, and what applying does.
@@ -557,6 +560,8 @@ export function PipelineEditor() {
     }
 
     const heading = pipeline === null ? null : headingOf(pipeline)
+    // The document on the canvas rather than the row: the mark moves with the edit that moved it.
+    const matters = importanceMark(importanceOf(local))
 
     return (
         <div className="-mx-1 -my-3 flex min-h-0 flex-1 flex-col gap-3 md:-mx-5">
@@ -570,6 +575,17 @@ export function PipelineEditor() {
                     ]}
                     code={heading?.code}
                 />
+                {matters !== null && (
+                    <span
+                        className={cn(
+                            'shrink-0 rounded-sm border border-border px-1.5 py-0.5 text-xs',
+                            matters.className,
+                        )}
+                        title="critical: an alert rule may fire for this pipeline and for no lesser one"
+                    >
+                        {matters.label}
+                    </span>
+                )}
                 {/* The status bar already says which version this is and when it was applied,
                     and a fact appears once on a screen. */}
                 <span
