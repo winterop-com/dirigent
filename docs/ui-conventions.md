@@ -993,7 +993,7 @@ carrying both says two facts rather than one loud one.
 
 **What the kinds this repository ships wear**: an envelope for `email`, a scroll for `log`, the
 Slack mark for `slack`, a webhook for `webhook`, a globe for `http`, a branch for `git`, a
-database for `sql` and for `duckdb`, a container for `docker`, a drive for `s3` -- a mark says
+database for `sql`, a container for `docker`, a drive for `s3` -- a mark says
 what the credential opens and an s3 one opens storage, where a cloud would say where a thing is
 hosted, which half this list could claim -- and an ordered list for `kafka` and `rabbitmq`. A
 glyph is `size-4` in muted ink wherever it is drawn; what it sits in belongs to the thing drawing

@@ -47,7 +47,6 @@ export const NEUTRAL_GLYPH: Glyph = Dot
  */
 const KIND_GLYPHS = new Map<string, Glyph>([
     ['docker', Container],
-    ['duckdb', Database],
     ['email', Mail],
     ['git', GitBranch],
     ['http', Globe],

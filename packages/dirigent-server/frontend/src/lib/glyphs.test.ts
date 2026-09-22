@@ -5,7 +5,6 @@ import { kindGlyph, NEUTRAL_GLYPH } from '@/lib/glyphs'
 /** Every kind this repository contributes a connection kind or a notifier for. */
 const SHIPPED = [
     'docker',
-    'duckdb',
     'email',
     'git',
     'http',
@@ -33,10 +32,6 @@ describe('kindGlyph', () => {
     test('the two queues wear the queue, and nothing else wears it', () => {
         expect(kindGlyph('kafka')).toBe(kindGlyph('rabbitmq'))
         expect(kindGlyph('http')).not.toBe(kindGlyph('kafka'))
-    })
-
-    test('a sql engine is drawn as the databases it opens', () => {
-        expect(kindGlyph('duckdb')).toBe(kindGlyph('sql'))
     })
 
     test("a pack's kind this bundle cannot name takes the neutral glyph", () => {
