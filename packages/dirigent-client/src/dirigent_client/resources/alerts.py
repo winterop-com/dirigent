@@ -31,7 +31,6 @@ class Alerts(Resource):
         name: str | None = None,
         description: str | None = None,
         event: AlertEvent,
-        notifier: str,
         scope: AlertScope = AlertScope.GLOBAL,
         pipeline: str | None = None,
         importance: Importance | None = None,
@@ -40,13 +39,12 @@ class Alerts(Resource):
         body: str | None = None,
         throttle: timedelta | str = timedelta(0),
     ) -> AlertRuleOut:
-        """Declare an alert rule, refusing a notifier or a pipeline this instance does not have."""
+        """Declare an alert rule, refusing a target or a pipeline this instance does not have."""
         payload = AlertRuleIn(
             code=code,
             name=name,
             description=description,
             event=event,
-            notifier=notifier,
             scope=scope,
             pipeline=pipeline,
             importance=importance,
@@ -68,13 +66,17 @@ class Alerts(Resource):
         paused: bool | None = None,
         template: str | None = None,
         body: str | None = None,
+        importance: Importance | None = None,
+        connection: str | None = None,
     ) -> AlertRuleOut:
-        """Change what a rule says or whether it delivers.
+        """Change what a rule says, where it delivers, or whether it delivers at all.
 
         A field this call was not given is absent from the body, which is how the endpoint
         tells "leave it alone" from "clear it".
         """
-        named = query(paused=paused, template=template, body=body)
+        named = query(
+            paused=paused, template=template, body=body, importance=importance, connection=connection
+        )
         body_json = AlertRuleUpdate.model_validate(named).model_dump(mode="json", exclude_unset=True)
         return await self._one(AlertRuleOut, "PATCH", f"/alert-rules/{code}", json=body_json)
 

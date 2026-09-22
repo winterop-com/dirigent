@@ -318,7 +318,7 @@ def test_a_connection_a_rule_delivers_through_may_not_be_deleted(client: TestCli
     )
     declared = client.post(
         f"{PREFIX}/alert-rules",
-        json={"code": "page-ops", "event": "run_failed", "notifier": "webhook", "connection": "ops-webhook"},
+        json={"code": "page-ops", "event": "run_failed", "connection": "ops-webhook"},
     )
     assert declared.status_code == 201
     refused = client.delete(f"{PREFIX}/connections/ops-webhook")
@@ -327,18 +327,58 @@ def test_a_connection_a_rule_delivers_through_may_not_be_deleted(client: TestCli
     assert client.get(f"{PREFIX}/connections/ops-webhook").status_code == 200
 
 
-def test_a_rule_carries_the_connection_it_delivers_through(client: TestClient) -> None:
+def test_a_rule_delivers_through_the_notifier_its_connections_kind_names(client: TestClient) -> None:
     client.post(
         f"{PREFIX}/connections",
         json={"code": "ops-webhook", "kind": "webhook", "config": {"url": "https://ops.example.org/hooks"}},
     )
-    client.post(
+    declared = client.post(
         f"{PREFIX}/alert-rules",
-        json={"code": "page-ops", "event": "run_failed", "notifier": "webhook", "connection": "ops-webhook"},
+        json={"code": "page-ops", "event": "run_failed", "connection": "ops-webhook"},
     )
+    assert declared.status_code == 201
+    assert declared.json()["notifier"] == "webhook"
     listed = client.get(f"{PREFIX}/alert-rules").json()["items"]
     assert listed[0]["connection"] == "ops-webhook"
+    assert listed[0]["notifier"] == "webhook"
     assert listed[0]["paused"] is False
+
+
+def test_a_rule_naming_no_connection_delivers_to_the_log(client: TestClient) -> None:
+    declared = client.post(f"{PREFIX}/alert-rules", json={"code": "page-ops", "event": "run_failed"})
+    assert declared.status_code == 201
+    assert declared.json()["notifier"] == "log"
+    assert declared.json()["connection"] is None
+
+
+def test_a_rule_naming_a_connection_no_notifier_sends_through_is_refused(client: TestClient) -> None:
+    client.post(
+        f"{PREFIX}/connections",
+        json={"code": "ops-api", "kind": "http", "config": {"base_url": "https://ops.example.org"}},
+    )
+    refused = client.post(
+        f"{PREFIX}/alert-rules",
+        json={"code": "page-ops", "event": "run_failed", "connection": "ops-api"},
+    )
+    assert refused.status_code == 422
+    assert refused.json()["code"] == "alert.target_has_no_notifier"
+    assert "'ops-api'" in refused.json()["detail"]
+    assert "'http'" in refused.json()["detail"]
+
+
+def test_a_patch_re_points_a_rule_and_the_sender_follows(client: TestClient) -> None:
+    client.post(
+        f"{PREFIX}/connections",
+        json={"code": "ops-webhook", "kind": "webhook", "config": {"url": "https://ops.example.org/hooks"}},
+    )
+    client.post(f"{PREFIX}/alert-rules", json={"code": "page-ops", "event": "run_failed"})
+    moved = client.patch(f"{PREFIX}/alert-rules/page-ops", json={"connection": "ops-webhook"})
+    assert moved.status_code == 200
+    assert moved.json()["notifier"] == "webhook"
+    assert moved.json()["connection"] == "ops-webhook"
+    back = client.patch(f"{PREFIX}/alert-rules/page-ops", json={"connection": None})
+    assert back.json()["notifier"] == "log"
+    assert back.json()["connection"] is None
 
 
 def test_a_rule_carries_a_subject_and_a_body_template(client: TestClient) -> None:
@@ -347,7 +387,6 @@ def test_a_rule_carries_a_subject_and_a_body_template(client: TestClient) -> Non
         json={
             "code": "page-ops",
             "event": "run_failed",
-            "notifier": "log",
             "template": "{{ run.pipeline }} is unhappy",
             "body": "{{ report }}",
         },
@@ -366,12 +405,12 @@ def test_a_rule_carries_a_subject_and_a_body_template(client: TestClient) -> Non
 def test_a_rule_carries_the_least_importance_it_fires_for(client: TestClient) -> None:
     declared = client.post(
         f"{PREFIX}/alert-rules",
-        json={"code": "page-ops", "event": "run_failed", "notifier": "log", "importance": "critical"},
+        json={"code": "page-ops", "event": "run_failed", "importance": "critical"},
     )
     assert declared.status_code == 201
     assert declared.json()["importance"] == "critical"
     assert client.get(f"{PREFIX}/alert-rules").json()["items"][0]["importance"] == "critical"
-    client.post(f"{PREFIX}/alert-rules", json={"code": "log-all", "event": "run_failed", "notifier": "log"})
+    client.post(f"{PREFIX}/alert-rules", json={"code": "log-all", "event": "run_failed"})
     listed = {row["code"]: row["importance"] for row in client.get(f"{PREFIX}/alert-rules").json()["items"]}
     assert listed["log-all"] is None, "a rule that named none fires for every pipeline"
 
@@ -379,7 +418,7 @@ def test_a_rule_carries_the_least_importance_it_fires_for(client: TestClient) ->
 def test_a_patch_moves_and_clears_the_importance_a_rule_fires_for(client: TestClient) -> None:
     client.post(
         f"{PREFIX}/alert-rules",
-        json={"code": "page-ops", "event": "run_failed", "notifier": "log", "importance": "critical"},
+        json={"code": "page-ops", "event": "run_failed", "importance": "critical"},
     )
     moved = client.patch(f"{PREFIX}/alert-rules/page-ops", json={"importance": "routine"})
     assert moved.status_code == 200
@@ -391,16 +430,16 @@ def test_a_patch_moves_and_clears_the_importance_a_rule_fires_for(client: TestCl
 def test_a_rule_whose_body_does_not_compile_is_refused(client: TestClient) -> None:
     refused = client.post(
         f"{PREFIX}/alert-rules",
-        json={"code": "page-ops", "event": "run_failed", "notifier": "log", "body": "{% endfor %}"},
+        json={"code": "page-ops", "event": "run_failed", "body": "{% endfor %}"},
     )
     assert refused.status_code == 422
     assert "body is not a Jinja template" in refused.json()["detail"]
-    client.post(f"{PREFIX}/alert-rules", json={"code": "page-ops", "event": "run_failed", "notifier": "log"})
+    client.post(f"{PREFIX}/alert-rules", json={"code": "page-ops", "event": "run_failed"})
     assert client.patch(f"{PREFIX}/alert-rules/page-ops", json={"template": "{% if %}"}).status_code == 422
 
 
 def test_a_rule_is_paused_and_resumed_on_the_row(client: TestClient) -> None:
-    client.post(f"{PREFIX}/alert-rules", json={"code": "page-ops", "event": "run_failed", "notifier": "log"})
+    client.post(f"{PREFIX}/alert-rules", json={"code": "page-ops", "event": "run_failed"})
     paused = client.patch(f"{PREFIX}/alert-rules/page-ops", json={"paused": True})
     assert paused.status_code == 200
     assert paused.json()["paused"] is True
