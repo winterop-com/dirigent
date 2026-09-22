@@ -371,7 +371,7 @@ def test_a_documents_shape_is_drawn_as_the_rows_and_the_totals_its_record_carrie
                 deadline_longest="1d",
                 steps=[
                     {
-                        "step": "shape",
+                        "name": "shape",
                         "block": "transform.jq",
                         "cardinality": 3,
                         "elements": 3,
@@ -380,7 +380,7 @@ def test_a_documents_shape_is_drawn_as_the_rows_and_the_totals_its_record_carrie
                         "retry_wait": "1m30s",
                     },
                     {
-                        "step": "wait",
+                        "name": "wait",
                         "block": "time.sleep",
                         "depends_on": ["shape"],
                         "cardinality": "adopts shape",
@@ -416,7 +416,7 @@ def test_a_shape_with_nothing_to_warn_about_is_the_table_and_the_totals_alone() 
                 message="shape",
                 code="demo",
                 attempts_max=1,
-                steps=[{"step": "greet", "block": "shell.run"}],
+                steps=[{"name": "greet", "block": "shell.run"}],
             )
         )
     )

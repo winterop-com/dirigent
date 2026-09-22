@@ -478,7 +478,7 @@ def test_validate_explain_carries_what_each_step_will_cost(tmp_path: Path) -> No
     assert reported["code"] == "cli-fan-out"
     assert reported["document"] == str(path)
     assert reported["checked"] == "document, offline"
-    assert [step["step"] for step in reported["steps"]] == ["shape", "write_one", "manifest"]
+    assert [step["name"] for step in reported["steps"]] == ["shape", "write_one", "manifest"]
     assert reported["steps"][0]["cardinality"] == 3
     assert reported["steps"][0]["max_attempts"] == 3
     assert reported["steps"][0]["retry_wait"] == "1m30s"

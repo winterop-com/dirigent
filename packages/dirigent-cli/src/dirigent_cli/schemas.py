@@ -58,7 +58,9 @@ class StepShape(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    step: str
+    name: str
+    """The step's own map key, which is what every reference to it is written with."""
+
     block: str
     depends_on: list[str] = Field(default_factory=list[str])
 

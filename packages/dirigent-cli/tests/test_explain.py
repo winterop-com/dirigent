@@ -18,7 +18,7 @@ def document(steps: dict[str, Any], params: dict[str, Any] | None = None) -> Pip
 
 def rows(shape: Any) -> dict[str, Any]:
     """The steps of a shape, keyed by the step they describe."""
-    return {row.step: row for row in shape.steps}
+    return {row.name: row for row in shape.steps}
 
 
 def sensor_catalog(*, poll: float | None = 30.0, deadline: float | None = 600.0) -> Catalog:
@@ -363,5 +363,5 @@ def test_the_steps_are_read_in_the_order_they_will_run() -> None:
             }
         )
     )
-    assert [row.step for row in shape.steps] == ["first", "last"]
+    assert [row.name for row in shape.steps] == ["first", "last"]
     assert rows(shape)["last"].depends_on == ["first"]

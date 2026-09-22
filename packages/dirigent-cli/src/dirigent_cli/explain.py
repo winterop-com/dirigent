@@ -95,7 +95,7 @@ def _step_shape(
     cardinality, elements = _cardinality(step, params, done)
     poll, deadline, from_block = _waits(step, _entry(step, catalog))
     return StepShape(
-        step=name,
+        name=name,
         block=step.block,
         depends_on=list(step.depends_on),
         cardinality=cardinality,
@@ -194,10 +194,10 @@ def _warnings(rows: Sequence[StepShape], catalog: Catalog | None) -> list[ShapeW
         if row.cardinality == UNKNOWN:
             found.append(
                 ShapeWarning(
-                    step=row.step,
+                    step=row.name,
                     cause="unknown-cardinality",
                     message=(
-                        f"{row.step} fans out over {row.reference}, which only the run can resolve, "
+                        f"{row.name} fans out over {row.reference}, which only the run can resolve, "
                         f"so it is counted as one item here."
                     ),
                 )
@@ -205,25 +205,25 @@ def _warnings(rows: Sequence[StepShape], catalog: Catalog | None) -> list[ShapeW
         if row.retry_wait is not None and row.deadline is not None and row.retry_wait > row.deadline:
             found.append(
                 ShapeWarning(
-                    step=row.step,
+                    step=row.name,
                     cause="retry-outlasts-deadline",
                     message=(
-                        f"{row.step} may spend {format_duration(row.retry_wait)} in backoff between its "
+                        f"{row.name} may spend {format_duration(row.retry_wait)} in backoff between its "
                         f"{row.max_attempts} attempts, which is longer than the {format_duration(row.deadline)} "
                         f"deadline each one waits under."
                     ),
                 )
             )
         if row.deadline is None and _is_sensor(row, catalog):
-            found.append(ShapeWarning(step=row.step, cause="unbounded-sensor", message=_unbounded(row, catalog)))
+            found.append(ShapeWarning(step=row.name, cause="unbounded-sensor", message=_unbounded(row, catalog)))
     return found
 
 
 def _unbounded(row: StepShape, catalog: Catalog | None) -> str:
     """Say that nothing bounds a sensor's wait, and where a catalog would still fill one in."""
     if catalog is None:
-        return f"{row.step} polls with no deadline, so nothing here bounds its wait: --server reads the block's."
-    return f"{row.step} waits on a sensor that neither the document nor {row.block} gives a deadline."
+        return f"{row.name} polls with no deadline, so nothing here bounds its wait: --server reads the block's."
+    return f"{row.name} waits on a sensor that neither the document nor {row.block} gives a deadline."
 
 
 def _is_sensor(row: StepShape, catalog: Catalog | None) -> bool:

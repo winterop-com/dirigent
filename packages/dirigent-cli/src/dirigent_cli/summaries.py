@@ -409,7 +409,7 @@ def _shape(record: Record) -> RenderableType | None:
             ["step", "block", "cardinality", "attempts", "retry wait", "timeout", "deadline", "poll"],
             [
                 [
-                    escape(row.step),
+                    escape(row.name),
                     escape(row.block),
                     _width(row),
                     str(row.max_attempts),
