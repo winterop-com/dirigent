@@ -151,6 +151,17 @@ test('what a finger lands on is at least 42px tall', async ({ page }) => {
     expect((await api.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(FINGER)
 })
 
+test('the palette button is a glyph, and the chord it would have drawn is not', async ({ page }) => {
+    const palette = page.getByRole('button', { name: 'Open the command palette' })
+    await expect(palette.locator('svg')).toBeVisible()
+    await expect(palette.locator('span')).toBeHidden()
+    // A square target, the width the finger rule gives an icon button.
+    expect((await palette.boundingBox())?.width ?? 0).toBeGreaterThanOrEqual(42)
+
+    await palette.click()
+    await expect(page.getByRole('dialog')).toBeVisible()
+})
+
 test('a dialog fills the screen, with its verbs at the foot', async ({ page }) => {
     await page.getByRole('button', { name: 'Open navigation' }).click()
     await page.getByRole('button', { name: 'Settings' }).click()
