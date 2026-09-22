@@ -88,7 +88,7 @@ export function NewRule({
 
     const pipelines = usePipelines(open)
     const write = useMayWrite()
-    const shut = firstShut(write.why, unreadyRule({ code, scope, pipeline, connection, throttle }))
+    const shut = firstShut(write.why, unreadyRule({ code, scope, pipeline, throttle }))
 
     const send = () => {
         setBusy(true)

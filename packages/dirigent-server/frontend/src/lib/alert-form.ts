@@ -109,13 +109,16 @@ export function targetOptions(
     ]
 }
 
-/** What a new rule is declared with, as the dialog holds it before it is a request. */
+/**
+ * What a new rule is declared with, as the dialog holds it before it is a request.
+ *
+ * The target is not here: every channel this instance offers is one a rule may name, so
+ * there is no answer to that question that would shut Create.
+ */
 export interface RuleDraft {
     code: string
     scope: AlertScope
     pipeline: string
-    /** The connection this rule delivers through; `LOG_TARGET` is the process log. */
-    connection: string
     throttle: string
 }
 

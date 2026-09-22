@@ -20,7 +20,6 @@ function aDraft(over: Partial<RuleDraft> = {}): RuleDraft {
         code: 'page-ops',
         scope: 'global',
         pipeline: '',
-        connection: LOG_TARGET,
         throttle: '0s',
         ...over,
     }
@@ -81,10 +80,6 @@ describe('why a new rule cannot be declared yet', () => {
             'A rule watching one pipeline names that pipeline, and this one names none.',
         )
         expect(unreadyRule(aDraft({ scope: 'pipeline', pipeline: 'nightly' }))).toBeUndefined()
-    })
-
-    test('a rule naming a connection is as ready as one naming the log', () => {
-        expect(unreadyRule(aDraft({ connection: 'ops-slack' }))).toBeUndefined()
     })
 
     test('a throttle is a duration, and the absence of one is written as a duration too', () => {
