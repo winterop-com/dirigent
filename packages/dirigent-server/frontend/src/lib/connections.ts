@@ -221,13 +221,16 @@ function short(value: unknown): string {
 /** Whether a connection answered, refused, could not be verified, or has never been asked. */
 export type HealthState = 'healthy' | 'failed' | 'unverified' | 'unchecked'
 
+/** The words a connection's health is said in, wherever one is drawn. */
+export type HealthLabel = 'healthy' | 'failed' | 'not verified' | 'never checked'
+
 /** How a connection's health reads in the listing. */
 export interface HealthView {
     state: HealthState
     /** What the dot is filled with: a semantic alias, or nothing for a check that decided nothing. */
     tone: 'good' | 'critical' | null
     /** The words beside the dot. */
-    label: string
+    label: HealthLabel
     /** What the check said when it did not go well, or nothing. */
     detail: string | null
     checkedAt: string | null

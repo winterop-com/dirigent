@@ -20,7 +20,7 @@ import {
     type AlertRuleOut,
     type Channel,
 } from '@/lib/alerting'
-import type { ConnectionOut } from '@/lib/connections'
+import { healthOf, type ConnectionOut } from '@/lib/connections'
 
 function aRule(over: Partial<AlertRuleOut> = {}): AlertRuleOut {
     return {
@@ -191,7 +191,7 @@ describe('the channels an alert can leave by', () => {
         expect(channelView(channel)).toMatchObject({ tone: 'quiet', label: 'not set up' })
     })
 
-    test('a probe that proved nothing is neither checked nor failing', () => {
+    test('a probe that proved nothing is neither healthy nor failed', () => {
         const [channel] = channelsOf(
             ['slack'],
             [
@@ -227,12 +227,12 @@ describe('the channels an alert can leave by', () => {
         )
         expect(channelView(channel)).toEqual({
             tone: 'critical',
-            label: 'failing',
+            label: 'failed',
             detail: 'slack refused the token: invalid_auth',
         })
     })
 
-    test('a channel whose last check passed reads as checked', () => {
+    test("a channel whose last check passed reads in the connections listing's own word", () => {
         const [channel] = channelsOf(
             ['slack'],
             [
@@ -243,7 +243,18 @@ describe('the channels an alert can leave by', () => {
                 }),
             ],
         )
-        expect(channelView(channel)).toMatchObject({ tone: 'good', label: 'checked' })
+        expect(channelView(channel)).toMatchObject({ tone: 'good', label: 'healthy' })
+    })
+
+    test('a credential says its health in one vocabulary, whichever screen draws it', () => {
+        const row = aConnection({
+            last_check_at: '2026-01-01T00:00:00Z',
+            last_check_healthy: false,
+            last_check_detail: 'slack refused the token: invalid_auth',
+        })
+        const [channel] = channelsOf(['slack'], [row])
+        expect(channelView(channel).label).toBe(healthOf(row).label)
+        expect(channelView(channel).detail).toBe(healthOf(row).detail)
     })
 
     test('the strip reads by its dots: what delivers, what broke, what cannot say', () => {

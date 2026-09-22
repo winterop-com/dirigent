@@ -995,12 +995,16 @@ notifier, or a connection whose last check passed. Red where the last check fail
 everything else: a kind nothing is set up for, a credential nobody has checked, a probe that
 proved nothing. A reader learns three colours once; six would be a legend.
 
-**The words are the tooltip's, and they are the whole vocabulary**: `ready`, `failing`, `never
-checked`, `not verified`, `not set up`. The tooltip is this app's own primitive, it opens on
-hover and on keyboard focus alike, and it holds, in this order: the kind and the state word
-(`email · failing`), how long ago the check was where there was one, the connection's code in
-mono, and the check's own sentence in full. Nothing on the strip ever says "connection" or "built
-in": a reader knows they have not set up Slack, not that a credential of kind `slack` is absent.
+**The words are the tooltip's, and a credential's are the connections listing's**: `healthy`,
+`failed`, `not verified` and `never checked` are `healthOf`'s, read through it rather than said a
+second way here, so one credential reads the same wherever it is drawn. The strip adds two of its
+own, for the two things that are not a credential: `ready` for the log channel, which nothing
+checks, and `not set up` for an installed notifier no credential exists for. The tooltip is this
+app's own primitive, it opens on hover and on keyboard focus alike, and it holds, in this order:
+the kind and the state word (`email · failed`), how long ago the check was where there was one,
+the connection's code in mono, and the check's own sentence in full. Nothing on the strip ever
+says "connection" or "built in": a reader knows they have not set up Slack, not that a credential
+of kind `slack` is absent.
 
 **A chip goes where its channel is.** One with a credential opens it at `/connections/<code>`;
 a grey chip with no credential opens `/connections?new=<kind>`, which is the connections screen
