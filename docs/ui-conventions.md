@@ -907,6 +907,11 @@ pressed; they keep the size the type scale gives them, and the row holding them 
 finger has -- which is `min-h-finger` already. The rule is about what the app draws as a
 control, and that is what makes it checkable.
 
+**A keyboard chord is drawn only where a keyboard is likely.** Below the breakpoint the palette
+button carries the search glyph in place of Cmd/Ctrl+K, under the same `aria-label` and in the
+square the finger rule gives an icon button, because a phone has no modifier key to press; the
+list of shortcuts keeps its keys, being a list about keyboards.
+
 ## A kind may be drawn as well as named
 
 **A glyph that identifies a kind is information, not decoration.** The one decorative element in
@@ -985,6 +990,7 @@ is a table of three columns -- the dot; the glyph and the code; and either `Set 
 for a grey chip with no credential or how long ago the check was -- and a row with a credential
 is a link to it, like the chip.
 
+||||||| parent of 607d5bab (fix(ui): the palette button is a glyph below the breakpoint)
 ## An option wears what its value wears
 
 A dropdown whose options are values the app already draws somewhere -- a status, a kind --

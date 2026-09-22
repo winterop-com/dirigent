@@ -15,7 +15,18 @@ import { ServerStatusButton } from '@/components/ServerStatusButton'
 import { useTheme } from 'next-themes'
 
 import { MODES, MODE_LABELS } from '@/components/ThemeToggle'
-import { Keyboard, LogOut, Menu, PanelLeft, PanelRight, Settings, Monitor, Moon, Sun } from 'lucide-react'
+import {
+    Keyboard,
+    LogOut,
+    Menu,
+    PanelLeft,
+    PanelRight,
+    Search,
+    Settings,
+    Monitor,
+    Moon,
+    Sun,
+} from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -255,7 +266,10 @@ export function AppShell() {
                                         }}
                                         aria-label={OPEN_PALETTE_LABEL}
                                     >
-                                        {modifier}K
+                                        {/* There is no keyboard below the breakpoint, so what the
+                                            button carries there is the glyph rather than the chord. */}
+                                        <Search className="size-4 md:hidden" aria-hidden />
+                                        <span className="hidden md:inline">{modifier}K</span>
                                     </Button>
                                 }
                             />
