@@ -9,7 +9,7 @@ from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema import ValidationError as SchemaValidationError
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator, model_validator
 
-from dirigent_client.enums import RunPriority
+from dirigent_client.enums import Importance, RunPriority
 from dirigent_client.schemas import Requirements
 from dirigent_common import TEMPLATE_MEDIA_TYPE, EntityName, JsonMap, StepName, TemplateError, compile_template
 from dirigent_common.durations import Duration
@@ -313,6 +313,11 @@ class PipelineDefinition(BaseModel):
     """How far ahead of other runs the claim takes this pipeline's attempts.
 
     A trigger may override it for what it fires, and an ad hoc run may override it again."""
+
+    importance: Importance = Importance.NORMAL
+    """How much this pipeline matters, which is not when its work is claimed; priority says that.
+
+    An alert rule may name the least importance a pipeline must have before it fires."""
 
     params: JsonMap = Field(default_factory=lambda: dict(EMPTY_PARAMS_SCHEMA))
     steps: dict[StepName, StepDefinition] = Field(min_length=1)
