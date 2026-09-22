@@ -228,7 +228,7 @@ class SlackConnectionKind(ConnectionKind):
         """Prove a bot token with ``auth.test``, and say why a webhook cannot be proved at all."""
         settings = SlackNotifierConfig.model_validate(config.model_dump())
         if settings.bot_token is None:
-            return HealthReport(healthy=True, detail=UNVERIFIABLE_WEBHOOK)
+            return HealthReport(healthy=None, detail=UNVERIFIABLE_WEBHOOK)
         try:
             async with _slack_client(settings, settings.bot_token.get_secret_value()) as client:
                 response = await client.post(SLACK_AUTH_TEST)

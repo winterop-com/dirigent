@@ -12,7 +12,13 @@
  */
 
 import type { Page } from '@/lib/api'
-import { connectionsHealth, connectionsNote, type ConnectionOut } from '@/lib/connections'
+import {
+    connectionsHealth,
+    connectionsNote,
+    healthOf,
+    type ConnectionOut,
+    type HealthView,
+} from '@/lib/connections'
 import { concernTone, DAY, type Tile, type TileTone } from '@/lib/overview'
 import { readPipelines, type PipelineOut } from '@/lib/pipelines'
 import { EVERY_RUN, runsLink, type RunOut } from '@/lib/runs'
@@ -265,20 +271,31 @@ export function healthRows(
         }
     })
     const held = connections.map((connection): HealthRow => {
-        const healthy = connection.last_check_healthy
+        const view = healthOf(connection)
         return {
             id: connection.id,
             kind: 'connection',
             label: connection.code,
-            tone: healthy === null ? 'neutral' : healthy ? 'good' : 'critical',
-            detail:
-                healthy === null
-                    ? 'never checked'
-                    : (connection.last_check_detail ?? (healthy ? 'healthy' : 'did not answer')),
+            tone: view.tone ?? 'neutral',
+            detail: detailOf(view),
             at: connection.last_check_at,
         }
     })
     return [...fleet, ...held]
+}
+
+/** What a connection's row says on the right: what the check said, or what its state is. */
+function detailOf(view: HealthView): string {
+    switch (view.state) {
+        case 'unchecked':
+            return 'never checked'
+        case 'unverified':
+            return view.detail ?? 'not verified'
+        case 'healthy':
+            return view.detail ?? 'healthy'
+        case 'failed':
+            return view.detail ?? 'did not answer'
+    }
 }
 
 /**

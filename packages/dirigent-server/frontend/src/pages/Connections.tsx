@@ -364,15 +364,16 @@ function Said({ description }: { description: string | null }) {
 /** Whether this credential answered the last time anything asked it. */
 function Health({ row }: { row: ConnectionOut }) {
     const view = healthOf(row)
-    if (view.tone === null) return <span className="text-xs text-faint">never checked</span>
     return (
         <span className="flex items-center gap-2 text-xs">
-            <span
-                className="status-dot"
-                style={{ '--chip': TONES[view.tone] } as CSSProperties}
-                aria-hidden
-            />
-            <span>{view.label}</span>
+            {view.tone !== null && (
+                <span
+                    className="status-dot"
+                    style={{ '--chip': TONES[view.tone] } as CSSProperties}
+                    aria-hidden
+                />
+            )}
+            <span className={view.tone === null ? 'text-faint' : undefined}>{view.label}</span>
             {view.detail !== null && (
                 <span className="max-w-64 truncate text-muted-foreground" title={view.detail}>
                     {view.detail}

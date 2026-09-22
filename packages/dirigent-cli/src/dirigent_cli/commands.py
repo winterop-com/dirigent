@@ -106,6 +106,7 @@ from dirigent_cli.output import (
     prioritised,
     refuse,
     render_bool,
+    render_check,
     stream_line,
     styled,
     table,
@@ -2320,7 +2321,7 @@ def connection_list(
                 row.name or "-",
                 row.kind,
                 moment(row.last_check_at),
-                render_bool(row.last_check_healthy),
+                render_check(row.last_check_at, row.last_check_healthy),
                 row.description or "-",
             ]
             for row in rows
@@ -2424,18 +2425,21 @@ def connection_show(
 
 @connection_app.command("check")
 def connection_check(ctx: typer.Context, code: Annotated[str, typer.Argument()]) -> None:
-    """Ask a connection's own kind whether its external system answers."""
+    """Ask a connection's own kind whether its external system answers.
+
+    A check that ran and could not decide is not a failure, so only a refused one exits 1.
+    """
     with client_for(state_of(ctx)) as dg:
         report = dg.call(dg.connections.check(code))
     emit_fact(
         "connection.checked",
-        message="healthy" if report.healthy else "unhealthy",
+        message="not verified" if report.healthy is None else "healthy" if report.healthy else "unhealthy",
         code=code,
         healthy=report.healthy,
         detail=report.detail,
         version=report.version,
     )
-    if not report.healthy:
+    if report.healthy is False:
         raise typer.Exit(code=1)
 
 
@@ -2576,7 +2580,7 @@ def system_info(
                     row.name or "-",
                     row.kind,
                     moment(row.last_check_at),
-                    render_bool(row.last_check_healthy),
+                    render_check(row.last_check_at, row.last_check_healthy),
                     row.last_check_detail or "-",
                 ]
                 for row in info.connections

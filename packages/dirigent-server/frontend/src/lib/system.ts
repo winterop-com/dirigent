@@ -19,6 +19,7 @@ export interface ConnectionHealth {
     name: string | null
     kind: string
     last_check_at: string | null
+    /** What the check said, where `null` beside a `last_check_at` is one that could not decide. */
     last_check_healthy: boolean | null
     last_check_detail: string | null
 }

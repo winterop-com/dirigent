@@ -181,12 +181,12 @@ export function workersTile(workers: Page<WorkerOut>): Tile {
  * How many connections answered the last time anything asked, and which one did not.
  *
  * COUNTED WHERE EVERY SCREEN COUNTS IT. `connectionsHealth` is what the dashboard's health foot
- * and the connections screen's own bar read, so a credential nothing has checked reads the same
- * here as it does there.
+ * and the connections screen's own bar read, so a credential nothing has checked, and one whose
+ * check could not decide, read the same here as they do there.
  */
 export function connectionsTile(connections: Page<ConnectionOut>): Tile {
     const rows = connections.items
-    const { healthy, unchecked } = connectionsHealth(rows)
+    const { healthy, unverified, unchecked } = connectionsHealth(rows)
     const failing = rows.find((row) => healthOf(row).state === 'failed') ?? null
     if (rows.length === 0) {
         return {
@@ -198,18 +198,21 @@ export function connectionsTile(connections: Page<ConnectionOut>): Tile {
             to: '/connections',
         }
     }
+    const undecided = unverified + unchecked
     const note =
         failing !== null
             ? `${titleOf(failing)} did not answer${failing.last_check_detail === null ? '' : `: ${failing.last_check_detail}`}`
-            : unchecked > 0
-              ? `${String(unchecked)} ${unchecked === 1 ? 'has' : 'have'} never been checked.`
-              : 'Every connection answered when it was last checked.'
+            : unverified > 0
+              ? `${String(unverified)} could not be verified.`
+              : unchecked > 0
+                ? `${String(unchecked)} ${unchecked === 1 ? 'has' : 'have'} never been checked.`
+                : 'Every connection answered when it was last checked.'
     return {
         id: 'connections',
         label: 'Connections',
         value: `${String(healthy)} of ${counted(connections)}`,
         note,
-        tone: failing !== null ? 'critical' : unchecked > 0 ? 'neutral' : 'good',
+        tone: failing !== null ? 'critical' : undecided > 0 ? 'neutral' : 'good',
         to: '/connections',
     }
 }

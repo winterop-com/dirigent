@@ -109,6 +109,25 @@ describe('whether a connection answered', () => {
         expect(view.tone).toBe('critical')
         expect(view.detail).toContain('ConnectTimeout')
     })
+
+    test('reads a check that could not decide as neither healthy nor failed', () => {
+        const view = healthOf({
+            last_check_at: '2026-03-01T09:00:00Z',
+            last_check_healthy: null,
+            last_check_detail: 'not verified: a Slack incoming webhook can only be checked by posting to it',
+        })
+        expect(view.state).toBe('unverified')
+        expect(view.tone).toBeNull()
+        expect(view.label).toBe('not verified')
+        expect(view.detail).toContain('posting to it')
+        expect(view.checkedAt).toBe('2026-03-01T09:00:00Z')
+    })
+
+    test('tells a check that decided nothing apart from one that never ran by its instant', () => {
+        expect(
+            healthOf({ last_check_at: null, last_check_healthy: null, last_check_detail: null }).state,
+        ).toBe('unchecked')
+    })
 })
 
 describe('the row a check just answered for', () => {
@@ -121,6 +140,16 @@ describe('the row a check just answered for', () => {
         expect(healthOf(updated).state).toBe('healthy')
         expect(updated.last_check_detail).toBe('HTTP 200')
         expect(updated.code).toBe(ROW.code)
+    })
+
+    test('takes a report that could not decide onto the row as one that did not', () => {
+        const updated = withCheck(
+            ROW,
+            { healthy: null, detail: 'not verified: only a post would prove it', version: null },
+            '2026-03-01T09:00:00Z',
+        )
+        expect(healthOf(updated).state).toBe('unverified')
+        expect(updated.last_check_healthy).toBeNull()
     })
 })
 
@@ -225,6 +254,13 @@ const checked = (healthy: boolean | null) => ({
     last_check_detail: null,
 })
 
+/** A row a check ran against and could not decide: an instant, and no verdict beside it. */
+const undecided = () => ({
+    last_check_at: '2026-03-01T00:00:00Z',
+    last_check_healthy: null,
+    last_check_detail: 'not verified: only a post would prove it',
+})
+
 describe('what the status bar says the connections screen is showing', () => {
     test('states how many of the credentials read answered, which nothing else says', () => {
         expect(connectionsNote([checked(true), checked(false), checked(null)])).toBe(
@@ -247,20 +283,39 @@ describe('what the status bar says the connections screen is showing', () => {
             '1 of 2 connections healthy · 1 has never been checked',
         )
     })
+
+    test('says what could not be verified beside the count rather than as a failure', () => {
+        expect(connectionsNote([checked(true), undecided()])).toBe('1 of 2 healthy · 1 could not be verified')
+    })
+
+    test('says both of what is undecided, each as the kind of undecided it is', () => {
+        expect(connectionsNote([checked(true), undecided(), checked(null)])).toBe(
+            '1 of 3 healthy · 1 could not be verified · 1 has never been checked',
+        )
+    })
 })
 
 describe('how a set of connections came out', () => {
-    test('counts what answered, what did not, and what nothing has asked', () => {
-        expect(connectionsHealth([checked(true), checked(false), checked(null), checked(true)])).toEqual({
-            total: 4,
+    test('counts what answered, what did not, what could not be verified, and what nothing has asked', () => {
+        expect(
+            connectionsHealth([checked(true), checked(false), checked(null), checked(true), undecided()]),
+        ).toEqual({
+            total: 5,
             healthy: 2,
             failed: 1,
+            unverified: 1,
             unchecked: 1,
         })
     })
 
     test('counts nothing at all out of an empty registry', () => {
-        expect(connectionsHealth([])).toEqual({ total: 0, healthy: 0, failed: 0, unchecked: 0 })
+        expect(connectionsHealth([])).toEqual({
+            total: 0,
+            healthy: 0,
+            failed: 0,
+            unverified: 0,
+            unchecked: 0,
+        })
     })
 })
 

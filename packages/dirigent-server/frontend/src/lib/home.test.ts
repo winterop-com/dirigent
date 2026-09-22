@@ -118,6 +118,11 @@ function connection(code: string, healthy: boolean | null, detail: string | null
     }
 }
 
+/** A connection a check ran against and could not decide about: an instant, and no verdict. */
+function unverified(code: string, detail: string): ConnectionOut {
+    return { ...connection(code, null), last_check_at: '2026-01-01T00:00:00Z', last_check_detail: detail }
+}
+
 /** The tile a slot holds, by the id the row keys it under. */
 function tileOf(slots: ReturnType<typeof statTiles>, id: string) {
     const found = slots.find((slot) => slot.id === id)
@@ -463,6 +468,17 @@ describe('what this instance depends on', () => {
         const [row] = healthRows([], [connection('acme', null)])
         expect(row).toMatchObject({ tone: 'neutral', detail: 'never checked', at: null })
     })
+
+    // REVERT-PROOF. A check that could not verify anything wrote an instant and no verdict, and
+    // reading the verdict alone would draw it as a connection nothing has ever asked.
+    test('tells a check that could not decide from one nobody has made', () => {
+        const [row] = healthRows([], [unverified('ops-slack', 'not verified: only a post would prove it')])
+        expect(row).toMatchObject({
+            tone: 'neutral',
+            detail: 'not verified: only a post would prove it',
+            at: '2026-01-01T00:00:00Z',
+        })
+    })
 })
 
 describe('the line along the foot of the panel', () => {
@@ -487,6 +503,11 @@ describe('the line along the foot of the panel', () => {
             [connection('acme', true), connection('tracker', false)],
         )
         expect(note).toBe('1 of 2 workers healthy · 1 of 2 connections healthy.')
+    })
+
+    test('says of a check that could not decide that it could not, rather than that it failed', () => {
+        const note = healthNote([worker('alpha')], [unverified('ops-slack', 'not verified')])
+        expect(note).toBe('0 of 1 connections healthy · 1 could not be verified.')
     })
 
     test('says a fleet that has never registered rather than counting none of none', () => {

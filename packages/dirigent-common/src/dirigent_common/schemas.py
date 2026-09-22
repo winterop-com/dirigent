@@ -27,7 +27,9 @@ class BlockModel(BaseModel):
 class HealthReport(BaseModel):
     """The outcome of checking a connection against its external system."""
 
-    healthy: bool
+    healthy: bool | None
+    """Whether the system answered, where ``None`` means the check ran and could not decide."""
+
     detail: str | None = None
     version: str | None = None
 
