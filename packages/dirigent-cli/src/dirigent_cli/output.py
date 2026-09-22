@@ -474,6 +474,14 @@ def prioritised(priority: object) -> str:
             return ""
 
 
+def watching(scope: object, importance: object) -> str:
+    """What an alert rule watches, in one cell: its scope, and the floor it fires at.
+
+    Almost every rule names no importance, so a column of its own would mostly be empty.
+    """
+    return f"{scope}, {importance} and above" if importance else str(scope)
+
+
 def status_cell(value: object, width: int = STATUS_WIDTH) -> str:
     """Render a status padded to a fixed width, then coloured.
 

@@ -217,6 +217,8 @@ MAP_TAKES_A_PATH = CLI.define(
 
 NOT_AN_ALERT_EVENT = CLI.define("not_an_alert_event", "{event} is not an alert event ({allowed})")
 
+NOT_AN_IMPORTANCE = CLI.define("not_an_importance", "--importance {value} is not an importance ({allowed})")
+
 ONE_BODY = CLI.define("one_body", "a rule takes one body: --body or --body-file, not both")
 
 SCAFFOLD_REFUSED = CLI.define("scaffold_refused", "{detail}")

@@ -61,6 +61,7 @@ from dirigent_cli.messages import (
     NOT_A_RUN_STATUS,
     NOT_A_STARTER,
     NOT_A_WINDOW,
+    NOT_AN_IMPORTANCE,
     NOT_AUTHENTICATED,
     OR_A_PROFILE_TOKEN,
     OR_DG_AUTH_LOGIN,
@@ -140,6 +141,7 @@ from dirigent_client import (
     DocumentKind,
     ExampleDetail,
     ExampleOut,
+    Importance,
     ItemOut,
     LogEntryOut,
     LogLevel,
@@ -831,6 +833,7 @@ def pipeline_show(
             "name": row.name or "-",
             "description": row.description or "-",
             "tags": " ".join(row.tags) or "-",
+            "importance": row.importance.value,
             "active": "yes" if row.active else "no",
             "current version": row.current_version,
             "runs in flight": row.active_runs,
@@ -1046,6 +1049,20 @@ def parse_priority(value: str | None) -> RunPriority | None:
             NOT_A_PRIORITY,
             value=repr(value),
             allowed=", ".join(priority.value for priority in RunPriority),
+        )
+
+
+def parse_importance(value: str | None) -> Importance | None:
+    """Read the importance a rule was given, naming the vocabulary when it is not one."""
+    if value is None:
+        return None
+    try:
+        return Importance(value.lower())
+    except ValueError:
+        fail(
+            NOT_AN_IMPORTANCE,
+            value=repr(value),
+            allowed=", ".join(importance.value for importance in Importance),
         )
 
 
