@@ -133,8 +133,8 @@ function connectionRow(resolution: ReturnType<typeof resolveConnection>): Found 
         return { mark: null, named: null, words: 'not configured', body: null }
     const held = resolution.connection
     return {
-        // The kind is written beside the mark here: the box above holds the code, so the row has
-        // nothing of its own for a mark to stand against.
+        // The kind is spelled in the words as well as marked: the code is in the box above, so
+        // the row has none of its own to stand the mark beside.
         mark: kindGlyph(held.kind),
         named: nameOf(held),
         words: `${held.kind} · ${healthOf(held).label}`,

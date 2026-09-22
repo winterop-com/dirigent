@@ -164,7 +164,8 @@ export function NewConnection({
                             <SelectTrigger id="connection-kind" className="w-full font-mono">
                                 {/* The chosen row keeps its mark in the closed box, so the row
                                     somebody picked is the row they are looking at. Nothing
-                                    chosen is the placeholder's, and a mark would be a kind. */}
+                                    chosen draws the placeholder, which names no kind and so
+                                    wears no mark. */}
                                 <SelectValue placeholder="Choose a kind">
                                     {chosen === null ? undefined : () => <KindRow kind={chosen.id} />}
                                 </SelectValue>
