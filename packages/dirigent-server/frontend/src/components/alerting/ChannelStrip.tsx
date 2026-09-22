@@ -7,7 +7,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useSmallScreen } from '@/hooks/use-small-screen'
 import { channelCode, channelLink, channelView, type Channel, type ChannelView } from '@/lib/alerting'
 import { formatRelative } from '@/lib/format'
-import { channelGlyph } from '@/lib/glyphs'
+import { kindGlyph } from '@/lib/glyphs'
 import { cn } from '@/lib/utils'
 
 /** What each dot is painted in, named through the semantic aliases rather than a colour. */
@@ -84,7 +84,7 @@ function ChannelChip({ channel }: { channel: Channel }) {
     const to = channelLink(channel)
     const body = (
         <>
-            <Mark glyph={channelGlyph(channel.notifier)} />
+            <Mark glyph={kindGlyph(channel.notifier)} />
             <span className="truncate font-mono text-xs font-semibold">{channelCode(channel)}</span>
             <Dot tone={view.tone} />
         </>
@@ -188,7 +188,7 @@ function ChannelRow({ channel }: { channel: Channel }) {
     const to = channelLink(channel)
     const named = (
         <span className="flex items-center gap-2.5">
-            <Mark glyph={channelGlyph(channel.notifier)} />
+            <Mark glyph={kindGlyph(channel.notifier)} />
             <span className="truncate font-mono text-xs font-semibold">{channelCode(channel)}</span>
         </span>
     )
