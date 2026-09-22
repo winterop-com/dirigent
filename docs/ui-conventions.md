@@ -951,11 +951,14 @@ apart at a glance, which a column of identical dots and four words cannot do. So
 a mark of its own, and only a kind may. A glyph never stands for a state, and one drawn beside a
 word that already says the same thing is the decoration the rule above forbids.
 
-**Kind glyphs are drawn on the alerting screen's channel strip, and nowhere else today.** The
-notifiers this repository ships wear an envelope for `email`, a scroll for `log`, the Slack mark
-for `slack` and a webhook for `webhook`. A glyph is `size-4` in muted ink wherever it is drawn;
-what it sits in belongs to the thing drawing it -- the palette row gives it a `size-7` tile on
-`--muted`, a channel chip draws it bare.
+**Kind glyphs go wherever a channel is named as a channel, and never beside a state.** A rule's
+target is a channel, so the mark the strip's chips wear stands beside the code in the `Deliver
+through` picker's rows, in the rules listing's target cell and in a rule's panel: the same thing
+looks the same across a screen, and a reader who learned the envelope on the strip reads it on a
+rule. The notifiers this repository ships wear an envelope for `email`, a scroll for `log`, the
+Slack mark for `slack` and a webhook for `webhook`. A glyph is `size-4` in muted ink wherever it
+is drawn; what it sits in belongs to the thing drawing it -- the palette row gives it a `size-7`
+tile on `--muted`, a channel chip draws it bare.
 
 **The glyph says what a thing is and the dot says how it is, and neither does the other's job.**
 A glyph never takes a status colour and a dot never says which kind something is, so a card
