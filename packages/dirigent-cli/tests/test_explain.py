@@ -149,6 +149,7 @@ def test_an_adoption_of_an_unknown_grid_stays_unknown() -> None:
     assert rows(shape)["each"].cardinality == "adopts wide"
     assert rows(shape)["each"].elements is None
     assert shape.attempts_at_least is True
+    assert [one.step for one in shape.warnings] == ["wide"], "the step that named the reference is warned about once"
 
 
 def test_a_for_each_reading_a_step_output_is_unknown() -> None:

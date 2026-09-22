@@ -236,7 +236,9 @@ def _warnings(rows: Sequence[StepShape], catalog: Catalog | None) -> list[ShapeW
     """Name what the document leaves unbounded or unresolved, one sentence each."""
     found: list[ShapeWarning] = []
     for row in rows:
-        if row.elements is None:
+        # The step that named the reference is warned about; one that adopts its grid has the
+        # same unknown width and no second cause.
+        if row.cardinality == UNKNOWN:
             found.append(
                 ShapeWarning(
                     step=row.step,

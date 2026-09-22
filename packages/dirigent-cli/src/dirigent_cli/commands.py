@@ -15,6 +15,7 @@ from rich.markup import escape
 
 from dirigent_cli import schemas, starters
 from dirigent_cli.context import CliState, Session, client_for, state_of
+from dirigent_cli.explain import explain as document_shape
 from dirigent_cli.graph import GraphStep, render_graph, steps_of_document
 from dirigent_cli.local import (
     ConnectionSpec,
@@ -469,11 +470,18 @@ def validate_command(
     server: Annotated[
         bool, typer.Option("--server", help="Also check it against a server's catalog and requirements.")
     ] = False,
+    explain: Annotated[
+        bool, typer.Option("--explain", help="Also say what the work will cost: how wide, how many tries, how long.")
+    ] = False,
 ) -> None:
     """Check a document offline, or against a server's catalog too with --server.
 
     Offline, a triggers document is checked at the schema level: its clocks and its codes.
     `--server` adds the pipeline it names and the parameters its schedules pin.
+
+    `--explain` adds the shape of the work ahead for every pipeline document that is valid:
+    the fan-out widths, the retry budgets and the waits. With `--server` too, a sensor that
+    declares neither cadence nor deadline takes the block's own.
     """
     state = state_of(ctx)
     documents = _documents_to_apply(reference, None)
@@ -526,16 +534,26 @@ def validate_command(
             )
             failures += 1
             continue
+        checked = "document and catalog" if catalog is not None else "document, offline"
         emit_fact(
             "validation",
             message="valid",
             code=definition.code,
             document=label,
-            checked="document and catalog" if catalog is not None else "document, offline",
+            checked=checked,
             steps=[step._asdict() for step in graph_steps(definition)]
             if isinstance(definition, PipelineDefinition)
             else None,
         )
+        if explain and isinstance(definition, PipelineDefinition):
+            emit_fact(
+                "validation.shape",
+                message="shape",
+                code=definition.code,
+                document=label,
+                checked=checked,
+                **document_shape(definition, catalog).model_dump(mode="json"),
+            )
     emit_fact(
         "validated",
         level="error" if failures else "info",

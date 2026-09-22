@@ -39,6 +39,7 @@ BULKY: Final = frozenset(
     {
         "steps",
         "failures",
+        "warnings",
         "windows",
         "packages",
         "settings",

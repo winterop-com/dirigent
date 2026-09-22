@@ -434,6 +434,127 @@ def test_validate_carries_the_shape_of_a_document_no_instance_has_seen(tmp_path:
     assert reported["steps"][1]["depends_on"] == ["greet"]
 
 
+FAN_OUT = """
+format: dirigent/v1
+kind: pipeline
+code: cli-fan-out
+params:
+  type: object
+  properties:
+    regions:
+      type: array
+      default: [east, west, north]
+steps:
+  shape:
+    block: shell.run
+    for_each: "${params.regions}"
+    retry:
+      max_attempts: 3
+      backoff: 30s
+      jitter: 0.0
+    config:
+      argv: [echo, "${item}"]
+  write_one:
+    block: shell.run
+    depends_on: [shape]
+    for_each: "${steps.shape.items}"
+    config:
+      argv: [echo, "${item}"]
+  manifest:
+    block: shell.run
+    depends_on: [write_one]
+    config:
+      argv: [echo, done]
+"""
+
+
+def test_validate_explain_carries_what_each_step_will_cost(tmp_path: Path) -> None:
+    """The totals and the rows are the record's; the drawing of them is the formatter's."""
+    path = tmp_path / "fan-out.yaml"
+    path.write_text(FAN_OUT)
+
+    reported = only(machine("validate", "--explain", str(path)).stdout, "validation.shape")
+
+    assert reported["code"] == "cli-fan-out"
+    assert reported["document"] == str(path)
+    assert reported["checked"] == "document, offline"
+    assert [step["step"] for step in reported["steps"]] == ["shape", "write_one", "manifest"]
+    assert reported["steps"][0]["cardinality"] == 3
+    assert reported["steps"][0]["max_attempts"] == 3
+    assert reported["steps"][0]["retry_wait"] == "1m30s"
+    assert reported["steps"][1]["cardinality"] == "adopts shape"
+    assert reported["steps"][1]["elements"] == 3
+    # Three items three times, three items once, and the join once.
+    assert reported["attempts_max"] == 13
+    assert reported["attempts_at_least"] is False
+    assert reported["warnings"] == []
+
+
+def test_validate_explains_nothing_unless_it_is_asked_to(tmp_path: Path) -> None:
+    path = tmp_path / "demo.yaml"
+    path.write_text(DOCUMENT)
+    assert of_kind(records(machine("validate", str(path)).stdout), "validation.shape") == []
+
+
+def test_validate_explain_says_where_only_the_run_can_fix_the_width(tmp_path: Path) -> None:
+    path = tmp_path / "fan-out.yaml"
+    path.write_text(FAN_OUT.replace("      default: [east, west, north]\n", ""))
+
+    reported = only(machine("validate", "--explain", str(path)).stdout, "validation.shape")
+
+    assert reported["steps"][0]["cardinality"] == "unknown"
+    assert reported["attempts_at_least"] is True
+    assert [one["cause"] for one in reported["warnings"]] == ["unknown-cardinality"]
+    assert "${params.regions}" in reported["warnings"][0]["message"]
+
+
+def test_validate_explain_leaves_a_triggers_document_alone(tmp_path: Path) -> None:
+    """A triggers document declares no work, so there is nothing of its own to cost."""
+    path = tmp_path / "clocks.yaml"
+    path.write_text(
+        "format: dirigent/v1\nkind: triggers\ncode: cli-clocks\npipeline: cli-demo\n"
+        "triggers:\n  schedules:\n    - { code: ops-nightly, cron: '0 2 * * *' }\n"
+    )
+
+    result = machine("validate", "--explain", str(path))
+
+    assert result.exit_code == 0
+    assert of_kind(records(result.stdout), "validation.shape") == []
+
+
+def test_validate_explain_costs_nothing_a_document_got_wrong(tmp_path: Path) -> None:
+    """An invalid document has no shape worth costing, and the exit code is the flag's business."""
+    path = tmp_path / "demo.yaml"
+    path.write_text(DOCUMENT.replace("code: cli-demo", "code: Not A Code"))
+
+    result = machine("validate", "--explain", str(path))
+
+    assert result.exit_code == 1
+    assert of_kind(records(result.stdout), "validation.shape") == []
+
+
+def test_validate_explain_against_a_server_fills_a_sensor_from_the_block(tmp_path: Path, server: str) -> None:
+    """Offline a sensor's cadence is whatever the document wrote; the catalog knows the rest."""
+    path = tmp_path / "sensor.yaml"
+    path.write_text(
+        "format: dirigent/v1\nkind: pipeline\ncode: cli-sensor\n"
+        "steps:\n  wait:\n    block: time.sleep\n    config:\n      for: 1s\n"
+    )
+
+    offline = only(machine("validate", "--explain", str(path)).stdout, "validation.shape")
+    assert offline["steps"][0]["deadline"] is None
+    assert offline["steps"][0]["from_block"] == []
+
+    reported = only(machine("validate", "--explain", "--server", str(path)).stdout, "validation.shape")
+
+    assert reported["checked"] == "document and catalog"
+    assert reported["steps"][0]["poll"] == "1s"
+    assert reported["steps"][0]["deadline"] == "1d"
+    assert reported["steps"][0]["from_block"] == ["poll", "deadline"]
+    assert reported["deadline_longest"] == "1d"
+    assert reported["warnings"] == []
+
+
 def test_apply_refuses_an_invalid_document_and_exits_non_zero(tmp_path: Path, server: str) -> None:
     path = tmp_path / "demo.yaml"
     path.write_text(DOCUMENT.replace("shell.run", "nope.gone"))
