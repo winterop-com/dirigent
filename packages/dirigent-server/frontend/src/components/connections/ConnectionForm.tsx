@@ -4,6 +4,7 @@ import { Instant } from '@/components/Instant'
 import { KindChip } from '@/components/KindChip'
 import { Refusable } from '@/components/Refusable'
 import { Refusal } from '@/components/Refusal'
+import { HealthSaid } from '@/components/connections/Health'
 import { SecretField } from '@/components/connections/SecretField'
 import { SchemaForm } from '@/components/pipeline/SchemaForm'
 import { Button } from '@/components/ui/button'
@@ -15,7 +16,7 @@ import { useMayWrite } from '@/hooks/use-may-write'
 import { type JsonMap, type Problem } from '@/lib/api'
 import { refusalOf } from '@/lib/refusal'
 import { firstShut } from '@/lib/roles'
-import { patchBody, settingFields, updateConnection, type ConnectionOut } from '@/lib/connections'
+import { healthOf, patchBody, settingFields, updateConnection, type ConnectionOut } from '@/lib/connections'
 import { separatelyUpdated } from '@/lib/format'
 import { headingOf } from '@/lib/identity'
 import { maySubmit, validateFields, withUnreadable, type FieldDescriptor } from '@/lib/schema-form'
@@ -137,6 +138,7 @@ export function ConnectionForm({
                         </>
                     )}
                 </p>
+                <LastCheck connection={connection} />
                 <Description text={connection.description} />
             </div>
 
@@ -209,6 +211,29 @@ export function ConnectionForm({
                 </Refusable>
                 {saved && <span className="text-xs text-muted-foreground">Saved.</span>}
             </div>
+        </div>
+    )
+}
+
+/**
+ * What the last check proved, in the words the listing says it in and the sentence it cannot.
+ *
+ * The row beside this has the dot and the word; the check's own sentence is here, drawn whole
+ * rather than cut to a cell's width.
+ */
+function LastCheck({ connection }: { connection: ConnectionOut }) {
+    const view = healthOf(connection)
+    return (
+        <div className="space-y-0.5">
+            <p className="flex items-center gap-2">
+                <HealthSaid view={view} />
+                {view.checkedAt !== null && (
+                    <span className="text-xs text-faint">
+                        checked <Instant at={view.checkedAt} />
+                    </span>
+                )}
+            </p>
+            {view.detail !== null && <p className="text-xs text-muted-foreground">{view.detail}</p>}
         </div>
     )
 }
