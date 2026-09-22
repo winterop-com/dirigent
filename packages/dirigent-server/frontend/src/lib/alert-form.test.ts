@@ -5,20 +5,42 @@ import {
     floorChosen,
     given,
     IMPORTANCE_FLOORS,
+    LOG_TARGET,
+    LOG_TARGET_LABEL,
     needsConnection,
+    targetNote,
+    targetOptions,
     unreadyRule,
     unreadyTest,
 } from '@/lib/alert-form'
 import type { RuleDraft } from '@/lib/alert-form'
+import type { ConnectionOut } from '@/lib/connections'
 
 function aDraft(over: Partial<RuleDraft> = {}): RuleDraft {
     return {
         code: 'page-ops',
         scope: 'global',
         pipeline: '',
-        notifier: 'log',
-        connection: '',
+        connection: LOG_TARGET,
         throttle: '0s',
+        ...over,
+    }
+}
+
+function aConnection(over: Partial<ConnectionOut> = {}): ConnectionOut {
+    return {
+        id: 'c1',
+        code: 'ops-slack',
+        name: null,
+        kind: 'slack',
+        description: null,
+        config: {},
+        secret_fields: [],
+        last_check_at: null,
+        last_check_healthy: null,
+        last_check_detail: null,
+        created_at: '2026-09-22T09:00:00Z',
+        updated_at: '2026-09-22T09:00:00Z',
         ...over,
     }
 }
@@ -62,17 +84,8 @@ describe('why a new rule cannot be declared yet', () => {
         expect(unreadyRule(aDraft({ scope: 'pipeline', pipeline: 'nightly' }))).toBeUndefined()
     })
 
-    test('a rule delivers through a channel', () => {
-        expect(unreadyRule(aDraft({ notifier: '' }))).toBe(
-            'A rule delivers through a channel, and this one names none.',
-        )
-    })
-
-    test('a channel that needs a credential says which one is missing', () => {
-        expect(unreadyRule(aDraft({ notifier: 'slack' }))).toBe(
-            'The slack channel delivers through a connection, and this one names none.',
-        )
-        expect(unreadyRule(aDraft({ notifier: 'slack', connection: 'ops-slack' }))).toBeUndefined()
+    test('a rule naming a connection is as ready as one naming the log', () => {
+        expect(unreadyRule(aDraft({ connection: 'ops-slack' }))).toBeUndefined()
     })
 
     test('a throttle is a duration, and the absence of one is written as a duration too', () => {
@@ -129,5 +142,55 @@ describe('the floor a rule fires at', () => {
     test('sends no floor at all where any was chosen, and the level where one was', () => {
         expect(floorChosen(ANY_IMPORTANCE)).toBeNull()
         expect(floorChosen('critical')).toBe('critical')
+    })
+})
+
+describe('the channels a rule may deliver through', () => {
+    test('the log leads, and needs no credential beside it', () => {
+        const [first] = targetOptions(['log', 'slack'], [aConnection()])
+        expect(first).toEqual({ value: LOG_TARGET, label: LOG_TARGET_LABEL, aside: '' })
+    })
+
+    test('every notifier connection is a row, titled the way every listing titles one', () => {
+        const rows = targetOptions(['log', 'slack'], [aConnection({ name: 'Ops Slack' })])
+        expect(rows[1]).toEqual({ value: 'ops-slack', label: 'Ops Slack', aside: 'ops-slack' })
+    })
+
+    test('a connection no installed notifier sends through is not a channel', () => {
+        const rows = targetOptions(['log', 'slack'], [aConnection({ code: 'hq', kind: 'dhis2' })])
+        expect(rows.map((row) => row.value)).toEqual([LOG_TARGET])
+    })
+
+    test('the rows stand together by kind, and by title inside a kind', () => {
+        const rows = targetOptions(
+            ['log', 'slack', 'webhook'],
+            [
+                aConnection({ id: 'c1', code: 'zulu-hook', kind: 'webhook' }),
+                aConnection({ id: 'c2', code: 'beta-slack', kind: 'slack' }),
+                aConnection({ id: 'c3', code: 'alpha-slack', kind: 'slack' }),
+            ],
+        )
+        expect(rows.map((row) => row.value)).toEqual([
+            LOG_TARGET,
+            'alpha-slack',
+            'beta-slack',
+            'zulu-hook',
+        ])
+    })
+})
+
+describe('which sender the chosen target implies', () => {
+    test('naming no connection is the process log', () => {
+        expect(targetNote([aConnection()], LOG_TARGET)).toBe(
+            'Written to the process log, which needs no credential.',
+        )
+    })
+
+    test('a connection names its own kind, which is the notifier that sends it', () => {
+        expect(targetNote([aConnection()], 'ops-slack')).toBe('Delivered through the slack notifier.')
+    })
+
+    test('a code this screen has not read still reads as a connection', () => {
+        expect(targetNote([], 'ops-slack')).toBe('Delivered through this connection.')
     })
 })

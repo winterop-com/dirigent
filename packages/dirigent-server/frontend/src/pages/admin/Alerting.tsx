@@ -2,7 +2,7 @@ import { BellPlus, RefreshCw, Send } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { AdminOnly } from '@/components/admin/AdminOnly'
-import { Channel, NotificationPanel, Run, RulePanel } from '@/components/alerting/AlertPanels'
+import { Channel, NotificationPanel, Run, RulePanel, Target } from '@/components/alerting/AlertPanels'
 import { ChannelStrip } from '@/components/alerting/ChannelStrip'
 import { NewRule } from '@/components/alerting/NewRule'
 import { EMPTY_TEST, SendTest, type TestDraft } from '@/components/alerting/SendTest'
@@ -334,6 +334,7 @@ function Alerting() {
                 open={creating}
                 onOpenChange={setCreating}
                 notifiers={notifiersOf(channels.rows)}
+                connections={channels.connections}
                 onCreated={reloadRules}
             />
 
@@ -379,7 +380,7 @@ function notifierOptions(channels: readonly ChannelRow[]) {
  * with no channel at all are different things, and a strip that said "no channel is installed"
  * while it was still asking would be telling an alarming lie for as long as the read took.
  */
-function useChannels(): { rows: ChannelRow[]; read: boolean } {
+function useChannels(): { rows: ChannelRow[]; connections: ConnectionOut[]; read: boolean } {
     const [notifiers, setNotifiers] = useState<string[] | null>(null)
     const [connections, setConnections] = useState<ConnectionOut[] | null>(null)
 
@@ -407,7 +408,7 @@ function useChannels(): { rows: ChannelRow[]; read: boolean } {
     }, [])
 
     const rows = useMemo(() => channelsOf(notifiers ?? [], connections ?? []), [connections, notifiers])
-    return { rows, read: notifiers !== null && connections !== null }
+    return { rows, connections: connections ?? [], read: notifiers !== null && connections !== null }
 }
 
 /**
@@ -459,7 +460,7 @@ const RULE_COLUMNS: Column<AlertRuleOut>[] = [
     {
         id: 'delivers',
         header: 'Delivers through',
-        cell: (rule) => <Channel notifier={rule.notifier} connection={rule.connection} />,
+        cell: (rule) => <Target notifier={rule.notifier} connection={rule.connection} />,
     },
     {
         id: 'throttle',

@@ -72,6 +72,43 @@ export function NotifierPicker({
     )
 }
 
+/**
+ * Which channel a rule delivers through: the process log, or one of this instance's credentials.
+ *
+ * ONE PICKER, BECAUSE A RULE NAMES ONE TARGET. The notifier is the chosen connection's kind, so
+ * asking for the channel and then for the credential would be asking the same question twice and
+ * letting the two answers disagree.
+ */
+export function TargetPicker({
+    id,
+    options,
+    value,
+    note,
+    onChange,
+}: {
+    id: string
+    options: readonly PickerOption[]
+    value: string
+    /** The sentence under the control naming the sender the chosen target implies. */
+    note: string
+    onChange: (value: string) => void
+}) {
+    return (
+        <div className="space-y-2">
+            <Label htmlFor={id}>Deliver through</Label>
+            <Picker
+                id={id}
+                label="Deliver through"
+                value={value}
+                options={options}
+                placeholder="Search the channels this instance has"
+                onChange={onChange}
+            />
+            <p className="text-xs text-faint">{note}</p>
+        </div>
+    )
+}
+
 /** The credential a channel delivers through: the connections of that notifier's own kind. */
 export function ConnectionPicker({
     id,

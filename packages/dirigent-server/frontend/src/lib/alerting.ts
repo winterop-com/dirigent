@@ -55,8 +55,9 @@ export interface AlertRuleOut {
     pipeline: string | null
     /** The least importance a pipeline must carry before this rule fires; null fires for every one. */
     importance: Importance | null
+    /** The sender the rule's target resolved to: its connection's kind, or the log. */
     notifier: string
-    /** The connection this channel delivers through, or null where the channel needs none. */
+    /** The one target this rule names: a connection code, or null for the process log. */
     connection: string | null
     /** The subject, a Jinja template over the run's facts. */
     template: string | null
@@ -77,10 +78,10 @@ export interface AlertRuleIn {
     name: string | null
     description: string | null
     event: AlertEvent
-    notifier: string
     scope: AlertScope
     pipeline: string | null
     importance: Importance | null
+    /** The one target: a connection code, or null to deliver to the process log. */
     connection: string | null
     template: string | null
     body: string | null
@@ -205,6 +206,8 @@ export interface AlertRuleUpdate {
     template?: string | null
     /** The body, or null to send this rule with none. */
     body?: string | null
+    /** Another target: a connection code, or null to deliver to the process log. */
+    connection?: string | null
 }
 
 /** Change what a rule says or whether it delivers. */

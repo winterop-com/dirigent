@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-import { ConnectionPicker, Field, NotifierPicker } from '@/components/alerting/fields'
+import { Field, TargetPicker } from '@/components/alerting/fields'
 import { CodePane } from '@/components/pipeline/CodePane'
 import { ProgramReference } from '@/components/pipeline/ProgramReference'
 import { Picker } from '@/components/Picker'
@@ -26,14 +26,17 @@ import {
     floorChosen,
     given,
     IMPORTANCE_FLOORS,
-    needsConnection,
+    LOG_TARGET,
     SCOPES,
     SUBJECT_HINT,
+    targetNote,
+    targetOptions,
     TEMPLATE_MEDIA_TYPE,
     unreadyRule,
 } from '@/lib/alert-form'
 import { ALERT_EVENTS, createRule, type AlertEvent, type AlertScope } from '@/lib/alerting'
 import type { Problem } from '@/lib/api'
+import type { ConnectionOut } from '@/lib/connections'
 import { headingOf } from '@/lib/identity'
 import type { PickerOption } from '@/lib/picker'
 import { byTitle, readAllPipelines, type Importance } from '@/lib/pipelines'
@@ -48,13 +51,11 @@ const BODY_PATH = 'alert-rule/new/body'
 const BODY_LABEL = 'body'
 
 /**
- * Declare one rule: an event, at a scope, through a channel.
+ * Declare one rule: an event, at a scope, through one channel.
  *
- * A CHANNEL IS A NOTIFIER AND A CREDENTIAL. The wire takes both, and which credential is valid
- * depends on which channel was chosen -- so the connection picker offers the connections of the
- * notifier's own kind and is not drawn at all for `log`, which needs none. Choosing a different
- * notifier drops the connection beside it rather than carrying a credential of the wrong kind
- * across.
+ * A RULE NAMES ONE TARGET. The channel is a connection and the notifier is that connection's
+ * kind, so there is one picker and no pair to disagree -- and the row somebody chose says
+ * underneath it which sender it implied.
  *
  * THIS DIALOG DECLARES; IT DOES NOT SEND. A rule fires when a run settles, so nothing here
  * proves a channel works -- Send a test is the verb that does, and the footer says so.
@@ -63,11 +64,13 @@ export function NewRule({
     open,
     onOpenChange,
     notifiers,
+    connections,
     onCreated,
 }: {
     open: boolean
     onOpenChange: (open: boolean) => void
     notifiers: readonly string[]
+    connections: readonly ConnectionOut[]
     onCreated: () => void
 }) {
     const [code, setCode] = useState('')
@@ -77,8 +80,7 @@ export function NewRule({
     const [scope, setScope] = useState<AlertScope>('global')
     const [pipeline, setPipeline] = useState('')
     const [floor, setFloor] = useState<Importance | typeof ANY_IMPORTANCE>(ANY_IMPORTANCE)
-    const [notifier, setNotifier] = useState('')
-    const [connection, setConnection] = useState('')
+    const [connection, setConnection] = useState(LOG_TARGET)
     const [template, setTemplate] = useState('')
     const [body, setBody] = useState('')
     const [throttle, setThrottle] = useState(NO_THROTTLE)
@@ -87,7 +89,7 @@ export function NewRule({
 
     const pipelines = usePipelines(open)
     const write = useMayWrite()
-    const shut = firstShut(write.why, unreadyRule({ code, scope, pipeline, notifier, connection, throttle }))
+    const shut = firstShut(write.why, unreadyRule({ code, scope, pipeline, connection, throttle }))
 
     const send = () => {
         setBusy(true)
@@ -97,11 +99,10 @@ export function NewRule({
             name: given(named),
             description: given(description),
             event,
-            notifier,
             scope,
             pipeline: scope === 'pipeline' ? pipeline : null,
             importance: floorChosen(floor),
-            connection: needsConnection(notifier) ? connection : null,
+            connection: connection === LOG_TARGET ? null : connection,
             template: given(template),
             body: given(body),
             throttle: throttle.trim(),
@@ -214,23 +215,13 @@ export function NewRule({
                     </div>
 
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                        <NotifierPicker
-                            id="rule-notifier"
-                            notifiers={notifiers}
-                            value={notifier}
-                            onChange={(picked) => {
-                                setNotifier(picked)
-                                setConnection('')
-                            }}
+                        <TargetPicker
+                            id="rule-connection"
+                            options={targetOptions(notifiers, connections)}
+                            value={connection}
+                            note={targetNote(connections, connection)}
+                            onChange={setConnection}
                         />
-                        {needsConnection(notifier) && (
-                            <ConnectionPicker
-                                id="rule-connection"
-                                kind={notifier}
-                                value={connection}
-                                onChange={setConnection}
-                            />
-                        )}
                     </div>
 
                     <Field
