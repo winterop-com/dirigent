@@ -66,7 +66,7 @@ def explain(definition: PipelineDefinition, catalog: Catalog | None = None) -> D
     return DocumentShape(
         attempts_max=sum(row.max_attempts * (1 if row.elements is None else row.elements) for row in rows),
         attempts_at_least=any(row.elements is None for row in rows),
-        deadline_longest=_deadline_longest(definition, shapes),
+        deadline_longest=_deadline_longest(definition, shapes, order),
         steps=rows,
         warnings=_warnings(rows, catalog),
     )
@@ -169,14 +169,16 @@ def _retry_wait(policy: RetryPolicy) -> timedelta | None:
     return total * (1 + policy.jitter)
 
 
-def _deadline_longest(definition: PipelineDefinition, shapes: Mapping[str, StepShape]) -> timedelta | None:
+def _deadline_longest(
+    definition: PipelineDefinition, shapes: Mapping[str, StepShape], order: Sequence[str]
+) -> timedelta | None:
     """Add the deadlines along each path through the DAG and take the longest of them.
 
     A step cannot start before its dependencies settled, so the chain is what the document
     allows end to end; a step with no deadline lengthens no chain.
     """
     chains: dict[str, timedelta] = {}
-    for name in definition.topological_order():
+    for name in order:
         upstream = max((chains[one] for one in definition.steps[name].depends_on), default=timedelta(0))
         chains[name] = upstream + (shapes[name].deadline or timedelta(0))
     longest = max(chains.values(), default=timedelta(0))
