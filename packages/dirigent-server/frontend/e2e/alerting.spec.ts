@@ -91,6 +91,28 @@ test('a rule is declared from the screen, and appears in the listing it was decl
     await expect(row).toContainText('active')
 })
 
+test.describe('on a phone', () => {
+    test.use({ viewport: { width: 390, height: 844 } })
+
+    test('the four events wrap to two rows, and nothing scrolls sideways', async ({ page }) => {
+        await page.getByRole('button', { name: 'New rule' }).click()
+        const events = page.getByRole('group', { name: 'Event' }).getByRole('button')
+        await expect(events).toHaveCount(4)
+
+        const boxes = await events.evaluateAll((found) =>
+            found.map((one) => {
+                const box = one.getBoundingClientRect()
+                return { top: Math.round(box.top), height: Math.round(box.height) }
+            }),
+        )
+        expect(new Set(boxes.map((box) => box.top)).size).toBe(2)
+        expect(Math.min(...boxes.map((box) => box.height))).toBeGreaterThanOrEqual(42)
+
+        const sideways = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
+        expect(sideways).toBeLessThanOrEqual(0)
+    })
+})
+
 test("a rule's body is written in the dialog and edited in its panel", async ({ page }) => {
     await page.getByRole('button', { name: 'New rule' }).click()
     const dialog = page.getByRole('dialog')
