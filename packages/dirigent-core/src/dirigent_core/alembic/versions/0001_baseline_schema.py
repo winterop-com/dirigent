@@ -214,6 +214,11 @@ def upgrade() -> None:
             "scope", sa.Enum("global", "pipeline", name="alert_scope", native_enum=False, length=32), nullable=False
         ),
         sa.Column("pipeline_id", sa.Uuid(), nullable=True),
+        sa.Column(
+            "importance",
+            sa.Enum("routine", "normal", "critical", name="importance", native_enum=False, length=32),
+            nullable=True,
+        ),
         sa.Column("notifier", sa.String(length=100), nullable=False),
         sa.Column("connection_id", sa.Uuid(), nullable=True),
         sa.Column("template", sa.Text(), nullable=True),

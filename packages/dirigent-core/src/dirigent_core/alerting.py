@@ -17,7 +17,15 @@ from pydantic import BaseModel, ConfigDict, Field, JsonValue
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from dirigent_client.enums import AlertEvent, AlertScope, LogLevel, NotificationStatus, RunStatus
+from dirigent_client.enums import (
+    IMPORTANCE_RANK,
+    AlertEvent,
+    AlertScope,
+    Importance,
+    LogLevel,
+    NotificationStatus,
+    RunStatus,
+)
 from dirigent_common import (
     EntityName,
     JsonMap,
@@ -104,6 +112,7 @@ class AlertRuleRequest(BaseModel):
     notifier: str
     scope: AlertScope = AlertScope.GLOBAL
     pipeline: str | None = None
+    importance: Importance | None = None
     connection: str | None = None
     template: str | None = None
     body: str | None = None
@@ -189,6 +198,7 @@ async def create_rule(session: AsyncSession, services: EngineServices, request: 
         event=request.event,
         scope=request.scope,
         pipeline_id=pipeline_id,
+        importance=request.importance,
         notifier=request.notifier,
         connection_id=connection_id,
         template=request.template,
@@ -242,11 +252,23 @@ async def delete_rule(session: AsyncSession, rule: AlertRule) -> None:
     _logger.info("alert rule deleted", rule=code)
 
 
-async def matching_rules(session: AsyncSession, event: AlertEvent, pipeline_id: UUID) -> list[AlertRule]:
+def satisfied_levels(importance: Importance) -> list[Importance]:
+    """The floors a pipeline of this importance clears: its own and every lesser one."""
+    reached = IMPORTANCE_RANK[importance]
+    return [level for level, rank in IMPORTANCE_RANK.items() if rank <= reached]
+
+
+async def matching_rules(
+    session: AsyncSession, event: AlertEvent, pipeline_id: UUID, importance: Importance
+) -> list[AlertRule]:
     """Find the live rules that want to hear about one event, throttled or not.
 
     A paused rule matches nothing. Pausing is instance state an operator sets on the row, so
     it is read here rather than folded into ``active``, which is what the rule itself declares.
+
+    A rule that names an importance wants only the pipelines that carry at least that much;
+    one that names none wants every pipeline, so a rule that pages the critical failures and
+    a rule that logs everything both raise on the same run.
     """
     rows = await session.execute(
         sa.select(AlertRule).where(
@@ -254,6 +276,7 @@ async def matching_rules(session: AsyncSession, event: AlertEvent, pipeline_id: 
             AlertRule.active.is_(True),
             AlertRule.paused.is_(False),
             sa.or_(AlertRule.scope == AlertScope.GLOBAL, AlertRule.pipeline_id == pipeline_id),
+            sa.or_(AlertRule.importance.is_(None), AlertRule.importance.in_(satisfied_levels(importance))),
         )
     )
     return list(rows.scalars())
@@ -268,7 +291,7 @@ async def set_paused(session: AsyncSession, rule: AlertRule, *, paused: bool) ->
 
 
 #: What a PATCH may write on a rule, and nothing else on the row.
-UPDATABLE: Final = ("paused", "template", "body")
+UPDATABLE: Final = ("paused", "template", "body", "importance")
 
 
 async def update_rule(session: AsyncSession, rule: AlertRule, changes: Mapping[str, object]) -> AlertRule:
@@ -287,6 +310,10 @@ async def update_rule(session: AsyncSession, rule: AlertRule, changes: Mapping[s
         rule.body = cast("str | None", named.get("body", rule.body))
         await session.flush()
         _logger.info("alert rule retemplated", rule=rule.code)
+    if "importance" in named:
+        rule.importance = cast("Importance | None", named["importance"])
+        await session.flush()
+        _logger.info("alert rule reweighted", rule=rule.code, importance=rule.importance)
     if "paused" in named:
         await set_paused(session, rule, paused=bool(named["paused"]))
     return rule
@@ -386,7 +413,7 @@ async def _queue_for_run(
     pipeline = await session.get(Pipeline, run.pipeline_id)
     if pipeline is None:  # pragma: no cover - the foreign key makes this unreachable
         return []
-    rules = await matching_rules(session, event, run.pipeline_id)
+    rules = await matching_rules(session, event, run.pipeline_id, pipeline.importance)
     if not rules:
         return []
     report_url = report_url_for(services.settings.alert_base_url, report_artifact_id)

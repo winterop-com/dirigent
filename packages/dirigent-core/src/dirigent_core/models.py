@@ -497,6 +497,9 @@ class AlertRule(Entity):
         string_enum(AlertScope, "alert_scope"), nullable=False, default=AlertScope.GLOBAL
     )
     pipeline_id: Mapped[UUID | None] = mapped_column(sa.ForeignKey("pipelines.id", ondelete="CASCADE"), index=True)
+    importance: Mapped[Importance | None] = mapped_column(string_enum(Importance, "importance"))
+    """The least importance a pipeline must carry before this rule fires; null fires for every one."""
+
     notifier: Mapped[str] = mapped_column(sa.String(100), nullable=False)
     connection_id: Mapped[UUID | None] = mapped_column(sa.ForeignKey("connections.id", ondelete="RESTRICT"))
     template: Mapped[str | None] = mapped_column(sa.Text)

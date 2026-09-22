@@ -3,7 +3,7 @@
 from datetime import timedelta
 from uuid import UUID
 
-from dirigent_client.enums import AlertEvent, AlertScope
+from dirigent_client.enums import AlertEvent, AlertScope, Importance
 from dirigent_client.resources.base import Resource, query, request_body
 from dirigent_client.schemas import (
     AlertRuleIn,
@@ -34,6 +34,7 @@ class Alerts(Resource):
         notifier: str,
         scope: AlertScope = AlertScope.GLOBAL,
         pipeline: str | None = None,
+        importance: Importance | None = None,
         connection: str | None = None,
         template: str | None = None,
         body: str | None = None,
@@ -48,6 +49,7 @@ class Alerts(Resource):
             notifier=notifier,
             scope=scope,
             pipeline=pipeline,
+            importance=importance,
             connection=connection,
             template=template,
             body=body,
