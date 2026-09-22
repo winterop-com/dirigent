@@ -64,7 +64,7 @@ export function HealthPanel({ rows, note, reading }: { rows: HealthRow[]; note: 
                                 {/* How it is, then what it is. A worker is not a kind, so it
                                     draws nothing in the mark's place and holds the width, or
                                     the codes under it would not line up. */}
-                                <span className="flex shrink-0 items-center gap-2">
+                                <span className="flex shrink-0 items-center gap-1.5">
                                     <span
                                         className={cn('size-2 shrink-0 rounded-full', DOTS[row.tone])}
                                         aria-hidden
@@ -97,11 +97,11 @@ export function HealthPanel({ rows, note, reading }: { rows: HealthRow[]; note: 
                         return (
                             <li key={`${row.kind}:${row.id}`} className="border-t border-border">
                                 {to === null ? (
-                                    <span className="flex items-center gap-3 px-3 py-1.5">{body}</span>
+                                    <span className="flex items-center gap-2 px-3 py-1.5">{body}</span>
                                 ) : (
                                     <Link
                                         to={to}
-                                        className="control-link flex items-center gap-3 px-3 py-1.5 hover:bg-accent/60"
+                                        className="control-link flex items-center gap-2 px-3 py-1.5 hover:bg-accent/60"
                                     >
                                         {body}
                                     </Link>

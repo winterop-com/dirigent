@@ -957,13 +957,15 @@ sender alike -- so there is one map and one function over it, `kindGlyph`, pure 
 wire answers with. Adding a kind is adding one entry there and nothing else: no screen keeps a
 table of its own, and no screen works a mark out from a code itself.
 
-**The mark is drawn beside the code wherever a kind is named.** The channel strip's chips, a
-rule's target, the connections listing's row, the connection's own panel header, the New
+**The mark is drawn beside the code wherever a kind says what a thing is.** The channel strip's
+chips, a rule's target, the connections listing's row, the connection's own panel header, the New
 connection dialog's kind rows, the pipeline editor's reference row under a field naming a
 connection, and the health rows on the home screen: a reader who learned the envelope on the
-strip reads it on all seven. A screen that names a kind and draws no mark is the fault this rule
-exists to stop, because the same kind looking different from one screen to the next is the
-reader's problem rather than the screen's.
+strip reads it on all seven. A screen that says what a thing is and draws no mark is the fault
+this rule exists to stop, because the same kind looking different from one screen to the next is
+the reader's problem rather than the screen's. The blocks catalog is the one screen that names
+kinds and draws none: its rows are the registries themselves, where the kind is the row rather
+than what the row is, and it lists schemes and notifiers in the same shape beside them.
 
 **The mark does not take the kind's word off a chip.** Where the kind is carried as a `kind-chip`
 -- the connections listing's row, the connection's panel header -- the chip keeps its word and
