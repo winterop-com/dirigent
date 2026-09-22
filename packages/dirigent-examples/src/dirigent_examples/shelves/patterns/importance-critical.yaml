@@ -15,8 +15,8 @@
 # the run at creation. `importance` is read by the alerting rules, when a run settles: a rule
 # may name the LEAST importance a pipeline must carry before it fires.
 #
-#   dg alerts rules create page-ops --event run_failed --notifier log --importance critical
-#   dg alerts rules create log-all  --event run_failed --notifier log
+#   dg alerts rules create page-ops --event run_failed --importance critical
+#   dg alerts rules create log-all  --event run_failed
 #
 # The first fires for this pipeline and for no lesser one. The second names no importance, so
 # it fires for every pipeline -- this one included. PAGING ADDS TO THE LOG; it does not

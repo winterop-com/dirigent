@@ -590,7 +590,7 @@ downstream.
 
 ```bash
 dg alerts rules create load-failed \
-  --event run_failed --notifier log --pipeline regional-load --throttle 15m
+  --event run_failed --pipeline regional-load --throttle 15m
 ```
 
 ```text
@@ -603,22 +603,23 @@ dg alerts rules list
 
 ```text
 alert rules
-┏━━━━━━━━━━━━━┳━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━┓
-┃ code        ┃ name ┃ event      ┃ scope         ┃ notifier ┃ throttle ┃ active ┃ last sent ┃
-┡━━━━━━━━━━━━━╇━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━┩
-│ load-failed │ -    │ run_failed │ regional-load │ log      │ 15m      │ yes    │ -         │
-└─────────────┴──────┴────────────┴───────────────┴──────────┴──────────┴────────┴───────────┘
+┏━━━━━━━━━━━━━┳━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━┓
+┃ code        ┃ name ┃ event      ┃ scope         ┃ target ┃ throttle ┃ active ┃ last sent ┃
+┡━━━━━━━━━━━━━╇━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━┩
+│ load-failed │ -    │ run_failed │ regional-load │ log    │ 15m      │ yes    │ -         │
+└─────────────┴──────┴────────────┴───────────────┴────────┴──────────┴────────┴───────────┘
 ```
 
 The four events are `run_failed`, `run_completed_with_errors`, `run_succeeded`, and
 `run_stuck`. The scope is a pipeline here; leave `--pipeline` off for a global rule.
 
-`log` is the notifier that needs no credential, which is what makes alerting work on a fresh
-install. The other three built-ins deliver through a connection a `--connection` names by code:
-`webhook`, an outbound JSON POST that reaches anything accepting one; `slack`, through an
-incoming webhook or `chat.postMessage`; and `email`, one plain-text message per alert. Try one
-end to end with `dg alerts test log`, which sends one message through the real queue, and watch
-it with `dg alerts queue`.
+A rule names one target, and this one named none -- so it delivers to the process log, which
+needs no credential and is what makes alerting work on a fresh install. `--connection` names
+another: the notifier that sends the message is that connection's kind, so a `slack` connection
+delivers through `slack`. The other three built-ins are `webhook`, an outbound JSON POST that
+reaches anything accepting one; `slack`, through an incoming webhook or `chat.postMessage`; and
+`email`, one plain-text message per alert. Try one end to end with `dg alerts test log`, which
+sends one message through the real queue, and watch it with `dg alerts queue`.
 
 Two things the engine guarantees here, both worth trusting. Raising an alert and settling the
 run are **one commit**, so a run cannot reach a terminal state without whatever it owes having

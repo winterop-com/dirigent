@@ -148,7 +148,7 @@ both Jinja over this context plus one more name: `report`, the run's rendered re
 when it has one, so a rule can carry the whole page rather than a link to it.
 
 ```bash
-dg alerts rules create nightly-failed --event run_failed --notifier slack \
+dg alerts rules create nightly-failed --event run_failed --connection ops-slack \
   --template '{{ pipeline.code }} failed at {{ step.load.step }}' \
   --body-file alert-body.md.j2
 ```

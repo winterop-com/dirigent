@@ -836,7 +836,7 @@ verb and whose fields are the identity of what changed:
 | `webhook.created` | `dg webhook create` | `code`, `pipeline`, the `url` to POST to, and the `token` itself, once |
 | `webhook.token_rotated` | `dg webhook rotate-token` | `code`, `pipeline`, `url`, and the new `token`, once |
 | `webhook.deleted` | `dg webhook delete` | `code`, `pipeline` |
-| `alert_rule.created` / `.paused` / `.resumed` / `.deleted` | `dg alerts rules …` | `code`, `event`, `notifier`, and a new one's `scope`, `connection`, `throttle`, and `template` and `body` as booleans saying whether the rule carries one |
+| `alert_rule.created` / `.paused` / `.resumed` / `.deleted` | `dg alerts rules …` | `code`, `event`, the `notifier` the target resolved to, and a new one's `scope`, `connection`, `throttle`, and `template` and `body` as booleans saying whether the rule carries one |
 | `notification.queued` | `dg alerts test` | `notification_id`, `notifier`, `connection`, `subject` |
 | `notification.retried` | `dg alerts retry` | `notification_id`, `notifier`, `subject`, `attempt`, `available_at` |
 | `connection.created` / `.updated` | `dg connection create`, `dg connection ensure` | `code`, `connection_kind`, `name`, `description`, and the `config` with every secret field redacted |
@@ -1045,7 +1045,7 @@ dg webhook create PIPELINE CODE [--map param='$.path'] [--hmac-secret S] [--rate
 dg webhook list | rotate-token | deliveries | delete PIPELINE CODE
 dg trigger-document list | show CODE | delete CODE
 dg alerts rules list | pause | resume | delete CODE
-dg alerts rules create CODE --event run_failed --notifier log
+dg alerts rules create CODE --event run_failed
                             [--name TEXT] [--description TEXT]
                             [--pipeline P] [--importance routine|normal|critical]
                             [--connection C] [--throttle 0s]
@@ -1294,14 +1294,24 @@ that answers "the upstream system says it has been calling us all night".
 ## Alerting, from the command line
 
 ```bash
-dg alerts rules create page-ops --event run_failed --notifier log --throttle 15m
-dg alerts rules create loud --event run_failed --notifier log \
+dg alerts rules create page-ops --event run_failed --throttle 15m
+dg alerts rules create tell-ops --event run_failed --connection ops-slack
+dg alerts rules create loud --event run_failed \
   --template '{{ pipeline.code }} failed after {{ run.duration_ms | duration }}' \
   --body-file alert-body.md.j2
-dg alerts rules create wake-me --event run_failed --notifier log --importance critical
+dg alerts rules create wake-me --event run_failed --importance critical
 dg alerts test log                          # one message, through the real queue
 dg alerts queue                             # what is queued, sent, or stuck
 ```
+
+**A rule names one target.** `--connection` is the whole address: the notifier that sends the
+message is that connection's kind, so `--connection ops-slack` delivers through `slack` and
+nothing has to name the two and agree. A rule that names no connection delivers to the process
+log, which every instance has whether or not a credential was ever minted. A connection of a
+kind no installed notifier answers to -- a `dhis2` one, say -- is refused when the rule is
+created, naming the connection and its kind. The rules listing shows that target: the
+connection's code, or `log`; the sender it resolved to is on the `alert_rule` records either
+way.
 
 `--template` is the subject and `--body` is the body, both Jinja templates over the run's
 facts; `--body-file` reads the body from a file instead, and naming both is refused. A rule
@@ -1316,12 +1326,12 @@ says the floor inside the scope cell -- "global, critical and above" -- rather t
 that would be empty on almost every row, and the `alert_rule` records carry `importance` as its
 own field either way.
 
-The channels a rule may name, and the connection each one delivers through, are in
+The channels a rule may name, and what each one needs minted for it, are in
 [notifier channels](operations.md#notifier-channels).
 
 `dg alerts test` names the notifier rather than the connection, with `--connection` as an
-option: a credential record does not determine which channel delivers through it, and the
-channel is what is being tested. The message goes through the same queue and the same notifier
+option: a test has no rule to read a target from, and the channel is what is being tested. The
+message goes through the same queue and the same notifier
 call a real alert does, because a test that took a shortcut would prove only that the shortcut
 works -- so it appears in `dg alerts queue` and is delivered by a worker, not by the API.
 
