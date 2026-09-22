@@ -123,6 +123,50 @@ A step with several dependencies is drawn once, under the last of them, and name
 one step is one line, whatever its in-degree. `--json` is unaffected -- it returns the
 document and the structured plan, not a drawing.
 
+### What the work will cost
+
+The tree says what runs; `dg validate --explain` says what it will cost. Every pipeline
+document that checks out gets a second record, `validation.shape`, with one row per step --
+how wide it fans out, how many attempts it allows, how long it may spend in backoff, and the
+waits it declares -- and the totals over them.
+
+```bash
+dg validate --explain examples/patterns/fan-out-item-wise.yaml
+dg validate --explain --server pipelines/nightly.yaml   # a sensor takes the block's defaults too
+```
+
+```text
+what fan-out-item-wise will cost
+┏━━━━━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━┳━━━━━━┓
+┃ step      ┃ block         ┃ cardinality  ┃ attempts ┃ retry wait ┃ timeout ┃ deadline ┃ poll ┃
+┡━━━━━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━╇━━━━━━┩
+│ shape     │ transform.jq  │ 3  continue  │ 1        │ -          │ -       │ -        │ -    │
+│ write_one │ storage.write │ adopts shape │ 1        │ -          │ -       │ -        │ -    │
+│ manifest  │ transform.jq  │ 1            │ 1        │ -          │ -       │ -        │ -    │
+└───────────┴───────────────┴──────────────┴──────────┴────────────┴─────────┴──────────┴──────┘
+
+the whole document
+steps           3
+attempts        at most 7
+deadline chain  -
+```
+
+A cardinality is a number wherever the document fixes one: a literal list, or a
+`${params.x}` the document gives a default. `adopts <step>` is a step mapping over another
+fan-out's grid, and it is as wide as that grid. `unknown` is a width only the run can fix --
+a parameter with no default, a window's bounds -- and the attempts total then counts that
+step once and reads `at least` rather than `at most`. `attempts` is every automatic try the
+document allows, which is each step's `max_attempts` times the items it maps over; the
+deadline chain is the longest run of deadlines through the graph, which is the wait the
+document allows end to end.
+
+Offline the document's own values are all there is. `--server` reads the catalog too, so a
+sensor that declares neither `poll` nor `deadline` takes the block's own defaults and the row
+marks what came from there. The warnings name what is unbounded rather than merely large: a
+fan-out nothing here can size, a retry budget longer than the deadline each attempt waits
+under, and a sensor no deadline bounds. [Item](concepts.md#item) says what a cardinality
+means; `dg runs profile` is the same shape measured after the fact.
+
 ## Examples, and starting from one
 
 Every installed plugin ships documents, and an instance serves them: `dg examples list` is
@@ -777,6 +821,7 @@ verb and whose fields are the identity of what changed:
 | `db.history` | `dg db history` | `history`, as alembic wrote it |
 | `db.upgraded` | `dg db upgrade` | `database`, `target`, and the `revision` it reached |
 | `validation` | `dg validate`, `dg pipeline validate` | `code`, `document`, `problems[]` of issues, and a valid pipeline's `steps[]` |
+| `validation.shape` | `dg validate --explain` | `code`, `document`, `checked`, the totals `attempts_max`, `attempts_at_least` and `deadline_longest`, one `steps[]` row per step of what it will cost, and `warnings[]` |
 | `validated` | `dg validate` | The closing count: `documents`, `invalid` |
 | `apply` | `dg apply` | One per document: under `fields`, the plan's `action` of `create`, `update`, `unchanged` or `invalid`, the `code` it applied under, and an invalid one's issues |
 | `prune` | `dg apply --prune` | The reconcile: under `fields`, the pipelines `pruned`, the `trigger_documents_removed` that went with them, and `dry_run` |
@@ -968,7 +1013,7 @@ dg format [console|compact] [-f FILE]   # render an NDJSON stream; reads stdin b
 dg init [DIR] [--template local|compose|documents] [--service S]... [--pack P]... [--pipeline STARTER]...
 dg init ... [--workflow] [--admin NAME] [--password ...]
 dg apply [file|url|-] [--dry-run] [--as CODE] [--paused] [--prune]
-dg validate [file|url] [--server]
+dg validate [file|url] [--server] [--explain]
 dg export CODE [-f FILE] [--version N]
 dg pipeline list [--tag climate] [--tag http]   # repeat --tag to narrow: every tag named must be worn
 dg pipeline show CODE | versions CODE

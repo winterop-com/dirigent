@@ -1507,7 +1507,7 @@ dg db upgrade | current | history
 dg init [DIR] [--template local|compose|documents] [--service S] [--pack P] [--pipeline STARTER]
 dg apply [file|url|-] [--dry-run] [--as NAME] [--paused] [--prune]   # no argument in a project: the whole project
 dg export NAME [-f FILE] [--version N]
-dg validate [file|url] [--server]
+dg validate [file|url] [--server] [--explain]
 dg pipeline list | show | versions | validate | activate | deactivate | delete NAME
 dg pipeline new STARTER [--code X] [--dir DIR]        # copy a starter into this project
 dg examples list [--starter] [--shelf S] | show CODE  # the documents every installed plugin ships

@@ -1,16 +1,16 @@
-"""What the closing ``run`` record of a run's stream carries.
+"""What the rows inside a record carry: a run's steps, a backfill's windows, a document's shape.
 
-A run's stream is written record by record through :mod:`dirigent_core.protocol`; these are
-the shapes of the summaries the last record holds. They are the contract a script filters on,
-and they are also what the end-of-run table and the failure diagnosis are rendered from, so a
-field the rendering needs belongs here rather than in a second query.
+Records are written through :mod:`dirigent_core.protocol`; these are the shapes of the
+collections one carries beneath its line. They are the contract a script filters on, and they
+are also what the table under that line is rendered from, so a field the rendering needs
+belongs here rather than in a second query.
 """
 
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from dirigent_common import JsonMap
+from dirigent_common import Duration, JsonMap
 
 
 class StepSummary(BaseModel):
@@ -51,6 +51,51 @@ class FailureSummary(BaseModel):
     logs: list[str] = Field(default_factory=list[str])
     input: JsonMap | None = None
     """What the attempt was given, which is half of why it failed."""
+
+
+class StepShape(BaseModel):
+    """What one step of a checked document will become, before anything has run."""
+
+    model_config = ConfigDict(frozen=True)
+
+    name: str
+    """The step's own map key, which is what every reference to it is written with."""
+
+    block: str
+    depends_on: list[str] = Field(default_factory=list[str])
+
+    cardinality: int | str = 1
+    """How many run items this step becomes: a count, ``adopts <step>``, or ``unknown``."""
+
+    elements: int | None = 1
+    """The count behind the cardinality, which an adoption takes from the grid it adopts."""
+
+    reference: str | None = None
+    """The ``for_each`` this step maps over, where it names one rather than listing it."""
+
+    items: str = "fail_fast"
+    max_attempts: int = 1
+
+    retry_wait: Duration | None = None
+    """The longest this step may spend in backoff, which is every delay its policy allows."""
+
+    timeout: Duration | None = None
+    poll: Duration | None = None
+    deadline: Duration | None = None
+    on_timeout: str = "fail"
+
+    from_block: list[str] = Field(default_factory=list[str])
+    """Which of this row's waits the block's own defaults filled, the document declaring none."""
+
+
+class ShapeWarning(BaseModel):
+    """One thing about a document's shape worth knowing before the run, said as a sentence."""
+
+    model_config = ConfigDict(frozen=True)
+
+    step: str
+    cause: str
+    message: str
 
 
 class BackfillWindow(BaseModel):

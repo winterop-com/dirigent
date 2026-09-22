@@ -10,6 +10,7 @@ next week has nothing else to consult either.
 """
 
 from collections.abc import Callable, Mapping, Sequence
+from datetime import timedelta
 from typing import Final, cast
 
 from pydantic import BaseModel
@@ -31,6 +32,7 @@ from dirigent_cli.output import (
     render_output,
     styled,
 )
+from dirigent_common import format_duration, to_timedelta
 from dirigent_core.protocol import Record
 
 #: Fields a record carries for what is drawn beneath its line rather than for the line. A
@@ -39,6 +41,7 @@ BULKY: Final = frozenset(
     {
         "steps",
         "failures",
+        "warnings",
         "windows",
         "packages",
         "settings",
@@ -395,6 +398,78 @@ def _graph_step(one: Mapping[str, object]) -> GraphStep:
     )
 
 
+def _shape(record: Record) -> RenderableType | None:
+    """Render what a document will cost: each step's shape, the totals, and the warnings."""
+    steps: list[schemas.StepShape] = _rows(record, "steps", schemas.StepShape)
+    if not steps:
+        return None
+    parts: list[RenderableType] = [
+        build_table(
+            f"what {record.get('code')} will cost",
+            ["step", "block", "cardinality", "attempts", "retry wait", "timeout", "deadline", "poll"],
+            [
+                [
+                    escape(row.name),
+                    escape(row.block),
+                    _width(row),
+                    str(row.max_attempts),
+                    _wait(row.retry_wait),
+                    _wait(row.timeout),
+                    _deadline(row),
+                    _wait(row.poll, from_block="poll" in row.from_block),
+                ]
+                for row in steps
+            ],
+        ),
+        "",
+        build_fields(
+            "the whole document",
+            {
+                "steps": len(steps),
+                "attempts": _attempts(record),
+                "deadline chain": _wait(_duration(record, "deadline_longest")),
+            },
+        ),
+    ]
+    warned = _rows(record, "warnings", schemas.ShapeWarning)
+    if warned:
+        parts.append("")
+        parts.extend(f"  [yellow]-[/] {escape(one.message)}" for one in warned)
+    return Group(*parts)
+
+
+def _width(row: schemas.StepShape) -> str:
+    """Say how wide a step is, and where one bad item leaves the rest of the batch running."""
+    drawn = escape(str(row.cardinality))
+    return f"{drawn}  {muted('continue')}" if row.items == "continue" else drawn
+
+
+def _deadline(row: schemas.StepShape) -> str:
+    """Say how long a step may wait, and what an expired deadline makes of it."""
+    drawn = _wait(row.deadline, from_block="deadline" in row.from_block)
+    return f"{drawn}  {muted('then skip')}" if row.deadline is not None and row.on_timeout == "skip" else drawn
+
+
+def _wait(value: timedelta | None, *, from_block: bool = False) -> str:
+    """Render one configured wait, saying where the block's own default filled it in."""
+    if value is None:
+        return "-"
+    drawn = format_duration(value)
+    return f"{drawn}  {muted('block')}" if from_block else drawn
+
+
+def _duration(record: Record, field: str) -> timedelta | None:
+    """Read one of the record's own durations back as the timedelta it was written from."""
+    raw = record.get(field)
+    return None if raw is None else to_timedelta(raw)
+
+
+def _attempts(record: Record) -> str:
+    """Say how many attempts the document allows, and where that number is only a floor."""
+    total = record.get("attempts_max")
+    return f"at least {total}" if record.get("attempts_at_least") else f"at most {total}"
+
+
 def _backfill(record: Record) -> RenderableType | None:
     """Render a backfill: the windows it enumerated, and the run each one became."""
     windows: list[schemas.BackfillWindow] = _rows(record, "windows", schemas.BackfillWindow)
@@ -442,6 +517,7 @@ RENDERERS: Final[Mapping[str, Callable[[Record], RenderableType | None]]] = {
     "config": _config,
     "db.history": _db_history,
     "validation": _validation,
+    "validation.shape": _shape,
     "error": _refusal,
     "token.issued": _issued,
     "process": _issued,
