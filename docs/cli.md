@@ -261,6 +261,9 @@ without touching it, which is what to use against a server somebody else runs.
 Run the instance it made with `uv run dg dev`, in its own terminal in the project directory:
 it keeps running, and serves the UI at `http://127.0.0.1:3333`. `dg dev --wipe-state` would
 empty `.dirigent/state/` first, taking the admin and the token `dg init` just created with it.
+A state an older dirigent wrote is refused at boot with `database.schema_stale`, naming the
+first column that differs, because before 1.0 the schema is not migrated between versions:
+wipe the state or point at a database this version created.
 
 It never outlives the process that started it: a wrapper killed outright forwards no signal,
 so `dg dev` watches its own parent and shuts down the way SIGTERM shuts it down once it is

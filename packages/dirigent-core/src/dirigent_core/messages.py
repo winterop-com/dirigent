@@ -6,6 +6,16 @@ renders are what another language, a log reader and a test all hold on to.
 
 from dirigent_common import Catalogue, Message
 
+DATABASE = Catalogue("database")
+
+SCHEMA_STALE = DATABASE.define(
+    "schema_stale",
+    "the database at {where} was written by a different dirigent: {differences} difference(s), "
+    "first {first}; before 1.0 the schema is not migrated, so start from an empty state "
+    "(`dg dev --wipe-state`, or delete the state directory) or point at a database this version created",
+)
+
+
 AUTH = Catalogue("auth")
 
 WEAK_PASSWORD = AUTH.define("weak_password", "a password must be at least {minimum} characters")

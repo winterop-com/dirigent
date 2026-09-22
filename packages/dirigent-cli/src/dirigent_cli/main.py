@@ -52,6 +52,7 @@ from dirigent_common import Issue
 from dirigent_core import migrations
 from dirigent_core.config import STATE_DIR, Settings, get_settings, redacted_url, reset_settings_cache
 from dirigent_core.logging import configure_logging, silence_stdout
+from dirigent_core.messages import SCHEMA_STALE
 from dirigent_core.protocol import FORMATS, Format, Record, make
 from dirigent_core.telemetry import configure_telemetry
 
@@ -64,6 +65,7 @@ if TYPE_CHECKING:
     from dirigent_cli.stream import Sink
     from dirigent_common import JsonMap
     from dirigent_core import retention
+    from dirigent_core.migrations import SchemaDifference
     from dirigent_core.worker import Worker
 
 #: Help is capped rather than stretched: a panel the width of a wide terminal is unreadable.
@@ -703,6 +705,7 @@ def server(
             problems=[Issue.of(USE_DG_DEV_STANDALONE), Issue.of(OR_NO_SCHEDULER), Issue.of(OR_POSTGRES)],
         )
         raise typer.Exit(code=commands.GUARD_EXIT)
+    guard_schema(settings)
     uvicorn.run(
         "dirigent_cli.main:build_app",
         factory=True,
@@ -912,6 +915,7 @@ def dev(
         if cleared is not None:
             emit(state_cleared(cleared))
     migrated = _migrate_quietly(settings)
+    guard_schema(settings)
     admin, token = asyncio.run(dev_admin(settings))
     address = host or settings.host
     listening = port or settings.port
@@ -964,6 +968,47 @@ def _migrate_quietly(settings: Settings) -> str | None:
         return None
     migrations.upgrade("head", settings)
     return head
+
+
+async def _schema_differences(settings: Settings) -> list["SchemaDifference"]:
+    """Read the live schema once, and dispose of the engine that read it."""
+    from dirigent_core.database import create_engine
+
+    engine = create_engine(settings)
+    try:
+        return await migrations.schema_differences(engine)
+    finally:
+        await engine.dispose()
+
+
+def guard_schema(settings: Settings) -> None:
+    """Refuse a database whose schema is not the one this dirigent's models describe.
+
+    Before 1.0 the baseline migration is edited in place, so a state an older dirigent wrote
+    is stamped at the same revision and there is nothing for an upgrade to do. Reflection is
+    what answers instead, and a process given such a file would otherwise start, say ready,
+    and fail every query it ever ran.
+    """
+    import asyncio
+
+    from dirigent_cli.health import where_database
+
+    # A database nothing has ever migrated is a different fault, which this refusal and its
+    # remedies would name wrongly.
+    if migrations.current_revision(settings) is None:
+        return
+    differences = asyncio.run(_schema_differences(settings))
+    if not differences:
+        return
+    refuse(
+        SCHEMA_STALE,
+        status=commands.GUARD_EXIT,
+        title="A state an older dirigent wrote",
+        where=where_database(settings),
+        differences=len(differences),
+        first=str(differences[0]),
+    )
+    raise typer.Exit(code=commands.GUARD_EXIT)
 
 
 def dev_started(
@@ -1212,6 +1257,7 @@ def worker(
             problems=[Issue.of(USE_DG_DEV), Issue.of(OR_POSTGRES)],
         )
         raise typer.Exit(code=commands.GUARD_EXIT)
+    guard_schema(settings)
     asyncio.run(_worker(settings, concurrency, tag, name))
 
 
@@ -1247,6 +1293,7 @@ def scheduler_command(ctx: typer.Context) -> None:
             problems=[Issue.of(USE_DG_DEV), Issue.of(OR_POSTGRES)],
         )
         raise typer.Exit(code=commands.GUARD_EXIT)
+    guard_schema(settings)
     emit(
         make(
             "process",

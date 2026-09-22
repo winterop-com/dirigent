@@ -10,7 +10,7 @@ import pytest
 import typer
 from typer.testing import CliRunner
 
-from clisupport import of_kind, only, plain, records, refusal
+from clisupport import closing, of_kind, only, plain, records, refusal
 from dirigent_cli import main, triggers
 from dirigent_cli.commands import GUARD_EXIT
 from dirigent_cli.context import CliState
@@ -340,6 +340,45 @@ def test_dev_clears_nothing_on_a_first_start(tmp_path: Path) -> None:
     """A state directory that was never there is not a wipe, so the run stays quiet."""
     settings = Settings(database_url=f"sqlite+aiosqlite:///{tmp_path / '.dirigent' / 'state' / 'dirigent.db'}")
     assert main.clear_state(settings) is None
+
+
+def test_dev_refuses_a_state_an_older_dirigent_wrote(tmp_path: Path) -> None:
+    """The refusal is the last thing the process says, and it never reaches ready."""
+    import sqlite3
+
+    from dirigent_core import migrations
+
+    migrations.upgrade("head", get_settings())
+    older = sqlite3.connect(tmp_path / "dirigent.db")
+    try:
+        older.execute("ALTER TABLE step_attempts DROP COLUMN fetched_output")
+        older.commit()
+    finally:
+        older.close()
+
+    result = runner.invoke(app, ["dev"])
+
+    assert result.exit_code == GUARD_EXIT, result.output
+    record = closing(result.stdout)
+    assert record["kind"] == "error"
+    assert record["code"] == "database.schema_stale"
+    assert record["params"]["differences"] == 1
+    assert record["params"]["first"] == "step_attempts.fetched_output missing"
+    assert "start from an empty state" in record["message"]
+
+
+def test_a_state_this_dirigent_wrote_is_not_refused() -> None:
+    """The guard is a reflection, so a database at head has to pass it silently."""
+    from dirigent_core import migrations
+
+    migrations.upgrade("head", get_settings())
+
+    assert main.guard_schema(get_settings()) is None
+
+
+def test_a_database_nothing_has_migrated_is_not_called_stale() -> None:
+    """An empty database is a different fault, and these remedies would name it wrongly."""
+    assert main.guard_schema(get_settings()) is None
 
 
 def test_dev_says_what_it_cleared(tmp_path: Path) -> None:

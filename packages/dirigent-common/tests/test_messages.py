@@ -37,6 +37,7 @@ OWNED: Final[dict[str, str]] = {
     "plugin": "dirigent-plugin",
     "client": "dirigent-client",
     "auth": "dirigent-core",
+    "database": "dirigent-core",
     "pipeline": "dirigent-core",
     "document": "dirigent-core",
     "schedule": "dirigent-core",

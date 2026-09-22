@@ -950,22 +950,45 @@ async def test_the_tag_filter_narrows_by_containment_on_postgresql(
     await assert_the_tag_filter_narrows_by_containment(pg_sessions, pg_services)
 
 
-async def test_the_migrations_leave_no_drift_against_the_models_on_postgres(pg_settings: Settings) -> None:
-    """The dialect the migrations actually run on, checked the same way SQLite is."""
-    from test_schema import metadata_drift
-
+async def _remigrated(pg_settings: Settings) -> None:
+    """Empty the container's database and build the schema from the migrations alone."""
     engine = create_engine(pg_settings)
     async with engine.begin() as connection:
         await connection.run_sync(Base.metadata.drop_all)
         await connection.execute(sa.text("DROP TABLE IF EXISTS alembic_version"))
     await engine.dispose()
-
     await migrations.upgrade_async(settings=pg_settings)
+
+
+async def test_the_migrations_leave_no_drift_against_the_models_on_postgres(pg_settings: Settings) -> None:
+    """The dialect the migrations actually run on, checked the same way SQLite is."""
+    await _remigrated(pg_settings)
+
     engine = create_engine(pg_settings)
     try:
-        assert await metadata_drift(engine) == []
+        assert await migrations.schema_differences(engine) == []
     finally:
         await engine.dispose()
+
+
+async def test_a_column_an_older_dirigent_never_wrote_is_named_on_postgres(pg_settings: Settings) -> None:
+    """The guard every process boots through has to be true on the dialect a server runs."""
+    await _remigrated(pg_settings)
+
+    engine = create_engine(pg_settings)
+    try:
+        async with engine.begin() as connection:
+            await connection.execute(sa.text("ALTER TABLE step_attempts DROP COLUMN fetched_output"))
+        differences = await migrations.schema_differences(engine)
+    finally:
+        await engine.dispose()
+
+    assert differences == [
+        migrations.SchemaDifference(
+            kind=migrations.DifferenceKind.MISSING_COLUMN, table="step_attempts", column="fetched_output"
+        )
+    ]
+    assert str(differences[0]) == "step_attempts.fetched_output missing"
 
 
 async def test_two_sweepers_raising_the_same_stuck_run_do_not_abort_lease_recovery(

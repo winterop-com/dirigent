@@ -43,6 +43,14 @@ export DG_TOKEN=$(dg dev | jq -r 'select(.kind == "process" and has("token")) | 
 request log, and the engine's own events. That is a level, not a spelling: the terminal
 decides the spelling.
 
+Before 1.0 the schema is not migrated between versions, so a state an older dirigent wrote is
+refused at boot by name: every process reflects what it found before it says anything else,
+and `database.schema_stale` names the database, how many differences there are, and the first
+of them -- `step_attempts.fetched_output missing` -- instead of starting and then failing
+every query. Start from an empty state, with `dg dev --wipe-state` or by deleting
+`.dirigent/state/`, or point the process at a database this version created; `dg db upgrade`
+and `dg db current` are not gated, because they are the tools for looking at such a file.
+
 This is for a laptop, an evaluation, or a CI job. It refuses to start on anything but SQLite:
 `dg dev` on PostgreSQL is just `dg server`, and pretending otherwise would give two names to
 one thing.
