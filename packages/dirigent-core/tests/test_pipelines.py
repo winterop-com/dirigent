@@ -6,7 +6,7 @@ import pytest
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from dirigent_client.enums import ProvenanceSource, RunStatus
+from dirigent_client.enums import Importance, ProvenanceSource, RunStatus
 from dirigent_core.database import session_scope
 from dirigent_core.documents import load_pipeline_text as load_text
 from dirigent_core.documents import to_yaml
@@ -392,6 +392,50 @@ async def test_an_apply_stores_the_lowercased_tag_and_the_filter_finds_it_there(
     async with session_scope(sessions) as session:
         assert [row.code for row in await list_pipelines(session, tags=["climate"])] == ["shouted"]
         assert await list_pipelines(session, tags=["Climate"]) == [], "the stored spelling is the only one"
+
+
+def weighted(code: str, importance: str | None) -> str:
+    """A one-step document coded and weighted as asked."""
+    declared = f"importance: {importance}\n" if importance else ""
+    return (
+        f"format: dirigent/v1\ncode: {code}\ndescription: A weighted pipeline.\n{declared}"
+        "steps:\n  first:\n    block: test.echo\n    config: { value: one }\n"
+    )
+
+
+async def test_applying_writes_the_documents_importance_onto_the_row(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    """The alert path reads the row, so the column is what the document says now."""
+    async with session_scope(sessions) as session:
+        await apply_document(session, services, load_text(weighted("paged", "critical")))
+    async with session_scope(sessions) as session:
+        pipeline = await find_pipeline(session, "paged")
+        assert pipeline is not None
+        assert pipeline.importance is Importance.CRITICAL
+
+
+async def test_reapplying_a_document_moves_the_importance_on_the_row(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    async with session_scope(sessions) as session:
+        await apply_document(session, services, load_text(weighted("demoted", "critical")))
+    async with session_scope(sessions) as session:
+        await apply_document(session, services, load_text(weighted("demoted", "routine")))
+    async with session_scope(sessions) as session:
+        pipeline = await find_pipeline(session, "demoted")
+        assert pipeline is not None
+        assert pipeline.importance is Importance.ROUTINE
+
+
+async def test_a_document_saying_nothing_leaves_the_pipeline_of_normal_importance(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    async with session_scope(sessions) as session:
+        await apply_document(session, services, load_text(weighted("unsaid", None)))
+        pipeline = await find_pipeline(session, "unsaid")
+        assert pipeline is not None
+        assert pipeline.importance is Importance.NORMAL
 
 
 async def test_the_canonical_export_carries_the_tags_back(
