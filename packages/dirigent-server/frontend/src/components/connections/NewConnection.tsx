@@ -1,6 +1,7 @@
 import { useState } from 'react'
 
 import { SecretField } from '@/components/connections/SecretField'
+import { Mark } from '@/components/Mark'
 import { Refusable } from '@/components/Refusable'
 import { Refusal } from '@/components/Refusal'
 import { SchemaForm } from '@/components/pipeline/SchemaForm'
@@ -27,6 +28,7 @@ import {
     type ConnectionOut,
     type SurfaceEntry,
 } from '@/lib/connections'
+import { kindGlyph } from '@/lib/glyphs'
 import { refusalOf } from '@/lib/refusal'
 import { firstShut } from '@/lib/roles'
 import { maySubmit, validateFields, withUnreadable } from '@/lib/schema-form'
@@ -160,12 +162,17 @@ export function NewConnection({
                             }}
                         >
                             <SelectTrigger id="connection-kind" className="w-full font-mono">
-                                <SelectValue placeholder="Choose a kind" />
+                                {/* The chosen row keeps its mark in the closed box, so the row
+                                    somebody picked is the row they are looking at. Nothing
+                                    chosen is the placeholder's, and a mark would be a kind. */}
+                                <SelectValue placeholder="Choose a kind">
+                                    {chosen === null ? undefined : () => <KindRow kind={chosen.id} />}
+                                </SelectValue>
                             </SelectTrigger>
                             <SelectContent>
                                 {kinds.map((one) => (
                                     <SelectItem key={one.id} value={one.id} className="font-mono">
-                                        {one.id}
+                                        <KindRow kind={one.id} />
                                     </SelectItem>
                                 ))}
                             </SelectContent>
@@ -252,6 +259,21 @@ export function NewConnection({
                 </DialogFooter>
             </DialogContent>
         </Dialog>
+    )
+}
+
+/**
+ * One kind as the dialog offers it: the mark, and the code it is chosen by.
+ *
+ * The kind is written as well as marked, because a mark cannot be typed and the code is what a
+ * document names the kind by.
+ */
+function KindRow({ kind }: { kind: string }) {
+    return (
+        <span className="flex items-center gap-2">
+            <Mark glyph={kindGlyph(kind)} />
+            {kind}
+        </span>
     )
 }
 

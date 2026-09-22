@@ -1156,6 +1156,8 @@ test('a field naming a connection reads its kind and where its last check left i
     await expect(panel.getByLabel('connection', { exact: true })).toHaveValue(REFERENCE_CONNECTION)
     const row = panel.getByRole('button', { name: /never checked/ })
     await expect(row).toContainText('http · never checked')
+    // And it leads with the mark that kind wears everywhere else.
+    await expect(row.locator('[data-slot="mark"]')).toHaveCount(1)
 
     // Open, and it says what the credential is pointed at, and where it is edited.
     await row.click()

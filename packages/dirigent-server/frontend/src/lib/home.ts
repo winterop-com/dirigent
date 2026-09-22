@@ -19,6 +19,7 @@ import {
     type ConnectionOut,
     type HealthView,
 } from '@/lib/connections'
+import { kindGlyph, type Glyph } from '@/lib/glyphs'
 import { concernTone, DAY, type Tile, type TileTone } from '@/lib/overview'
 import { readPipelines, type PipelineOut } from '@/lib/pipelines'
 import { EVERY_RUN, runsLink, type RunOut } from '@/lib/runs'
@@ -232,6 +233,8 @@ export type HealthKind = 'worker' | 'connection'
 export interface HealthRow {
     id: string
     kind: HealthKind
+    /** The connection kind's mark. A worker is not a kind and carries none. */
+    mark: Glyph | null
     /** What it is called: a worker's name, a connection's code. */
     label: string
     tone: TileTone
@@ -251,6 +254,9 @@ export interface HealthRow {
  * much it can take; one with something to report says that instead, and carries when it was
  * last heard from. The row is headed by the worker, so what is wrong is stated without naming
  * it a second time.
+ *
+ * A CONNECTION CARRIES ITS KIND'S MARK, the one `lib/glyphs` gives that kind on every other
+ * screen. A worker is not a kind and carries none, not even the neutral one.
  */
 export function healthRows(
     workers: readonly WorkerOut[],
@@ -261,6 +267,7 @@ export function healthRows(
         return {
             id: worker.id,
             kind: 'worker',
+            mark: null,
             label: worker.name,
             tone: concern === null ? 'good' : concernTone(concern),
             detail:
@@ -275,6 +282,7 @@ export function healthRows(
         return {
             id: connection.id,
             kind: 'connection',
+            mark: kindGlyph(connection.kind),
             label: connection.code,
             tone: view.tone ?? 'neutral',
             detail: detailOf(view),

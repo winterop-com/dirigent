@@ -8,6 +8,7 @@ import { HealthSaid } from '@/components/connections/Health'
 import { NewConnection } from '@/components/connections/NewConnection'
 import { KindChip } from '@/components/KindChip'
 import { ListTable, type Column } from '@/components/list/ListTable'
+import { Mark } from '@/components/Mark'
 import { PageHeader, PageState } from '@/components/PageState'
 import { Refusable } from '@/components/Refusable'
 import { sayRefusal } from '@/components/Refusal'
@@ -31,6 +32,7 @@ import {
     type SurfaceEntry,
 } from '@/lib/connections'
 import { formatInstant, formatRelative } from '@/lib/format'
+import { kindGlyph } from '@/lib/glyphs'
 import { headingOf } from '@/lib/identity'
 import { fillPanel, openPanel } from '@/lib/panels'
 import { LIST_GROUP, registerActions } from '@/lib/palette'
@@ -327,23 +329,30 @@ function buildColumns(
     ]
 }
 
-/** What a credential is called, the code it is reached by, and which kind it is. */
+/**
+ * What a credential is called, the code it is reached by, and which kind it is.
+ *
+ * THE MARK LEADS AND THE CHIP FOLLOWS. The kind's glyph is what tells a row from its neighbours
+ * at a glance and the chip is the word somebody narrows or types by, so the row wears both: the
+ * mark ahead of the identity, then the title and the code together, then the kind in words.
+ */
 function Named({ row }: { row: ConnectionOut }) {
     const heading = headingOf(row)
     return (
         <span className="flex min-w-0 items-center gap-2">
+            <Mark glyph={kindGlyph(row.kind)} />
             <span
                 className={cn('truncate font-semibold', !heading.named && 'font-mono')}
                 title={heading.title}
             >
                 {heading.title}
             </span>
-            <KindChip kind={row.kind} />
             {heading.code !== null && (
                 <span className="truncate font-mono text-xs text-muted-foreground" title={heading.code}>
                     {heading.code}
                 </span>
             )}
+            <KindChip kind={row.kind} />
         </span>
     )
 }
