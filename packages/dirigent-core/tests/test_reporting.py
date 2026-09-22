@@ -30,8 +30,7 @@ from dirigent_core.models import ArtifactRef, LogEntry, Notification, Pipeline, 
 from dirigent_core.plugins import PluginHost
 from dirigent_core.reporting import DEFAULT_TEMPLATE, RunFacts, as_context, run_facts
 from dirigent_core.storage import parse_uri
-from dirigent_plugin import AlertMessage, Contribution, Notifier
-from engineblocks import EngineTestPlugin, FailOperator
+from engineblocks import FailOperator
 from test_engine import drain, reload, start, steps
 from test_storage import CREDENTIAL, sealed_connection, sealed_services
 
@@ -251,27 +250,6 @@ async def test_the_facts_say_when_they_were_assembled(engine: Engine, sessions: 
 REPORTED = CHAIN.model_copy(update={"code": "reported-document", "report": ReportSpec()})
 
 
-@pytest.fixture
-def host() -> PluginHost:
-    """A plugin host carrying the engine's test blocks and one channel an alert can reach."""
-    return PluginHost(
-        {
-            "engine-tests": EngineTestPlugin().contribute(),
-            "report-tests": Contribution(notifiers=[RecordingNotifier()]),
-        }
-    )
-
-
-class RecordingNotifier(Notifier):
-    """A notifier that accepts everything, so a rule has something to name."""
-
-    id = "recording"
-    config_model = BaseModel
-
-    async def send(self, message: AlertMessage, config: BaseModel) -> None:
-        """Accept the message and forget it."""
-
-
 def reporting(definition: PipelineDefinition, template: str | None = None) -> PipelineDefinition:
     """The same pipeline, asking for a report document."""
     return definition.model_copy(update={"report": ReportSpec(template=template)})
@@ -476,7 +454,7 @@ async def test_a_queued_alert_names_the_document_the_run_rendered(
         await create_rule(
             session,
             services,
-            AlertRuleRequest(code="tell-ops", event=AlertEvent.RUN_SUCCEEDED, notifier="recording"),
+            AlertRuleRequest(code="tell-ops", event=AlertEvent.RUN_SUCCEEDED),
         )
     run = await start(sessions, services, REPORTED)
     await drain(engine)
@@ -500,7 +478,7 @@ async def test_an_alert_for_a_run_with_no_report_names_no_document(
         await create_rule(
             session,
             services,
-            AlertRuleRequest(code="tell-ops", event=AlertEvent.RUN_SUCCEEDED, notifier="recording"),
+            AlertRuleRequest(code="tell-ops", event=AlertEvent.RUN_SUCCEEDED),
         )
     run = await start(sessions, services, CHAIN)
     await drain(engine)
@@ -557,7 +535,7 @@ async def test_a_matching_rule_assembles_the_facts_a_report_did_not(
         await create_rule(
             session,
             services,
-            AlertRuleRequest(code="tell-ops", event=AlertEvent.RUN_SUCCEEDED, notifier="recording"),
+            AlertRuleRequest(code="tell-ops", event=AlertEvent.RUN_SUCCEEDED),
         )
     run = await start(sessions, services, CHAIN)
     await drain(engine)

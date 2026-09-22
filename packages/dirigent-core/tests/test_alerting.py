@@ -72,6 +72,12 @@ OWNER = "worker-under-test"
 
 BRIEF_LEASE = 5
 
+#: The connection a rule names when what it delivers through does not matter: a recording channel.
+DESK = "desk"
+
+#: The connection whose channel refuses everything, for the rules that have to fail to deliver.
+FLAKY = "flaky"
+
 
 # -- the fake channels -----------------------------------------------------------
 
@@ -172,6 +178,15 @@ def linked_services(settings: Settings, host: PluginHost) -> EngineServices:
     return EngineServices.build(settings.model_copy(update={"alert_base_url": "https://dirigent.test/"}), host)
 
 
+@pytest.fixture(autouse=True)
+async def _channels(  # pyright: ignore[reportUnusedFunction]
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    """Mint one connection per fake channel, which is what a rule names as its target."""
+    await a_connection(sessions, services, code=DESK, kind="recording")
+    await a_connection(sessions, services, code=FLAKY, kind="exploding")
+
+
 # -- helpers ---------------------------------------------------------------------
 
 
@@ -247,7 +262,8 @@ async def a_connection(
     sessions: async_sessionmaker[AsyncSession],
     services: EngineServices,
     *,
-    name: str = "desk",
+    code: str = DESK,
+    kind: str = "recording",
 ) -> Connection:
     """Store one connection whose secret half is sealed with the instance key."""
     public, envelope, key_id = services.secrets.encrypt_config(
@@ -255,11 +271,18 @@ async def a_connection(
     )
     async with session_scope(sessions) as session:
         connection = Connection(
-            code=name, kind="recording", config=public, secret_envelope=envelope, secret_key_id=key_id
+            code=code, kind=kind, config=public, secret_envelope=envelope, secret_key_id=key_id
         )
         session.add(connection)
         await session.flush()
         return connection
+
+
+async def find_connection(sessions: async_sessionmaker[AsyncSession], code: str) -> Connection:
+    """Read one stored connection back by code."""
+    async with sessions() as session:
+        found = await session.execute(sa.select(Connection).where(Connection.code == code))
+        return found.scalar_one()
 
 
 async def enqueue(sessions: async_sessionmaker[AsyncSession], **fields: Any) -> Notification:
@@ -392,20 +415,40 @@ def test_the_url_is_built_only_when_the_instance_knows_its_own_address() -> None
 # -- create_rule, and the rest of the rule surface --------------------------------
 
 
-async def test_a_rule_naming_an_uninstalled_notifier_is_refused_with_what_is_installed(
+async def test_a_rule_delivers_through_the_notifier_its_connections_kind_names(
     sessions: async_sessionmaker[AsyncSession], services: EngineServices
 ) -> None:
-    request = AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, notifier="carrier-pigeon")
+    rule = await declare(
+        sessions, services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, connection=DESK)
+    )
+    assert rule.notifier == "recording"
+    assert rule.connection_id == (await find_connection(sessions, DESK)).id
+
+
+async def test_a_rule_naming_no_connection_delivers_to_the_log(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    rule = await declare(sessions, services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED))
+    assert rule.notifier == "log"
+    assert rule.connection_id is None
+
+
+async def test_a_connection_of_a_kind_no_notifier_sends_through_is_refused(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    await a_connection(sessions, services, code="hq", kind="dhis2")
+    request = AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, connection="hq")
     with pytest.raises(AlertError) as raised:
         await declare(sessions, services, request)
-    assert "carrier-pigeon" in str(raised.value)
+    assert "'hq'" in str(raised.value)
+    assert "'dhis2'" in str(raised.value)
     assert "exploding, interfering, recording" in str(raised.value)
 
 
 async def test_an_instance_with_no_channel_says_so(
     sessions: async_sessionmaker[AsyncSession], bare_services: EngineServices
 ) -> None:
-    request = AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, notifier="recording")
+    request = AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, connection=DESK)
     with pytest.raises(AlertError, match="none are installed"):
         await declare(sessions, bare_services, request)
 
@@ -413,7 +456,7 @@ async def test_an_instance_with_no_channel_says_so(
 async def test_a_duplicate_rule_name_is_refused(
     sessions: async_sessionmaker[AsyncSession], services: EngineServices
 ) -> None:
-    request = AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, notifier="recording")
+    request = AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, connection=DESK)
     await declare(sessions, services, request)
     with pytest.raises(AlertError, match="already exists"):
         await declare(sessions, services, request)
@@ -423,7 +466,7 @@ async def test_a_pipeline_scoped_rule_naming_no_pipeline_is_refused(
     sessions: async_sessionmaker[AsyncSession], services: EngineServices
 ) -> None:
     request = AlertRuleRequest(
-        code="watch", event=AlertEvent.RUN_FAILED, notifier="recording", scope=AlertScope.PIPELINE
+        code="watch", event=AlertEvent.RUN_FAILED, connection=DESK, scope=AlertScope.PIPELINE
     )
     with pytest.raises(AlertError, match="has to name the pipeline"):
         await declare(sessions, services, request)
@@ -435,7 +478,7 @@ async def test_a_pipeline_scoped_rule_naming_an_unknown_pipeline_is_refused(
     request = AlertRuleRequest(
         code="watch",
         event=AlertEvent.RUN_FAILED,
-        notifier="recording",
+        connection=DESK,
         scope=AlertScope.PIPELINE,
         pipeline="no-such-thing",
     )
@@ -447,7 +490,7 @@ async def test_a_rule_naming_an_unknown_connection_is_refused(
     sessions: async_sessionmaker[AsyncSession], services: EngineServices
 ) -> None:
     request = AlertRuleRequest(
-        code="page-ops", event=AlertEvent.RUN_FAILED, notifier="recording", connection="no-such-desk"
+        code="page-ops", event=AlertEvent.RUN_FAILED, connection="no-such-desk"
     )
     with pytest.raises(AlertError, match="no connection coded 'no-such-desk'"):
         await declare(sessions, services, request)
@@ -457,17 +500,16 @@ async def test_a_rule_records_its_scope_its_channel_and_its_throttle(
     sessions: async_sessionmaker[AsyncSession], services: EngineServices
 ) -> None:
     await stored_run(sessions, services, pipeline="nightly")
-    connection = await a_connection(sessions, services)
+    connection = await find_connection(sessions, DESK)
     rule = await declare(
         sessions,
         services,
         AlertRuleRequest(
             code="page-ops",
             event=AlertEvent.RUN_FAILED,
-            notifier="recording",
             scope=AlertScope.PIPELINE,
             pipeline="nightly",
-            connection="desk",
+            connection=DESK,
             template="{{ run.pipeline }} is unhappy",
             body="{{ run.error }}",
             throttle=timedelta(minutes=15),
@@ -483,8 +525,8 @@ async def test_a_rule_records_its_scope_its_channel_and_its_throttle(
 async def test_the_rules_can_be_listed_found_and_deleted(
     sessions: async_sessionmaker[AsyncSession], services: EngineServices
 ) -> None:
-    await declare(sessions, services, AlertRuleRequest(code="zulu", event=AlertEvent.RUN_FAILED, notifier="recording"))
-    await declare(sessions, services, AlertRuleRequest(code="alpha", event=AlertEvent.RUN_STUCK, notifier="recording"))
+    await declare(sessions, services, AlertRuleRequest(code="zulu", event=AlertEvent.RUN_FAILED, connection=DESK))
+    await declare(sessions, services, AlertRuleRequest(code="alpha", event=AlertEvent.RUN_STUCK, connection=DESK))
     async with sessions() as session:
         assert [rule.code for rule in await list_rules(session)] == ["zulu", "alpha"], "declared order"
         assert await find_rule(session, "nothing-like-it") is None
@@ -503,7 +545,7 @@ async def test_a_global_rule_matches_any_pipeline(
     sessions: async_sessionmaker[AsyncSession], services: EngineServices
 ) -> None:
     await declare(
-        sessions, services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, notifier="recording")
+        sessions, services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, connection=DESK)
     )
     async with sessions() as session:
         matched = await matching_rules(session, AlertEvent.RUN_FAILED, uuid4(), Importance.NORMAL)
@@ -520,7 +562,7 @@ async def test_a_pipeline_scoped_rule_matches_only_its_own_pipeline(
         AlertRuleRequest(
             code="watch-nightly",
             event=AlertEvent.RUN_FAILED,
-            notifier="recording",
+            connection=DESK,
             scope=AlertScope.PIPELINE,
             pipeline="nightly",
         ),
@@ -534,7 +576,7 @@ async def test_an_inactive_rule_never_matches(
     sessions: async_sessionmaker[AsyncSession], services: EngineServices
 ) -> None:
     rule = await declare(
-        sessions, services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, notifier="recording")
+        sessions, services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, connection=DESK)
     )
     async with session_scope(sessions) as session:
         stored = await session.get(AlertRule, rule.id)
@@ -548,7 +590,7 @@ async def test_a_paused_rule_never_matches(
     sessions: async_sessionmaker[AsyncSession], services: EngineServices
 ) -> None:
     rule = await declare(
-        sessions, services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, notifier="recording")
+        sessions, services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, connection=DESK)
     )
     async with session_scope(sessions) as session:
         stored = await session.get(AlertRule, rule.id)
@@ -562,7 +604,7 @@ async def test_a_resumed_rule_matches_again(
     sessions: async_sessionmaker[AsyncSession], services: EngineServices
 ) -> None:
     rule = await declare(
-        sessions, services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, notifier="recording")
+        sessions, services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, connection=DESK)
     )
     async with session_scope(sessions) as session:
         stored = await session.get(AlertRule, rule.id)
@@ -577,7 +619,7 @@ async def test_a_rule_is_declared_unpaused(
     sessions: async_sessionmaker[AsyncSession], services: EngineServices
 ) -> None:
     rule = await declare(
-        sessions, services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, notifier="recording")
+        sessions, services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, connection=DESK)
     )
     assert rule.paused is False
 
@@ -586,7 +628,7 @@ async def test_a_rule_for_another_event_never_matches(
     sessions: async_sessionmaker[AsyncSession], services: EngineServices
 ) -> None:
     await declare(
-        sessions, services, AlertRuleRequest(code="cheer", event=AlertEvent.RUN_SUCCEEDED, notifier="recording")
+        sessions, services, AlertRuleRequest(code="cheer", event=AlertEvent.RUN_SUCCEEDED, connection=DESK)
     )
     async with sessions() as session:
         assert await matching_rules(session, AlertEvent.RUN_FAILED, uuid4(), Importance.NORMAL) == []
@@ -607,7 +649,7 @@ async def test_a_rule_naming_an_importance_matches_at_that_level_and_above(
         sessions,
         services,
         AlertRuleRequest(
-            code="page-ops", event=AlertEvent.RUN_FAILED, notifier="recording", importance=Importance.NORMAL
+            code="page-ops", event=AlertEvent.RUN_FAILED, connection=DESK, importance=Importance.NORMAL
         ),
     )
     async with sessions() as session:
@@ -619,7 +661,7 @@ async def test_a_rule_naming_no_importance_matches_every_pipeline(
     sessions: async_sessionmaker[AsyncSession], services: EngineServices
 ) -> None:
     await declare(
-        sessions, services, AlertRuleRequest(code="log-all", event=AlertEvent.RUN_FAILED, notifier="recording")
+        sessions, services, AlertRuleRequest(code="log-all", event=AlertEvent.RUN_FAILED, connection=DESK)
     )
     async with sessions() as session:
         for carried in Importance:
@@ -635,11 +677,11 @@ async def test_paging_the_critical_failures_adds_to_the_log_rather_than_replacin
         sessions,
         services,
         AlertRuleRequest(
-            code="page-ops", event=AlertEvent.RUN_FAILED, notifier="recording", importance=Importance.CRITICAL
+            code="page-ops", event=AlertEvent.RUN_FAILED, connection=DESK, importance=Importance.CRITICAL
         ),
     )
     await declare(
-        sessions, services, AlertRuleRequest(code="log-all", event=AlertEvent.RUN_FAILED, notifier="recording")
+        sessions, services, AlertRuleRequest(code="log-all", event=AlertEvent.RUN_FAILED, connection=DESK)
     )
     routine = await stored_run(sessions, services, pipeline="tidy-up", importance=Importance.ROUTINE)
     async with session_scope(sessions) as session:
@@ -675,13 +717,13 @@ async def test_a_patch_moves_the_importance_a_rule_wants_and_clears_it(
         sessions,
         services,
         AlertRuleRequest(
-            code="page-ops", event=AlertEvent.RUN_FAILED, notifier="recording", importance=Importance.CRITICAL
+            code="page-ops", event=AlertEvent.RUN_FAILED, connection=DESK, importance=Importance.CRITICAL
         ),
     )
     async with session_scope(sessions) as session:
         stored = await session.get(AlertRule, rule.id)
         assert stored is not None
-        await update_rule(session, stored, {"importance": Importance.ROUTINE})
+        await update_rule(session, services, stored, {"importance": Importance.ROUTINE})
     async with sessions() as session:
         stored = await session.get(AlertRule, rule.id)
         assert stored is not None
@@ -689,7 +731,7 @@ async def test_a_patch_moves_the_importance_a_rule_wants_and_clears_it(
     async with session_scope(sessions) as session:
         stored = await session.get(AlertRule, rule.id)
         assert stored is not None
-        await update_rule(session, stored, {"importance": None})
+        await update_rule(session, services, stored, {"importance": None})
     async with sessions() as session:
         stored = await session.get(AlertRule, rule.id)
         assert stored is not None
@@ -711,7 +753,7 @@ async def test_a_throttled_rule_raises_again_only_once_its_window_has_passed(
         sessions,
         services,
         AlertRuleRequest(
-            code="page-ops", event=AlertEvent.RUN_FAILED, notifier="recording", throttle=timedelta(minutes=15)
+            code="page-ops", event=AlertEvent.RUN_FAILED, connection=DESK, throttle=timedelta(minutes=15)
         ),
     )
     async with session_scope(sessions) as session:
@@ -730,7 +772,7 @@ async def test_a_rule_with_no_throttle_always_matches(
     sessions: async_sessionmaker[AsyncSession], services: EngineServices
 ) -> None:
     rule = await declare(
-        sessions, services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, notifier="recording")
+        sessions, services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, connection=DESK)
     )
     async with sessions() as session:
         stored = await session.get(AlertRule, rule.id)
@@ -746,7 +788,7 @@ async def test_a_suppressed_alert_says_so_on_the_run_it_was_suppressed_for(
         sessions,
         services,
         AlertRuleRequest(
-            code="page-ops", event=AlertEvent.RUN_FAILED, notifier="recording", throttle=timedelta(minutes=15)
+            code="page-ops", event=AlertEvent.RUN_FAILED, connection=DESK, throttle=timedelta(minutes=15)
         ),
     )
     first = await stored_run(sessions, services, pipeline="nightly")
@@ -780,7 +822,7 @@ async def test_a_global_rule_throttles_each_pipeline_on_its_own(
         sessions,
         services,
         AlertRuleRequest(
-            code="page-ops", event=AlertEvent.RUN_FAILED, notifier="recording", throttle=timedelta(minutes=15)
+            code="page-ops", event=AlertEvent.RUN_FAILED, connection=DESK, throttle=timedelta(minutes=15)
         ),
     )
     noisy = await stored_run(sessions, services, pipeline="nightly")
@@ -806,7 +848,7 @@ async def test_a_delivery_retry_does_not_widen_the_throttle_window(
         sessions,
         services,
         AlertRuleRequest(
-            code="page-ops", event=AlertEvent.RUN_FAILED, notifier="exploding", throttle=timedelta(seconds=10)
+            code="page-ops", event=AlertEvent.RUN_FAILED, connection=FLAKY, throttle=timedelta(seconds=10)
         ),
     )
     async with session_scope(sessions) as session:
@@ -834,12 +876,12 @@ async def test_raising_queues_one_message_per_matching_rule_and_stamps_the_rules
 ) -> None:
     run = await stored_run(sessions, services)
     await declare(
-        sessions, services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, notifier="recording")
+        sessions, services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, connection=DESK)
     )
     await declare(
         sessions,
         services,
-        AlertRuleRequest(code="tell-slack", event=AlertEvent.RUN_FAILED, notifier="recording", template="down again"),
+        AlertRuleRequest(code="tell-slack", event=AlertEvent.RUN_FAILED, connection=DESK, template="down again"),
     )
     async with session_scope(sessions) as session:
         stored = await session.get(Run, run.id)
@@ -860,7 +902,7 @@ async def test_the_default_subject_is_the_one_the_module_declares(
 ) -> None:
     run = await stored_run(sessions, services)
     await declare(
-        sessions, services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, notifier="recording")
+        sessions, services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, connection=DESK)
     )
     async with session_scope(sessions) as session:
         stored = await session.get(Run, run.id)
@@ -874,7 +916,7 @@ async def test_raising_writes_the_alert_into_the_runs_own_timeline(
 ) -> None:
     run = await stored_run(sessions, services)
     await declare(
-        sessions, services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, notifier="recording")
+        sessions, services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, connection=DESK)
     )
     async with session_scope(sessions) as session:
         stored = await session.get(Run, run.id)
@@ -892,7 +934,7 @@ async def test_a_queued_message_carries_the_link_back_when_the_instance_has_one(
 ) -> None:
     run = await stored_run(sessions, linked_services)
     await declare(
-        sessions, linked_services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, notifier="recording")
+        sessions, linked_services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, connection=DESK)
     )
     async with session_scope(sessions) as session:
         stored = await session.get(Run, run.id)
@@ -923,7 +965,7 @@ async def test_a_terminal_status_raises_the_event_it_maps_to(
     event: AlertEvent,
 ) -> None:
     run = await stored_run(sessions, services, status=status)
-    await declare(sessions, services, AlertRuleRequest(code="watch", event=event, notifier="recording"))
+    await declare(sessions, services, AlertRuleRequest(code="watch", event=event, connection=DESK))
     async with session_scope(sessions) as session:
         stored = await session.get(Run, run.id)
         assert stored is not None
@@ -940,7 +982,7 @@ async def test_a_status_that_maps_to_no_event_raises_nothing(
         await declare(
             sessions,
             services,
-            AlertRuleRequest(code=f"watch-{event.value.replace('_', '-')}", event=event, notifier="recording"),
+            AlertRuleRequest(code=f"watch-{event.value.replace('_', '-')}", event=event, connection=DESK),
         )
     async with session_scope(sessions) as session:
         stored = await session.get(Run, run.id)
@@ -957,7 +999,7 @@ async def test_a_rule_says_one_thing_about_one_run_once(
 ) -> None:
     run = await stored_run(sessions, services)
     await declare(
-        sessions, services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, notifier="recording")
+        sessions, services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, connection=DESK)
     )
     for moment in (NOW, NOW + timedelta(minutes=1)):
         async with session_scope(sessions) as session:
@@ -974,7 +1016,7 @@ async def test_the_same_rule_still_speaks_for_a_different_run(
     first = await stored_run(sessions, services, pipeline="nightly")
     second = await stored_run(sessions, services, pipeline="hourly")
     await declare(
-        sessions, services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, notifier="recording")
+        sessions, services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, connection=DESK)
     )
     for run in (first, second):
         async with session_scope(sessions) as session:
@@ -989,7 +1031,7 @@ async def test_a_sweeper_redetecting_a_stuck_run_pages_once(
 ) -> None:
     run = await stored_run(sessions, services, status=RunStatus.RUNNING)
     await declare(
-        sessions, services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_STUCK, notifier="recording")
+        sessions, services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_STUCK, connection=DESK)
     )
     queued: list[int] = []
     for sweep in range(4):
@@ -1003,7 +1045,7 @@ async def test_a_sweep_with_nothing_stuck_queues_nothing(
     sessions: async_sessionmaker[AsyncSession], services: EngineServices
 ) -> None:
     await declare(
-        sessions, services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_STUCK, notifier="recording")
+        sessions, services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_STUCK, connection=DESK)
     )
     async with session_scope(sessions) as session:
         assert await raise_for_stuck(session, services, [], now=NOW) == 0
@@ -1038,7 +1080,7 @@ async def test_a_subject_and_a_body_render_over_the_runs_whole_facts(
         AlertRuleRequest(
             code="page-ops",
             event=AlertEvent.RUN_FAILED,
-            notifier="recording",
+            connection=DESK,
             template="{{ pipeline.code }} v{{ pipeline.version }} {{ run.status }}",
             body="{{ run.error }} after {{ run.duration_ms | duration }}",
         ),
@@ -1057,7 +1099,7 @@ async def test_a_body_reads_the_report_document_the_run_rendered(
     await declare(
         sessions,
         services,
-        AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, notifier="recording", body="{{ report }}"),
+        AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, connection=DESK, body="{{ report }}"),
     )
     queued = await raise_one(sessions, services, run, report="# what happened\n\nnot much")
 
@@ -1075,7 +1117,7 @@ async def test_a_body_reads_one_step_by_name(
         AlertRuleRequest(
             code="page-ops",
             event=AlertEvent.RUN_FAILED,
-            notifier="recording",
+            connection=DESK,
             body="only: {{ step.only.outcome }} on {{ step.only.block }}",
         ),
     )
@@ -1092,7 +1134,7 @@ async def test_a_name_the_facts_do_not_have_renders_empty_in_a_body(
         sessions,
         services,
         AlertRuleRequest(
-            code="page-ops", event=AlertEvent.RUN_FAILED, notifier="recording", body="[{{ step.gone.outcome }}]"
+            code="page-ops", event=AlertEvent.RUN_FAILED, connection=DESK, body="[{{ step.gone.outcome }}]"
         ),
     )
     queued = await raise_one(sessions, services, run)
@@ -1110,14 +1152,14 @@ async def test_a_rule_whose_template_does_not_compile_is_refused_at_creation(
         await declare(
             sessions,
             services,
-            AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, notifier="recording", template="{% for %}"),
+            AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, connection=DESK, template="{% for %}"),
         )
     with pytest.raises(AlertError, match="body is not a Jinja template: line 2"):
         await declare(
             sessions,
             services,
             AlertRuleRequest(
-                code="page-ops", event=AlertEvent.RUN_FAILED, notifier="recording", body="fine\n{% endif %}"
+                code="page-ops", event=AlertEvent.RUN_FAILED, connection=DESK, body="fine\n{% endif %}"
             ),
         )
     async with sessions() as session:
@@ -1136,7 +1178,7 @@ async def test_a_body_over_the_cap_falls_back_with_a_warning_in_the_runs_timelin
         AlertRuleRequest(
             code="page-ops",
             event=AlertEvent.RUN_FAILED,
-            notifier="recording",
+            connection=DESK,
             body="{% for index in range(1000) %}every single line of it, again{% endfor %}",
         ),
     )
@@ -1161,7 +1203,7 @@ async def test_a_subject_is_one_line_and_no_longer_than_the_cap(
         AlertRuleRequest(
             code="page-ops",
             event=AlertEvent.RUN_FAILED,
-            notifier="recording",
+            connection=DESK,
             template="{{ run.pipeline }}\n  is\n\tunhappy: {{ 'x' * 300 }}",
         ),
     )
@@ -1182,7 +1224,7 @@ async def test_a_subject_that_renders_past_its_cap_falls_back_to_the_default(
         AlertRuleRequest(
             code="page-ops",
             event=AlertEvent.RUN_FAILED,
-            notifier="recording",
+            connection=DESK,
             template="{% for index in range(1000) %}every single line of it, again{% endfor %}",
         ),
     )
@@ -1206,7 +1248,7 @@ async def test_a_body_that_fails_while_rendering_falls_back_to_the_facts(
         AlertRuleRequest(
             code="page-ops",
             event=AlertEvent.RUN_FAILED,
-            notifier="recording",
+            connection=DESK,
             body="one item every {{ run.duration_ms / 0 }}ms",
         ),
     )
@@ -1230,7 +1272,7 @@ async def test_a_subject_that_fails_while_rendering_falls_back_to_the_default(
         AlertRuleRequest(
             code="page-ops",
             event=AlertEvent.RUN_FAILED,
-            notifier="recording",
+            connection=DESK,
             template="{{ run.pipeline }} at {{ run.duration_ms / 0 }}ms an item",
         ),
     )
@@ -1254,7 +1296,7 @@ async def test_a_template_that_fails_while_rendering_leaves_settled_work_settled
         AlertRuleRequest(
             code="page-ops",
             event=AlertEvent.RUN_SUCCEEDED,
-            notifier="recording",
+            connection=DESK,
             template="{{ 1 / 0 }}",
             body="{{ 1 / 0 }}",
         ),
@@ -1286,7 +1328,7 @@ async def test_an_alert_that_cannot_be_written_down_leaves_the_outcome_alone(
     run = await stored_run(sessions, services)
     for code in ("page-ops", "tell-slack"):
         await declare(
-            sessions, services, AlertRuleRequest(code=code, event=AlertEvent.RUN_FAILED, notifier="recording")
+            sessions, services, AlertRuleRequest(code=code, event=AlertEvent.RUN_FAILED, connection=DESK)
         )
     throttled = alerting.throttled_until
     reached = 0
@@ -1326,7 +1368,7 @@ async def test_a_stuck_runs_subject_renders_over_the_facts_it_has(
         AlertRuleRequest(
             code="page-ops",
             event=AlertEvent.RUN_STUCK,
-            notifier="recording",
+            connection=DESK,
             template="{{ run.pipeline }} has not moved",
         ),
     )
@@ -1356,12 +1398,12 @@ async def test_a_rules_templates_can_be_rewritten_and_a_bad_one_is_refused(
     sessions: async_sessionmaker[AsyncSession], services: EngineServices
 ) -> None:
     rule = await declare(
-        sessions, services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, notifier="recording")
+        sessions, services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, connection=DESK)
     )
     async with session_scope(sessions) as session:
         stored = await session.get(AlertRule, rule.id)
         assert stored is not None
-        await update_rule(session, stored, {"body": "{{ run.error }}"})
+        await update_rule(session, services, stored, {"body": "{{ run.error }}"})
     async with sessions() as session:
         found = await find_rule(session, "page-ops")
         assert found is not None
@@ -1371,7 +1413,34 @@ async def test_a_rules_templates_can_be_rewritten_and_a_bad_one_is_refused(
         stored = await session.get(AlertRule, rule.id)
         assert stored is not None
         with pytest.raises(AlertError, match="template is not a Jinja template"):
-            await update_rule(session, stored, {"template": "{% endfor %}"})
+            await update_rule(session, services, stored, {"template": "{% endfor %}"})
+
+
+async def test_a_rule_repointed_at_another_connection_takes_that_connections_sender(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    rule = await declare(
+        sessions, services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, connection=DESK)
+    )
+    async with session_scope(sessions) as session:
+        stored = await session.get(AlertRule, rule.id)
+        assert stored is not None
+        await update_rule(session, services, stored, {"connection": FLAKY})
+    flaky = await find_connection(sessions, FLAKY)
+    async with sessions() as session:
+        found = await find_rule(session, "page-ops")
+        assert found is not None
+        assert found.notifier == "exploding"
+        assert found.connection_id == flaky.id
+    async with session_scope(sessions) as session:
+        stored = await session.get(AlertRule, rule.id)
+        assert stored is not None
+        await update_rule(session, services, stored, {"connection": None})
+    async with sessions() as session:
+        found = await find_rule(session, "page-ops")
+        assert found is not None
+        assert found.notifier == "log", "a rule pointed at nothing delivers to the log"
+        assert found.connection_id is None
 
 
 # -- claiming ----------------------------------------------------------------------
@@ -1421,7 +1490,7 @@ async def test_a_delivered_alert_is_marked_sent_released_and_written_into_the_ti
 ) -> None:
     run = await stored_run(sessions, linked_services)
     await declare(
-        sessions, linked_services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, notifier="recording")
+        sessions, linked_services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, connection=DESK)
     )
     async with session_scope(sessions) as session:
         stored = await session.get(Run, run.id)
@@ -1484,7 +1553,7 @@ async def test_a_delivery_that_runs_out_of_budget_fails_terminally_in_the_runs_t
 ) -> None:
     run = await stored_run(sessions, services)
     await declare(
-        sessions, services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, notifier="exploding")
+        sessions, services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, connection=FLAKY)
     )
     async with session_scope(sessions) as session:
         stored = await session.get(Run, run.id)
@@ -1604,7 +1673,7 @@ def test_a_channel_with_no_connection_gets_its_models_defaults(services: EngineS
 async def test_a_channel_with_a_connection_gets_the_decrypted_config(
     sessions: async_sessionmaker[AsyncSession], services: EngineServices
 ) -> None:
-    connection = await a_connection(sessions, services)
+    connection = await find_connection(sessions, DESK)
     async with sessions() as session:
         stored = await session.get(Connection, connection.id)
         assert stored is not None
@@ -1618,8 +1687,7 @@ async def test_a_channel_with_a_connection_gets_the_decrypted_config(
 async def test_a_delivery_through_a_connection_opens_it(
     sessions: async_sessionmaker[AsyncSession], services: EngineServices
 ) -> None:
-    await a_connection(sessions, services)
-    await queued_message(sessions, services, connection="desk")
+    await queued_message(sessions, services, connection=DESK)
     async with session_scope(sessions) as session:
         claim = await claim_notification(session, owner=OWNER, now=NOW, lease_seconds=LEASE)
         assert claim is not None
@@ -1661,7 +1729,7 @@ async def test_notifications_list_newest_first_and_can_be_scoped_to_one_run(
 ) -> None:
     run = await stored_run(sessions, services)
     await declare(
-        sessions, services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, notifier="recording")
+        sessions, services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, connection=DESK)
     )
     async with session_scope(sessions) as session:
         stored = await session.get(Run, run.id)

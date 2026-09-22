@@ -512,6 +512,11 @@ ALERT_UNKNOWN_PIPELINE = ALERT.define("unknown_pipeline", "no pipeline coded {co
 
 ALERT_UNKNOWN_CONNECTION = ALERT.define("unknown_connection", "no connection coded {code}")
 
+TARGET_HAS_NO_NOTIFIER = ALERT.define(
+    "target_has_no_notifier",
+    "connection {code} is of kind {kind}, which no installed notifier delivers through ({installed})",
+)
+
 ALERT_VERSION_GONE = ALERT.define("version_gone", "run {run} pins a pipeline version that is gone")
 
 NOTIFIER_NOT_ON_WORKER = ALERT.define("notifier_not_on_worker", "notifier {notifier} is not installed on this worker")

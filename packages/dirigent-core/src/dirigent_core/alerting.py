@@ -50,6 +50,7 @@ from dirigent_core.messages import (
     NOTIFICATION_IN_FLIGHT,
     NOTIFIER_NOT_ON_WORKER,
     SCOPE_NEEDS_PIPELINE,
+    TARGET_HAS_NO_NOTIFIER,
     UNKNOWN_NOTIFIER,
 )
 from dirigent_core.models import (
@@ -74,6 +75,9 @@ EVENT_FOR_STATUS: dict[RunStatus, AlertEvent] = {
 }
 
 DEFAULT_TEMPLATE = "{{ run.pipeline }} run {{ run.status }}"
+
+#: The sender a rule that names no connection delivers through.
+LOG_NOTIFIER: Final = "log"
 
 #: The characters a subject is cut to, which is what a subject line is.
 SUBJECT_CAP: Final = 200
@@ -109,11 +113,11 @@ class AlertRuleRequest(BaseModel):
     name: str | None = None
     description: str | None = None
     event: AlertEvent
-    notifier: str
     scope: AlertScope = AlertScope.GLOBAL
     pipeline: str | None = None
     importance: Importance | None = None
     connection: str | None = None
+    """The connection this rule delivers through, whose kind names the sender; none is the log."""
     template: str | None = None
     body: str | None = None
     throttle: timedelta = timedelta(0)
@@ -182,15 +186,12 @@ async def list_rules(
 
 
 async def create_rule(session: AsyncSession, services: EngineServices, request: AlertRuleRequest) -> AlertRule:
-    """Declare an alert rule, refusing a notifier or a scope this instance cannot honour."""
-    if request.notifier not in services.host.notifiers:
-        installed = ", ".join(sorted(services.host.notifiers)) or "none are installed"
-        raise AlertError(UNKNOWN_NOTIFIER, notifier=repr(request.notifier), installed=installed)
+    """Declare an alert rule, refusing a target or a scope this instance cannot honour."""
     if await find_rule(session, request.code) is not None:
         raise AlertError(DUPLICATE_RULE, code=repr(request.code))
     check_templates(template=request.template, body=request.body)
     pipeline_id = await _scope_pipeline(session, request)
-    connection_id = await _connection_id(session, request.connection) if request.connection else None
+    notifier, connection_id = await _target(session, services, request.connection)
     rule = AlertRule(
         code=request.code,
         name=request.name,
@@ -199,7 +200,7 @@ async def create_rule(session: AsyncSession, services: EngineServices, request: 
         scope=request.scope,
         pipeline_id=pipeline_id,
         importance=request.importance,
-        notifier=request.notifier,
+        notifier=notifier,
         connection_id=connection_id,
         template=request.template,
         body=request.body,
@@ -237,11 +238,34 @@ async def _scope_pipeline(session: AsyncSession, request: AlertRuleRequest) -> U
 
 async def _connection_id(session: AsyncSession, code: str) -> UUID:
     """Resolve the connection a notifier delivers through, refusing an unknown code."""
+    return (await _connection(session, code)).id
+
+
+async def _connection(session: AsyncSession, code: str) -> Connection:
+    """Read one connection by code, refusing a code this instance does not hold."""
     found = await session.execute(sa.select(Connection).where(Connection.code == code))
     connection = found.scalar_one_or_none()
     if connection is None:
         raise AlertError(ALERT_UNKNOWN_CONNECTION, code=repr(code))
-    return connection.id
+    return connection
+
+
+async def _target(session: AsyncSession, services: EngineServices, code: str | None) -> tuple[str, UUID | None]:
+    """Resolve the one target a rule names into the sender that delivers it and what it opens.
+
+    A rule names a connection, and the notifier is that connection's kind; naming nothing is
+    the process log. A kind no installed notifier answers to is refused here rather than
+    stored, because the row would otherwise hold a sender no worker can dispatch on.
+    """
+    if code is None:
+        return LOG_NOTIFIER, None
+    connection = await _connection(session, code)
+    if connection.kind not in services.host.notifiers:
+        installed = ", ".join(sorted(services.host.notifiers)) or "none are installed"
+        raise AlertError(
+            TARGET_HAS_NO_NOTIFIER, code=repr(connection.code), kind=repr(connection.kind), installed=installed
+        )
+    return connection.kind, connection.id
 
 
 async def delete_rule(session: AsyncSession, rule: AlertRule) -> None:
@@ -291,14 +315,17 @@ async def set_paused(session: AsyncSession, rule: AlertRule, *, paused: bool) ->
 
 
 #: What a PATCH may write on a rule, and nothing else on the row.
-UPDATABLE: Final = ("paused", "template", "body", "importance")
+UPDATABLE: Final = ("paused", "template", "body", "importance", "connection")
 
 
-async def update_rule(session: AsyncSession, rule: AlertRule, changes: Mapping[str, object]) -> AlertRule:
+async def update_rule(
+    session: AsyncSession, services: EngineServices, rule: AlertRule, changes: Mapping[str, object]
+) -> AlertRule:
     """Write the fields a PATCH named on a rule, leaving every field it did not name.
 
-    A subject or a body is compiled here as it is at creation, so a rule on the row always
-    holds a template that renders.
+    A subject or a body is compiled here as it is at creation, and a target is resolved here as
+    it is at creation, so a rule on the row always holds a template that renders and a sender a
+    worker can dispatch on.
     """
     named = {name: value for name, value in changes.items() if name in UPDATABLE}
     if "template" in named or "body" in named:
@@ -315,6 +342,11 @@ async def update_rule(session: AsyncSession, rule: AlertRule, changes: Mapping[s
         rule.importance = floor
         await session.flush()
         _logger.info("alert rule reweighted", rule=rule.code, importance=floor.value if floor else None)
+    if "connection" in named:
+        code = cast("str | None", named["connection"])
+        rule.notifier, rule.connection_id = await _target(session, services, code)
+        await session.flush()
+        _logger.info("alert rule retargeted", rule=rule.code, notifier=rule.notifier, connection=code)
     if "paused" in named:
         await set_paused(session, rule, paused=bool(named["paused"]))
     return rule
