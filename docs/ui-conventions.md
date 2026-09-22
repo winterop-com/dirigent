@@ -910,6 +910,14 @@ small screen" where the verbs were, and carries the document's identity and noth
 version it is at is along the foot already, and a fact appears once on a screen. A graph is still
 read, a step is still chosen, and a run is still watched.
 
+**A segmented control that does not fit wraps; it never becomes a menu.** The control is for a
+set somebody can see all of, so the set stays on the screen below the breakpoint too: one
+standing at a form field's height is a grid two cells wide there -- four options are two rows of
+two, an odd last one takes the width -- and the single row it always was at `md` and up. A label
+too wide for its cell wraps onto a second line, because a cut word says less than a folded one.
+Folding the control into a picker instead would hide behind a press exactly what it exists to
+show.
+
 **Every control a finger lands on is at least 42px tall, whatever element it is made of.**
 The height is one token, `--spacing-finger`, and below the breakpoint every control takes its
 minimum from it: in `index.css` against the generated primitives' slots, against every trigger
