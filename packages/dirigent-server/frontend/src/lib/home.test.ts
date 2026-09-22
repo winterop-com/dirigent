@@ -472,12 +472,8 @@ describe('what this instance depends on', () => {
     // REVERT-PROOF. A check that could not verify anything wrote an instant and no verdict, and
     // reading the verdict alone would draw it as a connection nothing has ever asked.
     test('tells a check that could not decide from one nobody has made', () => {
-        const [row] = healthRows([], [unverified('ops-slack', 'not verified: only a post would prove it')])
-        expect(row).toMatchObject({
-            tone: 'neutral',
-            detail: 'not verified: only a post would prove it',
-            at: '2026-01-01T00:00:00Z',
-        })
+        const [row] = healthRows([], [unverified('ops-slack', 'only a post would prove it')])
+        expect(row).toMatchObject({ tone: 'neutral', detail: 'not verified', at: '2026-01-01T00:00:00Z' })
     })
 })
 
@@ -506,7 +502,7 @@ describe('the line along the foot of the panel', () => {
     })
 
     test('says of a check that could not decide that it could not, rather than that it failed', () => {
-        const note = healthNote([worker('alpha')], [unverified('ops-slack', 'not verified')])
+        const note = healthNote([worker('alpha')], [unverified('ops-slack', 'only a post would prove it')])
         expect(note).toBe('0 of 1 connections healthy · 1 could not be verified.')
     })
 

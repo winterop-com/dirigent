@@ -290,7 +290,7 @@ function detailOf(view: HealthView): string {
         case 'unchecked':
             return 'never checked'
         case 'unverified':
-            return view.detail ?? 'not verified'
+            return 'not verified'
         case 'healthy':
             return view.detail ?? 'healthy'
         case 'failed':

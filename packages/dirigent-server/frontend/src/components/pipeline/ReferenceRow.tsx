@@ -120,7 +120,7 @@ function connectionRow(resolution: ReturnType<typeof resolveConnection>): Found 
     const held = resolution.connection
     return {
         named: nameOf(held),
-        words: `${held.kind} · ${healthOf(held).state}`,
+        words: `${held.kind} · ${healthOf(held).label}`,
         body: (
             <div className="space-y-2">
                 <p className="font-mono text-xs text-muted-foreground">{settingsSummary(held)}</p>

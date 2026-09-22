@@ -241,10 +241,10 @@ class SlackConnectionKind(ConnectionKind):
         return HealthReport(healthy=True, detail=f"authenticated to {answer.team}" if answer.team else "token accepted")
 
 
-#: What the check says about the webhook form, which nothing but a real post can prove.
+#: Why the check cannot decide about the webhook form, which nothing but a real post can prove.
 UNVERIFIABLE_WEBHOOK = (
-    "not verified: a Slack incoming webhook can only be checked by posting to it, which would "
-    "put a message in the channel. Send a real one with `dg alerts test`."
+    "A Slack incoming webhook can only be checked by posting to it, which would put a message "
+    "in the channel. Send a real one with `dg alerts test`."
 )
 
 

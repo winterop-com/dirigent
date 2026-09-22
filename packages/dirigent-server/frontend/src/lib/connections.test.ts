@@ -114,7 +114,7 @@ describe('whether a connection answered', () => {
         const view = healthOf({
             last_check_at: '2026-03-01T09:00:00Z',
             last_check_healthy: null,
-            last_check_detail: 'not verified: a Slack incoming webhook can only be checked by posting to it',
+            last_check_detail: 'A Slack incoming webhook can only be checked by posting to it',
         })
         expect(view.state).toBe('unverified')
         expect(view.tone).toBeNull()
@@ -145,7 +145,7 @@ describe('the row a check just answered for', () => {
     test('takes a report that could not decide onto the row as one that did not', () => {
         const updated = withCheck(
             ROW,
-            { healthy: null, detail: 'not verified: only a post would prove it', version: null },
+            { healthy: null, detail: 'only a post would prove it', version: null },
             '2026-03-01T09:00:00Z',
         )
         expect(healthOf(updated).state).toBe('unverified')
@@ -258,7 +258,7 @@ const checked = (healthy: boolean | null) => ({
 const undecided = () => ({
     last_check_at: '2026-03-01T00:00:00Z',
     last_check_healthy: null,
-    last_check_detail: 'not verified: only a post would prove it',
+    last_check_detail: 'only a post would prove it',
 })
 
 describe('what the status bar says the connections screen is showing', () => {

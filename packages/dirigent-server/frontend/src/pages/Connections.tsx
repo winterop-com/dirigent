@@ -33,6 +33,7 @@ import { headingOf, oneLine } from '@/lib/identity'
 import { fillPanel, openPanel } from '@/lib/panels'
 import { LIST_GROUP, registerActions } from '@/lib/palette'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
+import { cn } from '@/lib/utils'
 
 const connectionId = (row: ConnectionOut) => row.code
 
@@ -373,7 +374,7 @@ function Health({ row }: { row: ConnectionOut }) {
                     aria-hidden
                 />
             )}
-            <span className={view.tone === null ? 'text-faint' : undefined}>{view.label}</span>
+            <span className={cn('shrink-0', view.tone === null && 'text-faint')}>{view.label}</span>
             {view.detail !== null && (
                 <span className="max-w-64 truncate text-muted-foreground" title={view.detail}>
                     {view.detail}
