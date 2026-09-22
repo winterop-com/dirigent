@@ -16,6 +16,53 @@ tag is what publishes: `.github/workflows/release.yaml` builds every package and
 to PyPI through trusted publishing, then builds the image from that commit and pushes it as
 `<version>` and `latest`. The two sibling repositories then relock against the tag and bump.
 
+## 0.18.1
+
+Released 2026-09-22. Every package in the workspace moves to 0.18.1 together, and so do
+`dirigent-dhis2` and `dirigent-integration`.
+
+- **A pipeline declares how much it matters.** `importance: routine | normal | critical` on the
+  document, default `normal`, mirrored on the pipeline and shown as a mark on a critical one.
+  It is not priority: priority says when work is claimed, importance says who is told when it
+  fails. An alert rule may name the least importance a pipeline must have, so one rule pages
+  critical pipelines while another logs everything.
+- **An alert rule names one target.** A rule delivers through a connection, or through the
+  process log when it names none; the sender follows from the connection's kind and a rule
+  naming a connection no notifier delivers through is refused. `--notifier` is gone from
+  `dg alerts rules create`, and the rule dialog has one picker, Deliver through.
+- **`dg validate --explain` says what a document will cost before it runs.** Per step the
+  fan-out cardinality, the attempts and the worst-case retry wait, the timeout, deadline and
+  poll; over the document the attempts at most and the longest deadline chain, with a warning
+  for a cardinality nothing can know before the run. One record, `validation.shape`.
+- **A check that cannot verify says so.** A connection check has three outcomes now: healthy,
+  failing, and not verified, which is what a Slack incoming webhook answers because it can only
+  be proved by posting. `dg connection check` exits 0 on it, and every listing and the home
+  health rows say "not verified" instead of green.
+- **A state an older dirigent wrote is refused at boot.** Before 1.0 the schema is edited in
+  place, so a state file from an earlier version lacks columns the code reads. `dg dev`,
+  `dg server`, `dg worker` and `dg scheduler` now refuse it with one record,
+  `database.schema_stale`, naming the first difference and the two ways out, instead of failing
+  every query.
+- **The alerting screen's channels are chips.** A glyph for the kind, the connection code and a
+  dot in three colours: green delivers, red failed, grey for not set up, never checked or not
+  verified. The rest is in the tooltip. On a phone the strip folds to one dot per channel.
+- **The connections listing is one line per row.** The code and its kind, a dot and one word
+  for health, how long ago it was checked, and a button to check now. What a connection is
+  pointed at and what its check said are read on its own page and in the tooltip; nothing
+  scrolls sideways at 1024.
+- **One vocabulary across the alerting screen.** An event reads the same in the listing, the
+  rule panel and `dg alerts rules list`; an unthrottled rule says `none`; a rule's target wears
+  the kind's glyph beside the code, as a chip does; a connection's health says the same word
+  on the strip and in the listing.
+- **Small screens.** The palette button is a search glyph below the breakpoint, since a chord
+  means nothing without a keyboard; the login form stands under the brand strip instead of
+  centring in what is left; a segmented control that does not fit wraps to two rows.
+- **For pack authors.** `HealthReport.healthy` is `bool | None`, `None` meaning the check ran
+  and could not decide. `dirigent-testing` ships `no_connection_outlives_its_loop`, an opt-in
+  fixture that fails a test leaving a database connection open; one line in a conftest adopts
+  it. A read-only session whose read-only statement fails now closes what it opened, and a bare
+  `alembic upgrade` opens SQLite the way the engine does.
+
 ## 0.18.0
 
 Released 2026-09-22. Every package in the workspace moves to 0.18.0 together, and so do
