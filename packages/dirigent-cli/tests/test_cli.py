@@ -367,18 +367,22 @@ def test_dev_refuses_a_state_an_older_dirigent_wrote(tmp_path: Path) -> None:
     assert "start from an empty state" in record["message"]
 
 
-def test_a_state_this_dirigent_wrote_is_not_refused() -> None:
-    """The guard is a reflection, so a database at head has to pass it silently."""
+def test_a_state_this_dirigent_wrote_is_not_refused(capsys: pytest.CaptureFixture[str]) -> None:
+    """The guard is a reflection, so a database at head has to pass it in silence."""
     from dirigent_core import migrations
 
     migrations.upgrade("head", get_settings())
 
-    assert main.guard_schema(get_settings()) is None
+    main.guard_schema(get_settings())
+
+    assert records(capsys.readouterr().out) == []
 
 
-def test_a_database_nothing_has_migrated_is_not_called_stale() -> None:
+def test_a_database_nothing_has_migrated_is_not_called_stale(capsys: pytest.CaptureFixture[str]) -> None:
     """An empty database is a different fault, and these remedies would name it wrongly."""
-    assert main.guard_schema(get_settings()) is None
+    main.guard_schema(get_settings())
+
+    assert records(capsys.readouterr().out) == []
 
 
 def test_dev_says_what_it_cleared(tmp_path: Path) -> None:
