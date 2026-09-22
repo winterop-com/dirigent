@@ -7,7 +7,7 @@ from uuid import UUID
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from dirigent_client.enums import DocumentKind, LogLevel, ProvenanceSource, RunPriority, RunStatus
+from dirigent_client.enums import DocumentKind, Importance, LogLevel, ProvenanceSource, RunPriority, RunStatus
 from dirigent_client.messages import (
     EMPTY_LOG_LEVEL_PATTERN,
     WINDOW_HAS_TWO_ENDS,
@@ -63,6 +63,9 @@ class PipelineOut(WireModel):
     description: str | None = None
     tags: list[str] = Field(default_factory=list[str])
     """What the current document says this pipeline is for."""
+
+    importance: Importance = Importance.NORMAL
+    """How much the current document says this pipeline matters."""
 
     active: bool
     current_version: int | None = None

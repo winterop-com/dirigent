@@ -585,6 +585,19 @@ def test_reading_a_pipeline_includes_its_current_document(client: TestClient) ->
     assert client.get(f"{PREFIX}/pipelines/nobody").status_code == 404
 
 
+def test_a_listing_row_and_a_read_carry_the_documents_importance(client: TestClient) -> None:
+    apply_document(client, DOCUMENT)
+    apply_document(
+        client,
+        "format: dirigent/v1\ncode: paged\nimportance: critical\n"
+        "steps:\n  greet:\n    block: shell.run\n    config: { argv: [echo, hi] }\n",
+    )
+    rows = {row["code"]: row["importance"] for row in client.get(f"{PREFIX}/pipelines").json()["items"]}
+    assert rows["paged"] == "critical"
+    assert rows["api-demo"] == "normal", "a document that said nothing is of normal importance"
+    assert client.get(f"{PREFIX}/pipelines/paged").json()["importance"] == "critical"
+
+
 #: Three documents wearing overlapping vocabularies, so a repeated tag has something to narrow.
 TAGGED = {"climate-load": ["climate", "http"], "climate-shape": ["climate"], "org-units": ["nightly", "http"]}
 
