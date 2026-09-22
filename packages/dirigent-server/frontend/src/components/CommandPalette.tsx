@@ -1,4 +1,4 @@
-import { CornerDownLeft, Dot } from 'lucide-react'
+import { CornerDownLeft } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
 import {
@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/command'
 import { Kbd, KbdGroup } from '@/components/ui/kbd'
 import { useStore } from '@/hooks/use-store'
+import { NEUTRAL_GLYPH } from '@/lib/glyphs'
 import { filterActions, paletteActions, paletteOpen, shelve, type PaletteAction } from '@/lib/palette'
 
 export const PALETTE_TITLE = 'Command palette'
@@ -108,7 +109,7 @@ export function CommandPalette() {
  * one line down the list however many of them an author has given a mark to.
  */
 function Row({ action, onChoose }: { action: PaletteAction; onChoose: () => void }) {
-    const Icon = action.icon ?? Dot
+    const Icon = action.icon ?? NEUTRAL_GLYPH
     return (
         <CommandItem value={action.id} onSelect={onChoose} className="h-11 gap-3 rounded-md px-2">
             <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">

@@ -907,6 +907,37 @@ pressed; they keep the size the type scale gives them, and the row holding them 
 finger has -- which is `min-h-finger` already. The rule is about what the app draws as a
 control, and that is what makes it checkable.
 
+## A kind may be drawn as well as named
+
+**A glyph that identifies a kind is information, not decoration.** The one decorative element in
+this app is the login graph and that does not bend: a mark earns its place here by telling kinds
+apart at a glance, which a column of identical dots and four words cannot do. So a kind may carry
+a mark of its own, and only a kind may. A glyph never stands for a state, and one drawn beside a
+word that already says the same thing is the decoration the rule above forbids.
+
+**Kind glyphs are drawn on the alerting screen's channel strip, and nowhere else today.** A
+channel card leads with its notifier's mark -- an envelope for `email`, a scroll for `log`, the
+Slack mark for `slack`, a webhook for `webhook` -- in the palette row's own tile: `size-7` on
+`--muted`, with a `size-4` glyph in muted ink inside it. A tile is that size wherever this app
+draws one.
+
+**The glyph says what a thing is and the dot says how it is, so the two stand apart.** The mark
+leads the card and takes no status colour; the health dot sits against the word it is the colour
+of, at the other end of the row. Two marks at one card's head are two things asking to be read
+first.
+
+**A kind with no glyph takes the neutral glyph rather than a gap**, which is the same one a
+palette row with no icon takes. `lib/glyphs` is where both are decided, once, as a pure function
+over the code the wire answers with: notifiers arrive from packs, so a channel this bundle was
+built before gets a card with a mark on it rather than a hole where every other card has one.
+
+**lucide draws every glyph that is not a brand, and a brand mark is monochrome.** lucide ships no
+brand icons at all, and Simple Icons, which is where a brand mark would otherwise come from, holds
+no Slack -- so that one is drawn inline in `src/components/alerting/SlackMark.tsx` at the weight of
+the glyphs beside it, in `currentColor` alone. A brand mark takes the surface's ink in both palettes like
+everything else on the strip: a mark in its own colours would be the loudest thing on a screen
+where colour means a state.
+
 ## An option wears what its value wears
 
 A dropdown whose options are values the app already draws somewhere -- a status, a kind --
