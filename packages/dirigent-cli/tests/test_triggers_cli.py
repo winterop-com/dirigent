@@ -12,7 +12,7 @@ from typer.testing import CliRunner
 
 from clisupport import asking_for_the_rendering, only, plain, rows
 from dirigent_cli.main import app, hoist_globals
-from dirigent_cli.output import alert_event, watching
+from dirigent_cli.output import alert_event, throttle_note, watching
 from dirigent_core.config import CONFIG_FILE_ENV, Settings, reset_settings_cache
 
 runner = CliRunner(env={"COLUMNS": "200", "TERMINAL_WIDTH": "200"})
@@ -537,6 +537,17 @@ def test_the_rules_table_says_an_alert_event_in_the_words_every_surface_uses(ser
     assert alert_event("run_stuck") == "Stuck"
     # An event a newer server has and this build cannot name still reads as itself.
     assert alert_event("run_abandoned") == "run_abandoned"
+
+
+def test_the_alert_rules_table_says_an_unthrottled_rule_has_no_window(server: str) -> None:
+    invoke("alerts", "rules", "create", "log-all", "--event", "run_failed")
+    invoke("alerts", "rules", "create", "page-ops", "--event", "run_failed", "--throttle", "90m")
+    listed = {row["code"]: row for row in rows_of("alerts", "rules", "list")}
+    assert listed["log-all"]["throttle"] == "0s", "the record carries the window the server stored"
+    assert throttle_note(listed["log-all"]["throttle"]) == "none"
+    assert throttle_note(listed["page-ops"]["throttle"]) == "1h30m"
+    # A window this build cannot read is left as the server spelled it rather than dropped.
+    assert throttle_note("a fortnight") == "a fortnight"
 
 
 def test_a_rule_takes_its_body_from_a_file(tmp_path: Path, server: str) -> None:
