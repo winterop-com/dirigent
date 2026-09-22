@@ -11,7 +11,7 @@ from rich.console import Group
 from typer.testing import CliRunner
 
 from clisupport import plain
-from dirigent_cli import formatters
+from dirigent_cli import formatters, summaries
 from dirigent_cli.formatters import (
     DEFAULT,
     Compact,
@@ -404,6 +404,25 @@ def test_a_documents_shape_is_drawn_as_the_rows_and_the_totals_its_record_carrie
     assert "at least 13" in drawn, "a total counted over an unknown width is a floor"
     assert "shape retries for ages" in drawn
     assert "steps=" not in drawn and "warnings=" not in drawn, "the rows are drawn, not spelled out on the line"
+
+
+def test_a_shape_with_nothing_to_warn_about_is_the_table_and_the_totals_alone() -> None:
+    """A document nothing is wrong with draws no list of nothing, and a shape with no steps draws nothing."""
+    drawn = printed(
+        Console().render(
+            make(
+                "validation.shape",
+                at=AT,
+                message="shape",
+                code="demo",
+                attempts_max=1,
+                steps=[{"step": "greet", "block": "shell.run"}],
+            )
+        )
+    )
+    assert "at most 1" in drawn
+    assert drawn.splitlines()[-1].startswith("deadline chain"), "a document with no warnings draws no list of them"
+    assert summaries.beneath(make("validation.shape", at=AT, message="shape", code="demo", steps=[])) is None
 
 
 def test_a_run_profile_renders_the_chain_and_the_split_along_it() -> None:
