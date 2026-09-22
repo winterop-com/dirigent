@@ -16,6 +16,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useMayWrite } from '@/hooks/use-may-write'
 import { usePaged } from '@/hooks/use-paged'
 import { useRead } from '@/hooks/use-read'
+import { useNarrowTable } from '@/hooks/use-small-screen'
 import {
     checkConnection,
     connectionPath,
@@ -294,12 +295,16 @@ function buildColumns(
             id: 'checked',
             header: 'Checked',
             className: 'text-xs',
-            cell: (row) => <Checked row={row} />,
+            // Nothing rather than an element that draws nothing: a card leaves out the fact a
+            // row has none of, and an empty element is a label with a blank beside it.
+            cell: (row) => (row.last_check_at === null ? null : <Checked at={row.last_check_at} />),
         },
         {
             id: 'check',
             header: '',
-            className: 'text-right',
+            // The 36px button is the tallest thing on the row, so its own padding is what
+            // decides the row's height: `py-1` is the 44px line every other cell fits inside.
+            className: 'py-1 text-right',
             cell: (row) => (
                 <Refusable why={shut}>
                     <Button
@@ -352,7 +357,9 @@ function Named({ row }: { row: ConnectionOut }) {
  */
 function Health({ row }: { row: ConnectionOut }) {
     const view = healthOf(row)
-    if (view.detail === null) return <HealthSaid view={view} />
+    // A card has no pointer to hover with, and it opens the page that says the whole of it.
+    const cards = useNarrowTable()
+    if (view.detail === null || cards) return <HealthSaid view={view} />
     return (
         <Tooltip>
             <TooltipTrigger
@@ -373,11 +380,10 @@ function Health({ row }: { row: ConnectionOut }) {
 }
 
 /** When the last check was made. A row nothing has checked says so in the health cell. */
-function Checked({ row }: { row: ConnectionOut }) {
-    if (row.last_check_at === null) return null
+function Checked({ at }: { at: string }) {
     return (
-        <span className="text-muted-foreground" title={formatInstant(row.last_check_at)}>
-            {formatRelative(row.last_check_at)}
+        <span className="text-muted-foreground" title={formatInstant(at)}>
+            {formatRelative(at)}
         </span>
     )
 }
