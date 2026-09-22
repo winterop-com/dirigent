@@ -19,7 +19,7 @@ from rich.table import Table
 from rich.text import Text
 
 from dirigent_client.schemas.common import Problem
-from dirigent_common import Issue, Message
+from dirigent_common import DurationError, Issue, Message, format_duration, to_timedelta
 from dirigent_core.protocol import Format, Record, as_json, make
 
 #: Whether the environment asked for no colour. Rich decides colour when a console is built,
@@ -480,6 +480,34 @@ def watching(scope: object, importance: object) -> str:
     Almost every rule names no importance, so a column of its own would mostly be empty.
     """
     return f"{scope}, {importance} and above" if importance else str(scope)
+
+
+#: What each alert event is called in a rendering. The wire's word is what a rule is declared
+#: with; these are the words a reader is shown, here and on the web UI's own listing.
+ALERT_EVENTS: Mapping[str, str] = {
+    "run_failed": "Failed",
+    "run_completed_with_errors": "Completed with errors",
+    "run_succeeded": "Succeeded",
+    "run_stuck": "Stuck",
+}
+
+
+def alert_event(event: object) -> str:
+    """Render what a rule watches for, falling back to the wire's word for an unknown event."""
+    return ALERT_EVENTS.get(str(event), str(event))
+
+
+def throttle_note(window: object) -> str:
+    """Render a rule's throttle, and of an unthrottled one that it is not throttled.
+
+    A zero is the absence of a window rather than a very short one, and a column of durations
+    is read as durations. A duration this build cannot read is left as the server spelled it.
+    """
+    try:
+        held = to_timedelta(window)
+    except DurationError:
+        return str(window)
+    return format_duration(held) if held else "none"
 
 
 def status_cell(value: object, width: int = STATUS_WIDTH) -> str:

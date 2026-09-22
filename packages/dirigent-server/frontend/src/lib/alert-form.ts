@@ -6,8 +6,9 @@
  * shape `lib/trigger-form` answers for a schedule and a webhook.
  */
 
-import { LOG_NOTIFIER, type AlertEvent, type AlertScope } from '@/lib/alerting'
+import { LOG_NOTIFIER, type AlertScope } from '@/lib/alerting'
 import type { ConnectionOut } from '@/lib/connections'
+import { channelGlyph } from '@/lib/glyphs'
 import { headingOf } from '@/lib/identity'
 import type { PickerOption } from '@/lib/picker'
 import { IMPORTANCES, type Importance } from '@/lib/pipelines'
@@ -57,14 +58,6 @@ export function floorChosen(value: Importance | typeof ANY_IMPORTANCE): Importan
     return value === ANY_IMPORTANCE ? null : value
 }
 
-/** What each event is called on screen, in plain product English rather than the wire's word. */
-export const EVENT_LABELS: Record<AlertEvent, string> = {
-    run_failed: 'Failed',
-    run_completed_with_errors: 'Completed with errors',
-    run_succeeded: 'Succeeded',
-    run_stuck: 'Stuck',
-}
-
 /** Whether this notifier delivers through a credential at all. Only the log one does not. */
 export function needsConnection(notifier: string): boolean {
     return notifier !== '' && notifier !== LOG_NOTIFIER
@@ -86,6 +79,9 @@ export const LOG_TARGET_LABEL = 'The process log'
  *
  * A connection of a kind no installed notifier answers to is not a channel and is not offered:
  * naming one is refused by the server, and a row nobody may choose should not be drawn.
+ *
+ * EVERY ROW WEARS ITS KIND'S MARK, the same one the strip's chips wear: a target is a channel,
+ * and a reader who learned the envelope there reads it here.
  */
 export function targetOptions(
     notifiers: readonly string[],
@@ -100,11 +96,12 @@ export function targetOptions(
                 one.heading.title.localeCompare(two.heading.title),
         )
     return [
-        { value: LOG_TARGET, label: LOG_TARGET_LABEL, aside: '' },
+        { value: LOG_TARGET, label: LOG_TARGET_LABEL, aside: '', mark: channelGlyph(LOG_NOTIFIER) },
         ...channels.map(({ row, heading }) => ({
             value: row.code,
             label: `${heading.title} · ${row.kind}`,
             aside: heading.code ?? '',
+            mark: channelGlyph(row.kind),
         })),
     ]
 }

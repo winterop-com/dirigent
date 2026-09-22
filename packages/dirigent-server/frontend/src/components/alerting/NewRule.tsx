@@ -22,7 +22,6 @@ import { useMayWrite } from '@/hooks/use-may-write'
 import {
     ANY_IMPORTANCE,
     BODY_HINT,
-    EVENT_LABELS,
     floorChosen,
     given,
     IMPORTANCE_FLOORS,
@@ -33,7 +32,7 @@ import {
     TEMPLATE_MEDIA_TYPE,
     unreadyRule,
 } from '@/lib/alert-form'
-import { ALERT_EVENTS, createRule, type AlertEvent, type AlertScope } from '@/lib/alerting'
+import { ALERT_EVENTS, createRule, EVENT_LABELS, type AlertEvent, type AlertScope } from '@/lib/alerting'
 import type { Problem } from '@/lib/api'
 import type { ConnectionOut } from '@/lib/connections'
 import { headingOf } from '@/lib/identity'

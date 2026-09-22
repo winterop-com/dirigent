@@ -3,8 +3,11 @@
  *
  * A ROW IS THE SAME PAIR EVERY LISTING DRAWS: the title a thing is read by, and the machine's
  * own half of it beside that -- a pipeline's code, a zone's offset. Both are searched, so the
- * row is found by whichever half somebody holds.
+ * row is found by whichever half somebody holds. A row naming a kind may lead with that kind's
+ * mark; what is typed still narrows by the words alone.
  */
+
+import type { Glyph } from '@/lib/glyphs'
 
 /** One row of a picker: what it answers with, what it is titled by, and its machine half. */
 export interface PickerOption {
@@ -14,6 +17,8 @@ export interface PickerOption {
     label: string
     /** The machine's own half of the row, drawn in mono beside the title. Empty draws none. */
     aside: string
+    /** The kind's mark, drawn ahead of the title. A row that names no kind carries none. */
+    mark?: Glyph
 }
 
 /**

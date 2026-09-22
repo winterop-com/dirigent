@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 
 import { Description } from '@/components/Description'
 import { Instant } from '@/components/Instant'
+import { Mark } from '@/components/Mark'
 import { CodePane } from '@/components/pipeline/CodePane'
 import { ProgramReference } from '@/components/pipeline/ProgramReference'
 import { Refusable } from '@/components/Refusable'
@@ -17,7 +18,7 @@ import { usePaged } from '@/hooks/use-paged'
 import { BODY_HINT, given, SUBJECT_HINT, TEMPLATE_MEDIA_TYPE } from '@/lib/alert-form'
 import {
     deleteRule,
-    eventLabel,
+    EVENT_LABELS,
     importanceNote,
     NO_FILTERS,
     readNotifications,
@@ -31,6 +32,7 @@ import {
     type NotificationOut,
 } from '@/lib/alerting'
 import type { Problem } from '@/lib/api'
+import { channelGlyph } from '@/lib/glyphs'
 import { headingOf, type Addressable } from '@/lib/identity'
 import { refusalOf } from '@/lib/refusal'
 
@@ -99,7 +101,7 @@ export function RulePanel({
             <Description text={rule.description} />
 
             <dl className="space-y-1.5">
-                <Fact label="Event">{eventLabel(rule.event)}</Fact>
+                <Fact label="Event">{EVENT_LABELS[rule.event]}</Fact>
                 <Fact label="Scope">
                     <span className="flex flex-wrap items-baseline gap-x-1.5">
                         {scopeNote(rule)}
@@ -372,7 +374,7 @@ export function NotificationPanel({
                     </Fact>
                 ) : (
                     <>
-                        <Fact label="Event">{eventLabel(notification.event)}</Fact>
+                        <Fact label="Event">{EVENT_LABELS[notification.event]}</Fact>
                         <Fact label="Rule">
                             <span className="font-mono text-xs">{notification.rule}</span>
                         </Fact>
@@ -438,16 +440,18 @@ const notificationId = (row: NotificationOut) => row.id
 /**
  * The one target a rule names: the connection it delivers through, or the process log.
  *
- * THE CONNECTION IS THE TARGET AND THE SENDER FOLLOWS FROM IT, so the code leads and the
- * notifier stands beside it as the quiet word saying which kind of channel that code is. A rule
- * that names no connection has nothing but the sender to show, and that sender is `log`.
+ * A TARGET IS A CHANNEL, AND IT IS DRAWN AS ONE: the kind's mark, then the code. The sender
+ * follows from the connection, so the mark is what says which channel this is, and the word
+ * beside it would be saying that twice. A rule that names no connection has only the sender to
+ * name, and that sender is `log`.
  */
 export function Target({ notifier, connection }: { notifier: string; connection: string | null }) {
-    if (connection === null) return <span className="text-sm">{notifier}</span>
     return (
-        <span className="flex flex-wrap items-baseline gap-1.5">
-            <span className="font-mono text-xs">{connection}</span>
-            <span className="text-xs text-muted-foreground">{notifier}</span>
+        <span className="flex items-center gap-1.5">
+            <Mark glyph={channelGlyph(notifier)} />
+            <span className={connection === null ? 'text-sm' : 'font-mono text-xs'}>
+                {connection ?? notifier}
+            </span>
         </span>
     )
 }

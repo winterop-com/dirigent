@@ -76,6 +76,13 @@ test('a rule is declared from the screen, and appears in the listing it was decl
     await expect(dialog.getByLabel('Deliver through')).toHaveValue('The process log')
     await expect(dialog.getByLabel('Notifier')).toHaveCount(0)
 
+    // A target is a channel, so every row of the picker wears its kind's mark.
+    await dialog.getByLabel('Deliver through').click()
+    const logRow = page.getByRole('option', { name: 'The process log' })
+    await expect(logRow.locator('[data-slot="mark"]')).toHaveCount(1)
+    await logRow.click()
+    await expect(dialog.getByLabel('Deliver through')).toHaveValue('The process log')
+
     await dialog.getByLabel('Throttle').fill('15m')
     await expect(create).toBeEnabled()
     await create.click()
@@ -89,6 +96,30 @@ test('a rule is declared from the screen, and appears in the listing it was decl
     await expect(row).toContainText('log')
     await expect(row).toContainText('15m')
     await expect(row).toContainText('active')
+    // The target cell wears the same mark the picker offered it under.
+    await expect(row.locator('td').filter({ hasText: 'log' }).locator('[data-slot="mark"]')).toHaveCount(1)
+})
+
+test.describe('on a phone', () => {
+    test.use({ viewport: { width: 390, height: 844 } })
+
+    test('the four events wrap to two rows, and nothing scrolls sideways', async ({ page }) => {
+        await page.getByRole('button', { name: 'New rule' }).click()
+        const events = page.getByRole('group', { name: 'Event' }).getByRole('button')
+        await expect(events).toHaveCount(4)
+
+        const boxes = await events.evaluateAll((found) =>
+            found.map((one) => {
+                const box = one.getBoundingClientRect()
+                return { top: Math.round(box.top), height: Math.round(box.height) }
+            }),
+        )
+        expect(new Set(boxes.map((box) => box.top)).size).toBe(2)
+        expect(Math.min(...boxes.map((box) => box.height))).toBeGreaterThanOrEqual(42)
+
+        const sideways = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
+        expect(sideways).toBeLessThanOrEqual(0)
+    })
 })
 
 test("a rule's body is written in the dialog and edited in its panel", async ({ page }) => {
@@ -139,8 +170,12 @@ test('a rule is paused from its panel, and the row says so', async ({ page }) =>
     await ruleRow(page).getByText(RULE.name, { exact: true }).click()
     const panel = page.getByRole('tabpanel')
     await expect(panel.getByText(RULE.code)).toBeVisible()
-    // The panel says the target the same way the listing does: the log, for a rule naming nothing.
+    // The panel says the target the same way the listing does: the log, for a rule naming nothing,
+    // wearing the channel's own mark.
     await expect(panel.getByText('Delivers through')).toBeVisible()
+    const target = panel.locator('dt', { hasText: 'Delivers through' }).locator('xpath=following-sibling::dd')
+    await expect(target).toContainText('log')
+    await expect(target.locator('[data-slot="mark"]')).toHaveCount(1)
 
     await panel.getByRole('button', { name: 'Pause' }).click()
     await expect(panel.getByRole('button', { name: 'Resume' })).toBeVisible()

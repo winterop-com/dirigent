@@ -7,11 +7,14 @@ export interface Segment<T extends string> {
 }
 
 /**
- * A choice from a fixed set of two or three, drawn as one control rather than a menu to open.
+ * A choice from a fixed set, drawn as one control rather than a menu to open.
  *
  * A MENU IS FOR A LIST; THIS IS FOR A SET SOMEBODY CAN SEE ALL OF. Appearance, the palette, and
  * which clock a schedule keeps are each three words, and a control that hid two of them behind
  * a press would be asking for a click to read what fits on the row.
+ *
+ * IT WRAPS RATHER THAN FOLDING. Below the breakpoint a form-height control is a grid two cells
+ * wide, an odd last option spanning both, and a label too wide for its cell takes a second line.
  */
 export function Segmented<T extends string>({
     label,
@@ -34,10 +37,10 @@ export function Segmented<T extends string>({
     return (
         <div
             className={cn(
-                'flex overflow-hidden rounded-md border border-border',
+                'overflow-hidden rounded-md border border-border',
                 // What a finger lands on is `--spacing-finger` tall, which is the rule every
                 // control here grows to below the breakpoint.
-                size === 'md' ? 'h-finger w-full md:h-8' : 'min-h-finger md:min-h-0',
+                size === 'md' ? 'grid w-full grid-cols-2 md:flex md:h-8' : 'flex min-h-finger md:min-h-0',
             )}
             role="group"
             aria-label={label}
@@ -49,7 +52,9 @@ export function Segmented<T extends string>({
                     aria-pressed={option.value === value}
                     disabled={disabled}
                     className={cn(
-                        size === 'md' ? 'flex-1 px-3 text-sm whitespace-nowrap' : 'px-2 py-1 text-xs',
+                        size === 'md'
+                            ? 'min-h-finger flex-1 px-3 py-1 text-sm last:odd:col-span-2 md:min-h-0 md:py-0 md:whitespace-nowrap'
+                            : 'px-2 py-1 text-xs',
                         option.value === value
                             ? 'bg-primary font-medium text-primary-foreground'
                             : 'text-muted-foreground hover:bg-accent',

@@ -14,7 +14,13 @@
  */
 
 import { apiJson, apiSend, type Page } from '@/lib/api'
-import { connectionPath, newConnectionPath, type ConnectionOut } from '@/lib/connections'
+import {
+    connectionPath,
+    healthOf,
+    newConnectionPath,
+    type ConnectionOut,
+    type HealthLabel,
+} from '@/lib/connections'
 import { PAGE } from '@/lib/paging'
 import type { Importance } from '@/lib/pipelines'
 
@@ -34,6 +40,19 @@ export const ALERT_EVENTS: readonly AlertEvent[] = [
     'run_succeeded',
     'run_stuck',
 ]
+
+/**
+ * What each event is called wherever one is drawn, in plain product English.
+ *
+ * ONE VOCABULARY. The listing, the dialog and a panel all say `Failed` for `run_failed`: the
+ * wire's word is what a rule is declared with, and this is what a reader is shown.
+ */
+export const EVENT_LABELS: Record<AlertEvent, string> = {
+    run_failed: 'Failed',
+    run_completed_with_errors: 'Completed with errors',
+    run_succeeded: 'Succeeded',
+    run_stuck: 'Stuck',
+}
 
 /** Every state a delivery can be in, in the order the filter offers them. */
 export const NOTIFICATION_STATUSES: readonly NotificationStatus[] = ['pending', 'sending', 'sent', 'failed']
@@ -141,15 +160,10 @@ export interface TestQueued {
     detail: string
 }
 
-/** What a rule watches for, in the words a table uses. */
-export function eventLabel(event: AlertEvent): string {
-    return event.replaceAll('_', ' ')
-}
-
 /** What one rule matches, said in one phrase. */
 export function matchNote(rule: AlertRuleOut): string {
     const where = rule.scope === 'pipeline' && rule.pipeline !== null ? rule.pipeline : 'every pipeline'
-    return `${eventLabel(rule.event)} — ${where}`
+    return `${EVENT_LABELS[rule.event]} — ${where}`
 }
 
 /** Where a rule delivers: every pipeline, or the one it watches. */
@@ -383,11 +397,13 @@ export function channelLink(channel: Channel): string | null {
 /**
  * The whole vocabulary of the channel strip: every word a channel can say about itself.
  *
- * `not set up` is a notifier this instance installed and holds no credential for, said in the
- * words somebody would use rather than in the shape of the thing that is missing. The words are
- * the tooltip's; the chip itself carries the dot.
+ * A CHANNEL'S HEALTH IS ITS CONNECTION'S, so those words are `healthOf`'s and are not said a
+ * second way here. The two this strip adds are its own: `ready` for the log, which nothing
+ * checks, and `not set up` for a notifier this instance installed and holds no credential for --
+ * said in the words somebody would use rather than in the shape of the thing that is missing.
+ * The words are the tooltip's; the chip itself carries the dot.
  */
-export type ChannelLabel = 'failing' | 'not verified' | 'never checked' | 'checked' | 'ready' | 'not set up'
+export type ChannelLabel = HealthLabel | 'ready' | 'not set up'
 
 /** How a channel reads its own health: the dot's colour, the word, and what the check said. */
 export interface ChannelView {
@@ -410,19 +426,16 @@ export interface ChannelView {
  * rather than borrowing the colour of one that passed, and a probe that ran without proving
  * anything -- `last_check_healthy` null behind a `last_check_at` -- is neither. The last three
  * share the grey dot and are told apart by the word.
+ *
+ * WHAT A CHECK SAID IS READ THROUGH `healthOf`, the connections listing's own reading, so a
+ * credential is in the same words on both screens. The two states before it are the strip's:
+ * nothing checks the log, and a notifier with no credential has nothing to check.
  */
 export function channelView(channel: Channel): ChannelView {
     if (channel.notifier === LOG_NOTIFIER) return { tone: 'good', label: 'ready', detail: null }
     if (!channel.reachable) return { tone: 'quiet', label: 'not set up', detail: null }
-    if (channel.last_check_at === null) return { tone: 'quiet', label: 'never checked', detail: null }
-    if (channel.last_check_healthy === null) {
-        return { tone: 'quiet', label: 'not verified', detail: channel.last_check_detail }
-    }
-    return {
-        tone: channel.last_check_healthy ? 'good' : 'critical',
-        label: channel.last_check_healthy ? 'checked' : 'failing',
-        detail: channel.last_check_detail,
-    }
+    const health = healthOf(channel)
+    return { tone: health.tone ?? 'quiet', label: health.label, detail: health.detail }
 }
 
 /** The order the dots read in: what delivers, then what broke, then what cannot say. */

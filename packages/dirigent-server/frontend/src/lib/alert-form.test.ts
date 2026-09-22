@@ -14,6 +14,7 @@ import {
 } from '@/lib/alert-form'
 import type { RuleDraft } from '@/lib/alert-form'
 import type { ConnectionOut } from '@/lib/connections'
+import { channelGlyph, NEUTRAL_GLYPH } from '@/lib/glyphs'
 
 function aDraft(over: Partial<RuleDraft> = {}): RuleDraft {
     return {
@@ -142,12 +143,22 @@ describe('the floor a rule fires at', () => {
 describe('the channels a rule may deliver through', () => {
     test('the log leads, and needs no credential beside it', () => {
         const [first] = targetOptions(['log', 'slack'], [aConnection()])
-        expect(first).toEqual({ value: LOG_TARGET, label: LOG_TARGET_LABEL, aside: '' })
+        expect(first).toEqual({
+            value: LOG_TARGET,
+            label: LOG_TARGET_LABEL,
+            aside: '',
+            mark: channelGlyph('log'),
+        })
     })
 
     test('a row is titled the way every listing titles one, wearing the kind it implies', () => {
         const rows = targetOptions(['log', 'slack'], [aConnection({ name: 'Ops Slack' })])
-        expect(rows[1]).toEqual({ value: 'ops-slack', label: 'Ops Slack · slack', aside: 'ops-slack' })
+        expect(rows[1]).toEqual({
+            value: 'ops-slack',
+            label: 'Ops Slack · slack',
+            aside: 'ops-slack',
+            mark: channelGlyph('slack'),
+        })
     })
 
     test('a connection nobody named is titled by its code, and still says its kind', () => {
@@ -155,7 +166,24 @@ describe('the channels a rule may deliver through', () => {
             ['log', 'webhook'],
             [aConnection({ code: 'ops-endpoint', kind: 'webhook' })],
         )
-        expect(rows[1]).toEqual({ value: 'ops-endpoint', label: 'ops-endpoint · webhook', aside: '' })
+        expect(rows[1]).toEqual({
+            value: 'ops-endpoint',
+            label: 'ops-endpoint · webhook',
+            aside: '',
+            mark: channelGlyph('webhook'),
+        })
+    })
+
+    test('every row wears its own kind, and a kind this bundle cannot name wears the neutral one', () => {
+        const rows = targetOptions(
+            ['log', 'slack', 'teams'],
+            [aConnection(), aConnection({ id: 'c2', code: 'ops-teams', kind: 'teams' })],
+        )
+        expect(rows.map((row) => row.mark)).toEqual([
+            channelGlyph('log'),
+            channelGlyph('slack'),
+            NEUTRAL_GLYPH,
+        ])
     })
 
     test('a connection no installed notifier sends through is not a channel', () => {

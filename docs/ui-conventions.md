@@ -910,6 +910,14 @@ small screen" where the verbs were, and carries the document's identity and noth
 version it is at is along the foot already, and a fact appears once on a screen. A graph is still
 read, a step is still chosen, and a run is still watched.
 
+**A segmented control that does not fit wraps; it never becomes a menu.** The control is for a
+set somebody can see all of, so the set stays on the screen below the breakpoint too: one
+standing at a form field's height is a grid two cells wide there -- four options are two rows of
+two, an odd last one takes the width -- and the single row it always was at `md` and up. A label
+too wide for its cell wraps onto a second line, because a cut word says less than a folded one.
+Folding the control into a picker instead would hide behind a press exactly what it exists to
+show.
+
 **Every control a finger lands on is at least 42px tall, whatever element it is made of.**
 The height is one token, `--spacing-finger`, and below the breakpoint every control takes its
 minimum from it: in `index.css` against the generated primitives' slots, against every trigger
@@ -943,11 +951,17 @@ apart at a glance, which a column of identical dots and four words cannot do. So
 a mark of its own, and only a kind may. A glyph never stands for a state, and one drawn beside a
 word that already says the same thing is the decoration the rule above forbids.
 
-**Kind glyphs are drawn on the alerting screen's channel strip, and nowhere else today.** The
-notifiers this repository ships wear an envelope for `email`, a scroll for `log`, the Slack mark
-for `slack` and a webhook for `webhook`. A glyph is `size-4` in muted ink wherever it is drawn;
-what it sits in belongs to the thing drawing it -- the palette row gives it a `size-7` tile on
-`--muted`, a channel chip draws it bare.
+**Kind glyphs go wherever a channel is named as a channel, and never beside a state.** A rule's
+target is a channel, so the mark the strip's chips wear stands beside the code in the `Deliver
+through` picker's rows, in the rules listing's target cell and in a rule's panel: the same thing
+looks the same across a screen, and a reader who learned the envelope on the strip reads it on a
+rule. **Where the mark is drawn the kind is not also spelled**, which is the rule above: a target
+cell is the mark and the code, the way a chip is. The picker's rows are the one place it is
+written as well, because the kind is half of what a row is found by and a mark cannot be typed.
+The notifiers this repository ships wear an envelope for `email`, a scroll for `log`, the
+Slack mark for `slack` and a webhook for `webhook`. A glyph is `size-4` in muted ink wherever it
+is drawn; what it sits in belongs to the thing drawing it -- the palette row gives it a `size-7`
+tile on `--muted`, a channel chip draws it bare.
 
 **The glyph says what a thing is and the dot says how it is, and neither does the other's job.**
 A glyph never takes a status colour and a dot never says which kind something is, so a card
@@ -984,12 +998,16 @@ notifier, or a connection whose last check passed. Red where the last check fail
 everything else: a kind nothing is set up for, a credential nobody has checked, a probe that
 proved nothing. A reader learns three colours once; six would be a legend.
 
-**The words are the tooltip's, and they are the whole vocabulary**: `ready`, `failing`, `never
-checked`, `not verified`, `not set up`. The tooltip is this app's own primitive, it opens on
-hover and on keyboard focus alike, and it holds, in this order: the kind and the state word
-(`email · failing`), how long ago the check was where there was one, the connection's code in
-mono, and the check's own sentence in full. Nothing on the strip ever says "connection" or "built
-in": a reader knows they have not set up Slack, not that a credential of kind `slack` is absent.
+**The words are the tooltip's, and a credential's are the connections listing's**: `healthy`,
+`failed`, `not verified` and `never checked` are `healthOf`'s, read through it rather than said a
+second way here, so one credential reads the same wherever it is drawn. The strip adds two of its
+own, for the two things that are not a credential: `ready` for the log channel, which nothing
+checks, and `not set up` for an installed notifier no credential exists for. The tooltip is this
+app's own primitive, it opens on hover and on keyboard focus alike, and it holds, in this order:
+the kind and the state word (`email · failed`), how long ago the check was where there was one,
+the connection's code in mono, and the check's own sentence in full. Nothing on the strip ever
+says "connection" or "built in": a reader knows they have not set up Slack, not that a credential
+of kind `slack` is absent.
 
 **A chip goes where its channel is.** One with a credential opens it at `/connections/<code>`;
 a grey chip with no credential opens `/connections?new=<kind>`, which is the connections screen

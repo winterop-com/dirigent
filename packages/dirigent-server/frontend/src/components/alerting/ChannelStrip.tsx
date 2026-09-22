@@ -1,12 +1,13 @@
 import { ChevronRight } from 'lucide-react'
-import { useState, type CSSProperties, type ReactElement } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { Link } from 'react-router'
 
+import { Mark } from '@/components/Mark'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSmallScreen } from '@/hooks/use-small-screen'
 import { channelCode, channelLink, channelView, type Channel, type ChannelView } from '@/lib/alerting'
 import { formatRelative } from '@/lib/format'
-import { channelGlyph, type Glyph } from '@/lib/glyphs'
+import { channelGlyph } from '@/lib/glyphs'
 import { cn } from '@/lib/utils'
 
 /** What each dot is painted in, named through the semantic aliases rather than a colour. */
@@ -83,7 +84,7 @@ function ChannelChip({ channel }: { channel: Channel }) {
     const to = channelLink(channel)
     const body = (
         <>
-            <ChannelMark glyph={channelGlyph(channel.notifier)} />
+            <Mark glyph={channelGlyph(channel.notifier)} />
             <span className="truncate font-mono text-xs font-semibold">{channelCode(channel)}</span>
             <Dot tone={view.tone} />
         </>
@@ -187,7 +188,7 @@ function ChannelRow({ channel }: { channel: Channel }) {
     const to = channelLink(channel)
     const named = (
         <span className="flex items-center gap-2.5">
-            <ChannelMark glyph={channelGlyph(channel.notifier)} />
+            <Mark glyph={channelGlyph(channel.notifier)} />
             <span className="truncate font-mono text-xs font-semibold">{channelCode(channel)}</span>
         </span>
     )
@@ -229,9 +230,4 @@ function ChannelRow({ channel }: { channel: Channel }) {
 /** The dot, which says one of three things and never which kind the channel is. */
 function Dot({ tone }: { tone: ChannelView['tone'] }) {
     return <span className="status-dot" style={{ '--chip': TONES[tone] } as CSSProperties} />
-}
-
-/** The mark that says which kind this channel is, at the size every glyph in this app is drawn. */
-function ChannelMark({ glyph: Glyph }: { glyph: Glyph }): ReactElement {
-    return <Glyph className="size-4 shrink-0 text-muted-foreground" aria-hidden />
 }

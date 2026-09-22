@@ -7,6 +7,7 @@ import {
     ComboboxList,
     ComboboxTrigger,
 } from '@/components/ui/combobox'
+import { Mark } from '@/components/Mark'
 import { InputGroupAddon, InputGroupButton } from '@/components/ui/input-group'
 import { matchesOption, type PickerOption } from '@/lib/picker'
 
@@ -20,6 +21,9 @@ import { matchesOption, type PickerOption } from '@/lib/picker'
  *
  * WHAT IT NARROWS BY IS `lib/picker`, which is the same every-term rule the command palette
  * filters by, over both halves of the row.
+ *
+ * A ROW MAY LEAD WITH A MARK, which is what a row naming a kind carries -- a channel's glyph --
+ * and a row that names none simply has none.
  */
 export function Picker({
     id,
@@ -60,6 +64,13 @@ export function Picker({
                 className="bg-field dark:bg-field"
                 showTrigger={false}
             >
+                {/* What was chosen wears its kind's mark in the closed box the way it wore it in
+                    the list, so the row somebody picked is the row they are looking at. */}
+                {chosen?.mark !== undefined && (
+                    <InputGroupAddon align="inline-start">
+                        <Mark glyph={chosen.mark} />
+                    </InputGroupAddon>
+                )}
                 {/* The machine's half of the chosen row stands in the closed box as well as in
                     the list: a picker that showed only the title would take the code off the
                     screen the moment somebody chose one. */}
@@ -75,6 +86,7 @@ export function Picker({
                 <ComboboxList>
                     {(option: PickerOption) => (
                         <ComboboxItem key={option.value} value={option}>
+                            {option.mark !== undefined && <Mark glyph={option.mark} />}
                             <span className="truncate">{option.label}</span>
                             {option.aside !== '' && (
                                 <span className="ml-auto font-mono text-xs whitespace-nowrap text-muted-foreground">

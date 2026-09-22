@@ -15,6 +15,7 @@ from dirigent_cli.messages import (
     ONE_CLOCK,
 )
 from dirigent_cli.output import (
+    alert_event,
     console,
     emit_fact,
     emit_one,
@@ -24,6 +25,7 @@ from dirigent_cli.output import (
     render_bool,
     styled,
     table,
+    throttle_note,
     watching,
 )
 from dirigent_client import LOG_NOTIFIER, AlertEvent, AlertScope, WebhookTokenOut
@@ -422,10 +424,10 @@ def alerts_rules_list(
             [
                 row.code,
                 row.name or "-",
-                row.event.value,
+                alert_event(row.event.value),
                 watching(row.pipeline or row.scope.value, row.importance),
                 row.connection or LOG_NOTIFIER,
-                row.throttle,
+                throttle_note(row.throttle),
                 render_bool(row.active),
                 moment(row.last_sent_at),
             ]
