@@ -216,7 +216,7 @@ async def test_a_read_only_connection_still_reads(seeded: FakeContext) -> None:
 async def test_a_read_only_statement_that_fails_closes_the_connection_and_the_engine(
     local_ctx: FakeContext, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The autouse guard in the root conftest fails this test if the connection is left open."""
+    """A connection left open by the failed session fails the suite's autouse connection guard."""
     disposed: list[AsyncEngine] = []
     dispose = AsyncEngine.dispose
 
