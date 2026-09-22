@@ -1024,7 +1024,7 @@ containers and not only the server. See [telemetry](telemetry.md).
 
 **Alert rules are the closest thing to paging that exists in the product.** A rule binds an
 event -- `run_failed`, `run_completed_with_errors`, `run_succeeded`, `run_stuck` -- at a scope
-to a notifier, and delivery goes through a queued, leased, retried path a worker owns. If you
+to one channel, and delivery goes through a queued, leased, retried path a worker owns. If you
 have one thing configured on a real instance, make it a `run_failed` rule with a throttle.
 
 **A rule may also name the least importance it fires for**, which is how paging is kept apart
@@ -1033,9 +1033,9 @@ the pipeline's own document declares -- `routine`, `normal` or `critical` -- and
 none fires whatever the pipeline is worth:
 
 ```bash
-dg alerts rules create page-ops --event run_failed --notifier email \
-    --connection ops-mail --importance critical --throttle 15m
-dg alerts rules create log-all --event run_failed --notifier log
+dg alerts rules create page-ops --event run_failed --connection ops-mail \
+    --importance critical --throttle 15m
+dg alerts rules create log-all --event run_failed
 ```
 
 The first fires only for pipelines whose document says `importance: critical`; the second
@@ -1078,15 +1078,20 @@ another, which is a concurrency limit or a single worker turning a fan-out back 
 
 ## Notifier channels
 
-A rule names a **notifier** and the **connection** it delivers through, and the connection is
-an ordinary credential record: minted with `dg connection create`, over `POST /connections`,
-or from the web UI's *New connection* dialog, which builds its form from the kind's own
-schema. Every field a channel declares secret is encrypted at rest and comes back redacted as
-`***` from every read, the same as any other connection.
+A rule names **one connection**, and the notifier that sends the message is that connection's
+kind. The connection is an ordinary credential record: minted with `dg connection create`, over
+`POST /connections`, or from the web UI's *New connection* dialog, which builds its form from
+the kind's own schema. Every field a channel declares secret is encrypted at rest and comes back
+redacted as `***` from every read, the same as any other connection. A rule that names no
+connection delivers to the process log, which needs no credential and is always there.
 
 ```bash
-dg alerts rules create page-ops --event run_failed --notifier slack --connection ops-slack
+dg alerts rules create page-ops --event run_failed --connection ops-slack
 ```
+
+The web UI asks the same question once: *New rule* offers one **Deliver through** picker
+listing the log first and then every connection an installed notifier can send through, each row
+wearing the kind it delivers by.
 
 Four channels ship built in.
 

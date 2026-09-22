@@ -107,7 +107,7 @@ export function RulePanel({
                     </span>
                 </Fact>
                 <Fact label="Delivers through">
-                    <Channel notifier={rule.notifier} connection={rule.connection} />
+                    <Target notifier={rule.notifier} connection={rule.connection} />
                 </Fact>
                 <Fact label="Throttle">{throttleNote(rule.throttle)}</Fact>
                 {editing ? (
@@ -434,6 +434,23 @@ export function NotificationPanel({
 }
 
 const notificationId = (row: NotificationOut) => row.id
+
+/**
+ * The one target a rule names: the connection it delivers through, or the process log.
+ *
+ * THE CONNECTION IS THE TARGET AND THE SENDER FOLLOWS FROM IT, so the code leads and the
+ * notifier stands beside it as the quiet word saying which kind of channel that code is. A rule
+ * that names no connection has nothing but the sender to show, and that sender is `log`.
+ */
+export function Target({ notifier, connection }: { notifier: string; connection: string | null }) {
+    if (connection === null) return <span className="text-sm">{notifier}</span>
+    return (
+        <span className="flex flex-wrap items-baseline gap-1.5">
+            <span className="font-mono text-xs">{connection}</span>
+            <span className="text-xs text-muted-foreground">{notifier}</span>
+        </span>
+    )
+}
 
 /** The channel a message leaves by: the notifier, and the credential where there is one. */
 export function Channel({ notifier, connection }: { notifier: string; connection: string | null }) {

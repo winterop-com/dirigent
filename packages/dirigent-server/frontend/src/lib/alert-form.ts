@@ -7,6 +7,9 @@
  */
 
 import { LOG_NOTIFIER, type AlertEvent, type AlertScope } from '@/lib/alerting'
+import type { ConnectionOut } from '@/lib/connections'
+import { headingOf } from '@/lib/identity'
+import type { PickerOption } from '@/lib/picker'
 import { IMPORTANCES, type Importance } from '@/lib/pipelines'
 
 /** What the code box accepts, which is what the server's own `EntityName` accepts. */
@@ -67,13 +70,55 @@ export function needsConnection(notifier: string): boolean {
     return notifier !== '' && notifier !== LOG_NOTIFIER
 }
 
-/** What a new rule is declared with, as the dialog holds it before it is a request. */
+/** What the target control answers with for the process log, which is a rule that names nothing. */
+export const LOG_TARGET = ''
+
+/** What the log's row is titled, the log being the one channel with no credential behind it. */
+export const LOG_TARGET_LABEL = 'The process log'
+
+/**
+ * The channels a rule may deliver through: the log first, then one row per notifier connection.
+ *
+ * A RULE NAMES A CONNECTION AND THE SENDER FOLLOWS FROM ITS KIND, so what is offered is the
+ * credential itself, wearing the kind it implies -- the row is the whole answer, and nothing
+ * under the control has to say what was just chosen. The rows are ordered by kind, so a
+ * channel's own rows stand together and typing `slack` narrows to them.
+ *
+ * A connection of a kind no installed notifier answers to is not a channel and is not offered:
+ * naming one is refused by the server, and a row nobody may choose should not be drawn.
+ */
+export function targetOptions(
+    notifiers: readonly string[],
+    connections: readonly ConnectionOut[],
+): PickerOption[] {
+    const channels = connections
+        .filter((row) => row.kind !== LOG_NOTIFIER && notifiers.includes(row.kind))
+        .map((row) => ({ row, heading: headingOf(row) }))
+        .toSorted(
+            (one, two) =>
+                one.row.kind.localeCompare(two.row.kind) ||
+                one.heading.title.localeCompare(two.heading.title),
+        )
+    return [
+        { value: LOG_TARGET, label: LOG_TARGET_LABEL, aside: '' },
+        ...channels.map(({ row, heading }) => ({
+            value: row.code,
+            label: `${heading.title} · ${row.kind}`,
+            aside: heading.code ?? '',
+        })),
+    ]
+}
+
+/**
+ * What a new rule is declared with, as the dialog holds it before it is a request.
+ *
+ * The target is not here: every channel this instance offers is one a rule may name, so
+ * there is no answer to that question that would shut Create.
+ */
 export interface RuleDraft {
     code: string
     scope: AlertScope
     pipeline: string
-    notifier: string
-    connection: string
     throttle: string
 }
 
@@ -88,10 +133,6 @@ export function unreadyRule(draft: RuleDraft): string | undefined {
     if (!CODE.test(draft.code.trim())) return 'A code is lowercase words joined by - or _.'
     if (draft.scope === 'pipeline' && draft.pipeline === '')
         return 'A rule watching one pipeline names that pipeline, and this one names none.'
-    if (draft.notifier === '') return 'A rule delivers through a channel, and this one names none.'
-    if (needsConnection(draft.notifier) && draft.connection === '') {
-        return `The ${draft.notifier} channel delivers through a connection, and this one names none.`
-    }
     if (!DURATION.test(draft.throttle.trim())) return 'A throttle is a duration, such as 15m.'
     return undefined
 }

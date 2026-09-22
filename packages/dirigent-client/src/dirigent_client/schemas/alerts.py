@@ -10,11 +10,18 @@ from dirigent_client.schemas.common import WireModel
 from dirigent_common import EntityName
 from dirigent_common.durations import Duration
 
+#: The notifier a rule that names no connection delivers through.
+LOG_NOTIFIER = "log"
+
 SUBJECT_HELP = "Subject, a Jinja template over the run's facts."
 
 BODY_HELP = "Body, a Jinja template over the run's facts; `report` is the run's report document when it has one."
 
 IMPORTANCE_HELP = "The least importance a pipeline must carry before this rule fires; absent fires for every one."
+
+CONNECTION_HELP = (
+    "The connection this rule delivers through, whose kind names the sender; absent delivers to the process log."
+)
 
 
 class AlertRuleIn(BaseModel):
@@ -24,11 +31,10 @@ class AlertRuleIn(BaseModel):
     name: str | None = None
     description: str | None = None
     event: AlertEvent
-    notifier: str
     scope: AlertScope = AlertScope.GLOBAL
     pipeline: str | None = None
     importance: Importance | None = Field(default=None, description=IMPORTANCE_HELP)
-    connection: str | None = None
+    connection: str | None = Field(default=None, description=CONNECTION_HELP)
     template: str | None = Field(default=None, description=SUBJECT_HELP)
     body: str | None = Field(default=None, description=BODY_HELP)
     throttle: Duration = timedelta(0)
@@ -48,6 +54,8 @@ class AlertRuleOut(WireModel):
     """The least importance a pipeline must carry before this rule fires."""
 
     notifier: str
+    """The sender this rule's target resolved to, which is its connection's kind or the log."""
+
     connection: str | None = None
     template: str | None = None
     body: str | None = None
@@ -68,6 +76,7 @@ class AlertRuleUpdate(BaseModel):
     template: str | None = Field(default=None, description=SUBJECT_HELP)
     body: str | None = Field(default=None, description=BODY_HELP)
     importance: Importance | None = Field(default=None, description=IMPORTANCE_HELP)
+    connection: str | None = Field(default=None, description=CONNECTION_HELP)
 
 
 class NotificationOut(WireModel):

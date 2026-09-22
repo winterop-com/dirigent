@@ -451,8 +451,6 @@ def test_an_alert_rule_is_created_listed_and_deleted(tmp_path: Path, server: str
         "nightly-failures",
         "--event",
         "run_failed",
-        "--notifier",
-        "log",
         "--pipeline",
         "cli-demo",
         "--throttle",
@@ -488,8 +486,6 @@ def test_a_rule_names_the_least_importance_it_fires_for(server: str) -> None:
         "page-ops",
         "--event",
         "run_failed",
-        "--notifier",
-        "log",
         "--importance",
         "critical",
     )
@@ -506,8 +502,6 @@ def test_an_importance_that_is_not_one_is_refused_by_name(server: str) -> None:
         "page-ops",
         "--event",
         "run_failed",
-        "--notifier",
-        "log",
         "--importance",
         "urgent",
     )
@@ -524,12 +518,10 @@ def test_the_rules_table_says_the_importance_inside_the_scope_cell(server: str) 
         "page-ops",
         "--event",
         "run_failed",
-        "--notifier",
-        "log",
         "--importance",
         "critical",
     )
-    invoke("alerts", "rules", "create", "log-all", "--event", "run_failed", "--notifier", "log")
+    invoke("alerts", "rules", "create", "log-all", "--event", "run_failed")
     listed = {row["code"]: row for row in rows_of("alerts", "rules", "list")}
     assert watching(listed["page-ops"]["scope"], listed["page-ops"]["importance"]) == "global, critical and above"
     assert watching(listed["log-all"]["scope"], listed["log-all"]["importance"]) == "global"
@@ -545,8 +537,6 @@ def test_a_rule_takes_its_body_from_a_file(tmp_path: Path, server: str) -> None:
         "nightly-failures",
         "--event",
         "run_failed",
-        "--notifier",
-        "log",
         "--template",
         "{{ run.pipeline }} is unhappy",
         "--body-file",
@@ -568,8 +558,6 @@ def test_a_rule_takes_one_body_and_not_two(tmp_path: Path, server: str) -> None:
         "nightly-failures",
         "--event",
         "run_failed",
-        "--notifier",
-        "log",
         "--body",
         "{{ run.error }}",
         "--body-file",
@@ -587,8 +575,6 @@ def test_a_rule_whose_template_does_not_compile_is_refused(server: str) -> None:
         "nightly-failures",
         "--event",
         "run_failed",
-        "--notifier",
-        "log",
         "--template",
         "{% endfor %}",
     )
@@ -598,7 +584,7 @@ def test_a_rule_whose_template_does_not_compile_is_refused(server: str) -> None:
 
 def test_a_rule_is_paused_and_resumed_from_the_command_line(tmp_path: Path, server: str) -> None:
     apply_document(tmp_path)
-    invoke("alerts", "rules", "create", "nightly-failures", "--event", "run_failed", "--notifier", "log")
+    invoke("alerts", "rules", "create", "nightly-failures", "--event", "run_failed")
 
     held = machine("alerts", "rules", "pause", "nightly-failures")
     assert held.exit_code == 0, held.output
@@ -622,10 +608,23 @@ def test_a_notification_is_put_back_on_the_queue_from_the_command_line(server: s
     assert retried["attempt"] == 0
 
 
-def test_a_rule_naming_a_notifier_this_instance_does_not_have_is_refused(server: str) -> None:
-    result = invoke("alerts", "rules", "create", "pager", "--event", "run_failed", "--notifier", "carrier-pigeon")
+def test_a_rule_delivers_through_the_notifier_its_connections_kind_names(server: str) -> None:
+    stored = invoke("connection", "ensure", "webhook", "ops-hook", "--set", "url=https://ops.example.org/hooks")
+    assert stored.exit_code == 0, stored.output
+    created = machine("alerts", "rules", "create", "page-ops", "--event", "run_failed", "--connection", "ops-hook")
+    assert created.exit_code == 0, created.output
+    declared = only(created.stdout, "alert_rule.created")
+    assert declared["connection"] == "ops-hook"
+    assert declared["notifier"] == "webhook", "the sender follows from the connection's kind"
+    row = rows_of("alerts", "rules", "list")[0]
+    assert row["connection"] == "ops-hook"
+    assert row["notifier"] == "webhook"
+
+
+def test_a_rule_naming_a_connection_this_instance_does_not_have_is_refused(server: str) -> None:
+    result = invoke("alerts", "rules", "create", "pager", "--event", "run_failed", "--connection", "carrier-pigeon")
     assert result.exit_code == 1
-    assert "no notifier 'carrier-pigeon' is installed" in plain(result.output)
+    assert "no connection coded 'carrier-pigeon'" in plain(result.output)
 
 
 def test_a_test_message_goes_through_the_queue_a_real_alert_takes(server: str) -> None:

@@ -37,6 +37,7 @@ from dirigent_client.errors import (
     WaitTimeout,
 )
 from dirigent_client.schemas import (
+    LOG_NOTIFIER,
     TERMINAL_RUN_STATUSES,
     AlertRuleIn,
     AlertRuleOut,
@@ -120,6 +121,7 @@ __all__ = [
     "TERMINAL_RUN_STATUSES",
     "VERSION_HEADER",
     "AlertEvent",
+    "LOG_NOTIFIER",
     "AlertRuleIn",
     "AlertRuleOut",
     "AlertScope",

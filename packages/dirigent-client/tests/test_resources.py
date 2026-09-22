@@ -376,7 +376,6 @@ ACCESSORS: list[tuple[str, Callable[[Dirigent], Awaitable[object]], str, str]] =
         lambda dg: dg.alerts.create_rule(
             "on-failure",
             event=AlertEvent.RUN_FAILED,
-            notifier="log",
             scope=AlertScope.GLOBAL,
             throttle=timedelta(minutes=15),
         ),

@@ -134,10 +134,10 @@ real](#running-it-for-real-three-services) is the same shape from a checkout.
 - **Webhook intake.** `POST /hooks/{token}` with server-minted tokens, optional HMAC over
   the raw body, per-token rate limiting, a strict payload-to-parameter mapping, and a
   delivery history that records refusals as carefully as acceptances.
-- **Alerting.** Rules binding an event at a scope to a channel, delivered through a queue a
+- **Alerting.** Rules binding an event at a scope to one channel, delivered through a queue a
   worker claims, leases, and retries -- so a flaky channel cannot take down a worker or
-  silently drop an alert. `log`, `webhook`, `slack` and `email` notifiers ship built in, the
-  last two delivering through a connection.
+  silently drop an alert. `log`, `webhook`, `slack` and `email` notifiers ship built in; a rule
+  names the connection it delivers through, and the sender is that connection's kind.
 - **Storage.** URI-addressed, with `file://` in core and `s3://` as its own package
   (`dirigent-storage-s3`, any S3-compatible endpoint, streamed and multipart).
 - **The web UI.** The server ships it: a pipeline list and a node editor over the same

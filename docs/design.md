@@ -502,7 +502,7 @@ Three clusters, with the boundary visible in the schema layout itself. All times
 | `RunItem` | execution | First-class fan-out: one row per mapped item with its own status and failing-step pointer, so a run over N inputs reads as a grid. |
 | `StepAttempt` | execution | One row per attempt: number, kind (automatic / manual), input, output reference, error, remote handle, lease, `available_at`, `next_poll_at`, timings. |
 | `ArtifactRef` | execution | The durable record of a step output: content type, size, digest, and either an inlined value or a URI into pluggable storage, never a worker-local path. |
-| `AlertRule` | definition | Event, scope (global or pipeline), notifier connection, message template, throttle. |
+| `AlertRule` | definition | Event, scope (global or pipeline), the one connection it delivers through and the sender that resolved from its kind, message template, throttle. |
 | `Notification` | execution | One queued alert delivery, claimed and retried exactly like an attempt: the rule and run it came from, the channel, the rendered subject and body with the run snapshot they were rendered from, a lease, an attempt count, and a terminal status. Unique on `(alert_rule_id, run_id, event)`, which is the deduplication. |
 | `LogEntry` | execution | Append-only, scoped run / item / attempt, batched writes. Bounded by `retention_logs`, which is unset by default. |
 | `Worker` | execution | The registry: hostname, version, installed plugins, tags, last seen. Doubles as observability. |
@@ -893,10 +893,19 @@ rather than a silent one.
 
 Alerting is rules times channels, both data. An alert rule binds an event (`run_failed`,
 `run_completed_with_errors`, `run_succeeded`, `run_stuck`) at a scope (global or per-pipeline)
-to a notifier connection with a message template. Delivery is itself engine work, queued,
-retried with backoff, and visible in the run timeline, so a flaky SMTP server cannot take
-down a worker or silently drop an alert. Per-rule throttling prevents a flapping pipeline
-from paging every minute.
+to one channel, with a message template. Delivery is itself engine work, queued, retried with
+backoff, and visible in the run timeline, so a flaky SMTP server cannot take down a worker or
+silently drop an alert. Per-rule throttling prevents a flapping pipeline from paging every
+minute.
+
+**A rule names one target: a connection, or nothing.** The connection is the whole address, and
+the notifier that sends it is that connection's kind -- so a rule naming an `email` connection
+delivers by email, and a rule naming no connection at all writes to the process log, which is
+the one channel every instance has. The sender is resolved when the rule is declared or
+re-pointed, checked against the notifiers this instance installed, and a connection of a kind
+no notifier answers to is refused by code then rather than discovered when a run fails. The
+resolved sender is stored on the rule and on every notification it raises, so the queue says
+which channel a message left by without reading the rule again.
 
 **A rule may narrow by importance as well as by scope.** `importance` on a rule is the least
 a pipeline's document must declare before the rule fires: a rule naming `critical` matches
@@ -1525,7 +1534,7 @@ dg schedule list | pause | resume | firings | delete PIPELINE NAME
 dg webhook create PIPELINE NAME [--map param='$.path'] [--hmac-secret S] [--rate-limit N]
 dg webhook list | rotate-token | deliveries | delete PIPELINE NAME
 dg trigger-document list | show | delete CODE         # clocks declared for a pipeline defined elsewhere
-dg alerts rules list | create NAME --event E --notifier N [--pipeline P] [--importance I]
+dg alerts rules list | create NAME --event E [--connection C] [--pipeline P] [--importance I]
                                    [--throttle DUR] | delete NAME
 dg alerts test NOTIFIER [--connection NAME] | dg alerts queue | dg alerts retry ID
 
@@ -1542,9 +1551,9 @@ dg admin user create | list | password | dg admin token create | list | revoke
 Two shapes in there are worth explaining. `dg schedule create` builds its `-p` overrides
 against the pipeline's own parameter schema, with the same builder `dg run` uses, so a typo is
 refused when the schedule is created rather than discovered at five in the morning when it
-fires. And `dg alerts test` names the **notifier**, with the connection as an option, because
-a credential record does not determine which channel delivers through it -- the same record
-can be the target of more than one, and the channel is the thing being tested.
+fires. And `dg alerts test` names the **notifier**, with the connection as an option, because a
+test has no rule to read a target from and the channel is the thing being tested -- a rule names
+the connection instead, and its sender follows from that connection's kind.
 
 *(Deviation from the blueprint, which sketched `dg alerts test CONNECTION`.)*
 

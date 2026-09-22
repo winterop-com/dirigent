@@ -208,8 +208,9 @@ async def test_a_connection_round_trips_with_its_secret_redacted(dg: Dirigent) -
 async def test_an_alert_rule_and_its_queue_round_trip(dg: Dirigent) -> None:
     from dirigent_client import AlertEvent
 
-    rule = await dg.alerts.create_rule("on-failure", event=AlertEvent.RUN_FAILED, notifier="log", throttle="15m")
+    rule = await dg.alerts.create_rule("on-failure", event=AlertEvent.RUN_FAILED, throttle="15m")
     assert rule.throttle == "15m"
+    assert rule.notifier == "log", "a rule that names no connection delivers to the log"
     queued = await dg.alerts.test(notifier="log", subject="a test message")
     assert queued.notifier == "log"
     assert [row.subject for row in (await dg.alerts.notifications()).items] == ["a test message"]

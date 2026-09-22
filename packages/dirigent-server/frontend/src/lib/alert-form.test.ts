@@ -5,20 +5,40 @@ import {
     floorChosen,
     given,
     IMPORTANCE_FLOORS,
+    LOG_TARGET,
+    LOG_TARGET_LABEL,
     needsConnection,
+    targetOptions,
     unreadyRule,
     unreadyTest,
 } from '@/lib/alert-form'
 import type { RuleDraft } from '@/lib/alert-form'
+import type { ConnectionOut } from '@/lib/connections'
 
 function aDraft(over: Partial<RuleDraft> = {}): RuleDraft {
     return {
         code: 'page-ops',
         scope: 'global',
         pipeline: '',
-        notifier: 'log',
-        connection: '',
         throttle: '0s',
+        ...over,
+    }
+}
+
+function aConnection(over: Partial<ConnectionOut> = {}): ConnectionOut {
+    return {
+        id: 'c1',
+        code: 'ops-slack',
+        name: null,
+        kind: 'slack',
+        description: null,
+        config: {},
+        secret_fields: [],
+        last_check_at: null,
+        last_check_healthy: null,
+        last_check_detail: null,
+        created_at: '2026-09-22T09:00:00Z',
+        updated_at: '2026-09-22T09:00:00Z',
         ...over,
     }
 }
@@ -60,19 +80,6 @@ describe('why a new rule cannot be declared yet', () => {
             'A rule watching one pipeline names that pipeline, and this one names none.',
         )
         expect(unreadyRule(aDraft({ scope: 'pipeline', pipeline: 'nightly' }))).toBeUndefined()
-    })
-
-    test('a rule delivers through a channel', () => {
-        expect(unreadyRule(aDraft({ notifier: '' }))).toBe(
-            'A rule delivers through a channel, and this one names none.',
-        )
-    })
-
-    test('a channel that needs a credential says which one is missing', () => {
-        expect(unreadyRule(aDraft({ notifier: 'slack' }))).toBe(
-            'The slack channel delivers through a connection, and this one names none.',
-        )
-        expect(unreadyRule(aDraft({ notifier: 'slack', connection: 'ops-slack' }))).toBeUndefined()
     })
 
     test('a throttle is a duration, and the absence of one is written as a duration too', () => {
@@ -129,5 +136,42 @@ describe('the floor a rule fires at', () => {
     test('sends no floor at all where any was chosen, and the level where one was', () => {
         expect(floorChosen(ANY_IMPORTANCE)).toBeNull()
         expect(floorChosen('critical')).toBe('critical')
+    })
+})
+
+describe('the channels a rule may deliver through', () => {
+    test('the log leads, and needs no credential beside it', () => {
+        const [first] = targetOptions(['log', 'slack'], [aConnection()])
+        expect(first).toEqual({ value: LOG_TARGET, label: LOG_TARGET_LABEL, aside: '' })
+    })
+
+    test('a row is titled the way every listing titles one, wearing the kind it implies', () => {
+        const rows = targetOptions(['log', 'slack'], [aConnection({ name: 'Ops Slack' })])
+        expect(rows[1]).toEqual({ value: 'ops-slack', label: 'Ops Slack · slack', aside: 'ops-slack' })
+    })
+
+    test('a connection nobody named is titled by its code, and still says its kind', () => {
+        const rows = targetOptions(
+            ['log', 'webhook'],
+            [aConnection({ code: 'ops-endpoint', kind: 'webhook' })],
+        )
+        expect(rows[1]).toEqual({ value: 'ops-endpoint', label: 'ops-endpoint · webhook', aside: '' })
+    })
+
+    test('a connection no installed notifier sends through is not a channel', () => {
+        const rows = targetOptions(['log', 'slack'], [aConnection({ code: 'hq', kind: 'dhis2' })])
+        expect(rows.map((row) => row.value)).toEqual([LOG_TARGET])
+    })
+
+    test('the rows stand together by kind, and by title inside a kind', () => {
+        const rows = targetOptions(
+            ['log', 'slack', 'webhook'],
+            [
+                aConnection({ id: 'c1', code: 'zulu-hook', kind: 'webhook' }),
+                aConnection({ id: 'c2', code: 'beta-slack', kind: 'slack' }),
+                aConnection({ id: 'c3', code: 'alpha-slack', kind: 'slack' }),
+            ],
+        )
+        expect(rows.map((row) => row.value)).toEqual([LOG_TARGET, 'alpha-slack', 'beta-slack', 'zulu-hook'])
     })
 })

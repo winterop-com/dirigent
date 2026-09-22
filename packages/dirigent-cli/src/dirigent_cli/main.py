@@ -1355,7 +1355,7 @@ VALUE_OPTIONS = frozenset(
         "--concurrency",
         "--tag",
         "--event",
-        "--notifier",
+        "--connection",
         "--status",
         "--pipeline",
         "--since",

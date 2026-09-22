@@ -95,7 +95,7 @@ async def rules(
 async def add_rule(
     payload: AlertRuleIn, session: SessionDep, services: ServicesDep, principal: OperatorDep
 ) -> AlertRuleOut:
-    """Declare an alert rule, refusing a notifier or a pipeline this instance does not have."""
+    """Declare an alert rule, refusing a target or a pipeline this instance does not have."""
     rule = await create_rule(
         session,
         services,
@@ -104,7 +104,6 @@ async def add_rule(
             name=payload.name,
             description=payload.description,
             event=payload.event,
-            notifier=payload.notifier,
             scope=payload.scope,
             pipeline=payload.pipeline,
             importance=payload.importance,
@@ -123,15 +122,17 @@ async def add_rule(
     summary="Change an alert rule",
     response_model=AlertRuleOut,
 )
-async def change_rule(code: str, payload: AlertRuleUpdate, session: SessionDep, principal: OperatorDep) -> AlertRuleOut:
-    """Hold a rule's deliveries, let them resume, or rewrite what it says.
+async def change_rule(
+    code: str, payload: AlertRuleUpdate, session: SessionDep, services: ServicesDep, principal: OperatorDep
+) -> AlertRuleOut:
+    """Hold a rule's deliveries, let them resume, rewrite what it says, or re-point it.
 
     Pausing is instance state on the row rather than something the rule declares, so a rule an
     operator held keeps holding when the document that declared it is applied again. A field
     the caller left out is left as it was.
     """
     rule = await _rule_or_404(session, code)
-    await update_rule(session, rule, payload.model_dump(exclude_unset=True))
+    await update_rule(session, services, rule, payload.model_dump(exclude_unset=True))
     return render(rule, await _pipeline_code(session, rule), await _connection_code(session, rule.connection_id))
 
 

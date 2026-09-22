@@ -72,11 +72,9 @@ test('a rule is declared from the screen, and appears in the listing it was decl
     await dialog.getByRole('button', { name: 'Failed' }).click()
     await dialog.getByRole('button', { name: 'Every pipeline' }).click()
 
-    // The notifier is a picker over the installed channels, and log is the one that needs no
-    // connection beside it -- so no connection picker is drawn at all.
-    await dialog.getByLabel('Notifier').click()
-    await page.getByRole('option', { name: 'log', exact: true }).click()
-    await expect(dialog.getByLabel('Connection')).toHaveCount(0)
+    // A rule names one target and the sender follows from it: one picker, opened on the log.
+    await expect(dialog.getByLabel('Deliver through')).toHaveValue('The process log')
+    await expect(dialog.getByLabel('Notifier')).toHaveCount(0)
 
     await dialog.getByLabel('Throttle').fill('15m')
     await expect(create).toBeEnabled()
@@ -88,6 +86,7 @@ test('a rule is declared from the screen, and appears in the listing it was decl
     await expect(row).toContainText(RULE.code)
     await expect(row).toContainText('Failed')
     await expect(row).toContainText('every pipeline')
+    await expect(row).toContainText('log')
     await expect(row).toContainText('15m')
     await expect(row).toContainText('active')
 })
@@ -98,8 +97,6 @@ test("a rule's body is written in the dialog and edited in its panel", async ({ 
 
     await dialog.getByLabel('Code').fill(RULE.code)
     await dialog.getByLabel('Name').fill(RULE.name)
-    await dialog.getByLabel('Notifier').click()
-    await page.getByRole('option', { name: 'log', exact: true }).click()
     await dialog.getByLabel('Subject').fill('{{ run.pipeline }} failed')
 
     // The body is a Jinja pane rather than a box: it is written on the lines it was written on,
@@ -142,6 +139,8 @@ test('a rule is paused from its panel, and the row says so', async ({ page }) =>
     await ruleRow(page).getByText(RULE.name, { exact: true }).click()
     const panel = page.getByRole('tabpanel')
     await expect(panel.getByText(RULE.code)).toBeVisible()
+    // The panel says the target the same way the listing does: the log, for a rule naming nothing.
+    await expect(panel.getByText('Delivers through')).toBeVisible()
 
     await panel.getByRole('button', { name: 'Pause' }).click()
     await expect(panel.getByRole('button', { name: 'Resume' })).toBeVisible()
@@ -228,7 +227,7 @@ test('the queue narrows by status and by notifier', async ({ page }) => {
 async function declareRule(page: Page): Promise<void> {
     const prefix = await apiPrefix(page.request)
     const answer = await page.request.post(`${prefix}/alert-rules`, {
-        data: { code: RULE.code, name: RULE.name, event: 'run_failed', notifier: 'log', throttle: '15m' },
+        data: { code: RULE.code, name: RULE.name, event: 'run_failed', throttle: '15m' },
     })
     expect(answer.status()).toBe(201)
 }
