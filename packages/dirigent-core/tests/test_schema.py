@@ -257,25 +257,81 @@ async def test_a_pipeline_name_is_unique(engine: AsyncEngine) -> None:
             session.add(Pipeline(code="only-once"))
 
 
-def _compare(connection: sa.Connection) -> list[object]:
-    """Diff one live connection's schema against the ORM metadata."""
-    from alembic.autogenerate import compare_metadata
-    from alembic.migration import MigrationContext
-
-    context = MigrationContext.configure(connection, opts={"compare_type": True, "include_schemas": False})
-    return list(compare_metadata(context, Base.metadata))
-
-
-async def metadata_drift(engine: AsyncEngine) -> list[object]:
-    """Compare a migrated database against the ORM metadata, and say what differs."""
-    async with engine.connect() as connection:
-        return await connection.run_sync(_compare)
-
-
 async def test_the_migrations_leave_no_drift_against_the_models_on_sqlite(sqlite_settings: Settings) -> None:
     await migrations.upgrade_async(settings=sqlite_settings)
     engine = create_engine(sqlite_settings)
     try:
-        assert await metadata_drift(engine) == []
+        assert await migrations.schema_differences(engine) == []
     finally:
         await engine.dispose()
+
+
+def alter(settings: Settings, *statements: str) -> None:
+    """Rewrite a migrated SQLite file the way an older dirigent would have left it."""
+    path = settings.sqlite_path
+    assert path is not None
+    older = sqlite3.connect(path)
+    try:
+        for statement in statements:
+            older.execute(statement)
+        older.commit()
+    finally:
+        older.close()
+
+
+async def differences_of(settings: Settings) -> list[migrations.SchemaDifference]:
+    """Reflect the configured database and say how it differs from the models."""
+    engine = create_engine(settings)
+    try:
+        return await migrations.schema_differences(engine)
+    finally:
+        await engine.dispose()
+
+
+async def test_a_column_a_later_dirigent_added_is_named_as_missing(sqlite_settings: Settings) -> None:
+    """The revision stamp still says head, because the baseline is edited in place."""
+    await migrations.upgrade_async(settings=sqlite_settings)
+    alter(sqlite_settings, "ALTER TABLE step_attempts DROP COLUMN fetched_output")
+
+    differences = await differences_of(sqlite_settings)
+
+    assert differences == [
+        migrations.SchemaDifference(
+            kind=migrations.DifferenceKind.MISSING_COLUMN, table="step_attempts", column="fetched_output"
+        )
+    ]
+    assert str(differences[0]) == "step_attempts.fetched_output missing"
+    assert await migrations.current_revision_async(sqlite_settings) == migrations.head_revision(sqlite_settings)
+
+
+async def test_a_column_this_dirigent_no_longer_declares_is_named_as_unexpected(sqlite_settings: Settings) -> None:
+    await migrations.upgrade_async(settings=sqlite_settings)
+    alter(sqlite_settings, "ALTER TABLE runs ADD COLUMN left_behind TEXT")
+
+    differences = await differences_of(sqlite_settings)
+
+    assert differences == [
+        migrations.SchemaDifference(kind=migrations.DifferenceKind.EXTRA_COLUMN, table="runs", column="left_behind")
+    ]
+    assert str(differences[0]) == "runs.left_behind unexpected"
+
+
+async def test_a_whole_table_that_is_not_there_is_named_once(sqlite_settings: Settings) -> None:
+    """The indexes of a table that is not there restate the missing table and are not counted."""
+    await migrations.upgrade_async(settings=sqlite_settings)
+    alter(sqlite_settings, "DROP TABLE alert_rules")
+
+    differences = await differences_of(sqlite_settings)
+
+    assert differences == [
+        migrations.SchemaDifference(kind=migrations.DifferenceKind.MISSING_TABLE, table="alert_rules")
+    ]
+    assert str(differences[0]) == "table alert_rules missing"
+
+
+async def test_a_table_the_models_do_not_declare_is_not_a_difference(sqlite_settings: Settings) -> None:
+    """A database may be shared, and nothing dirigent runs reads somebody else's table."""
+    await migrations.upgrade_async(settings=sqlite_settings)
+    alter(sqlite_settings, "CREATE TABLE somebody_elses (id INTEGER PRIMARY KEY)")
+
+    assert await differences_of(sqlite_settings) == []
