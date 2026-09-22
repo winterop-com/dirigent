@@ -94,6 +94,7 @@ function pipeline(code: string, schedules: number, over: Partial<PipelineOut> = 
         name: null,
         description: null,
         tags: [],
+        importance: 'normal',
         active: true,
         current_version: 1,
         active_runs: 0,

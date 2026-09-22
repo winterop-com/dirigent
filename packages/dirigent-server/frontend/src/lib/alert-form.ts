@@ -7,6 +7,7 @@
  */
 
 import { LOG_NOTIFIER, type AlertEvent, type AlertScope } from '@/lib/alerting'
+import { IMPORTANCES, type Importance } from '@/lib/pipelines'
 
 /** What the code box accepts, which is what the server's own `EntityName` accepts. */
 const CODE = /^[a-z0-9]+(?:[-_][a-z0-9]+)*$/u
@@ -38,6 +39,20 @@ export const SCOPES: readonly { value: AlertScope; label: string }[] = [
     { value: 'global', label: 'Every pipeline' },
     { value: 'pipeline', label: 'One pipeline' },
 ]
+
+/** What the control answers with when a rule fires whatever the pipeline is worth. */
+export const ANY_IMPORTANCE = ''
+
+/** The floors a rule may fire at, in the order the control offers them. */
+export const IMPORTANCE_FLOORS: readonly { value: Importance | typeof ANY_IMPORTANCE; label: string }[] = [
+    { value: ANY_IMPORTANCE, label: 'Any' },
+    ...IMPORTANCES.map((one) => ({ value: one, label: one[0].toUpperCase() + one.slice(1) })),
+]
+
+/** What a control's answer is on the wire, where "any" is the absence of a floor. */
+export function floorChosen(value: Importance | typeof ANY_IMPORTANCE): Importance | null {
+    return value === ANY_IMPORTANCE ? null : value
+}
 
 /** What each event is called on screen, in plain product English rather than the wire's word. */
 export const EVENT_LABELS: Record<AlertEvent, string> = {

@@ -28,12 +28,14 @@ import { LIST_GROUP, registerActions } from '@/lib/palette'
 import {
     byTitle,
     emptyNote,
+    importanceMark,
     lastRunView,
     readPipelines,
     readTagsOffered,
     retirement,
     tagsFromQuery,
     triggerSummary,
+    type Importance,
     type PipelineOut,
 } from '@/lib/pipelines'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
@@ -41,6 +43,25 @@ import { statusLabel, statusTokens } from '@/lib/status'
 import { cn } from '@/lib/utils'
 
 const pipelineId = (row: PipelineOut) => row.id
+
+/**
+ * How much a pipeline matters, where that is more than every other one.
+ *
+ * It is the same chip the deactivated mark wears, so the two sit on one line rather than each
+ * inventing a shape of its own.
+ */
+function ImportanceChip({ importance }: { importance: Importance }) {
+    const mark = importanceMark(importance)
+    if (mark === null) return null
+    return (
+        <span
+            className={cn('rounded-sm border border-border px-1.5 text-xs', mark.className)}
+            title={mark.title}
+        >
+            {mark.label}
+        </span>
+    )
+}
 
 /**
  * The pane a chosen row opens, which nothing on this screen needs until a row is chosen.
@@ -405,6 +426,7 @@ function pipelineColumns(onTag: (tag: string) => void): Column<PipelineOut>[] {
                             >
                                 {heading.title}
                             </Link>
+                            <ImportanceChip importance={row.importance} />
                             {retired !== null && (
                                 <span
                                     className="rounded-sm border border-border px-1.5 text-xs text-faint"

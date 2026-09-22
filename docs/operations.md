@@ -1019,6 +1019,23 @@ event -- `run_failed`, `run_completed_with_errors`, `run_succeeded`, `run_stuck`
 to a notifier, and delivery goes through a queued, leased, retried path a worker owns. If you
 have one thing configured on a real instance, make it a `run_failed` rule with a throttle.
 
+**A rule may also name the least importance it fires for**, which is how paging is kept apart
+from logging without listing pipelines by hand. `importance` on a rule is matched against what
+the pipeline's own document declares -- `routine`, `normal` or `critical` -- and a rule naming
+none fires whatever the pipeline is worth:
+
+```bash
+dg alerts rules create page-ops --event run_failed --notifier email \
+    --connection ops-mail --importance critical --throttle 15m
+dg alerts rules create log-all --event run_failed --notifier log
+```
+
+The first fires only for pipelines whose document says `importance: critical`; the second
+fires for every pipeline, that one included. Paging adds to the log rather than replacing it.
+`dg alerts rules list` says the floor inside the scope cell -- "global, critical and above" --
+and a pipeline that declared none is `normal`, so a rule at `critical` stays quiet until a
+document says otherwise.
+
 `infra/compose.otel.yaml` is a collector, Prometheus, Tempo and a Grafana with these signals
 already on a dashboard; see [telemetry](telemetry.md#bring-it-up-in-an-afternoon).
 

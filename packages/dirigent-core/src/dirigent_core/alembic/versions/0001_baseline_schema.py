@@ -96,6 +96,12 @@ def upgrade() -> None:
         sa.Column("name", sa.String(length=200), nullable=True),
         sa.Column("description", sa.Text(), nullable=True),
         sa.Column("tags", sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"), nullable=False),
+        sa.Column(
+            "importance",
+            sa.Enum("routine", "normal", "critical", name="importance", native_enum=False, length=32),
+            server_default="normal",
+            nullable=False,
+        ),
         sa.Column("active", sa.Boolean(), server_default=sa.true(), nullable=False),
         sa.Column("current_version", sa.Integer(), nullable=True),
         sa.Column(
@@ -208,6 +214,11 @@ def upgrade() -> None:
             "scope", sa.Enum("global", "pipeline", name="alert_scope", native_enum=False, length=32), nullable=False
         ),
         sa.Column("pipeline_id", sa.Uuid(), nullable=True),
+        sa.Column(
+            "importance",
+            sa.Enum("routine", "normal", "critical", name="importance", native_enum=False, length=32),
+            nullable=True,
+        ),
         sa.Column("notifier", sa.String(length=100), nullable=False),
         sa.Column("connection_id", sa.Uuid(), nullable=True),
         sa.Column("template", sa.Text(), nullable=True),

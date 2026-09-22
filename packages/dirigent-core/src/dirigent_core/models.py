@@ -13,6 +13,7 @@ from dirigent_client.enums import (
     AttemptKind,
     AttemptStatus,
     FiringOutcome,
+    Importance,
     LogLevel,
     NotificationStatus,
     ProvenanceSource,
@@ -90,6 +91,17 @@ class Pipeline(Entity):
     description: Mapped[str | None] = mapped_column(sa.Text)
     tags: Mapped[JsonList] = mapped_column(JsonDocument, nullable=False, default=list)
     """What the current document says this pipeline is for; an apply replaces the whole list."""
+
+    importance: Mapped[Importance] = mapped_column(
+        string_enum(Importance, "importance"),
+        nullable=False,
+        default=Importance.NORMAL,
+        server_default=Importance.NORMAL.value,
+    )
+    """How much the current document says this pipeline matters.
+
+    On the row rather than read from the version document, so an alert rule matches without
+    loading one."""
 
     active: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=True, server_default=sa.true())
     current_version: Mapped[int | None] = mapped_column(sa.Integer)
@@ -485,6 +497,9 @@ class AlertRule(Entity):
         string_enum(AlertScope, "alert_scope"), nullable=False, default=AlertScope.GLOBAL
     )
     pipeline_id: Mapped[UUID | None] = mapped_column(sa.ForeignKey("pipelines.id", ondelete="CASCADE"), index=True)
+    importance: Mapped[Importance | None] = mapped_column(string_enum(Importance, "importance"))
+    """The least importance a pipeline must carry before this rule fires; null fires for every one."""
+
     notifier: Mapped[str] = mapped_column(sa.String(100), nullable=False)
     connection_id: Mapped[UUID | None] = mapped_column(sa.ForeignKey("connections.id", ondelete="RESTRICT"))
     template: Mapped[str | None] = mapped_column(sa.Text)

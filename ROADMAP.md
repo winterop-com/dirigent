@@ -135,15 +135,12 @@ stays clean, and every example stays executable.
 
 ## Wanted
 
-- **Importance, which is not urgency.** A pipeline can matter enormously and still be content
-  to run at three in the morning behind everything else. Priority answers when work is
-  claimed; nothing today says how much a pipeline MATTERS, and the two must not be the same
-  number -- otherwise a critical nightly job either takes slots it does not need, or its
-  failure is as quiet as a scratch pipeline's. Wanted: a declared importance on the pipeline,
-  independent of priority, that the rest of the system reads -- alert rules matching on it so
-  a critical failure pages while a routine one logs, the stuck-run detector treating it as an
-  incident sooner, a dashboard and the future run list ordering by it, and retention keeping
-  its history longest. Start with the field and the alert-rule match; the rest can follow it.
+- **What else importance should reach.** The field is declared and the alert rules match on
+  it, so a critical failure pages while a routine one logs. Three readers are still missing,
+  and each is a slice of its own: the stuck-run detector treating a critical run as an
+  incident sooner than an hour, the dashboards and the run list putting the critical work in
+  front, and retention keeping a critical pipeline's history longest where it is instance-wide
+  today.
 
 - **What an artifact is.** Today an artifact is exactly one thing: a step's structured
   output, kept inline when small and written to `outputs/<attempt-id>.json` when not, with a

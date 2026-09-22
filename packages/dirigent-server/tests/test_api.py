@@ -363,6 +363,31 @@ def test_a_rule_carries_a_subject_and_a_body_template(client: TestClient) -> Non
     assert rewritten.json()["template"] == "{{ run.pipeline }} is unhappy", "what was not named is left"
 
 
+def test_a_rule_carries_the_least_importance_it_fires_for(client: TestClient) -> None:
+    declared = client.post(
+        f"{PREFIX}/alert-rules",
+        json={"code": "page-ops", "event": "run_failed", "notifier": "log", "importance": "critical"},
+    )
+    assert declared.status_code == 201
+    assert declared.json()["importance"] == "critical"
+    assert client.get(f"{PREFIX}/alert-rules").json()["items"][0]["importance"] == "critical"
+    client.post(f"{PREFIX}/alert-rules", json={"code": "log-all", "event": "run_failed", "notifier": "log"})
+    listed = {row["code"]: row["importance"] for row in client.get(f"{PREFIX}/alert-rules").json()["items"]}
+    assert listed["log-all"] is None, "a rule that named none fires for every pipeline"
+
+
+def test_a_patch_moves_and_clears_the_importance_a_rule_fires_for(client: TestClient) -> None:
+    client.post(
+        f"{PREFIX}/alert-rules",
+        json={"code": "page-ops", "event": "run_failed", "notifier": "log", "importance": "critical"},
+    )
+    moved = client.patch(f"{PREFIX}/alert-rules/page-ops", json={"importance": "routine"})
+    assert moved.status_code == 200
+    assert moved.json()["importance"] == "routine"
+    assert client.patch(f"{PREFIX}/alert-rules/page-ops", json={"paused": True}).json()["importance"] == "routine"
+    assert client.patch(f"{PREFIX}/alert-rules/page-ops", json={"importance": None}).json()["importance"] is None
+
+
 def test_a_rule_whose_body_does_not_compile_is_refused(client: TestClient) -> None:
     refused = client.post(
         f"{PREFIX}/alert-rules",
@@ -583,6 +608,19 @@ def test_reading_a_pipeline_includes_its_current_document(client: TestClient) ->
     body = client.get(f"{PREFIX}/pipelines/api-demo").json()
     assert body["document"]["format"] == "dirigent/v1"
     assert client.get(f"{PREFIX}/pipelines/nobody").status_code == 404
+
+
+def test_a_listing_row_and_a_read_carry_the_documents_importance(client: TestClient) -> None:
+    apply_document(client, DOCUMENT)
+    apply_document(
+        client,
+        "format: dirigent/v1\ncode: paged\nimportance: critical\n"
+        "steps:\n  greet:\n    block: shell.run\n    config: { argv: [echo, hi] }\n",
+    )
+    rows = {row["code"]: row["importance"] for row in client.get(f"{PREFIX}/pipelines").json()["items"]}
+    assert rows["paged"] == "critical"
+    assert rows["api-demo"] == "normal", "a document that said nothing is of normal importance"
+    assert client.get(f"{PREFIX}/pipelines/paged").json()["importance"] == "critical"
 
 
 #: Three documents wearing overlapping vocabularies, so a repeated tag has something to narrow.

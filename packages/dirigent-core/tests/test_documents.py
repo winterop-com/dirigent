@@ -6,6 +6,7 @@ from typing import Any
 
 import pytest
 
+from dirigent_client.enums import Importance
 from dirigent_core.documents import (
     DocumentError,
     digest_of,
@@ -37,6 +38,7 @@ code: daily-load
 name: Daily load
 description: Everything the format can say.
 concurrency: skip
+importance: critical
 params:
   properties:
     day: { type: string, format: date }
@@ -144,6 +146,7 @@ def test_the_canonical_export_does_not_depend_on_the_order_things_were_written_i
         "name",
         "description",
         "concurrency",
+        "importance",
         "params",
         "steps",
         "triggers",
@@ -155,6 +158,16 @@ def test_steps_export_in_topological_order_so_a_document_reads_downward() -> Non
     document = canonical_document(load_text(FULL))
     steps: Any = document["steps"]
     assert list(steps) == ["wait", "push", "cleanup"]
+
+
+def test_a_pipeline_is_of_normal_importance_unless_it_says_otherwise() -> None:
+    assert load_text(MINIMAL).importance is Importance.NORMAL
+    assert load_text(FULL).importance is Importance.CRITICAL
+
+
+def test_importance_is_exported_only_when_it_is_not_the_default() -> None:
+    assert "importance: critical" in to_yaml(load_text(FULL))
+    assert "importance" not in canonical_document(load_text(MINIMAL))
 
 
 def test_defaults_are_omitted_so_a_small_pipeline_stays_small() -> None:

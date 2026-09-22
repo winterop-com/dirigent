@@ -12,6 +12,7 @@ from typer.testing import CliRunner
 
 from clisupport import asking_for_the_rendering, only, plain, rows
 from dirigent_cli.main import app, hoist_globals
+from dirigent_cli.output import watching
 from dirigent_core.config import CONFIG_FILE_ENV, Settings, reset_settings_cache
 
 runner = CliRunner(env={"COLUMNS": "200", "TERMINAL_WIDTH": "200"})
@@ -462,6 +463,7 @@ def test_an_alert_rule_is_created_listed_and_deleted(tmp_path: Path, server: str
     assert declared["code"] == "nightly-failures"
     assert declared["event"] == "run_failed"
     assert declared["scope"] == "cli-demo"
+    assert declared["importance"] is None, "a rule that named none fires for every pipeline"
     assert declared["notifier"] == "log"
     assert declared["throttle"] == "15m"
 
@@ -476,6 +478,61 @@ def test_an_alert_rule_is_created_listed_and_deleted(tmp_path: Path, server: str
     assert only(removed.stdout, "alert_rule.deleted")["code"] == "nightly-failures"
     assert rows_of("alerts", "rules", "list") == []
     assert invoke("alerts", "rules", "delete", "nightly-failures").exit_code == 1
+
+
+def test_a_rule_names_the_least_importance_it_fires_for(server: str) -> None:
+    created = machine(
+        "alerts",
+        "rules",
+        "create",
+        "page-ops",
+        "--event",
+        "run_failed",
+        "--notifier",
+        "log",
+        "--importance",
+        "critical",
+    )
+    assert created.exit_code == 0, created.output
+    assert only(created.stdout, "alert_rule.created")["importance"] == "critical"
+    assert rows_of("alerts", "rules", "list")[0]["importance"] == "critical"
+
+
+def test_an_importance_that_is_not_one_is_refused_by_name(server: str) -> None:
+    refused = invoke(
+        "alerts",
+        "rules",
+        "create",
+        "page-ops",
+        "--event",
+        "run_failed",
+        "--notifier",
+        "log",
+        "--importance",
+        "urgent",
+    )
+    assert refused.exit_code == 1
+    assert "is not an importance" in plain(refused.output)
+    assert "routine, normal, critical" in plain(refused.output)
+
+
+def test_the_rules_table_says_the_importance_inside_the_scope_cell(server: str) -> None:
+    invoke(
+        "alerts",
+        "rules",
+        "create",
+        "page-ops",
+        "--event",
+        "run_failed",
+        "--notifier",
+        "log",
+        "--importance",
+        "critical",
+    )
+    invoke("alerts", "rules", "create", "log-all", "--event", "run_failed", "--notifier", "log")
+    listed = {row["code"]: row for row in rows_of("alerts", "rules", "list")}
+    assert watching(listed["page-ops"]["scope"], listed["page-ops"]["importance"]) == "global, critical and above"
+    assert watching(listed["log-all"]["scope"], listed["log-all"]["importance"]) == "global"
 
 
 def test_a_rule_takes_its_body_from_a_file(tmp_path: Path, server: str) -> None:

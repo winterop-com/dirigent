@@ -166,6 +166,7 @@ async def _save_pipeline_once(
             name=definition.name,
             description=description or definition.description,
             tags=list(definition.tags),
+            importance=definition.importance,
         )
         session.add(pipeline)
         await session.flush()
@@ -176,6 +177,7 @@ async def _save_pipeline_once(
         pipeline.name = definition.name
         pipeline.description = description or definition.description
         pipeline.tags = list(definition.tags)
+        pipeline.importance = definition.importance
     recorded = provenance or Provenance()
     next_version = (pipeline.current_version or 0) + 1
     version = PipelineVersion(

@@ -3,6 +3,8 @@ import { describe, expect, test } from 'vitest'
 import {
     byTitle,
     emptyNote,
+    importanceMark,
+    importanceOf,
     lastRunView,
     pipelinesPath,
     retirement,
@@ -18,6 +20,7 @@ const ROW: PipelineOut = {
     name: null,
     description: null,
     tags: [],
+    importance: 'normal',
     active: true,
     current_version: 3,
     active_runs: 0,
@@ -237,5 +240,33 @@ describe('the order the pipelines listing reads in', () => {
             .toSorted(byTitle)
             .map((found) => found.code)
         expect(sorted).toEqual(['first', 'second'])
+    })
+})
+
+describe('how much a pipeline matters', () => {
+    test('is normal where the document says nothing', () => {
+        expect(importanceOf(null)).toBe('normal')
+        expect(importanceOf({ code: 'nightly-etl' })).toBe('normal')
+    })
+
+    test('is what the document says where it says one', () => {
+        expect(importanceOf({ importance: 'critical' })).toBe('critical')
+        expect(importanceOf({ importance: 'routine' })).toBe('routine')
+    })
+
+    test('is normal rather than a guess where the document says something else', () => {
+        expect(importanceOf({ importance: 'urgent' })).toBe('normal')
+        expect(importanceOf({ importance: 3 })).toBe('normal')
+    })
+
+    test('marks a critical pipeline and nothing else, so a listing is not a column of words', () => {
+        expect(importanceMark('critical')?.label).toBe('critical')
+        expect(importanceMark('critical')?.className).toBe('text-critical')
+        expect(importanceMark('normal')).toBeNull()
+        expect(importanceMark('routine')).toBeNull()
+    })
+
+    test('says what the mark means once, so the two screens that draw it cannot disagree', () => {
+        expect(importanceMark('critical')?.title).toContain('no lesser one')
     })
 })

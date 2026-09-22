@@ -20,9 +20,12 @@ import {
 import { Label } from '@/components/ui/label'
 import { useMayWrite } from '@/hooks/use-may-write'
 import {
+    ANY_IMPORTANCE,
     BODY_HINT,
     EVENT_LABELS,
+    floorChosen,
     given,
+    IMPORTANCE_FLOORS,
     needsConnection,
     SCOPES,
     SUBJECT_HINT,
@@ -33,7 +36,7 @@ import { ALERT_EVENTS, createRule, type AlertEvent, type AlertScope } from '@/li
 import type { Problem } from '@/lib/api'
 import { headingOf } from '@/lib/identity'
 import type { PickerOption } from '@/lib/picker'
-import { byTitle, readAllPipelines } from '@/lib/pipelines'
+import { byTitle, readAllPipelines, type Importance } from '@/lib/pipelines'
 import { refusalOf } from '@/lib/refusal'
 import { firstShut } from '@/lib/roles'
 
@@ -73,6 +76,7 @@ export function NewRule({
     const [event, setEvent] = useState<AlertEvent>('run_failed')
     const [scope, setScope] = useState<AlertScope>('global')
     const [pipeline, setPipeline] = useState('')
+    const [floor, setFloor] = useState<Importance | typeof ANY_IMPORTANCE>(ANY_IMPORTANCE)
     const [notifier, setNotifier] = useState('')
     const [connection, setConnection] = useState('')
     const [template, setTemplate] = useState('')
@@ -96,6 +100,7 @@ export function NewRule({
             notifier,
             scope,
             pipeline: scope === 'pipeline' ? pipeline : null,
+            importance: floorChosen(floor),
             connection: needsConnection(notifier) ? connection : null,
             template: given(template),
             body: given(body),
@@ -194,6 +199,18 @@ export function NewRule({
                                 />
                             </div>
                         )}
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label>Importance</Label>
+                        <p className="text-xs text-faint">Only pipelines that matter at least this much.</p>
+                        <Segmented
+                            label="Importance"
+                            size="md"
+                            value={floor}
+                            options={IMPORTANCE_FLOORS}
+                            onChoose={setFloor}
+                        />
                     </div>
 
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">

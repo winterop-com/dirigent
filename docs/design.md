@@ -898,6 +898,14 @@ retried with backoff, and visible in the run timeline, so a flaky SMTP server ca
 down a worker or silently drop an alert. Per-rule throttling prevents a flapping pipeline
 from paging every minute.
 
+**A rule may narrow by importance as well as by scope.** `importance` on a rule is the least
+a pipeline's document must declare before the rule fires: a rule naming `critical` matches
+only critical pipelines, one naming `routine` matches every pipeline, and one naming none
+matches every pipeline too. The match reads the `importance` column on the pipeline row, which
+an apply writes from the document, so the rule costs the query nothing extra. Paging adds to
+the log rather than replacing it: a rule at `critical` and a rule with no importance both
+raise on a critical run, and only the second raises on an ordinary one.
+
 ### Delivery semantics
 
 **Raising and settling are one commit.** When a run reaches a terminal status, the same
@@ -1223,6 +1231,7 @@ description: |                         # optional, long-form, markdown
 tags: [climate, nightly]               # optional; what this is for, in the corpus's own words
 concurrency: skip                      # allow | skip | queue | replace
 priority: normal                       # low | normal | high; a trigger or a run may override it
+importance: critical                   # routine | normal | critical; how much it matters, not when
 
 params:                                # JSON Schema; drives the run form and webhook mapping
   type: object
@@ -1516,7 +1525,8 @@ dg schedule list | pause | resume | firings | delete PIPELINE NAME
 dg webhook create PIPELINE NAME [--map param='$.path'] [--hmac-secret S] [--rate-limit N]
 dg webhook list | rotate-token | deliveries | delete PIPELINE NAME
 dg trigger-document list | show | delete CODE         # clocks declared for a pipeline defined elsewhere
-dg alerts rules list | create NAME --event E --notifier N [--pipeline P] [--throttle DUR] | delete NAME
+dg alerts rules list | create NAME --event E --notifier N [--pipeline P] [--importance I]
+                                   [--throttle DUR] | delete NAME
 dg alerts test NOTIFIER [--connection NAME] | dg alerts queue | dg alerts retry ID
 
 # catalog, connections, operations

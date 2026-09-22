@@ -69,6 +69,22 @@ class RunPriority(StrEnum):
 PRIORITY_RANK: dict[RunPriority, int] = {RunPriority.LOW: 0, RunPriority.NORMAL: 1, RunPriority.HIGH: 2}
 
 
+class Importance(StrEnum):
+    """How much a pipeline matters when it goes wrong, which is not when its work is claimed."""
+
+    ROUTINE = "routine"
+    """Nothing downstream waits on it, and a failure keeps until someone looks."""
+
+    NORMAL = "normal"
+
+    CRITICAL = "critical"
+    """A failure is worth interrupting someone for."""
+
+
+#: What each importance is worth to a comparison, least first.
+IMPORTANCE_RANK: dict[Importance, int] = {Importance.ROUTINE: 0, Importance.NORMAL: 1, Importance.CRITICAL: 2}
+
+
 class TriggerKind(StrEnum):
     """What started a run."""
 

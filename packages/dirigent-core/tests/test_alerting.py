@@ -16,6 +16,7 @@ from dirigent_client.enums import (
     AlertEvent,
     AlertScope,
     AttemptStatus,
+    Importance,
     LogLevel,
     NotificationStatus,
     RunStatus,
@@ -212,9 +213,12 @@ async def stored_run(
     *,
     pipeline: str = "nightly",
     status: RunStatus = RunStatus.FAILED,
+    importance: Importance = Importance.NORMAL,
 ) -> Run:
     """Save a pipeline, create a run of it, and settle it, as a worker's outcome would."""
-    definition = PipelineDefinition(code=pipeline, steps={"only": StepDefinition(block="test.echo")})
+    definition = PipelineDefinition(
+        code=pipeline, importance=importance, steps={"only": StepDefinition(block="test.echo")}
+    )
     async with session_scope(sessions) as session:
         version = await save_pipeline(session, definition)
         created = await create_run(session, services, version)
@@ -502,7 +506,7 @@ async def test_a_global_rule_matches_any_pipeline(
         sessions, services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, notifier="recording")
     )
     async with sessions() as session:
-        matched = await matching_rules(session, AlertEvent.RUN_FAILED, uuid4())
+        matched = await matching_rules(session, AlertEvent.RUN_FAILED, uuid4(), Importance.NORMAL)
     assert [rule.code for rule in matched] == ["page-ops"]
 
 
@@ -522,8 +526,8 @@ async def test_a_pipeline_scoped_rule_matches_only_its_own_pipeline(
         ),
     )
     async with sessions() as session:
-        assert len(await matching_rules(session, AlertEvent.RUN_FAILED, run.pipeline_id)) == 1
-        assert await matching_rules(session, AlertEvent.RUN_FAILED, uuid4()) == []
+        assert len(await matching_rules(session, AlertEvent.RUN_FAILED, run.pipeline_id, Importance.NORMAL)) == 1
+        assert await matching_rules(session, AlertEvent.RUN_FAILED, uuid4(), Importance.NORMAL) == []
 
 
 async def test_an_inactive_rule_never_matches(
@@ -537,7 +541,7 @@ async def test_an_inactive_rule_never_matches(
         assert stored is not None
         stored.active = False
     async with sessions() as session:
-        assert await matching_rules(session, AlertEvent.RUN_FAILED, uuid4()) == []
+        assert await matching_rules(session, AlertEvent.RUN_FAILED, uuid4(), Importance.NORMAL) == []
 
 
 async def test_a_paused_rule_never_matches(
@@ -551,7 +555,7 @@ async def test_a_paused_rule_never_matches(
         assert stored is not None
         await set_paused(session, stored, paused=True)
     async with sessions() as session:
-        assert await matching_rules(session, AlertEvent.RUN_FAILED, uuid4()) == []
+        assert await matching_rules(session, AlertEvent.RUN_FAILED, uuid4(), Importance.NORMAL) == []
 
 
 async def test_a_resumed_rule_matches_again(
@@ -566,7 +570,7 @@ async def test_a_resumed_rule_matches_again(
         await set_paused(session, stored, paused=True)
         await set_paused(session, stored, paused=False)
     async with sessions() as session:
-        assert len(await matching_rules(session, AlertEvent.RUN_FAILED, uuid4())) == 1
+        assert len(await matching_rules(session, AlertEvent.RUN_FAILED, uuid4(), Importance.NORMAL)) == 1
 
 
 async def test_a_rule_is_declared_unpaused(
@@ -585,8 +589,111 @@ async def test_a_rule_for_another_event_never_matches(
         sessions, services, AlertRuleRequest(code="cheer", event=AlertEvent.RUN_SUCCEEDED, notifier="recording")
     )
     async with sessions() as session:
-        assert await matching_rules(session, AlertEvent.RUN_FAILED, uuid4()) == []
-        assert len(await matching_rules(session, AlertEvent.RUN_SUCCEEDED, uuid4())) == 1
+        assert await matching_rules(session, AlertEvent.RUN_FAILED, uuid4(), Importance.NORMAL) == []
+        assert len(await matching_rules(session, AlertEvent.RUN_SUCCEEDED, uuid4(), Importance.NORMAL)) == 1
+
+
+@pytest.mark.parametrize(
+    ("carried", "matches"),
+    [(Importance.ROUTINE, False), (Importance.NORMAL, True), (Importance.CRITICAL, True)],
+)
+async def test_a_rule_naming_an_importance_matches_at_that_level_and_above(
+    sessions: async_sessionmaker[AsyncSession],
+    services: EngineServices,
+    carried: Importance,
+    matches: bool,
+) -> None:
+    await declare(
+        sessions,
+        services,
+        AlertRuleRequest(
+            code="page-ops", event=AlertEvent.RUN_FAILED, notifier="recording", importance=Importance.NORMAL
+        ),
+    )
+    async with sessions() as session:
+        matched = await matching_rules(session, AlertEvent.RUN_FAILED, uuid4(), carried)
+    assert [rule.code for rule in matched] == (["page-ops"] if matches else [])
+
+
+async def test_a_rule_naming_no_importance_matches_every_pipeline(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    await declare(
+        sessions, services, AlertRuleRequest(code="log-all", event=AlertEvent.RUN_FAILED, notifier="recording")
+    )
+    async with sessions() as session:
+        for carried in Importance:
+            matched = await matching_rules(session, AlertEvent.RUN_FAILED, uuid4(), carried)
+            assert [rule.code for rule in matched] == ["log-all"], carried
+
+
+async def test_paging_the_critical_failures_adds_to_the_log_rather_than_replacing_it(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    """One rule pages what is critical and a second logs everything; a critical run raises both."""
+    await declare(
+        sessions,
+        services,
+        AlertRuleRequest(
+            code="page-ops", event=AlertEvent.RUN_FAILED, notifier="recording", importance=Importance.CRITICAL
+        ),
+    )
+    await declare(
+        sessions, services, AlertRuleRequest(code="log-all", event=AlertEvent.RUN_FAILED, notifier="recording")
+    )
+    routine = await stored_run(sessions, services, pipeline="tidy-up", importance=Importance.ROUTINE)
+    async with session_scope(sessions) as session:
+        settled = await session.get(Run, routine.id)
+        assert settled is not None
+        queued = await raise_for_run(session, services, settled, AlertEvent.RUN_FAILED, now=NOW)
+    async with sessions() as session:
+        raised = await session.execute(
+            sa.select(AlertRule.code).join(Notification, Notification.alert_rule_id == AlertRule.id)
+        )
+        assert sorted(raised.scalars()) == ["log-all"]
+    assert len(queued) == 1
+
+    paged = await stored_run(sessions, services, pipeline="payments", importance=Importance.CRITICAL)
+    async with session_scope(sessions) as session:
+        settled = await session.get(Run, paged.id)
+        assert settled is not None
+        queued = await raise_for_run(session, services, settled, AlertEvent.RUN_FAILED, now=NOW)
+    assert len(queued) == 2
+    async with sessions() as session:
+        raised = await session.execute(
+            sa.select(AlertRule.code)
+            .join(Notification, Notification.alert_rule_id == AlertRule.id)
+            .where(Notification.run_id == paged.id)
+        )
+        assert sorted(raised.scalars()) == ["log-all", "page-ops"]
+
+
+async def test_a_patch_moves_the_importance_a_rule_wants_and_clears_it(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    rule = await declare(
+        sessions,
+        services,
+        AlertRuleRequest(
+            code="page-ops", event=AlertEvent.RUN_FAILED, notifier="recording", importance=Importance.CRITICAL
+        ),
+    )
+    async with session_scope(sessions) as session:
+        stored = await session.get(AlertRule, rule.id)
+        assert stored is not None
+        await update_rule(session, stored, {"importance": Importance.ROUTINE})
+    async with sessions() as session:
+        stored = await session.get(AlertRule, rule.id)
+        assert stored is not None
+        assert stored.importance is Importance.ROUTINE
+    async with session_scope(sessions) as session:
+        stored = await session.get(AlertRule, rule.id)
+        assert stored is not None
+        await update_rule(session, stored, {"importance": None})
+    async with sessions() as session:
+        stored = await session.get(AlertRule, rule.id)
+        assert stored is not None
+        assert stored.importance is None
 
 
 @pytest.mark.parametrize(

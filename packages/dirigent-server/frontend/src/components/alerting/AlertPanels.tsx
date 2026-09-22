@@ -18,6 +18,7 @@ import { BODY_HINT, given, SUBJECT_HINT, TEMPLATE_MEDIA_TYPE } from '@/lib/alert
 import {
     deleteRule,
     eventLabel,
+    importanceNote,
     NO_FILTERS,
     readNotifications,
     retryNotification,
@@ -65,6 +66,7 @@ export function RulePanel({
     const [editingCode, setEditingCode] = useState<string | null>(null)
     const editing = editingCode === rule.code
     const write = useMayWrite()
+    const floor = importanceNote(rule.importance)
 
     const read = useCallback((after: string | null) => readNotifications(NO_FILTERS, after), [])
     const { state } = usePaged(read, notificationId)
@@ -98,7 +100,12 @@ export function RulePanel({
 
             <dl className="space-y-1.5">
                 <Fact label="Event">{eventLabel(rule.event)}</Fact>
-                <Fact label="Scope">{scopeNote(rule)}</Fact>
+                <Fact label="Scope">
+                    <span className="flex flex-wrap items-baseline gap-x-1.5">
+                        {scopeNote(rule)}
+                        {floor !== null && <span className="text-xs text-muted-foreground">{floor}</span>}
+                    </span>
+                </Fact>
                 <Fact label="Delivers through">
                     <Channel notifier={rule.notifier} connection={rule.connection} />
                 </Fact>

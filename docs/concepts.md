@@ -100,8 +100,27 @@ then by due time. Fairness numbers every attempt within its run by how many that
 already been served, so a four-hundred-item fan-out interleaves one attempt at a time with a
 two-step run rather than holding every slot until it drains.
 
+A document also declares an **importance**: `routine`, `normal` (the default) or `critical`.
+It is how much this pipeline matters when it goes wrong, and it is deliberately written from
+a different vocabulary than priority so the two are never read as one scale. A pipeline can be
+both at once: a nightly reconciliation is `low` priority, because nobody is waiting on it, and
+`critical` importance, because the morning's payments are drawn from what it writes.
+
+```yaml
+priority: low            # behind whatever a person is waiting on
+importance: critical     # and worth waking somebody for when it breaks
+```
+
+Priority is read by the claim, once per attempt. Importance is read by the alert rules, when a
+run settles: a rule may name the least importance a pipeline must carry before it fires, so
+one rule pages for the critical failures while another logs every failure there is. It is
+mirrored onto the pipeline row at apply, so what an alert matches is what the current document
+says. Nothing else reads it yet.
+
 Detail: [design.md section 12](design.md#12-defining-pipelines-one-model-two-editors) for the
-document format, the code and step-name grammars, and what an apply does.
+document format, the code and step-name grammars, and what an apply does;
+[operations.md](operations.md#alerting-and-notifications) for the rule that reads an
+importance, and `examples/patterns/importance-critical.yaml` for both words in one document.
 
 ## Step
 

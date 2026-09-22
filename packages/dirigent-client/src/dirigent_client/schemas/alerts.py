@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from dirigent_client.enums import AlertEvent, AlertScope, NotificationStatus
+from dirigent_client.enums import AlertEvent, AlertScope, Importance, NotificationStatus
 from dirigent_client.schemas.common import WireModel
 from dirigent_common import EntityName
 from dirigent_common.durations import Duration
@@ -13,6 +13,8 @@ from dirigent_common.durations import Duration
 SUBJECT_HELP = "Subject, a Jinja template over the run's facts."
 
 BODY_HELP = "Body, a Jinja template over the run's facts; `report` is the run's report document when it has one."
+
+IMPORTANCE_HELP = "The least importance a pipeline must carry before this rule fires; absent fires for every one."
 
 
 class AlertRuleIn(BaseModel):
@@ -25,6 +27,7 @@ class AlertRuleIn(BaseModel):
     notifier: str
     scope: AlertScope = AlertScope.GLOBAL
     pipeline: str | None = None
+    importance: Importance | None = Field(default=None, description=IMPORTANCE_HELP)
     connection: str | None = None
     template: str | None = Field(default=None, description=SUBJECT_HELP)
     body: str | None = Field(default=None, description=BODY_HELP)
@@ -41,6 +44,9 @@ class AlertRuleOut(WireModel):
     event: AlertEvent
     scope: AlertScope
     pipeline: str | None = None
+    importance: Importance | None = None
+    """The least importance a pipeline must carry before this rule fires."""
+
     notifier: str
     connection: str | None = None
     template: str | None = None
@@ -61,6 +67,7 @@ class AlertRuleUpdate(BaseModel):
     paused: bool | None = None
     template: str | None = Field(default=None, description=SUBJECT_HELP)
     body: str | None = Field(default=None, description=BODY_HELP)
+    importance: Importance | None = Field(default=None, description=IMPORTANCE_HELP)
 
 
 class NotificationOut(WireModel):

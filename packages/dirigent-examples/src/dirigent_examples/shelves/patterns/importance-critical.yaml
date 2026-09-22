@@ -1,0 +1,108 @@
+# How much a pipeline matters, which is a different question from how urgently it runs.
+#
+# A document carries TWO words that sound alike and are not:
+#
+#   priority: low | normal | high            when the claim takes this pipeline's attempts
+#   importance: routine | normal | critical  how much it matters that this pipeline works
+#
+# They are deliberately spelled from different vocabularies so no one reads them as one
+# scale. THIS PIPELINE IS BOTH: low priority and critical importance. It runs behind
+# everything a person is waiting on, because it is a slow nightly reconciliation and nobody
+# is watching it go. And when it fails, somebody is woken, because the ledger it writes is
+# what the morning's payments are drawn from.
+#
+# WHO READS EACH ONE. `priority` is read by the claim, once per attempt, and it is pinned on
+# the run at creation. `importance` is read by the alerting rules, when a run settles: a rule
+# may name the LEAST importance a pipeline must carry before it fires.
+#
+#   dg alerts rules create page-ops --event run_failed --notifier log --importance critical
+#   dg alerts rules create log-all  --event run_failed --notifier log
+#
+# The first fires for this pipeline and for no lesser one. The second names no importance, so
+# it fires for every pipeline -- this one included. PAGING ADDS TO THE LOG; it does not
+# replace it, so a critical failure raises both and an ordinary one raises only the second.
+#
+# `dg alerts rules list` says the floor inside the scope cell -- "global, critical and above"
+# -- rather than in a column that would be empty on almost every row.
+#
+# WHERE IT IS SAID. `dg pipeline show` prints it with the other document settings, the
+# pipelines listing marks a critical pipeline beside its title, and a listing row carries it
+# on the wire. A routine or normal pipeline wears no mark at all: almost every pipeline is
+# one of those, and a word on every row would say nothing.
+#
+# Hop by hop:
+#
+#   read       the balances the day left behind.
+#   reconcile  the arithmetic that either agrees or does not.
+#   ledger     what the morning is drawn from, which is the reason for the word.
+#
+# EXPECT THIS RUN TO SUCCEED in about a second, with no network.
+#
+#   dg run --local examples/patterns/importance-critical.yaml
+#   dg apply examples/patterns/importance-critical.yaml
+#   dg pipeline show importance-critical        # importance: critical, with the rest
+#   dg alerts rules list                        # the floor, inside the scope cell
+
+format: dirigent/v1
+kind: pipeline
+code: importance-critical
+name: Slow to be claimed, loud when it breaks
+description: |
+  `importance` is one word -- `routine`, `normal` or `critical` -- and it says how much this
+  pipeline matters, not when its work is claimed. `priority` says that, and the two are
+  independent: this document is `low` priority and `critical` importance at once.
+
+  An alert rule may name the least importance a pipeline must carry before it fires, so one
+  rule pages for the critical failures and another logs every failure there is.
+
+tags: [patterns, transform, importance, alerting]
+
+# Behind whatever somebody is waiting on: it is slow, and nobody is watching it run.
+priority: low
+
+# But the morning's payments are drawn from what it writes, so a failure is worth waking for.
+importance: critical
+
+requires:
+  blocks:
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    accounts:
+      type: array
+      description: The accounts the day's balances are reconciled over.
+      items:
+        type: string
+      default: [settlement, float, reserve]
+
+steps:
+  read:
+    block: transform.jq
+    config:
+      input:
+        accounts: "${params.accounts}"
+      program: |
+        {balances: [.accounts[] | {account: ., opened: 1000, closed: 1000}]}
+
+  reconcile:
+    block: transform.jq
+    depends_on: [read]
+    # `transform.jq` answers with its result under `value`, so a later step reaches for that
+    # key rather than for the output as a whole.
+    config:
+      input: "${steps.read.output.value}"
+      program: |
+        {
+          checked: (.balances | length),
+          drift: [.balances[] | select(.opened != .closed) | .account],
+        }
+
+  ledger:
+    block: transform.jq
+    depends_on: [reconcile]
+    config:
+      input: "${steps.reconcile.output.value}"
+      program: |
+        {settled: (.drift | length == 0), accounts: .checked}

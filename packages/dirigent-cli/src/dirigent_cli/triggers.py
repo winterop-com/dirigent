@@ -5,7 +5,7 @@ from typing import Annotated, Any, cast
 
 import typer
 
-from dirigent_cli.commands import paged, parse_log_levels, parse_params, parse_priority
+from dirigent_cli.commands import paged, parse_importance, parse_log_levels, parse_params, parse_priority
 from dirigent_cli.context import Session, client_for, state_of
 from dirigent_cli.messages import (
     AT_TAKES_AN_INSTANT,
@@ -24,6 +24,7 @@ from dirigent_cli.output import (
     render_bool,
     styled,
     table,
+    watching,
 )
 from dirigent_client import AlertEvent, AlertScope, WebhookTokenOut
 from dirigent_common import Message
@@ -422,7 +423,7 @@ def alerts_rules_list(
                 row.code,
                 row.name or "-",
                 row.event.value,
-                row.pipeline or row.scope.value,
+                watching(row.pipeline or row.scope.value, row.importance),
                 row.notifier,
                 row.throttle,
                 render_bool(row.active),
@@ -457,6 +458,13 @@ def alerts_rules_create(
         Path | None, typer.Option("--body-file", help="Read the body template from a file instead.")
     ] = None,
     throttle: Annotated[str, typer.Option("--throttle", help="At most one message per window, e.g. 15m.")] = "0s",
+    importance: Annotated[
+        str | None,
+        typer.Option(
+            "--importance",
+            help="Only pipelines carrying at least this much: routine, normal, or critical.",
+        ),
+    ] = None,
 ) -> None:
     """Declare an alert rule binding an event at a scope to a channel."""
     if event not in set(AlertEvent):
@@ -465,6 +473,7 @@ def alerts_rules_create(
         _fail(ONE_BODY)
     if body_file is not None:
         body = body_file.read_text()
+    floor = parse_importance(importance)
     with client_for(state_of(ctx)) as dg:
         created = dg.call(
             dg.alerts.create_rule(
@@ -475,6 +484,7 @@ def alerts_rules_create(
                 notifier=notifier,
                 scope=AlertScope.PIPELINE if pipeline else AlertScope.GLOBAL,
                 pipeline=pipeline,
+                importance=floor,
                 connection=connection,
                 template=template,
                 body=body,
@@ -488,6 +498,7 @@ def alerts_rules_create(
         name=created.name,
         event=created.event.value,
         scope=created.pipeline or created.scope.value,
+        importance=created.importance.value if created.importance else None,
         notifier=created.notifier,
         connection=created.connection,
         template=created.template is not None,
