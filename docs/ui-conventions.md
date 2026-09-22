@@ -955,7 +955,10 @@ word that already says the same thing is the decoration the rule above forbids.
 target is a channel, so the mark the strip's chips wear stands beside the code in the `Deliver
 through` picker's rows, in the rules listing's target cell and in a rule's panel: the same thing
 looks the same across a screen, and a reader who learned the envelope on the strip reads it on a
-rule. The notifiers this repository ships wear an envelope for `email`, a scroll for `log`, the
+rule. **Where the mark is drawn the kind is not also spelled**, which is the rule above: a target
+cell is the mark and the code, the way a chip is. The picker's rows are the one place it is
+written as well, because the kind is half of what a row is found by and a mark cannot be typed.
+The notifiers this repository ships wear an envelope for `email`, a scroll for `log`, the
 Slack mark for `slack` and a webhook for `webhook`. A glyph is `size-4` in muted ink wherever it
 is drawn; what it sits in belongs to the thing drawing it -- the palette row gives it a `size-7`
 tile on `--muted`, a channel chip draws it bare.
