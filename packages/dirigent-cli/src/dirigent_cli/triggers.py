@@ -26,7 +26,7 @@ from dirigent_cli.output import (
     table,
     watching,
 )
-from dirigent_client import AlertEvent, AlertScope, WebhookTokenOut
+from dirigent_client import LOG_NOTIFIER, AlertEvent, AlertScope, WebhookTokenOut
 from dirigent_common import Message
 
 schedule_app = typer.Typer(
@@ -417,14 +417,14 @@ def alerts_rules_list(
         return emit_records("alert_rule", rows)
     table(
         "alert rules",
-        ["code", "name", "event", "scope", "notifier", "throttle", "active", "last sent"],
+        ["code", "name", "event", "scope", "target", "throttle", "active", "last sent"],
         [
             [
                 row.code,
                 row.name or "-",
                 row.event.value,
                 watching(row.pipeline or row.scope.value, row.importance),
-                row.notifier,
+                row.connection or LOG_NOTIFIER,
                 row.throttle,
                 render_bool(row.active),
                 moment(row.last_sent_at),
@@ -445,11 +445,13 @@ def alerts_rules_create(
             help="The event that fires it: run_failed, run_completed_with_errors, run_succeeded, or run_stuck.",
         ),
     ],
-    notifier: Annotated[str, typer.Option("--notifier", help="The channel to deliver through, such as log.")],
     name: Annotated[str | None, typer.Option("--name", help="A human title for this rule.")] = None,
     description: Annotated[str | None, typer.Option("--description", help="What this rule is for.")] = None,
     pipeline: Annotated[str | None, typer.Option("--pipeline", help="Watch one pipeline instead of all.")] = None,
-    connection: Annotated[str | None, typer.Option("--connection", help="The credential the channel uses.")] = None,
+    connection: Annotated[
+        str | None,
+        typer.Option("--connection", help="The connection to deliver through; none delivers to the process log."),
+    ] = None,
     template: Annotated[
         str | None, typer.Option("--template", help="Subject, a Jinja template over the run's facts.")
     ] = None,
@@ -466,7 +468,7 @@ def alerts_rules_create(
         ),
     ] = None,
 ) -> None:
-    """Declare an alert rule binding an event at a scope to a channel."""
+    """Declare an alert rule binding an event at a scope to one target."""
     if event not in set(AlertEvent):
         _fail(NOT_AN_ALERT_EVENT, event=repr(event), allowed=", ".join(sorted(AlertEvent)))
     if body is not None and body_file is not None:
@@ -481,7 +483,6 @@ def alerts_rules_create(
                 name=name,
                 description=description,
                 event=AlertEvent(event),
-                notifier=notifier,
                 scope=AlertScope.PIPELINE if pipeline else AlertScope.GLOBAL,
                 pipeline=pipeline,
                 importance=floor,

@@ -1,6 +1,7 @@
 """The wire schemas: one definition of every shape the REST API accepts and answers with."""
 
 from dirigent_client.schemas.alerts import (
+    LOG_NOTIFIER,
     AlertRuleIn,
     AlertRuleOut,
     AlertRuleUpdate,
@@ -87,6 +88,7 @@ from dirigent_common import JsonList, JsonMap
 
 __all__ = [
     "TERMINAL_RUN_STATUSES",
+    "LOG_NOTIFIER",
     "AlertRuleIn",
     "AlertRuleOut",
     "AlertRuleUpdate",

@@ -10,6 +10,9 @@ from dirigent_client.schemas.common import WireModel
 from dirigent_common import EntityName
 from dirigent_common.durations import Duration
 
+#: The notifier a rule that names no connection delivers through.
+LOG_NOTIFIER = "log"
+
 SUBJECT_HELP = "Subject, a Jinja template over the run's facts."
 
 BODY_HELP = "Body, a Jinja template over the run's facts; `report` is the run's report document when it has one."

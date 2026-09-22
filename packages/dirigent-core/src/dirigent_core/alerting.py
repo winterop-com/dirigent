@@ -26,6 +26,7 @@ from dirigent_client.enums import (
     NotificationStatus,
     RunStatus,
 )
+from dirigent_client.schemas.alerts import LOG_NOTIFIER
 from dirigent_common import (
     EntityName,
     JsonMap,
@@ -75,9 +76,6 @@ EVENT_FOR_STATUS: dict[RunStatus, AlertEvent] = {
 }
 
 DEFAULT_TEMPLATE = "{{ run.pipeline }} run {{ run.status }}"
-
-#: The sender a rule that names no connection delivers through.
-LOG_NOTIFIER: Final = "log"
 
 #: The characters a subject is cut to, which is what a subject line is.
 SUBJECT_CAP: Final = 200
