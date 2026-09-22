@@ -6,6 +6,7 @@ import {
     deliverySettled,
     importanceNote,
     notificationsPath,
+    orderedChannels,
     ruleLive,
     scopeNote,
     setRulePaused,
@@ -136,11 +137,11 @@ describe('where the notifications listing is read from', () => {
 })
 
 describe('the channels an alert can leave by', () => {
-    test('log is one channel and needs no credential', () => {
+    test('log is one channel, needs no credential, and is ready', () => {
         const [channel] = channelsOf(['log'], [])
         expect(channel.connection).toBeNull()
         expect(channel.reachable).toBe(true)
-        expect(channelView(channel)).toMatchObject({ tone: 'good', label: 'built in' })
+        expect(channelView(channel)).toMatchObject({ tone: 'good', label: 'ready' })
     })
 
     test('a notifier is one channel per connection of its own kind', () => {
@@ -152,13 +153,33 @@ describe('the channels an alert can leave by', () => {
                 aConnection({ id: 'c3', code: 'ops-mail', kind: 'email' }),
             ],
         )
-        expect(channels.map((one) => one.connection)).toEqual(['ops-slack', 'dev-slack'])
+        // A credential of another kind is another notifier's channel, and two of one kind whose
+        // readings agree stand in code order.
+        expect(channels.map((one) => one.connection)).toEqual(['dev-slack', 'ops-slack'])
     })
 
-    test('a notifier with no connection is a channel nothing can reach, and says so', () => {
+    test('a notifier nothing has been set up for is a channel nothing can reach, and says so', () => {
         const [channel] = channelsOf(['email'], [])
         expect(channel.reachable).toBe(false)
-        expect(channelView(channel)).toMatchObject({ tone: 'quiet', label: 'no connection' })
+        expect(channelView(channel)).toMatchObject({ tone: 'quiet', label: 'not set up' })
+    })
+
+    test('a probe that proved nothing is neither checked nor failing', () => {
+        const [channel] = channelsOf(
+            ['slack'],
+            [
+                aConnection({
+                    last_check_at: '2026-01-01T00:00:00Z',
+                    last_check_healthy: null,
+                    last_check_detail: 'not verified: posting to the webhook is the only check there is',
+                }),
+            ],
+        )
+        expect(channelView(channel)).toEqual({
+            tone: 'quiet',
+            label: 'not verified',
+            detail: 'not verified: posting to the webhook is the only check there is',
+        })
     })
 
     test('a channel nobody has checked is not a healthy one', () => {
@@ -196,6 +217,45 @@ describe('the channels an alert can leave by', () => {
             ],
         )
         expect(channelView(channel)).toMatchObject({ tone: 'good', label: 'checked' })
+    })
+
+    test('the strip reads what needs somebody first, and alphabetically inside one reading', () => {
+        const channels = channelsOf(
+            ['webhook', 'slack', 'log', 'email'],
+            [
+                aConnection({ id: 'c1', code: 'ops-slack', kind: 'slack' }),
+                aConnection({
+                    id: 'c2',
+                    code: 'dev-slack',
+                    kind: 'slack',
+                    last_check_at: '2026-01-01T00:00:00Z',
+                    last_check_healthy: false,
+                    last_check_detail: 'slack refused the token: invalid_auth',
+                }),
+                aConnection({
+                    id: 'c3',
+                    code: 'ops-mail',
+                    kind: 'email',
+                    last_check_at: '2026-01-01T00:00:00Z',
+                    last_check_healthy: true,
+                    last_check_detail: 'the submission server answered',
+                }),
+            ],
+        )
+        expect(channels.map((one) => one.id)).toEqual([
+            // failing first, then the one nobody has checked, then what is well, then what is
+            // not set up at all -- and a notifier's two credentials part where their readings do.
+            'slack:dev-slack',
+            'slack:ops-slack',
+            'email:ops-mail',
+            'log',
+            'webhook',
+        ])
+    })
+
+    test('ordering is the same question asked of channels already built', () => {
+        const channels = channelsOf(['log', 'webhook'], [])
+        expect(orderedChannels(channels).map((one) => one.id)).toEqual(['log', 'webhook'])
     })
 })
 

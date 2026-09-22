@@ -915,16 +915,15 @@ apart at a glance, which a column of identical dots and four words cannot do. So
 a mark of its own, and only a kind may. A glyph never stands for a state, and one drawn beside a
 word that already says the same thing is the decoration the rule above forbids.
 
-**Kind glyphs are drawn on the alerting screen's channel strip, and nowhere else today.** A
-channel card leads with its notifier's mark -- an envelope for `email`, a scroll for `log`, the
-Slack mark for `slack`, a webhook for `webhook` -- in the palette row's own tile: `size-7` on
+**Kind glyphs are drawn on the alerting screen's channel strip, and nowhere else today.** The
+notifiers this repository ships wear an envelope for `email`, a scroll for `log`, the Slack mark
+for `slack` and a webhook for `webhook`, each in the palette row's own tile: `size-7` on
 `--muted`, with a `size-4` glyph in muted ink inside it. A tile is that size wherever this app
 draws one.
 
-**The glyph says what a thing is and the dot says how it is, so the two stand apart.** The mark
-leads the card and takes no status colour; the health dot sits against the word it is the colour
-of, at the other end of the row. Two marks at one card's head are two things asking to be read
-first.
+**The glyph says what a thing is and the dot says how it is, and neither does the other's job.**
+A glyph never takes a status colour and a dot never says which kind something is, so a card
+carrying both says two facts rather than one loud one.
 
 **A kind with no glyph takes the neutral glyph rather than a gap**, which is the same one a
 palette row with no icon takes. `lib/glyphs` is where both are decided, once, as a pure function
@@ -939,6 +938,33 @@ and scaled onto the same 24-unit grid every other glyph is drawn on. **A brand m
 here**, which is what a kit's monochrome variant is for: it takes the surface's ink in both
 palettes like everything else on the strip, where a mark in its own colours would be the loudest
 thing on a screen whose colour means a state.
+
+## The channel strip
+
+**Every notifier this instance installed is on the strip**, the ones nothing has been set up for
+included: what somebody came to this screen to learn is whether an alert has anywhere to go, and
+a channel left off the strip answers that by omission.
+
+**Six words are the whole vocabulary, and each is what a person would say.** `failing` with the
+check's own sentence under it, `not verified` for a probe that ran and proved nothing, `never
+checked` for a credential nothing has asked yet, `checked` with how long ago, `ready` for the log
+channel, which needs nothing and has no second line, and `not set up` for a notifier this instance
+holds no credential of its kind for. Nothing here says "connection": a reader knows they have not
+set up Slack, not that a connection of kind `slack` is absent.
+
+**A channel nothing is set up for is quiet, and carries the one action that changes that.** What
+it says about itself is dimmed the way a rule that delivers nothing is; the action keeps its ink,
+because a control dimmed past its own contrast is one somebody cannot read. The action is a link
+reading `Set up <notifier>`, and it goes to `/connections?new=<kind>` -- the connections screen
+with its dialog open on that kind. A sentence saying the channel is not set up would be the word
+above it written out twice.
+
+**The strip is ordered by what needs somebody**, not by what the catalog answered in: failing,
+then not verified, then never checked, then checked, then ready, and the ones that are not set up
+last. Inside one reading it is the notifier's code and then the connection's, so a notifier
+holding two credentials keeps them together only where they are in the same state -- the reading
+wins, because the channel that stopped is what the strip exists to surface. `channelsOf` answers
+in that order, so no screen decides it.
 
 ## An option wears what its value wears
 

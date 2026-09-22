@@ -34,10 +34,19 @@ function ruleRow(page: Page) {
 test('the channel strip says what an alert can leave by, and that log needs nothing', async ({ page }) => {
     const strip = page.getByRole('heading', { name: 'Channels' }).locator('..')
     await expect(strip.getByText('log', { exact: true })).toBeVisible()
-    await expect(strip.getByText('built in')).toBeVisible()
+    await expect(strip.getByText('ready')).toBeVisible()
     // A notifier with no credential minted for it is a channel nothing can reach, and the strip
-    // is where that is visible rather than a rule failing later.
-    await expect(strip.getByText('no connection').first()).toBeVisible()
+    // is where that is visible rather than a rule failing later -- carrying the way in.
+    await expect(strip.getByText('not set up').first()).toBeVisible()
+    await expect(strip.getByRole('link', { name: 'Set up webhook' })).toBeVisible()
+})
+
+test('the way in from a channel nothing is set up for opens the dialog on that kind', async ({ page }) => {
+    await page.getByRole('link', { name: 'Set up webhook' }).click()
+    await expect(page).toHaveURL(/\/connections\?new=webhook$/)
+    const dialog = page.getByRole('dialog')
+    await expect(dialog.getByRole('heading', { name: 'New connection' })).toBeVisible()
+    await expect(dialog.getByLabel('Kind')).toContainText('webhook')
 })
 
 test('a rule is declared from the screen, and appears in the listing it was declared on', async ({

@@ -306,10 +306,10 @@ export interface Channel {
 }
 
 /**
- * The channels this instance has, one card each.
+ * The channels this instance has, one card each, in the order the strip reads them.
  *
- * The log channel is built in and always first: it needs nothing, and an instance with no
- * credential at all still has somewhere an alert goes.
+ * Every installed notifier is on the strip, the ones nothing has been set up for included: a
+ * channel an alert cannot leave by is what somebody came to this screen to find out.
  */
 export function channelsOf(notifiers: readonly string[], connections: readonly ConnectionOut[]): Channel[] {
     const channels: Channel[] = []
@@ -351,14 +351,22 @@ export function channelsOf(notifiers: readonly string[], connections: readonly C
             })
         }
     }
-    return channels
+    return orderedChannels(channels)
 }
+
+/**
+ * The whole vocabulary of the channel strip: every word a card can say about itself.
+ *
+ * `not set up` is a notifier this instance installed and holds no credential for, said in the
+ * words somebody would use rather than in the shape of the thing that is missing.
+ */
+export type ChannelLabel = 'failing' | 'not verified' | 'never checked' | 'checked' | 'ready' | 'not set up'
 
 /** How a channel card reads its own health: what it is, and what it last proved. */
 export interface ChannelView {
     tone: 'good' | 'critical' | 'quiet'
     /** The short word on the card, beside the code. */
-    label: string
+    label: ChannelLabel
     /** The sentence under it, which is the check's own where there is one. */
     detail: string | null
 }
@@ -366,17 +374,53 @@ export interface ChannelView {
 /**
  * What one channel card says about itself.
  *
- * A CHANNEL NOBODY HAS CHECKED IS NOT A HEALTHY ONE. The three states are separate on purpose:
- * a check that failed is the thing this strip exists to surface, and a check that has never run
- * says so rather than borrowing the colour of one that passed.
+ * A CHANNEL NOBODY HAS CHECKED IS NOT A HEALTHY ONE. The states are separate on purpose: a check
+ * that failed is the thing this strip exists to surface, a check that has never run says so
+ * rather than borrowing the colour of one that passed, and a probe that ran without proving
+ * anything -- `last_check_healthy` null behind a `last_check_at` -- is neither.
  */
 export function channelView(channel: Channel): ChannelView {
-    if (channel.notifier === LOG_NOTIFIER) return { tone: 'good', label: 'built in', detail: null }
-    if (!channel.reachable) return { tone: 'quiet', label: 'no connection', detail: null }
+    if (channel.notifier === LOG_NOTIFIER) return { tone: 'good', label: 'ready', detail: null }
+    if (!channel.reachable) return { tone: 'quiet', label: 'not set up', detail: null }
     if (channel.last_check_at === null) return { tone: 'quiet', label: 'never checked', detail: null }
+    if (channel.last_check_healthy === null) {
+        return { tone: 'quiet', label: 'not verified', detail: channel.last_check_detail }
+    }
     return {
-        tone: channel.last_check_healthy === true ? 'good' : 'critical',
-        label: channel.last_check_healthy === true ? 'checked' : 'failing',
+        tone: channel.last_check_healthy ? 'good' : 'critical',
+        label: channel.last_check_healthy ? 'checked' : 'failing',
         detail: channel.last_check_detail,
     }
+}
+
+/**
+ * Where each reading falls on the strip: what needs somebody first.
+ *
+ * A strip in the order the catalog happened to answer in buries a channel that stopped among
+ * the ones that are well.
+ */
+const ATTENTION: Readonly<Record<ChannelLabel, number>> = {
+    failing: 0,
+    'not verified': 1,
+    'never checked': 2,
+    checked: 3,
+    ready: 4,
+    'not set up': 5,
+}
+
+/**
+ * The strip's order: the reading first, then the notifier, then the connection.
+ *
+ * A notifier's cards stand together only where their readings agree -- what a reader came for is
+ * the channel that stopped, so the reading wins over keeping a notifier's two credentials side
+ * by side.
+ */
+export function orderedChannels(channels: readonly Channel[]): Channel[] {
+    return channels.toSorted((left, right) => {
+        const byAttention = ATTENTION[channelView(left).label] - ATTENTION[channelView(right).label]
+        if (byAttention !== 0) return byAttention
+        const byNotifier = left.notifier.localeCompare(right.notifier)
+        if (byNotifier !== 0) return byNotifier
+        return (left.connection ?? '').localeCompare(right.connection ?? '')
+    })
 }

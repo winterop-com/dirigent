@@ -55,19 +55,22 @@ import { maySubmit, validateFields, withUnreadable } from '@/lib/schema-form'
 export function NewConnection({
     open,
     kinds,
+    startKind = '',
     onOpenChange,
     onCreated,
 }: {
     open: boolean
     /** What this instance has installed, from the catalog the screen read. */
     kinds: SurfaceEntry[]
+    /** The kind the dialog opens on, for a link that already knows which one is wanted. */
+    startKind?: string
     onOpenChange: (open: boolean) => void
     /** Called with what was minted, so the listing behind reads itself again. */
     onCreated: (row: ConnectionOut) => void
 }) {
     const [code, setCode] = useState('')
     const [named, setNamed] = useState('')
-    const [kind, setKind] = useState('')
+    const [kind, setKind] = useState(startKind)
     const [description, setDescription] = useState('')
     const [values, setValues] = useState<JsonMap>({})
     const [secrets, setSecrets] = useState<Record<string, string>>({})
@@ -102,7 +105,7 @@ export function NewConnection({
                     setCode('')
                     setNamed('')
                     setDescription('')
-                    setKind('')
+                    setKind(startKind)
                     setValues({})
                     setSecrets({})
                     setTouched(new Set())
