@@ -260,8 +260,13 @@ describe('how much a pipeline matters', () => {
     })
 
     test('marks a critical pipeline and nothing else, so a listing is not a column of words', () => {
-        expect(importanceMark('critical')).toEqual({ label: 'critical', className: 'text-critical' })
+        expect(importanceMark('critical')?.label).toBe('critical')
+        expect(importanceMark('critical')?.className).toBe('text-critical')
         expect(importanceMark('normal')).toBeNull()
         expect(importanceMark('routine')).toBeNull()
+    })
+
+    test('says what the mark means once, so the two screens that draw it cannot disagree', () => {
+        expect(importanceMark('critical')?.title).toContain('no lesser one')
     })
 })

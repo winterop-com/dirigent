@@ -575,13 +575,15 @@ export function PipelineEditor() {
                     ]}
                     code={heading?.code}
                 />
+                {/* Hidden below the breakpoint with the version, where the strip has only the
+                    room for the document's identity and the line saying it is read. */}
                 {matters !== null && (
                     <span
                         className={cn(
-                            'shrink-0 rounded-sm border border-border px-1.5 py-0.5 text-xs',
+                            'hidden shrink-0 rounded-sm border border-border px-1.5 py-0.5 text-xs md:inline-block',
                             matters.className,
                         )}
-                        title="critical: an alert rule may fire for this pipeline and for no lesser one"
+                        title={matters.title}
                     >
                         {matters.label}
                     </span>

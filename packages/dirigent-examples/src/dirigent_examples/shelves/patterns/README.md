@@ -117,6 +117,7 @@ local run is handed with `--also-apply examples/patterns/pipeline-run-child.yaml
 | [sensor-storage-exists.yaml](sensor-storage-exists.yaml) | A glob, a size floor, and a drop that actually lands | `succeeded` |
 | [log-levels.yaml](log-levels.yaml) | `--log-level PATTERN=LEVEL`, a run setting rather than a document one | `succeeded` |
 | [priority-layered.yaml](priority-layered.yaml) | `priority` on the document, on a schedule, and on one ad hoc run | `succeeded` |
+| [importance-critical.yaml](importance-critical.yaml) | `importance` beside `priority`, and the alert rule that reads it | `succeeded` |
 | [connections-referenced-vs-carried.yaml](connections-referenced-vs-carried.yaml) | Named, carried, and absolute; needs `--connections` | `succeeded` |
 
 ## Running them

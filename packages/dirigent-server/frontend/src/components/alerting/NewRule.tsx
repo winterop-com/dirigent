@@ -203,9 +203,7 @@ export function NewRule({
 
                     <div className="space-y-2">
                         <Label>Importance</Label>
-                        <p className="text-xs text-faint">
-                            Only pipelines whose document says they matter at least this much.
-                        </p>
+                        <p className="text-xs text-faint">Only pipelines that matter at least this much.</p>
                         <Segmented
                             label="Importance"
                             size="md"

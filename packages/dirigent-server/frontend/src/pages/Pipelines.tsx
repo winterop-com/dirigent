@@ -56,7 +56,7 @@ function ImportanceChip({ importance }: { importance: Importance }) {
     return (
         <span
             className={cn('rounded-sm border border-border px-1.5 text-xs', mark.className)}
-            title="critical: an alert rule may fire for this pipeline and for no lesser one"
+            title={mark.title}
         >
             {mark.label}
         </span>

@@ -41,7 +41,15 @@ export const IMPORTANCES: readonly Importance[] = ['routine', 'normal', 'critica
 /** What an importance is drawn as, or null where it is drawn as nothing. */
 export interface ImportanceMark {
     label: string
+    /** What the mark means, said once so the two screens that draw it cannot disagree. */
+    title: string
     className: string
+}
+
+const CRITICAL_MARK: ImportanceMark = {
+    label: 'critical',
+    title: 'critical: an alert rule may fire for this pipeline and for no lesser one',
+    className: 'text-critical',
 }
 
 /**
@@ -51,7 +59,7 @@ export interface ImportanceMark {
  * drawn on every row would say nothing.
  */
 export function importanceMark(importance: Importance): ImportanceMark | null {
-    return importance === 'critical' ? { label: 'critical', className: 'text-critical' } : null
+    return importance === 'critical' ? CRITICAL_MARK : null
 }
 
 /** A pipeline as a listing shows it. `PipelineOut`. */
