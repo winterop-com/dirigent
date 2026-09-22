@@ -5,8 +5,8 @@ import { expect, test, type Page } from '@playwright/test'
  *
  * WHAT A UNIT TEST CANNOT SAY. `clampPaneWidth` is a pure function and has its own tests; what
  * this spec is for is the part only a browser has -- a pointer dragging an element that is not
- * where the layout put it until the drag moves it, a choice surviving a reload, and the keys
- * doing what the pointer does.
+ * where the layout put it until the drag moves it, a choice surviving a reload, the keys doing
+ * what the pointer does, and where the stacked form stands under the strip on a phone.
  */
 
 const MIN = 560
@@ -105,6 +105,17 @@ test('there is no seam to drag below lg', async ({ page }) => {
     await expect(seamOf(page)).toBeHidden()
     await openLogin(page, 1000, 900)
     await expect(seamOf(page)).toBeHidden()
+})
+
+test('the stacked form stands under the brand strip', async ({ page }) => {
+    await openLogin(page, 390, 844)
+    const strip = await page.locator('aside').boundingBox()
+    const eyebrow = await page.getByText('Welcome to dirigent').boundingBox()
+    if (strip === null || eyebrow === null) throw new Error('no stacked login')
+
+    // The section's top padding and nothing else: a form centred in what is left under the
+    // strip would start a third of the way down a phone.
+    expect(eyebrow.y - (strip.y + strip.height)).toBeLessThanOrEqual(80)
 })
 
 test('two columns keep the pane at its floor', async ({ page }) => {
