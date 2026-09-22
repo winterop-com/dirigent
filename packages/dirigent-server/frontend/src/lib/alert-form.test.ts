@@ -179,11 +179,7 @@ describe('the channels a rule may deliver through', () => {
             ['log', 'slack', 'teams'],
             [aConnection(), aConnection({ id: 'c2', code: 'ops-teams', kind: 'teams' })],
         )
-        expect(rows.map((row) => row.mark)).toEqual([
-            kindGlyph('log'),
-            kindGlyph('slack'),
-            NEUTRAL_GLYPH,
-        ])
+        expect(rows.map((row) => row.mark)).toEqual([kindGlyph('log'), kindGlyph('slack'), NEUTRAL_GLYPH])
     })
 
     test('a connection no installed notifier sends through is not a channel', () => {
