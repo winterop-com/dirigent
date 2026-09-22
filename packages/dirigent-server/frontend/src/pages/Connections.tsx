@@ -1,9 +1,10 @@
 import { PlugZap, RefreshCw } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
 
 import { ApiChip } from '@/components/ApiChip'
 import { ConnectionForm } from '@/components/connections/ConnectionForm'
+import { HealthSaid } from '@/components/connections/Health'
 import { NewConnection } from '@/components/connections/NewConnection'
 import { KindChip } from '@/components/KindChip'
 import { ListTable, type Column } from '@/components/list/ListTable'
@@ -11,6 +12,7 @@ import { PageHeader, PageState } from '@/components/PageState'
 import { Refusable } from '@/components/Refusable'
 import { sayRefusal } from '@/components/Refusal'
 import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { usePaged } from '@/hooks/use-paged'
 import { useRead } from '@/hooks/use-read'
@@ -23,13 +25,12 @@ import {
     readConnection,
     readConnectionKinds,
     readConnections,
-    settingsSummary,
     withCheck,
     type ConnectionOut,
     type SurfaceEntry,
 } from '@/lib/connections'
 import { formatInstant, formatRelative } from '@/lib/format'
-import { headingOf, oneLine } from '@/lib/identity'
+import { headingOf } from '@/lib/identity'
 import { fillPanel, openPanel } from '@/lib/panels'
 import { LIST_GROUP, registerActions } from '@/lib/palette'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
@@ -37,15 +38,16 @@ import { cn } from '@/lib/utils'
 
 const connectionId = (row: ConnectionOut) => row.code
 
-/** What each health state fills its dot with. The aliases are index.css's, for what is not a run. */
-const TONES: Record<'good' | 'critical', string> = { good: 'var(--good)', critical: 'var(--critical)' }
-
 /**
  * Every credential this instance holds, in code order.
  *
  * A SECRET IS NEVER ON THIS SCREEN. The API redacts every secret field before it answers, and
- * `settingsSummary` is written so that a config which somehow did carry one still could not put
- * it in the row. What a reader learns about a credential is that it is set, and nothing else.
+ * no row reads a config value at all: what a row says is a code, a kind, and how the last check
+ * went. The settings are the form's, where a secret is a write-only box.
+ *
+ * A ROW IS ONE LINE. The code and its kind, the health dot and its word, how long ago, and the
+ * button that asks again -- four cells that fit the window rather than a summary line and a
+ * description column that push the health off the side of the table.
  *
  * THE CHOSEN ROW IS THE ADDRESS. `/connections/<code>` is this screen with that credential's form
  * in the panel, so a step's connection is one link away from the step naming it -- and a code past
@@ -278,12 +280,10 @@ function buildColumns(
         {
             id: 'connection',
             header: 'Connection',
+            // HALF THE TABLE IS THE IDENTITY'S: `max-w-0` is what lets the cell truncate, and
+            // the floor beside it is what stops the cells after it bidding the code down.
+            className: 'w-full max-w-0 lg:min-w-[50cqi]',
             cell: (row) => <Named row={row} />,
-        },
-        {
-            id: 'description',
-            header: 'Description',
-            cell: (row) => <Said description={row.description} />,
         },
         {
             id: 'health',
@@ -304,16 +304,17 @@ function buildColumns(
                 <Refusable why={shut}>
                     <Button
                         variant="outline"
-                        size="sm"
+                        size="icon-lg"
+                        aria-label={`Check ${row.code}`}
                         disabled={checking === row.code || shut !== undefined}
-                        title={shut}
+                        title={shut ?? 'Check now'}
                         onClick={(event) => {
                             // The row opens the panel; this button does one thing and not both.
                             event.stopPropagation()
                             check(row)
                         }}
                     >
-                        {checking === row.code ? 'Checking' : 'Check'}
+                        <RefreshCw className={cn(checking === row.code && 'animate-spin')} aria-hidden />
                     </Button>
                 </Refusable>
             ),
@@ -321,66 +322,53 @@ function buildColumns(
     ]
 }
 
-/** What a credential is called, the code it is reached by, and what it is pointed at. */
+/** What a credential is called, the code it is reached by, and which kind it is. */
 function Named({ row }: { row: ConnectionOut }) {
     const heading = headingOf(row)
     return (
-        <div className="min-w-0">
-            <span className="flex items-center gap-2">
-                <span className={heading.named ? 'font-semibold' : 'font-mono font-semibold'}>
-                    {heading.title}
-                </span>
-                <KindChip kind={row.kind} />
-                {heading.code !== null && (
-                    <span className="font-mono text-xs text-muted-foreground">{heading.code}</span>
-                )}
+        <span className="flex min-w-0 items-center gap-2">
+            <span
+                className={cn('truncate font-semibold', !heading.named && 'font-mono')}
+                title={heading.title}
+            >
+                {heading.title}
             </span>
-            <p className="max-w-md truncate text-xs text-muted-foreground" title={settingsSummary(row)}>
-                {settingsSummary(row)}
-            </p>
-        </div>
+            <KindChip kind={row.kind} />
+            {heading.code !== null && (
+                <span className="truncate font-mono text-xs text-muted-foreground" title={heading.code}>
+                    {heading.code}
+                </span>
+            )}
+        </span>
     )
 }
 
 /**
- * What a credential says about itself, as the one line a row has space for.
+ * Whether this credential answered the last time anything asked it.
  *
- * IT IS A BLOCK, WHICH IS WHAT MAKES IT TRUNCATE. `max-width` and `overflow` say nothing about
- * an inline box, so the same classes on a span leave the column to grow to the longest
- * description on the page and push the health cells off the side of the table.
- *
- * A CONNECTION THAT SAYS NOTHING DRAWS NOTHING. A dash in the cell is a mark a reader has to
- * stop and read to learn there was nothing to read.
+ * THE DOT AND THE WORD ARE THE CELL, and the check's own sentence is what reaching it says. A
+ * sentence drawn on the row is either a row as tall as the sentence or an ellipsis saying
+ * nothing, and the whole of it is on the connection's page either way.
  */
-function Said({ description }: { description: string | null }) {
-    const text = description === null ? '' : oneLine(description)
-    if (text === '') return null
-    return (
-        <p className="max-w-64 truncate text-xs text-muted-foreground" title={text}>
-            {text}
-        </p>
-    )
-}
-
-/** Whether this credential answered the last time anything asked it. */
 function Health({ row }: { row: ConnectionOut }) {
     const view = healthOf(row)
+    if (view.detail === null) return <HealthSaid view={view} />
     return (
-        <span className="flex items-center gap-2 text-xs">
-            {view.tone !== null && (
-                <span
-                    className="status-dot"
-                    style={{ '--chip': TONES[view.tone] } as CSSProperties}
-                    aria-hidden
-                />
-            )}
-            <span className={cn('shrink-0', view.tone === null && 'text-faint')}>{view.label}</span>
-            {view.detail !== null && (
-                <span className="max-w-64 truncate text-muted-foreground" title={view.detail}>
-                    {view.detail}
-                </span>
-            )}
-        </span>
+        <Tooltip>
+            <TooltipTrigger
+                render={
+                    <button
+                        type="button"
+                        // Reached by a pointer or by the keyboard, and pressing it does what the
+                        // row does, because the row is what it stands in.
+                        className="rounded-sm focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+                    >
+                        <HealthSaid view={view} />
+                    </button>
+                }
+            />
+            <TooltipContent side="bottom">{view.detail}</TooltipContent>
+        </Tooltip>
     )
 }
 
