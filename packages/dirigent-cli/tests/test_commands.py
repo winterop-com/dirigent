@@ -523,7 +523,7 @@ def test_validate_explain_leaves_a_triggers_document_alone(tmp_path: Path) -> No
 
 
 def test_validate_explain_costs_nothing_a_document_got_wrong(tmp_path: Path) -> None:
-    """An invalid document has no shape worth costing, and the exit code is the flag's business."""
+    """An invalid document has no shape to cost, and --explain does not change what it exits with."""
     path = tmp_path / "demo.yaml"
     path.write_text(DOCUMENT.replace("code: cli-demo", "code: Not A Code"))
 
