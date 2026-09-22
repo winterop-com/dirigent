@@ -476,7 +476,7 @@ Four exit codes, across every command:
 | Code | Meaning |
 | --- | --- |
 | 0 | It worked |
-| 1 | It ran and the answer was no: a failed run, a refusal from the server, an unhealthy connection |
+| 1 | It ran and the answer was no: a failed run, a refusal from the server, a connection that answered unhealthy. A check that ran and could not decide is not a no, and exits 0 |
 | 2 | The command line is wrong: an unknown flag, a missing argument |
 | 3 | It never got as far as running: the process refused the environment, a safety gate said no, or a local run could not be set up |
 
@@ -840,7 +840,7 @@ verb and whose fields are the identity of what changed:
 | `notification.queued` | `dg alerts test` | `notification_id`, `notifier`, `connection`, `subject` |
 | `notification.retried` | `dg alerts retry` | `notification_id`, `notifier`, `subject`, `attempt`, `available_at` |
 | `connection.created` / `.updated` | `dg connection create`, `dg connection ensure` | `code`, `connection_kind`, `name`, `description`, and the `config` with every secret field redacted |
-| `connection.checked` | `dg connection check` | `code`, `healthy`, `detail`, `version` |
+| `connection.checked` | `dg connection check` | `code`, `healthy` -- `true`, `false`, or `null` where the check ran and could not verify -- `detail`, `version` |
 | `connection.deleted` | `dg connection delete` | `code` |
 | `run.cancelled` | `dg runs cancel` | `run_id`, `status` |
 | `run.retried` | `dg runs retry` | `run_id`, `step`, `item`, and the `attempt` it minted |

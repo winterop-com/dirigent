@@ -1228,6 +1228,89 @@ class SecretfulPlugin:
 SECRETFUL = [{"secretful": SecretfulPlugin()}]
 
 
+class VerdictConfig(BlockModel):
+    """What this kind's check should answer, so one test can ask for each outcome."""
+
+    verdict: str
+
+
+class VerdictConnectionKind(ConnectionKind):
+    """A kind whose check answers what the connection was created with, reaching nothing."""
+
+    id: ClassVar[str] = "verdict"
+    config_model: ClassVar[type[BaseModel]] = VerdictConfig
+
+    async def check(self, config: BaseModel) -> HealthReport:
+        """Answer the outcome the connection asked for, the undecided one included."""
+        asked = VerdictConfig.model_validate(config.model_dump()).verdict
+        if asked == "undecided":
+            return HealthReport(healthy=None, detail="nothing about this one can be proved")
+        return HealthReport(healthy=asked == "healthy", detail=f"answered {asked}")
+
+
+class VerdictPlugin:
+    """The plugin that contributes the kind whose check answers on demand."""
+
+    @extension
+    def contribute(self) -> Contribution:
+        """Contribute the one connection kind these tests need."""
+        return Contribution(connection_kinds=[VerdictConnectionKind()])
+
+
+#: What a test about a check's three outcomes installs into its server.
+VERDICTS = [{"verdict": VerdictPlugin()}]
+
+
+def connection_checking(code: str, verdict: str) -> Any:
+    """Create a connection whose check answers one way, then check it."""
+    created = machine("connection", "create", "verdict", code, "--set", f"verdict={verdict}")
+    assert created.exit_code == 0, created.output
+    return machine("connection", "check", code)
+
+
+@pytest.mark.parametrize("extra_plugins", VERDICTS, indirect=True)
+def test_a_check_that_answered_says_healthy_and_ends_well(server: str) -> None:
+    result = connection_checking("answering", "healthy")
+    assert result.exit_code == 0
+    record = only(result.stdout, "connection.checked")
+    assert (record["message"], record["healthy"]) == ("healthy", True)
+
+
+@pytest.mark.parametrize("extra_plugins", VERDICTS, indirect=True)
+def test_a_check_the_system_refused_says_unhealthy_and_ends_badly(server: str) -> None:
+    result = connection_checking("refusing", "unhealthy")
+    assert result.exit_code == 1
+    record = only(result.stdout, "connection.checked")
+    assert (record["message"], record["healthy"]) == ("unhealthy", False)
+
+
+@pytest.mark.parametrize("extra_plugins", VERDICTS, indirect=True)
+def test_a_check_that_could_not_decide_says_so_and_is_not_a_failure(server: str) -> None:
+    """A check that ran and proved nothing is neither of the other two, and exits 0."""
+    result = connection_checking("undecidable", "undecided")
+    assert result.exit_code == 0, "an undecided check is not a failure"
+    record = only(result.stdout, "connection.checked")
+    assert (record["message"], record["healthy"]) == ("not verified", None)
+    assert record["detail"] == "nothing about this one can be proved"
+
+
+@pytest.mark.parametrize("extra_plugins", VERDICTS, indirect=True)
+def test_the_listing_tells_an_undecided_check_from_a_no(server: str) -> None:
+    """The three outcomes are three cells; none of them is the blank a row nothing has checked shows."""
+    connection_checking("answering", "healthy")
+    connection_checking("refusing", "unhealthy")
+    connection_checking("undecidable", "undecided")
+    machine("connection", "create", "verdict", "unasked", "--set", "verdict=healthy")
+    assert "not verified" in plain(invoke("connection", "list").stdout)
+    listed = rows(machine("connection", "list").stdout, "connection")
+    assert {row["code"]: row["last_check_healthy"] for row in listed} == {
+        "answering": True,
+        "refusing": False,
+        "undecidable": None,
+        "unasked": None,
+    }
+
+
 def prompting(asked: list[str], answers: dict[str, str]) -> Callable[..., str]:
     """Stand in for the person at the terminal: record every question, answer the ones given."""
 

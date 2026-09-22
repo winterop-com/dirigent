@@ -1123,7 +1123,8 @@ where `DIRIGENT_ALERT_BASE_URL` is set, and the whole template context under `co
 `dg connection check` sends a HEAD and reports what answered. **That proves the endpoint is
 reachable, not that it accepts an alert**: only a POST proves the second, and a check that
 posted would deliver a message every time somebody opened the connections screen. Prove one
-with `dg alerts test webhook --connection ops-endpoint`.
+with `dg alerts test webhook --connection ops-endpoint`, which is the only thing that settles
+the second question.
 
 ### Slack
 
@@ -1157,8 +1158,10 @@ fallback, so a notification and a screen reader still say what happened.
 authenticated to. **On a webhook it reports that it verified nothing**: Slack offers no way to
 test an incoming webhook other than posting to it, and a health check that put a message in
 the channel every time somebody opened the connections screen would be worse than no check.
-Prove one with `dg alerts test slack --connection ops-slack`, which sends a real message
-through the same queue.
+That check answers neither healthy nor unhealthy -- `healthy` is null, the CLI says `not
+verified` and exits 0, and every screen draws the row uncoloured rather than green. Prove one
+with `dg alerts test slack --connection ops-slack`, which sends a real message through the
+same queue.
 
 ### Email
 

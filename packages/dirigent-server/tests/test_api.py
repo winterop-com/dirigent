@@ -452,6 +452,27 @@ def test_checking_a_connection_reports_rather_than_raises(client: TestClient) ->
     assert client.get(f"{PREFIX}/connections/unreachable").json()["last_check_healthy"] is False
 
 
+def test_a_check_that_could_not_decide_is_stored_as_neither_answer(client: TestClient) -> None:
+    """A Slack webhook is checked without a call, and what it decided is null beside an instant."""
+    client.post(
+        f"{PREFIX}/connections",
+        json={
+            "code": "ops-slack",
+            "kind": "slack",
+            "config": {"webhook_url": "https://hooks.slack.com/services/T000/B000/xxxx"},
+        },
+    )
+    report = client.post(f"{PREFIX}/connections/ops-slack/$check")
+    assert report.status_code == 200
+    assert report.json()["healthy"] is None
+    row = client.get(f"{PREFIX}/connections/ops-slack").json()
+    assert row["last_check_healthy"] is None
+    assert row["last_check_at"] is not None, "a check that ran is not a connection nothing has checked"
+    assert "can only be checked by posting to it" in row["last_check_detail"]
+    served = client.get(f"{PREFIX}/system/info").json()["connections"]
+    assert [(entry["code"], entry["last_check_healthy"]) for entry in served] == [("ops-slack", None)]
+
+
 def test_applying_a_document_creates_a_pipeline(client: TestClient) -> None:
     result = apply_document(client, DOCUMENT)
     assert result["plan"]["action"] == "create"
