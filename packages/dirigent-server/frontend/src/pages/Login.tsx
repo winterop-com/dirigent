@@ -35,7 +35,9 @@ const FIELD = 'border-border-strong h-12 rounded-lg pl-11'
  * mark the rail wears, the wordmark, the host and the version it answered with -- and the form
  * pane asks the one question. Below lg the panes stack, brand first and compact, because the
  * answer to "what am I signing into" is read before the fields either way -- and because two
- * columns in a window under 1024px would draw the pane narrower than its own floor.
+ * columns in a window under 1024px would draw the pane narrower than its own floor. Stacked, the
+ * form stands at the top of its section, under the strip and the section's own padding, and what
+ * height is over falls below the button.
  *
  * THE DOOR GREETS, AND NOTHING BEHIND IT DOES. This is the one screen a person meets before the
  * product's own facts are on it, so it carries an eyebrow, a heading, a one-line subtitle and
@@ -50,9 +52,9 @@ const FIELD = 'border-border-strong h-12 rounded-lg pl-11'
  * things and the server says which; restating either as "login failed" would throw away the one
  * fact worth having -- that this instance will accept nothing for a minute.
  *
- * AND IT TAKES NO ROOM. The form is centred in its column, so a notice that took space would
- * move every field and the button the moment somebody got a password wrong. It hangs below the
- * button, positioned out of the flow, and the form stays exactly where it was.
+ * AND IT TAKES NO ROOM. The form is centred in its column above lg, so a notice that took space
+ * would move every field and the button the moment somebody got a password wrong. It hangs below
+ * the button, positioned out of the flow, and the form stays exactly where it was.
  */
 export function Login() {
     const auth = useStore(authStore)
@@ -158,10 +160,12 @@ export function Login() {
             <BrandPane version={version} ref={pane} />
             {/* The form pane is the lit surface in the dark palette: against a brand pane that is
                 dark in both, a form on the page ground would be one rung from it and the seam
-                between the two would not be there at all. The form is centred in it at every
-                width, so what a wider window gives this column is spent evenly either side of
-                the one question it asks. */}
-            <main className="relative flex flex-1 items-center justify-center p-6 lg:p-12 dark:bg-card">
+                between the two would not be there at all. The form is centred across this column
+                at every width, so what a wider window gives the column is spent evenly either
+                side of the one question it asks; down the column it is centred only where the two
+                columns are, and below lg it starts at the pane's own top padding under the
+                strip. */}
+            <main className="relative flex flex-1 items-start justify-center p-6 lg:items-center lg:p-12 dark:bg-card">
                 <SeamHandle width={drawn} onChange={choose} onReset={forget} />
                 <form
                     className="relative grid w-full max-w-xs gap-5 xl:w-[26.875rem] xl:max-w-none"

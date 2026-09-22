@@ -224,14 +224,18 @@ spends what it gains on the form rather than on the mark. The two columns begin 
 `md`: a window under 1024px cannot hold the pane's floor beside the form and its padding, and a
 pane drawn narrower than its floor squeezes the graph into a strip. Between `lg` and `xl` the
 pane holds that floor and the form column takes what is left; below `lg` the two stack and the
-pane is a strip. The form pane bounds its form the same way and centres it, so what a wider
-window buys that column is spent evenly either side of the one question it asks.
+pane is a strip. The form pane bounds its form the same way and centres it across the column,
+so what a wider window buys that column is spent evenly either side of the one question it
+asks. Down the column it is centred only where the two columns are: stacked, the form stands at
+the top of its section, under the brand strip and the section's own padding, and whatever height
+is over falls below the button. A form centred in what is left under the strip opens a band of
+ground above the greeting, and the greeting is the first thing read on the screen that greets.
 
 **The door's refusal takes no room.** A wrong password and a rate limit arrive as problem
 documents, and the sentence is drawn in a critical-edged bar the height of a field, hung below
-the button and positioned out of the flow: the form is centred in its column, so a notice that
-took space would move every field the moment somebody got a password wrong. It is the one
-refusal in the app not drawn by `Refusal`, for that reason alone.
+the button and positioned out of the flow: the form is centred in its column above `lg`, so a
+notice that took space would move every field the moment somebody got a password wrong. It is
+the one refusal in the app not drawn by `Refusal`, for that reason alone.
 
 **And the seam between the two is dragged.** It is a `separator` like every other dragged edge
 here -- eight pixels of hit area over the line, drawn as nothing until a pointer, a focus ring or
