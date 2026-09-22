@@ -476,9 +476,12 @@ strip's three colours: green where the last check passed, red where it failed, g
 nothing was proved. One vocabulary, decided in `lib/connections` and read by every screen that
 draws a credential's health. **The check's own sentence is not on the row**: it is the tooltip on
 the health cell, on hover and on keyboard focus alike, and it is on the connection's page in
-full, where there is room for the whole of it. Checked is how long ago, and nothing at all where
-nothing has ever asked. The row ends in the control that asks: a 36px icon button wearing
-`RefreshCw`, labelled `Check <code>`, which checks that row and leaves the listing where it is.
+full, where there is room for the whole of it. Below `lg` the card carries the dot and the word
+alone: there is no pointer to hover with, and tapping the card opens the page that says it. Checked
+is how long ago, and nothing at all where nothing has ever asked -- so a row nothing has checked
+has no Checked line on its card either. The row ends in the control that asks: a 36px icon button
+wearing `RefreshCw`, labelled `Check <code>`, which checks that row and leaves the listing where
+it is.
 
 `hooks/use-read` is the one-page sibling of `use-paged`, for a read that is a document rather than
 a listing -- what this instance has installed, how the last day of runs came out. Same rule: the
@@ -1010,7 +1013,6 @@ is a table of three columns -- the dot; the glyph and the code; and either `Set 
 for a grey chip with no credential or how long ago the check was -- and a row with a credential
 is a link to it, like the chip.
 
-||||||| parent of 607d5bab (fix(ui): the palette button is a glyph below the breakpoint)
 ## An option wears what its value wears
 
 A dropdown whose options are values the app already draws somewhere -- a status, a kind --
