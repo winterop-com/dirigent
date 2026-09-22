@@ -372,9 +372,7 @@ export interface ChannelView {
  */
 export function channelView(channel: Channel): ChannelView {
     if (channel.notifier === LOG_NOTIFIER) return { tone: 'good', label: 'built in', detail: null }
-    if (!channel.reachable) {
-        return { tone: 'quiet', label: 'no connection', detail: 'Nothing delivers through this channel yet.' }
-    }
+    if (!channel.reachable) return { tone: 'quiet', label: 'no connection', detail: null }
     if (channel.last_check_at === null) return { tone: 'quiet', label: 'never checked', detail: null }
     return {
         tone: channel.last_check_healthy === true ? 'good' : 'critical',

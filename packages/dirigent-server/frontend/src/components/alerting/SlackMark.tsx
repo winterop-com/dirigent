@@ -1,11 +1,12 @@
 import type { SVGProps } from 'react'
 
 /**
- * The Slack mark, drawn here because the icon set ships no brand icons.
+ * The Slack mark, from Slack's own media kit: `a.slack-edge.com/9cc0056/marketing/img/nav/logo.svg`.
  *
- * MONOCHROME, AT THE ICON SET'S OWN WEIGHT. One stroke in `currentColor` and nothing filled, so
- * the mark takes the ink of whatever draws it in both palettes and sits at the weight of the
- * glyphs beside it.
+ * THE PATHS ARE SLACK'S, ON SLACK'S OWN 54-UNIT GRID, SCALED ONTO THE 24 EVERY OTHER GLYPH IS
+ * DRAWN ON. The shape is untouched; what changes is that the four brand hues become
+ * `currentColor`, which is what the kit's monochrome variant is, so the mark takes the ink of
+ * whatever draws it in both palettes.
  */
 export function SlackMark(props: SVGProps<SVGSVGElement>) {
     return (
@@ -14,21 +15,19 @@ export function SlackMark(props: SVGProps<SVGSVGElement>) {
             width={24}
             height={24}
             viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={2}
-            strokeLinecap="round"
-            strokeLinejoin="round"
+            fill="currentColor"
             {...props}
         >
-            <rect width="3" height="8" x="13" y="2" rx="1.5" />
-            <path d="M19 8.5V10h1.5A1.5 1.5 0 1 0 19 8.5" />
-            <rect width="3" height="8" x="8" y="14" rx="1.5" />
-            <path d="M5 15.5V14H3.5A1.5 1.5 0 1 0 5 15.5" />
-            <rect width="8" height="3" x="14" y="13" rx="1.5" />
-            <path d="M15.5 19H14v1.5a1.5 1.5 0 1 0 1.5-1.5" />
-            <rect width="8" height="3" x="2" y="8" rx="1.5" />
-            <path d="M8.5 5H10V3.5A1.5 1.5 0 1 0 8.5 5" />
+            <g transform="scale(0.444444)">
+                <path d="M11.379 33.9993C11.379 37.1358 8.84512 39.6507 5.7276 39.6507C2.61008 39.6507 0.0572205 37.1168 0.0572205 33.9993C0.0572205 30.8817 2.5911 28.3479 5.70862 28.3479H11.36V33.9993H11.379Z" />
+                <path d="M14.1962 33.9997C14.1962 30.8632 16.7301 28.3483 19.8476 28.3483C22.9651 28.3483 25.499 30.8822 25.499 33.9997V48.1353C25.499 51.2718 22.9651 53.7867 19.8476 53.7867C16.7301 53.7867 14.1962 51.2718 14.1962 48.1353V33.9997Z" />
+                <path d="M19.8662 11.2673C16.7296 11.2673 14.2148 8.73347 14.2148 5.61594C14.2148 2.49842 16.7486 -0.0354538 19.8662 -0.0354538C22.9837 -0.0354538 25.5175 2.49842 25.5175 5.61594V11.2673H19.8662Z" />
+                <path d="M19.8682 14.1334C23.0047 14.1334 25.5196 16.6673 25.5196 19.7848C25.5196 22.9023 22.9857 25.4362 19.8682 25.4362H5.67566C2.53916 25.4362 0.0242615 22.9023 0.0242615 19.7848C0.0242615 16.6673 2.55814 14.1334 5.67566 14.1334H19.8682Z" />
+                <path d="M42.5323 19.7853C42.5323 16.6488 45.0662 14.1339 48.1837 14.1339C51.3012 14.1339 53.8351 16.6678 53.8351 19.7853C53.8351 22.9028 51.3012 25.4367 48.1837 25.4367H42.5323V19.7853Z" />
+                <path d="M39.7126 19.7934C39.7126 22.9299 37.1787 25.4448 34.0612 25.4448C30.9436 25.4448 28.4098 22.911 28.4098 19.7934V5.61986C28.4098 2.48336 30.9436 -0.0315399 34.0612 -0.0315399C37.1787 -0.0315399 39.7126 2.48336 39.7126 5.61986V19.7934Z" />
+                <path d="M34.0376 42.482C37.1741 42.482 39.689 45.0158 39.689 48.1334C39.689 51.2509 37.1552 53.7848 34.0376 53.7848C30.9201 53.7848 28.3862 51.2509 28.3862 48.1334V42.482H34.0376Z" />
+                <path d="M34.0381 39.6507C30.9016 39.6507 28.3867 37.1168 28.3867 33.9993C28.3867 30.8818 30.9206 28.3479 34.0381 28.3479H48.2306C51.3671 28.3479 53.882 30.8818 53.882 33.9993C53.882 37.1168 51.3482 39.6507 48.2306 39.6507H34.0381Z" />
+            </g>
         </svg>
     )
 }

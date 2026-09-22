@@ -931,12 +931,14 @@ palette row with no icon takes. `lib/glyphs` is where both are decided, once, as
 over the code the wire answers with: notifiers arrive from packs, so a channel this bundle was
 built before gets a card with a mark on it rather than a hole where every other card has one.
 
-**lucide draws every glyph that is not a brand, and a brand mark is monochrome.** lucide ships no
-brand icons at all, and Simple Icons, which is where a brand mark would otherwise come from, holds
-no Slack -- so that one is drawn inline in `src/components/alerting/SlackMark.tsx` at the weight of
-the glyphs beside it, in `currentColor` alone. A brand mark takes the surface's ink in both palettes like
-everything else on the strip: a mark in its own colours would be the loudest thing on a screen
-where colour means a state.
+**lucide draws every glyph that is not a brand, and a brand mark comes from the brand.** lucide
+ships no brand icons at all. A brand mark is Simple Icons' where it carries one and the brand's own
+media kit's where it does not -- Slack is the second case, so its mark is the paths off
+`slack.com/media-kit`, kept inline in `src/components/alerting/SlackMark.tsx`, the shape untouched
+and scaled onto the same 24-unit grid every other glyph is drawn on. **A brand mark is monochrome
+here**, which is what a kit's monochrome variant is for: it takes the surface's ink in both
+palettes like everything else on the strip, where a mark in its own colours would be the loudest
+thing on a screen whose colour means a state.
 
 ## An option wears what its value wears
 

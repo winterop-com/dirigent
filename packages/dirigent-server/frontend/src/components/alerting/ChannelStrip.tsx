@@ -35,42 +35,50 @@ export function ChannelStrip({ channels }: { channels: readonly Channel[] }) {
  * THE GLYPH SAYS WHICH CHANNEL AND THE DOT SAYS HOW IT IS. The mark leads the card in muted ink
  * and carries no state; the reading's dot stands against the word it is the colour of, so the
  * two are read as the two facts they are rather than as one loud head.
+ *
+ * ONE TILE AND ONE COLUMN BESIDE IT. The tile is the height of the title's own row, so the glyph
+ * and the notifier share a line, and everything this card says in words -- the notifier, the
+ * connection's code, what the check said -- begins at that column's edge. The reading keeps the
+ * right of the first two rows, so the word and the instant under it read as one block.
  */
 function ChannelCard({ channel }: { channel: Channel }) {
     const view = channelView(channel)
     return (
-        <li className="flex items-start justify-between gap-3 rounded-lg border border-border bg-card p-3">
-            <span
-                className="flex min-w-0 items-center gap-2"
-                title={
-                    channel.connection === null
-                        ? channel.notifier
-                        : `${channel.notifier} ${channel.connection}`
-                }
-            >
-                <ChannelMark glyph={channelGlyph(channel.notifier)} />
-                <span className="flex min-w-0 flex-col">
-                    <span className="truncate text-sm font-medium">{channel.notifier}</span>
-                    {channel.connection !== null && (
-                        <span className="truncate font-mono text-xs text-muted-foreground">
-                            {channel.connection}
-                        </span>
-                    )}
+        <li className="flex items-start gap-2 rounded-lg border border-border bg-card p-3">
+            <ChannelMark glyph={channelGlyph(channel.notifier)} />
+            <span className="flex min-w-0 flex-1 flex-col">
+                <span className="flex min-h-7 items-center justify-between gap-2">
+                    <span className="truncate text-sm font-medium" title={channel.notifier}>
+                        {channel.notifier}
+                    </span>
+                    <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+                        <span
+                            className="status-dot shrink-0"
+                            style={{ '--chip': TONES[view.tone] } as CSSProperties}
+                        />
+                        {view.label}
+                    </span>
                 </span>
-            </span>
-            <span className="flex shrink-0 flex-col items-end">
-                <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <span
-                        className="status-dot shrink-0"
-                        style={{ '--chip': TONES[view.tone] } as CSSProperties}
-                    />
-                    {view.label}
-                </span>
-                {channel.last_check_at !== null && (
-                    <Instant className="text-xs text-faint" at={channel.last_check_at} />
+                {(channel.connection !== null || channel.last_check_at !== null) && (
+                    <span className="flex items-baseline justify-between gap-2">
+                        {channel.connection !== null && (
+                            <span
+                                className="truncate font-mono text-xs text-muted-foreground"
+                                title={channel.connection}
+                            >
+                                {channel.connection}
+                            </span>
+                        )}
+                        {channel.last_check_at !== null && (
+                            <Instant
+                                className="ml-auto shrink-0 text-xs text-faint"
+                                at={channel.last_check_at}
+                            />
+                        )}
+                    </span>
                 )}
                 {view.detail !== null && (
-                    <span className="max-w-48 truncate text-xs text-faint" title={view.detail}>
+                    <span className="truncate text-xs text-faint" title={view.detail}>
                         {view.detail}
                     </span>
                 )}
