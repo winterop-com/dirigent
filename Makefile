@@ -237,8 +237,8 @@ refresh: ## Start over: forget every build and cache, take every docker stack aw
 	$(MAKE) clean
 	@if test -f .env; then $(COMPOSE_ALL) down --volumes --remove-orphans --rmi local; \
 		else echo "No .env, so no stack was ever up from here; skipping the compose teardown."; fi
-	-$(QUEUES_COMPOSE) down --volumes --remove-orphans 2>/dev/null
-	-docker image rm dirigent:local 2>/dev/null
+	@$(QUEUES_COMPOSE) down --volumes --remove-orphans 2>/dev/null || true
+	@if docker image inspect dirigent:local >/dev/null 2>&1; then docker image rm dirigent:local; fi
 	rm -rf .venv $(FRONTEND)/node_modules $(FRONTEND)/dist $(FRONTEND)/test-results $(FRONTEND)/playwright-report
 	find packages/dirigent-server/src/dirigent_server/static -mindepth 1 -not -name .gitkeep -delete
 	$(UV) sync --all-packages --reinstall
