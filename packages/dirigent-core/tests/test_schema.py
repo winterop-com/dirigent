@@ -1,11 +1,14 @@
 """Tests for the baseline schema and the migration that creates it."""
 
+import sqlite3
+import threading
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 import sqlalchemy as sa
+from alembic import command
 from sqlalchemy.dialects import postgresql, sqlite
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine
@@ -140,6 +143,31 @@ async def test_the_baseline_migration_is_reversible(sqlite_settings: Settings) -
     await migrations.upgrade_async(settings=sqlite_settings)
     await migrations.downgrade_async("base", settings=sqlite_settings)
     assert await migrations.current_revision_async(sqlite_settings) is None
+
+
+def test_a_bare_alembic_upgrade_opens_sqlite_the_way_the_engine_does(sqlite_settings: Settings) -> None:
+    """The developer path builds the engine inside env.py, with no connection handed to Alembic.
+
+    ``journal_mode`` is written into the file, so reading it back is what proves the pragmas
+    ran on the connection the migration used.
+    """
+    running = set(threading.enumerate())
+
+    command.upgrade(migrations.alembic_config(sqlite_settings), "head")
+
+    for thread in set(threading.enumerate()) - running:
+        thread.join(timeout=5)
+    left = [thread.name for thread in set(threading.enumerate()) - running if thread.is_alive()]
+    assert not left, f"the driver's worker thread outlived the migration: {left}"
+
+    path = sqlite_settings.sqlite_path
+    assert path is not None
+    opened = sqlite3.connect(path)
+    try:
+        assert opened.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
+    finally:
+        opened.close()
+    assert migrations.current_revision(sqlite_settings) == migrations.head_revision(sqlite_settings)
 
 
 def test_the_migration_history_names_every_revision() -> None:
