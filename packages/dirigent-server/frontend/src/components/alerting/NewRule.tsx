@@ -29,7 +29,6 @@ import {
     LOG_TARGET,
     SCOPES,
     SUBJECT_HINT,
-    targetNote,
     targetOptions,
     TEMPLATE_MEDIA_TYPE,
     unreadyRule,
@@ -219,7 +218,6 @@ export function NewRule({
                             id="rule-connection"
                             options={targetOptions(notifiers, connections)}
                             value={connection}
-                            note={targetNote(connections, connection)}
                             onChange={setConnection}
                         />
                     </div>

@@ -77,20 +77,18 @@ export function NotifierPicker({
  *
  * ONE PICKER, BECAUSE A RULE NAMES ONE TARGET. The notifier is the chosen connection's kind, so
  * asking for the channel and then for the credential would be asking the same question twice and
- * letting the two answers disagree.
+ * letting the two answers disagree. Each row wears the kind it implies, so what is chosen says
+ * which channel sends it without a second line under the control repeating that.
  */
 export function TargetPicker({
     id,
     options,
     value,
-    note,
     onChange,
 }: {
     id: string
     options: readonly PickerOption[]
     value: string
-    /** The sentence under the control naming the sender the chosen target implies. */
-    note: string
     onChange: (value: string) => void
 }) {
     return (
@@ -104,7 +102,6 @@ export function TargetPicker({
                 placeholder="Search the channels this instance has"
                 onChange={onChange}
             />
-            <p className="text-xs text-faint">{note}</p>
         </div>
     )
 }

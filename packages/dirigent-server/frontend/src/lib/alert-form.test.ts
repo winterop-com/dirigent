@@ -8,7 +8,6 @@ import {
     LOG_TARGET,
     LOG_TARGET_LABEL,
     needsConnection,
-    targetNote,
     targetOptions,
     unreadyRule,
     unreadyTest,
@@ -151,9 +150,14 @@ describe('the channels a rule may deliver through', () => {
         expect(first).toEqual({ value: LOG_TARGET, label: LOG_TARGET_LABEL, aside: '' })
     })
 
-    test('every notifier connection is a row, titled the way every listing titles one', () => {
+    test('a row is titled the way every listing titles one, wearing the kind it implies', () => {
         const rows = targetOptions(['log', 'slack'], [aConnection({ name: 'Ops Slack' })])
-        expect(rows[1]).toEqual({ value: 'ops-slack', label: 'Ops Slack', aside: 'ops-slack' })
+        expect(rows[1]).toEqual({ value: 'ops-slack', label: 'Ops Slack · slack', aside: 'ops-slack' })
+    })
+
+    test('a connection nobody named is titled by its code, and still says its kind', () => {
+        const rows = targetOptions(['log', 'webhook'], [aConnection({ code: 'ops-endpoint', kind: 'webhook' })])
+        expect(rows[1]).toEqual({ value: 'ops-endpoint', label: 'ops-endpoint · webhook', aside: '' })
     })
 
     test('a connection no installed notifier sends through is not a channel', () => {
@@ -176,21 +180,5 @@ describe('the channels a rule may deliver through', () => {
             'beta-slack',
             'zulu-hook',
         ])
-    })
-})
-
-describe('which sender the chosen target implies', () => {
-    test('naming no connection is the process log', () => {
-        expect(targetNote([aConnection()], LOG_TARGET)).toBe(
-            'Written to the process log, which needs no credential.',
-        )
-    })
-
-    test('a connection names its own kind, which is the notifier that sends it', () => {
-        expect(targetNote([aConnection()], 'ops-slack')).toBe('Delivered through the slack notifier.')
-    })
-
-    test('a code this screen has not read still reads as a connection', () => {
-        expect(targetNote([], 'ops-slack')).toBe('Delivered through this connection.')
     })
 })

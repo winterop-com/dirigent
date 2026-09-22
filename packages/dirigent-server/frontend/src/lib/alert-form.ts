@@ -80,9 +80,12 @@ export const LOG_TARGET_LABEL = 'The process log'
  * The channels a rule may deliver through: the log first, then one row per notifier connection.
  *
  * A RULE NAMES A CONNECTION AND THE SENDER FOLLOWS FROM ITS KIND, so what is offered is the
- * credential itself, ordered by kind so a channel's own rows stand together. A connection of a
- * kind no installed notifier answers to is not a channel and is not offered -- naming one is
- * refused by the server, and a row nobody may choose is a row that should not be drawn.
+ * credential itself, wearing the kind it implies -- the row is the whole answer, and nothing
+ * under the control has to say what was just chosen. The rows are ordered by kind, so a
+ * channel's own rows stand together and typing `slack` narrows to them.
+ *
+ * A connection of a kind no installed notifier answers to is not a channel and is not offered:
+ * naming one is refused by the server, and a row nobody may choose should not be drawn.
  */
 export function targetOptions(
     notifiers: readonly string[],
@@ -99,19 +102,10 @@ export function targetOptions(
         { value: LOG_TARGET, label: LOG_TARGET_LABEL, aside: '' },
         ...channels.map(({ row, heading }) => ({
             value: row.code,
-            label: heading.title,
+            label: `${heading.title} · ${row.kind}`,
             aside: heading.code ?? '',
         })),
     ]
-}
-
-/** Which sender the chosen target implies, said under the control that chose it. */
-export function targetNote(connections: readonly ConnectionOut[], target: string): string {
-    if (target === LOG_TARGET) return 'Written to the process log, which needs no credential.'
-    const kind = connections.find((row) => row.code === target)?.kind
-    return kind === undefined
-        ? 'Delivered through this connection.'
-        : `Delivered through the ${kind} notifier.`
 }
 
 /** What a new rule is declared with, as the dialog holds it before it is a request. */

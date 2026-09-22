@@ -75,7 +75,6 @@ test('a rule is declared from the screen, and appears in the listing it was decl
     // A rule names one target and the sender follows from it: one picker, opened on the log,
     // saying underneath which notifier the chosen row delivers through.
     await expect(dialog.getByLabel('Deliver through')).toHaveValue('The process log')
-    await expect(dialog.getByText('Written to the process log, which needs no credential.')).toBeVisible()
     await expect(dialog.getByLabel('Notifier')).toHaveCount(0)
 
     await dialog.getByLabel('Throttle').fill('15m')
