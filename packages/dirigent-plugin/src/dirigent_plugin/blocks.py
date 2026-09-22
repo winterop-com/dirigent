@@ -750,7 +750,11 @@ class ConnectionKind(ABC):
 
     @abstractmethod
     async def check(self, config: BaseModel) -> HealthReport:
-        """Verify that the configured connection can reach its external system."""
+        """Verify that the configured connection can reach its external system.
+
+        A check that cannot decide answers ``healthy=None`` with a detail saying why, rather
+        than claiming either outcome.
+        """
         ...
 
 

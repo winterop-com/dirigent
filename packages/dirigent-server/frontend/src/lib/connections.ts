@@ -49,7 +49,8 @@ export interface ConnectionOut {
 
 /** The outcome of checking a connection against its external system. `HealthReport`. */
 export interface HealthReport {
-    healthy: boolean
+    /** Whether the system answered, where `null` means the check ran and could not decide. */
+    healthy: boolean | null
     detail: string | null
     version: string | null
 }
@@ -217,13 +218,13 @@ function short(value: unknown): string {
     return text.length <= VALUE_BUDGET ? text : `${text.slice(0, VALUE_BUDGET - 1)}…`
 }
 
-/** Whether a connection answered, refused, or has never been asked. */
-export type HealthState = 'healthy' | 'failed' | 'unchecked'
+/** Whether a connection answered, refused, could not be verified, or has never been asked. */
+export type HealthState = 'healthy' | 'failed' | 'unverified' | 'unchecked'
 
 /** How a connection's health reads in the listing. */
 export interface HealthView {
     state: HealthState
-    /** What the dot is filled with: a semantic alias, or nothing for one never checked. */
+    /** What the dot is filled with: a semantic alias, or nothing for a check that decided nothing. */
     tone: 'good' | 'critical' | null
     /** The words beside the dot. */
     label: string
@@ -232,12 +233,28 @@ export interface HealthView {
     checkedAt: string | null
 }
 
-/** What the health cell draws, from the three fields the row carries about its last check. */
+/**
+ * What the health cell draws, from the three fields the row carries about its last check.
+ *
+ * A CHECK THAT COULD NOT DECIDE IS NOT A HEALTHY ONE. `last_check_healthy` is null in two
+ * different situations, and `last_check_at` is what tells them apart: a row nothing has ever
+ * checked, and a check that ran and could not verify what it was asked about -- a Slack
+ * incoming webhook, which only a real post would prove. Neither earns a colour.
+ */
 export function healthOf(
     row: Pick<ConnectionOut, 'last_check_at' | 'last_check_healthy' | 'last_check_detail'>,
 ): HealthView {
-    if (row.last_check_at === null || row.last_check_healthy === null) {
+    if (row.last_check_at === null) {
         return { state: 'unchecked', tone: null, label: 'never checked', detail: null, checkedAt: null }
+    }
+    if (row.last_check_healthy === null) {
+        return {
+            state: 'unverified',
+            tone: null,
+            label: 'not verified',
+            detail: row.last_check_detail,
+            checkedAt: row.last_check_at,
+        }
     }
     if (row.last_check_healthy) {
         return {
@@ -262,7 +279,9 @@ export interface ConnectionsHealth {
     total: number
     healthy: number
     failed: number
-    /** How many nothing has ever asked, which is neither of the other two. */
+    /** How many were checked and could not be verified, which is neither of the other two. */
+    unverified: number
+    /** How many nothing has ever asked, which is none of the other three. */
     unchecked: number
 }
 
@@ -276,6 +295,7 @@ export function connectionsHealth(rows: readonly Checked[]): ConnectionsHealth {
         total: rows.length,
         healthy: states.filter((state) => state === 'healthy').length,
         failed: states.filter((state) => state === 'failed').length,
+        unverified: states.filter((state) => state === 'unverified').length,
         unchecked: states.filter((state) => state === 'unchecked').length,
     }
 }
@@ -283,8 +303,9 @@ export function connectionsHealth(rows: readonly Checked[]): ConnectionsHealth {
 /**
  * The one clause every screen states a set of connections' health in.
  *
- * A CONNECTION NOTHING HAS CHECKED IS NOT AN UNHEALTHY ONE. "0 of 1 healthy" of a credential
- * nobody has asked yet reads as one that answered wrongly, so what has never been asked is said
+ * A CONNECTION NOTHING HAS CHECKED IS NOT AN UNHEALTHY ONE, and neither is one whose check
+ * could not decide. "0 of 1 healthy" of a credential nobody has asked yet reads as one that
+ * answered wrongly, so what has never been asked and what could not be verified are each said
  * beside the count rather than folded into it. The dashboard, the connections screen and the
  * admin tile all read here, or three screens state three answers to one question.
  *
@@ -293,11 +314,13 @@ export function connectionsHealth(rows: readonly Checked[]): ConnectionsHealth {
  */
 export function connectionsNote(rows: readonly Checked[], noun = ''): string | null {
     if (rows.length === 0) return null
-    const { total, healthy, unchecked } = connectionsHealth(rows)
+    const { total, healthy, unverified, unchecked } = connectionsHealth(rows)
     const named = noun === '' ? '' : ` ${noun}`
-    const counted = `${String(healthy)} of ${String(total)}${named} healthy`
-    if (unchecked === 0) return counted
-    return `${counted} · ${String(unchecked)} ${unchecked === 1 ? 'has' : 'have'} never been checked`
+    const said = [`${String(healthy)} of ${String(total)}${named} healthy`]
+    if (unverified > 0) said.push(`${String(unverified)} could not be verified`)
+    if (unchecked > 0)
+        said.push(`${String(unchecked)} ${unchecked === 1 ? 'has' : 'have'} never been checked`)
+    return said.join(' · ')
 }
 
 /**

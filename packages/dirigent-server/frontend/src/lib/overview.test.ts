@@ -292,6 +292,16 @@ describe('the connections tile', () => {
         expect(tile.note).toBe('1 has never been checked.')
     })
 
+    test('a connection whose check could not decide is not a connection that failed', () => {
+        const undecided = {
+            ...connection('ops-slack', null),
+            last_check_at: '2026-01-01T00:00:00Z',
+        }
+        const tile = connectionsTile(whole([connection('ok', true), undecided]))
+        expect(tile.tone).toBe('neutral')
+        expect(tile.note).toBe('1 could not be verified.')
+    })
+
     test('every connection answering is good', () => {
         expect(connectionsTile(whole([connection('ok', true)])).tone).toBe('good')
     })

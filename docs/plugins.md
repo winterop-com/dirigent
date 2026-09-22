@@ -65,7 +65,9 @@ with no change to dirigent, no config file, and no registry to edit. Uninstall a
   [a transform engine](transforms.md#writing-an-engine) among them
 - `sensors` -- blocks that hold a run open until a condition is met
 - `connection_kinds` -- how an external system is described and authenticated, with a health
-  check
+  check. `HealthReport.healthy` has three values, not two: `True`, `False`, and `None` for a
+  check that ran and could not verify anything, which is what a kind answers rather than
+  claiming either outcome
 - `storage_backends` -- a scheme a `<scheme>://` URI writes bytes to
 - `notifiers` -- where an alert is sent
 - `formats` -- a JSON Schema format checker by name, so a schema that writes `format: <name>`

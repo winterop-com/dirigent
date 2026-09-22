@@ -281,7 +281,8 @@ function defaultOf(field: FieldDescriptor): string | null {
 
 /** How a connection's last check reads. */
 function healthOf(connection: ConnectionOut): string {
-    if (connection.last_check_healthy === null) return 'never checked'
+    if (connection.last_check_at === null) return 'never checked'
+    if (connection.last_check_healthy === null) return 'not verified'
     return connection.last_check_healthy ? 'answering' : (connection.last_check_detail ?? 'not answering')
 }
 

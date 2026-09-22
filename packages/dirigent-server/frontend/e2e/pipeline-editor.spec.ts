@@ -1154,8 +1154,8 @@ test('a field naming a connection reads its kind and where its last check left i
 
     const panel = page.locator('aside')
     await expect(panel.getByLabel('connection', { exact: true })).toHaveValue(REFERENCE_CONNECTION)
-    const row = panel.getByRole('button', { name: /unchecked/ })
-    await expect(row).toContainText('http · unchecked')
+    const row = panel.getByRole('button', { name: /never checked/ })
+    await expect(row).toContainText('http · never checked')
 
     // Open, and it says what the credential is pointed at, and where it is edited.
     await row.click()

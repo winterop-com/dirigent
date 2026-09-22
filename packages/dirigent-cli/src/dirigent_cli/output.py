@@ -501,6 +501,19 @@ def render_bool(value: object) -> str:
     return "[green]yes[/]" if value else "[dim]no[/]"
 
 
+def render_check(last_check_at: object, healthy: object) -> str:
+    """Render what a connection's last check said, across the four states a row can be in.
+
+    A check answers yes, no, or that it could not decide; a row nothing has checked answers
+    none of the three.
+    """
+    if not last_check_at:
+        return "-"
+    if healthy is None:
+        return "[dim]not verified[/]"
+    return "[green]yes[/]" if healthy else "[dim]no[/]"
+
+
 def moment(value: object) -> str:
     """Render a timestamp compactly, in the local time an operator is reading it in."""
     if not value:

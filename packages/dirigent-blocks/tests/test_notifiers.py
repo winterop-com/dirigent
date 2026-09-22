@@ -451,11 +451,12 @@ async def test_a_check_that_cannot_reach_slack_reports_rather_than_raises(monkey
 async def test_an_incoming_webhook_is_reported_as_unverifiable_without_a_call(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """A check nothing but a real post could decide answers neither yes nor no."""
     responder = Responder(slack_response())
     intercept(monkeypatch, responder)
     report = await SlackConnectionKind().check(SlackNotifierConfig(webhook_url=SecretStr(SLACK_HOOK)))
     assert responder.requests == []
-    assert report.healthy is True
+    assert report.healthy is None
     assert "can only be checked by posting to it" in (report.detail or "")
 
 
