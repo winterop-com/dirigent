@@ -14,7 +14,7 @@
  */
 
 import { apiJson, apiSend, type Page } from '@/lib/api'
-import { type ConnectionOut } from '@/lib/connections'
+import { connectionPath, newConnectionPath, type ConnectionOut } from '@/lib/connections'
 import { PAGE } from '@/lib/paging'
 import type { Importance } from '@/lib/pipelines'
 
@@ -306,10 +306,10 @@ export interface Channel {
 }
 
 /**
- * The channels this instance has, one card each.
+ * The channels this instance has, one card each, in the order the strip reads them.
  *
- * The log channel is built in and always first: it needs nothing, and an instance with no
- * credential at all still has somewhere an alert goes.
+ * Every installed notifier is on the strip, the ones nothing has been set up for included: a
+ * channel an alert cannot leave by is what somebody came to this screen to find out.
  */
 export function channelsOf(notifiers: readonly string[], connections: readonly ConnectionOut[]): Channel[] {
     const channels: Channel[] = []
@@ -351,14 +351,50 @@ export function channelsOf(notifiers: readonly string[], connections: readonly C
             })
         }
     }
-    return channels
+    return orderedChannels(channels)
 }
 
-/** How a channel card reads its own health: what it is, and what it last proved. */
+/**
+ * What a chip says it is: the credential's code where the channel has one, the notifier's where
+ * it has none.
+ *
+ * A NOTIFIER IS A KIND AND A CONNECTION IS A CHANNEL. Five email credentials are five channels,
+ * so a chip carrying the notifier's name five times would say nothing; the glyph carries the
+ * kind, and the code says which one this is.
+ */
+export function channelCode(channel: Channel): string {
+    return channel.connection ?? channel.notifier
+}
+
+/**
+ * Where a chip goes: the credential it delivers through, the door that mints one, or nowhere.
+ *
+ * The log channel needs nothing and has nothing to open, so nothing is behind its chip.
+ */
+export function channelLink(channel: Channel): string | null {
+    if (channel.connection !== null) return connectionPath(channel.connection)
+    if (channel.notifier === LOG_NOTIFIER) return null
+    return newConnectionPath(channel.notifier)
+}
+
+/**
+ * The whole vocabulary of the channel strip: every word a channel can say about itself.
+ *
+ * `not set up` is a notifier this instance installed and holds no credential for, said in the
+ * words somebody would use rather than in the shape of the thing that is missing. The words are
+ * the tooltip's; the chip itself carries the dot.
+ */
+export type ChannelLabel = 'failing' | 'not verified' | 'never checked' | 'checked' | 'ready' | 'not set up'
+
+/** How a channel reads its own health: the dot's colour, the word, and what the check said. */
 export interface ChannelView {
+    /**
+     * The dot, and three colours is all there is: `good` where the channel can deliver,
+     * `critical` where its last check failed, `quiet` for everything else.
+     */
     tone: 'good' | 'critical' | 'quiet'
-    /** The short word on the card, beside the code. */
-    label: string
+    /** The word the tooltip leads with, after the kind. */
+    label: ChannelLabel
     /** The sentence under it, which is the check's own where there is one. */
     detail: string | null
 }
@@ -366,19 +402,41 @@ export interface ChannelView {
 /**
  * What one channel card says about itself.
  *
- * A CHANNEL NOBODY HAS CHECKED IS NOT A HEALTHY ONE. The three states are separate on purpose:
- * a check that failed is the thing this strip exists to surface, and a check that has never run
- * says so rather than borrowing the colour of one that passed.
+ * A CHANNEL NOBODY HAS CHECKED IS NOT A HEALTHY ONE. The states are separate on purpose: a check
+ * that failed is the thing this strip exists to surface, a check that has never run says so
+ * rather than borrowing the colour of one that passed, and a probe that ran without proving
+ * anything -- `last_check_healthy` null behind a `last_check_at` -- is neither. The last three
+ * share the grey dot and are told apart by the word.
  */
 export function channelView(channel: Channel): ChannelView {
-    if (channel.notifier === LOG_NOTIFIER) return { tone: 'good', label: 'built in', detail: null }
-    if (!channel.reachable) {
-        return { tone: 'quiet', label: 'no connection', detail: 'Nothing delivers through this channel yet.' }
-    }
+    if (channel.notifier === LOG_NOTIFIER) return { tone: 'good', label: 'ready', detail: null }
+    if (!channel.reachable) return { tone: 'quiet', label: 'not set up', detail: null }
     if (channel.last_check_at === null) return { tone: 'quiet', label: 'never checked', detail: null }
+    if (channel.last_check_healthy === null) {
+        return { tone: 'quiet', label: 'not verified', detail: channel.last_check_detail }
+    }
     return {
-        tone: channel.last_check_healthy === true ? 'good' : 'critical',
-        label: channel.last_check_healthy === true ? 'checked' : 'failing',
+        tone: channel.last_check_healthy ? 'good' : 'critical',
+        label: channel.last_check_healthy ? 'checked' : 'failing',
         detail: channel.last_check_detail,
     }
+}
+
+/** The order the dots read in: what delivers, then what broke, then what cannot say. */
+const TONES: Readonly<Record<ChannelView['tone'], number>> = { good: 0, critical: 1, quiet: 2 }
+
+/**
+ * The strip's order: the dot first, then the notifier, then the connection.
+ *
+ * A notifier's chips stand together only where their dots agree, so five email credentials read
+ * as one run of envelopes unless one of them stopped -- which is the thing the strip is read for.
+ */
+export function orderedChannels(channels: readonly Channel[]): Channel[] {
+    return channels.toSorted((left, right) => {
+        const byTone = TONES[channelView(left).tone] - TONES[channelView(right).tone]
+        if (byTone !== 0) return byTone
+        const byNotifier = left.notifier.localeCompare(right.notifier)
+        if (byNotifier !== 0) return byNotifier
+        return (left.connection ?? '').localeCompare(right.connection ?? '')
+    })
 }

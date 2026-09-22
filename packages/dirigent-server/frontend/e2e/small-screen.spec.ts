@@ -168,3 +168,18 @@ test('a dialog fills the screen, with its verbs at the foot', async ({ page }) =
         })
         .toEqual([window?.width, window?.height, 0, 0])
 })
+
+test('the channels are folded behind their own heading, and open as a table', async ({ page }) => {
+    await page.goto('/admin/alerting')
+    const fold = page.getByRole('button', { name: 'Channels' })
+    await expect(fold).toHaveAttribute('aria-expanded', 'false')
+    expect((await fold.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(42)
+    // Folded, the dots are the whole of what the strip says; the way in is not drawn at all.
+    const door = page.getByRole('link', { name: 'Set up webhook' })
+    await expect(door).toBeHidden()
+
+    await fold.click()
+    await expect(fold).toHaveAttribute('aria-expanded', 'true')
+    await expect(page.getByRole('table')).toBeVisible()
+    await expect(door).toBeVisible()
+})

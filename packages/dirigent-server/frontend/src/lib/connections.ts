@@ -108,6 +108,25 @@ export function readConnections(after: string | null = null): Promise<Page<Conne
     return apiJson<Page<ConnectionOut>>(`/connections?${query.toString()}`)
 }
 
+/** Where one connection is read: the listing with that credential's form open beside it. */
+export function connectionPath(code: string): string {
+    return `/connections/${encodeURIComponent(code)}`
+}
+
+/** The search key a link uses to ask the connections screen for a fresh credential of one kind. */
+export const NEW_CONNECTION_KEY = 'new'
+
+/**
+ * Where a screen sends somebody who has nothing of a kind yet: the listing, with its dialog
+ * open on that kind.
+ *
+ * A link rather than a dialog raised where it was pressed, because minting a credential is the
+ * connections screen's own question and this is a door to it.
+ */
+export function newConnectionPath(kind: string): string {
+    return `/connections?${NEW_CONNECTION_KEY}=${encodeURIComponent(kind)}`
+}
+
 /** Read one connection by the code it is addressed by, secrets redacted as every read is. */
 export function readConnection(code: string): Promise<ConnectionOut> {
     return apiJson<ConnectionOut>(`/connections/${encodeURIComponent(code)}`)

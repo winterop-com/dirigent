@@ -1,17 +1,21 @@
 import { afterEach, describe, expect, test, vi } from 'vitest'
 
 import {
+    channelCode,
+    channelLink,
     channelsOf,
     channelView,
     deliverySettled,
     importanceNote,
     notificationsPath,
+    orderedChannels,
     ruleLive,
     scopeNote,
     setRulePaused,
     throttleNote,
     updateRule,
     type AlertRuleOut,
+    type Channel,
 } from '@/lib/alerting'
 import type { ConnectionOut } from '@/lib/connections'
 
@@ -135,12 +139,15 @@ describe('where the notifications listing is read from', () => {
     })
 })
 
+/** One instant, so a test that only needs "a check happened" does not spell one out. */
+const WHEN = '2026-01-01T00:00:00Z'
+
 describe('the channels an alert can leave by', () => {
-    test('log is one channel and needs no credential', () => {
+    test('log is one channel, needs no credential, and is ready', () => {
         const [channel] = channelsOf(['log'], [])
         expect(channel.connection).toBeNull()
         expect(channel.reachable).toBe(true)
-        expect(channelView(channel)).toMatchObject({ tone: 'good', label: 'built in' })
+        expect(channelView(channel)).toMatchObject({ tone: 'good', label: 'ready' })
     })
 
     test('a notifier is one channel per connection of its own kind', () => {
@@ -152,13 +159,33 @@ describe('the channels an alert can leave by', () => {
                 aConnection({ id: 'c3', code: 'ops-mail', kind: 'email' }),
             ],
         )
-        expect(channels.map((one) => one.connection)).toEqual(['ops-slack', 'dev-slack'])
+        // A credential of another kind is another notifier's channel, and two of one kind whose
+        // readings agree stand in code order.
+        expect(channels.map((one) => one.connection)).toEqual(['dev-slack', 'ops-slack'])
     })
 
-    test('a notifier with no connection is a channel nothing can reach, and says so', () => {
+    test('a notifier nothing has been set up for is a channel nothing can reach, and says so', () => {
         const [channel] = channelsOf(['email'], [])
         expect(channel.reachable).toBe(false)
-        expect(channelView(channel)).toMatchObject({ tone: 'quiet', label: 'no connection' })
+        expect(channelView(channel)).toMatchObject({ tone: 'quiet', label: 'not set up' })
+    })
+
+    test('a probe that proved nothing is neither checked nor failing', () => {
+        const [channel] = channelsOf(
+            ['slack'],
+            [
+                aConnection({
+                    last_check_at: '2026-01-01T00:00:00Z',
+                    last_check_healthy: null,
+                    last_check_detail: 'not verified: posting to the webhook is the only check there is',
+                }),
+            ],
+        )
+        expect(channelView(channel)).toEqual({
+            tone: 'quiet',
+            label: 'not verified',
+            detail: 'not verified: posting to the webhook is the only check there is',
+        })
     })
 
     test('a channel nobody has checked is not a healthy one', () => {
@@ -196,6 +223,74 @@ describe('the channels an alert can leave by', () => {
             ],
         )
         expect(channelView(channel)).toMatchObject({ tone: 'good', label: 'checked' })
+    })
+
+    test('the strip reads by its dots: what delivers, what broke, what cannot say', () => {
+        const channels = channelsOf(
+            ['webhook', 'slack', 'log', 'email'],
+            [
+                aConnection({ id: 'c1', code: 'ops-slack', kind: 'slack' }),
+                aConnection({
+                    id: 'c2',
+                    code: 'dev-slack',
+                    kind: 'slack',
+                    last_check_at: '2026-01-01T00:00:00Z',
+                    last_check_healthy: false,
+                    last_check_detail: 'slack refused the token: invalid_auth',
+                }),
+                aConnection({
+                    id: 'c3',
+                    code: 'ops-mail',
+                    kind: 'email',
+                    last_check_at: '2026-01-01T00:00:00Z',
+                    last_check_healthy: true,
+                    last_check_detail: 'the submission server answered',
+                }),
+            ],
+        )
+        expect(channels.map((one) => one.id)).toEqual([
+            // Green first, then red, then grey, and inside a colour the notifier's code and then
+            // the connection's -- so a notifier's two credentials part where their dots do.
+            'email:ops-mail',
+            'log',
+            'slack:dev-slack',
+            'slack:ops-slack',
+            'webhook',
+        ])
+    })
+
+    test('ordering is the same question asked of channels already built', () => {
+        const channels = channelsOf(['log', 'webhook'], [])
+        expect(orderedChannels(channels).map((one) => one.id)).toEqual(['log', 'webhook'])
+    })
+
+    test('three colours and no more: only a failed check is red, only a channel that delivers is green', () => {
+        const tones = (channels: readonly Channel[]) => channels.map((one) => channelView(one).tone)
+        expect(tones(channelsOf(['log'], []))).toEqual(['good'])
+        expect(tones(channelsOf(['webhook'], []))).toEqual(['quiet'])
+        expect(tones(channelsOf(['slack'], [aConnection()]))).toEqual(['quiet'])
+        const checked = aConnection({ last_check_at: WHEN, last_check_healthy: true })
+        expect(tones(channelsOf(['slack'], [checked]))).toEqual(['good'])
+        const failed = aConnection({ last_check_at: WHEN, last_check_healthy: false })
+        expect(tones(channelsOf(['slack'], [failed]))).toEqual(['critical'])
+        const unproved = aConnection({ last_check_at: WHEN, last_check_healthy: null })
+        expect(tones(channelsOf(['slack'], [unproved]))).toEqual(['quiet'])
+    })
+
+    test('a chip says which credential it is, and falls back to the notifier where there is none', () => {
+        const [withOne] = channelsOf(['slack'], [aConnection({ code: 'ops-slack' })])
+        expect(channelCode(withOne)).toBe('ops-slack')
+        const [without] = channelsOf(['webhook'], [])
+        expect(channelCode(without)).toBe('webhook')
+    })
+
+    test('a chip opens its credential, a kind with none opens the door, and log opens nothing', () => {
+        const [withOne] = channelsOf(['slack'], [aConnection({ code: 'ops slack' })])
+        expect(channelLink(withOne)).toBe('/connections/ops%20slack')
+        const [without] = channelsOf(['webhook'], [])
+        expect(channelLink(without)).toBe('/connections?new=webhook')
+        const [log] = channelsOf(['log'], [])
+        expect(channelLink(log)).toBeNull()
     })
 })
 

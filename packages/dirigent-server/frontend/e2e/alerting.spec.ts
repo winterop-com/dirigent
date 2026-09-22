@@ -31,13 +31,27 @@ function ruleRow(page: Page) {
     return page.getByRole('row').filter({ hasText: RULE.code })
 }
 
-test('the channel strip says what an alert can leave by, and that log needs nothing', async ({ page }) => {
+test('the channel strip is one chip per channel, and the words are on the tooltip', async ({ page }) => {
     const strip = page.getByRole('heading', { name: 'Channels' }).locator('..')
+    // A chip carries the code and nothing else: the log channel has no credential to name, and
+    // a kind nothing is set up for names itself.
     await expect(strip.getByText('log', { exact: true })).toBeVisible()
-    await expect(strip.getByText('built in')).toBeVisible()
-    // A notifier with no credential minted for it is a channel nothing can reach, and the strip
-    // is where that is visible rather than a rule failing later.
-    await expect(strip.getByText('no connection').first()).toBeVisible()
+    await expect(strip.getByText('webhook', { exact: true })).toBeVisible()
+    await expect(strip.getByText('not set up')).toBeHidden()
+
+    // The tooltip primitive describes its trigger rather than carrying a role, so it is found
+    // by the slot the design system gives it.
+    await strip.getByText('log', { exact: true }).hover()
+    await expect(page.locator('[data-slot="tooltip-content"]')).toContainText('log · ready')
+})
+
+test('a chip of a kind nothing is set up for opens the dialog on that kind', async ({ page }) => {
+    const strip = page.getByRole('heading', { name: 'Channels' }).locator('..')
+    await strip.getByRole('link', { name: 'webhook' }).click()
+    await expect(page).toHaveURL(/\/connections\?new=webhook$/)
+    const dialog = page.getByRole('dialog')
+    await expect(dialog.getByRole('heading', { name: 'New connection' })).toBeVisible()
+    await expect(dialog.getByLabel('Kind')).toContainText('webhook')
 })
 
 test('a rule is declared from the screen, and appears in the listing it was declared on', async ({

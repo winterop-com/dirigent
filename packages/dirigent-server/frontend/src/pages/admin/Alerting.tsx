@@ -256,14 +256,7 @@ function Alerting() {
             />
 
             <section className="mb-6 space-y-2">
-                <h2 className="text-sm font-semibold">Channels</h2>
-                {!channels.read ? (
-                    <p className="text-sm text-faint">Reading from the server</p>
-                ) : channels.rows.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No channel is installed.</p>
-                ) : (
-                    <ChannelStrip channels={channels.rows} />
-                )}
+                <ChannelStrip channels={channels.rows} read={channels.read} />
             </section>
 
             <section className="space-y-2">

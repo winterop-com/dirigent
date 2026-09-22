@@ -907,6 +907,84 @@ pressed; they keep the size the type scale gives them, and the row holding them 
 finger has -- which is `min-h-finger` already. The rule is about what the app draws as a
 control, and that is what makes it checkable.
 
+## A kind may be drawn as well as named
+
+**A glyph that identifies a kind is information, not decoration.** The one decorative element in
+this app is the login graph and that does not bend: a mark earns its place here by telling kinds
+apart at a glance, which a column of identical dots and four words cannot do. So a kind may carry
+a mark of its own, and only a kind may. A glyph never stands for a state, and one drawn beside a
+word that already says the same thing is the decoration the rule above forbids.
+
+**Kind glyphs are drawn on the alerting screen's channel strip, and nowhere else today.** The
+notifiers this repository ships wear an envelope for `email`, a scroll for `log`, the Slack mark
+for `slack` and a webhook for `webhook`. A glyph is `size-4` in muted ink wherever it is drawn;
+what it sits in belongs to the thing drawing it -- the palette row gives it a `size-7` tile on
+`--muted`, a channel chip draws it bare.
+
+**The glyph says what a thing is and the dot says how it is, and neither does the other's job.**
+A glyph never takes a status colour and a dot never says which kind something is, so a card
+carrying both says two facts rather than one loud one.
+
+**A kind with no glyph takes the neutral glyph rather than a gap**, which is the same one a
+palette row with no icon takes. `lib/glyphs` is where both are decided, once, as a pure function
+over the code the wire answers with: notifiers arrive from packs, so a channel this bundle was
+built before gets a card with a mark on it rather than a hole where every other card has one.
+
+**lucide draws every glyph that is not a brand, and a brand mark comes from the brand.** lucide
+ships no brand icons at all. A brand mark is Simple Icons' where it carries one and the brand's own
+media kit's where it does not -- Slack is the second case, so its mark is the paths off
+`slack.com/media-kit`, kept inline in `src/components/alerting/SlackMark.tsx`, the shape untouched
+and scaled onto the same 24-unit grid every other glyph is drawn on. **A brand mark is monochrome
+here**, which is what a kit's monochrome variant is for: it takes the surface's ink in both
+palettes like everything else on the strip, where a mark in its own colours would be the loudest
+thing on a screen whose colour means a state.
+
+## The channel strip
+
+**The strip is one wrapping line of chips, and a chip holds three things.** The kind's glyph at
+16px in muted ink, the code in mono, and an 8px dot: 36px tall, pill-shaped, on the card's ground
+with the app's own border. Nothing else is on it -- no state word, no time, no sentence -- because
+a paragraph per channel is a screenful of channels on a screen whose subject is rules.
+
+**A connection is a channel and a notifier is a kind**, so a chip says the connection's code and
+the glyph says the kind: five email credentials are five envelope chips reading `ops-mail`,
+`billing-mail`, and so on. Only a kind nothing is set up for is one chip reading the notifier's
+own code, and so is the log channel, which has no credential to name.
+
+**The dot has three colours and no more.** Green where the channel can deliver -- the log
+notifier, or a connection whose last check passed. Red where the last check failed. Grey for
+everything else: a kind nothing is set up for, a credential nobody has checked, a probe that
+proved nothing. A reader learns three colours once; six would be a legend.
+
+**The words are the tooltip's, and they are the whole vocabulary**: `ready`, `failing`, `never
+checked`, `not verified`, `not set up`. The tooltip is this app's own primitive, it opens on
+hover and on keyboard focus alike, and it holds, in this order: the kind and the state word
+(`email · failing`), how long ago the check was where there was one, the connection's code in
+mono, and the check's own sentence in full. Nothing on the strip ever says "connection" or "built
+in": a reader knows they have not set up Slack, not that a credential of kind `slack` is absent.
+
+**A chip goes where its channel is.** One with a credential opens it at `/connections/<code>`;
+a grey chip with no credential opens `/connections?new=<kind>`, which is the connections screen
+with its dialog already on that kind; the log chip goes nowhere, because there is nothing behind
+it to open.
+
+**Every chip answers a pointer and the keyboard the same way, the log chip included.** It takes
+the row wash, the focus ring every control here takes, and its tooltip on hover, on focus and on
+a click alike -- the log chip is a button rather than a link, and nothing else about it differs.
+A chip drawn inert beside its neighbours would be saying it is a different kind of thing.
+
+**The strip is ordered by the dots**: green, then red, then grey, and inside one colour the
+notifier's code and then the connection's. A notifier's chips stand together only where their
+dots agree -- the channel that stopped is what the strip is read for. `channelsOf` answers in
+that order, so no screen decides it.
+
+**Below `md` the heading is the fold, and it carries the answer.** A chevron, the word Channels,
+and at the right one dot per channel in the same colours and the same order, nothing else. It is
+folded on every visit: what a phone is on this screen for is the rules and the queue. Opened, it
+is a table of three columns -- the dot; the glyph and the code; and either `Set up <notifier>`
+for a grey chip with no credential or how long ago the check was -- and a row with a credential
+is a link to it, like the chip.
+
 ## An option wears what its value wears
 
 A dropdown whose options are values the app already draws somewhere -- a status, a kind --

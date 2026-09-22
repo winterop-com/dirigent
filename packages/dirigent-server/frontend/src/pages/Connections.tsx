@@ -1,6 +1,6 @@
 import { PlugZap, RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
-import { useNavigate, useParams } from 'react-router'
+import { useNavigate, useParams, useSearchParams } from 'react-router'
 
 import { ApiChip } from '@/components/ApiChip'
 import { ConnectionForm } from '@/components/connections/ConnectionForm'
@@ -16,8 +16,10 @@ import { usePaged } from '@/hooks/use-paged'
 import { useRead } from '@/hooks/use-read'
 import {
     checkConnection,
+    connectionPath,
     connectionsNote,
     healthOf,
+    NEW_CONNECTION_KEY,
     readConnection,
     readConnectionKinds,
     readConnections,
@@ -60,7 +62,12 @@ const TONES: Record<'good' | 'critical', string> = { good: 'var(--good)', critic
 export function Connections() {
     const { code: chosen = null } = useParams()
     const navigate = useNavigate()
+    const [params, setParams] = useSearchParams()
+    // The kind a link asked for a credential of, which is what opens the dialog on that kind.
+    const asked = params.get(NEW_CONNECTION_KEY)
     const [creating, setCreating] = useState(false)
+    // Open while a link is asking for a kind, and while somebody opened it on this screen.
+    const minting = creating || asked !== null
     // What a check or a save has since made of a row, over the page it was read on.
     const [fresher, setFresher] = useState<Record<string, ConnectionOut>>({})
     const [checking, setChecking] = useState<string | null>(null)
@@ -110,7 +117,7 @@ export function Connections() {
     )
 
     // One read, made the first time a form could use it and not before.
-    const wanted = chosen !== null || creating
+    const wanted = chosen !== null || minting
     useEffect(() => {
         if (!wanted || kinds !== null) return
         let live = true
@@ -231,16 +238,26 @@ export function Connections() {
                     noun="connections"
                     onSelect={(row) => {
                         // The row is not another page of history: it is which one is being read.
-                        void navigate(`/connections/${encodeURIComponent(row.code)}`, { replace: true })
+                        void navigate(connectionPath(row.code), { replace: true })
                     }}
                     selected={(row) => row.code === chosen}
                 />
             </PageState>
 
             <NewConnection
-                open={creating}
+                key={asked ?? ''}
+                open={minting}
                 kinds={kinds ?? []}
-                onOpenChange={setCreating}
+                startKind={asked ?? ''}
+                onOpenChange={(next) => {
+                    setCreating(next)
+                    // The link's question has been answered either way, so it leaves the address
+                    // rather than reopening the dialog on the next read of this screen.
+                    if (!next && asked !== null) {
+                        params.delete(NEW_CONNECTION_KEY)
+                        setParams(params, { replace: true })
+                    }
+                }}
                 onCreated={() => {
                     reload()
                 }}
