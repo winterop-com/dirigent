@@ -14,9 +14,7 @@ SUBJECT_HELP = "Subject, a Jinja template over the run's facts."
 
 BODY_HELP = "Body, a Jinja template over the run's facts; `report` is the run's report document when it has one."
 
-IMPORTANCE_HELP = (
-    "The least importance a pipeline must carry before this rule fires; absent fires for every one."
-)
+IMPORTANCE_HELP = "The least importance a pipeline must carry before this rule fires; absent fires for every one."
 
 
 class AlertRuleIn(BaseModel):

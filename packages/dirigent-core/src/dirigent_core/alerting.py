@@ -252,7 +252,7 @@ async def delete_rule(session: AsyncSession, rule: AlertRule) -> None:
     _logger.info("alert rule deleted", rule=code)
 
 
-def satisfied_levels(importance: Importance) -> list[Importance]:
+def _satisfied_levels(importance: Importance) -> list[Importance]:
     """The floors a pipeline of this importance clears: its own and every lesser one."""
     reached = IMPORTANCE_RANK[importance]
     return [level for level, rank in IMPORTANCE_RANK.items() if rank <= reached]
@@ -276,7 +276,7 @@ async def matching_rules(
             AlertRule.active.is_(True),
             AlertRule.paused.is_(False),
             sa.or_(AlertRule.scope == AlertScope.GLOBAL, AlertRule.pipeline_id == pipeline_id),
-            sa.or_(AlertRule.importance.is_(None), AlertRule.importance.in_(satisfied_levels(importance))),
+            sa.or_(AlertRule.importance.is_(None), AlertRule.importance.in_(_satisfied_levels(importance))),
         )
     )
     return list(rows.scalars())
@@ -313,7 +313,9 @@ async def update_rule(session: AsyncSession, rule: AlertRule, changes: Mapping[s
     if "importance" in named:
         rule.importance = cast("Importance | None", named["importance"])
         await session.flush()
-        _logger.info("alert rule reweighted", rule=rule.code, importance=rule.importance)
+        _logger.info(
+            "alert rule reweighted", rule=rule.code, importance=rule.importance.value if rule.importance else None
+        )
     if "paused" in named:
         await set_paused(session, rule, paused=bool(named["paused"]))
     return rule

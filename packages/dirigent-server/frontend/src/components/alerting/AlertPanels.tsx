@@ -66,6 +66,7 @@ export function RulePanel({
     const [editingCode, setEditingCode] = useState<string | null>(null)
     const editing = editingCode === rule.code
     const write = useMayWrite()
+    const floor = importanceNote(rule.importance)
 
     const read = useCallback((after: string | null) => readNotifications(NO_FILTERS, after), [])
     const { state } = usePaged(read, notificationId)
@@ -102,11 +103,7 @@ export function RulePanel({
                 <Fact label="Scope">
                     <span className="flex flex-wrap items-baseline gap-x-1.5">
                         {scopeNote(rule)}
-                        {importanceNote(rule.importance) !== null && (
-                            <span className="text-xs text-muted-foreground">
-                                {importanceNote(rule.importance)}
-                            </span>
-                        )}
+                        {floor !== null && <span className="text-xs text-muted-foreground">{floor}</span>}
                     </span>
                 </Fact>
                 <Fact label="Delivers through">
