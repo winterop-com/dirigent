@@ -27,7 +27,7 @@ COMPOSE_SINKS ?= $(COMPOSE) -f infra/compose.sinks.yaml
 #: Every overlay at once, which is what "take it all away" has to name to reach every volume.
 COMPOSE_ALL ?= $(COMPOSE) -f infra/compose.brokers.yaml -f infra/compose.sql.yaml -f infra/compose.otel.yaml -f infra/compose.sinks.yaml
 
-.PHONY: help install lint static check gate e2e queues-up queues-down schemas dev dev-seeded ui ui-dev ui-fmt ui-lint ui-test ui-e2e ui-gate ui-static ui-wheel docker-build docker-rebuild docker-run docker-run-queues docker-run-sql docker-run-otel docker-run-sinks docker-run-all docker-clean test test-postgres test-s3 test-docker test-queues load coverage docs docs-blocks docs-settings docs-build docs-pdf clean
+.PHONY: help install lint static check gate e2e queues-up queues-down schemas dev dev-seeded ui ui-dev ui-fmt ui-lint ui-test ui-e2e ui-gate ui-static ui-wheel docker-build docker-rebuild docker-run docker-run-queues docker-run-sql docker-run-otel docker-run-sinks docker-run-all docker-clean test test-postgres test-s3 test-docker test-queues load coverage docs docs-blocks docs-settings docs-build docs-pdf clean refresh
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -230,6 +230,20 @@ docs-build: ## Build the documentation site, failing on any warning
 docs-pdf: ## Build the site and print the basics tutorial to site/basics.pdf
 	$(UV) run --with playwright playwright install chromium
 	$(UV) run --with playwright python scripts/docs_pdf.py
+
+refresh: ## Start over: forget every build and cache, take every docker stack away, rebuild the UI and the venv
+	@test -z "$$(lsof -tiTCP:$(SEED_PORT) -sTCP:LISTEN 2>/dev/null)" \
+		|| { echo "Something listens on $(SEED_PORT); stop it first, it runs from the venv this removes."; exit 1; }
+	$(MAKE) clean
+	@if test -f .env; then $(COMPOSE_ALL) down --volumes --remove-orphans --rmi local; \
+		else echo "No .env, so no stack was ever up from here; skipping the compose teardown."; fi
+	-$(QUEUES_COMPOSE) down --volumes --remove-orphans 2>/dev/null
+	-docker image rm dirigent:local 2>/dev/null
+	rm -rf .venv $(FRONTEND)/node_modules $(FRONTEND)/dist $(FRONTEND)/test-results $(FRONTEND)/playwright-report
+	find packages/dirigent-server/src/dirigent_server/static -mindepth 1 -not -name .gitkeep -delete
+	$(UV) sync --all-packages --reinstall
+	$(MAKE) ui-static
+	@echo "Fresh. Next: make dev, or make dev-seeded."
 
 clean: ## Remove build artifacts and tool caches
 	rm -rf .ruff_cache .mypy_cache .pytest_cache htmlcov site .coverage coverage.xml
