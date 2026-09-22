@@ -917,9 +917,9 @@ word that already says the same thing is the decoration the rule above forbids.
 
 **Kind glyphs are drawn on the alerting screen's channel strip, and nowhere else today.** The
 notifiers this repository ships wear an envelope for `email`, a scroll for `log`, the Slack mark
-for `slack` and a webhook for `webhook`, each in the palette row's own tile: `size-7` on
-`--muted`, with a `size-4` glyph in muted ink inside it. A tile is that size wherever this app
-draws one.
+for `slack` and a webhook for `webhook`. A glyph is `size-4` in muted ink wherever it is drawn;
+what it sits in belongs to the thing drawing it -- the palette row gives it a `size-7` tile on
+`--muted`, a channel chip draws it bare.
 
 **The glyph says what a thing is and the dot says how it is, and neither does the other's job.**
 A glyph never takes a status colour and a dot never says which kind something is, so a card
@@ -941,30 +941,49 @@ thing on a screen whose colour means a state.
 
 ## The channel strip
 
-**Every notifier this instance installed is on the strip**, the ones nothing has been set up for
-included: what somebody came to this screen to learn is whether an alert has anywhere to go, and
-a channel left off the strip answers that by omission.
+**The strip is one wrapping line of chips, and a chip holds three things.** The kind's glyph at
+16px in muted ink, the code in mono, and an 8px dot: 36px tall, pill-shaped, on the card's ground
+with the app's own border. Nothing else is on it -- no state word, no time, no sentence -- because
+a paragraph per channel is a screenful of channels on a screen whose subject is rules.
 
-**Six words are the whole vocabulary, and each is what a person would say.** `failing` with the
-check's own sentence under it, `not verified` for a probe that ran and proved nothing, `never
-checked` for a credential nothing has asked yet, `checked` with how long ago, `ready` for the log
-channel, which needs nothing and has no second line, and `not set up` for a notifier this instance
-holds no credential of its kind for. Nothing here says "connection": a reader knows they have not
-set up Slack, not that a connection of kind `slack` is absent.
+**A connection is a channel and a notifier is a kind**, so a chip says the connection's code and
+the glyph says the kind: five email credentials are five envelope chips reading `ops-mail`,
+`billing-mail`, and so on. Only a kind nothing is set up for is one chip reading the notifier's
+own code, and so is the log channel, which has no credential to name.
 
-**A channel nothing is set up for is quiet, and carries the one action that changes that.** What
-it says about itself is dimmed the way a rule that delivers nothing is; the action keeps its ink,
-because a control dimmed past its own contrast is one somebody cannot read. The action is a link
-reading `Set up <notifier>`, and it goes to `/connections?new=<kind>` -- the connections screen
-with its dialog open on that kind. A sentence saying the channel is not set up would be the word
-above it written out twice.
+**The dot has three colours and no more.** Green where the channel can deliver -- the log
+notifier, or a connection whose last check passed. Red where the last check failed. Grey for
+everything else: a kind nothing is set up for, a credential nobody has checked, a probe that
+proved nothing. A reader learns three colours once; six would be a legend.
 
-**The strip is ordered by what needs somebody**, not by what the catalog answered in: failing,
-then not verified, then never checked, then checked, then ready, and the ones that are not set up
-last. Inside one reading it is the notifier's code and then the connection's, so a notifier
-holding two credentials keeps them together only where they are in the same state -- the reading
-wins, because the channel that stopped is what the strip exists to surface. `channelsOf` answers
-in that order, so no screen decides it.
+**The words are the tooltip's, and they are the whole vocabulary**: `ready`, `failing`, `never
+checked`, `not verified`, `not set up`. The tooltip is this app's own primitive, it opens on
+hover and on keyboard focus alike, and it holds, in this order: the kind and the state word
+(`email · failing`), how long ago the check was where there was one, the connection's code in
+mono, and the check's own sentence in full. Nothing on the strip ever says "connection" or "built
+in": a reader knows they have not set up Slack, not that a credential of kind `slack` is absent.
+
+**A chip goes where its channel is.** One with a credential opens it at `/connections/<code>`;
+a grey chip with no credential opens `/connections?new=<kind>`, which is the connections screen
+with its dialog already on that kind; the log chip goes nowhere, because there is nothing behind
+it to open.
+
+**Every chip answers a pointer and the keyboard the same way, the log chip included.** It takes
+the row wash, the focus ring every control here takes, and its tooltip on hover, on focus and on
+a click alike -- the log chip is a button rather than a link, and nothing else about it differs.
+A chip drawn inert beside its neighbours would be saying it is a different kind of thing.
+
+**The strip is ordered by the dots**: green, then red, then grey, and inside one colour the
+notifier's code and then the connection's. A notifier's chips stand together only where their
+dots agree -- the channel that stopped is what the strip is read for. `channelsOf` answers in
+that order, so no screen decides it.
+
+**Below `md` the heading is the fold, and it carries the answer.** A chevron, the word Channels,
+and at the right one dot per channel in the same colours and the same order, nothing else. It is
+folded on every visit: what a phone is on this screen for is the rules and the queue. Opened, it
+is a table of three columns -- the dot; the glyph and the code; and either `Set up <notifier>`
+for a grey chip with no credential or how long ago the check was -- and a row with a credential
+is a link to it, like the chip.
 
 ## An option wears what its value wears
 

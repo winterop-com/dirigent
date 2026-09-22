@@ -108,6 +108,11 @@ export function readConnections(after: string | null = null): Promise<Page<Conne
     return apiJson<Page<ConnectionOut>>(`/connections?${query.toString()}`)
 }
 
+/** Where one connection is read: the listing with that credential's form open beside it. */
+export function connectionPath(code: string): string {
+    return `/connections/${encodeURIComponent(code)}`
+}
+
 /** The search key a link uses to ask the connections screen for a fresh credential of one kind. */
 export const NEW_CONNECTION_KEY = 'new'
 

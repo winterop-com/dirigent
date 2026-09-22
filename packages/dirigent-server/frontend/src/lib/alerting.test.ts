@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, test, vi } from 'vitest'
 
 import {
+    channelCode,
+    channelLink,
     channelsOf,
     channelView,
     deliverySettled,
@@ -13,6 +15,7 @@ import {
     throttleNote,
     updateRule,
     type AlertRuleOut,
+    type Channel,
 } from '@/lib/alerting'
 import type { ConnectionOut } from '@/lib/connections'
 
@@ -136,6 +139,9 @@ describe('where the notifications listing is read from', () => {
     })
 })
 
+/** One instant, so a test that only needs "a check happened" does not spell one out. */
+const WHEN = '2026-01-01T00:00:00Z'
+
 describe('the channels an alert can leave by', () => {
     test('log is one channel, needs no credential, and is ready', () => {
         const [channel] = channelsOf(['log'], [])
@@ -219,7 +225,7 @@ describe('the channels an alert can leave by', () => {
         expect(channelView(channel)).toMatchObject({ tone: 'good', label: 'checked' })
     })
 
-    test('the strip reads what needs somebody first, and alphabetically inside one reading', () => {
+    test('the strip reads by its dots: what delivers, what broke, what cannot say', () => {
         const channels = channelsOf(
             ['webhook', 'slack', 'log', 'email'],
             [
@@ -243,12 +249,12 @@ describe('the channels an alert can leave by', () => {
             ],
         )
         expect(channels.map((one) => one.id)).toEqual([
-            // failing first, then the one nobody has checked, then what is well, then what is
-            // not set up at all -- and a notifier's two credentials part where their readings do.
-            'slack:dev-slack',
-            'slack:ops-slack',
+            // Green first, then red, then grey, and inside a colour the notifier's code and then
+            // the connection's -- so a notifier's two credentials part where their dots do.
             'email:ops-mail',
             'log',
+            'slack:dev-slack',
+            'slack:ops-slack',
             'webhook',
         ])
     })
@@ -256,6 +262,35 @@ describe('the channels an alert can leave by', () => {
     test('ordering is the same question asked of channels already built', () => {
         const channels = channelsOf(['log', 'webhook'], [])
         expect(orderedChannels(channels).map((one) => one.id)).toEqual(['log', 'webhook'])
+    })
+
+    test('three colours and no more: only a failed check is red, only a channel that delivers is green', () => {
+        const tones = (channels: readonly Channel[]) => channels.map((one) => channelView(one).tone)
+        expect(tones(channelsOf(['log'], []))).toEqual(['good'])
+        expect(tones(channelsOf(['webhook'], []))).toEqual(['quiet'])
+        expect(tones(channelsOf(['slack'], [aConnection()]))).toEqual(['quiet'])
+        const checked = aConnection({ last_check_at: WHEN, last_check_healthy: true })
+        expect(tones(channelsOf(['slack'], [checked]))).toEqual(['good'])
+        const failed = aConnection({ last_check_at: WHEN, last_check_healthy: false })
+        expect(tones(channelsOf(['slack'], [failed]))).toEqual(['critical'])
+        const unproved = aConnection({ last_check_at: WHEN, last_check_healthy: null })
+        expect(tones(channelsOf(['slack'], [unproved]))).toEqual(['quiet'])
+    })
+
+    test('a chip says which credential it is, and falls back to the notifier where there is none', () => {
+        const [withOne] = channelsOf(['slack'], [aConnection({ code: 'ops-slack' })])
+        expect(channelCode(withOne)).toBe('ops-slack')
+        const [without] = channelsOf(['webhook'], [])
+        expect(channelCode(without)).toBe('webhook')
+    })
+
+    test('a chip opens its credential, a kind with none opens the door, and log opens nothing', () => {
+        const [withOne] = channelsOf(['slack'], [aConnection({ code: 'ops slack' })])
+        expect(channelLink(withOne)).toBe('/connections/ops%20slack')
+        const [without] = channelsOf(['webhook'], [])
+        expect(channelLink(without)).toBe('/connections?new=webhook')
+        const [log] = channelsOf(['log'], [])
+        expect(channelLink(log)).toBeNull()
     })
 })
 

@@ -16,6 +16,7 @@ import { usePaged } from '@/hooks/use-paged'
 import { useRead } from '@/hooks/use-read'
 import {
     checkConnection,
+    connectionPath,
     connectionsNote,
     healthOf,
     NEW_CONNECTION_KEY,
@@ -237,7 +238,7 @@ export function Connections() {
                     noun="connections"
                     onSelect={(row) => {
                         // The row is not another page of history: it is which one is being read.
-                        void navigate(`/connections/${encodeURIComponent(row.code)}`, { replace: true })
+                        void navigate(connectionPath(row.code), { replace: true })
                     }}
                     selected={(row) => row.code === chosen}
                 />
