@@ -18,16 +18,10 @@ from typing import Final
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from dirigent_cli.schemas import ShapeWarning, StepShape
 from dirigent_client.schemas import BlockEntry, BlockKind, Catalog
 from dirigent_common import Duration, JsonMap, base_format_checker, format_duration
-from dirigent_core.engine.definition import (
-    ItemPolicy,
-    ParameterError,
-    PipelineDefinition,
-    RetryPolicy,
-    StepDefinition,
-    TimeoutAction,
-)
+from dirigent_core.engine.definition import ParameterError, PipelineDefinition, RetryPolicy, StepDefinition
 from dirigent_core.engine.failure import backoff_delay
 from dirigent_core.engine.references import ReferenceScope, UnknownReference, resolve
 
@@ -36,49 +30,6 @@ UNKNOWN: Final = "unknown"
 
 #: How a cardinality names the fan-out whose grid a step maps over instead of its own.
 ADOPTS: Final = "adopts {step}"
-
-
-class ShapeWarning(BaseModel):
-    """One thing about the shape worth knowing before the run, said as a sentence."""
-
-    model_config = ConfigDict(frozen=True)
-
-    step: str
-    cause: str
-    message: str
-
-
-class StepShape(BaseModel):
-    """What one step will become: how wide, how many tries, and how long it may wait."""
-
-    model_config = ConfigDict(frozen=True)
-
-    step: str
-    block: str
-    depends_on: list[str] = Field(default_factory=list[str])
-
-    cardinality: int | str = 1
-    """How many run items this step becomes: a count, ``adopts <step>``, or ``unknown``."""
-
-    elements: int | None = 1
-    """The count behind the cardinality, which an adoption takes from the grid it adopts."""
-
-    reference: str | None = None
-    """The ``for_each`` this step maps over, where it names one rather than listing it."""
-
-    items: ItemPolicy = ItemPolicy.FAIL_FAST
-    max_attempts: int = 1
-
-    retry_wait: Duration | None = None
-    """The longest this step may spend in backoff, which is every delay its policy allows."""
-
-    timeout: Duration | None = None
-    poll: Duration | None = None
-    deadline: Duration | None = None
-    on_timeout: TimeoutAction = TimeoutAction.FAIL
-
-    from_block: list[str] = Field(default_factory=list[str])
-    """Which of this row's waits the block's own defaults filled, the document declaring none."""
 
 
 class DocumentShape(BaseModel):
@@ -150,13 +101,13 @@ def _step_shape(
         cardinality=cardinality,
         elements=elements,
         reference=step.for_each if isinstance(step.for_each, str) else None,
-        items=step.items,
+        items=step.items.value,
         max_attempts=step.retry.max_attempts,
         retry_wait=_retry_wait(step.retry),
         timeout=step.timeout,
         poll=poll,
         deadline=deadline,
-        on_timeout=step.on_timeout,
+        on_timeout=step.on_timeout.value,
         from_block=from_block,
     )
 
@@ -269,10 +220,7 @@ def _warnings(rows: Sequence[StepShape], catalog: Catalog | None) -> list[ShapeW
 def _unbounded(row: StepShape, catalog: Catalog | None) -> str:
     """Say that nothing bounds a sensor's wait, and offline that a catalog might yet."""
     if catalog is None:
-        return (
-            f"{row.step} polls with no deadline, and offline there is no block to take one from: "
-            f"--server reads the sensor's own default."
-        )
+        return f"{row.step} polls with no deadline, so nothing here bounds its wait: --server reads the block's."
     return f"{row.step} waits on a sensor that neither the document nor {row.block} gives a deadline."
 
 

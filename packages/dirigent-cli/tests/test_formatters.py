@@ -355,6 +355,57 @@ def test_a_valid_pipeline_is_drawn_as_the_graph_its_record_carries() -> None:
     assert "steps=" not in drawn, "the graph is drawn, not spelled out on the line"
 
 
+def test_a_documents_shape_is_drawn_as_the_rows_and_the_totals_its_record_carries() -> None:
+    """The command counts; the table, the totals and the warnings are the formatter's."""
+    drawn = printed(
+        Console().render(
+            make(
+                "validation.shape",
+                at=AT,
+                message="shape",
+                code="demo",
+                document="demo.yaml",
+                checked="document and catalog",
+                attempts_max=13,
+                attempts_at_least=True,
+                deadline_longest="1d",
+                steps=[
+                    {
+                        "step": "shape",
+                        "block": "transform.jq",
+                        "cardinality": 3,
+                        "elements": 3,
+                        "items": "continue",
+                        "max_attempts": 3,
+                        "retry_wait": "1m30s",
+                    },
+                    {
+                        "step": "wait",
+                        "block": "time.sleep",
+                        "depends_on": ["shape"],
+                        "cardinality": "adopts shape",
+                        "elements": 3,
+                        "poll": "1s",
+                        "deadline": "1d",
+                        "on_timeout": "skip",
+                        "from_block": ["poll"],
+                    },
+                ],
+                warnings=[{"step": "shape", "cause": "retry-outlasts-deadline", "message": "shape retries for ages"}],
+            )
+        )
+    )
+    assert "what demo will cost" in drawn
+    assert "transform.jq" in drawn and "1m30s" in drawn
+    assert "adopts shape" in drawn
+    assert "continue" in drawn, "a fan-out that does not fail fast says so where the width is"
+    assert "then skip" in drawn, "what an expired deadline makes of the step belongs beside it"
+    assert "1s  block" in drawn, "a wait the catalog filled in is marked as the block's own"
+    assert "at least 13" in drawn, "a total counted over an unknown width is a floor"
+    assert "shape retries for ages" in drawn
+    assert "steps=" not in drawn and "warnings=" not in drawn, "the rows are drawn, not spelled out on the line"
+
+
 def test_a_run_profile_renders_the_chain_and_the_split_along_it() -> None:
     """The table is the formatter's, built from the record and nothing read a second time."""
     profile = make(
