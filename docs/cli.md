@@ -999,7 +999,8 @@ dg trigger-document list | show CODE | delete CODE
 dg alerts rules list | pause | resume | delete CODE
 dg alerts rules create CODE --event run_failed --notifier log
                             [--name TEXT] [--description TEXT]
-                            [--pipeline P] [--connection C] [--throttle 0s]
+                            [--pipeline P] [--importance routine|normal|critical]
+                            [--connection C] [--throttle 0s]
                             [--template T] [--body T | --body-file F]
 dg alerts test NOTIFIER [--connection CODE] [--subject TEXT]
 dg alerts queue
@@ -1249,6 +1250,7 @@ dg alerts rules create page-ops --event run_failed --notifier log --throttle 15m
 dg alerts rules create loud --event run_failed --notifier log \
   --template '{{ pipeline.code }} failed after {{ run.duration_ms | duration }}' \
   --body-file alert-body.md.j2
+dg alerts rules create wake-me --event run_failed --notifier log --importance critical
 dg alerts test log                          # one message, through the real queue
 dg alerts queue                             # what is queued, sent, or stuck
 ```
@@ -1258,6 +1260,13 @@ facts; `--body-file` reads the body from a file instead, and naming both is refu
 with neither says `{{ run.pipeline }} run {{ run.status }}` over the run's facts one per line.
 Both are compiled when the rule is created, so a template that does not compile is refused
 here with the line it broke on. [Report documents](reports.md) is the context reference.
+
+`--importance` is the least a pipeline's document must declare before the rule fires:
+`routine`, `normal` or `critical`. A rule without it fires whatever the pipeline is worth, so
+one rule pages for the critical failures and another logs every failure there is. The listing
+says the floor inside the scope cell -- "global, critical and above" -- rather than in a column
+that would be empty on almost every row, and the `alert_rule` records carry `importance` as its
+own field either way.
 
 The channels a rule may name, and the connection each one delivers through, are in
 [notifier channels](operations.md#notifier-channels).
