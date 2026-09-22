@@ -17,7 +17,7 @@ import { usePaged } from '@/hooks/use-paged'
 import { BODY_HINT, given, SUBJECT_HINT, TEMPLATE_MEDIA_TYPE } from '@/lib/alert-form'
 import {
     deleteRule,
-    eventLabel,
+    EVENT_LABELS,
     importanceNote,
     NO_FILTERS,
     readNotifications,
@@ -99,7 +99,7 @@ export function RulePanel({
             <Description text={rule.description} />
 
             <dl className="space-y-1.5">
-                <Fact label="Event">{eventLabel(rule.event)}</Fact>
+                <Fact label="Event">{EVENT_LABELS[rule.event]}</Fact>
                 <Fact label="Scope">
                     <span className="flex flex-wrap items-baseline gap-x-1.5">
                         {scopeNote(rule)}
@@ -372,7 +372,7 @@ export function NotificationPanel({
                     </Fact>
                 ) : (
                     <>
-                        <Fact label="Event">{eventLabel(notification.event)}</Fact>
+                        <Fact label="Event">{EVENT_LABELS[notification.event]}</Fact>
                         <Fact label="Rule">
                             <span className="font-mono text-xs">{notification.rule}</span>
                         </Fact>

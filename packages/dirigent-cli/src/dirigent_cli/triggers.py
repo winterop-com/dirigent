@@ -15,6 +15,7 @@ from dirigent_cli.messages import (
     ONE_CLOCK,
 )
 from dirigent_cli.output import (
+    alert_event,
     console,
     emit_fact,
     emit_one,
@@ -422,7 +423,7 @@ def alerts_rules_list(
             [
                 row.code,
                 row.name or "-",
-                row.event.value,
+                alert_event(row.event.value),
                 watching(row.pipeline or row.scope.value, row.importance),
                 row.connection or LOG_NOTIFIER,
                 row.throttle,

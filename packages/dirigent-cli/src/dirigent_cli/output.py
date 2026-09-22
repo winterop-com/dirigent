@@ -482,6 +482,21 @@ def watching(scope: object, importance: object) -> str:
     return f"{scope}, {importance} and above" if importance else str(scope)
 
 
+#: What each alert event is called in a rendering. The wire's word is what a rule is declared
+#: with; these are the words a reader is shown, here and on the web UI's own listing.
+ALERT_EVENTS: Mapping[str, str] = {
+    "run_failed": "Failed",
+    "run_completed_with_errors": "Completed with errors",
+    "run_succeeded": "Succeeded",
+    "run_stuck": "Stuck",
+}
+
+
+def alert_event(event: object) -> str:
+    """Render what a rule watches for, falling back to the wire's word for an unknown event."""
+    return ALERT_EVENTS.get(str(event), str(event))
+
+
 def status_cell(value: object, width: int = STATUS_WIDTH) -> str:
     """Render a status padded to a fixed width, then coloured.
 

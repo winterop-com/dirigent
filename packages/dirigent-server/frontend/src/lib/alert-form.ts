@@ -6,7 +6,7 @@
  * shape `lib/trigger-form` answers for a schedule and a webhook.
  */
 
-import { LOG_NOTIFIER, type AlertEvent, type AlertScope } from '@/lib/alerting'
+import { LOG_NOTIFIER, type AlertScope } from '@/lib/alerting'
 import type { ConnectionOut } from '@/lib/connections'
 import { headingOf } from '@/lib/identity'
 import type { PickerOption } from '@/lib/picker'
@@ -55,14 +55,6 @@ export const IMPORTANCE_FLOORS: readonly { value: Importance | typeof ANY_IMPORT
 /** What a control's answer is on the wire, where "any" is the absence of a floor. */
 export function floorChosen(value: Importance | typeof ANY_IMPORTANCE): Importance | null {
     return value === ANY_IMPORTANCE ? null : value
-}
-
-/** What each event is called on screen, in plain product English rather than the wire's word. */
-export const EVENT_LABELS: Record<AlertEvent, string> = {
-    run_failed: 'Failed',
-    run_completed_with_errors: 'Completed with errors',
-    run_succeeded: 'Succeeded',
-    run_stuck: 'Stuck',
 }
 
 /** Whether this notifier delivers through a credential at all. Only the log one does not. */

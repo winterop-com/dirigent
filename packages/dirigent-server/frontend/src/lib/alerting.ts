@@ -35,6 +35,19 @@ export const ALERT_EVENTS: readonly AlertEvent[] = [
     'run_stuck',
 ]
 
+/**
+ * What each event is called wherever one is drawn, in plain product English.
+ *
+ * ONE VOCABULARY. The listing, the dialog and a panel all say `Failed` for `run_failed`: the
+ * wire's word is what a rule is declared with, and this is what a reader is shown.
+ */
+export const EVENT_LABELS: Record<AlertEvent, string> = {
+    run_failed: 'Failed',
+    run_completed_with_errors: 'Completed with errors',
+    run_succeeded: 'Succeeded',
+    run_stuck: 'Stuck',
+}
+
 /** Every state a delivery can be in, in the order the filter offers them. */
 export const NOTIFICATION_STATUSES: readonly NotificationStatus[] = ['pending', 'sending', 'sent', 'failed']
 
@@ -141,15 +154,10 @@ export interface TestQueued {
     detail: string
 }
 
-/** What a rule watches for, in the words a table uses. */
-export function eventLabel(event: AlertEvent): string {
-    return event.replaceAll('_', ' ')
-}
-
 /** What one rule matches, said in one phrase. */
 export function matchNote(rule: AlertRuleOut): string {
     const where = rule.scope === 'pipeline' && rule.pipeline !== null ? rule.pipeline : 'every pipeline'
-    return `${eventLabel(rule.event)} — ${where}`
+    return `${EVENT_LABELS[rule.event]} — ${where}`
 }
 
 /** Where a rule delivers: every pipeline, or the one it watches. */

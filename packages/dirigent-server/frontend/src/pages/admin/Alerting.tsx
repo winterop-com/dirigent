@@ -14,9 +14,9 @@ import { PageHeader, PageState } from '@/components/PageState'
 import { StatusChip } from '@/components/run/StatusChip'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { usePaged } from '@/hooks/use-paged'
-import { EVENT_LABELS } from '@/lib/alert-form'
 import {
     channelsOf,
+    EVENT_LABELS,
     importanceNote,
     NOTIFICATION_STATUSES,
     readAlertRules,

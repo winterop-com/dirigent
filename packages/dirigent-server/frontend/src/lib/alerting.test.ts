@@ -1,12 +1,15 @@
 import { afterEach, describe, expect, test, vi } from 'vitest'
 
 import {
+    ALERT_EVENTS,
     channelCode,
     channelLink,
     channelsOf,
     channelView,
     deliverySettled,
+    EVENT_LABELS,
     importanceNote,
+    matchNote,
     notificationsPath,
     orderedChannels,
     ruleLive,
@@ -68,6 +71,24 @@ describe('what the throttle column says', () => {
     test('says a window it has the way the document spells it', () => {
         expect(throttleNote('5m')).toBe('5m')
         expect(throttleNote('1h30m')).toBe('1h30m')
+    })
+})
+
+describe('what an event is called', () => {
+    test('every event the wire has is named, in the words a reader is shown', () => {
+        expect(ALERT_EVENTS.map((event) => EVENT_LABELS[event])).toEqual([
+            'Failed',
+            'Completed with errors',
+            'Succeeded',
+            'Stuck',
+        ])
+    })
+
+    test('a phrase about a rule says the event in those same words', () => {
+        expect(matchNote(aRule())).toBe('Failed — every pipeline')
+        expect(matchNote(aRule({ event: 'run_stuck', scope: 'pipeline', pipeline: 'nightly-load' }))).toBe(
+            'Stuck — nightly-load',
+        )
     })
 })
 

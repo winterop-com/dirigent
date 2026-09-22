@@ -603,15 +603,16 @@ dg alerts rules list
 
 ```text
 alert rules
-┏━━━━━━━━━━━━━┳━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━┓
-┃ code        ┃ name ┃ event      ┃ scope         ┃ target ┃ throttle ┃ active ┃ last sent ┃
-┡━━━━━━━━━━━━━╇━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━┩
-│ load-failed │ -    │ run_failed │ regional-load │ log    │ 15m      │ yes    │ -         │
-└─────────────┴──────┴────────────┴───────────────┴────────┴──────────┴────────┴───────────┘
+┏━━━━━━━━━━━━━┳━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━┓
+┃ code        ┃ name ┃ event  ┃ scope         ┃ target ┃ throttle ┃ active ┃ last sent ┃
+┡━━━━━━━━━━━━━╇━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━┩
+│ load-failed │ -    │ Failed │ regional-load │ log    │ 15m      │ yes    │ -         │
+└─────────────┴──────┴────────┴───────────────┴────────┴──────────┴────────┴───────────┘
 ```
 
 The four events are `run_failed`, `run_completed_with_errors`, `run_succeeded`, and
-`run_stuck`. The scope is a pipeline here; leave `--pipeline` off for a global rule.
+`run_stuck` -- which a listing and the web UI both draw as Failed, Completed with errors,
+Succeeded and Stuck. The scope is a pipeline here; leave `--pipeline` off for a global rule.
 
 A rule names one target, and this one named none -- so it delivers to the process log, which
 needs no credential and is what makes alerting work on a fresh install. `--connection` names
