@@ -311,11 +311,10 @@ async def update_rule(session: AsyncSession, rule: AlertRule, changes: Mapping[s
         await session.flush()
         _logger.info("alert rule retemplated", rule=rule.code)
     if "importance" in named:
-        rule.importance = cast("Importance | None", named["importance"])
+        floor = cast("Importance | None", named["importance"])
+        rule.importance = floor
         await session.flush()
-        _logger.info(
-            "alert rule reweighted", rule=rule.code, importance=rule.importance.value if rule.importance else None
-        )
+        _logger.info("alert rule reweighted", rule=rule.code, importance=floor.value if floor else None)
     if "paused" in named:
         await set_paused(session, rule, paused=bool(named["paused"]))
     return rule
