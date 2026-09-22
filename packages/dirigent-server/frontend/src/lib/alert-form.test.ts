@@ -14,7 +14,7 @@ import {
 } from '@/lib/alert-form'
 import type { RuleDraft } from '@/lib/alert-form'
 import type { ConnectionOut } from '@/lib/connections'
-import { channelGlyph, NEUTRAL_GLYPH } from '@/lib/glyphs'
+import { kindGlyph, NEUTRAL_GLYPH } from '@/lib/glyphs'
 
 function aDraft(over: Partial<RuleDraft> = {}): RuleDraft {
     return {
@@ -147,7 +147,7 @@ describe('the channels a rule may deliver through', () => {
             value: LOG_TARGET,
             label: LOG_TARGET_LABEL,
             aside: '',
-            mark: channelGlyph('log'),
+            mark: kindGlyph('log'),
         })
     })
 
@@ -157,7 +157,7 @@ describe('the channels a rule may deliver through', () => {
             value: 'ops-slack',
             label: 'Ops Slack · slack',
             aside: 'ops-slack',
-            mark: channelGlyph('slack'),
+            mark: kindGlyph('slack'),
         })
     })
 
@@ -170,7 +170,7 @@ describe('the channels a rule may deliver through', () => {
             value: 'ops-endpoint',
             label: 'ops-endpoint · webhook',
             aside: '',
-            mark: channelGlyph('webhook'),
+            mark: kindGlyph('webhook'),
         })
     })
 
@@ -179,11 +179,7 @@ describe('the channels a rule may deliver through', () => {
             ['log', 'slack', 'teams'],
             [aConnection(), aConnection({ id: 'c2', code: 'ops-teams', kind: 'teams' })],
         )
-        expect(rows.map((row) => row.mark)).toEqual([
-            channelGlyph('log'),
-            channelGlyph('slack'),
-            NEUTRAL_GLYPH,
-        ])
+        expect(rows.map((row) => row.mark)).toEqual([kindGlyph('log'), kindGlyph('slack'), NEUTRAL_GLYPH])
     })
 
     test('a connection no installed notifier sends through is not a channel', () => {

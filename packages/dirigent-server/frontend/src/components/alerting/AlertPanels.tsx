@@ -32,7 +32,7 @@ import {
     type NotificationOut,
 } from '@/lib/alerting'
 import type { Problem } from '@/lib/api'
-import { channelGlyph } from '@/lib/glyphs'
+import { kindGlyph } from '@/lib/glyphs'
 import { headingOf, type Addressable } from '@/lib/identity'
 import { refusalOf } from '@/lib/refusal'
 
@@ -448,7 +448,7 @@ const notificationId = (row: NotificationOut) => row.id
 export function Target({ notifier, connection }: { notifier: string; connection: string | null }) {
     return (
         <span className="flex items-center gap-1.5">
-            <Mark glyph={channelGlyph(notifier)} />
+            <Mark glyph={kindGlyph(notifier)} />
             <span className={connection === null ? 'text-sm' : 'font-mono text-xs'}>
                 {connection ?? notifier}
             </span>

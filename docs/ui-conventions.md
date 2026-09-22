@@ -951,26 +951,53 @@ apart at a glance, which a column of identical dots and four words cannot do. So
 a mark of its own, and only a kind may. A glyph never stands for a state, and one drawn beside a
 word that already says the same thing is the decoration the rule above forbids.
 
-**Kind glyphs go wherever a channel is named as a channel, and never beside a state.** A rule's
-target is a channel, so the mark the strip's chips wear stands beside the code in the `Deliver
-through` picker's rows, in the rules listing's target cell and in a rule's panel: the same thing
-looks the same across a screen, and a reader who learned the envelope on the strip reads it on a
-rule. **Where the mark is drawn the kind is not also spelled**, which is the rule above: a target
-cell is the mark and the code, the way a chip is. The picker's rows are the one place it is
-written as well, because the kind is half of what a row is found by and a mark cannot be typed.
-The notifiers this repository ships wear an envelope for `email`, a scroll for `log`, the
-Slack mark for `slack` and a webhook for `webhook`. A glyph is `size-4` in muted ink wherever it
-is drawn; what it sits in belongs to the thing drawing it -- the palette row gives it a `size-7`
-tile on `--muted`, a channel chip draws it bare.
+**A glyph belongs to a kind, and `lib/glyphs` is the one place a kind is given one.** A
+connection kind and a notifier are the same word -- `slack` names the credential's kind and the
+sender alike -- so there is one map and one function over it, `kindGlyph`, pure over the code the
+wire answers with. Adding a kind is adding one entry there and nothing else: no screen keeps a
+table of its own, and no screen works a mark out from a code itself.
+
+**The mark is drawn beside the code wherever a kind says what a thing is.** The channel strip's
+chips, a rule's target, the connections listing's row, the connection's own panel header, the New
+connection dialog's kind rows, the pipeline editor's reference row under a field naming a
+connection, and the health rows on the home screen: a reader who learned the envelope on the
+strip reads it on all seven. A screen that says what a thing is and draws no mark is the fault
+this rule exists to stop, because the same kind looking different from one screen to the next is
+the reader's problem rather than the screen's. The blocks catalog is the one screen that names
+kinds and draws none: its rows are the registries themselves, where the kind is the row rather
+than what the row is, and it lists schemes and notifiers in the same shape beside them.
+
+**The mark does not take the kind's word off a chip.** Where the kind is carried as a `kind-chip`
+-- the connections listing's row, the connection's panel header -- the chip keeps its word and
+its family hue: a chip is the value somebody reads to know what to narrow a listing by or type
+into a document, and a mark cannot be typed. Where there is no chip the mark stands with the code
+alone and the kind is not spelled twice: a channel chip and a rule's target are the mark and the
+code and nothing else. The dialog's kind rows and the editor's reference row spell it as well,
+for the reason the picker's rows do -- the kind is half of what the row is found by, and the
+reference row has no code of its own to stand beside, the box above it already holding one.
+
+**A kind with no glyph takes the neutral glyph rather than a gap**, which is the same one a
+palette row with no icon takes. Kinds arrive from whichever packs an instance installed, so a
+pack's kind -- `dhis2` -- gets a mark rather than a hole beside the kinds this bundle was built
+knowing. Something that is not a kind at all carries neither a mark nor a neutral one: a worker
+row on the health panel holds the mark's width so the codes under it line up, and draws nothing
+in it.
+
+**Two kinds that are the same sort of thing may share that sort's mark.** `kafka` and `rabbitmq`
+are both queues and both wear the queue; the code is always beside the mark, and it is the code
+that says which of the two is in front of somebody.
 
 **The glyph says what a thing is and the dot says how it is, and neither does the other's job.**
 A glyph never takes a status colour and a dot never says which kind something is, so a card
 carrying both says two facts rather than one loud one.
 
-**A kind with no glyph takes the neutral glyph rather than a gap**, which is the same one a
-palette row with no icon takes. `lib/glyphs` is where both are decided, once, as a pure function
-over the code the wire answers with: notifiers arrive from packs, so a channel this bundle was
-built before gets a card with a mark on it rather than a hole where every other card has one.
+**What the kinds this repository ships wear**: an envelope for `email`, a scroll for `log`, the
+Slack mark for `slack`, a webhook for `webhook`, a globe for `http`, a branch for `git`, a
+database for `sql`, a container for `docker`, a drive for `s3` -- a mark says
+what the credential opens and an s3 one opens storage, where a cloud would say where a thing is
+hosted, which half this list could claim -- and an ordered list for `kafka` and `rabbitmq`. A
+glyph is `size-4` in muted ink wherever it is drawn; what it sits in belongs to the thing drawing
+it -- the palette row gives it a `size-7` tile on `--muted`, a channel chip draws it bare.
 
 **lucide draws every glyph that is not a brand, and a brand mark comes from the brand.** lucide
 ships no brand icons at all. A brand mark is Simple Icons' where it carries one and the brand's own

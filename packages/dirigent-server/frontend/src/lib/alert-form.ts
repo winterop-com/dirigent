@@ -8,7 +8,7 @@
 
 import { LOG_NOTIFIER, type AlertScope } from '@/lib/alerting'
 import type { ConnectionOut } from '@/lib/connections'
-import { channelGlyph } from '@/lib/glyphs'
+import { kindGlyph } from '@/lib/glyphs'
 import { headingOf } from '@/lib/identity'
 import type { PickerOption } from '@/lib/picker'
 import { IMPORTANCES, type Importance } from '@/lib/pipelines'
@@ -96,12 +96,12 @@ export function targetOptions(
                 one.heading.title.localeCompare(two.heading.title),
         )
     return [
-        { value: LOG_TARGET, label: LOG_TARGET_LABEL, aside: '', mark: channelGlyph(LOG_NOTIFIER) },
+        { value: LOG_TARGET, label: LOG_TARGET_LABEL, aside: '', mark: kindGlyph(LOG_NOTIFIER) },
         ...channels.map(({ row, heading }) => ({
             value: row.code,
             label: `${heading.title} · ${row.kind}`,
             aside: heading.code ?? '',
-            mark: channelGlyph(row.kind),
+            mark: kindGlyph(row.kind),
         })),
     ]
 }

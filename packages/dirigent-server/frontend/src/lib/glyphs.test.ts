@@ -1,21 +1,46 @@
 import { describe, expect, test } from 'vitest'
 
-import { channelGlyph, NEUTRAL_GLYPH } from '@/lib/glyphs'
+import { kindGlyph, NEUTRAL_GLYPH } from '@/lib/glyphs'
 
-describe('channelGlyph', () => {
-    test('a channel this bundle names is drawn by its own mark', () => {
-        for (const notifier of ['email', 'log', 'slack', 'webhook']) {
-            expect(channelGlyph(notifier)).not.toBe(NEUTRAL_GLYPH)
+/** Every kind this repository contributes a connection kind or a notifier for. */
+const SHIPPED = [
+    'docker',
+    'email',
+    'git',
+    'http',
+    'kafka',
+    'log',
+    'rabbitmq',
+    's3',
+    'slack',
+    'sql',
+    'webhook',
+]
+
+describe('kindGlyph', () => {
+    test('every kind this bundle ships is drawn by a mark of its own', () => {
+        for (const kind of SHIPPED) {
+            expect(kindGlyph(kind), kind).not.toBe(NEUTRAL_GLYPH)
         }
-        expect(new Set(['email', 'log', 'slack', 'webhook'].map(channelGlyph)).size).toBe(4)
     })
 
-    test('a notifier a pack contributed and this bundle cannot name takes the neutral glyph', () => {
-        expect(channelGlyph('teams')).toBe(NEUTRAL_GLYPH)
-        expect(channelGlyph('')).toBe(NEUTRAL_GLYPH)
+    test('the notifiers are told apart from one another', () => {
+        const notifiers = ['email', 'log', 'slack', 'webhook']
+        expect(new Set(notifiers.map(kindGlyph)).size).toBe(notifiers.length)
+    })
+
+    test('the two queues wear the queue, and nothing else wears it', () => {
+        expect(kindGlyph('kafka')).toBe(kindGlyph('rabbitmq'))
+        expect(kindGlyph('http')).not.toBe(kindGlyph('kafka'))
+    })
+
+    test("a pack's kind this bundle cannot name takes the neutral glyph", () => {
+        expect(kindGlyph('dhis2')).toBe(NEUTRAL_GLYPH)
+        expect(kindGlyph('teams')).toBe(NEUTRAL_GLYPH)
+        expect(kindGlyph('')).toBe(NEUTRAL_GLYPH)
     })
 
     test('a code that names a member of Object.prototype is not a glyph', () => {
-        expect(channelGlyph('constructor')).toBe(NEUTRAL_GLYPH)
+        expect(kindGlyph('constructor')).toBe(NEUTRAL_GLYPH)
     })
 })

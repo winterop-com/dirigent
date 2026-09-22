@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 
 import { Instant } from '@/components/Instant'
 import { KindChip } from '@/components/KindChip'
+import { Mark } from '@/components/Mark'
 import { Refusable } from '@/components/Refusable'
 import { Refusal } from '@/components/Refusal'
 import { HealthSaid } from '@/components/connections/Health'
@@ -18,6 +19,7 @@ import { refusalOf } from '@/lib/refusal'
 import { firstShut } from '@/lib/roles'
 import { healthOf, patchBody, settingFields, updateConnection, type ConnectionOut } from '@/lib/connections'
 import { separatelyUpdated } from '@/lib/format'
+import { kindGlyph } from '@/lib/glyphs'
 import { headingOf } from '@/lib/identity'
 import { maySubmit, validateFields, withUnreadable, type FieldDescriptor } from '@/lib/schema-form'
 
@@ -116,7 +118,10 @@ export function ConnectionForm({
     return (
         <div className="space-y-4 p-4">
             <div className="space-y-1">
+                {/* The same order the listing row is headed in: the kind's mark, the identity,
+                    then the kind in words. */}
                 <p className="flex items-center gap-2">
+                    <Mark glyph={kindGlyph(connection.kind)} />
                     <span
                         className={
                             heading.named ? 'text-sm font-semibold' : 'font-mono text-sm font-semibold'
@@ -124,10 +129,10 @@ export function ConnectionForm({
                     >
                         {heading.title}
                     </span>
-                    <KindChip kind={connection.kind} />
                     {heading.code !== null && (
                         <span className="font-mono text-xs text-muted-foreground">{heading.code}</span>
                     )}
+                    <KindChip kind={connection.kind} />
                 </p>
                 <p className="text-xs text-faint">
                     Created <Instant at={connection.created_at} />

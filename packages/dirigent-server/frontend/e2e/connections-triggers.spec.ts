@@ -95,6 +95,9 @@ test('a connection row is its code, its kind and its health, and nothing else', 
     const row = rowOf(page, CONNECTION)
     await expect(row).toContainText('http')
 
+    // The kind is marked as well as named, the way it is on every other screen.
+    await expect(row.locator('[data-slot="mark"]')).toHaveCount(1)
+
     // One line: what the credential is pointed at, what it says about itself and whether a
     // secret is set are read on its own page, beside the boxes that change them.
     await expect(row).not.toContainText('base_url')
@@ -112,6 +115,9 @@ test('a connection row is its code, its kind and its health, and nothing else', 
     const panel = page.getByRole('tabpanel')
     await expect(panel).toContainText('This very instance, so a check is a real request.')
     await expect(panel.getByLabel('base_url')).toHaveValue(baseURL ?? '')
+
+    // The panel heads the credential the way the row does, mark and all.
+    await expect(panel.locator('[data-slot="mark"]')).toHaveCount(1)
 })
 
 test('checking a connection moves its own row, and the sentence is on the tooltip', async ({
@@ -190,7 +196,10 @@ test('a connection is minted through the form its own kind publishes', async ({ 
     // The kind is a choice over what this instance has installed, and choosing one is what
     // draws the config: every box below is the kind's own schema, its secrets excepted.
     await dialog.getByLabel('Kind').click()
-    await page.getByRole('option', { name: 'http', exact: true }).click()
+    // Every kind the dialog offers is marked as well as named.
+    const kindRow = page.getByRole('option', { name: 'http', exact: true })
+    await expect(kindRow.locator('[data-slot="mark"]')).toHaveCount(1)
+    await kindRow.click()
     await dialog.getByLabel('base_url').fill(baseURL ?? '')
     await dialog.getByLabel('basic_password').fill(MINTED)
 
