@@ -218,11 +218,6 @@ stays clean, and every example stays executable.
   pipeline. Wanted: a named group of steps a document can include with parameters, without
   becoming a macro language.
 
-- **What a document will cost before it runs.** A document can be checked for whether it is
-  valid, never for what it will cost. Wanted: a `dg validate --explain` that reports the shape
-  of the work ahead -- the fan-out cardinalities, the deadlines and poll cadences, the retry
-  budgets -- before anything executes.
-
 - **A service layer, the servicekit way.** An endpoint still reads and renders every row
   itself: the same lookup-or-404 helper and the same `render` repeated resource after
   resource. Servicekit spent its convention time here and the shape holds: a generic
