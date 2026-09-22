@@ -1,14 +1,12 @@
 """Alembic environment: one migration history that runs on both PostgreSQL and SQLite."""
 
 import asyncio
-from typing import Any
 
 from alembic import context
 from sqlalchemy import Connection
-from sqlalchemy.ext.asyncio import async_engine_from_config
-from sqlalchemy.pool import NullPool
 
 from dirigent_core.config import get_settings
+from dirigent_core.database import create_engine
 from dirigent_core.models import Base
 
 config = context.config
@@ -47,13 +45,17 @@ def do_run_migrations(connection: Connection) -> None:
 
 
 async def run_async_migrations() -> None:
-    """Open the async engine and drive the migrations through it."""
-    section: dict[str, Any] = dict(config.get_section(config.config_ini_section) or {})
-    section["sqlalchemy.url"] = database_url()
-    engine = async_engine_from_config(section, prefix="sqlalchemy.", poolclass=NullPool)
-    async with engine.connect() as connection:
-        await connection.run_sync(do_run_migrations)
-    await engine.dispose()
+    """Open the engine on the URL to migrate and drive the migrations through it.
+
+    The engine is the instance's own, so this path opens SQLite with the pragmas every other
+    connection in the process is configured with.
+    """
+    engine = create_engine(get_settings().model_copy(update={"database_url": database_url()}))
+    try:
+        async with engine.connect() as connection:
+            await connection.run_sync(do_run_migrations)
+    finally:
+        await engine.dispose()
 
 
 def run_migrations_online() -> None:
