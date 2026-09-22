@@ -72,8 +72,7 @@ test('a rule is declared from the screen, and appears in the listing it was decl
     await dialog.getByRole('button', { name: 'Failed' }).click()
     await dialog.getByRole('button', { name: 'Every pipeline' }).click()
 
-    // A rule names one target and the sender follows from it: one picker, opened on the log,
-    // saying underneath which notifier the chosen row delivers through.
+    // A rule names one target and the sender follows from it: one picker, opened on the log.
     await expect(dialog.getByLabel('Deliver through')).toHaveValue('The process log')
     await expect(dialog.getByLabel('Notifier')).toHaveCount(0)
 
