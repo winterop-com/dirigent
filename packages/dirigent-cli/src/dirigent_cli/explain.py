@@ -218,7 +218,7 @@ def _warnings(rows: Sequence[StepShape], catalog: Catalog | None) -> list[ShapeW
 
 
 def _unbounded(row: StepShape, catalog: Catalog | None) -> str:
-    """Say that nothing bounds a sensor's wait, and offline that a catalog might yet."""
+    """Say that nothing bounds a sensor's wait, and where a catalog would still fill one in."""
     if catalog is None:
         return f"{row.step} polls with no deadline, so nothing here bounds its wait: --server reads the block's."
     return f"{row.step} waits on a sensor that neither the document nor {row.block} gives a deadline."
