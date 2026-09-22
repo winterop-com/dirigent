@@ -1,6 +1,6 @@
 [project]
 name = "dirigent-block-queues"
-version = "0.18.0"
+version = "0.18.1"
 description = "The queue block family for dirigent: Kafka and RabbitMQ, with their connection kinds."
 readme = "README.md"
 requires-python = ">=3.13"
@@ -13,8 +13,8 @@ classifiers = [
 dependencies = [
     "aio-pika>=9.5.7",
     "aiokafka>=0.12.0",
-    "dirigent-common==0.18.0",
-    "dirigent-plugin==0.18.0",
+    "dirigent-common==0.18.1",
+    "dirigent-plugin==0.18.1",
 ]
 
 [project.entry-points."dirigent.plugins.v1"]

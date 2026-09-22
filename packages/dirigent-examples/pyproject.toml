@@ -1,6 +1,6 @@
 [project]
 name = "dirigent-examples"
-version = "0.18.0"
+version = "0.18.1"
 description = "The dirigent example corpus: the shelves of runnable documents, installed."
 readme = "README.md"
 requires-python = ">=3.13"
@@ -12,8 +12,8 @@ classifiers = [
 ]
 dependencies = [
     # The python/ shelf is SDK scripts a reader runs, so the corpus carries the client.
-    "dirigent-client==0.18.0",
-    "dirigent-plugin==0.18.0",
+    "dirigent-client==0.18.1",
+    "dirigent-plugin==0.18.1",
 ]
 
 [project.entry-points."dirigent.plugins.v1"]
