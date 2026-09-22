@@ -41,7 +41,7 @@
 #   dg run --local examples/patterns/importance-critical.yaml
 #   dg apply examples/patterns/importance-critical.yaml
 #   dg pipeline show importance-critical        # importance: critical, with the rest
-#   dg pipeline list                            # and the UI marks it beside its title
+#   dg alerts rules list                        # the floor, inside the scope cell
 
 format: dirigent/v1
 kind: pipeline
