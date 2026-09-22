@@ -7,7 +7,9 @@ from types import SimpleNamespace
 
 import pytest
 from pydantic import SecretStr, ValidationError
+from sqlalchemy.ext.asyncio import AsyncEngine
 
+from dirigent_block_sql import engines
 from dirigent_block_sql.sql import (
     SqlConnectionConfig,
     SqlConnectionKind,
@@ -209,6 +211,25 @@ async def test_a_write_through_a_read_only_query_is_refused_by_the_database(loca
 async def test_a_read_only_connection_still_reads(seeded: FakeContext) -> None:
     connect(seeded, read_only=True)
     assert (await query(seeded, "SELECT COUNT(*) AS n FROM reading")).rows == [{"n": 2}]
+
+
+async def test_a_read_only_statement_that_fails_closes_the_connection_and_the_engine(
+    local_ctx: FakeContext, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The autouse guard in the root conftest fails this test if the connection is left open."""
+    disposed: list[AsyncEngine] = []
+    dispose = AsyncEngine.dispose
+
+    async def recorded(engine: AsyncEngine, close: bool = True) -> None:
+        disposed.append(engine)
+        await dispose(engine, close)
+
+    monkeypatch.setattr(AsyncEngine, "dispose", recorded)
+    monkeypatch.setitem(engines.READ_ONLY, "sqlite", "PRAGMA no such pragma")
+    connect(local_ctx, read_only=True)
+    with pytest.raises(Exception, match="syntax error"):
+        await query(local_ctx, "SELECT 1")
+    assert len(disposed) == 1, "the engine behind the session that never opened was disposed"
 
 
 async def test_bytes_reach_a_document_in_the_house_json_spelling(local_ctx: FakeContext) -> None:

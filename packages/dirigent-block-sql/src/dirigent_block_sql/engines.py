@@ -301,7 +301,7 @@ class _Session:
         """Open the connection and put it in the mode the connection kind asked for."""
         try:
             async with asyncio.timeout(self.settings.connect_timeout.total_seconds()):
-                self.connection = await self.engine.connect()
+                opened = await self.engine.connect()
         except TimeoutError as error:
             await self.engine.dispose()
             raise BlockFailure(
@@ -310,8 +310,14 @@ class _Session:
         except BaseException:
             await self.engine.dispose()
             raise
-        if self.settings.read_only:
-            await self.connection.execute(sqlalchemy.text(READ_ONLY[self.url.get_backend_name()]))
+        try:
+            if self.settings.read_only:
+                await opened.execute(sqlalchemy.text(READ_ONLY[self.url.get_backend_name()]))
+        except BaseException:
+            await opened.close()
+            await self.engine.dispose()
+            raise
+        self.connection = opened
         return self.connection
 
     async def __aexit__(self, *_error: object) -> None:
