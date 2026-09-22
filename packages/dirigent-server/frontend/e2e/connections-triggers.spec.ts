@@ -6,9 +6,9 @@ import { apiPrefix, applyExample, signIn } from './support.ts'
  * The two screens that show what an instance is wired to, against a real one.
  *
  * WHAT THESE SPECS ARE FOR is the half a Node test cannot reach: that a credential's row says
- * a secret is set without ever saying what it is, that pressing Check really opens the
- * credential and really moves the row, and that a token minted in the browser is readable in
- * the dialog that mints it and nowhere afterwards.
+ * what it is and never a word of what it holds, that pressing Check really opens the credential
+ * and really moves the row, and that a token minted in the browser is readable in the dialog
+ * that mints it and nowhere afterwards.
  *
  * THE CHECK REACHES THIS INSTANCE. The connection points at the server this suite already
  * runs, so a health check is a real request over a real credential with no external network
@@ -86,10 +86,7 @@ function rowOf(page: Page, code: string) {
     return page.getByRole('row').filter({ hasText: code })
 }
 
-test('a connection says its kind and that its secret is set, and never what it is', async ({
-    page,
-    baseURL,
-}) => {
+test('a connection row is its code, its kind and its health, and nothing else', async ({ page, baseURL }) => {
     await signIn(page)
     await seedConnection(page.request, baseURL ?? '')
 
@@ -97,30 +94,69 @@ test('a connection says its kind and that its secret is set, and never what it i
 
     const row = rowOf(page, CONNECTION)
     await expect(row).toContainText('http')
-    await expect(row).toContainText(`basic_password ${DOTS}`)
-    await expect(row).toContainText('base_url=')
 
-    // The description column reads the description off the row, so what was seeded is in it.
-    await expect(row).toContainText('This very instance, so a check is a real request.')
+    // One line: what the credential is pointed at, what it says about itself and whether a
+    // secret is set are read on its own page, beside the boxes that change them.
+    await expect(row).not.toContainText('base_url')
+    await expect(row).not.toContainText(DOTS)
+    await expect(row).not.toContainText('This very instance, so a check is a real request.')
 
     // The credential itself is nowhere on the screen, in any form.
     await expect(page.locator('body')).not.toContainText('a credential nothing may ever show')
 
     // It has never been checked until something checks it.
     await expect(row).toContainText('never checked')
+
+    // And the page behind the row is where all of that is.
+    await row.click()
+    const panel = page.getByRole('tabpanel')
+    await expect(panel).toContainText('This very instance, so a check is a real request.')
+    await expect(panel.getByLabel('base_url')).toHaveValue(baseURL ?? '')
 })
 
-test('checking a connection moves its own row', async ({ page, baseURL }) => {
+test('checking a connection moves its own row, and the sentence is on the tooltip', async ({
+    page,
+    baseURL,
+}) => {
     await signIn(page)
     await seedConnection(page.request, baseURL ?? '')
 
     await page.goto('/connections')
     const row = rowOf(page, CONNECTION)
-    await row.getByRole('button', { name: 'Check' }).click()
+    await row.getByRole('button', { name: `Check ${CONNECTION}` }).click()
 
     await expect(row).toContainText('healthy')
-    await expect(row).toContainText('HTTP 200')
     await expect(row).not.toContainText('never checked')
+
+    // What the check said is not on the row: reaching the health cell is what says it. The
+    // tooltip primitive describes its trigger rather than carrying a role, so it is found by
+    // the slot it is drawn in.
+    await expect(row).not.toContainText('HTTP 200')
+    await row.getByText('healthy').hover()
+    await expect(page.locator('[data-slot="tooltip-content"]')).toContainText('HTTP 200')
+
+    // And it is on the connection's own page in full, where there is room for it.
+    await row.click()
+    await expect(page.getByRole('tabpanel')).toContainText('HTTP 200')
+})
+
+test('the connections listing fits 1024 without scrolling sideways', async ({ page, baseURL }) => {
+    await signIn(page)
+    await seedConnection(page.request, baseURL ?? '')
+
+    await page.setViewportSize({ width: 1024, height: 768 })
+    await page.goto('/connections')
+    await expect(rowOf(page, CONNECTION)).toBeVisible()
+
+    // The table's own scroll box rather than the window: a listing wider than the box it is
+    // drawn in is the sideways scroll, whether or not the page itself moves.
+    const listing = page.locator('.list-scroll')
+    expect(await listing.evaluate((box) => box.scrollWidth - box.clientWidth)).toBeLessThanOrEqual(0)
+
+    const sideways = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    )
+    expect(sideways).toBeLessThanOrEqual(0)
 })
 
 test('a connection opens a form whose secret box is empty and whose kind is fixed', async ({
@@ -164,10 +200,9 @@ test('a connection is minted through the form its own kind publishes', async ({ 
     await dialog.getByRole('button', { name: 'Create' }).click()
     await expect(page.getByRole('dialog')).toHaveCount(0)
 
-    // The row is on the listing, saying its secret is set and never what it is.
+    // The row is on the listing, saying which kind it is and never a word of the credential.
     const row = rowOf(page, code)
     await expect(row).toContainText('http')
-    await expect(row).toContainText(`basic_password ${DOTS}`)
     await expect(page.locator('body')).not.toContainText(MINTED)
 
     // And the panel says the same: a stored credential, and an empty box to replace it with.
