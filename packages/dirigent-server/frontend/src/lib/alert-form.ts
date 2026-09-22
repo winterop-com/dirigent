@@ -96,7 +96,8 @@ export function targetOptions(
         .map((row) => ({ row, heading: headingOf(row) }))
         .toSorted(
             (one, two) =>
-                one.row.kind.localeCompare(two.row.kind) || one.heading.title.localeCompare(two.heading.title),
+                one.row.kind.localeCompare(two.row.kind) ||
+                one.heading.title.localeCompare(two.heading.title),
         )
     return [
         { value: LOG_TARGET, label: LOG_TARGET_LABEL, aside: '' },

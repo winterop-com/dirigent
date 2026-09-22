@@ -156,7 +156,10 @@ describe('the channels a rule may deliver through', () => {
     })
 
     test('a connection nobody named is titled by its code, and still says its kind', () => {
-        const rows = targetOptions(['log', 'webhook'], [aConnection({ code: 'ops-endpoint', kind: 'webhook' })])
+        const rows = targetOptions(
+            ['log', 'webhook'],
+            [aConnection({ code: 'ops-endpoint', kind: 'webhook' })],
+        )
         expect(rows[1]).toEqual({ value: 'ops-endpoint', label: 'ops-endpoint · webhook', aside: '' })
     })
 
@@ -174,11 +177,6 @@ describe('the channels a rule may deliver through', () => {
                 aConnection({ id: 'c3', code: 'alpha-slack', kind: 'slack' }),
             ],
         )
-        expect(rows.map((row) => row.value)).toEqual([
-            LOG_TARGET,
-            'alpha-slack',
-            'beta-slack',
-            'zulu-hook',
-        ])
+        expect(rows.map((row) => row.value)).toEqual([LOG_TARGET, 'alpha-slack', 'beta-slack', 'zulu-hook'])
     })
 })
