@@ -16,6 +16,21 @@ tag is what publishes: `.github/workflows/release.yaml` builds every package and
 to PyPI through trusted publishing, then builds the image from that commit and pushes it as
 `<version>` and `latest`. The two sibling repositories then relock against the tag and bump.
 
+## 0.18.2
+
+Released 2026-09-23. Every package in the workspace moves to 0.18.2 together, and so do
+`dirigent-dhis2` and `dirigent-integration`.
+
+- **A kind has one glyph, drawn wherever a kind is named.** The connections listing, the
+  connection page, the New connection kind rows, the editor's reference row and the home's
+  health rows carry the same mark the alerting screen's chips wear, decided in one place, so a
+  kind added there appears everywhere at once.
+- **`dg alerts test` names one target, like a rule.** `--connection <code>`, or none to
+  deliver through the process log; the sender follows from the connection's kind.
+- **`make refresh` starts over.** Caches, every compose stack with its volumes and the local
+  image, the venv, `node_modules`, `dist` and the served bundle go, then the venv and the UI
+  are rebuilt. It refuses to run while something listens on the dev port.
+
 ## 0.18.1
 
 Released 2026-09-22. Every package in the workspace moves to 0.18.1 together, and so do

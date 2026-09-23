@@ -1,6 +1,6 @@
 [project]
 name = "dirigent-block-execute"
-version = "0.18.1"
+version = "0.18.2"
 description = "The execute block family for dirigent: shell, docker, compose, buildx, and a checkout."
 readme = "README.md"
 requires-python = ">=3.13"
@@ -11,9 +11,9 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    "dirigent-block-http==0.18.1",
-    "dirigent-common==0.18.1",
-    "dirigent-plugin==0.18.1",
+    "dirigent-block-http==0.18.2",
+    "dirigent-common==0.18.2",
+    "dirigent-plugin==0.18.2",
     "httpx2>=2.12.0",
 ]
 
