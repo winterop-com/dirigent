@@ -128,14 +128,12 @@ export function SendTest({
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <TargetPicker
-                        id="test-connection"
-                        options={targetOptions(notifiers, connections)}
-                        value={connection}
-                        onChange={setConnection}
-                    />
-                </div>
+                <TargetPicker
+                    id="test-connection"
+                    options={targetOptions(notifiers, connections)}
+                    value={connection}
+                    onChange={setConnection}
+                />
 
                 <Field
                     id="test-subject"
