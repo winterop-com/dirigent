@@ -1050,7 +1050,7 @@ dg alerts rules create CODE --event run_failed
                             [--pipeline P] [--importance routine|normal|critical]
                             [--connection C] [--throttle 0s]
                             [--template T] [--body T | --body-file F]
-dg alerts test NOTIFIER [--connection CODE] [--subject TEXT]
+dg alerts test [--connection CODE] [--subject TEXT]
 dg alerts queue
 dg alerts retry NOTIFICATION
 
@@ -1300,7 +1300,8 @@ dg alerts rules create loud --event run_failed \
   --template '{{ pipeline.code }} failed after {{ run.duration_ms | duration }}' \
   --body-file alert-body.md.j2
 dg alerts rules create wake-me --event run_failed --importance critical
-dg alerts test log                          # one message, through the real queue
+dg alerts test                              # one message to the log, through the real queue
+dg alerts test --connection ops-slack       # the same message, through slack
 dg alerts queue                             # what is queued, sent, or stuck
 ```
 
@@ -1329,10 +1330,11 @@ own field either way.
 The channels a rule may name, and what each one needs minted for it, are in
 [notifier channels](operations.md#notifier-channels).
 
-`dg alerts test` names the notifier rather than the connection, with `--connection` as an
-option: a test has no rule to read a target from, and the channel is what is being tested. The
-message goes through the same queue and the same notifier call a real alert does, because a test
-that took a shortcut would prove only that the shortcut works -- so it appears in
+`dg alerts test` names the same one target a rule does: `--connection` and nothing else, with
+no connection meaning the process log. The sender follows from that connection's kind, and a
+connection no installed notifier delivers through is refused here exactly as it is when a rule
+names it. The message goes through the same queue and the same notifier call a real alert does,
+because a test that took a shortcut would prove only that the shortcut works -- so it appears in
 `dg alerts queue` and is delivered by a worker, not by the API.
 
 `dg alerts rules pause` holds a rule's deliveries and `resume` lets them go again. Pausing is

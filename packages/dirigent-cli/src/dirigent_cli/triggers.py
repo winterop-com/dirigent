@@ -546,16 +546,15 @@ def _set_rule_paused(ctx: typer.Context, code: str, *, paused: bool) -> None:
 @alerts_app.command("test")
 def alerts_test(
     ctx: typer.Context,
-    notifier: Annotated[str, typer.Argument(help="The channel to send through, such as log or webhook.")],
     connection: Annotated[
         str | None,
-        typer.Option("--connection", help="The credential record the channel delivers through."),
+        typer.Option("--connection", help="The connection to deliver through; none delivers to the process log."),
     ] = None,
     subject: Annotated[str, typer.Option("--subject", help="What the test message says.")] = "dirigent test alert",
 ) -> None:
-    """Send a test message through a channel, on the same queue a real alert takes."""
+    """Send a test message to one target, on the same queue a real alert takes."""
     with client_for(state_of(ctx)) as dg:
-        queued = dg.call(dg.alerts.test(notifier=notifier, connection=connection, subject=subject))
+        queued = dg.call(dg.alerts.test(connection=connection, subject=subject))
     emit_fact(
         "notification.queued",
         message="queued",

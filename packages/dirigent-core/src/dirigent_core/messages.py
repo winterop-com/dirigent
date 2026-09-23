@@ -498,8 +498,6 @@ REQUIRED_UNMAPPED = WEBHOOK.define(
 
 ALERT = Catalogue("alert")
 
-UNKNOWN_NOTIFIER = ALERT.define("unknown_notifier", "no notifier {notifier} is installed ({installed})")
-
 DUPLICATE_RULE = ALERT.define("duplicate_rule", "an alert rule coded {code} already exists")
 
 BAD_ALERT_TEMPLATE = ALERT.define("bad_template", "{field} is not a Jinja template: {detail}")

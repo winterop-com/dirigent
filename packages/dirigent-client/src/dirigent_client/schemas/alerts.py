@@ -23,6 +23,10 @@ CONNECTION_HELP = (
     "The connection this rule delivers through, whose kind names the sender; absent delivers to the process log."
 )
 
+TEST_CONNECTION_HELP = (
+    "The connection this message delivers through, whose kind names the sender; absent delivers to the process log."
+)
+
 
 class AlertRuleIn(BaseModel):
     """An alert rule as a caller declares it."""
@@ -101,10 +105,9 @@ class NotificationOut(WireModel):
 
 
 class TestRequest(BaseModel):
-    """Which channel to send a test message through, and what to say."""
+    """Which target to send a test message through, and what to say."""
 
-    notifier: str
-    connection: str | None = None
+    connection: str | None = Field(default=None, description=TEST_CONNECTION_HELP)
     subject: str = "dirigent test alert"
     body: str = "This is a test message sent through the notifier surface."
 

@@ -211,8 +211,8 @@ async def test_an_alert_rule_and_its_queue_round_trip(dg: Dirigent) -> None:
     rule = await dg.alerts.create_rule("on-failure", event=AlertEvent.RUN_FAILED, throttle="15m")
     assert rule.throttle == "15m"
     assert rule.notifier == "log", "a rule that names no connection delivers to the log"
-    queued = await dg.alerts.test(notifier="log", subject="a test message")
-    assert queued.notifier == "log"
+    queued = await dg.alerts.test(subject="a test message")
+    assert queued.notifier == "log", "a test that names no connection delivers to the log"
     assert [row.subject for row in (await dg.alerts.notifications()).items] == ["a test message"]
     await dg.alerts.delete_rule("on-failure")
     assert (await dg.alerts.rules()).items == []

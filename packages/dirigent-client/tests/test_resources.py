@@ -385,7 +385,7 @@ ACCESSORS: list[tuple[str, Callable[[Dirigent], Awaitable[object]], str, str]] =
     ("alerts.delete_rule", lambda dg: dg.alerts.delete_rule("on-failure"), "DELETE", "/alert-rules/on-failure"),
     (
         "alerts.test",
-        lambda dg: dg.alerts.test(notifier="log", subject="hi", body="there"),
+        lambda dg: dg.alerts.test(subject="hi", body="there"),
         "POST",
         "/alert-rules/$test",
     ),
