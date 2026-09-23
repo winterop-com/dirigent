@@ -150,12 +150,12 @@ async def remove_rule(code: str, session: SessionDep, principal: OperatorDep) ->
 
 @router.post(
     "/alert-rules/$test",
-    operation_id="testNotifier",
+    operation_id="sendTest",
     summary="Send a test message through a target",
     response_model=TestQueued,
     status_code=status.HTTP_202_ACCEPTED,
 )
-async def test_notifier(
+async def send_test(
     payload: TestRequest, session: SessionDep, services: ServicesDep, principal: OperatorDep
 ) -> TestQueued:
     """Queue one message through the target a rule would name, on the path a real alert takes."""

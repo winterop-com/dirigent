@@ -14,6 +14,7 @@ import { PageHeader, PageState } from '@/components/PageState'
 import { StatusChip } from '@/components/run/StatusChip'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { usePaged } from '@/hooks/use-paged'
+import { LOG_TARGET } from '@/lib/alert-form'
 import {
     channelsOf,
     EVENT_LABELS,
@@ -130,11 +131,7 @@ function Alerting() {
                                     reloadRules()
                                 }}
                                 onTest={() => {
-                                    openTest({
-                                        notifier: rule.notifier,
-                                        connection: rule.connection ?? '',
-                                        subject: '',
-                                    })
+                                    openTest({ connection: rule.connection ?? LOG_TARGET, subject: '' })
                                 }}
                             />
                         ),
@@ -346,6 +343,7 @@ function Alerting() {
                     if (!next) setTesting(null)
                 }}
                 notifiers={notifiersOf(channels.rows)}
+                connections={channels.connections}
                 onQueued={reloadNotifications}
                 onOpenQueue={(id) => {
                     setTesting(null)

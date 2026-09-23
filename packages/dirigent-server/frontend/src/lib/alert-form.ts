@@ -58,13 +58,13 @@ export function floorChosen(value: Importance | typeof ANY_IMPORTANCE): Importan
     return value === ANY_IMPORTANCE ? null : value
 }
 
-/** Whether this notifier delivers through a credential at all. Only the log one does not. */
-export function needsConnection(notifier: string): boolean {
-    return notifier !== '' && notifier !== LOG_NOTIFIER
-}
-
 /** What the target control answers with for the process log, which is a rule that names nothing. */
 export const LOG_TARGET = ''
+
+/** What the target control's answer is on the wire, where the log is the absence of a connection. */
+export function targetChosen(value: string): string | null {
+    return value === LOG_TARGET ? null : value
+}
 
 /** What the log's row is titled, the log being the one channel with no credential behind it. */
 export const LOG_TARGET_LABEL = 'The process log'
@@ -131,14 +131,5 @@ export function unreadyRule(draft: RuleDraft): string | undefined {
     if (draft.scope === 'pipeline' && draft.pipeline === '')
         return 'A rule watching one pipeline names that pipeline, and this one names none.'
     if (!DURATION.test(draft.throttle.trim())) return 'A throttle is a duration, such as 15m.'
-    return undefined
-}
-
-/** Why Send is shut on a test message, or nothing when it is not. */
-export function unreadyTest(notifier: string, connection: string): string | undefined {
-    if (notifier === '') return 'A test goes through a channel, and this one names none.'
-    if (needsConnection(notifier) && connection === '') {
-        return `The ${notifier} channel delivers through a connection, and this one names none.`
-    }
     return undefined
 }
