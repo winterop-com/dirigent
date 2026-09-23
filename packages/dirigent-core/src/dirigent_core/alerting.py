@@ -243,9 +243,9 @@ async def _connection(session: AsyncSession, code: str) -> Connection:
 
 
 async def _target(session: AsyncSession, services: EngineServices, code: str | None) -> tuple[str, UUID | None]:
-    """Resolve the one target a rule names into the sender that delivers it and what it opens.
+    """Resolve the one target named into the sender that delivers it and what it opens.
 
-    A rule names a connection, and the notifier is that connection's kind; naming nothing is
+    A target is a connection, and the notifier is that connection's kind; naming nothing is
     the process log. A kind no installed notifier answers to is refused here rather than
     stored, because the row would otherwise hold a sender no worker can dispatch on.
     """
