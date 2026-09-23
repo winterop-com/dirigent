@@ -619,8 +619,9 @@ needs no credential and is what makes alerting work on a fresh install. `--conne
 another: the notifier that sends the message is that connection's kind, so a `slack` connection
 delivers through `slack`. The other three built-ins are `webhook`, an outbound JSON POST that
 reaches anything accepting one; `slack`, through an incoming webhook or `chat.postMessage`; and
-`email`, one plain-text message per alert. Try one end to end with `dg alerts test log`, which
-sends one message through the real queue, and watch it with `dg alerts queue`.
+`email`, one plain-text message per alert. Try one end to end with `dg alerts test`, which
+names its target the same way a rule does and sends one message through the real queue, and
+watch it with `dg alerts queue`.
 
 Two things the engine guarantees here, both worth trusting. Raising an alert and settling the
 run are **one commit**, so a run cannot reach a terminal state without whatever it owes having

@@ -452,8 +452,48 @@ def test_pausing_a_rule_that_is_not_there_is_a_404(client: TestClient) -> None:
     assert client.patch(f"{PREFIX}/alert-rules/nothing", json={"paused": True}).status_code == 404
 
 
+def test_a_test_message_naming_no_target_goes_to_the_process_log(client: TestClient) -> None:
+    queued = client.post(f"{PREFIX}/alert-rules/$test", json={"subject": "a test"})
+    assert queued.status_code == 202
+    assert queued.json()["notifier"] == "log"
+    row = client.get(f"{PREFIX}/notifications/{queued.json()['notification_id']}").json()
+    assert row["notifier"] == "log"
+    assert row["connection"] is None
+
+
+def test_a_test_message_takes_the_sender_from_its_connections_kind(client: TestClient) -> None:
+    client.post(
+        f"{PREFIX}/connections",
+        json={"code": "ops-webhook", "kind": "webhook", "config": {"url": "https://ops.example.org/hooks"}},
+    )
+    queued = client.post(f"{PREFIX}/alert-rules/$test", json={"connection": "ops-webhook"})
+    assert queued.status_code == 202
+    assert queued.json()["notifier"] == "webhook"
+    row = client.get(f"{PREFIX}/notifications/{queued.json()['notification_id']}").json()
+    assert row["notifier"] == "webhook"
+    assert row["connection"] == "ops-webhook"
+
+
+def test_a_test_message_naming_a_connection_no_notifier_sends_through_is_refused(client: TestClient) -> None:
+    client.post(
+        f"{PREFIX}/connections",
+        json={"code": "ops-api", "kind": "http", "config": {"base_url": "https://ops.example.org"}},
+    )
+    refused = client.post(f"{PREFIX}/alert-rules/$test", json={"connection": "ops-api"})
+    assert refused.status_code == 422
+    assert refused.json()["code"] == "alert.target_has_no_notifier"
+    assert "'ops-api'" in refused.json()["detail"]
+    assert "'http'" in refused.json()["detail"]
+
+
+def test_a_test_message_naming_a_connection_this_instance_does_not_have_is_refused(client: TestClient) -> None:
+    refused = client.post(f"{PREFIX}/alert-rules/$test", json={"connection": "nowhere"})
+    assert refused.status_code == 422
+    assert refused.json()["code"] == "alert.unknown_connection"
+
+
 def test_a_notification_is_read_on_its_own_and_put_back_on_the_queue(client: TestClient) -> None:
-    queued = client.post(f"{PREFIX}/alert-rules/$test", json={"notifier": "log", "subject": "a test"})
+    queued = client.post(f"{PREFIX}/alert-rules/$test", json={"subject": "a test"})
     assert queued.status_code == 202
     notification_id = queued.json()["notification_id"]
     read = client.get(f"{PREFIX}/notifications/{notification_id}")
@@ -468,7 +508,7 @@ def test_a_notification_is_read_on_its_own_and_put_back_on_the_queue(client: Tes
 
 
 def test_the_queue_narrows_by_status_and_by_notifier(client: TestClient) -> None:
-    client.post(f"{PREFIX}/alert-rules/$test", json={"notifier": "log", "subject": "a test"})
+    client.post(f"{PREFIX}/alert-rules/$test", json={"subject": "a test"})
     assert len(client.get(f"{PREFIX}/notifications", params={"status": "pending"}).json()["items"]) == 1
     assert client.get(f"{PREFIX}/notifications", params={"status": "sent"}).json()["items"] == []
     assert len(client.get(f"{PREFIX}/notifications", params={"notifier": "log"}).json()["items"]) == 1

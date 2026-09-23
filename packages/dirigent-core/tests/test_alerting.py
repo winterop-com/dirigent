@@ -22,6 +22,7 @@ from dirigent_client.enums import (
     RunStatus,
     TriggerKind,
 )
+from dirigent_client.schemas.alerts import LOG_NOTIFIER
 from dirigent_common import JsonMap, render
 from dirigent_core import alerting
 from dirigent_core.alerting import (
@@ -296,15 +297,12 @@ async def queued_message(
     sessions: async_sessionmaker[AsyncSession],
     services: EngineServices,
     *,
-    notifier: str = "recording",
     subject: str = "dirigent test alert",
-    connection: str | None = None,
+    connection: str | None = DESK,
 ) -> Notification:
     """Queue one test message and pin it to the fixed clock the delivery tests claim against."""
     async with session_scope(sessions) as session:
-        notification = await queue_test_message(
-            session, services, notifier=notifier, connection=connection, subject=subject
-        )
+        notification = await queue_test_message(session, services, connection=connection, subject=subject)
         notification.available_at = NOW
         return notification
 
@@ -1342,7 +1340,7 @@ async def test_a_test_message_renders_the_template_a_person_is_trying_out(
         queued = await queue_test_message(
             session,
             services,
-            notifier="recording",
+            connection=DESK,
             subject="{{ run.pipeline }} run {{ run.status }}",
             body="a body over {{ run.pipeline }}",
         )
@@ -1482,7 +1480,7 @@ async def test_a_delivered_alert_is_marked_sent_released_and_written_into_the_ti
 async def test_a_refused_delivery_goes_back_on_the_queue_with_a_doubling_backoff(
     sessions: async_sessionmaker[AsyncSession], services: EngineServices
 ) -> None:
-    await queued_message(sessions, services, notifier="exploding")
+    await queued_message(sessions, services, connection=FLAKY)
     backoff = services.settings.notification_backoff.total_seconds()
     delays: list[float] = []
     moment = NOW
@@ -1659,7 +1657,7 @@ async def test_a_test_message_is_queued_attached_to_nothing(
     sessions: async_sessionmaker[AsyncSession], services: EngineServices
 ) -> None:
     async with session_scope(sessions) as session:
-        queued = await queue_test_message(session, services, notifier="recording")
+        queued = await queue_test_message(session, services, connection=DESK)
     assert queued.alert_rule_id is None
     assert queued.run_id is None
     assert queued.subject == "dirigent test alert"
@@ -1667,12 +1665,39 @@ async def test_a_test_message_is_queued_attached_to_nothing(
     assert run_facts(queued.context)["pipeline"] == "(test)"
 
 
-async def test_a_test_message_through_an_uninstalled_channel_is_refused(
+async def test_a_test_message_naming_no_target_goes_to_the_process_log(
     sessions: async_sessionmaker[AsyncSession], services: EngineServices
 ) -> None:
     async with session_scope(sessions) as session:
-        with pytest.raises(AlertError, match="no notifier 'carrier-pigeon' is installed"):
-            await queue_test_message(session, services, notifier="carrier-pigeon")
+        queued = await queue_test_message(session, services)
+    assert queued.notifier == LOG_NOTIFIER
+    assert queued.connection_id is None
+
+
+async def test_a_test_message_takes_the_sender_from_its_connections_kind(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    async with session_scope(sessions) as session:
+        queued = await queue_test_message(session, services, connection=DESK)
+    assert queued.notifier == "recording"
+    assert queued.connection_id == (await find_connection(sessions, DESK)).id
+
+
+async def test_a_test_message_through_a_connection_with_no_notifier_is_refused(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    await a_connection(sessions, services, code="post", kind="carrier-pigeon")
+    async with session_scope(sessions) as session:
+        with pytest.raises(AlertError, match="which no installed notifier delivers through"):
+            await queue_test_message(session, services, connection="post")
+
+
+async def test_a_test_message_through_a_connection_this_instance_does_not_have_is_refused(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    async with session_scope(sessions) as session:
+        with pytest.raises(AlertError, match="no connection coded 'nowhere'"):
+            await queue_test_message(session, services, connection="nowhere")
 
 
 # -- listing and recovery ----------------------------------------------------------
@@ -1687,7 +1712,7 @@ async def test_notifications_list_newest_first_and_can_be_scoped_to_one_run(
         stored = await session.get(Run, run.id)
         assert stored is not None
         await raise_for_run(session, services, stored, AlertEvent.RUN_FAILED, now=NOW)
-        await queue_test_message(session, services, notifier="recording")
+        await queue_test_message(session, services, connection=DESK)
     async with sessions() as session:
         assert len(await list_notifications(session)) == 2
         scoped = await list_notifications(session, run_id=run.id)
@@ -1872,7 +1897,7 @@ async def test_the_dispatcher_delivers_everything_due_and_reports_the_count(
 async def test_one_undeliverable_message_never_rolls_back_the_ones_beside_it(
     sessions: async_sessionmaker[AsyncSession], services: EngineServices
 ) -> None:
-    await queued_message(sessions, services, notifier="exploding", subject="bad")
+    await queued_message(sessions, services, connection=FLAKY, subject="bad")
     await queued_message(sessions, services, subject="good")
     dispatcher = NotificationDispatcher(sessions=sessions, services=services, owner=OWNER)
     assert await dispatcher.drain(now=NOW) == 1

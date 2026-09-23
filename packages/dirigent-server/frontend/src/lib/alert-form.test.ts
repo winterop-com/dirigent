@@ -7,10 +7,9 @@ import {
     IMPORTANCE_FLOORS,
     LOG_TARGET,
     LOG_TARGET_LABEL,
-    needsConnection,
+    targetChosen,
     targetOptions,
     unreadyRule,
-    unreadyTest,
 } from '@/lib/alert-form'
 import type { RuleDraft } from '@/lib/alert-form'
 import type { ConnectionOut } from '@/lib/connections'
@@ -44,19 +43,13 @@ function aConnection(over: Partial<ConnectionOut> = {}): ConnectionOut {
     }
 }
 
-describe('which channels deliver through a credential', () => {
-    test('log needs none, because it writes to the process log', () => {
-        expect(needsConnection('log')).toBe(false)
+describe('what the target control sends', () => {
+    test('the process log is the absence of a connection rather than a channel named on the wire', () => {
+        expect(targetChosen(LOG_TARGET)).toBeNull()
     })
 
-    test('every other channel does', () => {
-        expect(needsConnection('slack')).toBe(true)
-        expect(needsConnection('email')).toBe(true)
-        expect(needsConnection('webhook')).toBe(true)
-    })
-
-    test('nothing chosen is not a channel that needs one', () => {
-        expect(needsConnection('')).toBe(false)
+    test('every other row is the connection it stands for', () => {
+        expect(targetChosen('ops-slack')).toBe('ops-slack')
     })
 })
 
@@ -88,23 +81,6 @@ describe('why a new rule cannot be declared yet', () => {
         expect(unreadyRule(aDraft({ throttle: '900' }))).toBe('A throttle is a duration, such as 15m.')
         expect(unreadyRule(aDraft({ throttle: '15m' }))).toBeUndefined()
         expect(unreadyRule(aDraft({ throttle: '1h30m' }))).toBeUndefined()
-    })
-})
-
-describe('why a test cannot be sent yet', () => {
-    test('a test goes through a channel', () => {
-        expect(unreadyTest('', '')).toBe('A test goes through a channel, and this one names none.')
-    })
-
-    test('log needs nothing beside it', () => {
-        expect(unreadyTest('log', '')).toBeUndefined()
-    })
-
-    test('every other channel needs the credential it delivers through', () => {
-        expect(unreadyTest('email', '')).toBe(
-            'The email channel delivers through a connection, and this one names none.',
-        )
-        expect(unreadyTest('email', 'ops-mail')).toBeUndefined()
     })
 })
 

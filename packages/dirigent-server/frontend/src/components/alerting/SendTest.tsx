@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-import { ConnectionPicker, Field, NotifierPicker } from '@/components/alerting/fields'
+import { Field, TargetPicker } from '@/components/alerting/fields'
 import { Instant } from '@/components/Instant'
 import { Refusable } from '@/components/Refusable'
 import { Refusal } from '@/components/Refusal'
@@ -16,11 +16,11 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog'
 import { useMayWrite } from '@/hooks/use-may-write'
-import { needsConnection, unreadyTest } from '@/lib/alert-form'
+import { LOG_TARGET, targetChosen, targetOptions } from '@/lib/alert-form'
 import { deliverySettled, readNotification, sendTest, type NotificationOut } from '@/lib/alerting'
 import type { Problem } from '@/lib/api'
+import type { ConnectionOut } from '@/lib/connections'
 import { refusalOf } from '@/lib/refusal'
-import { firstShut } from '@/lib/roles'
 
 /** How often the queued row is read back while it is still moving. */
 const POLL_MS = 1000
@@ -33,13 +33,12 @@ const DEFAULT_SUBJECT = 'dirigent test alert'
 
 /** What the dialog opens with, which a rule's panel fills in from the rule. */
 export interface TestDraft {
-    notifier: string
     connection: string
     subject: string
 }
 
 /** Nothing chosen: the dialog opened from the screen's own verb rather than from a rule. */
-export const EMPTY_TEST: TestDraft = { notifier: '', connection: '', subject: '' }
+export const EMPTY_TEST: TestDraft = { connection: LOG_TARGET, subject: '' }
 
 /**
  * Send one message through a channel and watch it land.
@@ -50,14 +49,18 @@ export const EMPTY_TEST: TestDraft = { notifier: '', connection: '', subject: ''
  * is read back on a cadence until it is sent or failed, and a refusal shows the sentence the
  * channel itself gave.
  *
- * IT IS THE SAME DIALOG A RULE OPENS. A rule's panel passes its own notifier and connection in,
- * so proving the channel a rule uses is the rule's own verb rather than a form to fill in twice.
+ * IT NAMES ONE TARGET, THE WAY A RULE DOES. The picker is the rule's own, so a test proves the
+ * address a rule would be declared with rather than a channel named some other way.
+ *
+ * IT IS THE SAME DIALOG A RULE OPENS. A rule's panel passes its own target in, so proving the
+ * channel a rule uses is the rule's own verb rather than a form to fill in twice.
  */
 export function SendTest({
     open,
     draft,
     onOpenChange,
     notifiers,
+    connections,
     onQueued,
     onOpenQueue,
 }: {
@@ -65,15 +68,15 @@ export function SendTest({
     draft: TestDraft
     onOpenChange: (open: boolean) => void
     notifiers: readonly string[]
+    connections: readonly ConnectionOut[]
     /** Called once the message is queued, so the listing behind shows the new row. */
     onQueued: () => void
     /** Called with the notification the dialog is watching, to show it in the queue. */
     onOpenQueue: (id: string) => void
 }) {
     // The boxes are initialised from the draft and never reset by an effect: the screen gives
-    // this dialog a fresh `key` each time it is opened, so a rule's own channel arrives as the
+    // this dialog a fresh `key` each time it is opened, so a rule's own target arrives as the
     // initial state rather than as a write that has to undo whatever the last send left behind.
-    const [notifier, setNotifier] = useState(draft.notifier)
     const [connection, setConnection] = useState(draft.connection)
     const [subject, setSubject] = useState(draft.subject)
     const [watching, setWatching] = useState<string | null>(null)
@@ -91,15 +94,14 @@ export function SendTest({
         // The callback is the screen's own reload and is stable; the row settling is the event.
         // oxlint-disable-next-line react-hooks/exhaustive-deps
     }, [settled])
-    const shut = firstShut(write.why, unreadyTest(notifier, connection))
+    const shut = write.why
 
     const send = () => {
         setBusy(true)
         setProblem(null)
         setWatching(null)
         void sendTest({
-            notifier,
-            connection: needsConnection(notifier) ? connection : null,
+            connection: targetChosen(connection),
             ...(subject.trim() === '' ? {} : { subject: subject.trim() }),
         })
             .then(
@@ -126,25 +128,12 @@ export function SendTest({
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <NotifierPicker
-                        id="test-notifier"
-                        notifiers={notifiers}
-                        value={notifier}
-                        onChange={(picked) => {
-                            setNotifier(picked)
-                            setConnection('')
-                        }}
-                    />
-                    {needsConnection(notifier) && (
-                        <ConnectionPicker
-                            id="test-connection"
-                            kind={notifier}
-                            value={connection}
-                            onChange={setConnection}
-                        />
-                    )}
-                </div>
+                <TargetPicker
+                    id="test-connection"
+                    options={targetOptions(notifiers, connections)}
+                    value={connection}
+                    onChange={setConnection}
+                />
 
                 <Field
                     id="test-subject"

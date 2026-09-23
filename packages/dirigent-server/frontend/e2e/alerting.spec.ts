@@ -197,11 +197,20 @@ test('a test stays open until the row settles, and reaches sent through the log 
 
     const dialog = page.getByRole('dialog')
     const send = dialog.getByRole('button', { name: 'Send', exact: true })
-    await expect(send).toBeDisabled()
-    await expect(send).toHaveAttribute('title', 'A test goes through a channel, and this one names none.')
 
-    await dialog.getByLabel('Notifier').click()
-    await page.getByRole('option', { name: 'log', exact: true }).click()
+    // A test names one target the way a rule does: one picker, opened on the log, and nothing
+    // to fill in before it can be sent.
+    await expect(dialog.getByLabel('Deliver through')).toHaveValue('The process log')
+    await expect(dialog.getByLabel('Notifier')).toHaveCount(0)
+    await expect(dialog.getByLabel('Connection')).toHaveCount(0)
+    await expect(send).toBeEnabled()
+
+    // A target is a channel, so every row of the picker wears its kind's mark.
+    await dialog.getByLabel('Deliver through').click()
+    const logRow = page.getByRole('option', { name: 'The process log' })
+    await expect(logRow.locator('[data-slot="mark"]')).toHaveCount(1)
+    await logRow.click()
+
     await dialog.getByLabel('Subject').fill('e2e test alert')
     await send.click()
 
@@ -267,12 +276,11 @@ async function declareRule(page: Page): Promise<void> {
     expect(answer.status()).toBe(201)
 }
 
-/** Queue one message through the log channel and close the dialog behind it. */
+/** Queue one message through the log channel, which the dialog opens on, and close it behind. */
 async function sendTest(page: Page, subject: string): Promise<void> {
     await page.getByRole('button', { name: 'Send a test' }).click()
     const dialog = page.getByRole('dialog')
-    await dialog.getByLabel('Notifier').click()
-    await page.getByRole('option', { name: 'log', exact: true }).click()
+    await expect(dialog.getByLabel('Deliver through')).toHaveValue('The process log')
     await dialog.getByLabel('Subject').fill(subject)
     await dialog.getByRole('button', { name: 'Send', exact: true }).click()
     // Closed only once the row has settled, so the listing behind has been read again with it.

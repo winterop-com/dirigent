@@ -1536,7 +1536,7 @@ dg webhook list | rotate-token | deliveries | delete PIPELINE NAME
 dg trigger-document list | show | delete CODE         # clocks declared for a pipeline defined elsewhere
 dg alerts rules list | create NAME --event E [--connection C] [--pipeline P] [--importance I]
                                    [--throttle DUR] | delete NAME
-dg alerts test NOTIFIER [--connection NAME] | dg alerts queue | dg alerts retry ID
+dg alerts test [--connection NAME] | dg alerts queue | dg alerts retry ID
 
 # catalog, connections, operations
 dg blocks list [--kind operator|sensor] | show BLOCK_ID | new           # scaffold a block pack
@@ -1551,11 +1551,9 @@ dg admin user create | list | password | dg admin token create | list | revoke
 Two shapes in there are worth explaining. `dg schedule create` builds its `-p` overrides
 against the pipeline's own parameter schema, with the same builder `dg run` uses, so a typo is
 refused when the schedule is created rather than discovered at five in the morning when it
-fires. And `dg alerts test` names the **notifier**, with the connection as an option, because a
-test has no rule to read a target from and the channel is the thing being tested -- a rule names
-the connection instead, and its sender follows from that connection's kind.
-
-*(Deviation from the blueprint, which sketched `dg alerts test CONNECTION`.)*
+fires. And `dg alerts test` names **one target**, the way a rule does: `--connection`, or
+nothing at all for the process log. The sender follows from that connection's kind in both
+places, so there is no second name to keep in agreement with the first.
 
 A minted webhook token is printed once, with the URL already assembled, and never again: the
 instance keeps only its hash. `dg webhook rotate-token` is how a token nobody wrote down is

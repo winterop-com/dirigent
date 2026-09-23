@@ -1128,7 +1128,7 @@ where `DIRIGENT_ALERT_BASE_URL` is set, and the whole template context under `co
 `dg connection check` sends a HEAD and reports what answered. **That proves the endpoint is
 reachable, not that it accepts an alert**: only a POST proves the second, and a check that
 posted would deliver a message every time somebody opened the connections screen. Prove one
-with `dg alerts test webhook --connection ops-endpoint`, which is the only thing that settles
+with `dg alerts test --connection ops-endpoint`, which is the only thing that settles
 the second question.
 
 ### Slack
@@ -1165,7 +1165,7 @@ test an incoming webhook other than posting to it, and a health check that put a
 the channel every time somebody opened the connections screen would be worse than no check.
 That check answers neither healthy nor unhealthy -- `healthy` is null, the CLI says `not
 verified` and exits 0, and every screen draws the row uncoloured rather than green. Prove one
-with `dg alerts test slack --connection ops-slack`, which sends a real message through the
+with `dg alerts test --connection ops-slack`, which sends a real message through the
 same queue.
 
 ### Email
@@ -1228,8 +1228,8 @@ dg connection create email ops-mail \
 
 dg connection create webhook ops-webhook --set url=http://webhook-sink:8080/alerts
 
-dg alerts test email --connection ops-mail
-dg alerts test webhook --connection ops-webhook
+dg alerts test --connection ops-mail
+dg alerts test --connection ops-webhook
 ```
 
 Then read what arrived. Mailpit holds the message and answers for it:
@@ -1247,7 +1247,7 @@ docker compose --project-directory . -f infra/compose.yaml \
 
 Slack has no local stand-in -- there is no Slack to run on a laptop -- so the way to prove
 that channel is a real workspace and a real message. What a bad credential proves is the
-other half: `dg alerts test slack --connection ...` against a token Slack refuses records the
+other half: `dg alerts test --connection ...` against a token Slack refuses records the
 refusal on the notification, which is where a real one would be too.
 
 ## Retention

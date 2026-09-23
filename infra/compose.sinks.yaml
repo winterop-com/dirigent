@@ -19,8 +19,8 @@
 #
 # Then prove each one end to end, which queues a real message a worker delivers:
 #
-#   dg alerts test email --connection ops-mail
-#   dg alerts test webhook --connection ops-webhook
+#   dg alerts test --connection ops-mail
+#   dg alerts test --connection ops-webhook
 #
 # Read what arrived at http://127.0.0.1:8025 for the mail, or over Mailpit's own API:
 #

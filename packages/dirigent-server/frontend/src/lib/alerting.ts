@@ -147,7 +147,7 @@ export interface NotificationOut {
 
 /** A test message, as `POST /alert-rules/$test` takes one. `TestRequest`. */
 export interface TestRequest {
-    notifier: string
+    /** The connection it delivers through, whose kind names the sender; null is the log. */
     connection?: string | null
     subject?: string
     body?: string

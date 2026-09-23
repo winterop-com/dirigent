@@ -85,13 +85,12 @@ class Alerts(Resource):
     async def test(
         self,
         *,
-        notifier: str,
         connection: str | None = None,
         subject: str | None = None,
         body: str | None = None,
     ) -> TestQueued:
-        """Queue one message through a channel, on the same path a real alert takes."""
-        declared = TestRequest(notifier=notifier, connection=connection)
+        """Queue one message through the target a rule would name, on the path a real alert takes."""
+        declared = TestRequest(connection=connection)
         payload = declared.model_copy(
             update=query(subject=subject, body=body),
         )

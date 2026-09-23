@@ -52,7 +52,6 @@ from dirigent_core.messages import (
     NOTIFIER_NOT_ON_WORKER,
     SCOPE_NEEDS_PIPELINE,
     TARGET_HAS_NO_NOTIFIER,
-    UNKNOWN_NOTIFIER,
 )
 from dirigent_core.models import (
     AlertRule,
@@ -234,11 +233,6 @@ async def _scope_pipeline(session: AsyncSession, request: AlertRuleRequest) -> U
     return pipeline.id
 
 
-async def _connection_id(session: AsyncSession, code: str) -> UUID:
-    """Resolve the connection a notifier delivers through, refusing an unknown code."""
-    return (await _connection(session, code)).id
-
-
 async def _connection(session: AsyncSession, code: str) -> Connection:
     """Read one connection by code, refusing a code this instance does not hold."""
     found = await session.execute(sa.select(Connection).where(Connection.code == code))
@@ -249,9 +243,9 @@ async def _connection(session: AsyncSession, code: str) -> Connection:
 
 
 async def _target(session: AsyncSession, services: EngineServices, code: str | None) -> tuple[str, UUID | None]:
-    """Resolve the one target a rule names into the sender that delivers it and what it opens.
+    """Resolve the one target named into the sender that delivers it and what it opens.
 
-    A rule names a connection, and the notifier is that connection's kind; naming nothing is
+    A target is a connection, and the notifier is that connection's kind; naming nothing is
     the process log. A kind no installed notifier answers to is refused here rather than
     stored, because the row would otherwise hold a sender no worker can dispatch on.
     """
@@ -691,26 +685,24 @@ async def queue_test_message(
     session: AsyncSession,
     services: EngineServices,
     *,
-    notifier: str,
     connection: str | None = None,
     subject: str = "dirigent test alert",
     body: str = "This is a test message sent through the notifier surface.",
 ) -> Notification:
     """Queue one unattached message, which is what ``dg alerts test`` sends.
 
-    The subject and the body are rendered as a rule's are, over a stand-in context, so a
-    template can be tried out before it is written onto a rule.
+    The message names one target the way a rule does, and the sender follows from that
+    connection's kind. The subject and the body are rendered as a rule's are, over a stand-in
+    context, so a template can be tried out before it is written onto a rule.
     """
-    if notifier not in services.host.notifiers:
-        installed = ", ".join(sorted(services.host.notifiers)) or "none are installed"
-        raise AlertError(UNKNOWN_NOTIFIER, notifier=repr(notifier), installed=installed)
+    notifier, connection_id = await _target(session, services, connection)
     context: JsonMap = {"run": {"pipeline": "(test)", "status": "succeeded"}, "report": None}
     notification = Notification(
         alert_rule_id=None,
         run_id=None,
         event=AlertEvent.RUN_SUCCEEDED,
         notifier=notifier,
-        connection_id=await _connection_id(session, connection) if connection else None,
+        connection_id=connection_id,
         subject=_one_line(_or_literal(subject, context, max_bytes=SUBJECT_RENDER_CAP)),
         body=_or_literal(body, context, max_bytes=int(services.settings.report_max_size)),
         context=context,

@@ -620,7 +620,7 @@ def test_a_rule_is_paused_and_resumed_from_the_command_line(tmp_path: Path, serv
 
 
 def test_a_notification_is_put_back_on_the_queue_from_the_command_line(server: str) -> None:
-    queued = machine("alerts", "test", "log", "--subject", "one to send again")
+    queued = machine("alerts", "test", "--subject", "one to send again")
     notification_id = only(queued.stdout, "notification.queued")["notification_id"]
 
     again = machine("alerts", "retry", notification_id)
@@ -650,11 +650,12 @@ def test_a_rule_naming_a_connection_this_instance_does_not_have_is_refused(serve
     assert "no connection coded 'carrier-pigeon'" in plain(result.output)
 
 
-def test_a_test_message_goes_through_the_queue_a_real_alert_takes(server: str) -> None:
-    queued = machine("alerts", "test", "log", "--subject", "a test from the cli")
+def test_a_test_message_naming_no_target_goes_through_the_queue_a_real_alert_takes(server: str) -> None:
+    queued = machine("alerts", "test", "--subject", "a test from the cli")
     assert queued.exit_code == 0, queued.output
     accepted = only(queued.stdout, "notification.queued")
     assert accepted["notifier"] == "log"
+    assert accepted["connection"] is None
     assert accepted["subject"] == "a test from the cli"
 
     rows = rows_of("alerts", "queue")
@@ -662,6 +663,23 @@ def test_a_test_message_goes_through_the_queue_a_real_alert_takes(server: str) -
     assert rows[0]["notifier"] == "log"
     assert rows[0]["status"] == "pending"
     assert rows[0]["id"] == accepted["notification_id"]
+
+
+def test_a_test_message_names_one_target_and_the_sender_follows(server: str) -> None:
+    stored = invoke("connection", "ensure", "webhook", "ops-hook", "--set", "url=https://ops.example.org/hooks")
+    assert stored.exit_code == 0, stored.output
+    queued = machine("alerts", "test", "--connection", "ops-hook")
+    assert queued.exit_code == 0, queued.output
+    accepted = only(queued.stdout, "notification.queued")
+    assert accepted["notifier"] == "webhook", "the sender follows from the connection's kind"
+    assert accepted["connection"] == "ops-hook"
+    assert rows_of("alerts", "queue")[0]["connection"] == "ops-hook"
+
+
+def test_a_test_message_naming_a_connection_this_instance_does_not_have_is_refused(server: str) -> None:
+    refused = invoke("alerts", "test", "--connection", "carrier-pigeon")
+    assert refused.exit_code == 1
+    assert "no connection coded 'carrier-pigeon'" in plain(refused.output)
 
 
 #: A clock file over the pipeline the other documents here define.
