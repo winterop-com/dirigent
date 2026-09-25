@@ -37,3 +37,8 @@ UNSUPPORTED_API_VERSION = PLUGIN.define(
 )
 
 DUPLICATE_ID = PLUGIN.define("duplicate_id", "duplicate {label} {value} in contribution")
+
+INVALID_MARK = PLUGIN.define(
+    "invalid_mark",
+    "the mark connection kind {kind} declares is not SVG path data: {detail}",
+)

@@ -2,6 +2,7 @@
 
 from dirigent_plugin.blocks import (
     BLOCK_ID_PATTERN,
+    MARK_LIMIT,
     SHELL_VARIABLE_PREFIX,
     SHELL_VARIABLES_FIELD,
     SURFACE_ID_PATTERN,
@@ -42,6 +43,7 @@ from dirigent_plugin.blocks import (
     Storage,
     StorageBackend,
     classify_default,
+    mark_refusal,
     merge_contributions,
     shell_string_fields,
 )
@@ -90,6 +92,7 @@ __all__ = [
     "Filterer",
     "FormatCheck",
     "Logger",
+    "MARK_LIMIT",
     "Mapper",
     "NotYet",
     "Notifier",
@@ -131,6 +134,7 @@ __all__ = [
     "extension",
     "extension_point",
     "formatters",
+    "mark_refusal",
     "merge_contributions",
     "shell_string_fields",
 ]

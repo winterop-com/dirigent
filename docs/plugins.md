@@ -340,6 +340,27 @@ its connections name; nothing registers inbound. "Connecting things" is therefor
 packs that bring the systems, then wire their blocks in a DAG through connections and `${...}`
 references.
 
+### A connection kind may declare the mark it wears
+
+A kind is drawn as well as named: the connections listing, the New connection dialog, the home
+screen's health rows and the step form's reference row all lead with a glyph. dirigent ships one
+for each kind it knows, and a kind it does not know is drawn by a neutral dot. A pack that would
+rather be recognised declares its own:
+
+```python
+class AcmeConnectionKind(ConnectionKind):
+    id: ClassVar[str] = "acme"
+    config_model: ClassVar[type[BaseModel]] = AcmeConnectionConfig
+    mark: ClassVar[str | None] = "M12 2 L22 12 L12 22 L2 12 Z"
+```
+
+`mark` is the `d` of one SVG path drawn on a 24-unit grid, monochrome: the UI fills it with
+`currentColor` at the size every other kind's glyph is drawn at, so it takes the ink of whatever
+draws it in both palettes. It is checked when the contribution is built -- non-empty, ASCII,
+path-data characters only, at most 4 kB -- and a pack that declares anything else is refused with
+`plugin.invalid_mark` rather than handing a browser markup. `assert_contribution_conforms` makes
+the same check, so a pack reads the refusal in its own test run.
+
 ### What `ctx.http` reads from a connection
 
 `ctx.http(ref)` builds a client for a connection of any kind, so it reads a config's fields by

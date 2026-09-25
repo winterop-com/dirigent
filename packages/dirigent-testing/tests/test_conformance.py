@@ -2,10 +2,11 @@
 
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import BaseModel, Field
 
-from dirigent_common import BlockModel
+from dirigent_common import BlockModel, HealthReport
 from dirigent_plugin import (
+    ConnectionKind,
     Contribution,
     NotYet,
     Operator,
@@ -258,8 +259,6 @@ def test_a_well_formed_contribution_conforms() -> None:
 
 
 def test_a_block_whose_models_are_not_block_models_is_reported() -> None:
-    from pydantic import BaseModel
-
     class LooseConfig(BaseModel):
         value: str = "x"
 
@@ -279,4 +278,48 @@ def test_a_block_whose_models_are_not_block_models_is_reported() -> None:
     assert issues == [
         "demo.loose config_model is not a BlockModel",
         "demo.loose output_model is not a BlockModel",
+    ]
+
+
+class DemoConnectionConfig(BlockModel):
+    base_url: str = "https://demo.invalid"
+
+
+class DemoConnectionKind(ConnectionKind):
+    """A connection kind a pack's own tests run the kit over."""
+
+    id = "demo"
+    config_model = DemoConnectionConfig
+
+    async def check(self, config: BaseModel) -> HealthReport:
+        """Report the connection as healthy."""
+        return HealthReport(healthy=True, detail="demo")
+
+
+def test_a_connection_kind_that_declares_no_mark_conforms() -> None:
+    assert assert_contribution_conforms(Contribution(connection_kinds=[DemoConnectionKind()])) == []
+
+
+def test_a_connection_kind_that_declares_path_data_conforms() -> None:
+    class Marked(DemoConnectionKind):
+        """A connection kind wearing a mark of its own."""
+
+        id = "marked"
+        mark = "M12 2 L22 12 L12 22 L2 12 Z"
+
+    assert assert_contribution_conforms(Contribution(connection_kinds=[Marked()])) == []
+
+
+def test_a_mark_that_is_not_path_data_is_reported() -> None:
+    class Injected(DemoConnectionKind):
+        """A connection kind that goes on to claim something a browser must never be handed."""
+
+        id = "injected"
+
+    contribution = Contribution(connection_kinds=[Injected()])
+    Injected.mark = '"/><script>alert(1)</script>'
+
+    assert assert_contribution_conforms(contribution) == [
+        "the mark connection kind 'injected' declares is not SVG path data: "
+        "it carries '\"()/<>ipr', which path data does not"
     ]

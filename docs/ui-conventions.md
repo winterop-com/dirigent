@@ -976,12 +976,23 @@ code and nothing else. The dialog's kind rows and the editor's reference row spe
 for the reason the picker's rows do -- the kind is half of what the row is found by, and the
 reference row has no code of its own to stand beside, the box above it already holding one.
 
+**A pack declares the mark its own kind wears, and it is one path or it is nothing.** A
+`ConnectionKind` carries `mark`: the `d` of a single SVG path on the same 24-unit grid, which
+reaches the app through the catalog and is held once in `lib/marks`. `kindGlyph(kind, marks)` is
+still the one place the question is answered -- the built-in map wins for the kinds it names, a
+declared path is drawn next, and the neutral glyph is what is left -- so a screen still asks one
+function and keeps no table. A declared path is a string off the wire, so it is drawn only when
+it is path data and nothing else: non-empty, ASCII, path-data characters, at most 4 kB, which is
+what registration held the pack to and what this bundle checks again before a browser sees it. A
+notifier declares none, so the channel strip and a rule's target draw the marks this bundle
+names.
+
 **A kind with no glyph takes the neutral glyph rather than a gap**, which is the same one a
 palette row with no icon takes. Kinds arrive from whichever packs an instance installed, so a
-pack's kind -- `dhis2` -- gets a mark rather than a hole beside the kinds this bundle was built
-knowing. Something that is not a kind at all carries neither a mark nor a neutral one: a worker
-row on the health panel holds the mark's width so the codes under it line up, and draws nothing
-in it.
+pack's kind that declares no mark of its own gets a mark rather than a hole beside the kinds this
+bundle was built knowing. Something that is not a kind at all carries neither a mark nor a
+neutral one: a worker row on the health panel holds the mark's width so the codes under it line
+up, and draws nothing in it.
 
 **Two kinds that are the same sort of thing may share that sort's mark.** `kafka` and `rabbitmq`
 are both queues and both wear the queue; the code is always beside the mark, and it is the code
@@ -1006,7 +1017,8 @@ media kit's where it does not -- Slack is the second case, so its mark is the pa
 and scaled onto the same 24-unit grid every other glyph is drawn on. **A brand mark is monochrome
 here**, which is what a kit's monochrome variant is for: it takes the surface's ink in both
 palettes like everything else on the strip, where a mark in its own colours would be the loudest
-thing on a screen whose colour means a state.
+thing on a screen whose colour means a state. A mark a pack declares is held to the same two
+rules: one path on the 24 grid, filled in `currentColor`.
 
 ## The channel strip
 

@@ -22,7 +22,7 @@ from jsonschema.validators import extend as extend_validator  # pyright: ignore[
 from pydantic import JsonValue
 
 from dirigent_common import BlockModel, HumaneJsonSchema, JsonMap
-from dirigent_plugin import AnyOperator, AnySensor, Contribution
+from dirigent_plugin import AnyOperator, AnySensor, Contribution, mark_refusal
 
 #: A ``${...}`` reference, matched the way the engine matches one.
 _REFERENCE: Final = re.compile(r"\$\{[^{}]+\}")
@@ -186,13 +186,15 @@ def _config_issues(label: Path, name: str, config: JsonMap, schema: JsonMap) -> 
 
 
 def assert_contribution_conforms(contribution: Contribution) -> list[str]:
-    """List the ways a contribution's blocks are malformed, beyond what constructing it enforces.
+    """List the ways a contribution is malformed, beyond what constructing it enforces.
 
     A ``Contribution`` already rejects colliding ids when it is built, and a block id is a
     pattern that forbids an empty one, so a valid contribution passes those. This adds the
     check the contract cannot make on its own: that every operator's and sensor's
-    ``config_model`` and ``output_model`` is a :class:`BlockModel`. An empty list means the
-    contribution's blocks are well-formed.
+    ``config_model`` and ``output_model`` is a :class:`BlockModel`. A connection kind's ``mark``
+    is checked through :func:`dirigent_plugin.mark_refusal`, which is what registration holds
+    it to, so a pack reads the same refusal here as it would at startup; a kind that declares
+    none passes. An empty list means the contribution conforms.
     """
     issues: list[str] = []
     seen: set[str] = set()
@@ -208,4 +210,8 @@ def assert_contribution_conforms(contribution: Contribution) -> list[str]:
             model = getattr(block, role)
             if not (isinstance(model, type) and issubclass(model, BlockModel)):
                 issues.append(f"{block_id or label} {role} is not a BlockModel")
+    for connection in contribution.connection_kinds:
+        refusal = mark_refusal(connection.id, connection.mark)
+        if refusal is not None:
+            issues.append(refusal)
     return issues

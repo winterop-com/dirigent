@@ -19,7 +19,7 @@ import {
     type ConnectionOut,
     type HealthView,
 } from '@/lib/connections'
-import { kindGlyph, type Glyph } from '@/lib/glyphs'
+import { kindGlyph, NO_MARKS, type Glyph, type KindMarks } from '@/lib/glyphs'
 import { concernTone, DAY, type Tile, type TileTone } from '@/lib/overview'
 import { readPipelines, type PipelineOut } from '@/lib/pipelines'
 import { EVERY_RUN, runsLink, type RunOut } from '@/lib/runs'
@@ -256,11 +256,13 @@ export interface HealthRow {
  * it a second time.
  *
  * A CONNECTION CARRIES ITS KIND'S MARK, the one `lib/glyphs` gives that kind on every other
- * screen. A worker is not a kind and carries none, not even the neutral one.
+ * screen -- a pack's own included, which is what `marks` carries. A worker is not a kind and
+ * carries none, not even the neutral one.
  */
 export function healthRows(
     workers: readonly WorkerOut[],
     connections: readonly ConnectionOut[],
+    marks: KindMarks = NO_MARKS,
 ): HealthRow[] {
     const fleet = workers.map((worker): HealthRow => {
         const concern = concernOf(worker)
@@ -282,7 +284,7 @@ export function healthRows(
         return {
             id: connection.id,
             kind: 'connection',
-            mark: kindGlyph(connection.kind),
+            mark: kindGlyph(connection.kind, marks),
             label: connection.code,
             tone: view.tone ?? 'neutral',
             detail: detailOf(view),

@@ -34,6 +34,7 @@ import { useAppShortcuts } from '@/hooks/use-app-shortcuts'
 import { useStore } from '@/hooks/use-store'
 import { ApiError, onUnauthorized, type Problem } from '@/lib/api'
 import { authStore, refreshIdentity, signOut } from '@/lib/auth'
+import { loadKindMarks } from '@/lib/marks'
 import { entriesFor, LOGIN_PATH } from '@/lib/nav'
 import {
     APPEARANCE_GROUP,
@@ -145,6 +146,13 @@ export function AppShell() {
     // for nothing.
     useEffect(() => {
         if (signedIn) warmEditor()
+    }, [signedIn])
+
+    // WHAT THE PACKS DRAW THEMSELVES WITH IS READ ONCE, for the same reason and at the same
+    // moment: every screen that names a connection kind draws its mark, and what a pack declares
+    // does not change while the process is up.
+    useEffect(() => {
+        if (signedIn) loadKindMarks()
     }, [signedIn])
 
     const actions = useMemo<PaletteAction[]>(() => {

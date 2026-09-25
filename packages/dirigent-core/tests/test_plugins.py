@@ -311,6 +311,30 @@ def test_the_catalog_publishes_schemas_and_provenance(host: PluginHost) -> None:
     assert [entry.id for entry in catalog.notifiers] == ["note"]
     assert [entry.id for entry in catalog.connection_kinds] == ["desk"]
     assert catalog.connection_kinds[0].config_schema["properties"]["base_url"]["default"] == "http://localhost"
+    assert catalog.connection_kinds[0].mark is None
+    assert catalog.notifiers[0].mark is None
+
+
+def test_a_connection_kind_carries_its_declared_mark_into_the_catalog() -> None:
+    """The ``d`` a pack declares reaches the catalog the UI draws a kind's mark out of."""
+
+    class MarkedConnectionKind(DeskConnectionKind):
+        """A connection kind wearing a mark of its own."""
+
+        id = "marked"
+        mark = "M12 2 L22 12 L12 22 L2 12 Z"
+
+    class MarkedPlugin:
+        """A plugin contributing one connection kind that draws itself."""
+
+        @extension
+        def contribute(self) -> Contribution:
+            """Contribute the marked connection kind."""
+            return Contribution(connection_kinds=[MarkedConnectionKind()])
+
+    catalog = PluginHost({"marked": MarkedPlugin().contribute()}).catalog()
+
+    assert [entry.mark for entry in catalog.connection_kinds] == ["M12 2 L22 12 L12 22 L2 12 Z"]
 
 
 class RstDocstrings(BlockModel):

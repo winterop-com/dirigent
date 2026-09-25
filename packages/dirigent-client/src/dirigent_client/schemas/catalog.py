@@ -44,6 +44,10 @@ class SurfaceEntry(BaseModel):
     secret_fields: list[str] = Field(default_factory=list[str])
     """Which config fields this surface declares secret, so a form draws them write-only."""
 
+    mark: str | None = None
+    """The ``d`` of one SVG path on a 24-unit grid this surface's kind is drawn by, where it
+    declares one. Monochrome: a screen fills it in the ink it draws every other mark in."""
+
 
 class Catalog(BaseModel):
     """The host's merged view of every contribution."""
