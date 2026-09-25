@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { nextForm, SLACK, TABLE, type Form } from '@/lib/card-form'
+import { factsOf, nextForm, SLACK, TABLE, type CardColumn, type Form } from '@/lib/card-form'
 
 /** A listing that turned into cards when the table in it took this much. */
 function cards(natural: number): Form {
@@ -53,5 +53,42 @@ describe('which form a listing takes', () => {
         const form = cards(761)
         expect(nextForm(form, 400, 400)).toBe(form)
         expect(nextForm(TABLE, 1280, 900)).toBe(TABLE)
+    })
+})
+
+/** A row of a listing whose columns are a title and two facts. */
+interface Row {
+    code: string
+    description: string | null
+    took: string | null
+}
+
+const COLUMNS: CardColumn<Row>[] = [
+    { id: 'description', header: 'Description', cell: (row) => row.description },
+    { id: 'took', header: 'Duration', cardLabel: 'Took', cell: (row) => row.took },
+    { id: 'check', header: '', cell: () => 'always' },
+]
+
+describe('what a card draws under its head', () => {
+    test('a cell that said nothing draws no label', () => {
+        const facts = factsOf(COLUMNS, { code: 'one', description: null, took: null })
+        expect(facts.map((fact) => fact.label)).toEqual([null])
+    })
+
+    test('a cell that said something draws its label and what it said', () => {
+        const facts = factsOf(COLUMNS, { code: 'one', description: 'what it is', took: '2s' })
+        expect(facts).toEqual([
+            { id: 'description', label: 'Description', said: 'what it is' },
+            { id: 'took', label: 'Took', said: '2s' },
+            { id: 'check', label: null, said: 'always' },
+        ])
+    })
+
+    test('an empty string is nothing said, and so is false', () => {
+        const columns: CardColumn<Row>[] = [
+            { id: 'blank', header: 'Blank', cell: () => '' },
+            { id: 'off', header: 'Off', cell: () => false },
+        ]
+        expect(factsOf(columns, { code: 'one', description: null, took: null })).toEqual([])
     })
 })

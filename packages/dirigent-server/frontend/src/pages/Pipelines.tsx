@@ -452,7 +452,7 @@ function pipelineColumns(onTag: (tag: string) => void): Column<PipelineOut>[] {
             header: 'Tags',
             // No width of its own: the cell's own bound is what stops the column, and the lead
             // column's `w-full` takes everything the chips did not need.
-            cell: (row) => <TagChips tags={row.tags} onSelect={onTag} />,
+            cell: (row) => (row.tags.length === 0 ? null : <TagChips tags={row.tags} onSelect={onTag} />),
         },
         {
             id: 'triggers',

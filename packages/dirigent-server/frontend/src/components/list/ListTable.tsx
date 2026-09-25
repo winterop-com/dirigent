@@ -1,16 +1,11 @@
-import {
-    Fragment,
-    useEffect,
-    useState,
-    type KeyboardEvent as ReactKeyboardEvent,
-    type ReactNode,
-} from 'react'
+import { Fragment, useEffect, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 
 import { ListFormProvider } from '@/components/list/ListForm'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useCardForm } from '@/hooks/use-card-form'
 import { useSmallWindow } from '@/hooks/use-small-screen'
+import { factsOf, type CardColumn } from '@/lib/card-form'
 import { sizingOf, TITLE_CELL, type ColumnKind, type Shares, type Sizing } from '@/lib/column-width'
 import { PAGE, rowsRead } from '@/lib/paging'
 import { cn } from '@/lib/utils'
@@ -23,10 +18,7 @@ export interface ListChrome {
     footer?: boolean
 }
 
-export interface Column<T> {
-    /** Stable across renders, so React can key on it and a test can name it. */
-    id: string
-    header: ReactNode
+export interface Column<T> extends CardColumn<T> {
     /**
      * What this column holds, which is what decides how wide it is.
      *
@@ -37,14 +29,6 @@ export interface Column<T> {
     kind?: ColumnKind
     /** Classes carried by this column's heading and by every cell under it. */
     className?: string
-    cell: (row: T) => ReactNode
-    /**
-     * What this column is called on a card, where the header row is not drawn.
-     *
-     * The header is the label wherever it is a word; a column headed by nothing says nothing
-     * on the card either.
-     */
-    cardLabel?: string
 }
 
 /** The width a column asks for, or nothing where it asks for none or none has been measured. */
@@ -55,17 +39,6 @@ function asked(sizing: Sizing | undefined, shares: Shares | null): { width: stri
 
 /** How far ahead of the fold the next page is asked for. */
 const REACH = '300px'
-
-/** What a column is called on a card: its header where that is a word, and nothing else. */
-function labelOf<T>(column: Column<T>): string | null {
-    if (column.cardLabel !== undefined) return column.cardLabel
-    return typeof column.header === 'string' && column.header !== '' ? column.header : null
-}
-
-/** Whether a cell has anything in it, which is what keeps an empty fact off a card. */
-function said(cell: ReactNode): boolean {
-    return cell !== null && cell !== undefined && cell !== false && cell !== ''
-}
 
 /**
  * The table every listing screen in this app is drawn as.
@@ -164,7 +137,7 @@ export function ListTable<T>({
               }
 
     const head = columns[0]
-    const facts = columns.slice(1)
+    const beside = columns.slice(1)
 
     // How wide each column is, decided for the listing rather than by the screen: what one
     // column holds is only half the answer, and what the columns beside it hold is the other.
@@ -217,21 +190,7 @@ export function ListTable<T>({
                                     )}
                                 >
                                     <div className="min-w-0">{head.cell(row)}</div>
-                                    {facts.some((column) => said(column.cell(row))) && (
-                                        <dl className="grid grid-cols-[7rem_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs">
-                                            {facts.map((column) => {
-                                                const cell = column.cell(row)
-                                                if (!said(cell)) return null
-                                                const label = labelOf(column)
-                                                return (
-                                                    <Fragment key={column.id}>
-                                                        <dt className="text-faint">{label}</dt>
-                                                        <dd className="min-w-0">{cell}</dd>
-                                                    </Fragment>
-                                                )
-                                            })}
-                                        </dl>
-                                    )}
+                                    <Facts columns={beside} row={row} />
                                 </li>
                             ))}
                         </ul>
@@ -327,5 +286,26 @@ export function ListTable<T>({
                 )}
             </div>
         </ListFormProvider>
+    )
+}
+
+/**
+ * What a card says under its head: every column beside the first that this row had a value for.
+ *
+ * A COLUMN THE ROW SAID NOTHING IN IS NOT DRAWN, label and all -- a schema with no description
+ * carries no `Description` line. The cell is what says so, by answering `null`.
+ */
+function Facts<T>({ columns, row }: { columns: readonly Column<T>[]; row: T }) {
+    const facts = factsOf(columns, row)
+    if (facts.length === 0) return null
+    return (
+        <dl className="grid grid-cols-[7rem_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs">
+            {facts.map((fact) => (
+                <Fragment key={fact.id}>
+                    <dt className="text-faint">{fact.label}</dt>
+                    <dd className="min-w-0">{fact.said}</dd>
+                </Fragment>
+            ))}
+        </dl>
     )
 }

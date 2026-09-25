@@ -973,11 +973,18 @@ where the rail's own cell in the status bar puts it above the breakpoint.
 **A listing row becomes a card where the table will not fit**, which on a phone is every
 listing. The table is one component and so is its narrow form: `ListTable` draws its first
 column as the card's head -- the title as the row's link, the code in mono once -- and every
-other column as a labelled fact under it, labelled by that column's own header. A column with
-nothing in it for that row is left out of the card rather than drawn as an empty label. What a
-row does as a table it does here: a row that opens a panel opens it, and a row that is a link is
-one. The card is the whole listing's form, header row and column widths included, so nothing on
-a narrow table has to be told how to shrink.
+other column as a labelled fact under it, labelled by that column's own header. What a row does
+as a table it does here: a row that opens a panel opens it, and a row that is a link is one. The
+card is the whole listing's form, header row and column widths included, so nothing on a narrow
+table has to be told how to shrink.
+
+**A column with nothing in it for that row is left out of the card, label and all -- and the
+cell is what says so, by returning `null`.** A component that renders nothing is an element all
+the same, so a cell handing one back reads as a fact the row has, and the card draws a label
+with a blank beside it: a schema with no description under a `Description` saying nothing. The
+column decides, never the component it draws -- a tag strip with no tags, a duration for a run
+still going, a description that is empty are the cell's answer and not the component's -- and
+`lib/card-form` leaves out every fact that answered nothing.
 
 **The breadcrumb shows its leaf**, and the crumb carrying the thing's code where the leaf is not
 it -- the code is on screen on every screen. The whole trail is the element's `title`; the leaf
