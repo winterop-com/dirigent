@@ -6,11 +6,10 @@ import {
     type ReactNode,
 } from 'react'
 
-import { ListWidthProvider } from '@/components/list/ListWidth'
+import { ListFormProvider } from '@/components/list/ListForm'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { useElementWidth } from '@/hooks/use-element-width'
-import { useNarrowTable } from '@/hooks/use-small-screen'
+import { useCardForm } from '@/hooks/use-card-form'
 import { PAGE, rowsRead } from '@/lib/paging'
 import { cn } from '@/lib/utils'
 
@@ -150,23 +149,23 @@ export function ListTable<T>({
 
     const head = columns[0]
     const facts = columns.slice(1)
-    const cards = useNarrowTable()
 
-    // Measured once for the whole listing: a cell that has to decide what fits reads it from
-    // here rather than measuring itself, which would be a read per row on every resize.
+    // Measured once for the whole listing: how much room it has, and whether a table drawn in
+    // that room fits. A cell that has to decide what fits reads both from here rather than
+    // measuring itself, which would be a read per row on every resize.
     const [box, setBox] = useState<HTMLDivElement | null>(null)
-    const width = useElementWidth(box)
+    const { width, cards } = useCardForm(box)
 
     return (
-        <ListWidthProvider width={width}>
+        <ListFormProvider width={width} cards={cards}>
             <div className="flex min-h-0 flex-col overflow-hidden rounded-md border border-border-strong bg-card">
                 {/* The container the columns' shares are taken of, and the box that is measured:
                 the table's own width, inside the card's border rather than across it. */}
                 <div ref={setBox} className="list-scroll @container min-h-0 flex-1 overflow-auto">
-                    {/* THE SAME ROWS AS CARDS BELOW `lg`. A table of six columns in the 500px the
-                    content column has beside the rail is either a horizontal scroll or one
-                    cell drawn over another, so the first column becomes the card's head and
-                    every other one a labelled fact under it -- labelled by the header that
+                    {/* THE SAME ROWS AS CARDS WHERE THE TABLE WILL NOT FIT. Six columns in the
+                    346px a listing has beside an open panel is either a horizontal scroll or
+                    one cell drawn over another, so the first column becomes the card's head
+                    and every other one a labelled fact under it -- labelled by the header that
                     names it in the table. */}
                     {cards && head !== undefined ? (
                         <ul className="divide-y divide-border">
@@ -274,6 +273,6 @@ export function ListTable<T>({
                     </div>
                 )}
             </div>
-        </ListWidthProvider>
+        </ListFormProvider>
     )
 }

@@ -3,6 +3,7 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type
 import { Link, useNavigate, useSearchParams } from 'react-router'
 
 import { ApiChip } from '@/components/ApiChip'
+import { useListCards } from '@/components/list/ListForm'
 import { ListTable, type Column } from '@/components/list/ListTable'
 import { TagFilter } from '@/components/list/TagFilter'
 import { PageHeader, PageState } from '@/components/PageState'
@@ -406,7 +407,7 @@ function pipelineColumns(onTag: (tag: string) => void): Column<PipelineOut>[] {
             // HALF THE TABLE IS THE IDENTITY'S, whatever else the row wears: `max-w-0` is what
             // lets the cell truncate, and the floor beside it is what stops anything beside it
             // bidding the title down to an ellipsis.
-            className: 'w-full max-w-0 lg:min-w-[50cqi]',
+            className: 'w-full max-w-0 min-w-[50cqi]',
             cell: (row) => {
                 const retired = retirement(row)
                 const heading = headingOf(row)
@@ -498,6 +499,7 @@ function pipelineColumns(onTag: (tag: string) => void): Column<PipelineOut>[] {
 /** How the newest run of a pipeline went, or that it has never had one. */
 function LastRunCell({ row }: { row: PipelineOut }) {
     const view = lastRunView(row.last_run)
+    const cards = useListCards()
     if (row.active_runs > 0) {
         return (
             <span
@@ -513,10 +515,10 @@ function LastRunCell({ row }: { row: PipelineOut }) {
     }
     if (view === null || row.last_run === null) return <span className="text-xs text-faint">never run</span>
     return (
-        // Bounded, because half the table is the identity's and this column's own words are
-        // what it gives back: the instant stands and what follows it is cut with the whole of
-        // it on hover.
-        <span className="flex min-w-0 items-center gap-1.5 text-xs lg:max-w-[14cqi]">
+        // Bounded in the table, where half of it is the identity's and this column's own words
+        // are what it gives back: the instant stands and what follows it is cut with the whole
+        // of it on hover. A card has no column beside it to take room from.
+        <span className={cn('flex min-w-0 items-center gap-1.5 text-xs', !cards && 'max-w-[14cqi]')}>
             <StatusDot status={view.status} />
             <Link
                 className="shrink-0 hover:underline"
