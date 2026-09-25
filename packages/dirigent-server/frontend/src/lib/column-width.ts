@@ -81,18 +81,34 @@ export interface Shares {
     prose: string
 }
 
-/** A width as a share of the listing, to two decimals, so rounding costs nobody a character. */
-function share(width: number, room: number): string {
-    return `${((width / room) * 100).toFixed(2)}%`
+/** A share as the percentage a stylesheet takes, to the two decimals a share is stated in. */
+function percent(share: number): string {
+    return `${share.toFixed(2)}%`
+}
+
+/**
+ * A width as a share of the listing, rounded up.
+ *
+ * Rounded to the nearest, a share can resolve a hair under the width it stands for, and a hair
+ * is a word: a cell short of its content by a hundredth of a pixel truncates, and the ellipsis
+ * eats the characters it needs room for as well as the one that did not fit.
+ */
+function upto(width: number, room: number): number {
+    return Math.ceil((width / room) * 10_000) / 100
+}
+
+/** A share rounded down, for the one that takes what the others left: the asks have to add up. */
+function down(share: number): number {
+    return Math.floor(share * 100) / 100
 }
 
 /**
  * What each column of text asks for: the title its own width, the prose an equal cut of the rest.
  *
- * `need` is what the longest title takes to read whole, `values` is what the columns that are not
- * text measured, `prose` is how many columns of prose stand beside the title, and `room` is the
- * listing's own width. Nothing measured yet is nothing to ask for, and the shares are the
- * listing's until its rows or its face change.
+ * `need` is what the longest title takes to read whole, in fractions of a pixel, `values` is what
+ * the columns that are not text measured, `prose` is how many columns of prose stand beside the
+ * title, and `room` is the listing's own width. Nothing measured yet is nothing to ask for, and
+ * the shares are the listing's until its rows or its face change.
  *
  * A title with no prose beside it asks for everything, because there is nobody to hand the rest
  * to; a title that wants more than the table has asks for the table, and the floors under the
@@ -101,7 +117,12 @@ function share(width: number, room: number): string {
 export function sharesOf(need: number, values: number, prose: number, room: number): Shares | null {
     if (need <= 0 || room <= 0) return null
     if (prose === 0) return { title: '100%', prose: '100%' }
-    const asked = Math.min(need, room)
-    const left = Math.max(0, room - values - asked)
-    return { title: share(asked, room), prose: share(left / prose, room) }
+    // A need is measured in fractions of a pixel and asked for in whole ones: a title granted
+    // the fraction rounded down is a title short of its last word by a hair.
+    const asked = upto(Math.min(Math.ceil(need), room), room)
+    // What is left is of the share the title was granted rather than of the width it asked for.
+    // A rounding the remainder did not account for is an ask over the whole of the table, which
+    // is answered by scaling every share down -- the title's included.
+    const left = Math.max(0, 100 - asked - (values / room) * 100)
+    return { title: percent(asked), prose: percent(down(left / prose)) }
 }

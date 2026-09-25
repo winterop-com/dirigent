@@ -41,7 +41,7 @@ describe('what the columns of text ask for', () => {
 
     test('the value columns are taken off before the rest is shared', () => {
         // 200 of the 600 belong to the chips and instants, 150 to the title: 250 are left.
-        expect(sharesOf(150, 200, 1, 600)).toEqual({ title: '25.00%', prose: '41.67%' })
+        expect(sharesOf(150, 200, 1, 600)).toEqual({ title: '25.00%', prose: '41.66%' })
     })
 
     test('two columns of prose beside a title cut what is left in half each', () => {
@@ -65,4 +65,34 @@ describe('what the columns of text ask for', () => {
         expect(sharesOf(382, 0, 1, 604)?.title).toBe('63.25%')
         expect(sharesOf(382, 0, 1, 1240)?.title).toBe('30.81%')
     })
+
+    test('a need measured in fractions of a pixel is asked for in whole ones', () => {
+        // The schemas listing at 1280: 389.98px of title in a 988px table. Asked for as it was
+        // measured the title is granted 389.96 and loses its last word; the whole pixel above
+        // is the width no title in it is short of.
+        expect(sharesOf(389.984_375, 0, 1, 988)?.title).toBe('39.48%')
+    })
+
+    test('a share never grants less than the need where the listing has room for it', () => {
+        const room = 988
+        for (const need of [144, 261.5, 389.984_375, 390, 390.5, 512.015_625]) {
+            const granted = (pixels(sharesOf(need, 0, 1, room)?.title) / 100) * room
+            expect(granted).toBeGreaterThanOrEqual(need)
+        }
+    })
+
+    test('what the columns ask for between them is never more than the listing has', () => {
+        for (const room of [712, 968, 988, 1240]) {
+            for (const need of [200.4, 389.984_375, 512]) {
+                const shares = sharesOf(need, 120.5, 2, room)
+                const asked = pixels(shares?.title) + 2 * pixels(shares?.prose)
+                expect(asked + (120.5 / room) * 100).toBeLessThanOrEqual(100)
+            }
+        }
+    })
 })
+
+/** A share read back as the number it states, which is what the browser resolves it as. */
+function pixels(share: string | undefined): number {
+    return Number.parseFloat(share ?? '')
+}

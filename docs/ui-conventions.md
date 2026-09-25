@@ -580,6 +580,15 @@ a cell with room to spare says nothing, so a column given what it asked for meas
 again, and one whose rows grew under it -- the runs listing, when the pipeline names it was
 waiting for land -- measures the difference and asks again.
 
+**A need is measured in fractions of a pixel and asked for in whole ones.** `scrollWidth` and
+`clientWidth` answer in whole pixels, so a cell short of its content by a hundredth of one reads
+there as a cell with room to spare -- while the browser, which lays out in fractions of a pixel,
+has already drawn the ellipsis, and the ellipsis eats the word in front of the character that did
+not fit: `The reading, as Postman Echo answers it` lost `it` to a shortfall of a twentieth of a
+pixel. So every edge is read off a client rect and every run of text off a range over it, the
+need rounds up to a whole pixel, and the share stating it rounds up while the share of the
+remainder beside it rounds down -- the asks still have to add up.
+
 **A share is a width, never a floor.** A floor is what a listing measures itself against before
 it gives up on drawing a table at all, so a title column that declared the width it wants would
 turn the narrow listings into cards. What it asks for yields instead: where the floors under the
