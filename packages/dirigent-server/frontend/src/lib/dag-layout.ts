@@ -315,7 +315,7 @@ export function placedByRank(shape: LayoutShape): PlacedGraph {
     // What each row starts at, which is every row above it and the gap between them.
     const rowTops = new Map<number, number>()
     let above = 0
-    for (const row of [...rowHeights.keys()].sort((one, other) => one - other)) {
+    for (const row of [...rowHeights.keys()].toSorted((one, other) => one - other)) {
         rowTops.set(row, above)
         above += (rowHeights.get(row) ?? 0) + RANK_SPACING
     }
