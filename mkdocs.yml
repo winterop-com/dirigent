@@ -65,6 +65,14 @@ nav:
       - UI conventions: ui-conventions.md
       - Releases: releases.md
 
+plugins:
+  # Every picture on the site enlarges on a click: a screenshot at a page's width is a
+  # thumbnail of a 1440px screen, and the detail is the point of it.
+  - search
+  - glightbox:
+      touchNavigation: true
+      zoomable: true
+
 validation:
   anchors: warn
 
