@@ -7,9 +7,10 @@ the ones you reach for constantly.
 
 Almost every command is one or more API calls, so what the CLI does here the UI and a script
 can do too. The exceptions are the process-side ones -- `dg db`, `dg system health`,
-`dg connection ensure`, `dg storage ensure`, `dg admin user create`, `dg prune`, `dg secret-key`,
-`dg init` and `dg run --local` -- which read the configured database or the local filesystem and present no
-token, because they are what runs where no server is answering yet.
+`dg connection ensure`, `dg storage ensure`, `dg admin user create`, `dg prune`,
+`dg secret-key`, `dg init` and `dg run --local` -- which read the configured database or the
+local filesystem and present no token, because they are what runs where no server is
+answering yet.
 
 `--json` is a global option and asks for records at a terminal, which is what a pipe gets
 without asking. What it produces is the record protocol below rather than a dump of the
