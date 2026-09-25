@@ -136,32 +136,37 @@ export const WRAP_OPTIONS: Record<string, string> = {
     'elk.layered.wrapping.additionalEdgeSpacing': '24',
 }
 
-/**
- * How many ranks deep a shape is: the longest chain of dependencies in it.
- *
- * The walk carries the nodes already on the path, so a shape that has somehow closed a loop --
- * which an apply refuses and the canvas refuses before that -- is measured rather than hung on.
- */
-export function rankDepth(shape: LayoutShape): number {
-    const after = new Map<string, string[]>()
-    for (const [from, to] of shape.edges) after.set(from, [...(after.get(from) ?? []), to])
-
-    const depths = new Map<string, number>()
-    const depthFrom = (id: string, path: ReadonlySet<string>): number => {
-        const held = depths.get(id)
-        if (held !== undefined) return held
-        if (path.has(id)) return 1
-        const onward = new Set([...path, id])
-        const deepest = (after.get(id) ?? []).reduce(
-            (most, next) => Math.max(most, depthFrom(next, onward)),
-            0,
-        )
-        const depth = deepest + 1
-        depths.set(id, depth)
-        return depth
+/** How deep into the graph each node is: one more than the deepest thing it waits for. */
+function ranksOf(shape: LayoutShape): Map<string, number> {
+    const known = new Set(shape.nodes.map((node) => node.id))
+    const before = new Map<string, string[]>()
+    for (const [from, to] of shape.edges) {
+        if (!known.has(from) || !known.has(to)) continue
+        before.set(to, [...(before.get(to) ?? []), from])
     }
 
-    return shape.nodes.reduce((most, node) => Math.max(most, depthFrom(node.id, new Set())), 0)
+    const ranks = new Map<string, number>()
+    const rankOf = (id: string, path: ReadonlySet<string>): number => {
+        const held = ranks.get(id)
+        if (held !== undefined) return held
+        // A shape that has somehow closed a loop is ranked rather than walked forever.
+        if (path.has(id)) return 0
+        const onward = new Set([...path, id])
+        const rank = (before.get(id) ?? []).reduce(
+            (most, from) => Math.max(most, rankOf(from, onward) + 1),
+            0,
+        )
+        ranks.set(id, rank)
+        return rank
+    }
+
+    for (const node of shape.nodes) rankOf(node.id, new Set())
+    return ranks
+}
+
+/** How many ranks deep a shape is: the longest chain of dependencies in it. */
+export function rankDepth(shape: LayoutShape): number {
+    return [...ranksOf(shape).values()].reduce((most, rank) => Math.max(most, rank + 1), 0)
 }
 
 /** How wide a shape would be drawn in one left-to-right row. */
@@ -251,34 +256,6 @@ export function fromElkGraph(shape: LayoutShape, laid: ElkLaidOut): PlacedGraph 
 
 /** How many ranks one row of a wrapped placement holds. */
 const RANKS_PER_ROW = Math.max(1, Math.floor(WRAP_WIDTH / (NODE_WIDTH + RANK_SPACING)))
-
-/** How deep into the graph each node is: one more than the deepest thing it waits for. */
-function ranksOf(shape: LayoutShape): Map<string, number> {
-    const known = new Set(shape.nodes.map((node) => node.id))
-    const before = new Map<string, string[]>()
-    for (const [from, to] of shape.edges) {
-        if (!known.has(from) || !known.has(to)) continue
-        before.set(to, [...(before.get(to) ?? []), from])
-    }
-
-    const ranks = new Map<string, number>()
-    const rankOf = (id: string, path: ReadonlySet<string>): number => {
-        const held = ranks.get(id)
-        if (held !== undefined) return held
-        // A shape that has somehow closed a loop is ranked rather than walked forever.
-        if (path.has(id)) return 0
-        const onward = new Set([...path, id])
-        const rank = (before.get(id) ?? []).reduce(
-            (most, from) => Math.max(most, rankOf(from, onward) + 1),
-            0,
-        )
-        ranks.set(id, rank)
-        return rank
-    }
-
-    for (const node of shape.nodes) rankOf(node.id, new Set())
-    return ranks
-}
 
 /**
  * The same shape placed without elk: one column per rank, each stacked down the canvas.
