@@ -17,7 +17,12 @@
  * strobe between the two forms.
  */
 
-/** How much more than the table's own width a listing needs before it draws one again. */
+/**
+ * How much more than the table's own width a listing needs before it draws one again.
+ *
+ * Wider than the 10px scrollbar the taller card form can bring in, which is the one thing that
+ * changes a listing's room by changing its form.
+ */
 export const SLACK = 16
 
 export interface Form {
