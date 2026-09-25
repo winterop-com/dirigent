@@ -43,8 +43,8 @@ something you choose; the account is created on the first start and named `admin
 docker compose --project-directory . -f infra/compose.yaml up --build
 ```
 
-That runs `postgres`, an `s3` server with a one-shot `s3-bucket` job that creates its bucket,
-a one-shot `migrate` the rest wait on, `server`, a `docker` sidecar holding the daemon the
+That runs `postgres`, an `s3` server, a one-shot `migrate` the rest wait on that brings the
+schema forward and makes the bucket, `server`, a `docker` sidecar holding the daemon the
 worker's container steps use, and `worker`. Add `-d` to put them in the background.
 `make docker-run` is the same command.
 

@@ -39,6 +39,8 @@ from dirigent_cli.messages import (
     RUN_DB_UPGRADE,
     SCHEDULER_NEEDS_POSTGRES,
     SERVER_NEEDS_A_LEADER,
+    STORE_UNCONFIGURED,
+    STORE_UNREACHABLE,
     UNKNOWN_CONNECTION_KIND,
     USE_DG_DEV,
     USE_DG_DEV_STANDALONE,
@@ -67,6 +69,7 @@ if TYPE_CHECKING:
     from dirigent_core import retention
     from dirigent_core.migrations import SchemaDifference
     from dirigent_core.worker import Worker
+    from dirigent_plugin import ContainerResult
 
 #: Help is capped rather than stretched: a panel the width of a wide terminal is unreadable.
 rich_utils.MAX_WIDTH = 100
@@ -112,6 +115,7 @@ app = typer.Typer(
 
 db_app = typer.Typer(name="db", help="Database schema management.", no_args_is_help=True)
 config_app = typer.Typer(name="config", help="Inspect the effective configuration.", no_args_is_help=True)
+storage_app = typer.Typer(name="storage", help="The store this instance keeps artifacts in.", no_args_is_help=True)
 health_app = typer.Typer(name="health", help="Process-side checks: everything this host runs, or one part.")
 docker_app = typer.Typer(name="docker", help="The docker daemon this host's worker uses.", no_args_is_help=True)
 
@@ -127,6 +131,7 @@ app.add_typer(triggers.trigger_document_app, rich_help_panel=TRIGGER_PANEL)
 app.add_typer(triggers.alerts_app, rich_help_panel=TRIGGER_PANEL)
 app.add_typer(docker_app, rich_help_panel=PROCESS_PANEL)
 app.add_typer(db_app, rich_help_panel=ADMIN_PANEL)
+app.add_typer(storage_app, rich_help_panel=ADMIN_PANEL)
 app.add_typer(config_app, rich_help_panel=ADMIN_PANEL)
 app.add_typer(commands.auth_app, rich_help_panel=ADMIN_PANEL)
 commands.system_app.add_typer(health_app)
@@ -355,6 +360,50 @@ def db_current() -> None:
 def db_history() -> None:
     """Show the migration history."""
     emit_fact("db.history", message="migration history", history=migrations.history(get_settings()).rstrip())
+
+
+@storage_app.command("ensure")
+def storage_ensure() -> None:
+    """Create the container the artifact root addresses, unless it is already there.
+
+    Process-side the way ``dg db upgrade`` is: it reads the artifact root and the connection
+    this instance configures that scheme from rather than a token, so a one-shot container
+    makes the bucket before anything writes to it. A root on a filesystem has no container to
+    make, and says so.
+    """
+    import asyncio
+
+    settings = get_settings()
+    made = asyncio.run(_ensure_container(settings))
+    emit_fact(
+        "storage.ensured",
+        message="created" if made.created else "already there" if made.container else "nothing to do",
+        root=settings.artifact_root,
+        bucket=made.container,
+        created=made.created,
+        endpoint=made.endpoint,
+    )
+
+
+async def _ensure_container(settings: Settings) -> "ContainerResult":
+    """Ask the backend the artifact root belongs to for its container, on this instance's connection."""
+    from dirigent_core.database import create_engine, create_session_factory, session_scope
+    from dirigent_core.engine.services import EngineServices
+    from dirigent_core.errors import DomainError
+    from dirigent_core.plugins import load_plugin_host
+
+    services = EngineServices.build(settings, load_plugin_host())
+    engine = create_engine(settings)
+    try:
+        async with session_scope(create_session_factory(engine)) as session:
+            storage = await services.bound_storage(session)
+            return await storage.ensure_container(settings.artifact_root)
+    except DomainError as error:
+        commands.fail(STORE_UNCONFIGURED, root=settings.artifact_root, detail=str(error))
+    except Exception as error:
+        commands.fail(STORE_UNREACHABLE, root=settings.artifact_root, detail=f"{type(error).__name__}: {error}")
+    finally:
+        await engine.dispose()
 
 
 @commands.connection_app.command("ensure")

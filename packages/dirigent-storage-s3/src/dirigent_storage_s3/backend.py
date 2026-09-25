@@ -4,7 +4,7 @@ import fnmatch
 from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager, suppress
 from typing import Any, ClassVar, Final, cast
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlunsplit
 
 import aioboto3
 
@@ -14,7 +14,7 @@ from botocore.exceptions import ClientError  # type: ignore[import-untyped]
 from pydantic import BaseModel, SecretStr
 
 from dirigent_common import BlockModel
-from dirigent_plugin import ByteSink, StatResult, StorageBackend
+from dirigent_plugin import ByteSink, ContainerResult, StatResult, StorageBackend
 
 SCHEME: Final = "s3"
 
@@ -33,6 +33,13 @@ GLOB_CHARACTERS: Final = ("*", "?", "[")
 
 #: The error codes S3 answers a head or a delete of something absent with.
 MISSING_CODES: Final = frozenset({"404", "NoSuchKey", "NoSuchBucket", "NotFound"})
+
+#: The error codes a create of a bucket that is already there answers with. Two containers
+#: starting at once both find it missing, and only one of them makes it.
+EXISTING_BUCKET_CODES: Final = frozenset({"BucketAlreadyOwnedByYou", "BucketAlreadyExists"})
+
+#: The one region AWS refuses a location constraint for; every other must carry it.
+DEFAULT_REGION: Final = "us-east-1"
 
 PATH_ADDRESSING: Final = "path"
 
@@ -62,7 +69,7 @@ class S3StorageConfig(BlockModel):
     endpoint_url: str | None = None
     """The service root, set for any S3-compatible endpoint; None means AWS S3 itself."""
 
-    region: str = "us-east-1"
+    region: str = DEFAULT_REGION
     """The region signed into every request."""
 
     access_key_id: str | None = None
@@ -154,11 +161,24 @@ def open_client(config: S3StorageConfig) -> AbstractAsyncContextManager[S3Client
     return cast(AbstractAsyncContextManager[S3Client], session.client(**client_kwargs(config)))
 
 
-def is_missing(error: ClientError) -> bool:
-    """Report whether a client error is S3 saying the object or bucket simply is not there."""
+def without_credentials(url: str) -> str:
+    """Return a URL with any user info in its authority removed."""
+    split = urlsplit(url)
+    if "@" not in split.netloc:
+        return url
+    return urlunsplit(split._replace(netloc=split.netloc.split("@", 1)[1]))
+
+
+def error_code(error: ClientError) -> str:
+    """Return the code S3 named in a client error, which is what a caller decides on."""
     response: dict[str, Any] = getattr(error, "response", None) or {}
     details: dict[str, Any] = response.get("Error") or {}
-    return str(details.get("Code", "")) in MISSING_CODES
+    return str(details.get("Code", ""))
+
+
+def is_missing(error: ClientError) -> bool:
+    """Report whether a client error is S3 saying the object or bucket simply is not there."""
+    return error_code(error) in MISSING_CODES
 
 
 class S3Sink:
@@ -342,3 +362,29 @@ class S3StorageBackend(StorageBackend):
             except ClientError as error:
                 if not is_missing(error):
                     raise
+
+    async def ensure_container(self, uri: str) -> ContainerResult:
+        """Create the bucket a URI addresses unless it is already there, and say which happened."""
+        bucket, _ = self.locate(uri, require_key=False)
+        endpoint = None if self.config.endpoint_url is None else without_credentials(self.config.endpoint_url)
+        async with self.client() as client:
+            try:
+                await client.head_bucket(Bucket=bucket)
+            except ClientError as error:
+                if not is_missing(error):
+                    raise
+            else:
+                return ContainerResult(container=bucket, created=False, endpoint=endpoint)
+            try:
+                await client.create_bucket(Bucket=bucket, **self._location_kwargs())
+            except ClientError as error:
+                if error_code(error) not in EXISTING_BUCKET_CODES:
+                    raise
+                return ContainerResult(container=bucket, created=False, endpoint=endpoint)
+        return ContainerResult(container=bucket, created=True, endpoint=endpoint)
+
+    def _location_kwargs(self) -> dict[str, Any]:
+        """Render the region as the argument a create takes, which the default region has none of."""
+        if self.config.region == DEFAULT_REGION:
+            return {}
+        return {"CreateBucketConfiguration": {"LocationConstraint": self.config.region}}

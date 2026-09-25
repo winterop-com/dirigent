@@ -132,6 +132,10 @@ So the stack keeps artifacts in a bucket out of the box, and there is no artifac
   schema upgrade and before anything else starts. The command is idempotent: it creates the
   row or brings the one it finds to what the environment now says, and seals the secret half
   with the instance key exactly as the API path does.
+- **The bucket itself**, which the same `migrate` service makes with
+  [`dg storage ensure`](cli.md#dg-storage-ensure) once the connection is in place. It reads
+  the artifact root, creates the bucket through the s3 backend the image already carries, and
+  exits 0 whether it made it or found it -- so the stack depends on no tool image for it.
 - **The credentials in the environment and nowhere else.** `S3_ACCESS_KEY` and `S3_SECRET_KEY`
   reach the `migrate` service as environment variables; nothing writes them to a file, an
   image layer, or a document.
@@ -141,8 +145,8 @@ So the stack keeps artifacts in a bucket out of the box, and there is no artifac
 
 The bundled server is a convenience, not a requirement: `DIRIGENT_S3_IMAGE` names the image,
 any S3-compatible endpoint serves `s3://`, and pointing `DIRIGENT_ARTIFACT_ROOT` and the
-`S3_*` variables at a bucket you already have drops the `s3` and `s3-bucket` services from the
-picture entirely.
+`S3_*` variables at a bucket you already have drops the `s3` service from the picture
+entirely.
 
 **Outside Docker, `file://` stays the default and stays legitimate.** `dg dev` and a bare
 single-node install write artifacts to a local directory and need no bucket, no connection and
@@ -752,7 +756,7 @@ URI, so a backup that covers part of the tree restores part of the history.
   in place, and add a **replication rule to a second bucket**, so there is a copy somewhere the
   first bucket's credentials cannot reach. That second bucket is also where the nightly
   `pg_dump` belongs: both halves, one place, one age. Without replication, `aws s3 sync` or
-  `mc mirror` on the same schedule as the dump is the same idea done by hand.
+  `rclone sync` on the same schedule as the dump is the same idea done by hand.
 
 ### Restoring both halves
 
@@ -802,7 +806,7 @@ storage and nothing else, and a prefix listing against the run ids finds them:
 
 ```bash
 docker compose exec -T postgres psql -U dirigent -Atd dirigent -c 'select id from runs' | sort > runs.txt
-mc ls <alias>/<bucket>/artifacts/runs/ | awk '{print $NF}' | tr -d / | sort > prefixes.txt
+aws s3 ls s3://<bucket>/artifacts/runs/ | awk '{print $NF}' | tr -d / | sort > prefixes.txt
 comm -13 runs.txt prefixes.txt
 ```
 

@@ -7,9 +7,10 @@ the ones you reach for constantly.
 
 Almost every command is one or more API calls, so what the CLI does here the UI and a script
 can do too. The exceptions are the process-side ones -- `dg db`, `dg system health`,
-`dg connection ensure`, `dg admin user create`, `dg prune`, `dg secret-key`, `dg init` and
-`dg run --local` -- which read the configured database or the local filesystem and present no
-token, because they are what runs where no server is answering yet.
+`dg connection ensure`, `dg storage ensure`, `dg admin user create`, `dg prune`,
+`dg secret-key`, `dg init` and `dg run --local` -- which read the configured database or the
+local filesystem and present no token, because they are what runs where no server is
+answering yet.
 
 `--json` is a global option and asks for records at a terminal, which is what a pipe gets
 without asking. What it produces is the record protocol below rather than a dump of the
@@ -823,6 +824,7 @@ verb and whose fields are the identity of what changed:
 | `db.revision` | `dg db current` | `revision`, `head`, `at_head` |
 | `db.history` | `dg db history` | `history`, as alembic wrote it |
 | `db.upgraded` | `dg db upgrade` | `database`, `target`, and the `revision` it reached |
+| `storage.ensured` | `dg storage ensure` | the artifact `root`, the `bucket` it addresses, whether this call `created` it, and the `endpoint` it was made at |
 | `validation` | `dg validate`, `dg pipeline validate` | `code`, `document`, `problems[]` of issues, and a valid pipeline's `steps[]` |
 | `validation.shape` | `dg validate --explain` | `code`, `document`, `checked`, the totals `attempts_max`, `attempts_at_least` and `deadline_longest`, one `steps[]` row per step of what it will cost, and `warnings[]` |
 | `validated` | `dg validate` | The closing count: `documents`, `invalid` |
@@ -1067,6 +1069,7 @@ dg secret-key                           # a DIRIGENT_SECRET_KEY, on one plain li
 dg prune [--runs 30d] [--logs 7d] [--deliveries 30d] [--firings 30d] [--notifications 30d]
          [--no-scratch] [--dry-run]     # an age given here beats the configured one
 dg db upgrade [REVISION] | current | history
+dg storage ensure                       # the bucket the artifact root addresses
 dg auth login [--username U] [--password P] | dg auth status   # login emits the token it minted
 dg auth password [--current P] [--new P]
 dg system info | dg system workers
@@ -1174,6 +1177,23 @@ fields redacted the way every read redacts them.
 Unlike `create` it never prompts: every value arrives through `--set`, which is what makes it
 usable from a container. Give the secrets to it as environment variables, so they are never
 written to a file or an image layer.
+
+### `dg storage ensure`
+
+The bucket a run writes into has to exist before the first run, and the instance that writes to
+it is the one that can make it: `dg storage ensure` reads `DIRIGENT_ARTIFACT_ROOT`, resolves the
+scheme through the connection `DIRIGENT_STORAGE_CONNECTIONS` names for it, and creates the
+container that root addresses through the backend's own client. It is the second half of the
+bootstrap `dg connection ensure` starts, and it runs in the same one-shot container:
+
+```bash
+dg storage ensure
+```
+
+It is idempotent and exits 0 either way, saying which it did in a `storage.ensured` record: the
+`bucket`, whether this call `created` it, and the `endpoint` it reached, never the credential.
+A `file://` root has no container to make and says so. A store that does not answer is a
+refusal, `cli.store_unreachable`.
 
 ## Triggers, from the command line
 
