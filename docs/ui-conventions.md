@@ -1065,6 +1065,14 @@ renders each option as that drawing: the status filter's rows are the same chips
 shows, and the trigger carries the chip it chose. Choosing becomes recognising. An option
 never wraps; the menu grows to its longest row instead of folding a label in half.
 
+**The menu is floored at its control and capped at the screen.** It is never narrower than the
+control it hangs from, so a menu is at least as wide as the thing that opened it; it is never
+wider than its longest row needs, nor than the screen less a 16px gutter at each edge. It hangs
+from the control's start edge, swaps to the end edge where starting there would put it off
+screen, and slides along where neither edge fits -- so a menu never scrolls sideways and never
+hangs off the screen. Only where the longest row is wider than that cap does a row give way, and
+then it is the label that ellipses.
+
 **A string option is drawn bare, and every other value wears its JSON.** A generated form's enum
 is words a document carries -- `GET`, `all_success` -- so the row and the trigger read `GET`, not
 `"GET"`; a number, a boolean and null are drawn as the JSON they are, which is what keeps `2` and

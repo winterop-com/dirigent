@@ -996,6 +996,36 @@ html.dark[data-theme='contrast'],
 }
 
 /* ---------------------------------------------------------------------------
+   A MENU IS AS WIDE AS ITS LONGEST ROW.
+
+   The generated popups take the width of the control they hang from, and below the breakpoint
+   that is a field narrow enough to cut a label to a few characters. Said here against their
+   slots, because those files are pristine and every picker in the app is one of them.
+
+   The ceiling is what the positioner leaves beside the anchor, and no more than the screen
+   less a 16px gutter on each side. Hanging from the start edge and swapping to the end edge
+   where that would go off screen is the positioner's own.
+
+   `w-(--anchor-width)` IS THE POPUP THAT IS STILL PINNED. A screen that gives its menu a width
+   of its own -- the health panel, the add-step shelves -- has that class merged away by `cn`,
+   and keeps the width it asked for.
+   --------------------------------------------------------------------------- */
+[data-slot='combobox-content'],
+[data-slot='dropdown-menu-content'] {
+    max-width: min(var(--available-width), calc(100vw - 2rem));
+}
+[data-slot='combobox-content'][class~='w-(--anchor-width)'],
+[data-slot='dropdown-menu-content'][class~='w-(--anchor-width)'] {
+    width: max-content;
+}
+/* A picker's floor is the box it hangs off and nothing more: the generated popup adds a
+   column's worth on top, which on a phone is wider than the screen leaves, and a floor beats
+   a ceiling. A menu's floor is its own, and well inside the ceiling. */
+[data-slot='combobox-content'] {
+    min-width: var(--anchor-width);
+}
+
+/* ---------------------------------------------------------------------------
    A MENU THAT MARKS A CHOICE.
 
    The mark sits in a reserved gutter on the left, in the same column on every row, so the

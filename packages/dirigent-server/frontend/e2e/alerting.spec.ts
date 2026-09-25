@@ -16,6 +16,9 @@ import { apiPrefix, signIn, writeInEditor } from './support.ts'
 
 const RULE = { code: 'e2e-page-ops', name: 'Page the on-call' }
 
+/** A channel whose picker row is wider than the box the picker hangs from, on a phone. */
+const CHANNEL = { code: 'e2e-ops-alert', name: 'On-call mobile' }
+
 test.beforeEach(async ({ page }) => {
     await signIn(page)
     await page.goto('/admin/alerting')
@@ -25,6 +28,7 @@ test.beforeEach(async ({ page }) => {
 test.afterEach(async ({ page }) => {
     const prefix = await apiPrefix(page.request)
     await page.request.delete(`${prefix}/alert-rules/${RULE.code}`)
+    await page.request.delete(`${prefix}/connections/${CHANNEL.code}`)
 })
 
 function ruleRow(page: Page) {
@@ -117,6 +121,49 @@ test.describe('on a phone', () => {
         expect(new Set(boxes.map((box) => box.top)).size).toBe(2)
         expect(Math.min(...boxes.map((box) => box.height))).toBeGreaterThanOrEqual(42)
 
+        const sideways = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
+        expect(sideways).toBeLessThanOrEqual(0)
+    })
+
+    test('a target row wider than the picker is read whole, and the popup stays on screen', async ({
+        page,
+    }) => {
+        await declareChannel(page)
+        await page.reload()
+
+        await page.getByRole('button', { name: 'New rule' }).click()
+        const dialog = page.getByRole('dialog')
+        const field = dialog.getByLabel('Deliver through')
+        await field.click()
+
+        const row = page.getByRole('option', { name: CHANNEL.name })
+        await expect(row).toBeVisible()
+
+        // The popup scales in, so its box is read once every animation on it has finished. It
+        // outgrew the box it hangs from, and it did it without leaving the screen.
+        const popup = page.locator('[data-slot="combobox-content"]')
+        await expect
+            .poll(async () => {
+                const box = await popup.boundingBox()
+                const anchor = await field.boundingBox()
+                if (box === null || anchor === null) return null
+                return {
+                    wider: box.width > anchor.width,
+                    inside: box.x >= 0 && box.x + box.width <= 390,
+                }
+            })
+            .toEqual({ wider: true, inside: true })
+
+        // Nothing in the row is cut: the popup grew to the label rather than the label to it.
+        const cut = await row.evaluate((node) =>
+            Math.max(
+                ...[node, ...node.querySelectorAll('*')].map((one) => one.scrollWidth - one.clientWidth),
+            ),
+        )
+        expect(cut).toBeLessThanOrEqual(0)
+
+        // And neither the popup nor the page under it has anything to scroll sideways.
+        expect(await popup.evaluate((node) => node.scrollWidth - node.clientWidth)).toBeLessThanOrEqual(0)
         const sideways = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
         expect(sideways).toBeLessThanOrEqual(0)
     })
@@ -272,6 +319,20 @@ async function declareRule(page: Page): Promise<void> {
     const prefix = await apiPrefix(page.request)
     const answer = await page.request.post(`${prefix}/alert-rules`, {
         data: { code: RULE.code, name: RULE.name, event: 'run_failed', throttle: '15m' },
+    })
+    expect(answer.status()).toBe(201)
+}
+
+/** Mint the channel whose picker row is longer than a phone's field. */
+async function declareChannel(page: Page): Promise<void> {
+    const prefix = await apiPrefix(page.request)
+    const answer = await page.request.post(`${prefix}/connections`, {
+        data: {
+            code: CHANNEL.code,
+            name: CHANNEL.name,
+            kind: 'webhook',
+            config: { url: 'https://alerts.invalid/on-call' },
+        },
     })
     expect(answer.status()).toBe(201)
 }
