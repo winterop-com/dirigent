@@ -4,7 +4,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router'
 
 import { ApiChip } from '@/components/ApiChip'
 import { useListCards } from '@/components/list/ListForm'
-import { ListTable, PROSE, type Column } from '@/components/list/ListTable'
+import { ListTable, type Column } from '@/components/list/ListTable'
 import { TagFilter } from '@/components/list/TagFilter'
 import { PageHeader, PageState } from '@/components/PageState'
 import { StatusDot } from '@/components/run/StatusChip'
@@ -400,7 +400,7 @@ function pipelineColumns(onTag: (tag: string) => void): Column<PipelineOut>[] {
         {
             id: 'pipeline',
             header: 'Pipeline',
-            className: PROSE,
+            kind: 'title',
             cell: (row) => {
                 const retired = retirement(row)
                 const heading = headingOf(row)

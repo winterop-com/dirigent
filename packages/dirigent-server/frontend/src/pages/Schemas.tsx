@@ -5,7 +5,7 @@ import { useNavigate, useParams } from 'react-router'
 import { ApiChip } from '@/components/ApiChip'
 import { Description } from '@/components/Description'
 import { JsonBlock } from '@/components/JsonBlock'
-import { ListTable, PROSE, type Column } from '@/components/list/ListTable'
+import { ListTable, type Column } from '@/components/list/ListTable'
 import { PageHeader, PageState } from '@/components/PageState'
 import { Refusable } from '@/components/Refusable'
 import { sayRefusal } from '@/components/Refusal'
@@ -171,14 +171,11 @@ export function Schemas() {
 
 function buildColumns(): Column<SchemaOut>[] {
     return [
-        { id: 'schema', header: 'Schema', className: PROSE, cell: (row) => <Named row={row} /> },
+        { id: 'schema', header: 'Schema', kind: 'title', cell: (row) => <Named row={row} /> },
         {
-            // A floor of its own: two columns of text share what is left in proportion to what
-            // they hold, and a listing where one schema has a description would otherwise cut
-            // that one line short with half the table standing empty beside it.
             id: 'description',
             header: 'Description',
-            className: cn(PROSE, 'min-w-64'),
+            kind: 'prose',
             cell: (row) => <Said description={row.description} />,
         },
     ]

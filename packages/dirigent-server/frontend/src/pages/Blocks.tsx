@@ -4,7 +4,7 @@ import { Link } from 'react-router'
 import { ApiChip } from '@/components/ApiChip'
 import { KindChip } from '@/components/KindChip'
 import { MarkdownLine } from '@/components/Markdown'
-import { ListTable, PROSE, type Column } from '@/components/list/ListTable'
+import { ListTable, type Column } from '@/components/list/ListTable'
 import { PageHeader, PageState } from '@/components/PageState'
 import { Fact, Section } from '@/components/run/Panel'
 import { SearchField } from '@/components/SearchField'
@@ -212,7 +212,7 @@ function blockColumns(uses: ReadonlyMap<string, number>): Column<BlockEntry>[] {
         {
             id: 'block',
             header: 'Block',
-            className: PROSE,
+            kind: 'title',
             cell: (entry) => (
                 <div className="min-w-0">
                     {/* A block has no name, so the title is the id and wears the mono face itself. */}
@@ -275,7 +275,7 @@ function entryColumns(kind: Registry['key']): Column<CatalogEntry>[] {
         {
             id: 'entry',
             header: 'Entry',
-            className: PROSE,
+            kind: 'title',
             cell: (entry) => {
                 const summary =
                     typeof entry.config_schema.description === 'string' ? entry.config_schema.description : ''

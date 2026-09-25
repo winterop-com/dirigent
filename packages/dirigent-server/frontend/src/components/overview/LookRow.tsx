@@ -1,5 +1,5 @@
 import { Instant } from '@/components/Instant'
-import { PROSE, type Column } from '@/components/list/ListTable'
+import { type Column } from '@/components/list/ListTable'
 import { StatusChip } from '@/components/run/StatusChip'
 import { headingOf } from '@/lib/identity'
 import type { LookEntry } from '@/lib/overview'
@@ -26,7 +26,7 @@ export const LOOK_COLUMNS: Column<LookEntry>[] = [
     {
         id: 'pipeline',
         header: 'Pipeline',
-        className: PROSE,
+        kind: 'title',
         cell: (entry) => {
             const heading = headingOf({ code: entry.run.pipeline, name: entry.name })
             return (
@@ -55,7 +55,8 @@ export const LOOK_COLUMNS: Column<LookEntry>[] = [
     {
         id: 'error',
         header: 'Error',
-        className: cn(PROSE, 'hidden lg:table-cell'),
+        kind: 'prose',
+        className: 'hidden lg:table-cell',
         cell: (entry) =>
             entry.run.error === null ? null : (
                 <span className="block truncate text-xs text-muted-foreground" title={entry.run.error}>

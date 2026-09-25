@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router'
 
 import { ApiChip } from '@/components/ApiChip'
 import { ANY, Choice } from '@/components/list/Choice'
-import { ListTable, PROSE, type Column } from '@/components/list/ListTable'
+import { ListTable, type Column } from '@/components/list/ListTable'
 import { TagFilter } from '@/components/list/TagFilter'
 import { PageHeader, PageState } from '@/components/PageState'
 import { SearchField } from '@/components/SearchField'
@@ -316,7 +316,7 @@ function exampleColumns(
         {
             id: 'example',
             header: 'Example',
-            className: PROSE,
+            kind: 'title',
             cell: (row) => {
                 const heading = headingOf(row)
                 const carries = carriesNote(row)

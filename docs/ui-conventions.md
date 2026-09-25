@@ -549,15 +549,42 @@ state after: a control that wrote every keystroke back would put a history entry
 table is already narrowed by rather than replacing it. The pipelines table is where that lives,
 because a tag drawn on a row somebody cannot press is a fact with a gesture missing from it.
 
-**A column holds a value or it holds text, and that is what decides its width.** A value is
+**A column holds a value, a title or prose, and that is what decides its width.** A value is
 drawn from a fixed vocabulary -- a chip, an instant, a duration, a count, a mark -- so it is
 shrink-to-content and declares the floor it needs to say itself on one line. Text is whatever
-somebody typed: a title, a code, a path, a description, the sentence a run failed with. **A
-column of text declares no width.** It carries `PROSE` from `components/list/ListTable` --
-`w-full max-w-0` and a 144px floor -- so it takes what the value columns did not need, truncates
-in it, says the whole of it in `title`, and shares what is left with every other text column on
-the row. Inside such a cell the content carries `min-w-0` and `truncate`, or the cell shrinks and
-the words are simply cut off.
+somebody typed, and it comes as one of two things: the title the row is known by, or the prose
+beside it -- a description, a path, a code it refers to, the sentence a run failed with. A screen
+says which through the column's `kind`, and `lib/column-width` decides the width from it, so two
+listings of the same shape lay out the same way and no screen sizes its own columns. **A column
+of text declares no width of its own**: `max-w-0` is what lets it shrink and its content
+truncate, the floor under every one of them is 144px, and inside the cell the content carries
+`min-w-0` and `truncate` and says the whole of it in `title`, or the cell shrinks and the words
+are simply cut off.
+
+**A title reads whole before a description takes the rest.** A title is short and it is the
+identity -- a reader who cannot read the whole of it cannot tell one row from another -- and a
+description is long and written to be cut. So the title column asks for exactly what its longest
+title needs and every column of prose beside it cuts up what is left. Where a title has no prose
+beside it there is nobody to hand the rest to, and it takes the room the way any other column of
+text does.
+
+**The text columns ask in shares that add up.** A column of text that asks for the whole table,
+as `w-full` does, asks for more than there is, and a browser answers that by scaling every such
+ask down together -- which is how a title beside a description came to be given half of what it
+asked for, and a failure sentence 144px of a 1240px table. So the listing measures itself once --
+what its longest title needs, and what the value columns take -- and hands each column of text a
+percentage of its own width: the title its need, the prose an equal cut of the remainder each.
+What a title needs is read off its cells on the one layout the column stands at its floor in,
+where the whole of the title runs past the cell and the width it is missing can be read off it;
+a cell with room to spare says nothing, so a column given what it asked for measures the same
+again, and one whose rows grew under it -- the runs listing, when the pipeline names it was
+waiting for land -- measures the difference and asks again.
+
+**A share is a width, never a floor.** A floor is what a listing measures itself against before
+it gives up on drawing a table at all, so a title column that declared the width it wants would
+turn the narrow listings into cards. What it asks for yields instead: where the floors under the
+columns beside it take what the table had left, the browser gives the title what remains of it,
+and at 1024 every listing is still a table.
 
 **Text that declares no bound is a table as wide as the longest thing anybody ever wrote in
 it.** An unbounded failure sentence is what made the runs table 910px wide in a 712px column, and
@@ -909,7 +936,9 @@ which is wider than the box exactly when they do not fit -- and a listing that c
 table draws its rows as cards wherever it stands. `lib/card-form` is that decision, `useCardForm`
 is the observer that feeds it, and the form a listing settled on is what its own cells read
 through `useListCards` -- a cell that draws itself differently on a card asks the listing it is
-in, never the window.
+in, never the window. The columns settle first: the layout a title column is measured on is one
+it stands at its floor in, and a table narrower than the one that will be drawn says nothing
+about whether the real one fits.
 
 **Below `lg` a listing is cards, whatever it measures.** Under 1024 the content column beside the
 rail is about 500px, and a listing of two text columns measures itself as fitting a table there:
