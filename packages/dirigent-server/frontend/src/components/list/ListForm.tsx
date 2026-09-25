@@ -10,11 +10,12 @@ import { createContext, use, type ReactNode } from 'react'
  * THE FORM IS THE LISTING'S ANSWER, NOT THE WINDOW'S. A cell drawn differently on a card asks
  * `useListCards`, because the listing beside an open panel is drawing cards while the window
  * around it is as wide as it ever was.
- *
- * Zero is a listing nothing has measured yet, which a cell reads as "no bound to work to".
  */
+
+/** How wide the listing is. Zero is one nothing has measured yet: no bound to work to. */
 const ListWidth = createContext(0)
 
+/** Whether the listing is drawing its rows as cards rather than as a table. */
 const ListCards = createContext(false)
 
 export function ListFormProvider({
