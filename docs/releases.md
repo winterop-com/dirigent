@@ -16,6 +16,25 @@ tag is what publishes: `.github/workflows/release.yaml` builds every package and
 to PyPI through trusted publishing, then builds the image from that commit and pushes it as
 `<version>` and `latest`. The two sibling repositories then relock against the tag and bump.
 
+## 0.18.4
+
+Released 2026-09-25. Every package in the workspace moves to 0.18.4 together, and so do
+`dirigent-dhis2` and `dirigent-integration`.
+
+- **A title reads whole.** In a listing that puts a title beside a description, the title
+  column has first claim on the width and the description takes what is left; 0.18.3 split
+  the two evenly and cut titles short on the Schemas listing and the dashboard.
+- **One corner for the window button.** Every pane that opens in a window puts the button at
+  the bottom right, where the scrollbars meet and no text is; the read-only window for
+  produced data had its own corner.
+- **Highlight the current line.** A preference under Settings, General, off unless asked,
+  that every editor follows as it is switched.
+- **A search box does not repeat the heading above it.** Every listing's search says
+  `Search`; a picker still says what a match is made on, since nothing else does.
+- **A card draws no label for a cell that said nothing.** A schema with no description no
+  longer wears an empty `Description` on a phone, and the same holds on every listing.
+- **The dashboard's Health card fits its width at 1024.** Nothing on it scrolls sideways.
+
 ## 0.18.3
 
 Released 2026-09-25. Every package in the workspace moves to 0.18.3 together, and so do
