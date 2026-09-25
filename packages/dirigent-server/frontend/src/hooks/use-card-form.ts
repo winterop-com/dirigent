@@ -15,9 +15,9 @@ export interface ListMeasure {
 
 /** What one row's columns measured while none of them had asked for anything. */
 interface Columns {
-    /** What the longest title takes to read whole. */
+    /** What the longest title takes to read whole, in fractions of a pixel. */
     need: number
-    /** What the columns that are not text take between them. */
+    /** What the columns that are not text take between them, in fractions of a pixel. */
     values: number
     /** How many columns of prose stand beside the title. */
     prose: number
@@ -32,16 +32,59 @@ const UNMEASURED: { width: number; form: Form; columns: Columns } = {
     columns: NOTHING,
 }
 
+/** The least a spill can be: under a thousandth of a pixel is arithmetic, not layout. */
+const SPILL = 0.001
+
+/** The right edge of the box this element gives its content, inside its padding and its border. */
+function inside(element: Element): number {
+    const style = globalThis.getComputedStyle(element)
+    const edge = Number.parseFloat(style.paddingRight) + Number.parseFloat(style.borderRightWidth)
+    return element.getBoundingClientRect().right - edge
+}
+
+/** The right edge of a text node, which is where its text reaches whatever clips it. */
+function reach(text: Text): number {
+    const range = globalThis.document.createRange()
+    range.selectNode(text)
+    let right = Number.NEGATIVE_INFINITY
+    for (const rect of range.getClientRects()) right = Math.max(right, rect.right)
+    return right
+}
+
 /**
- * How far one cell's content runs past the room it was given.
+ * How far what this element holds -- its child boxes, and the text it holds itself -- runs past
+ * the box it was given.
+ *
+ * A child that clips its own content reaches no further than its own box, which is what stops
+ * one overflow from being counted at every level above it; what that child is missing is the
+ * deepest path's to report.
+ */
+function spill(element: Element): number {
+    const room = inside(element)
+    let held = room
+    for (const part of element.childNodes) {
+        if (part instanceof Element) held = Math.max(held, part.getBoundingClientRect().right)
+        else if (part instanceof Text) held = Math.max(held, reach(part))
+    }
+    return held - room
+}
+
+/**
+ * How far one cell's content runs past the room it was given, in fractions of a pixel.
  *
  * Summed down the deepest path rather than taken at one level: a title cut short inside a row
  * that itself overflowed -- a long code beside it holding its own width -- is short by both.
+ *
+ * READ IN FRACTIONS, NOT IN WHOLE PIXELS. `scrollWidth` and `clientWidth` answer in whole ones,
+ * so a cell short of its content by a fraction of a pixel reads there as a cell with room to
+ * spare -- while the browser, which lays out in fractions of one, has already drawn the ellipsis
+ * and eaten the word in front of it. Every edge here is read off a client rect, which answers in
+ * the fractions the layout was done in.
  */
 function past(element: Element): number {
     let deepest = 0
     for (const part of element.children) deepest = Math.max(deepest, past(part))
-    return Math.max(0, element.scrollWidth - element.clientWidth) + deepest
+    return Math.max(0, spill(element)) + deepest
 }
 
 /**
@@ -58,10 +101,11 @@ function columnsOf(box: HTMLElement, held: Columns): Columns {
     let need = held.need
     for (const cell of box.querySelectorAll<HTMLElement>(`[${TITLE_CELL}]`)) {
         const over = past(cell)
+        const width = cell.getBoundingClientRect().width
         // A cell that runs past its room needs that much more; one that does not, on the layout
         // it stands at its floor in, needs no more than the floor.
-        if (over > 0) need = Math.max(need, cell.offsetWidth + over)
-        else if (held.need === 0) need = Math.max(need, cell.offsetWidth)
+        if (over > SPILL) need = Math.max(need, width + over)
+        else if (held.need === 0) need = Math.max(need, width)
     }
     if (need === 0) return NOTHING
     // WHAT THE VALUE COLUMNS TAKE IS READ ONCE. They are shrink-to-content, so what they measure
@@ -72,7 +116,7 @@ function columnsOf(box: HTMLElement, held: Columns): Columns {
     let prose = 0
     for (const cell of box.querySelector('tbody tr')?.children ?? []) {
         if (cell.hasAttribute(PROSE_CELL)) prose += 1
-        else if (!cell.hasAttribute(TITLE_CELL)) values += (cell as HTMLElement).offsetWidth
+        else if (!cell.hasAttribute(TITLE_CELL)) values += cell.getBoundingClientRect().width
     }
     return { need, values, prose }
 }
