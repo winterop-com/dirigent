@@ -69,7 +69,7 @@ export function TargetPicker({
                 label="Deliver through"
                 value={value}
                 options={options}
-                placeholder="Search the channels this instance has"
+                placeholder="Search by name, kind or code"
                 onChange={onChange}
             />
         </div>

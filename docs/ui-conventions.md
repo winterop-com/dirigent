@@ -1443,8 +1443,12 @@ placeholders and leading field icons, because it is the one screen a person meet
 product's own facts are on it: there is no data to read, no title to take a heading from and no
 shell around it, so the screen has to say where somebody has arrived and what to do next. No
 other screen may copy any of it -- an eyebrow over a page title, a subtitle under a heading, a
-placeholder repeating a label, or an icon inside a field is a defect
-everywhere behind this door.
+placeholder repeating a label or the heading it sits under, or an icon inside a field is a defect
+everywhere behind this door. **A listing's search box says `Search` and nothing more**, from
+`components/SearchField`: the heading over it already names what is being searched, and the noun
+and what a match is made over stay on its accessible name, which is read without that heading
+beside it. A box on a surface whose subject no heading states says what it matches over instead
+-- a picker's `Search by name or code`, the terminal's `Search lines`, the palette's own row.
 
 **The brand pane never carries a tagline.** What is on it is the mark, the word `dirigent`, and
 the instance and the version the door answers for. A line saying what the product is for is

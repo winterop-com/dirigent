@@ -7,11 +7,11 @@ import { ANY, Choice } from '@/components/list/Choice'
 import { ListTable, PROSE, type Column } from '@/components/list/ListTable'
 import { TagFilter } from '@/components/list/TagFilter'
 import { PageHeader, PageState } from '@/components/PageState'
+import { SearchField } from '@/components/SearchField'
 import { Segmented } from '@/components/Segmented'
 import { TagChip } from '@/components/TagChip'
 import { TagChips } from '@/components/TagChips'
 import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
 import { useRead } from '@/hooks/use-read'
 import {
     anythingFiltered,
@@ -195,14 +195,12 @@ export function Examples() {
             />
 
             <div className="mb-4 flex flex-wrap items-center gap-2">
-                <Input
-                    className="w-56"
+                <SearchField
                     value={filters.needle}
-                    onChange={(event) => {
-                        change({ ...filters, needle: event.target.value })
+                    label="Search examples by code, name, description or tag"
+                    onChange={(needle) => {
+                        change({ ...filters, needle })
                     }}
-                    placeholder="Search examples"
-                    aria-label="Search examples by code, name, description or tag"
                 />
                 <Segmented
                     label="Which documents"

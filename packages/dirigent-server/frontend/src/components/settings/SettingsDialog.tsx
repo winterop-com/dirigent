@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
 
 import { Refusal } from '@/components/Refusal'
+import { SEARCH_PLACEHOLDER } from '@/components/SearchField'
 import { Segmented } from '@/components/Segmented'
 import { Dot, TONE } from '@/components/ServerStatusButton'
 import { MODE_LABELS, MODES, type Mode } from '@/components/ThemeToggle'
@@ -88,7 +89,7 @@ export function SettingsDialog({
                         <Input
                             value={query}
                             aria-label="Search the settings"
-                            placeholder="Search"
+                            placeholder={SEARCH_PLACEHOLDER}
                             className="mb-1"
                             onChange={(event) => {
                                 setQuery(event.target.value)
