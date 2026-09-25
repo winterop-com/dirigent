@@ -161,7 +161,13 @@ export function ListTable<T>({
             <div className="flex min-h-0 flex-col overflow-hidden rounded-md border border-border-strong bg-card">
                 {/* The container the columns' shares are taken of, and the box that is measured:
                 the table's own width, inside the card's border rather than across it. */}
-                <div ref={setBox} className="list-scroll @container min-h-0 flex-1 overflow-auto">
+                <div
+                    ref={setBox}
+                    // The scrollbar's track is inset past the header row, which only the table
+                    // form draws.
+                    data-headed={!cards && chrome?.header !== false ? '' : undefined}
+                    className="list-scroll @container min-h-0 flex-1 overflow-auto"
+                >
                     {/* THE SAME ROWS AS CARDS WHERE THE TABLE WILL NOT FIT. Six columns in the
                     346px a listing has beside an open panel is either a horizontal scroll or
                     one cell drawn over another, so the first column becomes the card's head
