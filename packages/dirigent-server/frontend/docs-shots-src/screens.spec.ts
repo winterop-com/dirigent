@@ -47,6 +47,44 @@ const WIDE = [
     'frontier',
 ]
 
+/**
+ * The tag the pipelines picture is filtered to.
+ *
+ * THE UNFILTERED LISTING IS THE WRONG PICTURE. It sorts by name, so the first screen of a
+ * hundred and sixty documents is whatever begins with A, every row reads "never run", and the
+ * screen looks like a directory rather than like somewhere work happens. `fan-out` is a tag
+ * the three showcase documents share with ten patterns, so filtering to it is one screen of
+ * rows that are all about the same thing, carry the vocabulary in their tags column, and --
+ * once the cast below has run -- have real last runs with a failure among them.
+ */
+const TAG = 'fan-out'
+
+/**
+ * The documents run so the filtered listing has history in it, all of them already on the
+ * instance and all of them cheap: inline data, Postman Echo, or the run's own scratch space.
+ * Two settle badly on purpose, which is the point of showing them.
+ *
+ * `pipeline-run-with-params` wears the tag and is deliberately not here: it starts child runs,
+ * and a child's trigger cell carries the parent run's uuid, which widens the runs listing past
+ * the frame. The assertion below refuses that picture, so the cast leaves it out rather than
+ * the picture leaving out a scrollbar.
+ */
+const CAST: { pipeline: string; body?: Record<string, unknown>; ends: string }[] = [
+    { pipeline: 'fan-out-literal-list', ends: 'succeeded' },
+    { pipeline: 'fan-out-from-params', ends: 'succeeded' },
+    { pipeline: 'fan-out-then-join', ends: 'succeeded' },
+    { pipeline: 'fan-out-item-wise', ends: 'succeeded' },
+    { pipeline: 'fan-out-nested-objects', ends: 'succeeded' },
+    // run.window.* is a property of the run, so this one is refused without an interval.
+    {
+        pipeline: 'references-cheat-sheet',
+        body: { window_start: '2026-06-01T00:00:00Z', window_end: '2026-06-02T00:00:00Z' },
+        ends: 'succeeded',
+    },
+    { pipeline: 'fan-out-continue', ends: 'completed_with_errors' },
+    { pipeline: 'fan-out-fail-fast', ends: 'failed' },
+]
+
 /** The rule the alerting picture is of, declared here because a fresh instance has none. */
 const RULE = {
     code: 'nightly-page-ops',
@@ -122,14 +160,14 @@ async function shot(page: Page, name: string): Promise<void> {
     await capture(page, name)
 }
 
-/** Start a run of one of the showcase documents, answering with its id. */
+/** Start a run, answering with its id. The body is the run request, params and all. */
 async function startRun(
     request: APIRequestContext,
     pipeline: string,
-    params: Record<string, unknown> = {},
+    body: Record<string, unknown> = {},
 ): Promise<string> {
     const prefix = await apiPrefix(request)
-    const started = await request.post(`${prefix}/pipelines/${pipeline}/$run`, { data: { params } })
+    const started = await request.post(`${prefix}/pipelines/${pipeline}/$run`, { data: body })
     expect(started.ok(), await started.text()).toBe(true)
     const accepted = (await started.json()) as { run_id: string | null }
     expect(accepted.run_id, `${pipeline} was not accepted`).not.toBeNull()
@@ -222,6 +260,19 @@ test('the nine pictures docs/screens.md is built out of', async ({ page }) => {
 
     await declareRule(page.request)
 
+    // THE CAST FIRST, THE SHOWCASE LAST, so the newest runs in every listing are the ones this
+    // page is about. They are started together -- the worker has eight slots and these are a
+    // second's work each -- and waited on afterwards.
+    const cast = await Promise.all(
+        CAST.map(async (wanted) => ({
+            wanted,
+            id: await startRun(page.request, wanted.pipeline, wanted.body ?? {}),
+        })),
+    )
+    for (const { wanted, id } of cast) {
+        expect(await settled(page.request, id), `${wanted.pipeline} settled elsewhere`).toBe(wanted.ends)
+    }
+
     // A day of history for the dashboard to draw, out of the shelf the page is about.
     const degraded = await startRun(page.request, DEGRADED)
     const briefing = await startRun(page.request, BRIEFING)
@@ -233,8 +284,11 @@ test('the nine pictures docs/screens.md is built out of', async ({ page }) => {
     await page.goto('/')
     await shot(page, 'dashboard')
 
-    await page.goto('/pipelines')
+    // The listing filtered to one tag, which is what the screen is for and what makes every
+    // visible row carry a run rather than the word "never".
+    await page.goto(`/pipelines?tag=${TAG}`)
     await page.getByRole('heading', { name: 'Pipelines' }).waitFor({ timeout: 30_000 })
+    await page.getByRole('row').filter({ hasText: BIG }).waitFor({ timeout: 30_000 })
     await shot(page, 'pipelines')
 
     // THE EDITOR, with a step open: the panel is half the screen, and a bare canvas is half a
@@ -289,7 +343,7 @@ test('the nine pictures docs/screens.md is built out of', async ({ page }) => {
  */
 async function midFlight(page: Page): Promise<void> {
     for (let attempt = 1; attempt <= 3; attempt += 1) {
-        const runId = await startRun(page.request, BIG, { pace: PACE, regions: WIDE })
+        const runId = await startRun(page.request, BIG, { params: { pace: PACE, regions: WIDE } })
         await page.goto(`/runs/${runId}`)
         await page.locator('.react-flow__node').first().waitFor({ timeout: 60_000 })
 

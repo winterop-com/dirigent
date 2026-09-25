@@ -20,10 +20,10 @@ instance talks to are answering.
 
 ## Pipelines
 
-![The pipelines listing: every document the instance holds, each with its tags, its schedule and when it last ran.](images/screens/pipelines.png)
+![The pipelines listing filtered to the fan-out tag: thirteen documents, their tags, their schedules and how each last run ended.](images/screens/pipelines.png)
 
-Every document the instance holds, filtered by the tags they wear rather than by a folder
-somebody agreed on.
+A hundred and sixty documents, narrowed to the thirteen that fan out. Pipelines are found by
+the tags they wear rather than by a folder somebody agreed on, and the last run is on the row.
 
 ## The editor
 
