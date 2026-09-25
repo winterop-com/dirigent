@@ -281,11 +281,20 @@ class PluginHost:
             blocks=sorted(blocks, key=lambda entry: entry.id),
             storage_schemes=self._surfaces("storage scheme", self.storage_backends, lambda item: item.config_model),
             notifiers=self._surfaces("notifier", self.notifiers, lambda item: item.config_model),
-            connection_kinds=self._surfaces("connection kind", self.connection_kinds, lambda item: item.config_model),
+            connection_kinds=self._surfaces(
+                "connection kind",
+                self.connection_kinds,
+                lambda item: item.config_model,
+                mark=lambda item: item.mark,
+            ),
         )
 
     def _surfaces[T](
-        self, surface: str, index: Mapping[str, T], config_model: Callable[[T], type[BaseModel]]
+        self,
+        surface: str,
+        index: Mapping[str, T],
+        config_model: Callable[[T], type[BaseModel]],
+        mark: Callable[[T], str | None] | None = None,
     ) -> list[SurfaceEntry]:
         """Render one non-block surface's index as catalog entries."""
         return [
@@ -294,6 +303,7 @@ class PluginHost:
                 plugin=self.owner_of(surface, identifier),
                 config_schema=json_schema(config_model(item)),
                 secret_fields=secret_fields(config_model(item)),
+                mark=None if mark is None else mark(item),
             )
             for identifier, item in sorted(index.items())
         ]

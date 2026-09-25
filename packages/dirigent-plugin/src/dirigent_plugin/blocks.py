@@ -1,5 +1,6 @@
 """The dirigent block contract: the only module a third-party plugin package needs to import."""
 
+import re
 from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator, AsyncIterator, Callable, Mapping
 from contextlib import AbstractAsyncContextManager
@@ -18,6 +19,7 @@ from pydantic_core import CoreSchema
 from dirigent_common import API_VERSION, SHELL_MEDIA_TYPE, BlockModel, HealthReport, Issue, JsonMap, Message
 from dirigent_plugin.messages import (
     DUPLICATE_ID,
+    INVALID_MARK,
     UNSUPPORTED_API_VERSION,
 )
 
@@ -763,11 +765,49 @@ class Notifier(ABC):
         ...
 
 
+#: How much path data one mark may carry.
+MARK_LIMIT: Final = 4096
+
+#: Everything an SVG path's ``d`` is written out of: the commands, numbers, and separators.
+_PATH_DATA: Final = re.compile(r"^[MmZzLlHhVvCcSsQqTtAaEe0-9,.+\-\s]+$")
+
+
+def mark_refusal(kind: str, mark: str | None) -> str | None:
+    """Say why a connection kind may not wear the mark it declares, or ``None`` when it may.
+
+    A mark reaches a browser as the ``d`` of one path, so anything that is not path data is
+    refused here rather than drawn: non-empty, ASCII, path-data characters only, and at most
+    ``MARK_LIMIT`` of them.
+    """
+    if mark is None:
+        return None
+    detail: str | None = None
+    if not mark.strip():
+        detail = "it is empty"
+    elif not mark.isascii():
+        detail = "it is not ASCII"
+    elif len(mark) > MARK_LIMIT:
+        detail = f"it is {len(mark)} characters, and a mark holds at most {MARK_LIMIT}"
+    elif not _PATH_DATA.match(mark):
+        stray = sorted({character for character in mark if not _PATH_DATA.match(character)})
+        detail = f"it carries {''.join(stray)!r}, which path data does not"
+    if detail is None:
+        return None
+    return INVALID_MARK.render(kind=repr(kind), detail=detail)
+
+
 class ConnectionKind(ABC):
     """A named credential record of a contributed kind whose secret fields the server redacts."""
 
     id: ClassVar[str]
     config_model: ClassVar[type[BaseModel]]
+
+    mark: ClassVar[str | None] = None
+    """The ``d`` of one SVG path on a 24-unit grid, which is how a screen draws this kind.
+
+    Monochrome and filled in ``currentColor``, at the size every other kind's mark is drawn at;
+    a kind that declares none is drawn by the neutral mark.
+    """
 
     @abstractmethod
     async def check(self, config: BaseModel) -> HealthReport:
@@ -815,6 +855,15 @@ class Contribution(BaseModel):
         _require_unique("notifier id", [notifier.id for notifier in self.notifiers])
         _require_unique("connection kind id", [connection.id for connection in self.connection_kinds])
         _require_unique("format", list(self.formats))
+        return self
+
+    @model_validator(mode="after")
+    def _check_marks(self) -> "Contribution":
+        """Reject a connection kind whose declared mark is not path data a browser may draw."""
+        for connection in self.connection_kinds:
+            refusal = mark_refusal(connection.id, connection.mark)
+            if refusal is not None:
+                raise ValueError(refusal)
         return self
 
     def block_ids(self) -> list[str]:

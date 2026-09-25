@@ -17,6 +17,7 @@ from pydantic import BaseModel, JsonValue, ValidationError
 import dirigent_plugin
 from dirigent_common import API_VERSION, SHELL_MEDIA_TYPE, JsonMap, base_format_checker
 from dirigent_plugin import (
+    MARK_LIMIT,
     ByteSink,
     Capture,
     ConnectionRef,
@@ -48,7 +49,16 @@ from dirigent_plugin import (
     shell_string_fields,
 )
 from dirigent_testing.messages import TEST_REFUSAL
-from toy import EchoConfig, EchoOperator, ShelvesPlugin, TickConfig, TickSensor, ToyPlugin, plugin
+from toy import (
+    EchoConfig,
+    EchoOperator,
+    ShelvesPlugin,
+    TickConfig,
+    TickSensor,
+    ToyConnectionKind,
+    ToyPlugin,
+    plugin,
+)
 
 
 class NullLogger:
@@ -366,6 +376,44 @@ def test_contribution_rejects_duplicate_notifier_ids() -> None:
 
     with pytest.raises(ValidationError, match="duplicate notifier id"):
         Contribution(notifiers=[NullNotifier(), NullNotifier()])
+
+
+class MarkedConnectionKind(ToyConnectionKind):
+    """A connection kind that draws itself, the way a pack declares its own mark."""
+
+    id = "marked"
+    mark = "M12 2 L22 12 L12 22 L2 12 Z"
+
+
+def test_a_connection_kind_may_declare_its_own_mark() -> None:
+    contribution = Contribution(connection_kinds=[MarkedConnectionKind()])
+    assert contribution.connection_kinds[0].mark == "M12 2 L22 12 L12 22 L2 12 Z"
+
+
+def test_a_connection_kind_declares_no_mark_by_default() -> None:
+    contribution = Contribution(connection_kinds=[ToyConnectionKind()])
+    assert contribution.connection_kinds[0].mark is None
+
+
+@pytest.mark.parametrize(
+    ("mark", "detail"),
+    [
+        ("", "it is empty"),
+        ("   ", "it is empty"),
+        ('"/><script>alert(1)</script>', "which path data does not"),
+        ("M0 0 L1 1 \N{LATIN SMALL LETTER E WITH ACUTE}", "it is not ASCII"),
+        ("M0 0" + "z" * (MARK_LIMIT + 1), f"a mark holds at most {MARK_LIMIT}"),
+    ],
+)
+def test_a_mark_that_is_not_path_data_is_refused_at_registration(mark: str, detail: str) -> None:
+    class BadMark(ToyConnectionKind):
+        """A connection kind declaring something a browser must never be handed."""
+
+        id = "bad"
+
+    BadMark.mark = mark
+    with pytest.raises(ValidationError, match=detail):
+        Contribution(connection_kinds=[BadMark()])
 
 
 def test_contribution_is_frozen() -> None:
