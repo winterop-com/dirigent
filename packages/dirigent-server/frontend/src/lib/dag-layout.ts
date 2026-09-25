@@ -249,19 +249,11 @@ export function fromElkGraph(shape: LayoutShape, laid: ElkLaidOut): PlacedGraph 
     }
 }
 
-/**
- * The same shape placed without elk: one column per rank, each stacked down the canvas.
- *
- * WHAT A CANVAS DRAWS UNTIL ELK ANSWERS. Elk is fetched the first time a canvas asks for
- * geometry, and a graph that waits for the fetch is a screen with nothing on it -- so the ranks
- * are counted here instead and every box is on screen from the first frame, at the spacing elk
- * is asked for. It balances no row and crosses whatever edges cross, which is the whole of what
- * elk is for; when the answer arrives the boxes move to it.
- *
- * A NODE SITS ONE COLUMN RIGHT OF EVERYTHING IT WAITS FOR, so the reading is left to right
- * before and after. A shape that has somehow closed a loop is ranked rather than hung on.
- */
-export function placedByRank(shape: LayoutShape): PlacedGraph {
+/** How many ranks one row of a wrapped placement holds. */
+const RANKS_PER_ROW = Math.max(1, Math.floor(WRAP_WIDTH / (NODE_WIDTH + RANK_SPACING)))
+
+/** How deep into the graph each node is: one more than the deepest thing it waits for. */
+function ranksOf(shape: LayoutShape): Map<string, number> {
     const known = new Set(shape.nodes.map((node) => node.id))
     const before = new Map<string, string[]>()
     for (const [from, to] of shape.edges) {
@@ -273,6 +265,7 @@ export function placedByRank(shape: LayoutShape): PlacedGraph {
     const rankOf = (id: string, path: ReadonlySet<string>): number => {
         const held = ranks.get(id)
         if (held !== undefined) return held
+        // A shape that has somehow closed a loop is ranked rather than walked forever.
         if (path.has(id)) return 0
         const onward = new Set([...path, id])
         const rank = (before.get(id) ?? []).reduce(
@@ -283,21 +276,60 @@ export function placedByRank(shape: LayoutShape): PlacedGraph {
         return rank
     }
 
-    const nextTop = new Map<number, number>()
-    const nodes = shape.nodes.map((node) => {
-        const rank = rankOf(node.id, new Set())
-        const top = nextTop.get(rank) ?? 0
-        nextTop.set(rank, top + node.height + NODE_SPACING)
-        return {
-            id: node.id,
-            x: rank * (NODE_WIDTH + RANK_SPACING),
-            y: top,
-            width: NODE_WIDTH,
-            height: node.height,
-        }
+    for (const node of shape.nodes) rankOf(node.id, new Set())
+    return ranks
+}
+
+/**
+ * The same shape placed without elk: one column per rank, each stacked down the canvas.
+ *
+ * WHAT A CANVAS DRAWS UNTIL ELK ANSWERS. elk is fetched the first time a canvas asks for
+ * geometry, and a graph that waits for the fetch is a screen with nothing on it -- so the ranks
+ * are counted here instead and every box is drawn from the first frame, at the spacing and the
+ * widths elk is asked for. It balances no row and crosses whatever edges cross, which is the
+ * whole of what elk is for; when the answer arrives the boxes move to it.
+ *
+ * A NODE SITS ONE COLUMN RIGHT OF EVERYTHING IT WAITS FOR, so the reading is left to right
+ * before and after, and a shape too wide for one row is cut into rows at the same `WRAP_WIDTH`
+ * elk is handed -- a graph that would be fitted at a zoom its text cannot be read at is not one
+ * to open on.
+ */
+export function placedByRank(shape: LayoutShape): PlacedGraph {
+    const ranks = ranksOf(shape)
+    const wrapping = unwrappedWidth(shape) > WRAP_WIDTH
+
+    // Every box in the row and column its rank puts it in, stacked where two share one.
+    const nextTop = new Map<string, number>()
+    const rowHeights = new Map<number, number>()
+    const stacked = shape.nodes.map((node) => {
+        const rank = ranks.get(node.id) ?? 0
+        const row = wrapping ? Math.floor(rank / RANKS_PER_ROW) : 0
+        const column = wrapping ? rank % RANKS_PER_ROW : rank
+        const key = `${String(row)}:${String(column)}`
+        const top = nextTop.get(key) ?? 0
+        nextTop.set(key, top + node.height + NODE_SPACING)
+        rowHeights.set(row, Math.max(rowHeights.get(row) ?? 0, top + node.height))
+        return { node, row, column, top }
     })
 
-    return { nodes, edges: placedEdges(shape) }
+    // What each row starts at, which is every row above it and the gap between them.
+    const rowTops = new Map<number, number>()
+    let above = 0
+    for (const row of [...rowHeights.keys()].sort((one, other) => one - other)) {
+        rowTops.set(row, above)
+        above += (rowHeights.get(row) ?? 0) + RANK_SPACING
+    }
+
+    return {
+        nodes: stacked.map(({ node, row, column, top }) => ({
+            id: node.id,
+            x: column * (NODE_WIDTH + RANK_SPACING),
+            y: top + (rowTops.get(row) ?? 0),
+            width: NODE_WIDTH,
+            height: node.height,
+        })),
+        edges: placedEdges(shape),
+    }
 }
 
 /** Place a graph. */

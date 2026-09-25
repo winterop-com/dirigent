@@ -314,6 +314,29 @@ describe('the shape placed without elk', () => {
         expect(placed.nodes.every((box) => Number.isFinite(box.x))).toBe(true)
     })
 
+    test('cuts a shape too wide for one row into rows, at the width elk wraps at', () => {
+        const names = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
+        const placed = placedByRank({
+            nodes: names.map((name) => node(name)),
+            edges: names.slice(1).map((name, index) => [names[index], name] as [string, string]),
+        })
+
+        // Five ranks is what 1400px of canvas holds, so the sixth starts the second row.
+        const column = NODE_WIDTH + RANK_SPACING
+        expect(placed.nodes.map((box) => box.x)).toEqual([
+            0,
+            column,
+            2 * column,
+            3 * column,
+            4 * column,
+            0,
+            column,
+            2 * column,
+        ])
+        const below = NODE_HEIGHT + RANK_SPACING
+        expect(placed.nodes.map((box) => box.y)).toEqual([0, 0, 0, 0, 0, below, below, below])
+    })
+
     test('places nothing when there is nothing to place', () => {
         expect(placedByRank({ nodes: [], edges: [] })).toEqual({ nodes: [], edges: [] })
     })

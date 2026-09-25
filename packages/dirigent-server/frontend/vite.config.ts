@@ -44,9 +44,9 @@ export default defineConfig({
         /*
          * Two bundles here are whole engines, each fetched by the screens that need one and by
          * nothing else: monaco's editor chunk, behind `CodePane`, and elk's layout worker,
-         * behind `use-placed`. The worker is not a chunk and is not counted; monaco's chunk is
-         * the only one over the default 500 kB, and this is what clears it. Every other chunk,
-         * the entry included, stays far under.
+         * behind `components/graph/elk`. The worker is not a chunk and is not counted against
+         * this; monaco's chunk is the only one over the default 500 kB, and this is what clears
+         * it. Every other chunk, the entry included, stays far under.
          */
         chunkSizeWarningLimit: 2500,
     },

@@ -26,7 +26,7 @@ import type { DagView } from '@/lib/runs'
  * this canvas selects a step and nothing else.
  *
  * This module is loaded lazily. React Flow is a large part of what this page costs, and the
- * screens that draw a graph are the only ones that pay for it; elk is behind `use-placed` and
+ * screens that draw a graph are the only ones that pay for it; elk is a chunk of its own and
  * is fetched when this canvas asks for geometry.
  */
 

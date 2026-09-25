@@ -65,13 +65,13 @@ grammar and is registered in `CodeEditor` as a Monarch tokeniser. Its three web 
 `?worker` imports, which vite emits as chunks of their own.
 
 **An engine is fetched when the screen that needs it mounts, and not with the screen's code.**
-elk is the second of them: `components/graph/use-placed` is the one dynamic import of
+elk is the second of them: `components/graph/elk` is the one dynamic import of
 `components/graph/elk-engine`, so the graph screens' chunk carries React Flow and the canvas, and
 the 1.4 MB of layout algorithm arrives only once a canvas asks for geometry. It arrives in a web
 worker -- `elkjs/lib/elk-api` wrapping `elkjs/lib/elk-worker.min.js` -- so placing a fifty-step
 graph is not work the thread that draws is blocked on. Nothing waits on it to draw either:
-`placedByRank` places the ranks by hand, which is what a canvas shows until elk answers and what
-it keeps showing if elk never does.
+`placedByRank` places the ranks by hand, wrapped onto rows at the same `WRAP_WIDTH` elk is handed,
+and that is what a canvas shows until elk answers and what it keeps showing if elk never does.
 
 **A chunk two screens want is fetched before either is asked for.** `warmEditor` and `warmLayout`
 are those same imports, fired by the shell once there is a session and the browser is idle --

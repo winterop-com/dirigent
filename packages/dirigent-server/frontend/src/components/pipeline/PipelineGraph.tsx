@@ -62,7 +62,7 @@ import { stepMissing, type Unmet } from '@/lib/requirements'
  * to elk and fits the view to it again.
  *
  * This module is loaded lazily. React Flow is shared with the run graph and is not in the entry
- * chunk; elk is a chunk of its own, fetched by `use-placed` when this canvas asks for geometry.
+ * chunk; elk is a chunk of its own, fetched when this canvas asks for geometry.
  */
 
 /** The one node kind this graph draws. Built once: React Flow re-mounts every node on a new object. */
