@@ -19,6 +19,9 @@ const RULE = { code: 'e2e-page-ops', name: 'Page the on-call' }
 /** A channel whose picker row is wider than the box the picker hangs from, on a phone. */
 const CHANNEL = { code: 'e2e-ops-alert', name: 'On-call mobile' }
 
+/** A rule whose name is long enough to be cut in the column a 1024 window leaves the table. */
+const WIDE = { code: 'e2e-wide-row', name: 'Page the on-call when the nightly load fails' }
+
 test.beforeEach(async ({ page }) => {
     await signIn(page)
     await page.goto('/admin/alerting')
@@ -29,10 +32,17 @@ test.afterEach(async ({ page }) => {
     const prefix = await apiPrefix(page.request)
     await page.request.delete(`${prefix}/alert-rules/${RULE.code}`)
     await page.request.delete(`${prefix}/connections/${CHANNEL.code}`)
+    await page.request.delete(`${prefix}/alert-rules/${WIDE.code}`)
 })
 
+/**
+ * The rule's own row, in whichever form the listing is drawing.
+ *
+ * A listing beside an open panel has half the width it had and draws its rows as cards, so a
+ * test that opens one is asserting about a `listitem` from that moment on.
+ */
 function ruleRow(page: Page) {
-    return page.getByRole('row').filter({ hasText: RULE.code })
+    return page.getByRole('row').or(page.getByRole('listitem')).filter({ hasText: RULE.code })
 }
 
 test('the channel strip is one chip per channel, and the words are on the tooltip', async ({ page }) => {
@@ -165,6 +175,49 @@ test.describe('on a phone', () => {
         // And neither the popup nor the page under it has anything to scroll sideways.
         expect(await popup.evaluate((node) => node.scrollWidth - node.clientWidth)).toBeLessThanOrEqual(0)
         const sideways = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
+        expect(sideways).toBeLessThanOrEqual(0)
+    })
+})
+
+test.describe('in the 712px column a 1024 window leaves', () => {
+    test.use({ viewport: { width: 1024, height: 768 } })
+
+    test('the rules table holds its column, and a long name is cut rather than widening it', async ({
+        page,
+    }) => {
+        const prefix = await apiPrefix(page.request)
+        const made = await page.request.post(`${prefix}/alert-rules`, {
+            data: { code: WIDE.code, name: WIDE.name, event: 'run_failed', throttle: '15m' },
+        })
+        expect(made.status()).toBe(201)
+        await page.reload()
+
+        const rules = page
+            .locator('section')
+            .filter({ has: page.getByRole('heading', { name: 'Rules', exact: true }) })
+        await expect(rules.getByText(WIDE.code)).toBeVisible()
+
+        // The rule's name is text: it takes what the value columns left and is cut in it, so
+        // the table is still a table at this width.
+        await expect(rules.getByRole('table')).toBeVisible()
+
+        // The listing's own scroller rather than the window: a table wider than the box it is
+        // drawn in is the sideways scroll, whether or not the page itself moves.
+        await expect
+            .poll(async () =>
+                rules.locator('.list-scroll').evaluate((box) => box.scrollWidth - box.clientWidth),
+            )
+            .toBe(0)
+
+        // Cut, and the whole of it on hover: a name drawn in full is a name that took the width
+        // from everything beside it.
+        const name = rules.getByTitle(WIDE.name)
+        await expect(name).toBeVisible()
+        expect(await name.evaluate((cell) => cell.scrollWidth - cell.clientWidth)).toBeGreaterThan(0)
+
+        const sideways = await page.evaluate(
+            () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        )
         expect(sideways).toBeLessThanOrEqual(0)
     })
 })

@@ -7,7 +7,8 @@ import { ConnectionForm } from '@/components/connections/ConnectionForm'
 import { HealthSaid } from '@/components/connections/Health'
 import { NewConnection } from '@/components/connections/NewConnection'
 import { KindChip } from '@/components/KindChip'
-import { ListTable, type Column } from '@/components/list/ListTable'
+import { useListCards } from '@/components/list/ListForm'
+import { ListTable, PROSE, type Column } from '@/components/list/ListTable'
 import { Mark } from '@/components/Mark'
 import { PageHeader, PageState } from '@/components/PageState'
 import { Refusable } from '@/components/Refusable'
@@ -17,7 +18,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useMayWrite } from '@/hooks/use-may-write'
 import { usePaged } from '@/hooks/use-paged'
 import { useRead } from '@/hooks/use-read'
-import { useNarrowTable } from '@/hooks/use-small-screen'
 import { useStore } from '@/hooks/use-store'
 import {
     checkConnection,
@@ -288,7 +288,7 @@ function buildColumns(
             header: 'Connection',
             // HALF THE TABLE IS THE IDENTITY'S: `max-w-0` is what lets the cell truncate, and
             // the floor beside it is what stops the cells after it bidding the code down.
-            className: 'w-full max-w-0 lg:min-w-[50cqi]',
+            className: PROSE,
             cell: (row) => <Named row={row} />,
         },
         {
@@ -371,7 +371,7 @@ function Named({ row }: { row: ConnectionOut }) {
 function Health({ row }: { row: ConnectionOut }) {
     const view = healthOf(row)
     // A card has no pointer to hover with, and it opens the page that says the whole of it.
-    const cards = useNarrowTable()
+    const cards = useListCards()
     if (view.detail === null || cards) return <HealthSaid view={view} />
     return (
         <Tooltip>

@@ -4,7 +4,7 @@ import { Link } from 'react-router'
 import { ApiChip } from '@/components/ApiChip'
 import { KindChip } from '@/components/KindChip'
 import { MarkdownLine } from '@/components/Markdown'
-import { ListTable, type Column } from '@/components/list/ListTable'
+import { ListTable, PROSE, type Column } from '@/components/list/ListTable'
 import { PageHeader, PageState } from '@/components/PageState'
 import { Fact, Section } from '@/components/run/Panel'
 import { Input } from '@/components/ui/input'
@@ -161,7 +161,6 @@ export function Blocks() {
                             </h2>
                             <ListTable
                                 chrome={{ footer: false }}
-                                fixed
                                 columns={columns}
                                 rows={members}
                                 rowKey={blockId}
@@ -185,7 +184,6 @@ export function Blocks() {
                                 </h2>
                                 <ListTable
                                     chrome={{ footer: false }}
-                                    fixed
                                     columns={entryColumns(registry.key)}
                                     rows={rows}
                                     rowKey={entryKeyOf(registry.key)}
@@ -222,9 +220,7 @@ function blockColumns(uses: ReadonlyMap<string, number>): Column<BlockEntry>[] {
         {
             id: 'block',
             header: 'Block',
-            // The lead cell takes the width the other columns do not, and its own text truncates
-            // inside it rather than pushing the table wider than the screen.
-            className: 'w-full max-w-0',
+            className: PROSE,
             cell: (entry) => (
                 <div className="min-w-0">
                     {/* A block has no name, so the title is the id and wears the mono face itself. */}
@@ -238,19 +234,19 @@ function blockColumns(uses: ReadonlyMap<string, number>): Column<BlockEntry>[] {
         {
             id: 'kind',
             header: 'Kind',
-            className: 'w-32 whitespace-nowrap',
+            className: 'min-w-32 whitespace-nowrap',
             cell: (entry) => <KindChip kind={entry.kind} />,
         },
         {
             id: 'examples',
             header: 'Examples',
-            className: 'w-28 whitespace-nowrap',
+            className: 'min-w-28 whitespace-nowrap',
             cell: (entry) => <ExampleCount id={entry.id} many={uses.get(entry.id) ?? 0} />,
         },
         {
             id: 'plugin',
             header: 'Plugin',
-            className: 'w-36 font-mono text-xs whitespace-nowrap',
+            className: 'min-w-36 font-mono text-xs whitespace-nowrap',
             cell: (entry) => <span className="text-muted-foreground">{entry.plugin}</span>,
         },
     ]
@@ -287,7 +283,7 @@ function entryColumns(kind: Registry['key']): Column<CatalogEntry>[] {
         {
             id: 'entry',
             header: 'Entry',
-            className: 'w-full max-w-0',
+            className: PROSE,
             cell: (entry) => {
                 const summary =
                     typeof entry.config_schema.description === 'string' ? entry.config_schema.description : ''
@@ -304,13 +300,13 @@ function entryColumns(kind: Registry['key']): Column<CatalogEntry>[] {
         {
             id: 'kind',
             header: 'Kind',
-            className: 'w-32 whitespace-nowrap',
+            className: 'min-w-32 whitespace-nowrap',
             cell: () => <KindChip kind={worn} />,
         },
         {
             id: 'plugin',
             header: 'Plugin',
-            className: 'w-36 font-mono text-xs whitespace-nowrap',
+            className: 'min-w-36 font-mono text-xs whitespace-nowrap',
             cell: (entry) => <span className="text-muted-foreground">{entry.plugin}</span>,
         },
     ]

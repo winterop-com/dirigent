@@ -1384,14 +1384,17 @@ html.dark[data-theme='contrast'],
    THE LIST'S SCROLLBAR STARTS BELOW ITS STICKY HEADER.
 
    The scroll container includes the header row, so the native track would run
-   through it; the track margin insets it to the rows it actually scrolls. The
-   thumb takes the strong border tone so it reads on the card ground.
+   through it; the track margin insets it to the rows it actually scrolls. A
+   listing drawing cards has no header row and no inset. The thumb takes the
+   strong border tone so it reads on the card ground.
    --------------------------------------------------------------------------- */
 .list-scroll::-webkit-scrollbar {
     width: 10px;
 }
 .list-scroll::-webkit-scrollbar-track {
     background: transparent;
+}
+.list-scroll[data-headed]::-webkit-scrollbar-track {
     margin-block-start: 37px;
 }
 .list-scroll::-webkit-scrollbar-thumb {

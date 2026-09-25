@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router'
 
 import { ApiChip } from '@/components/ApiChip'
 import { ANY, Choice } from '@/components/list/Choice'
-import { ListTable, type Column } from '@/components/list/ListTable'
+import { ListTable, PROSE, type Column } from '@/components/list/ListTable'
 import { TagFilter } from '@/components/list/TagFilter'
 import { PageHeader, PageState } from '@/components/PageState'
 import { Segmented } from '@/components/Segmented'
@@ -318,7 +318,7 @@ function exampleColumns(
         {
             id: 'example',
             header: 'Example',
-            className: 'w-full max-w-0',
+            className: PROSE,
             cell: (row) => {
                 const heading = headingOf(row)
                 const carries = carriesNote(row)

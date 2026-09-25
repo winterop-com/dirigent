@@ -166,7 +166,10 @@ export function Login() {
                 columns are, and below lg it starts at the pane's own top padding under the
                 strip. */}
             <main className="relative flex flex-1 items-start justify-center p-6 lg:items-center lg:p-12 dark:bg-card">
-                <SeamHandle width={drawn} onChange={choose} onReset={forget} />
+                {/* The chosen width where there is one: what is on screen is a frame behind the
+                    key that asked for it, so a second press inside that frame would step from
+                    the width the first one replaced. */}
+                <SeamHandle width={chosen ?? drawn} onChange={choose} onReset={forget} />
                 <form
                     className="relative grid w-full max-w-xs gap-5 xl:w-[26.875rem] xl:max-w-none"
                     onSubmit={(event) => {

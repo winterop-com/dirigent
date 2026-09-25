@@ -1,5 +1,5 @@
 import { Instant } from '@/components/Instant'
-import type { Column } from '@/components/list/ListTable'
+import { PROSE, type Column } from '@/components/list/ListTable'
 import { StatusChip } from '@/components/run/StatusChip'
 import { headingOf } from '@/lib/identity'
 import type { LookEntry } from '@/lib/overview'
@@ -26,11 +26,15 @@ export const LOOK_COLUMNS: Column<LookEntry>[] = [
     {
         id: 'pipeline',
         header: 'Pipeline',
+        className: PROSE,
         cell: (entry) => {
             const heading = headingOf({ code: entry.run.pipeline, name: entry.name })
             return (
                 <span className="flex min-w-0 items-baseline gap-2">
-                    <span className={cn('truncate text-sm', !heading.named && 'font-mono')}>
+                    <span
+                        className={cn('truncate text-sm', !heading.named && 'font-mono')}
+                        title={heading.title}
+                    >
                         {heading.title}
                     </span>
                     {heading.code !== null && (
@@ -51,13 +55,10 @@ export const LOOK_COLUMNS: Column<LookEntry>[] = [
     {
         id: 'error',
         header: 'Error',
-        className: 'hidden lg:table-cell',
+        className: cn(PROSE, 'hidden lg:table-cell'),
         cell: (entry) =>
             entry.run.error === null ? null : (
-                <span
-                    className="block max-w-80 truncate text-xs text-muted-foreground"
-                    title={entry.run.error}
-                >
+                <span className="block truncate text-xs text-muted-foreground" title={entry.run.error}>
                     {entry.run.error}
                 </span>
             ),

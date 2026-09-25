@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { Link } from 'react-router'
 
 import { ApiChip } from '@/components/ApiChip'
-import { ListTable, type Column } from '@/components/list/ListTable'
+import { ListTable, PROSE, type Column } from '@/components/list/ListTable'
 import { PageHeader, PageState } from '@/components/PageState'
 import { Chip, Clock, Dot, NextFire, OwnerChip } from '@/components/triggers/marks'
 import { MintedToken, NewSchedule, NewWebhook } from '@/components/triggers/NewTrigger'
@@ -15,6 +15,7 @@ import { headingOf, type Addressable } from '@/lib/identity'
 import { fillPanel, openPanel } from '@/lib/panels'
 import { LIST_GROUP, registerActions } from '@/lib/palette'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
+import { cn } from '@/lib/utils'
 import {
     deliveryView,
     firingView,
@@ -262,6 +263,7 @@ const SCHEDULE_COLUMNS: Column<ScheduleRow>[] = [
     {
         id: 'schedule',
         header: 'Schedule',
+        className: PROSE,
         cell: (row) => (
             <Titled thing={row.schedule}>
                 <OwnerChip managed={row.schedule.managed} document={row.schedule.trigger_document} />
@@ -272,10 +274,12 @@ const SCHEDULE_COLUMNS: Column<ScheduleRow>[] = [
     {
         id: 'pipeline',
         header: 'Pipeline',
+        className: PROSE,
         cell: (row) => (
             <Link
-                className="text-sm hover:text-primary"
+                className="block truncate text-sm hover:text-primary"
                 to={`/pipelines/${encodeURIComponent(row.pipeline)}`}
+                title={row.pipeline}
                 onClick={(event) => {
                     event.stopPropagation()
                 }}
@@ -312,6 +316,7 @@ const WEBHOOK_COLUMNS: Column<WebhookRow>[] = [
     {
         id: 'webhook',
         header: 'Webhook',
+        className: PROSE,
         cell: (row) => (
             <Titled thing={row.webhook}>
                 <OwnerChip managed={row.webhook.managed} document={row.webhook.trigger_document} />
@@ -322,10 +327,12 @@ const WEBHOOK_COLUMNS: Column<WebhookRow>[] = [
     {
         id: 'pipeline',
         header: 'Pipeline',
+        className: PROSE,
         cell: (row) => (
             <Link
-                className="text-sm hover:text-primary"
+                className="block truncate text-sm hover:text-primary"
                 to={`/pipelines/${encodeURIComponent(row.pipeline)}`}
+                title={row.pipeline}
                 onClick={(event) => {
                     event.stopPropagation()
                 }}
@@ -337,8 +344,12 @@ const WEBHOOK_COLUMNS: Column<WebhookRow>[] = [
     {
         id: 'endpoint',
         header: 'Endpoint',
-        className: 'font-mono text-xs',
-        cell: (row) => <span>POST {hookPath(row.webhook)}</span>,
+        className: cn(PROSE, 'font-mono text-xs'),
+        cell: (row) => (
+            <span className="block truncate" title={'POST ' + hookPath(row.webhook)}>
+                POST {hookPath(row.webhook)}
+            </span>
+        ),
     },
     {
         id: 'signed',
@@ -369,13 +380,18 @@ const WEBHOOK_COLUMNS: Column<WebhookRow>[] = [
 function Titled({ thing, children }: { thing: Addressable; children: ReactNode }) {
     const heading = headingOf(thing)
     return (
-        <span className="flex flex-col gap-1">
-            <span className={heading.named ? 'font-semibold' : 'font-mono font-semibold'}>
+        <span className="flex min-w-0 flex-col gap-1">
+            <span
+                className={cn('truncate', heading.named ? 'font-semibold' : 'font-mono font-semibold')}
+                title={heading.title}
+            >
                 {heading.title}
             </span>
-            <span className="flex items-center gap-2">
+            <span className="flex min-w-0 items-center gap-2">
                 {heading.code !== null && (
-                    <span className="font-mono text-xs text-muted-foreground">{heading.code}</span>
+                    <span className="truncate font-mono text-xs text-muted-foreground" title={heading.code}>
+                        {heading.code}
+                    </span>
                 )}
                 {children}
             </span>

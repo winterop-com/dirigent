@@ -3,7 +3,7 @@ import { useSyncExternalStore } from 'react'
 /** Below `md`. The same 768px the utilities' `md:` variant is, said once in JS. */
 const BELOW_MD = '(max-width: 767px)'
 
-/** Below `lg`, which is where a listing stops being a table. */
+/** Below `lg`: a window no listing in this app can hold a table in, rail and padding included. */
 const BELOW_LG = '(max-width: 1023px)'
 
 interface Watch {
@@ -25,7 +25,7 @@ function watch(query: string): Watch {
 }
 
 const shell = watch(BELOW_MD)
-const table = watch(BELOW_LG)
+const small = watch(BELOW_LG)
 
 /** What a query answers where there is no window at all, which is a wide one. */
 const WIDE = () => false
@@ -43,12 +43,13 @@ export function useSmallScreen(): boolean {
 }
 
 /**
- * Whether a listing is too narrow to be a table.
+ * Whether the window is too small for any listing in this app to be a table.
  *
- * THE TABLE'S BREAKPOINT IS NOT THE SHELL'S. At 768 the content column beside the rail is
- * about 500px, which is a phone's width for four columns, so a listing takes the card form
- * until `lg` while everything else about a small screen turns at `md`.
+ * A FLOOR UNDER THE MEASUREMENT, NOT A REPLACEMENT FOR IT. Below `lg` the content column beside
+ * the rail is about 500px and a two-column listing would measure itself as fitting one -- two
+ * columns of twenty characters, which is a table by arithmetic and a card by reading it. From
+ * `lg` up the listing's own box is the only thing that knows what it holds, panel included.
  */
-export function useNarrowTable(): boolean {
-    return useSyncExternalStore(table.subscribe, table.read, WIDE)
+export function useSmallWindow(): boolean {
+    return useSyncExternalStore(small.subscribe, small.read, WIDE)
 }

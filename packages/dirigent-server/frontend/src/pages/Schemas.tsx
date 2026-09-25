@@ -5,7 +5,7 @@ import { useNavigate, useParams } from 'react-router'
 import { ApiChip } from '@/components/ApiChip'
 import { Description } from '@/components/Description'
 import { JsonBlock } from '@/components/JsonBlock'
-import { ListTable, type Column } from '@/components/list/ListTable'
+import { ListTable, PROSE, type Column } from '@/components/list/ListTable'
 import { PageHeader, PageState } from '@/components/PageState'
 import { Refusable } from '@/components/Refusable'
 import { sayRefusal } from '@/components/Refusal'
@@ -19,6 +19,7 @@ import { LIST_GROUP, registerActions } from '@/lib/palette'
 import { fillPanel, openPanel } from '@/lib/panels'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
 import { deleteSchema, readSchema, readSchemas, schemasNote, type SchemaOut } from '@/lib/schemas'
+import { cn } from '@/lib/utils'
 
 const schemaId = (row: SchemaOut) => row.code
 
@@ -170,8 +171,16 @@ export function Schemas() {
 
 function buildColumns(): Column<SchemaOut>[] {
     return [
-        { id: 'schema', header: 'Schema', cell: (row) => <Named row={row} /> },
-        { id: 'description', header: 'Description', cell: (row) => <Said description={row.description} /> },
+        { id: 'schema', header: 'Schema', className: PROSE, cell: (row) => <Named row={row} /> },
+        {
+            // A floor of its own: two columns of text share what is left in proportion to what
+            // they hold, and a listing where one schema has a description would otherwise cut
+            // that one line short with half the table standing empty beside it.
+            id: 'description',
+            header: 'Description',
+            className: cn(PROSE, 'min-w-64'),
+            cell: (row) => <Said description={row.description} />,
+        },
     ]
 }
 
@@ -179,12 +188,17 @@ function buildColumns(): Column<SchemaOut>[] {
 function Named({ row }: { row: SchemaOut }) {
     const heading = headingOf(row)
     return (
-        <span className="flex items-center gap-2">
-            <span className={heading.named ? 'font-semibold' : 'font-mono font-semibold'}>
+        <span className="flex min-w-0 items-center gap-2">
+            <span
+                className={cn('truncate', heading.named ? 'font-semibold' : 'font-mono font-semibold')}
+                title={heading.title}
+            >
                 {heading.title}
             </span>
             {heading.code !== null && (
-                <span className="font-mono text-xs text-muted-foreground">{heading.code}</span>
+                <span className="shrink-0 font-mono text-xs text-muted-foreground" title={heading.code}>
+                    {heading.code}
+                </span>
             )}
         </span>
     )
@@ -195,7 +209,7 @@ function Said({ description }: { description: string | null }) {
     const text = description === null ? '' : oneLine(description)
     if (text === '') return null
     return (
-        <p className="max-w-64 truncate text-xs text-muted-foreground" title={text}>
+        <p className="truncate text-xs text-muted-foreground" title={text}>
             {text}
         </p>
     )

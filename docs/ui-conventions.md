@@ -476,7 +476,7 @@ strip's three colours: green where the last check passed, red where it failed, g
 nothing was proved. One vocabulary, decided in `lib/connections` and read by every screen that
 draws a credential's health. **The check's own sentence is not on the row**: it is the tooltip on
 the health cell, on hover and on keyboard focus alike, and it is on the connection's page in
-full, where there is room for the whole of it. Below `lg` the card carries the dot and the word
+full, where there is room for the whole of it. On a card the row carries the dot and the word
 alone: there is no pointer to hover with, and tapping the card opens the page that says it. Checked
 is how long ago, and nothing at all where nothing has ever asked -- so a row nothing has checked
 has no Checked line on its card either. The row ends in the control that asks: a 36px icon button
@@ -532,13 +532,22 @@ state after: a control that wrote every keystroke back would put a history entry
 table is already narrowed by rather than replacing it. The pipelines table is where that lives,
 because a tag drawn on a row somebody cannot press is a fact with a gesture missing from it.
 
-**The lead column keeps half the table at every width.** A row's identity -- its title, its
-code, its description -- is what somebody scans a listing for, so the first column is
-`w-full max-w-0`, truncates with the whole value on hover, and carries a floor of half the
-listing's width that nothing beside it may bid down. The Tags column takes at most a quarter,
-and every other column on the row is shrink-to-content and says its piece on one line -- bounded
-too, so a column whose own words would push the identity under its floor is cut with the whole
-of it on hover rather than taking the room from the title.
+**A column holds a value or it holds text, and that is what decides its width.** A value is
+drawn from a fixed vocabulary -- a chip, an instant, a duration, a count, a mark -- so it is
+shrink-to-content and declares the floor it needs to say itself on one line. Text is whatever
+somebody typed: a title, a code, a path, a description, the sentence a run failed with. **A
+column of text declares no width.** It carries `PROSE` from `components/list/ListTable` --
+`w-full max-w-0` and a 144px floor -- so it takes what the value columns did not need, truncates
+in it, says the whole of it in `title`, and shares what is left with every other text column on
+the row. Inside such a cell the content carries `min-w-0` and `truncate`, or the cell shrinks and
+the words are simply cut off.
+
+**Text that declares no bound is a table as wide as the longest thing anybody ever wrote in
+it.** An unbounded failure sentence is what made the runs table 910px wide in a 712px column, and
+the identity beside it 164px. A column's floor is also how a listing knows it has run out of
+room, so a table whose columns declare widths says them as floors rather than locking them with
+`fixed`, which honours a width exactly and a floor not at all. The Tags column takes at most a
+quarter of the table.
 
 **The tags fold to the room they have rather than wrapping into it.** Chips are one line: a row
 whose height depends on how many words it wears makes a listing of twenty rows a listing of
@@ -550,8 +559,8 @@ guessed**: a chip is mono at 12px, so how wide one is is arithmetic over its cha
 `lib/tag-fold` fits the words -- the `+N` counted as the chip it is -- into the room one
 `ResizeObserver` on the listing's own card measured. One observer for the listing rather than
 one per row, and a share of the table rather than the cell's own width, which is the width the
-chips already took. Below `lg` a row is a card and the tags have a row of their own, so nothing
-folds there.
+chips already took. Where the listing is drawing cards a row's tags have a row of their own, so
+nothing folds there.
 
 **A choice closes on its choice; a set stays open.** `components/list/Choice` is one value out of
 a menu of them, and picking one shuts the menu, because the question has been answered. A set is
@@ -856,14 +865,36 @@ data on the entry that the palette reads.
 The shell has one breakpoint, `md` at 768px, and one rule above it: at `md` and up nothing about
 the shell on this page changes. Everything below is what the same screens become on a phone.
 **Nothing scrolls sideways.** A page whose body scrolls horizontally is a defect, whatever is in
-it.
+it, and so is a listing that scrolls inside its own card.
 
-**A table has a second breakpoint, `lg` at 1024px, and the width is why.** At 768 the content
-column is what is left of the window after a 240px rail and the page's own padding -- about
-500px -- which is a phone's width with a rail in front of it, and a listing of four or five
-columns drawn into it puts a tag chip over the title beside it. So a listing takes the card
-form below `lg` while every other rule on this page turns at `md`, and `useNarrowTable` is that
-question rather than `useSmallScreen`.
+**Above `lg` a table has no breakpoint: it follows the width it was given.** The window cannot
+answer for a listing whose box it does not know -- the same columns fit a 1024px window and
+overflow the moment a panel takes half of what was left. So from `lg` up the card form is the
+listing's own answer about its own box: a `ResizeObserver` on the listing's card reads the room
+it has, the table drawn in it reports what the columns need -- its `scrollWidth` at table layout,
+which is wider than the box exactly when they do not fit -- and a listing that cannot hold its
+table draws its rows as cards wherever it stands. `lib/card-form` is that decision, `useCardForm`
+is the observer that feeds it, and the form a listing settled on is what its own cells read
+through `useListCards` -- a cell that draws itself differently on a card asks the listing it is
+in, never the window.
+
+**Below `lg` a listing is cards, whatever it measures.** Under 1024 the content column beside the
+rail is about 500px, and a listing of two text columns measures itself as fitting a table there:
+two columns of twenty characters, which is a table by arithmetic and a card by reading it. The
+window is a floor under the measurement rather than a second opinion about it -- `useSmallWindow`
+-- and everything above that floor is the box's own question.
+
+**The form has slack in it, so it cannot flap.** A listing turns into cards when the table it
+drew overflowed its box, and remembers what that table took; it turns back into a table only
+once it has that width and `SLACK` more. Without the gap the width at which the table returns is
+the width at which it overflows again, and a window dragged across that edge would strobe.
+
+**A width is published before it is judged.** A cell that fits itself to the listing -- the tags
+fold, a bounded column -- reads a width nothing has measured yet as no bound at all and draws
+everything it holds, so the first layout of a listing is wider than the one after it. The
+measurement sets the width and settles the form on the render that follows, and a face that
+arrives late re-measures behind it: a form settled on either of those layouts is a listing stuck
+in cards on a screen with room for its table.
 
 **A utility hides; `useSmallScreen` chooses.** `md:hidden` on one of two renderings leaves both
 in the document -- every row and every control twice, two elements with one accessible name --
@@ -877,13 +908,14 @@ drawer still standing over the screen somebody navigated to is a drawer they hav
 twice. Focus moves into it on open and back to the button on close. Settings lives at its foot,
 where the rail's own cell in the status bar puts it above the breakpoint.
 
-**A listing row becomes a card below `lg`.** The table is one component and so is its small
-form: `ListTable` draws its first column as the card's head -- the title as the row's link, the code
-in mono once -- and every other column as a labelled fact under it, labelled by that column's
-own header. A column with nothing in it for that row is left out of the card rather than drawn
-as an empty label. What a row does above the breakpoint it does here: a row that opens a panel
-opens it, and a row that is a link is one. The card is the whole listing's form, header row and
-column widths included, so nothing on a narrow table has to be told how to shrink.
+**A listing row becomes a card where the table will not fit**, which on a phone is every
+listing. The table is one component and so is its narrow form: `ListTable` draws its first
+column as the card's head -- the title as the row's link, the code in mono once -- and every
+other column as a labelled fact under it, labelled by that column's own header. A column with
+nothing in it for that row is left out of the card rather than drawn as an empty label. What a
+row does as a table it does here: a row that opens a panel opens it, and a row that is a link is
+one. The card is the whole listing's form, header row and column widths included, so nothing on
+a narrow table has to be told how to shrink.
 
 **The breadcrumb shows its leaf**, and the crumb carrying the thing's code where the leaf is not
 it -- the code is on screen on every screen. The whole trail is the element's `title`; the leaf

@@ -6,11 +6,11 @@ import {
     type ReactNode,
 } from 'react'
 
-import { ListWidthProvider } from '@/components/list/ListWidth'
+import { ListFormProvider } from '@/components/list/ListForm'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { useElementWidth } from '@/hooks/use-element-width'
-import { useNarrowTable } from '@/hooks/use-small-screen'
+import { useCardForm } from '@/hooks/use-card-form'
+import { useSmallWindow } from '@/hooks/use-small-screen'
 import { PAGE, rowsRead } from '@/lib/paging'
 import { cn } from '@/lib/utils'
 
@@ -37,6 +37,20 @@ export interface Column<T> {
      */
     cardLabel?: string
 }
+
+/**
+ * What a column of prose carries.
+ *
+ * A COLUMN THAT HOLDS TEXT DECLARES NO WIDTH, IT TAKES WHAT IS LEFT. `max-w-0` is what lets it
+ * shrink and its content truncate; `w-full` is what makes it, and every other column of text
+ * beside it, share whatever the value columns did not need. The floor is 144px, the width below
+ * which what it holds is an ellipsis rather than a fact -- and the sum of those floors and the
+ * value columns' is what a listing measures itself against before drawing cards instead.
+ *
+ * What is inside a cell carrying this truncates and says the whole of it in `title`, or the
+ * cell shrinks and the words are simply cut off.
+ */
+export const PROSE = 'w-full max-w-0 min-w-36'
 
 /** How far ahead of the fold the next page is asked for. */
 const REACH = '300px'
@@ -150,23 +164,33 @@ export function ListTable<T>({
 
     const head = columns[0]
     const facts = columns.slice(1)
-    const cards = useNarrowTable()
 
-    // Measured once for the whole listing: a cell that has to decide what fits reads it from
-    // here rather than measuring itself, which would be a read per row on every resize.
+    // Measured once for the whole listing: how much room it has, and whether a table drawn in
+    // that room fits. A cell that has to decide what fits reads both from here rather than
+    // measuring itself, which would be a read per row on every resize. The window is a floor
+    // under that answer and nothing else: under `lg` there is no listing this app draws that
+    // holds a table, whatever a two-column one measures.
     const [box, setBox] = useState<HTMLDivElement | null>(null)
-    const width = useElementWidth(box)
+    const measured = useCardForm(box)
+    const width = measured.width
+    const cards = useSmallWindow() || measured.cards
 
     return (
-        <ListWidthProvider width={width}>
+        <ListFormProvider width={width} cards={cards}>
             <div className="flex min-h-0 flex-col overflow-hidden rounded-md border border-border-strong bg-card">
                 {/* The container the columns' shares are taken of, and the box that is measured:
                 the table's own width, inside the card's border rather than across it. */}
-                <div ref={setBox} className="list-scroll @container min-h-0 flex-1 overflow-auto">
-                    {/* THE SAME ROWS AS CARDS BELOW `lg`. A table of six columns in the 500px the
-                    content column has beside the rail is either a horizontal scroll or one
-                    cell drawn over another, so the first column becomes the card's head and
-                    every other one a labelled fact under it -- labelled by the header that
+                <div
+                    ref={setBox}
+                    // The scrollbar's track is inset past the header row, which only the table
+                    // form draws.
+                    data-headed={!cards && chrome?.header !== false ? '' : undefined}
+                    className="list-scroll @container min-h-0 flex-1 overflow-auto"
+                >
+                    {/* THE SAME ROWS AS CARDS WHERE THE TABLE WILL NOT FIT. Six columns in the
+                    346px a listing has beside an open panel is either a horizontal scroll or
+                    one cell drawn over another, so the first column becomes the card's head
+                    and every other one a labelled fact under it -- labelled by the header that
                     names it in the table. */}
                     {cards && head !== undefined ? (
                         <ul className="divide-y divide-border">
@@ -274,6 +298,6 @@ export function ListTable<T>({
                     </div>
                 )}
             </div>
-        </ListWidthProvider>
+        </ListFormProvider>
     )
 }

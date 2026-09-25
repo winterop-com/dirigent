@@ -1,4 +1,4 @@
-import { useListWidth } from '@/components/list/ListWidth'
+import { useListCards, useListWidth } from '@/components/list/ListForm'
 import { TagChip } from '@/components/TagChip'
 import {
     DropdownMenu,
@@ -6,7 +6,6 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { useNarrowTable } from '@/hooks/use-small-screen'
 import { foldTags, linesFor, roomFor } from '@/lib/tag-fold'
 import { cn } from '@/lib/utils'
 
@@ -21,8 +20,8 @@ import { cn } from '@/lib/utils'
  * measured, counting the `+N` as the chip it is, so what is drawn is what fits on the line and
  * never one chip past it. A table at `WRAPS_AT` or wider is allowed the second line.
  *
- * A CARD IS NOT A COLUMN. Below `lg` a row is a card and the tags have a row of their own, so
- * there is nothing to take width from and every chip is drawn.
+ * A CARD IS NOT A COLUMN. Where the listing is drawing cards a row's tags have a row of their
+ * own, so there is nothing to take width from and every chip is drawn.
  */
 export function TagChips({
     tags,
@@ -32,7 +31,7 @@ export function TagChips({
     /** What clicking a tag asks for, which is always "narrow to this". */
     onSelect?: (tag: string) => void
 }) {
-    const cards = useNarrowTable()
+    const cards = useListCards()
     const table = useListWidth()
     if (tags.length === 0) return null
     const fold = cards ? { shown: [...tags], folded: [] } : foldTags(tags, roomFor(table), linesFor(table))
