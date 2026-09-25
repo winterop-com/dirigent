@@ -476,7 +476,7 @@ strip's three colours: green where the last check passed, red where it failed, g
 nothing was proved. One vocabulary, decided in `lib/connections` and read by every screen that
 draws a credential's health. **The check's own sentence is not on the row**: it is the tooltip on
 the health cell, on hover and on keyboard focus alike, and it is on the connection's page in
-full, where there is room for the whole of it. Below `lg` the card carries the dot and the word
+full, where there is room for the whole of it. On a card the row carries the dot and the word
 alone: there is no pointer to hover with, and tapping the card opens the page that says it. Checked
 is how long ago, and nothing at all where nothing has ever asked -- so a row nothing has checked
 has no Checked line on its card either. The row ends in the control that asks: a 36px icon button
@@ -550,8 +550,8 @@ guessed**: a chip is mono at 12px, so how wide one is is arithmetic over its cha
 `lib/tag-fold` fits the words -- the `+N` counted as the chip it is -- into the room one
 `ResizeObserver` on the listing's own card measured. One observer for the listing rather than
 one per row, and a share of the table rather than the cell's own width, which is the width the
-chips already took. Below `lg` a row is a card and the tags have a row of their own, so nothing
-folds there.
+chips already took. Where the listing is drawing cards a row's tags have a row of their own, so
+nothing folds there.
 
 **A choice closes on its choice; a set stays open.** `components/list/Choice` is one value out of
 a menu of them, and picking one shuts the menu, because the question has been answered. A set is
@@ -856,14 +856,24 @@ data on the entry that the palette reads.
 The shell has one breakpoint, `md` at 768px, and one rule above it: at `md` and up nothing about
 the shell on this page changes. Everything below is what the same screens become on a phone.
 **Nothing scrolls sideways.** A page whose body scrolls horizontally is a defect, whatever is in
-it.
+it, and so is a listing that scrolls inside its own card.
 
-**A table has a second breakpoint, `lg` at 1024px, and the width is why.** At 768 the content
-column is what is left of the window after a 240px rail and the page's own padding -- about
-500px -- which is a phone's width with a rail in front of it, and a listing of four or five
-columns drawn into it puts a tag chip over the title beside it. So a listing takes the card
-form below `lg` while every other rule on this page turns at `md`, and `useNarrowTable` is that
-question rather than `useSmallScreen`.
+**A table has no breakpoint: it follows the width it was given.** The window is the wrong
+question to ask -- the same four columns fit a phone-sized window with nothing in front of them
+and overflow a 1024px one that has a 240px rail beside it, and overflow again the moment a panel
+takes half of what was left. So the card form is the listing's own answer about its own box: a
+`ResizeObserver` on the listing's card reads the room it has, the table drawn in it reports what
+the columns need -- its `scrollWidth` at table layout, which is wider than the box exactly when
+they do not fit -- and a listing that cannot hold its table draws its rows as cards wherever it
+stands. A phone is simply the smallest width that cannot hold one. `lib/card-form` is that
+decision, `useCardForm` is the observer that feeds it, and the form a listing settled on is what
+its own cells read through `useListCards` -- a cell that draws itself differently on a card asks
+the listing it is in, never the window.
+
+**The form has slack in it, so it cannot flap.** A listing turns into cards when the table it
+drew overflowed its box, and remembers what that table took; it turns back into a table only
+once it has that width and `SLACK` more. Without the gap the width at which the table returns is
+the width at which it overflows again, and a window dragged across that edge would strobe.
 
 **A utility hides; `useSmallScreen` chooses.** `md:hidden` on one of two renderings leaves both
 in the document -- every row and every control twice, two elements with one accessible name --
@@ -877,13 +887,14 @@ drawer still standing over the screen somebody navigated to is a drawer they hav
 twice. Focus moves into it on open and back to the button on close. Settings lives at its foot,
 where the rail's own cell in the status bar puts it above the breakpoint.
 
-**A listing row becomes a card below `lg`.** The table is one component and so is its small
-form: `ListTable` draws its first column as the card's head -- the title as the row's link, the code
-in mono once -- and every other column as a labelled fact under it, labelled by that column's
-own header. A column with nothing in it for that row is left out of the card rather than drawn
-as an empty label. What a row does above the breakpoint it does here: a row that opens a panel
-opens it, and a row that is a link is one. The card is the whole listing's form, header row and
-column widths included, so nothing on a narrow table has to be told how to shrink.
+**A listing row becomes a card where the table will not fit**, which on a phone is every
+listing. The table is one component and so is its narrow form: `ListTable` draws its first
+column as the card's head -- the title as the row's link, the code in mono once -- and every
+other column as a labelled fact under it, labelled by that column's own header. A column with
+nothing in it for that row is left out of the card rather than drawn as an empty label. What a
+row does as a table it does here: a row that opens a panel opens it, and a row that is a link is
+one. The card is the whole listing's form, header row and column widths included, so nothing on
+a narrow table has to be told how to shrink.
 
 **The breadcrumb shows its leaf**, and the crumb carrying the thing's code where the leaf is not
 it -- the code is on screen on every screen. The whole trail is the element's `title`; the leaf
