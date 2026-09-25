@@ -1,6 +1,6 @@
 [project]
 name = "dirigent-blocks"
-version = "0.18.4"
+version = "0.19.0"
 description = "The built-in pack for dirigent: every block family, and the outbound alert channels."
 readme = "README.md"
 requires-python = ">=3.13"
@@ -12,15 +12,15 @@ classifiers = [
 ]
 dependencies = [
     "aiosmtplib>=5.1.2",
-    "dirigent-block-base==0.18.4",
-    "dirigent-block-execute==0.18.4",
-    "dirigent-block-http==0.18.4",
-    "dirigent-block-jq==0.18.4",
-    "dirigent-block-queues==0.18.4",
-    "dirigent-block-sql==0.18.4",
-    "dirigent-block-storage==0.18.4",
-    "dirigent-common==0.18.4",
-    "dirigent-plugin==0.18.4",
+    "dirigent-block-base==0.19.0",
+    "dirigent-block-execute==0.19.0",
+    "dirigent-block-http==0.19.0",
+    "dirigent-block-jq==0.19.0",
+    "dirigent-block-queues==0.19.0",
+    "dirigent-block-sql==0.19.0",
+    "dirigent-block-storage==0.19.0",
+    "dirigent-common==0.19.0",
+    "dirigent-plugin==0.19.0",
     "httpx2>=2.12.0",
     "structlog>=25.5.0",
 ]
