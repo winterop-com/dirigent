@@ -1,0 +1,90 @@
+# A fan-out with something real to walk, and an output large enough to leave the database.
+#
+# Two things a document usually has to contrive, both knobs here:
+#
+#   page / size   the node holds `rows` records and hands back one page of them, saying how
+#                 many pages there are, so a fan-out walks a page instead of a list somebody
+#                 typed into the file.
+#   payload       filler of a chosen size beside the records. An output at or under
+#                 `inline_artifact_max` (16KB by default) is stored inline in the database,
+#                 and one above it is written to storage and referenced -- so asking for 32KB
+#                 crosses that threshold on purpose rather than by accident.
+#
+# Hop by hop:
+#
+#   page_two   records 11 to 20 of a hundred, and 32KB of filler beside them, which is what
+#              pushes this step's output out to storage.
+#   per_row    one map.jq element per record on the page: a fan-out over a real page.
+#   totals     what the page was, read off the node's own output rather than counted again.
+#
+# EXPECT THIS RUN TO END completed. Read `page_two`'s output in `dg runs show`: `pages: 10`,
+# `page: 2`, ten records, and `payload_bytes: 32768`. The artifact it wrote is in the run's
+# artifact list, because the output was too large to inline.
+#
+# To change it: -p payload=1kb keeps the output inline, so the same document shows both sides
+# of the threshold.
+#
+#   dg run --local examples/playground/a-page-at-a-time.yaml
+#   dg run --local examples/playground/a-page-at-a-time.yaml -p payload=1kb
+
+format: dirigent/v1
+kind: pipeline
+code: a-page-at-a-time
+name: A page at a time, and an output over the threshold
+description: |
+  One page of a generated hundred, walked element by element, with filler that pushes the
+  step's output past the inline limit and out to storage.
+
+tags: [playground, transform, jq, map, fan-out, outputs]
+
+requires:
+  blocks:
+    - playground.generate
+    - map.jq
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    page:
+      type: integer
+      description: Which page of the hundred records to fetch.
+      default: 2
+      minimum: 1
+      maximum: 10
+    payload:
+      type: string
+      description: How much filler to return beside the records; 32kb crosses the inline limit.
+      default: 32kb
+
+steps:
+  page_two:
+    block: playground.generate
+    config:
+      rows: 100
+      size: 10
+      page: ${params.page}
+      seed: 5
+      payload: ${params.payload}
+      fields:
+        who: name
+        company: company
+
+  per_row:
+    block: map.jq
+    depends_on: [page_two]
+    config:
+      input: ${steps.page_two.output.records}
+      program: '{who: .who, at: .company}'
+
+  totals:
+    block: transform.jq
+    depends_on: [page_two, per_row]
+    config:
+      input:
+        page: ${steps.page_two.output.page}
+        pages: ${steps.page_two.output.pages}
+        rows: ${steps.page_two.output.rows}
+        payload_bytes: ${steps.page_two.output.payload_bytes}
+        mapped: ${steps.per_row.output.value}
+      program: '{page: .page, of: .pages, from: .rows, filler_bytes: .payload_bytes, mapped: (.mapped | length)}'

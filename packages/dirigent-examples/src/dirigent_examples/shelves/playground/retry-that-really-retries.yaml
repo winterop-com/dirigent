@@ -1,0 +1,80 @@
+# A retry example that proves a retry, instead of staging one.
+#
+# A document teaching `retry:` used to need a remote endpoint that fails on cue, which no
+# public service offers: the usual trick is an endpoint that always fails, so the reader sees
+# a budget spent and never sees a recovery. `fail_until` closes that gap. The node reads the
+# attempt number the engine hands it and fails while that number is inside the window, so the
+# step really does fail twice and really does succeed on the third attempt.
+#
+# The failure is classified `transient`, which is what the engine retries. A `rejected`
+# failure is refused another attempt however much budget is left, which is what
+# ../patterns/retry-only-transient.yaml is about.
+#
+# Hop by hop:
+#
+#   flaky   fails attempts 1 and 2, succeeds on 3, and generates its rows on the way out.
+#   proof   reads the attempt that finally worked, straight off the node's own output.
+#
+# EXPECT THIS RUN TO END completed, in about three seconds: one second of backoff, then two.
+# Read `flaky` in `dg runs show`: three attempts, the last one successful, and `attempt: 3`
+# on the output to say so in the data as well.
+#
+# To change it: -p fail_until=3 with the budget left at 3 and the step runs out of attempts,
+# so the run fails -- which is the other half of what a budget means.
+#
+#   dg run --local examples/playground/retry-that-really-retries.yaml
+#   dg run --local examples/playground/retry-that-really-retries.yaml -p fail_until=3   # fails
+
+format: dirigent/v1
+kind: pipeline
+code: retry-that-really-retries
+name: A retry that really retries
+description: |
+  A step that fails its first two attempts and succeeds on the third, on purpose.
+
+  `fail_until` reads the engine's own attempt number, so the recovery is real rather than
+  described.
+
+tags: [playground, transform, jq, retry, failure]
+
+requires:
+  blocks:
+    - playground.generate
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    fail_until:
+      type: integer
+      description: How many attempts fail before one succeeds; 3 exhausts the budget below.
+      default: 2
+      minimum: 0
+      maximum: 4
+
+steps:
+  flaky:
+    block: playground.generate
+    retry:
+      max_attempts: 3
+      backoff: 1s
+      multiplier: 2.0
+      max_backoff: 4s
+      # No jitter, so the timing above is the timing you see.
+      jitter: 0.0
+    config:
+      fail_until: ${params.fail_until}
+      rows: 3
+      seed: 7
+      fields:
+        who: name
+
+  proof:
+    block: transform.jq
+    depends_on: [flaky]
+    config:
+      input:
+        attempt: ${steps.flaky.output.attempt}
+        failed_before_it: ${steps.flaky.output.fail_until}
+        rows: ${steps.flaky.output.rows}
+      program: '{succeeded_on_attempt: .attempt, after_failures: .failed_before_it, rows: .rows}'

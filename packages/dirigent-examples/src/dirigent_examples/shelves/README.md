@@ -14,6 +14,7 @@ The documents live on topic shelves, each with its own README:
 | --- | --- |
 | [`graph/`](graph) | The shapes a DAG takes: lines, branches, fans, joins, and skips. |
 | [`patterns/`](patterns) | One engine behaviour per file: rules, retries, the two clocks, item policies, triggers, concurrency, and the reference language. |
+| [`playground/`](playground) | Documents that need something to happen: generated rows, a step that fails twice, a shape that drifts, a page to walk. |
 | [`failure/`](failure) | Retries, budgets, timeouts, tolerated failures, and the cleanup edge. |
 | [`transform/`](transform) | The reshaping verbs: jq programs and the `convert.std` codec, no allowlist anywhere. |
 | [`recipes/`](recipes) | One question per file: how to group, join, pivot, clean, convert, check, store, and call. |

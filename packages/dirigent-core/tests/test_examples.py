@@ -62,6 +62,7 @@ SHELVES = (
     "graph",
     "open-data",
     "patterns",
+    "playground",
     "queues",
     "recipes",
     "s3",

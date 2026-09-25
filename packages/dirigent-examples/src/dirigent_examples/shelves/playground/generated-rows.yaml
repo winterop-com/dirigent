@@ -1,0 +1,80 @@
+# A document's first step, with nothing upstream and nothing to call.
+#
+# playground.generate is the node for a document that needs something to happen rather than
+# something to call: no connection, no URL, no network. Its field map names a Faker provider
+# per output field, so `who: name` fills `who` from Faker's `name` provider. Every provider
+# the installed Faker has is reachable; `uv run faker` prints them all with a sample each,
+# and `uv run faker -l no_NO` prints them for one locale.
+#
+# The seed is what makes an example verifiable: the same seed gives the same rows on every
+# run, on every machine. Leave it out and the node draws one, and its output says which --
+# so a surprising answer can still be reproduced by sending that number back.
+#
+# Hop by hop:
+#
+#   people   five rows of three fields, seeded, so the run is reproducible.
+#   shape    a jq program over what came out, to show the rows are ordinary data.
+#
+# EXPECT THIS RUN TO END completed, at once. Read `people`'s output: `records` is the rows,
+# and `seed`, `locale`, `rows` and `fields` beside them are the knobs that produced them.
+#
+# To change it: -p seed=99 for different rows, -p rows=50 for more of them, and
+# -p locale=no_NO for Norwegian names and cities.
+#
+#   dg run --local examples/playground/generated-rows.yaml
+#   dg run --local examples/playground/generated-rows.yaml -p locale=no_NO
+
+format: dirigent/v1
+kind: pipeline
+code: generated-rows
+name: Generated rows, from nothing
+description: |
+  A first step that needs no input: a field map of Faker providers, a row count and a seed.
+
+  The same seed gives the same rows every run, which is what lets an example assert on them.
+
+tags: [playground, transform, jq, params]
+
+requires:
+  blocks:
+    - playground.generate
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    rows:
+      type: integer
+      description: How many records to generate.
+      default: 5
+      minimum: 1
+      maximum: 50
+    seed:
+      type: integer
+      description: The seed the records come from; the same seed gives the same records.
+      default: 42
+    locale:
+      type: string
+      description: The Faker locale the providers generate in.
+      default: en_US
+      enum: [en_US, no_NO, fr_FR, de_DE]
+
+steps:
+  people:
+    block: playground.generate
+    config:
+      rows: ${params.rows}
+      seed: ${params.seed}
+      locale: ${params.locale}
+      # A provider name per field. The field names are ours; the provider names are Faker's.
+      fields:
+        who: name
+        where: city
+        when: date_this_decade
+
+  shape:
+    block: transform.jq
+    depends_on: [people]
+    config:
+      input: ${steps.people.output.records}
+      program: "{count: length, first: .[0].who, cities: [.[].where] | unique | length}"
