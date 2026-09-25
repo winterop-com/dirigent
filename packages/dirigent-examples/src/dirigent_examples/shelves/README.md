@@ -27,6 +27,7 @@ The documents live on topic shelves, each with its own README:
 | [`composition/`](composition) | Pipelines made of pipelines, and the handoff to a second instance. |
 | [`s3/`](s3) | Object storage through the `s3://` scheme, with no S3 block anywhere. |
 | [`demo/`](demo) | Surfaces shown off: the run form, rendered markdown, the requires preflight, the weekly-import shared-name pair. |
+| [`showcase/`](showcase) | Pipelines sized like the work: fifteen steps, eight-wide fan-outs, gates in the middle and a page at the end. |
 | [`open-data/`](open-data) | Real feeds against public, mostly keyless APIs: acme, health indicators, maps, earthquakes, humanitarian data. |
 | [`validate/`](validate) | A gate that checks a value's shape and passes it through: `validate.schema`, with the shape carried and named. |
 | [`schemas/`](schemas) | Not documents but the shapes they are held to: plain JSON Schemas, applied on their own and referenced by code. |
@@ -97,6 +98,7 @@ Not every one of them succeeds, and that is the point of three of them:
 | `failure/retry-budget.yaml` | `failed` | A command that always exits 1, given three attempts to prove it |
 | `failure/step-timeout.yaml` | `failed` | A thirty-second sleep against a two-second budget, so it fails in about two |
 | `graph/skip-diamond.yaml` | `succeeded` | Green, with one step skipped: the handler had nothing to handle |
+| `showcase/one-region-refuses.yaml` | `completed_with_errors` | One region's export answers 500 until its retry budget is spent; the other seven load |
 
 `dg run --local` applies and runs the document in a throwaway SQLite instance that is
 deleted afterwards -- no server, no Docker, no database. When a step fails it prints the
@@ -280,7 +282,7 @@ what a failure looks like, so the seeded one is deliberately mixed:
 
 | What lands | How many | Why |
 | --- | --- | --- |
-| Pipelines stored | 159 | Every document here that an instance will hold, including the ones that carry their own connections or schemas: the seed creates what they carry and applies the rest, which is the only form an instance stores |
+| Pipelines stored | 162 | Every document here that an instance will hold, including the ones that carry their own connections or schemas: the seed creates what they carry and applies the rest, which is the only form an instance stores |
 | Documents refused | 18 | Nine in [docker/](docker) and two in [git/](git) name a compose or a build block the seed does not allowlist, some of them also a connection it does not create; four name a connection that does not exist, one of them (`warehouse-nobody-created`) built by the seed on purpose; one names a schema no instance here holds; and two require a pipeline or a target applied after them |
 | Schedules | 17, all paused | `--paused` is what stops seventeen clocks starting to fire at somebody who has not looked at them |
 | Runs | 3 succeeded, 1 with errors, 2 failed | `hello-world`, `transform/jq-reshape.yaml` and `triggers/cron-windowed.yaml` settle green; `optional-step.yaml` settles `completed_with_errors`, which is a third status rather than a shade of failed; `error-handler.yaml` fails by design, and `s3-round-trip.yaml` cannot reach an object store nobody started |

@@ -66,6 +66,7 @@ SHELVES = (
     "recipes",
     "s3",
     "sensors",
+    "showcase",
     "sql",
     "transform",
     "triggers",
