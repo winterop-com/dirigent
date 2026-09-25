@@ -593,6 +593,17 @@ room, so a table whose columns declare widths says them as floors rather than lo
 `fixed`, which honours a width exactly and a floor not at all. The Tags column takes at most a
 quarter of the table.
 
+**A card's rows follow the same rule as a listing's columns.** The dashboard's health card
+lines a mark, a code, what the thing last said and when up on one line in a card a third of the
+screen wide, which is a table's problem in something that is not a table: the mark is a value
+and holds its width, the code is the identity and keeps a floor of six characters, what it said
+is prose and truncates in what is left with the whole of it on its title, and the instant is a
+value out of a fixed vocabulary and holds its own. Nothing on such a row is `shrink-0` unless
+it is short by construction, or the row's minimum is wider than the card and the card scrolls
+inside itself -- the same defect as a listing that scrolls sideways. A card whose row cannot be
+read at a third of the width takes the whole width instead: the chart and the health card share
+a row at `xl` and stack under it, the way the tiles above them go six across only there.
+
 **The tags fold to the room they have rather than wrapping into it.** Chips are one line: a row
 whose height depends on how many words it wears makes a listing of twenty rows a listing of
 twenty heights, so what does not fit that quarter folds into one trailing `+N` chip -- which
@@ -973,11 +984,18 @@ where the rail's own cell in the status bar puts it above the breakpoint.
 **A listing row becomes a card where the table will not fit**, which on a phone is every
 listing. The table is one component and so is its narrow form: `ListTable` draws its first
 column as the card's head -- the title as the row's link, the code in mono once -- and every
-other column as a labelled fact under it, labelled by that column's own header. A column with
-nothing in it for that row is left out of the card rather than drawn as an empty label. What a
-row does as a table it does here: a row that opens a panel opens it, and a row that is a link is
-one. The card is the whole listing's form, header row and column widths included, so nothing on
-a narrow table has to be told how to shrink.
+other column as a labelled fact under it, labelled by that column's own header. What a row does
+as a table it does here: a row that opens a panel opens it, and a row that is a link is one. The
+card is the whole listing's form, header row and column widths included, so nothing on a narrow
+table has to be told how to shrink.
+
+**A column with nothing in it for that row is left out of the card, label and all -- and the
+cell is what says so, by returning `null`.** A component that renders nothing is an element all
+the same, so a cell handing one back reads as a fact the row has, and the card draws a label
+with a blank beside it: a schema with no description under a `Description` saying nothing. The
+column decides, never the component it draws -- a tag strip with no tags, a duration for a run
+still going, a description that is empty are the cell's answer and not the component's -- and
+`lib/card-form` leaves out every fact that answered nothing.
 
 **The breadcrumb shows its leaf**, and the crumb carrying the thing's code where the leaf is not
 it -- the code is on screen on every screen. The whole trail is the element's `title`; the leaf

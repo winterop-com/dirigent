@@ -1,5 +1,7 @@
+import type { ReactNode } from 'react'
+
 /**
- * Whether a listing draws its rows as a table or as cards.
+ * Whether a listing draws its rows as a table or as cards, and what one card holds.
  *
  * THE LISTING'S OWN WIDTH DECIDES, NOT THE WINDOW'S. The same columns fit a 1024px window and
  * overflow the moment a panel takes half of what was left -- so the question a media query
@@ -51,4 +53,53 @@ export function nextForm(now: Form, room: number, taken: number): Form {
     if (room <= 0) return now
     if (now.cards) return room >= now.natural + SLACK ? TABLE : now
     return taken > room ? { cards: true, natural: taken } : now
+}
+
+/** What a card reads of a listing's column. */
+export interface CardColumn<T> {
+    /** Stable across renders, so React can key on it and a test can name it. */
+    id: string
+    header: ReactNode
+    /**
+     * What one row puts in this column.
+     *
+     * A CELL ANSWERS `null` WHERE THE ROW HAS NOTHING TO SAY IN IT, and a card then leaves the
+     * column out rather than drawing its label with a blank beside it. The cell is what decides:
+     * a component that renders nothing is an element all the same, so one handed back from here
+     * reads as a fact this row has.
+     */
+    cell: (row: T) => ReactNode
+    /**
+     * What this column is called on a card, where the header row is not drawn.
+     *
+     * The header is the label wherever it is a word; a column headed by nothing says nothing
+     * on the card either.
+     */
+    cardLabel?: string
+}
+
+/** One labelled fact under a card's head. */
+export interface Fact {
+    id: string
+    /** The word over the value, or nothing where the column is headed by none. */
+    label: string | null
+    said: ReactNode
+}
+
+/** What a column is called on a card: its header where that is a word, and nothing else. */
+function labelOf<T>(column: CardColumn<T>): string | null {
+    if (column.cardLabel !== undefined) return column.cardLabel
+    return typeof column.header === 'string' && column.header !== '' ? column.header : null
+}
+
+/** Whether a cell said anything, which is what keeps an empty fact off a card. */
+function said(cell: ReactNode): boolean {
+    return cell !== null && cell !== undefined && cell !== false && cell !== ''
+}
+
+/** The facts one row draws under its head: every column it had something for, in order. */
+export function factsOf<T>(columns: readonly CardColumn<T>[], row: T): Fact[] {
+    return columns
+        .map((column) => ({ id: column.id, label: labelOf(column), said: column.cell(row) }))
+        .filter((fact) => said(fact.said))
 }

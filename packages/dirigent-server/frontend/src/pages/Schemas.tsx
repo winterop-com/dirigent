@@ -176,7 +176,16 @@ function buildColumns(): Column<SchemaOut>[] {
             id: 'description',
             header: 'Description',
             kind: 'prose',
-            cell: (row) => <Said description={row.description} />,
+            // The one line a row has room for, and nothing where the schema says nothing.
+            cell: (row) => {
+                const text = row.description === null ? '' : oneLine(row.description)
+                if (text === '') return null
+                return (
+                    <p className="truncate text-xs text-muted-foreground" title={text}>
+                        {text}
+                    </p>
+                )
+            },
         },
     ]
 }
@@ -198,17 +207,6 @@ function Named({ row }: { row: SchemaOut }) {
                 </span>
             )}
         </span>
-    )
-}
-
-/** The one line a row has space for, or nothing when the schema says nothing. */
-function Said({ description }: { description: string | null }) {
-    const text = description === null ? '' : oneLine(description)
-    if (text === '') return null
-    return (
-        <p className="truncate text-xs text-muted-foreground" title={text}>
-            {text}
-        </p>
     )
 }
 

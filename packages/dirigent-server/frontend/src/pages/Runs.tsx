@@ -274,7 +274,11 @@ function runColumns(names: ReadonlyMap<string, string | null> | null): Column<Ru
             id: 'duration',
             header: 'Duration',
             className: 'text-right font-mono text-xs',
-            cell: (run) => <Elapsed run={run} />,
+            // A run still going has no duration to state.
+            cell: (run) => {
+                const took = elapsedBetween(run.started_at, run.finished_at)
+                return took === null ? null : <span>{formatDuration(took)}</span>
+            },
         },
     ]
 }
@@ -323,11 +327,4 @@ function PipelineCell({ run, name }: { run: RunOut; name: string | null }) {
             )}
         </span>
     )
-}
-
-/** How long a run took, where it has finished; a run still going has no duration to state. */
-function Elapsed({ run }: { run: RunOut }) {
-    const took = elapsedBetween(run.started_at, run.finished_at)
-    if (took === null) return null
-    return <span>{formatDuration(took)}</span>
 }

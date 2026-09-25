@@ -367,13 +367,32 @@ function exampleColumns(
         {
             id: 'tags',
             header: 'Tags',
-            cell: (row) => <TagChips tags={row.tags.filter((tag) => tag !== STARTER_TAG)} onSelect={onTag} />,
+            cell: (row) => {
+                const tags = row.tags.filter((tag) => tag !== STARTER_TAG)
+                return tags.length === 0 ? null : <TagChips tags={tags} onSelect={onTag} />
+            },
         },
         {
             id: 'requires',
             header: 'Requires',
             className: 'whitespace-nowrap',
-            cell: (row) => <RequiresCell example={row} holdings={holdings} />,
+            // What a document needs of this instance, counted, with what is not here in
+            // critical ink. A document that needs nothing says nothing.
+            cell: (row) => {
+                const items = requirementsOf(row.requires, holdings)
+                const summary = requirementsSummary(items)
+                if (summary === null) return null
+                return (
+                    <span
+                        className={cn(
+                            'text-xs',
+                            missingCount(items) === 0 ? 'text-muted-foreground' : 'text-critical',
+                        )}
+                    >
+                        {summary}
+                    </span>
+                )
+            },
         },
         // A COLUMN OF ONE REPEATED WORD SAYS NOTHING. With only the core corpus installed
         // every row is shipped by the same distribution, and the panel states it anyway.
@@ -388,17 +407,4 @@ function exampleColumns(
               ]
             : []),
     ]
-}
-
-/** What a document needs of this instance, counted, with what is not here said in critical ink. */
-function RequiresCell({ example, holdings }: { example: ExampleOut; holdings: Holdings }) {
-    const items = requirementsOf(example.requires, holdings)
-    const summary = requirementsSummary(items)
-    if (summary === null) return null
-    const missing = missingCount(items)
-    return (
-        <span className={cn('text-xs', missing === 0 ? 'text-muted-foreground' : 'text-critical')}>
-            {summary}
-        </span>
-    )
 }
