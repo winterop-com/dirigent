@@ -39,8 +39,13 @@ export function useCardForm(box: HTMLElement | null): ListBox {
         // in the frame after it.
         // oxlint-disable-next-line react/set-state-in-effect
         setMeasured((held) => {
+            // A WIDTH IS PUBLISHED BEFORE IT IS JUDGED. A cell that fits itself to the listing
+            // reads a width nothing has measured yet as no bound at all and draws everything it
+            // holds, so a layout made before this listing knew its own width is not the layout
+            // to settle the form on. The render that follows this one is.
+            if (room !== held.width) return { width: room, form: held.form }
             const form = nextForm(held.form, room, taken)
-            return form === held.form && room === held.width ? held : { width: room, form }
+            return form === held.form ? held : { width: room, form }
         })
     }, [box])
 
@@ -54,6 +59,12 @@ export function useCardForm(box: HTMLElement | null): ListBox {
             observer.disconnect()
         }
     }, [box, measure])
+
+    // A face that arrives after the first paint re-cuts every word in the table without
+    // resizing anything the observer is watching, so the widths are read again behind it.
+    useEffect(() => {
+        void globalThis.document.fonts?.ready.then(measure)
+    }, [measure])
 
     return { width: measured.width, cards: measured.form.cards }
 }

@@ -165,6 +165,28 @@ test('the connections listing fits 1024 without scrolling sideways', async ({ pa
     expect(sideways).toBeLessThanOrEqual(0)
 })
 
+test('the listing beside an open panel draws cards rather than scrolling', async ({ page, baseURL }) => {
+    await signIn(page)
+    await seedConnection(page.request, baseURL ?? '')
+
+    await page.setViewportSize({ width: 1024, height: 768 })
+    await page.goto('/connections')
+    await rowOf(page, CONNECTION).click()
+    await expect(page.getByRole('tabpanel')).toBeVisible()
+
+    // The panel takes half of what the listing had, and the listing answers for its own box:
+    // the same rows drawn as cards rather than a table scrolled sideways inside its card.
+    await expect(page.getByRole('listitem').filter({ hasText: CONNECTION })).toBeVisible()
+    await expect
+        .poll(async () => page.locator('.list-scroll').evaluate((box) => box.scrollWidth - box.clientWidth))
+        .toBe(0)
+
+    const sideways = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    )
+    expect(sideways).toBeLessThanOrEqual(0)
+})
+
 test('a connection opens a form whose secret box is empty and whose kind is fixed', async ({
     page,
     baseURL,

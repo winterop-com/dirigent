@@ -62,9 +62,18 @@ steps:
       program: add
 `
 
-/** The table row a pipeline's own title link is in. */
+/**
+ * The row a pipeline's own title link is in, in whichever form the listing is drawing.
+ *
+ * A listing beside an open panel has half the width it had and draws its rows as cards, so a
+ * test that opens one is asserting about a `listitem` from that moment on. What the row says
+ * and what it does are the same in both forms, which is what lets one locator find it.
+ */
 function rowOf(page: Page, title: string) {
-    return page.getByRole('row').filter({ has: page.getByRole('link', { name: title, exact: true }) })
+    return page
+        .getByRole('row')
+        .or(page.getByRole('listitem'))
+        .filter({ has: page.getByRole('link', { name: title, exact: true }) })
 }
 
 /**

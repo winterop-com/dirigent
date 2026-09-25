@@ -185,7 +185,6 @@ export function Blocks() {
                                 </h2>
                                 <ListTable
                                     chrome={{ footer: false }}
-                                    fixed
                                     columns={entryColumns(registry.key)}
                                     rows={rows}
                                     rowKey={entryKeyOf(registry.key)}
@@ -287,7 +286,10 @@ function entryColumns(kind: Registry['key']): Column<CatalogEntry>[] {
         {
             id: 'entry',
             header: 'Entry',
-            className: 'w-full max-w-0',
+            // HALF THE LISTING IS THE IDENTITY'S, and the two columns beside it are floors
+            // rather than widths, so they hold their line at every width the table is drawn at
+            // and a listing with less room than the three of them need draws cards instead.
+            className: 'w-full max-w-0 min-w-[50cqi]',
             cell: (entry) => {
                 const summary =
                     typeof entry.config_schema.description === 'string' ? entry.config_schema.description : ''
@@ -304,13 +306,13 @@ function entryColumns(kind: Registry['key']): Column<CatalogEntry>[] {
         {
             id: 'kind',
             header: 'Kind',
-            className: 'w-32 whitespace-nowrap',
+            className: 'min-w-32 whitespace-nowrap',
             cell: () => <KindChip kind={worn} />,
         },
         {
             id: 'plugin',
             header: 'Plugin',
-            className: 'w-36 font-mono text-xs whitespace-nowrap',
+            className: 'min-w-36 font-mono text-xs whitespace-nowrap',
             cell: (entry) => <span className="text-muted-foreground">{entry.plugin}</span>,
         },
     ]
