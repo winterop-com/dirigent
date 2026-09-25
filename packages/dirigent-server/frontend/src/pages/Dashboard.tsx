@@ -29,6 +29,7 @@ import {
     type NextFire,
 } from '@/lib/home'
 import { headingOf } from '@/lib/identity'
+import { kindMarks } from '@/lib/marks'
 import { DAY, needsALook, TILE_PAGE, withPipelines } from '@/lib/overview'
 import { DASHBOARD_GROUP, registerActions } from '@/lib/palette'
 import { EVERY_RUN, readRuns, type RunOut } from '@/lib/runs'
@@ -58,6 +59,7 @@ import { readWorkers } from '@/lib/workers'
  * so no two things on this screen can disagree about a day they both drew from.
  */
 export function Dashboard() {
+    const marks = useStore(kindMarks)
     const day = useRead(useCallback(() => readRuns({ ...EVERY_RUN, since: DAY }, null, TILE_PAGE), []))
     const running = useRead(useCallback(() => readRuns({ ...EVERY_RUN, status: 'running' }, null), []))
     const queued = useRead(useCallback(() => readRuns({ ...EVERY_RUN, status: 'queued' }, null), []))
@@ -167,7 +169,7 @@ export function Dashboard() {
                 </div>
                 {healthReadable && (
                     <HealthPanel
-                        rows={healthRows(workers.value?.items ?? [], connections.value?.items ?? [])}
+                        rows={healthRows(workers.value?.items ?? [], connections.value?.items ?? [], marks)}
                         note={healthNote(workers.value?.items ?? [], connections.value?.items ?? [])}
                         reading={!workers.read || !connections.read}
                     />

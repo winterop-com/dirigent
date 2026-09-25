@@ -14,12 +14,14 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Description } from '@/components/Description'
 import { useMayWrite } from '@/hooks/use-may-write'
+import { useStore } from '@/hooks/use-store'
 import { type JsonMap, type Problem } from '@/lib/api'
 import { refusalOf } from '@/lib/refusal'
 import { firstShut } from '@/lib/roles'
 import { healthOf, patchBody, settingFields, updateConnection, type ConnectionOut } from '@/lib/connections'
 import { separatelyUpdated } from '@/lib/format'
 import { kindGlyph } from '@/lib/glyphs'
+import { kindMarks } from '@/lib/marks'
 import { headingOf } from '@/lib/identity'
 import { maySubmit, validateFields, withUnreadable, type FieldDescriptor } from '@/lib/schema-form'
 
@@ -68,6 +70,7 @@ export function ConnectionForm({
     /** Called with what the server answered, so the row behind updates without a re-read. */
     onSaved: (row: ConnectionOut) => void
 }) {
+    const marks = useStore(kindMarks)
     const [named, setNamed] = useState(connection.name ?? '')
     const [description, setDescription] = useState(connection.description ?? '')
     const [values, setValues] = useState<JsonMap>(() => settingsOf(connection))
@@ -121,7 +124,7 @@ export function ConnectionForm({
                 {/* The same order the listing row is headed in: the kind's mark, the identity,
                     then the kind in words. */}
                 <p className="flex items-center gap-2">
-                    <Mark glyph={kindGlyph(connection.kind)} />
+                    <Mark glyph={kindGlyph(connection.kind, marks)} />
                     <span
                         className={
                             heading.named ? 'text-sm font-semibold' : 'font-mono text-sm font-semibold'

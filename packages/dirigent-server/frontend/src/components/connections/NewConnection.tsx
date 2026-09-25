@@ -20,6 +20,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useMayWrite } from '@/hooks/use-may-write'
+import { useStore } from '@/hooks/use-store'
 import { type JsonMap, type Problem } from '@/lib/api'
 import {
     createConnection,
@@ -29,6 +30,7 @@ import {
     type SurfaceEntry,
 } from '@/lib/connections'
 import { kindGlyph } from '@/lib/glyphs'
+import { kindMarks } from '@/lib/marks'
 import { refusalOf } from '@/lib/refusal'
 import { firstShut } from '@/lib/roles'
 import { maySubmit, validateFields, withUnreadable } from '@/lib/schema-form'
@@ -270,9 +272,10 @@ export function NewConnection({
  * document names the kind by.
  */
 function KindRow({ kind }: { kind: string }) {
+    const marks = useStore(kindMarks)
     return (
         <span className="flex items-center gap-2">
-            <Mark glyph={kindGlyph(kind)} />
+            <Mark glyph={kindGlyph(kind, marks)} />
             {kind}
         </span>
     )

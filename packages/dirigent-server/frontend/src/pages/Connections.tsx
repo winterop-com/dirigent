@@ -18,6 +18,7 @@ import { useMayWrite } from '@/hooks/use-may-write'
 import { usePaged } from '@/hooks/use-paged'
 import { useRead } from '@/hooks/use-read'
 import { useNarrowTable } from '@/hooks/use-small-screen'
+import { useStore } from '@/hooks/use-store'
 import {
     checkConnection,
     connectionPath,
@@ -33,6 +34,7 @@ import {
 } from '@/lib/connections'
 import { formatInstant, formatRelative } from '@/lib/format'
 import { kindGlyph } from '@/lib/glyphs'
+import { kindMarks } from '@/lib/marks'
 import { headingOf } from '@/lib/identity'
 import { fillPanel, openPanel } from '@/lib/panels'
 import { LIST_GROUP, registerActions } from '@/lib/palette'
@@ -338,9 +340,10 @@ function buildColumns(
  */
 function Named({ row }: { row: ConnectionOut }) {
     const heading = headingOf(row)
+    const marks = useStore(kindMarks)
     return (
         <span className="flex min-w-0 items-center gap-2">
-            <Mark glyph={kindGlyph(row.kind)} />
+            <Mark glyph={kindGlyph(row.kind, marks)} />
             <span
                 className={cn('truncate font-semibold', !heading.named && 'font-mono')}
                 title={heading.title}

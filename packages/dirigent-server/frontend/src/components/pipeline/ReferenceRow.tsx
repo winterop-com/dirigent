@@ -6,7 +6,9 @@ import { JsonBlock } from '@/components/JsonBlock'
 import { Mark } from '@/components/Mark'
 import type { JsonMap } from '@/lib/api'
 import { healthOf, settingsSummary, type ConnectionOut } from '@/lib/connections'
-import { kindGlyph, type Glyph } from '@/lib/glyphs'
+import { useStore } from '@/hooks/use-store'
+import { kindGlyph, type Glyph, type KindMarks } from '@/lib/glyphs'
+import { kindMarks } from '@/lib/marks'
 import { codeNamed, resolveConnection, resolveSchema } from '@/lib/references'
 import type { ReferenceKind } from '@/lib/schema-form'
 import type { SchemaOut } from '@/lib/schemas'
@@ -47,13 +49,14 @@ export function ReferenceRow({
     connections: ConnectionOut[] | null
 }) {
     const [open, setOpen] = useState(false)
+    const marks = useStore(kindMarks)
     const code = codeNamed(value)
     if (code === null) return null
 
     const found =
         refers === 'schema'
             ? schemaRow(resolveSchema(document, code, schemas), code)
-            : connectionRow(resolveConnection(code, connections))
+            : connectionRow(resolveConnection(code, connections), marks)
     if (found === null) return null
 
     // A code nothing holds has nothing under it to open, so it is one muted line and no chevron.
@@ -127,7 +130,7 @@ function schemaRow(resolution: ReturnType<typeof resolveSchema>, code: string): 
     }
 }
 
-function connectionRow(resolution: ReturnType<typeof resolveConnection>): Found | null {
+function connectionRow(resolution: ReturnType<typeof resolveConnection>, marks: KindMarks): Found | null {
     if (resolution.source === 'unread') return null
     if (resolution.source === 'missing')
         return { mark: null, named: null, words: 'not configured', body: null }
@@ -135,7 +138,7 @@ function connectionRow(resolution: ReturnType<typeof resolveConnection>): Found 
     return {
         // The kind is spelled in the words as well as marked: the code is in the box above, so
         // the row has none of its own to stand the mark beside.
-        mark: kindGlyph(held.kind),
+        mark: kindGlyph(held.kind, marks),
         named: nameOf(held),
         words: `${held.kind} · ${healthOf(held).label}`,
         body: (

@@ -62,6 +62,8 @@ export interface SurfaceEntry {
     config_schema: JsonMap
     /** Which config fields this surface declares secret, so a form draws them write-only. */
     secret_fields: string[]
+    /** The path a kind declared to be drawn by, which `lib/marks` holds and `lib/glyphs` draws. */
+    mark: string | null
 }
 
 /**
