@@ -1002,15 +1002,20 @@ html.dark[data-theme='contrast'],
    that is a field narrow enough to cut a label to a few characters. Said here against their
    slots, because those files are pristine and every picker in the app is one of them.
 
-   The floor is the control's own width; the ceiling is what the positioner leaves beside the
-   anchor, and no more than the screen less a 16px gutter on each side. Hanging from the start
-   edge and swapping to the end edge where that would go off screen is the positioner's own.
+   The ceiling is what the positioner leaves beside the anchor, and no more than the screen
+   less a 16px gutter on each side. Hanging from the start edge and swapping to the end edge
+   where that would go off screen is the positioner's own.
    --------------------------------------------------------------------------- */
 [data-slot='combobox-content'],
 [data-slot='dropdown-menu-content'] {
     width: max-content;
-    min-width: var(--anchor-width);
     max-width: min(var(--available-width), calc(100vw - 2rem));
+}
+/* A picker's floor is the box it hangs off and nothing more: the generated popup adds a
+   column's worth on top, which on a phone is wider than the screen leaves, and a floor beats
+   a ceiling. A menu's floor is its own, and well inside the ceiling. */
+[data-slot='combobox-content'] {
+    min-width: var(--anchor-width);
 }
 
 /* ---------------------------------------------------------------------------

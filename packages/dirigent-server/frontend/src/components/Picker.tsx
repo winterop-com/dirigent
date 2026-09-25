@@ -6,6 +6,7 @@ import {
     ComboboxItem,
     ComboboxList,
     ComboboxTrigger,
+    useComboboxAnchor,
 } from '@/components/ui/combobox'
 import { Mark } from '@/components/Mark'
 import { InputGroupAddon, InputGroupButton } from '@/components/ui/input-group'
@@ -43,6 +44,9 @@ export function Picker({
     onChange: (value: string) => void
 }) {
     const chosen = options.find((option) => option.value === value) ?? null
+    // The list hangs off the whole box rather than off the bare input inside it, which is a
+    // control's worth of marks and asides narrower.
+    const field = useComboboxAnchor()
 
     return (
         <Combobox
@@ -57,31 +61,33 @@ export function Picker({
             {/* The same ground every other box on a form sits on, in both modes: an input
                 group's own is a rung off, and two field grounds on one form read as two kinds
                 of box. */}
-            <ComboboxInput
-                id={id}
-                aria-label={label}
-                placeholder={placeholder}
-                className="bg-field dark:bg-field"
-                showTrigger={false}
-            >
-                {/* What was chosen wears its kind's mark in the closed box the way it wore it in
-                    the list, so the row somebody picked is the row they are looking at. */}
-                {chosen?.mark !== undefined && (
-                    <InputGroupAddon align="inline-start">
-                        <Mark glyph={chosen.mark} />
-                    </InputGroupAddon>
-                )}
-                {/* The machine's half of the chosen row stands in the closed box as well as in
-                    the list: a picker that showed only the title would take the code off the
-                    screen the moment somebody chose one. */}
-                <InputGroupAddon align="inline-end">
-                    {chosen !== null && chosen.aside !== '' && (
-                        <span className="font-mono text-xs text-muted-foreground">{chosen.aside}</span>
+            <div ref={field}>
+                <ComboboxInput
+                    id={id}
+                    aria-label={label}
+                    placeholder={placeholder}
+                    className="bg-field dark:bg-field"
+                    showTrigger={false}
+                >
+                    {/* What was chosen wears its kind's mark in the closed box the way it wore it
+                        in the list, so the row somebody picked is the row they are looking at. */}
+                    {chosen?.mark !== undefined && (
+                        <InputGroupAddon align="inline-start">
+                            <Mark glyph={chosen.mark} />
+                        </InputGroupAddon>
                     )}
-                    <InputGroupButton size="icon-xs" variant="ghost" render={<ComboboxTrigger />} />
-                </InputGroupAddon>
-            </ComboboxInput>
-            <ComboboxContent>
+                    {/* The machine's half of the chosen row stands in the closed box as well as in
+                        the list: a picker that showed only the title would take the code off the
+                        screen the moment somebody chose one. */}
+                    <InputGroupAddon align="inline-end">
+                        {chosen !== null && chosen.aside !== '' && (
+                            <span className="font-mono text-xs text-muted-foreground">{chosen.aside}</span>
+                        )}
+                        <InputGroupButton size="icon-xs" variant="ghost" render={<ComboboxTrigger />} />
+                    </InputGroupAddon>
+                </ComboboxInput>
+            </div>
+            <ComboboxContent anchor={field}>
                 <ComboboxEmpty>No match.</ComboboxEmpty>
                 <ComboboxList>
                     {(option: PickerOption) => (
