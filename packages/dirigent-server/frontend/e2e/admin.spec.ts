@@ -50,12 +50,20 @@ function tile(page: Page, label: string) {
 
 /** The accounts table row for one username. */
 function rowOf(page: Page, username: string) {
-    return page.getByRole('row').filter({ has: page.getByRole('button', { name: username, exact: true }) })
+    return page
+        .getByRole('row')
+        .or(page.getByRole('listitem'))
+        .filter({ has: page.getByRole('button', { name: username, exact: true }) })
 }
 
-/** The tokens table row for one token name. */
+/**
+ * The tokens row for one token name, in whichever form the listing is drawing.
+ *
+ * A listing beside an open panel has half the width it had and draws its rows as cards, so a
+ * test that opens one is asserting about a `listitem` from that moment on.
+ */
 function tokenRowOf(page: Page, name: string) {
-    return page.getByRole('row').filter({ hasText: name })
+    return page.getByRole('row').or(page.getByRole('listitem')).filter({ hasText: name })
 }
 
 /** Make an account through the dialog, which is the door this screen offers. */
