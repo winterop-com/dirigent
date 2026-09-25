@@ -252,27 +252,32 @@ steps:
       level: info
 
 # The run's own account of itself, written by the engine in the transaction that settles the
-# run rather than by a step -- which is why a cancelled run still has one.
+# run rather than by a step -- which is why a cancelled run still has one. `step.<name>` reads
+# one hop's answer by name, so the page can say which region is missing rather than leaving a
+# reader to work it out from the item keys.
 report:
   template: |
-    # {{ pipeline.name }} on {{ run.started_at | iso }}
+    # {{ pipeline.name }}
 
-    **{{ run.status }}** in {{ run.duration_ms | duration }}, with {{ items_failed }} of {{ items_total }} items failed.
+    **{{ run.status }}** in {{ run.duration_ms | duration }}, started {{ run.started_at | iso }}.
 
-    {% if items %}
-    ## The elements that did not make it
+    {% if items_failed %}
+    ## What did not make it
 
-    | Item | Step | Error |
+    {{ items_failed }} of {{ items_total }} run items failed.
+    {% if step.gaps.output %}Missing: **{{ step.gaps.output.value.missing | join(", ") }}**.{% endif %}
+
+    | Item | Failed at | Why |
     | --- | --- | --- |
-    {% for item in items %}
-    | {{ item.key }} | {{ item.failing_step }} | {{ item.error }} |
+    {% for item in items if item.failing_step %}
+    | {{ item.index }} | {{ item.failing_step }} | {{ item.error }} |
     {% endfor %}
     {% endif %}
 
     ## Every step
 
-    | Step | Block | Outcome | Attempts | Took |
-    | --- | --- | --- | --- | --- |
+    | Step | Outcome | Attempts | Took |
+    | --- | --- | --- | --- |
     {% for step in steps %}
-    | {{ step.step }} | {{ step.block }} | {{ step.outcome }} | {{ step.attempts }} | {{ step.duration_ms | duration }} |
+    | {{ step.step }} | {{ step.outcome }} | {{ step.attempts }} | {{ step.duration_ms | duration }} |
     {% endfor %}

@@ -20,6 +20,33 @@ const BRIEFING = 'morning-briefing'
 /** How many seconds each region's export takes on the run photographed mid-flight. */
 const PACE = 10
 
+/** The step that picture is of: the readiness probe, one per submitted export. */
+const WATCHED = 'await'
+
+/**
+ * The grid that run fans out over: wider than the worker has slots, so half of it is in
+ * progress while the other half waits its turn, which is what a fan-out looks like from the
+ * inside and what the picture is there to show.
+ */
+const WIDE = [
+    'east',
+    'west',
+    'north',
+    'south',
+    'central',
+    'coastal',
+    'highland',
+    'lakeside',
+    'delta',
+    'plateau',
+    'riverine',
+    'savannah',
+    'lowland',
+    'upland',
+    'island',
+    'frontier',
+]
+
 /** The rule the alerting picture is of, declared here because a fresh instance has none. */
 const RULE = {
     code: 'nightly-page-ops',
@@ -68,12 +95,12 @@ async function nothingScrollsSideways(page: Page, name: string): Promise<void> {
 }
 
 /**
- * Take one picture, once the screen has stopped changing under the camera.
+ * Wait until the screen has stopped changing under the camera.
  *
  * The corner identity fills over its reads after every full load, so a shot taken while it is
  * asking would put the wrong topbar in the frame.
  */
-async function shot(page: Page, name: string): Promise<void> {
+async function readyForShot(page: Page, name: string): Promise<void> {
     await page
         .waitForFunction(
             () => /\d+\.\d+\.\d+/.test(document.querySelector('header')?.textContent ?? ''),
@@ -83,7 +110,16 @@ async function shot(page: Page, name: string): Promise<void> {
         .catch(() => undefined)
     await page.waitForTimeout(900)
     await nothingScrollsSideways(page, name)
+}
+
+/** Write one picture. Separate from the wait, so a timed shot can check its subject last. */
+async function capture(page: Page, name: string): Promise<void> {
     await page.screenshot({ path: path.join(OUT, `${name}.png`) })
+}
+
+async function shot(page: Page, name: string): Promise<void> {
+    await readyForShot(page, name)
+    await capture(page, name)
 }
 
 /** Start a run of one of the showcase documents, answering with its id. */
@@ -107,6 +143,15 @@ async function statusOf(request: APIRequestContext, runId: string): Promise<stri
         run: { status: string }
     }
     return detail.run.status
+}
+
+/** What one step of a run is doing right now, as the graph reports it. */
+async function stepOutcome(request: APIRequestContext, runId: string, step: string): Promise<string | null> {
+    const prefix = await apiPrefix(request)
+    const detail = (await (await request.get(`${prefix}/runs/${runId}`)).json()) as {
+        dag: { nodes: { code: string; outcome: string }[] }
+    }
+    return detail.dag.nodes.find((node) => node.code === step)?.outcome ?? null
 }
 
 /** Wait for a run to stop moving, and answer with where it stopped. */
@@ -233,37 +278,38 @@ test('the nine pictures docs/screens.md is built out of', async ({ page }) => {
 /**
  * Photograph a run while its fan-out is still in the air.
  *
- * The window is the pace the probes are given, so nothing here navigates inside it: the run is
- * started, the screen is opened on it immediately, and the camera waits on the canvas for the
- * sensor's items to go into progress. A run that settled before the shot was taken is a failed
- * attempt rather than a picture, so it is started again.
+ * THE WINDOW IS THE PACE THE PROBES ARE GIVEN, so nothing here navigates inside it: the run is
+ * started, the screen is opened on it at once, and the camera waits there for the sensor to go
+ * into progress. Sixteen regions against a worker with eight slots is what makes the window
+ * wide enough to work in, and what puts half a grid in progress and half of it waiting.
+ *
+ * THE SUBJECT IS CHECKED LAST, immediately before the shutter, because a run that settled while
+ * the screen was being waited on is a failed attempt rather than a picture. Then it is started
+ * again.
  */
 async function midFlight(page: Page): Promise<void> {
-    for (let attempt = 1; attempt <= 4; attempt += 1) {
-        const runId = await startRun(page.request, BIG, { pace: PACE })
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+        const runId = await startRun(page.request, BIG, { pace: PACE, regions: WIDE })
         await page.goto(`/runs/${runId}`)
-        await page.locator('.react-flow__node').first().waitFor({ timeout: 30_000 })
+        await page.locator('.react-flow__node').first().waitFor({ timeout: 60_000 })
 
-        const reached = await page
-            .locator('.react-flow__node')
-            .filter({ hasText: 'await' })
-            .locator('.status-dot, [data-status]')
-            .first()
-            .waitFor({ timeout: 60_000 })
-            .then(() => true)
-            .catch(() => false)
-        if (!reached) continue
+        let caught = false
+        for (let waited = 0; waited < 120_000 && !caught; waited += 400) {
+            const outcome = await stepOutcome(page.request, runId, WATCHED)
+            caught = outcome === 'running'
+            if (!caught && outcome !== null && !['pending', 'queued'].includes(outcome)) break
+            if (!caught) await page.waitForTimeout(400)
+        }
+        if (!caught) continue
 
         // The sensor's own items are what the picture is of, so the step is opened on them.
-        await page.locator('.react-flow__node').getByText('await', { exact: true }).click()
-        await page.locator('aside').waitFor({ timeout: 15_000 })
-        if ((await statusOf(page.request, runId)) !== 'running') continue
+        await page.locator('.react-flow__node').getByText(WATCHED, { exact: true }).click()
+        await page.getByRole('tab', { name: 'Step', exact: true }).waitFor({ timeout: 15_000 })
+        await readyForShot(page, 'run-in-flight')
+        if ((await stepOutcome(page.request, runId, WATCHED)) !== 'running') continue
 
-        await shot(page, 'run-in-flight')
-        expect(await statusOf(page.request, runId), 'the run settled before its picture was taken').toBe(
-            'running',
-        )
+        await capture(page, 'run-in-flight')
         return
     }
-    throw new Error('four runs settled before the camera caught one in flight')
+    throw new Error('three runs settled before the camera caught one in flight')
 }

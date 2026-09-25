@@ -59,6 +59,10 @@ export default defineConfig({
         env: {
             ...process.env,
             DIRIGENT_LOGIN_RATE_PER_MINUTE: '600',
+            // A worker registers under its hostname unless it is told otherwise, and the
+            // dashboard draws it. These pictures are published, so the name is this one's
+            // rather than whichever laptop took them.
+            DIRIGENT_WORKER_NAME: 'worker-1',
         },
         url: `${DOCS_SHOTS_BASE_URL}/health`,
         reuseExistingServer: false,
