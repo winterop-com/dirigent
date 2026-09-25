@@ -33,6 +33,7 @@ theme:
 nav:
   - Start here:
       - Home: index.md
+      - Screens: screens.md
       - Getting started: getting-started.md
       - The basics: basics.md
       - Tutorial: tutorial.md
