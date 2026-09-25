@@ -18,7 +18,7 @@ from pydantic import BaseModel
 
 from dirigent_core.errors import DomainError
 from dirigent_core.messages import NOT_A_URI, OUTSIDE_ROOT, UNKNOWN_SCHEME, UNKNOWN_STORAGE_CONNECTION
-from dirigent_plugin import ByteSink, StatResult, StorageBackend
+from dirigent_plugin import ByteSink, ContainerResult, StatResult, StorageBackend
 
 CHUNK_SIZE: Final = 256 * 1024
 
@@ -329,6 +329,10 @@ class Storage:
     async def delete(self, uri: str) -> None:
         """Remove the object at a URI."""
         await self.backend_for(uri).delete(uri)
+
+    async def ensure_container(self, uri: str) -> ContainerResult:
+        """Create the container a URI's objects live in, for a store that has one to make."""
+        return await self.backend_for(uri).ensure_container(uri)
 
     async def delete_prefix(self, uri: str) -> int:
         """Remove every object under a prefix, and say how many went.

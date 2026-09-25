@@ -55,6 +55,10 @@ NO_DOCKER_DAEMON = CLI.define(
 
 AUTH_REFUSED = CLI.define("auth_refused", "{detail}")
 
+STORE_UNREACHABLE = CLI.define("store_unreachable", "the store behind {root} did not answer: {detail}")
+
+STORE_UNCONFIGURED = CLI.define("store_unconfigured", "{root} cannot be reached from this instance: {detail}")
+
 DEV_IS_SQLITE_ONLY = CLI.define("dev_is_sqlite_only", "dg dev is the SQLite standalone mode")
 
 USE_DG_SERVER = CLI.define("use_dg_server", "use dg server on PostgreSQL")

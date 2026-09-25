@@ -44,8 +44,8 @@ x-dirigent: &dirigent
       condition: service_healthy
     migrate:
       condition: service_completed_successfully
-    s3-bucket:
-      condition: service_completed_successfully
+    s3:
+      condition: service_healthy
 
 services:
   postgres:
@@ -73,10 +73,11 @@ services:
   # A one-shot service rather than a step in the server's start-up, so scaling the server
   # out does not race N processes against the same schema.
   #
-  # It also ensures the connection the artifact root resolves through. That is a row, and a
-  # container has no API token, so `dg connection ensure` writes it process-side and seals its
-  # secret half with the instance key, exactly as the API would. Re-running the stack brings
-  # the row to whatever the environment now says.
+  # It also ensures the connection the artifact root resolves through, and then the bucket
+  # that root addresses. That connection is a row, and a container has no API token, so
+  # `dg connection ensure` writes it process-side and seals its secret half with the instance
+  # key, exactly as the API would. Re-running the stack brings the row to whatever the
+  # environment now says.
   migrate:
     <<: *dirigent
     restart: "no"
@@ -92,6 +93,7 @@ services:
           --set access_key_id="$$S3_ACCESS_KEY" \
           --set secret_access_key="$$S3_SECRET_KEY" \
           --set path_style=true
+        dg storage ensure
     environment:
       <<: *dirigent-env
       # The credentials reach the command as environment, never as a file or an image layer.
@@ -101,6 +103,8 @@ services:
       S3_SECRET_KEY: ${S3_SECRET_KEY:-dirigent}
     depends_on:
       postgres:
+        condition: service_healthy
+      s3:
         condition: service_healthy
 
   # Artifact storage. The endpoint the connection names is the one containers resolve, not
@@ -123,22 +127,6 @@ services:
       timeout: 5s
       retries: 30
       start_period: 5s
-
-  # The bucket has to exist before a run writes to it, and nothing else creates it.
-  s3-bucket:
-    image: quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z
-    depends_on:
-      s3:
-        condition: service_healthy
-    entrypoint: ["/bin/sh", "-ec"]
-    command:
-      - |
-        mc alias set fs http://s3:9000 "$$S3_ACCESS_KEY" "$$S3_SECRET_KEY"
-        mc mb --ignore-existing "fs/$$S3_BUCKET"
-    environment:
-      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-dirigent}
-      S3_SECRET_KEY: ${S3_SECRET_KEY:-dirigent}
-      S3_BUCKET: ${S3_BUCKET:-dirigent}
 
   server:
     <<: *dirigent
@@ -215,8 +203,8 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
-      s3-bucket:
-        condition: service_completed_successfully
+      s3:
+        condition: service_healthy
       docker:
         condition: service_healthy
     stop_grace_period: 60s

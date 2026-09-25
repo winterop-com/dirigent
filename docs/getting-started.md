@@ -306,8 +306,8 @@ its services are dirigent's own processes, and the rest are what they stand on:
 | Service | What it is | Why it is separate |
 | --- | --- | --- |
 | `postgres` | PostgreSQL 17 | All coordination lives here. There is no broker and no second store |
-| `s3` | Object storage for artifacts, with a one-shot `s3-bucket` creating the bucket | A step's output must be readable by whichever worker claims the next step, which a container-local disk is not |
-| `migrate` | A one-shot `dg db upgrade`, and the connection the bucket is reached through, that the other two wait on | Scaling the server out must not mean N processes racing to migrate one schema |
+| `s3` | Object storage for artifacts | A step's output must be readable by whichever worker claims the next step, which a container-local disk is not |
+| `migrate` | A one-shot `dg db upgrade`, then the connection the bucket is reached through and the bucket itself, that the other two wait on | Scaling the server out must not mean N processes racing to migrate one schema |
 | `server` | `dg server`: the API, with the scheduler embedded | Needing a service of its own just to get a clock is a poor default. Leadership is an advisory lock, so embedding it costs nothing when it later moves out |
 | `docker` | A Docker daemon of the worker's own | The `docker.*` blocks drive it over TLS, so a pipeline's containers are never the host's and no host socket is mounted anywhere |
 | `worker` | `dg worker`: claims due work, executes it, probes what is waiting | Execution scales independently of the API. A worker opens no port and nothing connects to it |

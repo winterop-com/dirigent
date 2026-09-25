@@ -355,8 +355,8 @@ COMPOSE_ARTIFACTS_VOLUME = """\
 """
 
 COMPOSE_DEPENDS_S3 = """\
-    s3-bucket:
-      condition: service_completed_successfully
+    s3:
+      condition: service_healthy
 """
 
 COMPOSE_MIGRATE = """\
@@ -373,13 +373,14 @@ __MIGRATE_S3____MIGRATE_BROKERS__    environment:
 __MIGRATE_ENV__    depends_on:
       postgres:
         condition: service_healthy
-
+__MIGRATE_DEPENDS__
 """
 
 COMPOSE_MIGRATE_S3_WHAT = """, and ensures the connection the artifact root resolves
-  # through. That is a row, and a container has no API token, so `dg connection ensure`
-  # writes it process-side and seals its secret half with the instance key, exactly as the
-  # API would. Re-running the stack brings the row to whatever the environment now says."""
+  # through, and then the bucket that root addresses. That connection is a row, and a
+  # container has no API token, so `dg connection ensure` writes it process-side and seals
+  # its secret half with the instance key, exactly as the API would. Re-running the stack
+  # brings the row to whatever the environment now says."""
 
 COMPOSE_MIGRATE_KAFKA = """\
         dg connection ensure kafka kafka \\
@@ -410,6 +411,12 @@ COMPOSE_MIGRATE_S3 = """\
           --set access_key_id="$$S3_ACCESS_KEY" \\
           --set secret_access_key="$$S3_SECRET_KEY" \\
           --set path_style=true
+        dg storage ensure
+"""
+
+COMPOSE_MIGRATE_DEPENDS_S3 = """\
+      s3:
+        condition: service_healthy
 """
 
 COMPOSE_MIGRATE_ENV_S3 = """\
@@ -441,22 +448,6 @@ COMPOSE_S3 = """\
       timeout: 5s
       retries: 30
       start_period: 5s
-
-  # The bucket has to exist before a run writes to it, and nothing else creates it.
-  s3-bucket:
-    image: quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z
-    depends_on:
-      s3:
-        condition: service_healthy
-    entrypoint: ["/bin/sh", "-ec"]
-    command:
-      - |
-        mc alias set fs http://s3:9000 "$$S3_ACCESS_KEY" "$$S3_SECRET_KEY"
-        mc mb --ignore-existing "fs/$$S3_BUCKET"
-    environment:
-      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-dirigent}
-      S3_SECRET_KEY: ${S3_SECRET_KEY:-dirigent}
-      S3_BUCKET: ${S3_BUCKET:-dirigent}
 
 """
 
@@ -637,7 +628,7 @@ COMPOSE_WORKER_DOCKER_VOLUMES = """\
 """
 
 COMPOSE_DEPENDS = {
-    "s3": "      s3-bucket:\n        condition: service_completed_successfully\n",
+    "s3": "      s3:\n        condition: service_healthy\n",
     "docker": "      docker:\n        condition: service_healthy\n",
     "kafka": "      kafka-topic:\n        condition: service_completed_successfully\n",
     "rabbitmq": "      rabbitmq-queue:\n        condition: service_completed_successfully\n",
@@ -671,7 +662,8 @@ def compose_document(choices: InitChoices, version: str) -> str:
         .replace(
             "__MIGRATE_ENV__",
             (COMPOSE_MIGRATE_ENV_S3 if s3 else "") + (COMPOSE_MIGRATE_ENV_RABBITMQ if choices.has("rabbitmq") else ""),
-        ),
+        )
+        .replace("__MIGRATE_DEPENDS__", COMPOSE_MIGRATE_DEPENDS_S3 if s3 else ""),
         COMPOSE_S3 if s3 else "",
         COMPOSE_SERVER.replace("__ARTIFACTS_MOUNT__", artifacts_mount),
         COMPOSE_DOCKER if docker else "",

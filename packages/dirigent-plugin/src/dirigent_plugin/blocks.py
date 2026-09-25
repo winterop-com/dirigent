@@ -347,6 +347,19 @@ class StatResult(BaseModel):
     content_type: str | None = None
 
 
+class ContainerResult(BaseModel):
+    """What a backend did when asked to make sure a URI's container is there."""
+
+    container: str | None = None
+    """What the container is called, or None for a store that has none to make."""
+
+    created: bool = False
+    """Whether this call made it, as opposed to finding it already there."""
+
+    endpoint: str | None = None
+    """Where the store answers, carrying no credential; None for one with no endpoint."""
+
+
 class AlertMessage(BaseModel):
     """What an alert rule hands a notifier: the event, a rendered summary, and links back."""
 
@@ -728,6 +741,14 @@ class StorageBackend(ABC):
     async def delete(self, uri: str) -> None:
         """Remove the object at a URI."""
         ...
+
+    async def ensure_container(self, uri: str) -> ContainerResult:
+        """Create the container a URI's objects live in, unless it is already there.
+
+        A store whose containers a write makes for itself -- a filesystem and its
+        directories -- has nothing to create and says so by leaving the result empty.
+        """
+        return ContainerResult()
 
 
 class Notifier(ABC):

@@ -3,6 +3,8 @@
 from dirigent_plugin import Contribution, extension
 from dirigent_storage_s3.backend import (
     CHUNK_SIZE,
+    DEFAULT_REGION,
+    EXISTING_BUCKET_CODES,
     GLOB_CHARACTERS,
     MINIMUM_PART_SIZE,
     MISSING_CODES,
@@ -18,6 +20,7 @@ from dirigent_storage_s3.backend import (
     S3StorageConfig,
     S3StorageError,
     client_kwargs,
+    error_code,
     fixed_prefix,
     is_missing,
     is_pattern,
@@ -25,6 +28,7 @@ from dirigent_storage_s3.backend import (
     object_uri,
     open_client,
     parse_s3_uri,
+    without_credentials,
 )
 from dirigent_storage_s3.connection import S3ConnectionKind
 
@@ -45,6 +49,8 @@ plugin = S3StoragePlugin()
 
 __all__ = [
     "CHUNK_SIZE",
+    "DEFAULT_REGION",
+    "EXISTING_BUCKET_CODES",
     "GLOB_CHARACTERS",
     "MINIMUM_PART_SIZE",
     "MISSING_CODES",
@@ -62,6 +68,7 @@ __all__ = [
     "S3StorageError",
     "S3StoragePlugin",
     "client_kwargs",
+    "error_code",
     "fixed_prefix",
     "is_missing",
     "is_pattern",
@@ -70,4 +77,5 @@ __all__ = [
     "open_client",
     "parse_s3_uri",
     "plugin",
+    "without_credentials",
 ]
