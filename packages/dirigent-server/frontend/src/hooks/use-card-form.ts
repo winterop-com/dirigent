@@ -3,7 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useState } from 'react'
 import { nextForm, TABLE, type Form } from '@/lib/card-form'
 
 /** What a listing's own box measured: the room it has, and the form that room allows. */
-export interface ListBox {
+export interface ListMeasure {
     /** How wide the listing is, which is what a cell deciding what fits works against. */
     width: number
     /** Whether the rows are drawn as cards rather than as a table. */
@@ -27,7 +27,7 @@ const UNMEASURED: { width: number; form: Form } = { width: 0, form: TABLE }
  * into cards before the frame it would have overflowed in is painted. `nextForm` answers with
  * the form it was given where nothing changed, so a render that settles nothing renders nothing.
  */
-export function useCardForm(box: HTMLElement | null): ListBox {
+export function useCardForm(box: HTMLElement | null): ListMeasure {
     const [measured, setMeasured] = useState(UNMEASURED)
 
     const measure = useCallback(() => {
