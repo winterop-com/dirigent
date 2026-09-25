@@ -94,6 +94,13 @@ export function settingsRows(apple: boolean): SettingsRow[] {
             keywords: ['logs', 'scroll', 'follow', 'tail', 'live'],
         },
         {
+            id: 'general:highlight',
+            category: 'general',
+            label: 'Current line',
+            description: 'Every editor, in place and in a window, including read-only ones.',
+            keywords: ['editor', 'caret', 'cursor', 'row', 'line', 'highlight', 'source'],
+        },
+        {
             id: 'account:identity',
             category: 'account',
             label: 'Signed in as',

@@ -8,8 +8,8 @@ import { ListTable, PROSE, type Column } from '@/components/list/ListTable'
 import { TagFilter } from '@/components/list/TagFilter'
 import { PageHeader, PageState } from '@/components/PageState'
 import { StatusChip } from '@/components/run/StatusChip'
+import { SearchField } from '@/components/SearchField'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { useStore } from '@/hooks/use-store'
 import { refreshSeconds } from '@/lib/refresh'
 import { usePaged } from '@/hooks/use-paged'
@@ -152,15 +152,7 @@ export function Runs() {
             />
 
             <div className="mb-4 flex flex-wrap items-center gap-2">
-                <Input
-                    className="w-56"
-                    value={typed}
-                    onChange={(event) => {
-                        setTyped(event.target.value)
-                    }}
-                    placeholder="Search runs"
-                    aria-label="Filter by pipeline"
-                />
+                <SearchField value={typed} label="Filter runs by pipeline" onChange={setTyped} />
                 <Choice
                     label="Status"
                     value={filters.status}

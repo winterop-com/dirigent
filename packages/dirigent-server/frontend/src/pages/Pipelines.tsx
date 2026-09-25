@@ -8,10 +8,10 @@ import { ListTable, PROSE, type Column } from '@/components/list/ListTable'
 import { TagFilter } from '@/components/list/TagFilter'
 import { PageHeader, PageState } from '@/components/PageState'
 import { StatusDot } from '@/components/run/StatusChip'
+import { SearchField } from '@/components/SearchField'
 import { TagChips } from '@/components/TagChips'
 import { Refusable } from '@/components/Refusable'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { usePaged } from '@/hooks/use-paged'
 import { useRead } from '@/hooks/use-read'
@@ -307,14 +307,10 @@ export function Pipelines() {
             />
 
             <div className="mb-4 flex flex-wrap items-center gap-2">
-                <Input
-                    className="w-56"
+                <SearchField
                     value={needle}
-                    onChange={(event) => {
-                        setNeedle(event.target.value)
-                    }}
-                    placeholder="Search pipelines"
-                    aria-label="Search pipelines by code, name or tag"
+                    label="Search pipelines by code, name or tag"
+                    onChange={setNeedle}
                 />
                 <TagFilter chosen={tags} offered={offered.value ?? []} onChange={setTags} />
             </div>

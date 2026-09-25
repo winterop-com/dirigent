@@ -17,9 +17,12 @@ import { cn } from '@/lib/utils'
  * takes all the screen there is, less a gutter; a reference for the language sits beside the
  * editor when the caller has one, and stacks below it on a narrow screen.
  *
- * THE BUTTON SITS WHERE NO TEXT DOES. The bottom-right corner of a pane is where its two
- * scrollbars meet and a document's last line ends early, so the button there covers nothing a
- * reader needs; at the top right it covered the tail of a program's first line.
+ * THE BUTTON SITS WHERE NO TEXT DOES, and this is the only place it is drawn. The bottom-right
+ * corner of a pane is where its two scrollbars meet and a document's last line ends early, so
+ * the button there covers nothing a reader needs; at the top right it covered the tail of a
+ * program's first line. Every pane that offers a window -- a source field, a report document, an
+ * alert body, a block of produced JSON -- takes the button, the corner and the window from here,
+ * so there is one corner to learn.
  *
  * TWO EDITORS OVER ONE BUFFER READ THE SAME BUFFER. Monaco holds one model per path, so a
  * source pane and its window name the same one: what is typed in either is what the other
@@ -39,7 +42,8 @@ export function WindowedPane({
     /** What the box around the pane in place is, which a source pane draws as a bordered field. */
     className?: string
     onBlur?: () => void
-    /** The pane as it stands in place, at whatever height its caller gave it. */
+    /** The pane as it stands in place, at whatever height its caller gave it, with the
+     * bottom-right corner left clear for the button. */
     children: ReactNode
     /** The same buffer's pane, as the window draws it. */
     windowed: ReactNode
@@ -62,6 +66,9 @@ export function WindowedPane({
                 <Maximize2 className="size-3.5" aria-hidden />
             </Button>
             <Dialog open={wide} onOpenChange={setWide}>
+                {/* Focus is not handed back to the control on close: the library restores it
+                    after the exit animation, past any blur, and the ring it then wears reads
+                    as a selection nobody made. */}
                 <DialogContent
                     finalFocus={false}
                     className="flex h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-none flex-col gap-3 sm:max-w-none"

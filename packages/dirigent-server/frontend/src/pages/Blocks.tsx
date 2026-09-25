@@ -7,7 +7,7 @@ import { MarkdownLine } from '@/components/Markdown'
 import { ListTable, PROSE, type Column } from '@/components/list/ListTable'
 import { PageHeader, PageState } from '@/components/PageState'
 import { Fact, Section } from '@/components/run/Panel'
-import { Input } from '@/components/ui/input'
+import { SearchField } from '@/components/SearchField'
 import { useRead } from '@/hooks/use-read'
 import {
     byGroup,
@@ -127,15 +127,7 @@ export function Blocks() {
             <PageHeader title="Blocks" aside={<ApiChip tag="blocks" />} />
 
             <div className="mb-4 flex flex-wrap items-center gap-2">
-                <Input
-                    className="w-56"
-                    value={needle}
-                    onChange={(event) => {
-                        setNeedle(event.target.value)
-                    }}
-                    placeholder="Search blocks"
-                    aria-label="Search blocks by id or summary"
-                />
+                <SearchField value={needle} label="Search blocks by id or summary" onChange={setNeedle} />
             </div>
 
             <PageState

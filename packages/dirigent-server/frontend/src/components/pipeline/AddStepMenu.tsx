@@ -12,6 +12,7 @@ import {
     DropdownMenuSubTrigger,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { SEARCH_PLACEHOLDER } from '@/components/SearchField'
 import { Input } from '@/components/ui/input'
 import { blockShelves, searchBlocks, type BlockCrumb } from '@/lib/add-step'
 import type { BlockEntry } from '@/lib/blocks'
@@ -199,7 +200,7 @@ function AddStepMenuContent({
                     value={needle}
                     autoFocus
                     spellCheck={false}
-                    placeholder="Search"
+                    placeholder={SEARCH_PLACEHOLDER}
                     aria-label={SEARCH_LABEL}
                     onKeyDown={onKeyDown}
                     onChange={(event) => {

@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 
-import { CodeWindow } from '@/components/CodeWindow'
+import { CodePane } from '@/components/pipeline/CodePane'
+import { WindowedPane } from '@/components/WindowedPane'
 import { tokenizeJson, type JsonTokenKind } from '@/lib/json-tokens'
 import { cn } from '@/lib/utils'
 
@@ -20,14 +21,29 @@ const HUES: Record<JsonTokenKind, string | undefined> = {
  * editor, so it costs nothing to draw beside every step. The window is the same text a
  * size up, in the read-only editor -- folding and search are what a large value needs,
  * and the box's job is only to be legible.
+ *
+ * THE FOOT OF THE BOX IS THE BUTTON'S. The strip the window button sits in is padding, so a
+ * value of a single line is not read from under it.
  */
 export function JsonBlock({ title, text, className }: { title: string; text: string; className?: string }) {
     const tokens = useMemo(() => tokenizeJson(text), [text])
     return (
-        <div className="relative">
+        <WindowedPane
+            name={title}
+            windowed={
+                <CodePane
+                    value={text}
+                    mediaType="application/json"
+                    path={`window/${title}`}
+                    label={`${title}, in a window`}
+                    readOnly
+                    className="min-h-0 flex-1"
+                />
+            }
+        >
             <pre
                 className={cn(
-                    'overflow-auto rounded-lg border border-border bg-background p-2 font-mono text-xs',
+                    'overflow-auto rounded-lg border border-border bg-background p-2 pb-8 font-mono text-xs',
                     className,
                 )}
             >
@@ -39,7 +55,6 @@ export function JsonBlock({ title, text, className }: { title: string; text: str
                     </span>
                 ))}
             </pre>
-            <CodeWindow title={title} text={text} mediaType="application/json" path={`window/${title}`} />
-        </div>
+        </WindowedPane>
     )
 }

@@ -662,6 +662,16 @@ step config field whose schema says it carries a program are the same Monaco aga
 reported a round trip later. Each pane names its own buffer, because monaco holds one model per
 uri and two panes sharing a name would share a document.
 
+**A pane too small for what it holds opens in a window, and the button is in the bottom-right
+corner of the pane.** `components/WindowedPane` is where that gesture is written once -- the
+button, its corner, and the window, which is the viewport less a gutter -- and every pane that
+offers one comes through it: a config field carrying a program, a value edited as JSON, a
+report document, an alert body, an example's source, and the block of produced JSON on a run's
+step and a schema's page. The corner is the one place a reader loses nothing: it is where a
+pane's two scrollbars meet and where a document's last line ends early, so a pane whose content
+can end level with it -- a one-line JSON value -- keeps that strip as padding rather than
+drawing text under the button.
+
 **A field that names a thing shows the thing.** A string property carrying `x-dirigent-ref` holds
 the code of a connection or a schema, and under the box the form draws what that code resolves to,
 in the step panel's own group gesture: a shut row with a one-line summary, and the definition under
@@ -796,6 +806,12 @@ as a record -- what it is called, which category it is filed under, what else it
 so its search box is one pure function across every category rather than a traversal of markup, and
 the shortcut rows are derived from `lib/shortcuts` rather than written down twice. What a row puts
 on its right edge is the dialog's, keyed by the row's id.
+
+**General holds the behaviour preferences**, each one a store the screens read rather than a
+copy this dialog keeps: which clock every timestamp is read against, whether a log pane opens
+following its tail, and whether an editor marks the row the caret is on. A preference defaults
+to what this app did before it existed, so nothing moves under a reader who has never opened
+this dialog, and an editor already on screen takes the change without being rebuilt.
 
 **Its nav reads Preferences, You, This instance**: General, Theme and Shortcuts are preferences,
 Account is the reader's, and Server is the instance's. There is no About, because a version stated
@@ -1427,8 +1443,12 @@ placeholders and leading field icons, because it is the one screen a person meet
 product's own facts are on it: there is no data to read, no title to take a heading from and no
 shell around it, so the screen has to say where somebody has arrived and what to do next. No
 other screen may copy any of it -- an eyebrow over a page title, a subtitle under a heading, a
-placeholder repeating a label, or an icon inside a field is a defect everywhere behind this
-door.
+placeholder repeating a label or the heading it sits under, or an icon inside a field is a defect
+everywhere behind this door. **A listing's search box says `Search` and nothing more**, from
+`components/SearchField`: the heading over it already names what is being searched, and the noun
+and what a match is made over stay on its accessible name, which is read without that heading
+beside it. A box on a surface whose subject no heading states says what it matches over instead
+-- a picker's `Search by name or code`, the terminal's `Search lines`, the palette's own row.
 
 **The brand pane never carries a tagline.** What is on it is the mark, the word `dirigent`, and
 the instance and the version the door answers for. A line saying what the product is for is
