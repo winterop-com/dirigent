@@ -7,6 +7,7 @@ import {
     MAX_ZOOM,
     MIN_ZOOM,
     NODE_HEIGHT,
+    NODE_SPACING,
     NODE_WIDTH,
     RANK_SPACING,
     STRIP_HEIGHT,
@@ -19,6 +20,7 @@ import {
     heightOf,
     layoutDag,
     layoutOptionsFor,
+    placedByRank,
     rankDepth,
     signatureOf,
     steppedZoom,
@@ -238,6 +240,105 @@ describe('how deep a shape is', () => {
                 ],
             }),
         ).toBeGreaterThan(0)
+    })
+})
+
+describe('the shape placed without elk', () => {
+    test('reads left to right, one column per rank', () => {
+        const placed = placedByRank(CHAIN)
+
+        expect(placed.nodes.map((box) => box.x)).toEqual([
+            0,
+            NODE_WIDTH + RANK_SPACING,
+            2 * (NODE_WIDTH + RANK_SPACING),
+        ])
+        expect(placed.nodes.map((box) => box.y)).toEqual([0, 0, 0])
+    })
+
+    test('stacks the nodes of one rank down the canvas, at the spacing elk is asked for', () => {
+        const placed = placedByRank({
+            nodes: [node('left'), node('right'), node('after')],
+            edges: [['left', 'after']],
+        })
+
+        const [left, right, after] = placed.nodes
+        expect([left.x, left.y]).toEqual([0, 0])
+        expect([right.x, right.y]).toEqual([0, NODE_HEIGHT + NODE_SPACING])
+        expect([after.x, after.y]).toEqual([NODE_WIDTH + RANK_SPACING, 0])
+    })
+
+    test('puts a node one column right of the last thing it waits for', () => {
+        const placed = placedByRank({
+            nodes: [node('one'), node('two'), node('three'), node('join')],
+            edges: [
+                ['one', 'two'],
+                ['two', 'three'],
+                ['one', 'join'],
+                ['three', 'join'],
+            ],
+        })
+
+        const join = placed.nodes.find((box) => box.id === 'join')
+        expect(join?.x).toBe(3 * (NODE_WIDTH + RANK_SPACING))
+    })
+
+    test('draws every node at the size elk is told', () => {
+        expect(placedByRank({ nodes: [node('tall', 120)], edges: [] }).nodes[0]).toMatchObject({
+            width: NODE_WIDTH,
+            height: 120,
+        })
+    })
+
+    test('carries the same edges elk would answer with, and no edge to a node it has not got', () => {
+        const placed = placedByRank({
+            nodes: [node('parse'), node('active')],
+            edges: [
+                ['parse', 'active'],
+                ['parse', 'gone'],
+            ],
+        })
+
+        expect(placed.edges).toEqual([{ id: 'parse->active', source: 'parse', target: 'active' }])
+    })
+
+    test('places a shape that has closed a loop rather than hanging on it', () => {
+        const placed = placedByRank({
+            nodes: [node('first'), node('second')],
+            edges: [
+                ['first', 'second'],
+                ['second', 'first'],
+            ],
+        })
+
+        expect(placed.nodes).toHaveLength(2)
+        expect(placed.nodes.every((box) => Number.isFinite(box.x))).toBe(true)
+    })
+
+    test('cuts a shape too wide for one row into rows, at the width elk wraps at', () => {
+        const names = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
+        const placed = placedByRank({
+            nodes: names.map((name) => node(name)),
+            edges: names.slice(1).map((name, index) => [names[index], name] as [string, string]),
+        })
+
+        // Five ranks is what 1400px of canvas holds, so the sixth starts the second row.
+        const column = NODE_WIDTH + RANK_SPACING
+        expect(placed.nodes.map((box) => box.x)).toEqual([
+            0,
+            column,
+            2 * column,
+            3 * column,
+            4 * column,
+            0,
+            column,
+            2 * column,
+        ])
+        const below = NODE_HEIGHT + RANK_SPACING
+        expect(placed.nodes.map((box) => box.y)).toEqual([0, 0, 0, 0, 0, below, below, below])
+    })
+
+    test('places nothing when there is nothing to place', () => {
+        expect(placedByRank({ nodes: [], edges: [] })).toEqual({ nodes: [], edges: [] })
     })
 })
 

@@ -92,7 +92,7 @@ import { cn } from '@/lib/utils'
  * the connections listing are still being read.
  */
 
-/** React Flow and elk are shared with the run screen and neither is in the entry chunk. */
+/** React Flow is shared with the run screen and is not in the entry chunk. */
 const PipelineGraph = lazy(() =>
     import('@/components/pipeline/PipelineGraph').then((module) => ({ default: module.PipelineGraph })),
 )

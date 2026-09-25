@@ -61,8 +61,8 @@ import { stepMissing, type Unmet } from '@/lib/requirements'
  * kept in `lib/canvas-layout` and surviving a reload; Re-layout gives the whole arrangement back
  * to elk and fits the view to it again.
  *
- * This module is loaded lazily. React Flow and elk are shared with the run graph and neither is
- * in the entry chunk.
+ * This module is loaded lazily. React Flow is shared with the run graph and is not in the entry
+ * chunk; elk is a chunk of its own, fetched when this canvas asks for geometry.
  */
 
 /** The one node kind this graph draws. Built once: React Flow re-mounts every node on a new object. */
@@ -188,7 +188,6 @@ function EditableGraph({
     const placements = layout.pipeline === pipeline ? layout.placements : NO_PLACEMENTS
 
     const nodes = useMemo<DocumentNode[]>(() => {
-        if (placed === null) return []
         return withHeld(placed.nodes, placements).map((node) => {
             const fan = fanOutOf(document, node.id)
             return {
@@ -213,7 +212,6 @@ function EditableGraph({
     }, [document, edits, placed, placements, selected, unmet])
 
     const edges = useMemo<Edge[]>(() => {
-        if (placed === null) return []
         return placed.edges.map((edge) => ({
             id: edge.id,
             source: edge.source,

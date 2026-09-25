@@ -1,39 +1,38 @@
+import { useEffect, useMemo, useState } from 'react'
+
+import { elkEngine } from '@/components/graph/elk'
+import { layoutDag, placedByRank, signatureOf, type LayoutShape, type PlacedGraph } from '@/lib/dag-layout'
+
 /**
- * Where elk is loaded, and the one place a canvas asks it for geometry.
+ * The one place a canvas asks elk for geometry.
+ *
+ * NOTHING WAITS ON ELK TO DRAW. `placedByRank` is the shape placed by hand, which is what a
+ * canvas shows until elk answers and what it keeps showing if elk never does. A placement
+ * already answered stays on screen while the next is computed, so an edited document moves its
+ * boxes once rather than twice.
  *
  * LAYOUT IS RECOMPUTED ON THE SHAPE, NOT ON THE STATE. A step going from running to succeeded
  * moves nothing, and neither does typing into its config, so the elk call is keyed on the
  * signature of the shape rather than on the object -- otherwise every frame of a live run, and
  * every keystroke in the editor, would re-place the whole canvas.
- *
- * This module and `GraphCanvas` are imported only from lazy chunks: elk and React Flow together
- * are a larger download than the rest of this bundle, and only the graph screens pay for them.
  */
-
-import ELK from 'elkjs/lib/elk.bundled.js'
-import { useEffect, useState } from 'react'
-
-import { layoutDag, signatureOf, type LayoutShape, type PlacedGraph } from '@/lib/dag-layout'
-
-/** One elk for the life of the tab. It holds no graph between calls. */
-const elk = new ELK()
-
-/** Place a shape, answering null until elk has. */
-export function usePlacedGraph(shape: LayoutShape): PlacedGraph | null {
+export function usePlacedGraph(shape: LayoutShape): PlacedGraph {
     const [placed, setPlaced] = useState<PlacedGraph | null>(null)
     const signature = signatureOf(shape)
 
     useEffect(() => {
         let current = true
-        void layoutDag(shape, elk).then(
-            (result) => {
-                if (current) setPlaced(result)
-            },
-            () => {
-                // elk refused this graph. The panel still holds every step; the canvas stays
-                // empty rather than the screen failing.
-            },
-        )
+        void elkEngine()
+            .then((elk) => layoutDag(shape, elk))
+            .then(
+                (result) => {
+                    if (current) setPlaced(result)
+                },
+                () => {
+                    // elk refused this graph, or never arrived. The canvas keeps the placement
+                    // it is drawing and the panel still holds every step.
+                },
+            )
         return () => {
             current = false
         }
@@ -41,5 +40,9 @@ export function usePlacedGraph(shape: LayoutShape): PlacedGraph | null {
         // oxlint-disable-next-line react/exhaustive-deps
     }, [signature])
 
-    return placed
+    // One signature, one rough placement: what it is placed from is the shape alone.
+    // oxlint-disable-next-line react/exhaustive-deps
+    const rough = useMemo(() => placedByRank(shape), [signature])
+
+    return placed ?? rough
 }
