@@ -50,7 +50,7 @@ describe('the settings registry', () => {
 
     test('carries a description only where it states a fact the control cannot', () => {
         const described = ROWS.filter((row) => row.description !== undefined).map((row) => row.id)
-        expect(described).toEqual(['general:times'])
+        expect(described).toEqual(['general:times', 'general:highlight'])
     })
 })
 

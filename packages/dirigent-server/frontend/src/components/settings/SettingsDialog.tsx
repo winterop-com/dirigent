@@ -22,7 +22,7 @@ import { API_DOCS_URL, DOCS_URL } from '@/lib/docs'
 import { formatRelative } from '@/lib/format'
 import { LOGIN_PATH } from '@/lib/nav'
 import { changePassword, formProblem, NO_PASSWORD, refusalOf, type PasswordForm } from '@/lib/password'
-import { followTails, setFollowTails } from '@/lib/preferences'
+import { followTails, highlightLine, setFollowTails, setHighlightLine } from '@/lib/preferences'
 import { checkServer, serverStatus } from '@/lib/server-status'
 import {
     categoriesWith,
@@ -306,6 +306,7 @@ function PaletteSwatches({ value, onChoose }: { value: PaletteName; onChoose: (n
 function GeneralPane({ rows }: { rows: SettingsRow[] }) {
     const times = useStore(timesMode)
     const tails = useStore(followTails)
+    const highlight = useStore(highlightLine)
 
     return (
         <div>
@@ -322,17 +323,33 @@ function GeneralPane({ rows }: { rows: SettingsRow[] }) {
                         </Row>
                     )
                 }
+                if (row.id === 'general:tails') {
+                    return (
+                        <Row key={row.id} row={row}>
+                            <Button
+                                variant={tails ? 'secondary' : 'outline'}
+                                size="sm"
+                                aria-pressed={tails}
+                                onClick={() => {
+                                    setFollowTails(!tails)
+                                }}
+                            >
+                                {tails ? 'Following' : 'Not following'}
+                            </Button>
+                        </Row>
+                    )
+                }
                 return (
                     <Row key={row.id} row={row}>
                         <Button
-                            variant={tails ? 'secondary' : 'outline'}
+                            variant={highlight ? 'secondary' : 'outline'}
                             size="sm"
-                            aria-pressed={tails}
+                            aria-pressed={highlight}
                             onClick={() => {
-                                setFollowTails(!tails)
+                                setHighlightLine(!highlight)
                             }}
                         >
-                            {tails ? 'Following' : 'Not following'}
+                            {highlight ? 'Highlighted' : 'Not highlighted'}
                         </Button>
                     </Row>
                 )

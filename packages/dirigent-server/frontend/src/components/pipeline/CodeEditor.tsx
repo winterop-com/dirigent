@@ -6,7 +6,9 @@ import yamlWorker from 'monaco-yaml/yaml.worker?worker'
 import { useTheme } from 'next-themes'
 import { useEffect, useRef } from 'react'
 
+import { useStore } from '@/hooks/use-store'
 import type { JsonMap } from '@/lib/api'
+import { highlightLine } from '@/lib/preferences'
 import { cn } from '@/lib/utils'
 
 import metaSchema from './json-schema-2020-12.json'
@@ -347,6 +349,11 @@ function houseTheme(dark: boolean): monaco.editor.IStandaloneThemeData {
             'editorLineNumber.activeForeground': ink.text,
             'editor.selectionBackground': ink.accent,
             'editorCursor.foreground': ink.text,
+            // The row the caret is on, drawn only where the preference asked for it: the ink a
+            // row under the pointer wears, and a border the ground's own colour, because
+            // monaco's default is a box outline and a box around one line reads as a selection.
+            'editor.lineHighlightBackground': ink.hovered,
+            'editor.lineHighlightBorder': ink.ground,
             'editorBracketHighlight.foreground1': ink.quiet,
             'editorBracketHighlight.foreground2': ink.quiet,
             'editorBracketHighlight.foreground3': ink.quiet,
@@ -471,6 +478,7 @@ export function CodeEditor({
     const editor = useRef<monaco.editor.IStandaloneCodeEditor | null>(null)
     const emitted = useRef(value)
     const { resolvedTheme } = useTheme()
+    const highlight = useStore(highlightLine)
 
     useSchema(schema)
 
@@ -491,7 +499,7 @@ export function CodeEditor({
             fontSize: 12,
             lineNumbers: 'on',
             tabSize: 2,
-            renderLineHighlight: 'none',
+            renderLineHighlight: highlight ? 'line' : 'none',
             bracketPairColorization: { enabled: false },
             scrollbar: { alwaysConsumeMouseWheel: false },
             ariaLabel: label,
@@ -516,6 +524,13 @@ export function CodeEditor({
         // The editor is created once. What flows in afterwards is handled by the effects below.
         // oxlint-disable-next-line react/exhaustive-deps
     }, [])
+
+    // The preference is read by every editor there is, including the read-only ones, and an open
+    // one takes the change without being rebuilt: a remount would lose the caret and the fold
+    // state of whatever is being read.
+    useEffect(() => {
+        editor.current?.updateOptions({ renderLineHighlight: highlight ? 'line' : 'none' })
+    }, [highlight])
 
     // A value changed anywhere else -- a config field, a step added, another step chosen -- is
     // written into the model. What this pane itself typed is already there, and rewriting it

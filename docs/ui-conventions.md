@@ -807,6 +807,12 @@ so its search box is one pure function across every category rather than a trave
 the shortcut rows are derived from `lib/shortcuts` rather than written down twice. What a row puts
 on its right edge is the dialog's, keyed by the row's id.
 
+**General holds the behaviour preferences**, each one a store the screens read rather than a
+copy this dialog keeps: which clock every timestamp is read against, whether a log pane opens
+following its tail, and whether an editor marks the row the caret is on. A preference defaults
+to what this app did before it existed, so nothing moves under a reader who has never opened
+this dialog, and an editor already on screen takes the change without being rebuilt.
+
 **Its nav reads Preferences, You, This instance**: General, Theme and Shortcuts are preferences,
 Account is the reader's, and Server is the instance's. There is no About, because a version stated
 on two panes of one dialog is the same fact twice; the documentation and the API reference are two
