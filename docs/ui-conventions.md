@@ -535,10 +535,12 @@ because a tag drawn on a row somebody cannot press is a fact with a gesture miss
 **The lead column keeps half the table at every width.** A row's identity -- its title, its
 code, its description -- is what somebody scans a listing for, so the first column is
 `w-full max-w-0`, truncates with the whole value on hover, and carries a floor of half the
-listing's width that nothing beside it may bid down. The Tags column takes at most a quarter,
-and every other column on the row is shrink-to-content and says its piece on one line -- bounded
-too, so a column whose own words would push the identity under its floor is cut with the whole
-of it on hover rather than taking the room from the title.
+listing's width that nothing beside it may bid down -- and a floor is also how the listing knows
+it has run out of room, so a table whose columns declare widths says them as floors rather than
+locking them with `fixed`, which honours a width exactly and a floor not at all. The Tags column
+takes at most a quarter, and every other column on the row is shrink-to-content and says its
+piece on one line -- bounded too, so a column whose own words would push the identity under its
+floor is cut with the whole of it on hover rather than taking the room from the title.
 
 **The tags fold to the room they have rather than wrapping into it.** Chips are one line: a row
 whose height depends on how many words it wears makes a listing of twenty rows a listing of
@@ -874,6 +876,13 @@ the listing it is in, never the window.
 drew overflowed its box, and remembers what that table took; it turns back into a table only
 once it has that width and `SLACK` more. Without the gap the width at which the table returns is
 the width at which it overflows again, and a window dragged across that edge would strobe.
+
+**A width is published before it is judged.** A cell that fits itself to the listing -- the tags
+fold, a bounded column -- reads a width nothing has measured yet as no bound at all and draws
+everything it holds, so the first layout of a listing is wider than the one after it. The
+measurement sets the width and settles the form on the render that follows, and a face that
+arrives late re-measures behind it: a form settled on either of those layouts is a listing stuck
+in cards on a screen with room for its table.
 
 **A utility hides; `useSmallScreen` chooses.** `md:hidden` on one of two renderings leaves both
 in the document -- every row and every control twice, two elements with one accessible name --
