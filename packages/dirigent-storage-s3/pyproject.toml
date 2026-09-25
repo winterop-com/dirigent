@@ -1,6 +1,6 @@
 [project]
 name = "dirigent-storage-s3"
-version = "0.18.3"
+version = "0.18.4"
 description = "The s3:// storage backend for dirigent, compatible with any S3 API."
 readme = "README.md"
 requires-python = ">=3.13"
@@ -12,8 +12,8 @@ classifiers = [
 ]
 dependencies = [
     "aioboto3>=15.5.0",
-    "dirigent-common==0.18.3",
-    "dirigent-plugin==0.18.3",
+    "dirigent-common==0.18.4",
+    "dirigent-plugin==0.18.4",
     "pydantic>=2.13.5",
 ]
 
