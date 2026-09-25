@@ -662,6 +662,16 @@ step config field whose schema says it carries a program are the same Monaco aga
 reported a round trip later. Each pane names its own buffer, because monaco holds one model per
 uri and two panes sharing a name would share a document.
 
+**A pane too small for what it holds opens in a window, and the button is in the bottom-right
+corner of the pane.** `components/WindowedPane` is where that gesture is written once -- the
+button, its corner, and the window, which is the viewport less a gutter -- and every pane that
+offers one comes through it: a config field carrying a program, a value edited as JSON, a
+report document, an alert body, an example's source, and the block of produced JSON on a run's
+step and a schema's page. The corner is the one place a reader loses nothing: it is where a
+pane's two scrollbars meet and where a document's last line ends early, so a pane whose content
+can end level with it -- a one-line JSON value -- keeps that strip as padding rather than
+drawing text under the button.
+
 **A field that names a thing shows the thing.** A string property carrying `x-dirigent-ref` holds
 the code of a connection or a schema, and under the box the form draws what that code resolves to,
 in the step panel's own group gesture: a shut row with a one-line summary, and the definition under
@@ -1427,8 +1437,8 @@ placeholders and leading field icons, because it is the one screen a person meet
 product's own facts are on it: there is no data to read, no title to take a heading from and no
 shell around it, so the screen has to say where somebody has arrived and what to do next. No
 other screen may copy any of it -- an eyebrow over a page title, a subtitle under a heading, a
-placeholder repeating a label, or an icon inside a field is a defect everywhere behind this
-door.
+placeholder repeating a label, or an icon inside a field is a defect
+everywhere behind this door.
 
 **The brand pane never carries a tagline.** What is on it is the mark, the word `dirigent`, and
 the instance and the version the door answers for. A line saying what the product is for is
