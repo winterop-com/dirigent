@@ -9,7 +9,7 @@ import { EMPTY_TEST, SendTest, type TestDraft } from '@/components/alerting/Send
 import { ApiChip } from '@/components/ApiChip'
 import { Instant } from '@/components/Instant'
 import { ANY, Choice } from '@/components/list/Choice'
-import { ListTable, PROSE, type Column } from '@/components/list/ListTable'
+import { ListTable, type Column } from '@/components/list/ListTable'
 import { PageHeader, PageState } from '@/components/PageState'
 import { StatusChip } from '@/components/run/StatusChip'
 import { useMayWrite } from '@/hooks/use-may-write'
@@ -432,7 +432,7 @@ const RULE_COLUMNS: Column<AlertRuleOut>[] = [
     {
         id: 'rule',
         header: 'Rule',
-        className: PROSE,
+        kind: 'title',
         cell: (rule) => {
             const heading = headingOf(rule)
             return (
@@ -513,7 +513,7 @@ const NOTIFICATION_COLUMNS: Column<NotificationOut>[] = [
     {
         id: 'subject',
         header: 'Subject',
-        className: PROSE,
+        kind: 'prose',
         cell: (notification) => (
             <span className="flex min-w-0 flex-col">
                 <span className="truncate text-sm" title={notification.subject}>

@@ -4,7 +4,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router'
 
 import { ApiChip } from '@/components/ApiChip'
 import { Choice } from '@/components/list/Choice'
-import { ListTable, PROSE, type Column } from '@/components/list/ListTable'
+import { ListTable, type Column } from '@/components/list/ListTable'
 import { TagFilter } from '@/components/list/TagFilter'
 import { PageHeader, PageState } from '@/components/PageState'
 import { StatusChip } from '@/components/run/StatusChip'
@@ -216,7 +216,7 @@ function runColumns(names: ReadonlyMap<string, string | null> | null): Column<Ru
         {
             id: 'pipeline',
             header: 'Pipeline',
-            className: PROSE,
+            kind: 'title',
             cell: (run) => <PipelineCell run={run} name={names?.get(run.pipeline) ?? null} />,
         },
         {
@@ -227,7 +227,8 @@ function runColumns(names: ReadonlyMap<string, string | null> | null): Column<Ru
             // stops fitting anywhere.
             id: 'status',
             header: 'Status',
-            className: cn(PROSE, 'min-w-64'),
+            kind: 'prose',
+            className: 'min-w-64',
             cell: (run) => {
                 const said = detailOf(run)
                 return (

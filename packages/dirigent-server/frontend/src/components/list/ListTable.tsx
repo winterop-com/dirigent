@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useCardForm } from '@/hooks/use-card-form'
 import { useSmallWindow } from '@/hooks/use-small-screen'
+import { sizingOf, TITLE_CELL, type ColumnKind, type Shares, type Sizing } from '@/lib/column-width'
 import { PAGE, rowsRead } from '@/lib/paging'
 import { cn } from '@/lib/utils'
 
@@ -26,6 +27,14 @@ export interface Column<T> {
     /** Stable across renders, so React can key on it and a test can name it. */
     id: string
     header: ReactNode
+    /**
+     * What this column holds, which is what decides how wide it is.
+     *
+     * A value is the default and declares its own floor below; text says so here, and whether
+     * it is the title the row is known by or the prose beside it. `lib/column-width` holds the
+     * rule, so two listings of the same shape lay out the same way.
+     */
+    kind?: ColumnKind
     /** Classes carried by this column's heading and by every cell under it. */
     className?: string
     cell: (row: T) => ReactNode
@@ -38,19 +47,11 @@ export interface Column<T> {
     cardLabel?: string
 }
 
-/**
- * What a column of prose carries.
- *
- * A COLUMN THAT HOLDS TEXT DECLARES NO WIDTH, IT TAKES WHAT IS LEFT. `max-w-0` is what lets it
- * shrink and its content truncate; `w-full` is what makes it, and every other column of text
- * beside it, share whatever the value columns did not need. The floor is 144px, the width below
- * which what it holds is an ellipsis rather than a fact -- and the sum of those floors and the
- * value columns' is what a listing measures itself against before drawing cards instead.
- *
- * What is inside a cell carrying this truncates and says the whole of it in `title`, or the
- * cell shrinks and the words are simply cut off.
- */
-export const PROSE = 'w-full max-w-0 min-w-36'
+/** The width a column asks for, or nothing where it asks for none or none has been measured. */
+function asked(sizing: Sizing | undefined, shares: Shares | null): { width: string } | undefined {
+    if (sizing === undefined || sizing.marks === null || shares === null) return undefined
+    return { width: sizing.marks === TITLE_CELL ? shares.title : shares.prose }
+}
 
 /** How far ahead of the fold the next page is asked for. */
 const REACH = '300px'
@@ -165,13 +166,23 @@ export function ListTable<T>({
     const head = columns[0]
     const facts = columns.slice(1)
 
-    // Measured once for the whole listing: how much room it has, and whether a table drawn in
-    // that room fits. A cell that has to decide what fits reads both from here rather than
-    // measuring itself, which would be a read per row on every resize. The window is a floor
-    // under that answer and nothing else: under `lg` there is no listing this app draws that
-    // holds a table, whatever a two-column one measures.
+    // How wide each column is, decided for the listing rather than by the screen: what one
+    // column holds is only half the answer, and what the columns beside it hold is the other.
+    const kinds = columns.map((column) => column.kind ?? 'value')
+    const sizings = kinds.map((kind) => sizingOf(kind, kinds))
+
+    // Measured once for the whole listing: how much room it has, whether a table drawn in that
+    // room fits, and what its title column needs to read whole. A cell that has to decide what
+    // fits reads all of it from here rather than measuring itself, which would be a read per row
+    // on every resize. The window is a floor under the form and nothing else: under `lg` there
+    // is no listing this app draws that holds a table, whatever a two-column one measures.
     const [box, setBox] = useState<HTMLDivElement | null>(null)
-    const measured = useCardForm(box)
+    // What the title column needs is the rows', so a listing paged, filtered or re-sorted reads
+    // it again; the ends and the count are what say that the set changed.
+    const shown = `${String(rows.length)}:${rows.length === 0 ? '' : rowKey(rows[0])}:${
+        rows.length === 0 ? '' : rowKey(rows[rows.length - 1])
+    }`
+    const measured = useCardForm(box, shown)
     const width = measured.width
     const cards = useSmallWindow() || measured.cards
 
@@ -229,13 +240,15 @@ export function ListTable<T>({
                             {chrome?.header !== false && (
                                 <TableHeader className="sticky top-0 z-10 bg-card">
                                     <TableRow className="border-border-strong hover:bg-transparent">
-                                        {columns.map((column) => (
+                                        {columns.map((column, at) => (
                                             <TableHead
                                                 key={column.id}
                                                 className={cn(
                                                     'px-3 text-xs font-medium text-muted-foreground',
+                                                    sizings[at]?.className,
                                                     column.className,
                                                 )}
+                                                style={asked(sizings[at], measured.shares)}
                                             >
                                                 {column.header}
                                             </TableHead>
@@ -263,14 +276,29 @@ export function ListTable<T>({
                                         )}
                                         {...chooses(row)}
                                     >
-                                        {columns.map((column) => (
-                                            <TableCell
-                                                key={column.id}
-                                                className={cn('px-3 py-2', column.className)}
-                                            >
-                                                {column.cell(row)}
-                                            </TableCell>
-                                        ))}
+                                        {columns.map((column, at) => {
+                                            const sizing = sizings[at]
+                                            return (
+                                                <TableCell
+                                                    key={column.id}
+                                                    // Marked so the listing can measure this
+                                                    // column: what a title needs is read off
+                                                    // these cells, and what a value takes off
+                                                    // the ones carrying no mark at all.
+                                                    {...(sizing?.marks === undefined || sizing.marks === null
+                                                        ? {}
+                                                        : { [sizing.marks]: '' })}
+                                                    className={cn(
+                                                        'px-3 py-2',
+                                                        sizing?.className,
+                                                        column.className,
+                                                    )}
+                                                    style={asked(sizing, measured.shares)}
+                                                >
+                                                    {column.cell(row)}
+                                                </TableCell>
+                                            )
+                                        })}
                                     </TableRow>
                                 ))}
                             </TableBody>

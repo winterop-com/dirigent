@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { Link } from 'react-router'
 
 import { ApiChip } from '@/components/ApiChip'
-import { ListTable, PROSE, type Column } from '@/components/list/ListTable'
+import { ListTable, type Column } from '@/components/list/ListTable'
 import { PageHeader, PageState } from '@/components/PageState'
 import { Chip, Clock, Dot, NextFire, OwnerChip } from '@/components/triggers/marks'
 import { MintedToken, NewSchedule, NewWebhook } from '@/components/triggers/NewTrigger'
@@ -263,7 +263,7 @@ const SCHEDULE_COLUMNS: Column<ScheduleRow>[] = [
     {
         id: 'schedule',
         header: 'Schedule',
-        className: PROSE,
+        kind: 'title',
         cell: (row) => (
             <Titled thing={row.schedule}>
                 <OwnerChip managed={row.schedule.managed} document={row.schedule.trigger_document} />
@@ -274,7 +274,7 @@ const SCHEDULE_COLUMNS: Column<ScheduleRow>[] = [
     {
         id: 'pipeline',
         header: 'Pipeline',
-        className: PROSE,
+        kind: 'prose',
         cell: (row) => (
             <Link
                 className="block truncate text-sm hover:text-primary"
@@ -316,7 +316,7 @@ const WEBHOOK_COLUMNS: Column<WebhookRow>[] = [
     {
         id: 'webhook',
         header: 'Webhook',
-        className: PROSE,
+        kind: 'title',
         cell: (row) => (
             <Titled thing={row.webhook}>
                 <OwnerChip managed={row.webhook.managed} document={row.webhook.trigger_document} />
@@ -327,7 +327,7 @@ const WEBHOOK_COLUMNS: Column<WebhookRow>[] = [
     {
         id: 'pipeline',
         header: 'Pipeline',
-        className: PROSE,
+        kind: 'prose',
         cell: (row) => (
             <Link
                 className="block truncate text-sm hover:text-primary"
@@ -344,7 +344,8 @@ const WEBHOOK_COLUMNS: Column<WebhookRow>[] = [
     {
         id: 'endpoint',
         header: 'Endpoint',
-        className: cn(PROSE, 'font-mono text-xs'),
+        kind: 'prose',
+        className: 'font-mono text-xs',
         cell: (row) => (
             <span className="block truncate" title={'POST ' + hookPath(row.webhook)}>
                 POST {hookPath(row.webhook)}
