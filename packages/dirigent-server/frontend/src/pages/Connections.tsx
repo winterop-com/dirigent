@@ -8,7 +8,7 @@ import { HealthSaid } from '@/components/connections/Health'
 import { NewConnection } from '@/components/connections/NewConnection'
 import { KindChip } from '@/components/KindChip'
 import { useListCards } from '@/components/list/ListForm'
-import { ListTable, type Column } from '@/components/list/ListTable'
+import { ListTable, PROSE, type Column } from '@/components/list/ListTable'
 import { Mark } from '@/components/Mark'
 import { PageHeader, PageState } from '@/components/PageState'
 import { Refusable } from '@/components/Refusable'
@@ -288,7 +288,7 @@ function buildColumns(
             header: 'Connection',
             // HALF THE TABLE IS THE IDENTITY'S: `max-w-0` is what lets the cell truncate, and
             // the floor beside it is what stops the cells after it bidding the code down.
-            className: 'w-full max-w-0 min-w-[50cqi]',
+            className: PROSE,
             cell: (row) => <Named row={row} />,
         },
         {

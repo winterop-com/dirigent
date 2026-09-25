@@ -9,7 +9,7 @@ import { EMPTY_TEST, SendTest, type TestDraft } from '@/components/alerting/Send
 import { ApiChip } from '@/components/ApiChip'
 import { Instant } from '@/components/Instant'
 import { ANY, Choice } from '@/components/list/Choice'
-import { ListTable, type Column } from '@/components/list/ListTable'
+import { ListTable, PROSE, type Column } from '@/components/list/ListTable'
 import { PageHeader, PageState } from '@/components/PageState'
 import { StatusChip } from '@/components/run/StatusChip'
 import { useMayWrite } from '@/hooks/use-may-write'
@@ -36,6 +36,7 @@ import { headingOf } from '@/lib/identity'
 import { ADMIN_GROUP, registerActions } from '@/lib/palette'
 import { fillPanel, openPanel } from '@/lib/panels'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
+import { cn } from '@/lib/utils'
 
 const ruleId = (rule: AlertRuleOut) => rule.id
 const notificationId = (notification: NotificationOut) => notification.id
@@ -431,15 +432,27 @@ const RULE_COLUMNS: Column<AlertRuleOut>[] = [
     {
         id: 'rule',
         header: 'Rule',
+        className: PROSE,
         cell: (rule) => {
             const heading = headingOf(rule)
             return (
-                <span className="flex flex-wrap items-baseline gap-2">
-                    <span className={heading.named ? 'text-sm font-medium' : 'font-mono text-sm font-medium'}>
+                <span className="flex min-w-0 items-baseline gap-2">
+                    <span
+                        className={cn(
+                            'truncate',
+                            heading.named ? 'text-sm font-medium' : 'font-mono text-sm font-medium',
+                        )}
+                        title={heading.title}
+                    >
                         {heading.title}
                     </span>
                     {heading.code !== null && (
-                        <span className="font-mono text-xs text-muted-foreground">{heading.code}</span>
+                        <span
+                            className="shrink-0 font-mono text-xs text-muted-foreground"
+                            title={heading.code}
+                        >
+                            {heading.code}
+                        </span>
                     )}
                 </span>
             )
@@ -500,11 +513,14 @@ const NOTIFICATION_COLUMNS: Column<NotificationOut>[] = [
     {
         id: 'subject',
         header: 'Subject',
+        className: PROSE,
         cell: (notification) => (
-            <span className="flex flex-col">
-                <span className="text-sm">{notification.subject}</span>
+            <span className="flex min-w-0 flex-col">
+                <span className="truncate text-sm" title={notification.subject}>
+                    {notification.subject}
+                </span>
                 {notification.error !== null && (
-                    <span className="max-w-96 truncate text-xs text-critical" title={notification.error}>
+                    <span className="truncate text-xs text-critical" title={notification.error}>
                         {notification.error}
                     </span>
                 )}

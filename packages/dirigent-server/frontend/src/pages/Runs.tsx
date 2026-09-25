@@ -4,7 +4,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router'
 
 import { ApiChip } from '@/components/ApiChip'
 import { Choice } from '@/components/list/Choice'
-import { ListTable, type Column } from '@/components/list/ListTable'
+import { ListTable, PROSE, type Column } from '@/components/list/ListTable'
 import { TagFilter } from '@/components/list/TagFilter'
 import { PageHeader, PageState } from '@/components/PageState'
 import { StatusChip } from '@/components/run/StatusChip'
@@ -224,25 +224,32 @@ function runColumns(names: ReadonlyMap<string, string | null> | null): Column<Ru
         {
             id: 'pipeline',
             header: 'Pipeline',
+            className: PROSE,
             cell: (run) => <PipelineCell run={run} name={names?.get(run.pipeline) ?? null} />,
         },
         {
+            // THE STATE IS A VALUE AND WHAT WENT WRONG IS A SENTENCE. The chip holds its width --
+            // the floor here is the widest of them -- and what the run has to say for itself
+            // takes what is left of the column and is cut in it, with the whole of it on hover.
+            // Unbounded, that sentence is the widest thing on the screen and the table it is in
+            // stops fitting anywhere.
             id: 'status',
             header: 'Status',
-            cell: (run) => (
-                <span className="flex items-center gap-2">
-                    <StatusChip status={run.status} />
-                    <PriorityMark run={run} />
-                    {run.failed_step !== null && (
-                        <span className="truncate text-xs text-muted-foreground">at {run.failed_step}</span>
-                    )}
-                    {run.error !== null && (
-                        <span className="max-w-64 truncate text-xs text-muted-foreground" title={run.error}>
-                            {run.error}
-                        </span>
-                    )}
-                </span>
-            ),
+            className: cn(PROSE, 'min-w-64'),
+            cell: (run) => {
+                const said = detailOf(run)
+                return (
+                    <span className="flex min-w-0 items-center gap-2 overflow-hidden">
+                        <StatusChip status={run.status} />
+                        <PriorityMark run={run} />
+                        {said !== null && (
+                            <span className="truncate text-xs text-muted-foreground" title={said}>
+                                {said}
+                            </span>
+                        )}
+                    </span>
+                )
+            },
         },
         {
             id: 'trigger',
@@ -279,6 +286,14 @@ function runColumns(names: ReadonlyMap<string, string | null> | null): Column<Ru
     ]
 }
 
+/** What a run has to say about how it went: the step it died in, and the refusal itself. */
+function detailOf(run: RunOut): string | null {
+    const said = [run.failed_step === null ? null : 'at ' + run.failed_step, run.error]
+        .filter((part) => part !== null)
+        .join(' ')
+    return said === '' ? null : said
+}
+
 /**
  * A run's priority, where it is not the one every other run has.
  *
@@ -304,11 +319,14 @@ function PipelineCell({ run, name }: { run: RunOut; name: string | null }) {
             <Link
                 className={cn('truncate hover:text-primary', !heading.named && 'font-mono')}
                 to={`/pipelines/${encodeURIComponent(run.pipeline)}`}
+                title={heading.title}
             >
                 {heading.title}
             </Link>
             {heading.code !== null && (
-                <span className="truncate font-mono text-xs text-muted-foreground">{heading.code}</span>
+                <span className="truncate font-mono text-xs text-muted-foreground" title={heading.code}>
+                    {heading.code}
+                </span>
             )}
         </span>
     )

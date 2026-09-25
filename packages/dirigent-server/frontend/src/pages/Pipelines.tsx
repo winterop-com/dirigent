@@ -4,7 +4,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router'
 
 import { ApiChip } from '@/components/ApiChip'
 import { useListCards } from '@/components/list/ListForm'
-import { ListTable, type Column } from '@/components/list/ListTable'
+import { ListTable, PROSE, type Column } from '@/components/list/ListTable'
 import { TagFilter } from '@/components/list/TagFilter'
 import { PageHeader, PageState } from '@/components/PageState'
 import { StatusDot } from '@/components/run/StatusChip'
@@ -404,10 +404,7 @@ function pipelineColumns(onTag: (tag: string) => void): Column<PipelineOut>[] {
         {
             id: 'pipeline',
             header: 'Pipeline',
-            // HALF THE TABLE IS THE IDENTITY'S, whatever else the row wears: `max-w-0` is what
-            // lets the cell truncate, and the floor beside it is what stops anything beside it
-            // bidding the title down to an ellipsis.
-            className: 'w-full max-w-0 min-w-[50cqi]',
+            className: PROSE,
             cell: (row) => {
                 const retired = retirement(row)
                 const heading = headingOf(row)

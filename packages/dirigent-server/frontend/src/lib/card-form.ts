@@ -1,11 +1,11 @@
 /**
  * Whether a listing draws its rows as a table or as cards.
  *
- * THE LISTING'S OWN WIDTH DECIDES, NOT THE WINDOW'S. The same columns fit a phone-sized window
- * with nothing in front of them and overflow a 1024px one with a rail beside it, and overflow
- * again the moment a panel takes half of what was left -- so the question a media query answers
- * is not the question being asked. What is asked here is whether the box the listing is standing
- * in can hold the table drawn in it.
+ * THE LISTING'S OWN WIDTH DECIDES, NOT THE WINDOW'S. The same columns fit a 1024px window and
+ * overflow the moment a panel takes half of what was left -- so the question a media query
+ * answers is not the question being asked. What is asked here is whether the box the listing is
+ * standing in can hold the table drawn in it. Below `lg` the shell answers first and this is
+ * never reached: a listing of two text columns measures itself as fitting a phone.
  *
  * THE THRESHOLD IS MEASURED, NOT WRITTEN DOWN. A table lays out at the width its columns need
  * whatever box it is in, so a table wider than its box is the listing saying it cannot hold one,

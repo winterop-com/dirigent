@@ -179,12 +179,12 @@ test.describe('on a phone', () => {
     })
 })
 
-test.describe('in a column narrower than the table', () => {
-    // A 1024 window, the rail in front of the screen and the page's own padding either side
-    // leave the rules table 712px to be drawn 830px wide in.
+test.describe('in the 712px column a 1024 window leaves', () => {
     test.use({ viewport: { width: 1024, height: 768 } })
 
-    test('the rules listing draws cards rather than scrolling sideways inside its card', async ({ page }) => {
+    test('the rules table holds its column, and a long name is cut rather than widening it', async ({
+        page,
+    }) => {
         const prefix = await apiPrefix(page.request)
         const made = await page.request.post(`${prefix}/alert-rules`, {
             data: { code: WIDE.code, name: WIDE.name, event: 'run_failed', throttle: '15m' },
@@ -197,6 +197,10 @@ test.describe('in a column narrower than the table', () => {
             .filter({ has: page.getByRole('heading', { name: 'Rules', exact: true }) })
         await expect(rules.getByText(WIDE.code)).toBeVisible()
 
+        // The rule's name is text: it takes what the value columns left and is cut in it, so
+        // the table is still a table at this width.
+        await expect(rules.getByRole('table')).toBeVisible()
+
         // The listing's own scroller rather than the window: a table wider than the box it is
         // drawn in is the sideways scroll, whether or not the page itself moves.
         await expect
@@ -205,9 +209,11 @@ test.describe('in a column narrower than the table', () => {
             )
             .toBe(0)
 
-        // What fits it is the card form, and the header row is gone with the table.
-        await expect(rules.getByRole('listitem').filter({ hasText: WIDE.code })).toBeVisible()
-        await expect(rules.getByRole('table')).toHaveCount(0)
+        // Cut, and the whole of it on hover: a name drawn in full is a name that took the width
+        // from everything beside it.
+        const name = rules.getByTitle(WIDE.name)
+        await expect(name).toBeVisible()
+        expect(await name.evaluate((cell) => cell.scrollWidth - cell.clientWidth)).toBeGreaterThan(0)
 
         const sideways = await page.evaluate(
             () => document.documentElement.scrollWidth - document.documentElement.clientWidth,

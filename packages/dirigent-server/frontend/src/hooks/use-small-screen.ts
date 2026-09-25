@@ -3,6 +3,9 @@ import { useSyncExternalStore } from 'react'
 /** Below `md`. The same 768px the utilities' `md:` variant is, said once in JS. */
 const BELOW_MD = '(max-width: 767px)'
 
+/** Below `lg`: a window no listing in this app can hold a table in, rail and padding included. */
+const BELOW_LG = '(max-width: 1023px)'
+
 interface Watch {
     subscribe: (listener: () => void) => () => void
     read: () => boolean
@@ -22,6 +25,7 @@ function watch(query: string): Watch {
 }
 
 const shell = watch(BELOW_MD)
+const small = watch(BELOW_LG)
 
 /** What a query answers where there is no window at all, which is a wide one. */
 const WIDE = () => false
@@ -36,4 +40,16 @@ const WIDE = () => false
  */
 export function useSmallScreen(): boolean {
     return useSyncExternalStore(shell.subscribe, shell.read, WIDE)
+}
+
+/**
+ * Whether the window is too small for any listing in this app to be a table.
+ *
+ * A FLOOR UNDER THE MEASUREMENT, NOT A REPLACEMENT FOR IT. Below `lg` the content column beside
+ * the rail is about 500px and a two-column listing would measure itself as fitting one -- two
+ * columns of twenty characters, which is a table by arithmetic and a card by reading it. From
+ * `lg` up the listing's own box is the only thing that knows what it holds, panel included.
+ */
+export function useSmallWindow(): boolean {
+    return useSyncExternalStore(small.subscribe, small.read, WIDE)
 }

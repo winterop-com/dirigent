@@ -532,15 +532,22 @@ state after: a control that wrote every keystroke back would put a history entry
 table is already narrowed by rather than replacing it. The pipelines table is where that lives,
 because a tag drawn on a row somebody cannot press is a fact with a gesture missing from it.
 
-**The lead column keeps half the table at every width.** A row's identity -- its title, its
-code, its description -- is what somebody scans a listing for, so the first column is
-`w-full max-w-0`, truncates with the whole value on hover, and carries a floor of half the
-listing's width that nothing beside it may bid down -- and a floor is also how the listing knows
-it has run out of room, so a table whose columns declare widths says them as floors rather than
-locking them with `fixed`, which honours a width exactly and a floor not at all. The Tags column
-takes at most a quarter, and every other column on the row is shrink-to-content and says its
-piece on one line -- bounded too, so a column whose own words would push the identity under its
-floor is cut with the whole of it on hover rather than taking the room from the title.
+**A column holds a value or it holds text, and that is what decides its width.** A value is
+drawn from a fixed vocabulary -- a chip, an instant, a duration, a count, a mark -- so it is
+shrink-to-content and declares the floor it needs to say itself on one line. Text is whatever
+somebody typed: a title, a code, a path, a description, the sentence a run failed with. **A
+column of text declares no width.** It carries `PROSE` from `components/list/ListTable` --
+`w-full max-w-0` and a 144px floor -- so it takes what the value columns did not need, truncates
+in it, says the whole of it in `title`, and shares what is left with every other text column on
+the row. Inside such a cell the content carries `min-w-0` and `truncate`, or the cell shrinks and
+the words are simply cut off.
+
+**Text that declares no bound is a table as wide as the longest thing anybody ever wrote in
+it.** An unbounded failure sentence is what made the runs table 910px wide in a 712px column, and
+the identity beside it 164px. A column's floor is also how a listing knows it has run out of
+room, so a table whose columns declare widths says them as floors rather than locking them with
+`fixed`, which honours a width exactly and a floor not at all. The Tags column takes at most a
+quarter of the table.
 
 **The tags fold to the room they have rather than wrapping into it.** Chips are one line: a row
 whose height depends on how many words it wears makes a listing of twenty rows a listing of
@@ -860,17 +867,22 @@ the shell on this page changes. Everything below is what the same screens become
 **Nothing scrolls sideways.** A page whose body scrolls horizontally is a defect, whatever is in
 it, and so is a listing that scrolls inside its own card.
 
-**A table has no breakpoint: it follows the width it was given.** The window is the wrong
-question to ask -- the same four columns fit a phone-sized window with nothing in front of them
-and overflow a 1024px one that has a 240px rail beside it, and overflow again the moment a panel
-takes half of what was left. So the card form is the listing's own answer about its own box: a
-`ResizeObserver` on the listing's card reads the room it has, the table drawn in it reports what
-the columns need -- its `scrollWidth` at table layout, which is wider than the box exactly when
-they do not fit -- and a listing that cannot hold its table draws its rows as cards wherever it
-stands. A phone is simply the smallest width that cannot hold one. `lib/card-form` is that
-decision, `useCardForm` is the observer that feeds it, and the form a listing settled on is what
-its own cells read through `useListCards` -- a cell that draws itself differently on a card asks
-the listing it is in, never the window.
+**Above `lg` a table has no breakpoint: it follows the width it was given.** The window cannot
+answer for a listing whose box it does not know -- the same columns fit a 1024px window and
+overflow the moment a panel takes half of what was left. So from `lg` up the card form is the
+listing's own answer about its own box: a `ResizeObserver` on the listing's card reads the room
+it has, the table drawn in it reports what the columns need -- its `scrollWidth` at table layout,
+which is wider than the box exactly when they do not fit -- and a listing that cannot hold its
+table draws its rows as cards wherever it stands. `lib/card-form` is that decision, `useCardForm`
+is the observer that feeds it, and the form a listing settled on is what its own cells read
+through `useListCards` -- a cell that draws itself differently on a card asks the listing it is
+in, never the window.
+
+**Below `lg` a listing is cards, whatever it measures.** Under 1024 the content column beside the
+rail is about 500px, and a listing of two text columns measures itself as fitting a table there:
+two columns of twenty characters, which is a table by arithmetic and a card by reading it. The
+window is a floor under the measurement rather than a second opinion about it -- `useSmallWindow`
+-- and everything above that floor is the box's own question.
 
 **The form has slack in it, so it cannot flap.** A listing turns into cards when the table it
 drew overflowed its box, and remembers what that table took; it turns back into a table only
