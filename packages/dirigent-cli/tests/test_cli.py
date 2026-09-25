@@ -221,6 +221,47 @@ def test_connection_ensure_seals_the_secret_half_with_the_instance_key(keyed_ins
     assert SecretBox(key.get_secret_value()).open(envelope) == {"secret_access_key": "a-secret-key"}
 
 
+def test_storage_ensure_has_no_container_to_make_for_a_file_root() -> None:
+    """A filesystem makes its own directories as it writes, so the command records the no-op."""
+    result = runner.invoke(app, ["--json", "storage", "ensure"])
+    assert result.exit_code == 0, result.output
+    made = only(result.output, "storage.ensured")
+    assert made["message"] == "nothing to do"
+    assert made["root"].startswith("file://")
+    assert (made["bucket"], made["created"], made["endpoint"]) == (None, False, None)
+
+
+def test_storage_ensure_refuses_a_root_no_connection_configures(
+    keyed_instance: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The scheme is configured from a connection, and naming one that is not there is a refusal."""
+    monkeypatch.setenv("DIRIGENT_ARTIFACT_ROOT", "s3://dirigent/artifacts")
+    monkeypatch.setenv("DIRIGENT_STORAGE_CONNECTIONS", "s3=nowhere")
+    reset_settings_cache()
+    result = runner.invoke(app, ["--json", "storage", "ensure"])
+    assert result.exit_code == 1, result.output
+    problem = refusal(result.output)
+    assert problem["code"] == "cli.store_unconfigured"
+    assert "nowhere" in problem["message"]
+
+
+def test_storage_ensure_refuses_a_store_that_does_not_answer(
+    keyed_instance: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Nothing is listening on the endpoint the connection names, and the refusal says so."""
+    stored = runner.invoke(
+        app,
+        ["--json", "connection", "ensure", "s3", "artifacts", "--set", "endpoint_url=http://127.0.0.1:1"],
+    )
+    assert stored.exit_code == 0, stored.output
+    monkeypatch.setenv("DIRIGENT_ARTIFACT_ROOT", "s3://dirigent/artifacts")
+    monkeypatch.setenv("DIRIGENT_STORAGE_CONNECTIONS", "s3=artifacts")
+    reset_settings_cache()
+    result = runner.invoke(app, ["--json", "storage", "ensure"])
+    assert result.exit_code == 1, result.output
+    assert refusal(result.output)["code"] == "cli.store_unreachable"
+
+
 def test_connection_ensure_refuses_a_kind_no_plugin_contributes(keyed_instance: Settings) -> None:
     result = runner.invoke(app, ["--json", "connection", "ensure", "nope", "artifacts", "--set", "bucket=dirigent"])
     assert result.exit_code == 1

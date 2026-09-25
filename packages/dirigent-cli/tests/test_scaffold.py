@@ -211,7 +211,16 @@ def test_the_stack_bootstraps_what_its_services_need(tmp_path: Path) -> None:
     compose = (tmp_path / "all" / "compose.yaml").read_text()
     assert "dg connection ensure kafka kafka" in compose
     assert "dg connection ensure rabbitmq rabbitmq" in compose
+    assert "dg storage ensure" in compose, "the bucket is made by the instance's own image"
     assert "DIRIGENT_ENABLED_UNSAFE_BLOCKS=docker.run" in (tmp_path / "all" / ".env").read_text()
+
+
+def test_no_stack_reaches_for_a_tool_image_to_make_its_bucket(tmp_path: Path) -> None:
+    """A third party's image for a one-line job is a stack that stops working when it is pulled."""
+    choices = InitChoices(template="compose", services=("s3",), password="a-long-enough-password")
+    for document in (compose_document(choices, "1.2.3"), (REPO_ROOT / "infra" / "compose.yaml").read_text()):
+        assert "minio" not in document
+        assert "dg storage ensure" in document
 
 
 def test_a_pack_is_pinned_where_the_runtime_is(tmp_path: Path) -> None:
