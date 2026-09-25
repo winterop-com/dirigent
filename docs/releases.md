@@ -16,6 +16,33 @@ tag is what publishes: `.github/workflows/release.yaml` builds every package and
 to PyPI through trusted publishing, then builds the image from that commit and pushes it as
 `<version>` and `latest`. The two sibling repositories then relock against the tag and bump.
 
+## 0.18.3
+
+Released 2026-09-25. Every package in the workspace moves to 0.18.3 together, and so do
+`dirigent-dhis2` and `dirigent-integration`.
+
+- **The bucket is made by the image itself.** `dg storage ensure` creates the artifact bucket
+  the instance's storage root names, idempotently, and the compose stack's `migrate` service
+  runs it after the schema and the connection. The `mc` sidecar is gone from the stack and
+  from what `dg init` writes: the image it pulled no longer exists on any registry, and a
+  one-line job never needed a third-party tool image.
+- **A listing follows the width it was given.** A table turns into cards when its own box
+  cannot hold its columns, not when the window is narrow, and a column holds either a value
+  that declares its floor or text that takes what is left and truncates. Every listing is a
+  table at 1024 with nothing scrolling sideways; cards remain beside an open panel and on a
+  phone.
+- **A menu is floored at its control and capped at the screen.** A picker's popup grows to its
+  longest row, never past the viewport's gutters, so a long row reads whole at phone width.
+- **A connection kind declares its mark.** A pack sets `mark` on its `ConnectionKind`, one
+  SVG path on the 24-unit grid, monochrome; the catalog carries it and every screen that
+  names the kind draws it. The check at registration and in the conformance kit refuses
+  anything that is not path data.
+- **The graph's layout engine is its own chunk and its own thread.** elk loads when a canvas
+  first asks for a layout and runs in a worker; the graph chunk drops from 1615 kB to 183 kB.
+- **Screens.** A new docs page with nine pictures of an instance running the three showcase
+  pipelines, click-to-enlarge on every docs picture, and `make docs-shots` to re-shoot them.
+  The showcase shelf holds the three documents, all runnable locally.
+
 ## 0.18.2
 
 Released 2026-09-23. Every package in the workspace moves to 0.18.2 together, and so do

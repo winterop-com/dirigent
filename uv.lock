@@ -933,7 +933,7 @@ wheels = [
 
 [[package]]
 name = "dirigent-block-base"
-version = "0.18.2"
+version = "0.18.3"
 source = { editable = "packages/dirigent-block-base" }
 dependencies = [
     { name = "dirigent-common" },
@@ -954,7 +954,7 @@ requires-dist = [
 
 [[package]]
 name = "dirigent-block-duckdb"
-version = "0.18.2"
+version = "0.18.3"
 source = { editable = "packages/dirigent-block-duckdb" }
 dependencies = [
     { name = "dirigent-block-sql" },
@@ -975,7 +975,7 @@ requires-dist = [
 
 [[package]]
 name = "dirigent-block-execute"
-version = "0.18.2"
+version = "0.18.3"
 source = { editable = "packages/dirigent-block-execute" }
 dependencies = [
     { name = "dirigent-block-http" },
@@ -994,7 +994,7 @@ requires-dist = [
 
 [[package]]
 name = "dirigent-block-http"
-version = "0.18.2"
+version = "0.18.3"
 source = { editable = "packages/dirigent-block-http" }
 dependencies = [
     { name = "dirigent-common" },
@@ -1011,7 +1011,7 @@ requires-dist = [
 
 [[package]]
 name = "dirigent-block-jq"
-version = "0.18.2"
+version = "0.18.3"
 source = { editable = "packages/dirigent-block-jq" }
 dependencies = [
     { name = "dirigent-common" },
@@ -1028,7 +1028,7 @@ requires-dist = [
 
 [[package]]
 name = "dirigent-block-parquet"
-version = "0.18.2"
+version = "0.18.3"
 source = { editable = "packages/dirigent-block-parquet" }
 dependencies = [
     { name = "dirigent-common" },
@@ -1045,7 +1045,7 @@ requires-dist = [
 
 [[package]]
 name = "dirigent-block-queues"
-version = "0.18.2"
+version = "0.18.3"
 source = { editable = "packages/dirigent-block-queues" }
 dependencies = [
     { name = "aio-pika" },
@@ -1064,7 +1064,7 @@ requires-dist = [
 
 [[package]]
 name = "dirigent-block-sql"
-version = "0.18.2"
+version = "0.18.3"
 source = { editable = "packages/dirigent-block-sql" }
 dependencies = [
     { name = "dirigent-common" },
@@ -1081,7 +1081,7 @@ requires-dist = [
 
 [[package]]
 name = "dirigent-block-storage"
-version = "0.18.2"
+version = "0.18.3"
 source = { editable = "packages/dirigent-block-storage" }
 dependencies = [
     { name = "dirigent-common" },
@@ -1096,7 +1096,7 @@ requires-dist = [
 
 [[package]]
 name = "dirigent-blocks"
-version = "0.18.2"
+version = "0.18.3"
 source = { editable = "packages/dirigent-blocks" }
 dependencies = [
     { name = "aiosmtplib" },
@@ -1131,7 +1131,7 @@ requires-dist = [
 
 [[package]]
 name = "dirigent-cli"
-version = "0.18.2"
+version = "0.18.3"
 source = { editable = "packages/dirigent-cli" }
 dependencies = [
     { name = "dirigent-block-execute" },
@@ -1174,7 +1174,7 @@ requires-dist = [
 
 [[package]]
 name = "dirigent-client"
-version = "0.18.2"
+version = "0.18.3"
 source = { editable = "packages/dirigent-client" }
 dependencies = [
     { name = "dirigent-common" },
@@ -1193,7 +1193,7 @@ requires-dist = [
 
 [[package]]
 name = "dirigent-common"
-version = "0.18.2"
+version = "0.18.3"
 source = { editable = "packages/dirigent-common" }
 dependencies = [
     { name = "httpx2" },
@@ -1212,7 +1212,7 @@ requires-dist = [
 
 [[package]]
 name = "dirigent-core"
-version = "0.18.2"
+version = "0.18.3"
 source = { editable = "packages/dirigent-core" }
 dependencies = [
     { name = "aiosqlite" },
@@ -1260,7 +1260,7 @@ provides-extras = ["otlp"]
 
 [[package]]
 name = "dirigent-examples"
-version = "0.18.2"
+version = "0.18.3"
 source = { editable = "packages/dirigent-examples" }
 dependencies = [
     { name = "dirigent-client" },
@@ -1275,7 +1275,7 @@ requires-dist = [
 
 [[package]]
 name = "dirigent-plugin"
-version = "0.18.2"
+version = "0.18.3"
 source = { editable = "packages/dirigent-plugin" }
 dependencies = [
     { name = "dirigent-common" },
@@ -1294,7 +1294,7 @@ requires-dist = [
 
 [[package]]
 name = "dirigent-server"
-version = "0.18.2"
+version = "0.18.3"
 source = { editable = "packages/dirigent-server" }
 dependencies = [
     { name = "dirigent-client" },
@@ -1315,7 +1315,7 @@ requires-dist = [
 
 [[package]]
 name = "dirigent-storage-s3"
-version = "0.18.2"
+version = "0.18.3"
 source = { editable = "packages/dirigent-storage-s3" }
 dependencies = [
     { name = "aioboto3" },
@@ -1334,7 +1334,7 @@ requires-dist = [
 
 [[package]]
 name = "dirigent-testing"
-version = "0.18.2"
+version = "0.18.3"
 source = { editable = "packages/dirigent-testing" }
 dependencies = [
     { name = "dirigent-common" },
