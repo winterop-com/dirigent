@@ -63,9 +63,10 @@ const connectionId = (row: ConnectionOut) => row.code
  * draws -- so the row is updated from the report rather than by reading the listing again, and
  * the row somebody just pressed stays where it was.
  *
- * THE CATALOG IS READ WHEN A FORM NEEDS IT. The kinds and the config schema each one publishes
- * come from `GET /blocks`, which is every installed block as well, so a reader who only looks
- * at the listing never asks for it: opening a row or the dialog is what does.
+ * THE SCHEMAS ARE READ WHEN A FORM NEEDS THEM. The kinds and the config schema each one
+ * publishes come from `GET /blocks`, which is every installed block as well, so opening a row or
+ * the dialog is what asks for it. The mark a row leads with is not this read: `lib/marks` holds
+ * what the packs declare for every screen that draws a kind.
  */
 export function Connections() {
     const { code: chosen = null } = useParams()
