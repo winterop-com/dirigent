@@ -1,9 +1,9 @@
 /**
  * The marks the installed packs declare, read once and held for every screen that draws one.
  *
- * ONE READ FOR THE WHOLE SESSION. What a pack declares is fixed while a process is up, so this
- * is asked for once, when there is a session, and never again -- and a screen reads the store
- * rather than the catalog, so a listing that needs no schemas asks for none.
+ * ONE READ FOR THE WHOLE SESSION. What a pack declares is fixed while a process is up, so the
+ * catalog is asked for once, as soon as there is a session, and every screen that draws a kind
+ * reads this store rather than asking again.
  *
  * WHICH MARK IS DRAWN IS `lib/glyphs`'s, NOT THIS FILE'S. All that is held here is the path data
  * the catalog answered with; `kindGlyph` decides what a kind wears, and holds a declared mark to
