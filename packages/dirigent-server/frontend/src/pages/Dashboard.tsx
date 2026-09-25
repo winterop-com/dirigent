@@ -157,8 +157,10 @@ export function Dashboard() {
                 )}
             </div>
 
-            <div className="mb-6 grid gap-3 lg:grid-cols-3">
-                <div className={cn(healthReadable ? 'lg:col-span-2' : 'lg:col-span-3')}>
+            {/* Three columns only at `xl`: the card taking a third of 1024 is 225px for a
+            code, a reading and an instant, and what fits there is three ellipses. */}
+            <div className="mb-6 grid gap-3 xl:grid-cols-3">
+                <div className={cn(healthReadable ? 'xl:col-span-2' : 'xl:col-span-3')}>
                     {day.problem === null ? (
                         <RunsChart buckets={buckets} reading={!day.read} />
                     ) : (

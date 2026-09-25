@@ -593,6 +593,17 @@ room, so a table whose columns declare widths says them as floors rather than lo
 `fixed`, which honours a width exactly and a floor not at all. The Tags column takes at most a
 quarter of the table.
 
+**A card's rows follow the same rule as a listing's columns.** The dashboard's health card
+lines a mark, a code, what the thing last said and when up on one line in a card a third of the
+screen wide, which is a table's problem in something that is not a table: the mark is a value
+and holds its width, the code is the identity and keeps a floor of six characters, what it said
+is prose and truncates in what is left with the whole of it on its title, and the instant is a
+value out of a fixed vocabulary and holds its own. Nothing on such a row is `shrink-0` unless
+it is short by construction, or the row's minimum is wider than the card and the card scrolls
+inside itself -- the same defect as a listing that scrolls sideways. A card whose row cannot be
+read at a third of the width takes the whole width instead: the chart and the health card share
+a row at `xl` and stack under it, the way the tiles above them go six across only there.
+
 **The tags fold to the room they have rather than wrapping into it.** Chips are one line: a row
 whose height depends on how many words it wears makes a listing of twenty rows a listing of
 twenty heights, so what does not fit that quarter folds into one trailing `+N` chip -- which

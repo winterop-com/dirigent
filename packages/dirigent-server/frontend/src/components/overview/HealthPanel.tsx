@@ -25,9 +25,11 @@ const DOTS: Record<TileTone, string> = {
  * answer are the same news to somebody opening this screen -- something this instance needs is
  * not there -- so they are one list rather than two panels asking a reader to check both.
  *
- * THE NAME IS WHAT IDENTIFIES A ROW, so it does not truncate before the detail beside it does:
- * a code cut in half names nothing, while a refusal cut short still says what kind of refusal
- * it was, and the whole of it is on the element's title.
+ * THE NAME READS WHOLE AND THE DETAIL TAKES WHAT IS LEFT. The name identifies the row -- a code
+ * cut in half names nothing -- so it is drawn at the width it needs, up to half the row and never
+ * below six characters; the detail is prose written to be cut and truncates in the rest, with the
+ * whole of it on its title; the instant is a value out of a fixed vocabulary and holds its own
+ * width. Nothing on the row is unbounded, so the card has no width at which it scrolls sideways.
  *
  * THE FOOT SAYS ONLY WHAT IS NOT PERFECT. The rows carry the detail; the line under them is
  * what a reader who is not reading the rows has to know, and where everything is well that is
@@ -76,12 +78,12 @@ export function HealthPanel({ rows, note, reading }: { rows: HealthRow[]; note: 
                                     )}
                                 </span>
                                 <span
-                                    className="max-w-[55%] shrink-0 truncate font-mono text-xs"
+                                    className="max-w-[55%] min-w-[6ch] truncate font-mono text-xs"
                                     title={row.label}
                                 >
                                     {row.label}
                                 </span>
-                                <span className="ml-auto flex min-w-0 items-baseline gap-2">
+                                <span className="flex min-w-0 flex-1 items-baseline justify-end gap-2">
                                     <span
                                         className="truncate text-xs text-muted-foreground"
                                         title={row.detail}
@@ -97,11 +99,13 @@ export function HealthPanel({ rows, note, reading }: { rows: HealthRow[]; note: 
                         return (
                             <li key={`${row.kind}:${row.id}`} className="border-t border-border">
                                 {to === null ? (
-                                    <span className="flex items-center gap-2 px-3 py-1.5">{body}</span>
+                                    <span className="flex min-w-0 items-center gap-2 px-3 py-1.5">
+                                        {body}
+                                    </span>
                                 ) : (
                                     <Link
                                         to={to}
-                                        className="control-link flex items-center gap-2 px-3 py-1.5 hover:bg-accent/60"
+                                        className="control-link flex min-w-0 items-center gap-2 px-3 py-1.5 hover:bg-accent/60"
                                     >
                                         {body}
                                     </Link>
