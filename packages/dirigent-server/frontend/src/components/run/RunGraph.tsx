@@ -25,8 +25,9 @@ import type { DagView } from '@/lib/runs'
  * IT IS A VIEW, NOT AN EDITOR. A pipeline is edited on its own screen, against the document;
  * this canvas selects a step and nothing else.
  *
- * This module is loaded lazily. React Flow and elk are a large part of what this page costs,
- * and the screens that draw a graph are the only ones that pay for them.
+ * This module is loaded lazily. React Flow is a large part of what this page costs, and the
+ * screens that draw a graph are the only ones that pay for it; elk is behind `use-placed` and
+ * is fetched when this canvas asks for geometry.
  */
 
 /**
@@ -102,7 +103,6 @@ export function RunGraph({
     const byCode = useMemo(() => new Map(views.map((view) => [view.node.code, view])), [views])
 
     const nodes = useMemo<StepNodeKind[]>(() => {
-        if (placed === null) return []
         return placed.nodes.flatMap((node) => {
             const view = byCode.get(node.id)
             if (view === undefined) return []
@@ -126,7 +126,6 @@ export function RunGraph({
     const reduced = usePrefersReducedMotion()
 
     const edges = useMemo<Edge[]>(() => {
-        if (placed === null) return []
         return placed.edges.map((edge) => ({
             id: edge.id,
             source: edge.source,

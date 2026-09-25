@@ -31,8 +31,8 @@ import { terminalOpen, toggleTerminal } from '@/lib/terminal'
 import { cn } from '@/lib/utils'
 
 /**
- * React Flow and elk are the largest thing this app depends on and only this screen draws a
- * graph, so they are fetched when a run is opened rather than shipped in the entry chunk.
+ * Only this screen and the pipeline editor draw a graph, so React Flow is fetched when a run is
+ * opened rather than shipped in the entry chunk. elk follows when the canvas asks for geometry.
  */
 const RunGraph = lazy(() =>
     import('@/components/run/RunGraph').then((module) => ({ default: module.RunGraph })),

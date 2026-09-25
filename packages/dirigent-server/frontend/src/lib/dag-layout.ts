@@ -218,6 +218,14 @@ export function toElkGraph(shape: LayoutShape): ElkGraph {
     }
 }
 
+/** The edges of a placed graph: every pair the shape carries both ends of. */
+function placedEdges(shape: LayoutShape): PlacedEdge[] {
+    const known = new Set(shape.nodes.map((node) => node.id))
+    return shape.edges
+        .filter(([from, to]) => known.has(from) && known.has(to))
+        .map(([from, to]) => ({ id: `${from}->${to}`, source: from, target: to }))
+}
+
 /**
  * Read elk's answer back as positions.
  *
@@ -226,7 +234,6 @@ export function toElkGraph(shape: LayoutShape): ElkGraph {
  */
 export function fromElkGraph(shape: LayoutShape, laid: ElkLaidOut): PlacedGraph {
     const placed = new Map((laid.children ?? []).map((child) => [child.id, child]))
-    const known = new Set(shape.nodes.map((node) => node.id))
     return {
         nodes: shape.nodes.map((node) => {
             const child = placed.get(node.id)
@@ -238,10 +245,59 @@ export function fromElkGraph(shape: LayoutShape, laid: ElkLaidOut): PlacedGraph 
                 height: child?.height ?? node.height,
             }
         }),
-        edges: shape.edges
-            .filter(([from, to]) => known.has(from) && known.has(to))
-            .map(([from, to]) => ({ id: `${from}->${to}`, source: from, target: to })),
+        edges: placedEdges(shape),
     }
+}
+
+/**
+ * The same shape placed without elk: one column per rank, each stacked down the canvas.
+ *
+ * WHAT A CANVAS DRAWS UNTIL ELK ANSWERS. Elk is fetched the first time a canvas asks for
+ * geometry, and a graph that waits for the fetch is a screen with nothing on it -- so the ranks
+ * are counted here instead and every box is on screen from the first frame, at the spacing elk
+ * is asked for. It balances no row and crosses whatever edges cross, which is the whole of what
+ * elk is for; when the answer arrives the boxes move to it.
+ *
+ * A NODE SITS ONE COLUMN RIGHT OF EVERYTHING IT WAITS FOR, so the reading is left to right
+ * before and after. A shape that has somehow closed a loop is ranked rather than hung on.
+ */
+export function placedByRank(shape: LayoutShape): PlacedGraph {
+    const known = new Set(shape.nodes.map((node) => node.id))
+    const before = new Map<string, string[]>()
+    for (const [from, to] of shape.edges) {
+        if (!known.has(from) || !known.has(to)) continue
+        before.set(to, [...(before.get(to) ?? []), from])
+    }
+
+    const ranks = new Map<string, number>()
+    const rankOf = (id: string, path: ReadonlySet<string>): number => {
+        const held = ranks.get(id)
+        if (held !== undefined) return held
+        if (path.has(id)) return 0
+        const onward = new Set([...path, id])
+        const rank = (before.get(id) ?? []).reduce(
+            (most, from) => Math.max(most, rankOf(from, onward) + 1),
+            0,
+        )
+        ranks.set(id, rank)
+        return rank
+    }
+
+    const nextTop = new Map<number, number>()
+    const nodes = shape.nodes.map((node) => {
+        const rank = rankOf(node.id, new Set())
+        const top = nextTop.get(rank) ?? 0
+        nextTop.set(rank, top + node.height + NODE_SPACING)
+        return {
+            id: node.id,
+            x: rank * (NODE_WIDTH + RANK_SPACING),
+            y: top,
+            width: NODE_WIDTH,
+            height: node.height,
+        }
+    })
+
+    return { nodes, edges: placedEdges(shape) }
 }
 
 /** Place a graph. */

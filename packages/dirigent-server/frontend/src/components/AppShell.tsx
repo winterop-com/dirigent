@@ -5,6 +5,7 @@ import { CommandPalette } from '@/components/CommandPalette'
 import { NavDrawer, OPEN_NAV_LABEL } from '@/components/NavDrawer'
 import { PanelSheet } from '@/components/PanelSheet'
 import { PageState } from '@/components/PageState'
+import { warmLayout } from '@/components/graph/use-placed'
 import { warmEditor } from '@/components/pipeline/CodePane'
 import { Rail } from '@/components/Rail'
 import { RightPanel } from '@/components/RightPanel'
@@ -139,13 +140,15 @@ export function AppShell() {
     const role = auth.identity?.role ?? null
     const signedIn = auth.status === 'signed-in'
 
-    // THE EDITOR'S CHUNK IS FETCHED BEFORE ANYBODY ASKS FOR IT. Monaco is larger than the rest
-    // of this bundle and two screens behind this shell open it, so once there is a session and
-    // the browser has nothing else to do, the chunk is pulled. It is idle-time work and it
-    // happens once: no screen waits on it, and the login page is outside this shell and asks
-    // for nothing.
+    // THE TWO BIG CHUNKS ARE FETCHED BEFORE ANYBODY ASKS FOR THEM. Monaco and elk are each
+    // larger than the rest of this bundle and the screens behind this shell open both, so once
+    // there is a session and the browser has nothing else to do, the chunks are pulled. It is
+    // idle-time work and it happens once: no screen waits on either, and the login page is
+    // outside this shell and asks for nothing.
     useEffect(() => {
-        if (signedIn) warmEditor()
+        if (!signedIn) return
+        warmEditor()
+        warmLayout()
     }, [signedIn])
 
     // WHAT THE PACKS DRAW THEMSELVES WITH IS READ ONCE, for the same reason and at the same

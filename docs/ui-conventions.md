@@ -24,7 +24,7 @@ wrong is changed on this page first and in the code second.
 | UI | React 19, react-router 7 with `BrowserRouter` | The server answers a navigation nothing claimed with the shell, so paths stay clean and a deep link can be pasted |
 | Styling | Tailwind v4, CSS-first | There is no `tailwind.config.js` and there must not be one -- the theme lives in `src/index.css` under `@theme` |
 | Components | shadcn on **Base UI** (`@base-ui/react`), style `base-nova` | The generated files in `src/components/ui/` are pristine and never hand-edited |
-| Graphs | `@xyflow/react` for the canvas, `elkjs` for the layout | React Flow draws what it is given and decides no geometry; elk's layered algorithm is what places a DAG. Both are loaded lazily -- see below |
+| Graphs | `@xyflow/react` for the canvas, `elkjs` for the layout | React Flow draws what it is given and decides no geometry; elk's layered algorithm is what places a DAG. React Flow rides in the graph screens' chunk and elk is a chunk of its own, in a worker -- see below |
 | Editor | `monaco-editor` with `monaco-yaml` | A pipeline document is YAML checked against a schema, and squiggling an unknown key where an apply would refuse it needs a language server rather than a textarea. Its own lazy chunk, behind `CodePane`, which is what every screen that writes source mounts -- a document, and a config field whose schema says it carries a program |
 | YAML | `yaml` | A document crosses the wire as JSON and is written by people as text, and `lib/pipeline-document` is the one place it is parsed and rendered. Nothing in the entry chunk reaches that module, so the parser rides in the chunks of the screens that read a document |
 | Markdown | `marked`, for its lexer only | A description is authored markdown and has to render as prose. Nothing here produces an HTML string, so what is drawn is a token tree React escapes -- see `lib/markdown` |
@@ -47,13 +47,13 @@ through `React.lazy` and a `Suspense` whose fallback is the same `PageState` loa
 read shows. The entry chunk is what every reader pays for on every screen, so it holds the login
 screen, the two listings this app is mostly read through -- pipelines and runs -- and the 404,
 and everything else is fetched when it is opened: run detail and the pipeline editor, because
-React Flow and elk together are larger than the whole of the rest of this bundle; the dashboard
+React Flow is the canvas nothing else draws on; the dashboard
 at `/`, which composes a screenful of reads nothing else composes; connections, triggers,
 schemas, blocks and examples, each carrying the forms, the dialogs and the panels nothing else
 uses; and the four admin screens, which most readers of this app are never offered.
 
-**A chunk inside a lazy route is the same rule again.** Monaco is larger than React Flow and elk
-put together, and every pane in this app that writes source or windows it mounts
+**A chunk inside a lazy route is the same rule again.** Monaco is larger than everything else
+this app depends on, and every pane in this app that writes source or windows it mounts
 `components/pipeline/CodePane`: the editor's source pane, a step config field whose schema
 published a `contentMediaType`, a schema document, an alert rule's expression, an example's text,
 and the read-only window a produced value is opened in. `CodePane` is the one `React.lazy`
@@ -64,11 +64,26 @@ without, and the languages a field can carry -- YAML, shell, twig, SQL and JSON.
 grammar and is registered in `CodeEditor` as a Monarch tokeniser. Its three web workers are
 `?worker` imports, which vite emits as chunks of their own.
 
-**A chunk two screens want is fetched before either is asked for.** `warmEditor` is that same
-import, fired by the shell once there is a session and the browser is idle -- `lib/idle` is
-`requestIdleCallback` where there is one and a timer where there is not -- so the first source
-tab, jq step or output window of a session opens against a chunk that has already landed. Nothing
-waits on it, it happens once, and the login screen is outside the shell and asks for none of it.
+**An engine is fetched when the screen that needs it mounts, and not with the screen's code.**
+elk is the second of them: `components/graph/use-placed` is the one dynamic import of
+`components/graph/elk-engine`, so the graph screens' chunk carries React Flow and the canvas, and
+the 1.4 MB of layout algorithm arrives only once a canvas asks for geometry. It arrives in a web
+worker -- `elkjs/lib/elk-api` wrapping `elkjs/lib/elk-worker.min.js` -- so placing a fifty-step
+graph is not work the thread that draws is blocked on. Nothing waits on it to draw either:
+`placedByRank` places the ranks by hand, which is what a canvas shows until elk answers and what
+it keeps showing if elk never does.
+
+**A chunk two screens want is fetched before either is asked for.** `warmEditor` and `warmLayout`
+are those same imports, fired by the shell once there is a session and the browser is idle --
+`lib/idle` is `requestIdleCallback` where there is one and a timer where there is not -- so the
+first source tab, jq step or output window of a session opens against a chunk that has already
+landed, and the first canvas is placed by a worker that is already running. Nothing waits on
+either, each happens once, and the login screen is outside the shell and asks for none of it.
+
+**`build.chunkSizeWarningLimit` clears monaco and nothing else.** Monaco's chunk is the one this
+bundle has that is over vite's default 500 kB; elk's worker is larger still and is not a chunk at
+all. Every other chunk, the entry included, stays far under the limit, so the warning still means
+something when one of them grows.
 
 **oxfmt owns whitespace, quotes, semicolons and the order of Tailwind classes**, at four spaces,
 single quotes outside JSX, no semicolons and a print width of 110. Nothing about that is worth an
@@ -578,9 +593,9 @@ number along a foot reads as a total, and a keyset walk has no total to state.
 with a state on each node; the editor's is the stored document with an edit mark on each. The
 geometry of the two is one problem, so what elk is handed is an id and a height per node and a
 pair per edge, and each screen reduces its own shape to that. `components/graph` is where React
-Flow and elk are actually imported -- the canvas with this app's props on it, and the hook that
-asks elk for positions -- and both graph components are lazy, so the two of them share one async
-chunk rather than shipping two copies.
+Flow and elk are actually imported -- the canvas with this app's props on it, the hook that asks
+elk for positions, and the engine module the hook fetches -- and both graph components are lazy,
+so the two of them share one async chunk rather than shipping two copies.
 
 **Motion lives on edges, and it means data travelling.** A run's graph is the one place in this
 app that moves, and only while the run is live: an edge out of a step that has produced its output
