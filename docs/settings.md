@@ -29,6 +29,7 @@ environment, and the server inside one never opens the file.
 | `port` | `DIRIGENT_PORT` | `3333` | The port the API server binds. |
 | `api_prefix` | `DIRIGENT_API_PREFIX` | `"/api/v1"` | Where the versioned REST API is mounted. `/hooks/{token}` is not under it. |
 | `ui_enabled` | `DIRIGENT_UI_ENABLED` | `true` | Whether the server serves the bundled web UI beside the API. |
+| `playground_enabled` | `DIRIGENT_PLAYGROUND_ENABLED` | `true` | Whether the instance serves the playground beside the API. |
 | `ui_dir` | `DIRIGENT_UI_DIR` | `null` | A built web UI bundle to serve, instead of the one installed with the server. |
 | `log_level` | `DIRIGENT_LOG_LEVEL` | `"INFO"` | How loud the process log is. This is the process log; a run's own telemetry is the `log_entries` table, and a CLI `-v` or `--debug` flag wins over this. |
 | `log_format` | `DIRIGENT_LOG_FORMAT` | `null` | How a command spells its output and its logs: `console` renders, `json` writes records. |

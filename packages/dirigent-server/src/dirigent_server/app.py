@@ -29,9 +29,14 @@ A generic pipeline orchestrator. Pipelines are data, composed from pluggable bui
 blocks and executed as a DAG on a durable engine.
 
 Every endpoint under `/api/v1` requires authentication: a bearer token for automation, or
-the session cookie `POST /api/v1/auth/login` sets for a browser. The probes under `/health`
-and this document itself are the only exceptions. `POST /hooks/{token}` is outside the
-versioned API and authenticates with its own per-trigger token.
+the session cookie `POST /api/v1/auth/login` sets for a browser. The probes under `/health`,
+this document itself, and the playground under `/api/v1/playground` are the exceptions.
+`POST /hooks/{token}` is outside the versioned API and authenticates with its own
+per-trigger token.
+
+The playground serves generated data and chosen behaviour to documents that need something
+to happen: it needs no credential, opens no database session, and reads no instance data.
+`DIRIGENT_PLAYGROUND_ENABLED=false` unmounts it.
 """
 
 _logger = get_logger("server")
@@ -99,7 +104,7 @@ def create_app(
     mount_ui_assets(app, resolved)
     app.include_router(health_router)
     app.include_router(build_hooks_router())
-    app.include_router(build_router(), prefix=resolved.api_prefix)
+    app.include_router(build_router(resolved), prefix=resolved.api_prefix)
     mount_ui_shell(app, resolved)
     instrument_fastapi(app)
     return app

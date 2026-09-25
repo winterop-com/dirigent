@@ -149,6 +149,15 @@ class Settings(BaseSettings):
     one, and every API route is unaffected either way.
     """
 
+    playground_enabled: bool = True
+    """Whether the instance serves the playground beside the API.
+
+    The playground is a handful of unauthenticated routes under the API that generate data
+    and behaviour for examples and tests: they open no database session, read no instance
+    data, and remember nothing. Off, none of them is mounted and every playground path
+    answers 404. An instance on a public address that has no use for them turns them off.
+    """
+
     ui_dir: Path | None = None
     """A built web UI bundle to serve, instead of the one installed with the server.
 

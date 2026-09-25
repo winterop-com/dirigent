@@ -78,6 +78,11 @@ READ_SHAPED_WRITES = {
 }
 
 
+#: The playground is mounted open on purpose: it serves no instance data, opens no session,
+#: and a step calling its own instance's playground must not need a token.
+PLAYGROUND = "/playground/"
+
+
 def api_routes(routes: Any = None) -> Iterator[APIRoute]:
     """Every route the versioned router mounts, including those a nested router contributed."""
     for route in build_router().routes if routes is None else routes:
@@ -104,7 +109,8 @@ def test_every_write_route_names_a_role() -> None:
     open_to_a_viewer = [
         f"{method} {route.path}"
         for method, route in writes()
-        if route.path not in READ_SHAPED_WRITES
+        if not route.path.startswith(PLAYGROUND)
+        and route.path not in READ_SHAPED_WRITES
         and not guards(route.dependant, require_admin)
         and not guards(route.dependant, require_operator)
     ]

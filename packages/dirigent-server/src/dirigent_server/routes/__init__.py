@@ -7,6 +7,7 @@ rather than as a person, so it is mounted at the application root instead.
 
 from fastapi import APIRouter, Depends
 
+from dirigent_core.config import Settings
 from dirigent_server.routes import (
     alerts,
     auth,
@@ -15,6 +16,7 @@ from dirigent_server.routes import (
     examples,
     hooks,
     pipelines,
+    playground,
     runs,
     schema,
     schemas,
@@ -43,13 +45,23 @@ TAGS: list[dict[str, str]] = [
     {"name": "users", "description": "Local accounts."},
     {"name": "system", "description": "What this instance is, and whether it is well."},
     {"name": "health", "description": "Liveness and readiness."},
+    {
+        "name": "playground",
+        "description": "Generated data and chosen behaviour, for examples and tests. No credential.",
+    },
 ]
 
 
-def build_router() -> APIRouter:
-    """Assemble the versioned API: the login route, then everything behind authentication."""
+def build_router(settings: Settings | None = None) -> APIRouter:
+    """Assemble the versioned API: the open routes, then everything behind authentication.
+
+    The playground is mounted only when the instance serves it, so turning it off is not a
+    route that refuses but a route that is not there.
+    """
     router = APIRouter(route_class=Transactional)
     router.include_router(auth.public_router)
+    if settings is None or settings.playground_enabled:
+        router.include_router(playground.router)
     guarded = APIRouter(dependencies=[Depends(require_principal)], route_class=Transactional)
     for module in (
         auth,
