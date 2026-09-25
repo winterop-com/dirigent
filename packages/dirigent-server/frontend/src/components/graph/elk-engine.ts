@@ -6,8 +6,8 @@ import type { ElkEngine } from '@/lib/dag-layout'
 /**
  * elk itself, in a worker of its own.
  *
- * IT IS LOADED IN ITS OWN CHUNK. Nothing imports this file by name: `elk` beside it is
- * the one dynamic import, and every canvas reaches the engine through it.
+ * IT IS LOADED IN ITS OWN CHUNK. Nothing imports this file by name: `elk` beside it is the one
+ * dynamic import, and every canvas reaches the engine through it.
  *
  * THE ALGORITHM IS NOT ON THE THREAD THAT DRAWS. `elk-api` is the small half of elkjs, a
  * promise wrapper around a worker; `elk-worker.min.js` is the algorithm, fetched and parsed by

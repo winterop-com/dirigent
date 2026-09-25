@@ -40,6 +40,7 @@ export function usePlacedGraph(shape: LayoutShape): PlacedGraph {
         // oxlint-disable-next-line react/exhaustive-deps
     }, [signature])
 
+    // One signature, one rough placement: what it is placed from is the shape alone.
     // oxlint-disable-next-line react/exhaustive-deps
     const rough = useMemo(() => placedByRank(shape), [signature])
 
