@@ -41,7 +41,9 @@ export function loadKindMarks(): void {
             if (declared.size > 0) kindMarks.set(declared)
         },
         () => {
-            // Nothing to hold, and nothing to say: the neutral mark is already what is drawn.
+            // Nothing to hold and nothing to say: the neutral mark is already what is drawn.
+            // The flag goes back, so a later ask is a second attempt rather than a refusal.
+            asked = false
         },
     )
 }
