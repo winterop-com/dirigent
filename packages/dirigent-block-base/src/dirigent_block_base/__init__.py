@@ -5,6 +5,7 @@ from dirigent_block_base.convert_std import StdConverter
 from dirigent_block_base.log_notifier import LogNotifier
 from dirigent_block_base.logging import LogWriteOperator
 from dirigent_block_base.pipelines import PipelineRunOperator
+from dirigent_block_base.playground import PlaygroundConfig, PlaygroundOperator, PlaygroundOutput
 from dirigent_block_base.report import ReportRenderOperator
 from dirigent_block_base.validate import ValidateSchemaOperator
 from dirigent_block_base.values import ValueConstOperator
@@ -24,6 +25,7 @@ class BaseBlocks:
                 ValidateSchemaOperator(),
                 ValueConstOperator(),
                 PipelineRunOperator(),
+                PlaygroundOperator(),
                 StdConverter(),
             ],
             sensors=[TimeSleepSensor(), TimeWindowSensor()],
@@ -38,6 +40,9 @@ __all__ = [
     "LogNotifier",
     "LogWriteOperator",
     "PipelineRunOperator",
+    "PlaygroundConfig",
+    "PlaygroundOperator",
+    "PlaygroundOutput",
     "ReportRenderOperator",
     "StdConverter",
     "TimeSleepSensor",

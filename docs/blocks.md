@@ -48,6 +48,7 @@ Two properties are worth reading before a block is used:
 | [`log.write`](#logwrite) | operator | log | Write a line to the run's log. | `block-base` |
 | [`map.jq`](#mapjq) | operator | transform | Replace every element of a list with what a jq program makes of it. | `block-jq` |
 | [`pipeline.run`](#pipelinerun) | operator | execute | Run another pipeline on this instance. | `block-base` |
+| [`playground.generate`](#playgroundgenerate) | operator | playground | Generate rows, a delay, a failure, or a payload, with nothing to call. | `block-base` |
 | [`rabbitmq.consume`](#rabbitmqconsume) | sensor | rabbitmq | Wait for messages on a RabbitMQ queue. | `block-queues` |
 | [`rabbitmq.publish`](#rabbitmqpublish) | operator | rabbitmq | Publish one message to an exchange. | `block-queues` |
 | [`report.render`](#reportrender) | operator | report | Render text from a Jinja template. | `block-base` |
@@ -442,6 +443,48 @@ Contributed by `block-base`. Not idempotent. Polls every 5s unless the step says
 | `pipeline` | `string` | yes |  | The pipeline this step ran, by code. |
 | `run_id` | `string or null` |  | `null` | The child run, or `null` when its concurrency policy meant no run was created. |
 | `status` | `string` | yes |  | The child's run status, `started` when this step did not wait, or `skipped`. |
+
+### `playground.generate`
+
+Generate rows, a delay, a failure, or a payload, with nothing to call.
+
+Contributed by `block-base`. Not idempotent.
+
+**Config**
+
+| Field | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `fields` | `object of string or object` |  |  | Which Faker provider fills each field of a generated record. |
+| `rows` | `integer` |  | `1` | How many records exist. Ignored when an input is supplied: the input decides. |
+| `locale` | `string` |  | `"en_US"` | The Faker locale the providers generate in. |
+| `seed` | `integer or null` |  | `null` | Makes the answer reproducible. Unset draws one, and the answer says which it drew. |
+| `drift` | `"none" or "strings" or "missing" or "extra"` |  | `"none"` | How the records depart from the field map, for a document teaching a schema gate. |
+| `page` | `integer or null` |  | `null` | Which page of the records to answer with, counting from one; unset answers all of them. |
+| `size` | `integer or null` |  | `null` | How many records a page holds. Unset with a page set means ten. |
+| `payload` | `string or integer or null` |  | `null` | Return filler of this size beside the records, to push an output over a threshold. |
+| `delay` | `string (humane-duration)` |  | `"0s"` | How long to take before answering, for a document teaching a timeout or a deadline. |
+| `fail_until` | `integer` |  | `0` | Fail this many attempts before succeeding, for a document teaching a retry. |
+| `input` | `any` |  | `null` | The value to work on, written inline or referenced from an earlier step's output. |
+
+**Output**
+
+| Field | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `records` | `any[]` | yes |  | The records this answer carries: all of them, or one page when a page was asked for. |
+| `rows` | `integer` | yes |  | How many records exist in total, which is more than `records` on a paged answer. |
+| `seed` | `integer` | yes |  | The seed these records came from. Sending it back reproduces them exactly. |
+| `locale` | `string` | yes |  | The locale the providers generated in. |
+| `fields` | `object of string or object` | yes |  | The field map the records were generated from. |
+| `drift` | `"none" or "strings" or "missing" or "extra"` | yes |  | The drift applied to the records. |
+| `page` | `integer or null` |  | `null` | Which page this is, when one was asked for. |
+| `size` | `integer or null` |  | `null` | How many records a page holds, when one was asked for. |
+| `pages` | `integer or null` |  | `null` | How many pages there are in total, when one was asked for. |
+| `delay_ms` | `integer` |  | `0` | How long this call waited before answering, in milliseconds. |
+| `attempt` | `integer` |  | `1` | Which attempt produced this answer. |
+| `fail_until` | `integer` |  | `0` | How many attempts were set to fail before this one was allowed to succeed. |
+| `payload` | `string or null` |  | `null` | The filler that was asked for, when a payload size was set. |
+| `payload_bytes` | `integer or null` |  | `null` | How large that filler is, in bytes. |
+| `input_rows` | `integer or null` |  | `null` | How many elements the input carried, or null when the node generated its own records. |
 
 ### `rabbitmq.publish`
 

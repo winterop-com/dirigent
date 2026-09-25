@@ -346,6 +346,7 @@ def test_the_installed_catalog_is_what_a_dev_process_would_serve(services: Engin
         "log.write",
         "map.jq",
         "pipeline.run",
+        "playground.generate",
         "rabbitmq.consume",
         "rabbitmq.publish",
         "report.render",

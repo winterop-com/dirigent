@@ -1,0 +1,73 @@
+# The node in the middle of a document, and at the end of it.
+#
+# The node takes an `input` the same way every transform does: a value written inline or
+# referenced from an earlier step. What it does with one is decided by a single rule -- the
+# input is the data, so it says how many records there are and `rows` is not consulted, and
+# the field map adds columns to each element only when the document names one.
+#
+#   an input and no `fields`     the elements pass through unchanged
+#   an input and a `fields` map  each element gains those generated columns
+#   no input at all              the knobs generate the records, as in generated-rows.yaml
+#
+# Hop by hop:
+#
+#   codes      a plain list, standing in for whatever a real upstream step produced.
+#   enriched   the node in the middle: three codes in, three enriched records out, each with
+#              a generated contact on it. `rows: 99` is written on purpose, to show that a
+#              supplied input wins and the output reports `rows: 3`.
+#   audited    the node at the end: it takes the enriched records, adds nothing, and is the
+#              document's last step. A node is useful as a terminus because its output is
+#              the account of what happened -- the seed, the knobs, and the records.
+#
+# EXPECT THIS RUN TO END completed. Read `enriched`'s output: `rows: 3`, `input_rows: 3`, and
+# the three codes with a name and an email added to each.
+#
+#   dg run --local examples/playground/in-the-middle-of-a-flow.yaml
+
+format: dirigent/v1
+kind: pipeline
+code: in-the-middle-of-a-flow
+name: The node in the middle, and at the end
+description: |
+  A list from upstream, enriched with generated columns, then handed to the node again as the
+  document's last step.
+
+  A supplied input decides how many records there are; `rows` is ignored, and the output says
+  so.
+
+tags: [playground, references, conventions]
+
+requires:
+  blocks:
+    - playground.generate
+    - value.const
+
+steps:
+  codes:
+    block: value.const
+    config:
+      value:
+        - code: st-001
+        - code: st-002
+        - code: st-003
+
+  enriched:
+    block: playground.generate
+    depends_on: [codes]
+    config:
+      input: ${steps.codes.output.value}
+      # Ignored, because the input decides how many records there are. The output reports
+      # rows: 3, which is the number that actually came out.
+      rows: 99
+      seed: 3
+      fields:
+        contact: name
+        email: email
+
+  audited:
+    block: playground.generate
+    depends_on: [enriched]
+    config:
+      # No fields named, so the records pass through untouched and this step is an account of
+      # what it received rather than a change to it.
+      input: ${steps.enriched.output.records}

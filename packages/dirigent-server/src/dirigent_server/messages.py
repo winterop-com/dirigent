@@ -97,3 +97,23 @@ TOO_MANY_TAILS = SERVER.define("too_many_tails", "you already have {maximum} str
 NO_ICON = SERVER.define("no_icon", "this bundle carries no icon")
 
 BAD_CURSOR = SERVER.define("bad_cursor", "{name}={after} is not a cursor this listing gave out")
+
+PLAYGROUND_BAD_KNOB = SERVER.define("playground_bad_knob", "{detail}")
+
+PLAYGROUND_HEADER_REFUSED = SERVER.define(
+    "playground_header_refused",
+    "the playground will not set {header} on itself: a header that plants a cookie, opens "
+    "this origin to another site, or weakens what a browser enforces here teaches nothing",
+)
+
+PLAYGROUND_OFF_INSTANCE = SERVER.define(
+    "playground_off_instance",
+    "{to} is not a path on this instance, and the playground redirects nowhere else: an "
+    "open redirect is a phishing tool wearing this instance's own domain",
+)
+
+PLAYGROUND_UNAUTHENTICATED = SERVER.define(
+    "playground_unauthenticated",
+    "this route wants a credential: the basic pair {username}/{username}, or the documented "
+    "bearer token. Both are public constants and guard nothing",
+)

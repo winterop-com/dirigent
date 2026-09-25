@@ -153,3 +153,30 @@ XML_EMPTY_ARRAY = BASE.define(
     "the value at {path} is an empty array, and no elements at all is no key at all; "
     "drop the key to convert the object",
 )
+
+#: The playground answers with its own codes, so a refusal from a generated dataset is
+#: not mistaken for one from the rest of the base family.
+PLAYGROUND = Catalogue("playground")
+
+UNKNOWN_PROVIDER = PLAYGROUND.define(
+    "unknown_provider",
+    "{provider!r} is not a provider the installed Faker offers for locale {locale!r}; "
+    "GET /api/v1/playground/providers lists every name this instance accepts",
+)
+
+UNKNOWN_LOCALE = PLAYGROUND.define(
+    "unknown_locale",
+    "{locale!r} is not a locale the installed Faker ships; "
+    "GET /api/v1/playground/locales lists every one this instance accepts",
+)
+
+PROVIDER_REFUSED = PLAYGROUND.define(
+    "provider_refused",
+    "the provider {provider!r} refused the arguments it was given: {detail}",
+)
+
+FAILED_ON_PURPOSE = PLAYGROUND.define(
+    "failed_on_purpose",
+    "the playground failed attempt {attempt} on purpose, because fail_until is {fail_until}; "
+    "attempt {next_attempt} will succeed",
+)

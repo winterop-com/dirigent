@@ -59,6 +59,7 @@ OWNED: Final[dict[str, str]] = {
     "execute": "dirigent-block-execute",
     "http": "dirigent-block-http",
     "parquet": "dirigent-block-parquet",
+    "playground": "dirigent-block-base",
     "queues": "dirigent-block-queues",
     "sql": "dirigent-block-sql",
     "sql.duckdb": "dirigent-block-duckdb",

@@ -152,6 +152,7 @@ def test_the_catalog_carries_the_group_each_block_declares(client: TestClient) -
         "log.write": "log",
         "map.jq": "transform",
         "pipeline.run": "execute",
+        "playground.generate": "playground",
         "rabbitmq.consume": "rabbitmq",
         "rabbitmq.publish": "rabbitmq",
         "report.render": "report",

@@ -45,6 +45,7 @@ nav:
       - JSON Schema: json-schema.md
   - Blocks:
       - Blocks: blocks.md
+      - Playground: playground.md
       - Transforms: transforms.md
       - jq: jq.md
       - Docker: docker.md

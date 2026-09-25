@@ -1,0 +1,98 @@
+# A schema gate seen catching something, because the shape drifts on demand.
+#
+# A gate example is only convincing if the reader sees it refuse. `drift` makes the node emit
+# a shape that is deliberately wrong, in one of three documented ways:
+#
+#   strings   every number and boolean comes back as a string   a typed schema refuses it
+#   missing   the field map's first field is left out           a required-field schema refuses it
+#   extra     a field the map never named is added              a closed schema refuses it
+#
+# The schema is carried in this document's own `schemas:` section, so `dg run --local` runs
+# the file alone. A server refuses a carried schema, and an instance names one instead.
+#
+# Hop by hop:
+#
+#   reading   three records: a station code and a numeric value each, drifted or not.
+#   gate      validate.schema against `reading-records`. Passes the value through when it
+#             fits, and fails the run naming the path when it does not.
+#   report    reads the gate's output, so the graph records that it saw a checked shape.
+#
+# EXPECT THIS RUN TO END completed with the default, and failed with any other drift. Read
+# the gate's error on a failure: it names the path into the payload that is wrong.
+#
+#   dg run --local examples/playground/a-gate-catching-drift.yaml                    # completed
+#   dg run --local examples/playground/a-gate-catching-drift.yaml -p drift=strings   # fails at the gate
+#   dg run --local examples/playground/a-gate-catching-drift.yaml -p drift=missing   # fails at the gate
+
+format: dirigent/v1
+kind: pipeline
+code: a-gate-catching-drift
+name: A gate catching drift
+description: |
+  Generated records against a carried JSON Schema, with a knob that makes the shape wrong.
+
+  The gate passes good records through and refuses drifted ones, naming the path.
+
+tags: [playground, validate, transform, jq, params]
+
+requires:
+  blocks:
+    - playground.generate
+    - validate.schema
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    drift:
+      type: string
+      description: How the generated records depart from the shape the gate expects.
+      default: none
+      enum: [none, strings, missing, extra]
+
+schemas:
+  reading-records:
+    $schema: https://json-schema.org/draft/2020-12/schema
+    title: A page of station readings
+    type: array
+    items:
+      type: object
+      # Closed, so the `extra` drift is refused as well as the other two.
+      additionalProperties: false
+      required: [station, value]
+      properties:
+        station:
+          type: string
+        value:
+          type: number
+
+steps:
+  reading:
+    block: playground.generate
+    config:
+      rows: 3
+      seed: 11
+      drift: ${params.drift}
+      fields:
+        # `station` is the map's first field, so it is the one the `missing` drift leaves out.
+        station: license_plate
+        value:
+          provider: pyfloat
+          args:
+            min_value: 0
+            max_value: 40
+            right_digits: 1
+
+  gate:
+    block: validate.schema
+    depends_on: [reading]
+    config:
+      input: ${steps.reading.output.records}
+      schema: reading-records
+
+  report:
+    block: transform.jq
+    depends_on: [gate]
+    config:
+      input: ${steps.gate.output.value}
+      program: '{checked: length}'
