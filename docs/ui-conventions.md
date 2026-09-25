@@ -47,10 +47,10 @@ through `React.lazy` and a `Suspense` whose fallback is the same `PageState` loa
 read shows. The entry chunk is what every reader pays for on every screen, so it holds the login
 screen, the two listings this app is mostly read through -- pipelines and runs -- and the 404,
 and everything else is fetched when it is opened: run detail and the pipeline editor, because
-React Flow is the canvas nothing else draws on; the dashboard
-at `/`, which composes a screenful of reads nothing else composes; connections, triggers,
-schemas, blocks and examples, each carrying the forms, the dialogs and the panels nothing else
-uses; and the four admin screens, which most readers of this app are never offered.
+React Flow is the canvas nothing else draws on; the dashboard at `/`, which composes a screenful
+of reads nothing else composes; connections, triggers, schemas, blocks and examples, each
+carrying the forms, the dialogs and the panels nothing else uses; and the four admin screens,
+which most readers of this app are never offered.
 
 **A chunk inside a lazy route is the same rule again.** Monaco is larger than everything else
 this app depends on, and every pane in this app that writes source or windows it mounts
@@ -594,8 +594,8 @@ with a state on each node; the editor's is the stored document with an edit mark
 geometry of the two is one problem, so what elk is handed is an id and a height per node and a
 pair per edge, and each screen reduces its own shape to that. `components/graph` is where React
 Flow and elk are actually imported -- the canvas with this app's props on it, the hook that asks
-elk for positions, and the engine module the hook fetches -- and both graph components are lazy,
-so the two of them share one async chunk rather than shipping two copies.
+elk for positions, and the door that fetches the engine -- and both graph components are lazy, so
+the two of them share one async chunk rather than shipping two copies.
 
 **Motion lives on edges, and it means data travelling.** A run's graph is the one place in this
 app that moves, and only while the run is live: an edge out of a step that has produced its output
