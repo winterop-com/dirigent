@@ -85,6 +85,8 @@ then the three-service compose stack, an admin account, and a token.
 
 ## Where to go next
 
+- **[Screens](screens.md)** is what the web UI looks like with real work in it: nine pictures
+  of one seeded instance running the showcase pipelines, re-shot on each release.
 - **[Getting started](getting-started.md)** is install to first successful run, then the real
   deployment: what each process does, what has to be configured, and what to do when it does
   not work.

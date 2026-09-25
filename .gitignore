@@ -27,6 +27,8 @@ site/
 node_modules/
 packages/dirigent-server/frontend/dist/
 packages/dirigent-server/frontend/e2e/.state/
+packages/dirigent-server/frontend/shots-src/.state/
+packages/dirigent-server/frontend/docs-shots-src/.state/
 packages/dirigent-server/frontend/test-results/
 packages/dirigent-server/frontend/playwright-report/
 # The automated browser and its harness write into whatever directory is current.

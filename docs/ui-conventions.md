@@ -93,7 +93,9 @@ unformatted file fails the gate before anything else is read.
 
 `make ui` builds the bundle, `make ui-dev` serves it with hot reload against a running `dg dev`,
 `make ui-lint` and `make ui-test` are the gate, `make ui-e2e` drives a real server in a browser
-and `make ui-shots` photographs every screen for the gallery. `make ui-static` puts the built
+and `make ui-shots` photographs every screen for the gallery. `make docs-shots` is the other camera:
+nine screens, the `dirigent` palette in dark mode at 1440x900, shot against the showcase shelf
+and committed under `docs/images/screens/` because [Screens](screens.md) renders them. `make ui-static` puts the built
 bundle where the server wheel packages it, and it comes before every e2e run and every live
 review, because that packaged copy is what a checkout's `dg dev` serves. The gate is wired into
 `make check` behind a check for bun, so a machine without bun gets a loud skip rather than a

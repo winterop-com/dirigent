@@ -1,0 +1,283 @@
+# The same night, with one region's export service refusing: what a bad night looks like.
+#
+# Nothing here is an error to fix. A load over eight regions where seven answered is the
+# ordinary outcome, and the point of the document is that the run says so out loud: the region
+# is named, the gap is counted, and the page somebody reads in the morning leads with it.
+#
+# In:  a day, and one row per region saying what that region's export service answers.
+# Out: a batch of the regions that answered, the list of the ones that did not, a page about
+#      the gap, and a run that ends completed_with_errors.
+#
+# EXPECT THIS RUN TO END completed_with_errors in about ten seconds, with south missing.
+# `south` is pointed at /status/500 in the defaults, which is a transient class, so its item
+# is retried twice -- two seconds, then four -- before it is given up on. The other seven
+# answer at once.
+#
+# WHY THAT IS A THIRD STATUS AND NOT A SHADE OF FAILED. Under items: continue a refused
+# element is recorded against its own run item and the rest of the grid finishes, so the step
+# still counts as succeeded and everything below it runs. The run reports
+# completed_with_errors, which is the engine saying: this produced something, and it is not
+# everything you asked for.
+#
+# THE FAILED ITEM IS ABSENT DOWNSTREAM, NOT NULL. `shape` maps over collect's grid, so south's
+# item there has no input and is SKIPPED rather than attempted; the join below reads seven
+# records where eight regions were asked for. `gaps` is the step that turns that difference
+# into a sentence, by comparing what was asked for against what arrived.
+#
+# HOP BY HOP:
+#
+#   collect     http.request, once per region, with a retry policy and items: continue.
+#   shape       transform.jq, once per region that answered.
+#   batch       transform.jq, the join over the regions that made it.
+#   check_batch validate.schema, the gate: a short batch is still a well-shaped batch.
+#   gaps        transform.jq, asked against arrived, which is the whole lesson.
+#   page        report.render, the morning page, leading with what is missing.
+#   save        storage.write, the page under the run's scratch prefix.
+#   back        storage.read, the same URI, to prove the round trip.
+#   notify      log.write at warning, which is the line an alert rule on this run reads beside.
+#   settle      log.write behind rule: all_done, so the night is closed out either way.
+#
+# TO CHANGE IT: move the 500 to another region, or give every region a 200 and watch the same
+# document end green with no gap to report.
+#
+#   dg run --local examples/showcase/one-region-refuses.yaml   # completed_with_errors
+#   dg run --local examples/showcase/one-region-refuses.yaml \
+#     -p exports='[{"region":"east","answers":200},{"region":"west","answers":200}]'  # green
+#
+#   dg apply examples/showcase/one-region-refuses.yaml
+#   dg run one-region-refuses --watch
+#   dg runs report RUN_ID --markdown
+
+format: dirigent/v1
+kind: pipeline
+code: one-region-refuses
+name: One region refuses
+description: |
+  Eight regional exports where one answers 500 twice over and is given up on: the item is
+  recorded against itself, the other seven finish, and the run ends `completed_with_errors`.
+
+  The gap is not left implicit. What was asked for is compared against what arrived, and the
+  page that comes out of it names the region that is missing.
+
+tags: [showcase, http, transform, validate, storage, report, fan-out, failure, retry, references]
+
+requires:
+  blocks:
+    - http.request
+    - transform.jq
+    - validate.schema
+    - storage.write
+    - storage.read
+    - report.render
+    - log.write
+
+params:
+  type: object
+  properties:
+    day:
+      type: string
+      format: date
+      default: "2026-03-01"
+      description: The day the exports cover.
+    exports:
+      type: array
+      description: One row per region, each saying what that region's export service answers.
+      minItems: 1
+      maxItems: 16
+      default:
+        - { region: east, answers: 200 }
+        - { region: west, answers: 200 }
+        - { region: north, answers: 200 }
+        - { region: south, answers: 500 }
+        - { region: central, answers: 200 }
+        - { region: coastal, answers: 200 }
+        - { region: highland, answers: 200 }
+        - { region: lakeside, answers: 200 }
+      items:
+        type: object
+        required: [region, answers]
+        properties:
+          region: { type: string }
+          answers: { type: integer }
+
+# Carried, so `dg run --local` has the shape without an instance holding it.
+schemas:
+  regional-batch:
+    type: object
+    required: [day, regions]
+    additionalProperties: false
+    properties:
+      day: { type: string, format: date }
+      regions:
+        type: array
+        minItems: 1
+        items:
+          type: object
+          required: [region, status, rows]
+          additionalProperties: false
+          properties:
+            region: { type: string, minLength: 1 }
+            status: { type: integer }
+            rows: { type: integer, minimum: 0 }
+
+steps:
+  collect:
+    block: http.request
+    for_each: "${params.exports}"
+    # The item policy is the whole document: continue records a refusal against its own item
+    # and lets the rest of the grid finish. fail_fast would sink seven good regions over one.
+    items: continue
+    retry:
+      # A 500 is classified transient, so the budget is spent on it: 2s, then 4s, then given
+      # up on. A 404 would be rejected on the first attempt, however much budget was left.
+      max_attempts: 3
+      backoff: 2s
+      max_backoff: 30s
+      multiplier: 2.0
+      jitter: 0.2
+    config:
+      # Each element says what its own service answers, so which region refuses is data rather
+      # than something hidden in a branch.
+      url: "https://postman-echo.com/status/${item.answers}"
+      method: GET
+
+  shape:
+    block: transform.jq
+    depends_on: [collect]
+    # collect's grid, not one of its own: an item whose match did not succeed is skipped here
+    # rather than attempted, because its input never existed.
+    for_each: "${steps.collect.items}"
+    config:
+      input:
+        region: "${item.region}"
+        status: "${steps.collect.item.output.status}"
+        day: "${params.day}"
+      # Echo answers with a status and nothing else, so the row count stands in for the volume
+      # a real export would have reported.
+      program: |
+        {region, status, day, rows: (.region | length * 120)}
+
+  batch:
+    block: transform.jq
+    depends_on: [shape]
+    # No for_each, so this is the join: one attempt over whatever survived the grid.
+    config:
+      input: "${steps.shape.output}"
+      program: |
+        {day: .[0].value.day,
+         regions: [.[] | .value | {region, status, rows}]}
+
+  check_batch:
+    block: validate.schema
+    depends_on: [batch]
+    config:
+      input: "${steps.batch.output.value}"
+      schema: regional-batch
+
+  gaps:
+    block: transform.jq
+    depends_on: [check_batch]
+    config:
+      input:
+        asked: "${params.exports}"
+        arrived: "${steps.check_batch.output.value.regions}"
+      program: |
+        {asked: [.asked[].region],
+         arrived: [.arrived[].region],
+         missing: ([.asked[].region] - [.arrived[].region]),
+         rows: ([.arrived[].rows] | add)}
+
+  page:
+    block: report.render
+    depends_on: [gaps]
+    config:
+      values:
+        day: "${params.day}"
+        gaps: "${steps.gaps.output.value}"
+      content_type: text/markdown
+      template: |
+        # Regional load for {{ day }}
+
+        {{ gaps.arrived | length }} of {{ gaps.asked | length }} regions loaded, and {{ gaps.rows }} rows in all.
+
+        {% if gaps.missing %}
+        **Missing: {{ gaps.missing | join(", ") }}.** That export service refused every attempt
+        the retry policy paid for, so the batch below is short by that much.
+        {% else %}
+        Every region reported.
+        {% endif %}
+
+        | Region |
+        | --- |
+        {% for region in gaps.arrived %}
+        | {{ region }} |
+        {% endfor %}
+
+  save:
+    block: storage.write
+    depends_on: [page]
+    config:
+      target: "${run.scratch}/regional-${params.day}.md"
+      text: "${steps.page.output.text}"
+      content_type: "${steps.page.output.content_type}"
+
+  back:
+    block: storage.read
+    depends_on: [save]
+    config:
+      # Where the write said the object landed, not the same path typed twice.
+      source: "${steps.save.output.uri}"
+      max_size: 1mb
+
+  notify:
+    block: log.write
+    depends_on: [back, gaps]
+    config:
+      message: the regional load finished short
+      # warning rather than info: this is the line somebody greps for, and the level is what a
+      # log filter selects on.
+      level: warning
+      value:
+        missing: "${steps.gaps.output.value.missing}"
+        page: "${steps.save.output.uri}"
+
+  settle:
+    block: log.write
+    depends_on: [notify, collect]
+    # all_done closes the night out whichever way it went, which is the only edge that runs
+    # when the thing it is reporting on is the failure.
+    rule: all_done
+    config:
+      message: the regional load has settled for every region
+      level: info
+
+# The run's own account of itself, written by the engine in the transaction that settles the
+# run rather than by a step -- which is why a cancelled run still has one. `step.<name>` reads
+# one hop's answer by name, so the page can say which region is missing rather than leaving a
+# reader to work it out from the item keys.
+report:
+  template: |
+    # {{ pipeline.name }}
+
+    **{{ run.status }}** in {{ run.duration_ms | duration }}, started {{ run.started_at | iso }}.
+
+    {% if items_failed %}
+    ## What did not make it
+
+    {{ items_failed }} of {{ items_total }} run items failed.
+    {% if step.gaps.output %}Missing: **{{ step.gaps.output.value.missing | join(", ") }}**.{% endif %}
+
+    | Item | Failed at | Why |
+    | --- | --- | --- |
+    {% for item in items if item.failing_step %}
+    | {{ item.index }} | {{ item.failing_step }} | {{ item.error }} |
+    {% endfor %}
+    {% endif %}
+
+    ## Every step
+
+    | Step | Outcome | Attempts | Took |
+    | --- | --- | --- | --- |
+    {% for step in steps %}
+    | {{ step.step }} | {{ step.outcome }} | {{ step.attempts }} | {{ step.duration_ms | duration }} |
+    {% endfor %}

@@ -33,6 +33,7 @@ theme:
 nav:
   - Start here:
       - Home: index.md
+      - Screens: screens.md
       - Getting started: getting-started.md
       - The basics: basics.md
       - Tutorial: tutorial.md
@@ -63,6 +64,14 @@ nav:
       - Conventions: conventions.md
       - UI conventions: ui-conventions.md
       - Releases: releases.md
+
+plugins:
+  # Every picture on the site enlarges on a click: a screenshot at a page's width is a
+  # thumbnail of a 1440px screen, and the detail is the point of it.
+  - search
+  - glightbox:
+      touchNavigation: true
+      zoomable: true
 
 validation:
   anchors: warn
