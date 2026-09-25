@@ -173,9 +173,12 @@ function buildColumns(): Column<SchemaOut>[] {
     return [
         { id: 'schema', header: 'Schema', className: PROSE, cell: (row) => <Named row={row} /> },
         {
+            // A floor of its own: two columns of text share what is left in proportion to what
+            // they hold, and a listing where one schema has a description would otherwise cut
+            // that one line short with half the table standing empty beside it.
             id: 'description',
             header: 'Description',
-            className: PROSE,
+            className: cn(PROSE, 'min-w-64'),
             cell: (row) => <Said description={row.description} />,
         },
     ]
