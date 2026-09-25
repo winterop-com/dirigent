@@ -436,7 +436,7 @@ const RULE_COLUMNS: Column<AlertRuleOut>[] = [
         cell: (rule) => {
             const heading = headingOf(rule)
             return (
-                <span className="flex min-w-0 items-baseline gap-2">
+                <span className="flex min-w-0 flex-col">
                     <span
                         className={cn(
                             'truncate',
@@ -448,7 +448,7 @@ const RULE_COLUMNS: Column<AlertRuleOut>[] = [
                     </span>
                     {heading.code !== null && (
                         <span
-                            className="shrink-0 font-mono text-xs text-muted-foreground"
+                            className="truncate font-mono text-xs text-muted-foreground"
                             title={heading.code}
                         >
                             {heading.code}
