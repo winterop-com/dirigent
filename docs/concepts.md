@@ -466,12 +466,20 @@ under `on_timeout: skip` found nothing, which is not a failure: the watch arms a
 The scheduler's tick arms any live watch that has no run waiting and is not backing off, which is
 what brings one back after a server restart, and the waiting run is claimed by one conditional
 update under the pipeline's lock, so however many ticks and settlements race, a watch never has
-two runs waiting. A watch arms nothing while its pipeline is deactivated. The next run goes
-through the ordinary run creation, so the pipeline's concurrency policy has its say: under
-`queue` the next run is held until the one ahead settles, and under `skip` or `replace` the
-overlap a watch is for is traded away, which is the policy's to decide.
+two runs waiting. Deactivating the pipeline cancels the run each watch has waiting, activating
+it arms them again, and deleting it takes its watches with it. Applying a new version moves a
+waiting run onto that version, from the same cursor. The next run goes through the ordinary
+run creation, so the pipeline's concurrency policy applies: under `queue` the next run is held
+until the one ahead settles, and under `skip` the overlap a watch is for is traded away.
+`replace` is refused outright, on the watch and on any later version of its pipeline, because
+arming the next run would cancel the run a batch had just arrived in.
 
-A watch refuses at apply to name anything but a root sensor step that does not fan out.
+A manual retry of a watched step in the run that is still waiting starts from that attempt's
+cursor. Retrying the watched step of a run the watch has moved past is refused: the watch's
+next run reads that ground again from its own cursor.
+
+A watch refuses at apply to name anything but a root sensor step that does not fan out, and a
+pipeline version is refused when a watch another document declares could not wait on it.
 `dg watch list | show | pause | resume` and the Triggers screen read and steer them.
 
 Detail: [design.md section 8](design.md#8-triggers) for the misfire policy, the webhook

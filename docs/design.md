@@ -922,9 +922,23 @@ while nothing was listening, converge on one waiting run again.
 
 **Pausing and retiring cancel.** Pausing clears `waiting_run_id` and then cancels the run, so
 the cancel is not read as a failure; retiring a watch from its document, or deleting the
-triggers document that owns it, does the same before the row goes. The retry of a failed
-watched attempt starts from the cursor the failed attempt held, so a retry does not reset the
-source either.
+triggers document that owns it, does the same before the row goes, and so do deactivating and
+deleting the pipeline; activating it arms every unpaused watch again. `_withdraw` reads the
+pointer under the pipeline's lock, which every settlement holds too, so it can never cancel a
+run that has already moved downstream. The retry of a failed watched attempt starts from the
+cursor the failed attempt held, automatic or manual, and a manual retry of the watched step of
+a run that is no longer the waiting one is refused.
+
+**Lock order.** Every path that writes a watch takes the pipeline's lock before any run's. The
+settlement of an attempt in a run a watch armed takes the pipeline's lock first for that
+reason, so re-arming inside it never waits on a pause or a cancel holding the two the other
+way round.
+
+**Versions and policies.** An apply that writes a new version cancels a waiting run pinned to
+an older one and arms again from the same cursor. `concurrency: replace` is refused on a watched
+pipeline, at the watch and at any later version, because arming the next run would cancel the
+run a batch has just arrived in; a version that would leave a triggers document's watch on a
+step it cannot wait on is refused the same way.
 
 ## 9. Alerting
 
