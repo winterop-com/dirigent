@@ -17,8 +17,8 @@ const BIG = 'nightly-regional-load'
 const DEGRADED = 'one-region-refuses'
 const BRIEFING = 'morning-briefing'
 
-/** How many seconds each region's export takes on the run photographed mid-flight. */
-const PACE = 10
+/** How long each region's export takes on the run photographed mid-flight, a humane duration. */
+const PACE = '10s'
 
 /** The step that picture is of: the readiness probe, one per submitted export. */
 const WATCHED = 'await'
@@ -324,7 +324,7 @@ test('the nine pictures docs/screens.md is built out of', async ({ page }) => {
     await shot(page, 'blocks')
 
     // THE RUN IN FLIGHT, LAST, because it is the only picture with a clock on it. Each region's
-    // readiness probe answers after PACE seconds, so the screen is navigated to before the run
+    // readiness probe answers after PACE, so the screen is navigated to before the run
     // reaches the sensor and the camera waits there rather than spending the window arriving.
     await midFlight(page)
 })
