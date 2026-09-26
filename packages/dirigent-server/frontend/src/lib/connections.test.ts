@@ -20,12 +20,12 @@ const CREDENTIAL = 'hunter2-the-actual-password'
 
 const ROW: ConnectionOut = {
     id: '11111111-1111-7111-8111-111111111111',
-    code: 'postman-echo',
+    code: 'playground',
     name: null,
     kind: 'http',
     description: 'The public demo service.',
     config: {
-        base_url: 'https://postman-echo.com',
+        base_url: 'http://127.0.0.1:3333',
         basic_username: 'postman',
         basic_password: REDACTED,
         bearer_token: null,
@@ -41,7 +41,7 @@ const ROW: ConnectionOut = {
 describe('the settings line under a connection title', () => {
     test('names each setting and draws every stored secret as dots', () => {
         expect(settingsSummary(ROW)).toBe(
-            `base_url=https://postman-echo.com · basic_username=postman · basic_password ${DOTS}`,
+            `base_url=http://127.0.0.1:3333 · basic_username=postman · basic_password ${DOTS}`,
         )
     })
 

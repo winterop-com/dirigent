@@ -41,7 +41,7 @@ connections:
   echo:
     kind: http
     config:
-      base_url: https://postman-echo.com
+      base_url: http://127.0.0.1:3333/api/v1/playground
 
 # A comment that belongs to the steps.
 steps:
