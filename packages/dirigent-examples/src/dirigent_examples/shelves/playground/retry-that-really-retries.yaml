@@ -6,9 +6,9 @@
 # attempt number the engine hands it and fails while that number is inside the window, so the
 # step really does fail twice and really does succeed on the third attempt.
 #
-# The failure is classified `transient`, which is what the engine retries. A `rejected`
-# failure is refused another attempt however much budget is left, which is what
-# ../patterns/retry-only-transient.yaml is about.
+# The failure is classified `transient` unless `fail_as` says otherwise, and transient is
+# what the engine retries. A `rejected` failure is refused another attempt however much
+# budget is left, which is what ../patterns/retry-only-transient.yaml is about.
 #
 # Hop by hop:
 #

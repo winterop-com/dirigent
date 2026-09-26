@@ -156,6 +156,14 @@ class Knobs(Generation):
     fail_until: Annotated[int, Field(ge=0)] = 0
     """Fail this many attempts before succeeding, for a document teaching a retry."""
 
+    fail_as: ErrorClass = ErrorClass.TRANSIENT
+    """Which class those failures carry, which is what decides whether they are retried.
+
+    ``transient`` and ``unknown`` are retried while the step's budget lasts; ``rejected``
+    is not retried at all, so a step that fails as rejected ends on its first attempt
+    however much budget it was given. Nothing here happens without ``fail_until``.
+    """
+
 
 class Generated(BlockModel):
     """What the playground made, and the knobs that decided it.
@@ -200,6 +208,9 @@ class Generated(BlockModel):
 
     fail_until: int = 0
     """How many attempts were set to fail before this one was allowed to succeed."""
+
+    fail_as: ErrorClass = ErrorClass.TRANSIENT
+    """The class those failures were set to carry."""
 
     payload: str | None = None
     """The filler that was asked for, when a payload size was set."""
@@ -429,6 +440,7 @@ def build(knobs: Knobs, *, supplied: JsonValue | None = None, extend: bool = Fal
         delay_ms=round(knobs.delay.total_seconds() * 1000),
         attempt=attempt,
         fail_until=knobs.fail_until,
+        fail_as=knobs.fail_as,
         payload=payload,
         payload_bytes=None if payload is None else len(payload),
     )
@@ -446,15 +458,16 @@ def _paging(knobs: Knobs, rows: int) -> tuple[int | None, int | None, int | None
 def check_attempt(knobs: Knobs, attempt: int) -> None:
     """Fail on purpose while the attempt is inside the failing window.
 
-    Classified transient, because the point of the knob is a retry example, and a retry is
-    what the engine does with a transient failure.
+    The failure carries the class ``fail_as`` names, which is the whole of what the engine
+    reads when it decides whether to spend another attempt on it.
     """
     if attempt <= knobs.fail_until:
         raise BlockFailure(
             FAILED_ON_PURPOSE,
-            error_class=ErrorClass.TRANSIENT,
+            error_class=knobs.fail_as,
             attempt=attempt,
             fail_until=knobs.fail_until,
+            fail_as=knobs.fail_as.value,
             next_attempt=knobs.fail_until + 1,
         )
 

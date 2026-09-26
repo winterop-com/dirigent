@@ -19,6 +19,7 @@ payload over the threshold. Each of those is a knob rather than a contrivance:
 | `payload` | Filler of a chosen size, to push an output past the inline limit. |
 | `delay` | Take that long before answering, for a timeout or a deadline. |
 | `fail_until` | Fail that many attempts before succeeding, for a retry. |
+| `fail_as` | Which class those failures carry: `transient`, `rejected` or `unknown`. |
 | `input` | A value from upstream to work from; absent, the knobs generate one. |
 
 `playground.arrive` is the same generation behind a sensor's shape. Each poke answers "not
