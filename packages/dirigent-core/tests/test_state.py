@@ -75,6 +75,12 @@ def test_terminal_outcomes_are_exactly_the_four_that_cannot_change() -> None:
     [
         ([], ItemPolicy.FAIL_FAST, SKIPPED),
         ([], ItemPolicy.CONTINUE, SKIPPED),
+        # A grid is laid out in full before anything claims a row, so a step whose every item
+        # is still waiting has not started. One item moving is what makes the step running.
+        ([PENDING, PENDING], ItemPolicy.FAIL_FAST, PENDING),
+        ([PENDING, PENDING], ItemPolicy.CONTINUE, PENDING),
+        ([RUNNING, PENDING], ItemPolicy.CONTINUE, RUNNING),
+        ([SUCCEEDED, PENDING], ItemPolicy.CONTINUE, RUNNING),
         ([SUCCEEDED, RUNNING], ItemPolicy.CONTINUE, RUNNING),
         ([SUCCEEDED, SUCCEEDED], ItemPolicy.FAIL_FAST, SUCCEEDED),
         ([SUCCEEDED, FAILED], ItemPolicy.FAIL_FAST, FAILED),

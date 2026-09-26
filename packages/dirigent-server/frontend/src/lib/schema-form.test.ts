@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest'
 
 import type { JsonMap } from '@/lib/api'
 import {
+    drawnAsText,
     effectiveValue,
     fallbackText,
     fieldsOf,
@@ -18,6 +19,7 @@ import {
     parseCell,
     parseInput,
     partition,
+    referenceNote,
     switchCell,
     validateField,
     sameJson,
@@ -603,7 +605,107 @@ describe('a reference standing for a whole map', () => {
     })
 
     test('a reference is not refused, the way one in a JSON textarea never was', () => {
-        expect(validateField(TEXT, '${steps.read.output.env}')).toBeNull()
+        expect(validateField(TEXT, '${steps.read.output.env}', true)).toBeNull()
+    })
+
+    test('a string that is no reference is not a map either, and says so', () => {
+        expect(validateField(TEXT, 'whatever', true)).toBe('env is a map, or a reference to one')
+    })
+})
+
+/**
+ * The rule the server applies, on the client's side of the same document.
+ *
+ * `defer_references` replaces every value carrying a live `${...}` with a sentinel that every
+ * JSON Schema keyword passes over, so a step's config is checked for its shape and not for what
+ * a run has yet to resolve. A form that refused one would be refusing a document that applies.
+ */
+describe('a value written as a reference', () => {
+    // playground.generate.delay, which is what put a red box under a valid document.
+    const DELAY = only({
+        delay: {
+            default: '0s',
+            format: 'humane-duration',
+            pattern: '^(?:(?:\\d+(?:\\.\\d+)?(?:ms|[wdhms]))+|\\d+(?:\\.\\d+)?)$',
+            type: 'string',
+        },
+    })
+    const MIN_SIZE = only({ min_size: { $ref: '#/$defs/Size', default: 0 } })
+    const ROWS = only({ rows: { default: 10, maximum: 1000, minimum: 0, type: 'integer' } })
+    const LEVEL = only({
+        level: { default: 'info', enum: ['debug', 'info', 'warning', 'error'], type: 'string' },
+    })
+    const WAIT = only({ wait: { default: true, type: 'boolean' } })
+    const PIPELINE = only({ pipeline: { $ref: '#/$defs/EntityName' } }, ['pipeline'])
+    const PORTS = only({ ports: { additionalProperties: { type: 'integer' }, type: 'object' } })
+
+    test('a humane duration carrying one is not held to its pattern', () => {
+        expect(validateField(DELAY, '${params.pace}', true)).toBeNull()
+        expect(validateField(DELAY, '10s', true)).toBeNull()
+        expect(validateField(DELAY, 'soon', true)).toBe(`delay does not match ${DELAY.bounds.pattern ?? ''}`)
+    })
+
+    test('every other constrained kind a document may write one in takes it too', () => {
+        // A size, a bounded integer, a choice, a switch and a pattern on a code.
+        expect(validateField(MIN_SIZE, '${params.floor}', true)).toBeNull()
+        expect(validateField(ROWS, '${params.rows}', true)).toBeNull()
+        expect(validateField(LEVEL, '${params.level}', true)).toBeNull()
+        expect(validateField(WAIT, '${params.wait}', true)).toBeNull()
+        expect(validateField(PIPELINE, '${params.child}', true)).toBeNull()
+    })
+
+    test('an interpolated value is deferred whole, the way the server defers it', () => {
+        expect(validateField(PIPELINE, '${params.tenant}-nightly', true)).toBeNull()
+    })
+
+    test('the escape is a literal, so it is checked like any other text', () => {
+        expect(validateField(PIPELINE, '$${params.child}', true)).toBe(
+            `pipeline does not match ${PIPELINE.bounds.pattern ?? ''}`,
+        )
+    })
+
+    test('empty braces name nothing, so they are text and are checked as text', () => {
+        expect(validateField(DELAY, '${}', true)).toBe(`delay does not match ${DELAY.bounds.pattern ?? ''}`)
+    })
+
+    test('one entry of a map may be a reference while the rest are read', () => {
+        expect(validateField(PORTS, { http: '${params.port}', https: 443 }, true)).toBeNull()
+        expect(validateField(PORTS, { http: 'eighty' }, true)).toBe('ports.http is a whole number')
+    })
+
+    test('nothing is deferred where the values are not a document', () => {
+        // A run's parameters and a connection's config are values, and the server checks those
+        // literally, so a form over them refuses a reference before the server has to.
+        expect(validateField(DELAY, '${params.pace}')).toBe(
+            `delay does not match ${DELAY.bounds.pattern ?? ''}`,
+        )
+        expect(validateFields([ROWS], { rows: '${params.rows}' })).toEqual({ rows: 'rows is a number' })
+        expect(validateFields([ROWS], { rows: '${params.rows}' }, true)).toEqual({})
+    })
+
+    test('a reference is typed as the text it is, in every box but the JSON one', () => {
+        expect(parseInput(ROWS, '${params.rows}', true)).toEqual({ ok: true, value: '${params.rows}' })
+        expect(parseInput(ROWS, '${params.rows}')).toEqual({ ok: false, message: 'rows is a number' })
+        expect(parseCell(PORTS, '${params.port}', true)).toEqual({ ok: true, value: '${params.port}' })
+        expect(pairProblems(PORTS, [{ key: 'http', text: '${params.port}' }], true)).toEqual([])
+        expect(pairsValue(PORTS, [{ key: 'http', text: '${params.port}' }], true)).toEqual({
+            http: '${params.port}',
+        })
+    })
+
+    test('a control that cannot hold a reference gives way to a box, and says what it is', () => {
+        expect(drawnAsText(LEVEL, '${params.level}')).toBe(true)
+        expect(drawnAsText(WAIT, '${params.wait}')).toBe(true)
+        expect(drawnAsText(LEVEL, 'info')).toBe(false)
+        expect(drawnAsText(WAIT, true)).toBe(false)
+        // A box is already a box, and a table is one whenever what it holds is text.
+        expect(drawnAsText(DELAY, '${params.pace}')).toBe(false)
+        expect(drawnAsText(PORTS, '${steps.read.output.ports}')).toBe(true)
+        expect(referenceNote(LEVEL, '${params.level}')).toBe('a reference, not a choice')
+        expect(referenceNote(WAIT, '${params.wait}')).toBe('a reference, not a switch')
+        expect(referenceNote(PORTS, '${steps.read.output.ports}')).toBe('a reference, not a table')
+        expect(referenceNote(PORTS, 'whatever')).toBeNull()
+        expect(referenceNote(DELAY, '${params.pace}')).toBeNull()
     })
 })
 

@@ -49,6 +49,12 @@ def deep_messages(errors: Any) -> list[str]:
     return [error.message for error in deepest(errors)]
 
 
+def field(config: dict[str, Any], name: str) -> dict[str, Any]:
+    """One config field as the schema publishes it, less the reference a document may write."""
+    branches = cast("list[dict[str, Any]]", config["properties"][name]["anyOf"])
+    return branches[0]
+
+
 def case_for(schema: dict[str, Any], block_id: str) -> dict[str, Any]:
     """The ``if``/``then`` case a step gets for one block."""
     cases = cast("list[dict[str, Any]]", schema["$defs"]["StepDefinition"]["allOf"])
@@ -67,7 +73,7 @@ def test_a_step_config_is_the_named_block_own_schema(client: TestClient) -> None
     config = case_for(read(client), BLOCK)["then"]["properties"]["config"]
     assert config["additionalProperties"] is False
     assert set(config["required"]) == {"source", "target", "from", "to"}
-    assert config["properties"]["from"]["type"] == "string"
+    assert field(config, "from")["type"] == "string"
 
 
 def test_every_installed_block_gets_a_case_and_the_step_enumerates_them(client: TestClient) -> None:
@@ -83,7 +89,7 @@ def test_a_block_own_definitions_are_lifted_under_names_only_it_uses(client: Tes
     schema = read(client)
     config = case_for(schema, "storage.read")["then"]["properties"]["config"]
     assert "$defs" not in config
-    assert config["properties"]["max_size"]["$ref"] == "#/$defs/storage.read.Size"
+    assert field(config, "max_size")["$ref"] == "#/$defs/storage.read.Size"
     assert "storage.read.Size" in schema["$defs"]
 
 
@@ -102,6 +108,39 @@ def test_the_schema_accepts_a_document_and_refuses_a_config_key_no_block_takes(c
     problems = deep_messages(validator.iter_errors(document))  # pyright: ignore[reportUnknownMemberType]
     assert problems, "an unknown config key was accepted"
     assert any("nonsense" in message for message in problems)
+
+
+def test_a_config_value_may_be_a_reference_wherever_the_apply_defers_one(client: TestClient) -> None:
+    """Every kind a document can write a ``${...}`` into, and the apply accepts all of them."""
+    validator = Draft202012Validator(read(client))
+    document = {
+        "format": "dirigent/v1",
+        "kind": "pipeline",
+        "code": "referenced",
+        "steps": {
+            # A humane duration, a bounded integer, a choice, a switch, a map, and a size.
+            "paced": {"block": "playground.generate", "config": {"delay": "${params.pace}", "rows": "${p.n}"}},
+            "said": {"block": "log.write", "config": {"message": "hi", "level": "${params.level}"}},
+            "child": {"block": "pipeline.run", "config": {"pipeline": "x", "wait": "${params.wait}"}},
+            "called": {"block": "http.request", "config": {"url": "${params.url}/x", "headers": "${p.h}"}},
+            "waited": {"block": "storage.exists", "config": {"uri": "${run.scratch}/x", "min_size": "${p.f}"}},
+        },
+    }
+    assert validator.is_valid(document), deep_messages(validator.iter_errors(document))  # pyright: ignore[reportUnknownMemberType]
+
+
+def test_a_value_that_is_no_reference_is_still_held_to_the_field_it_stands_in(client: TestClient) -> None:
+    """The escape is a literal and empty braces name nothing, so both are checked as text."""
+    validator = Draft202012Validator(read(client))
+    for written in ("soon", "$${params.pace}", "${}"):
+        document = {
+            "format": "dirigent/v1",
+            "kind": "pipeline",
+            "code": "referenced",
+            "steps": {"paced": {"block": "playground.generate", "config": {"delay": written}}},
+        }
+        problems = deep_messages(validator.iter_errors(document))  # pyright: ignore[reportUnknownMemberType]
+        assert any("wdhms" in message for message in problems), written
 
 
 def test_the_schema_squiggles_a_tag_the_format_would_refuse(client: TestClient) -> None:

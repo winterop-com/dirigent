@@ -768,6 +768,27 @@ from the values the form opened with, so a key being filled in does not jump ove
 the hands typing it; it is above the fold the next time that step is chosen, because choosing
 another step is another form.
 
+**A value written as a reference is not checked against the field it stands in.** The document
+language lets `${...}` stand wherever a value goes, and what one stands for has no text, no bounds
+and no type until the run resolves it, so a field carrying one is checked for nothing else --
+not its pattern, not its enum, not even that it is a number. That is the rule the server applies:
+`defer_references` swaps every such value for a sentinel that every JSON Schema keyword passes
+over, so a form that refused one would be refusing a document that applies. What counts as one is
+`hasReference` in `lib/references` and it is the engine's own grammar: a run of dollars before
+braces with something in them, the dollars collapsing in pairs, so `$${...}` is a literal and
+`${}` is text. It holds where a document is being edited and nowhere else -- a step's config, and
+not its clocks or its retry budget, which are the engine's own keys -- because a run's parameters
+and a connection's config are values, and the server checks those literally. Whether the reference
+names something the run will have is the whole document's question, and Validate is what asks it.
+The source pane holds to the same rule from the other end: `GET /schema/document` publishes each
+block's config with the reference beside every field's own type, so the two halves of the editor
+agree about one document.
+**A control that cannot hold a reference gives way to a box**: a key/value table, a choice and a
+switch each draw a value the schema describes, and drawn by their own control a reference would
+read as empty, unset or off and the first touch would write that over the document. So the text is
+drawn, what it is is said beside the label -- `a reference, not a table`, `not a choice`, `not a
+switch` -- and clearing the box brings the control back.
+
 **The refusal here is the client's half.** A field is checked against its own schema so a form can
 say what is wrong before it asks. Whether a document applies -- its graph, its references, the
 blocks it names -- is the server's, and the editor's Validate and Apply are the same dry run

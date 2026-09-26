@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest'
 
 import type { ConnectionOut } from '@/lib/connections'
-import { carriedSchemas, codeNamed, resolveConnection, resolveSchema } from '@/lib/references'
+import { carriedSchemas, codeNamed, hasReference, resolveConnection, resolveSchema } from '@/lib/references'
 import type { SchemaOut } from '@/lib/schemas'
 
 const STORED: SchemaOut = {
@@ -35,6 +35,41 @@ const CARRYING = {
     steps: { check: { block: 'validate.schema', config: { schema: 'ou-record' } } },
 }
 
+/**
+ * The grammar, as `has_reference` in the engine reads it.
+ *
+ * What this answers decides whether a value may be checked at all, so the escape and the empty
+ * braces are as much a part of it as the ordinary case.
+ */
+describe('whether a value carries a reference', () => {
+    test('a whole value and a value with one in it both carry one', () => {
+        expect(hasReference('${params.pace}')).toBe(true)
+        expect(hasReference('${run.scratch}/exports/${item}.json')).toBe(true)
+        expect(hasReference('${ params.pace }')).toBe(true)
+    })
+
+    test('the dollars collapse in pairs, so the escape carries none', () => {
+        expect(hasReference('$${params.pace}')).toBe(false)
+        expect(hasReference('$$${params.pace}')).toBe(true)
+        expect(hasReference('$$$${params.pace}')).toBe(false)
+    })
+
+    test('what the grammar does not take is text', () => {
+        expect(hasReference('${}')).toBe(false)
+        expect(hasReference('${a{b}}')).toBe(false)
+        expect(hasReference('10s')).toBe(false)
+        expect(hasReference('$ {params.pace}')).toBe(false)
+        expect(hasReference('')).toBe(false)
+    })
+
+    test('a value that is not text carries nothing', () => {
+        expect(hasReference(10)).toBe(false)
+        expect(hasReference(null)).toBe(false)
+        expect(hasReference(undefined)).toBe(false)
+        expect(hasReference({ a: '${params.x}' })).toBe(false)
+    })
+})
+
 describe('the code a field value names', () => {
     test('a code is the text it was written as, without the whitespace around it', () => {
         expect(codeNamed('ou-record')).toBe('ou-record')
@@ -52,6 +87,10 @@ describe('the code a field value names', () => {
     test('a reference names nothing, whether it is the whole value or part of one', () => {
         expect(codeNamed('${params.shape}')).toBeNull()
         expect(codeNamed('ou-${params.level}')).toBeNull()
+    })
+
+    test('an escaped reference is a literal, so it is a code like any other', () => {
+        expect(codeNamed('$${params.shape}')).toBe('$${params.shape}')
     })
 })
 

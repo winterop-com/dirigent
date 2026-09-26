@@ -3,7 +3,7 @@
 What the web UI looks like with real work in it. Every picture below is of one instance, seeded
 from [the example corpus](https://github.com/winterop-com/dirigent/tree/main/packages/dirigent-examples/src/dirigent_examples/shelves)
 and put to work on the [`showcase/`](https://github.com/winterop-com/dirigent/tree/main/packages/dirigent-examples/src/dirigent_examples/shelves/showcase)
-shelf: a fifteen-step nightly load over eight regions, the same night with one region's export
+shelf: a sixteen-step nightly load over eight regions, the same night with one region's export
 refusing, and a morning briefing over four feeds. Nothing here is a mockup, and nothing is a
 happy path either. Click any picture to enlarge it.
 
@@ -20,10 +20,10 @@ instance talks to are answering.
 
 ## Pipelines
 
-![The pipelines listing filtered to the fan-out tag: thirteen documents, their tags, their schedules and how each last run ended.](images/screens/pipelines.png)
+![The pipelines listing filtered to the fan-out tag: fourteen documents, their tags, their schedules and how each last run ended.](images/screens/pipelines.png)
 
-A hundred and sixty documents, narrowed to the thirteen that fan out. Pipelines are found by
-the tags they wear rather than by a folder somebody agreed on, and the last run is on the row.
+A hundred and seventy-two documents, narrowed to the fourteen that fan out. Pipelines are found
+by the tags they wear rather than by a folder somebody agreed on, and the last run is on the row.
 
 ## The editor
 
@@ -34,10 +34,12 @@ its config, its retry budget and what it fans out over.
 
 ## A run in flight
 
-![A run of the nightly load mid-flight: the sensor step selected, its eight regional probes each in progress.](images/screens/run-in-flight.png)
+![A run of the nightly load mid-flight: the submit step selected, eight of its sixteen regional exports done and the other eight running.](images/screens/run-in-flight.png)
 
-A fan-out while it is still happening. Eight regions submitted, eight readiness probes in the
-air, and each one a row the engine is holding rather than a worker.
+A fan-out while it is still happening. This run was given sixteen regions rather than the usual
+eight, which is more than the worker has slots for: the first eight exports have answered and
+the next eight are in the air, each one its own attempt with its own status and its own clock.
+Everything downstream is a grid already laid out and waiting for them.
 
 ## A run that ended short
 

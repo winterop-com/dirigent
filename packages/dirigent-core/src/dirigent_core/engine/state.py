@@ -88,9 +88,16 @@ def evaluate_rule(rule: TriggerRule, outcomes: Sequence[StepOutcome]) -> Readine
 
 
 def aggregate_items(outcomes: Sequence[StepOutcome], policy: ItemPolicy) -> StepOutcome:
-    """Fold a fan-out step's per-item outcomes into one step outcome."""
+    """Fold a fan-out step's per-item outcomes into one step outcome.
+
+    A grid is laid out in full the moment the step it is adopted from expands it, so every item
+    of a step far downstream has a row long before anything claims one. Not one of them started
+    is the step pending; one of them started is the step running.
+    """
     if not outcomes:
         return StepOutcome.SKIPPED
+    if all(outcome is StepOutcome.PENDING for outcome in outcomes):
+        return StepOutcome.PENDING
     if any(not outcome.terminal for outcome in outcomes):
         return StepOutcome.RUNNING
     if any(outcome is StepOutcome.CANCELLED for outcome in outcomes):
