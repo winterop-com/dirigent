@@ -920,7 +920,7 @@ wrote, merged by timestamp so the stream reads as cause then effect:
 
 ```text
 2026-01-01T18:22:23.019+01:00 [info    ] running                        [step fetch[temperature]] block=http.request attempt=1
-2026-01-01T18:22:23.297+01:00 [info    ] http call                      [log fetch[temperature]] method=GET url=https://postman-echo.com/get status=200 bytes=227 duration_ms=278
+2026-01-01T18:22:23.297+01:00 [info    ] http call                      [log fetch[temperature]] method=GET url=http://127.0.0.1:3333/api/v1/playground/request status=200 bytes=416 duration_ms=27
 2026-01-01T18:22:23.301+01:00 [info    ] succeeded                      [step fetch[temperature]] block=http.request attempt=1 duration_ms=282
 ```
 
