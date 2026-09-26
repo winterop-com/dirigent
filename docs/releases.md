@@ -16,6 +16,33 @@ tag is what publishes: `.github/workflows/release.yaml` builds every package and
 to PyPI through trusted publishing, then builds the image from that commit and pushes it as
 `<version>` and `latest`. The two sibling repositories then relock against the tag and bump.
 
+## 0.20.0
+
+Released 2026-09-26. Every package in the workspace moves to 0.20.0 together, and so do
+`dirigent-dhis2` and `dirigent-integration`.
+
+- **The corpus runs on its own instance.** Every example and every page of the documentation
+  is off postman-echo.com. A document that needed something to happen -- a list to fan out
+  over, a step that fails twice, a delay against a timeout, a payload over the storage
+  threshold -- now says so with the `playground.generate` node, so it runs offline and under
+  `dg run --local` with no connection and no URL. A document that is teaching `http.request`
+  itself still makes a real call, to this instance's own playground. The basics tutorial is
+  rewritten and re-shot on it.
+- **A step that waits, with nothing to wait for.** `playground.arrive` parks for a number of
+  pokes or a length of time and then yields a batch, so a readiness wait can be taught and
+  verified with no service to poll. Its output is the shape a queue consumer answers with,
+  so a document that later reads a real topic changes very little.
+- **A stream to test a consumer against.** `/api/v1/playground/stream` writes newline-delimited
+  JSON: an envelope, then a message every interval, then a closing line, so a reader can tell
+  an ending from a dropped connection.
+- **A failure can say what kind it is.** `fail_as` beside `fail_until` names the class the
+  induced failure carries, so the difference between a transient failure that spends the
+  retry budget and a rejected one that spends none can be taught offline, on three steps
+  under one policy. Before this, a document could only get a rejected failure from a live
+  HTTP call or by naming a Faker provider that does not exist.
+- **An unknown provider names a command that exists.** The refusal for a Faker provider the
+  installed library does not have pointed at a route that was never served.
+
 ## 0.19.0
 
 Released 2026-09-26. Every package in the workspace moves to 0.19.0 together, and so do
