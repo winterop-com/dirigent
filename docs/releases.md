@@ -16,6 +16,27 @@ tag is what publishes: `.github/workflows/release.yaml` builds every package and
 to PyPI through trusted publishing, then builds the image from that commit and pushes it as
 `<version>` and `latest`. The two sibling repositories then relock against the tag and bump.
 
+## 0.19.0
+
+Released 2026-09-26. Every package in the workspace moves to 0.19.0 together, and so do
+`dirigent-dhis2` and `dirigent-integration`.
+
+- **The playground: an instance answers its own test requests.** Five paths under
+  `/api/v1/playground/`, unauthenticated and off by one setting, that reflect what they were
+  called with and answer the way a document needs them to: a request echoed back whole, a
+  chosen status, a redirect that stays on this instance, an endpoint that fails a set number
+  of attempts before succeeding, and one that sets the response headers you name. Every
+  answer carries the request that produced it under one key, and the resolved knobs beside
+  it, so what was sent and what was used are both on screen.
+- **A node that makes data, anywhere in a flow.** `playground.generate` takes a field map
+  naming the Faker provider that fills each field, so every provider the installed Faker
+  offers is reachable in every locale, reproducible under a seed the answer always reports.
+  It also fails on demand, delays, drifts its own shape, pages, and pads its payload, so a
+  retry example really retries, a gate is really seen catching drift, and an outputs-to-
+  storage example really crosses the threshold. It works with no input as a document's first
+  step, with an input from upstream in the middle, and as the last step.
+- **A shelf of five documents** that teach exactly those cases, runnable with no network.
+
 ## 0.18.4
 
 Released 2026-09-25. Every package in the workspace moves to 0.18.4 together, and so do

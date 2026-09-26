@@ -48,7 +48,7 @@ uv sync
 ```
 
 ```text
-2026-09-25T21:17:22.030+02:00 [info    ] initialised                    [instance.initialised] directory=/home/you/basics state=.dirigent/state schema=0001_baseline admin=admin template=local version=0.18.4
+2026-09-26T01:58:26.030+02:00 [info    ] initialised                    [instance.initialised] directory=/home/you/basics state=.dirigent/state schema=0001_baseline admin=admin template=local version=0.19.0
 ```
 
 It creates the state directory, migrates the schema, creates the first admin, and mints that
@@ -139,13 +139,13 @@ uv run dg run --local hello.yaml
 ```
 
 ```text
-2026-09-25T21:17:36.204+02:00 [info    ] started                        [run] pipeline=hello run_id=01a0ad18-3220-76eb-8df9-e50dacb275d9 local=true scratch=file:///tmp/dirigent-local-8tksuueg/artifacts/runs/01a0ad18-3220-76eb-8df9-e50dacb275d9 root=/tmp/dirigent-local-8tksuueg
-2026-09-25T21:17:36.200+02:00 [info    ] queued                         [step make] block=value.const attempt=1
-2026-09-25T21:17:36.244+02:00 [info    ] finished                       [log make] duration_ms=0 output_bytes=31
-2026-09-25T21:17:36.239+02:00 [info    ] succeeded                      [step make] block=value.const attempt=1 duration_ms=9
-2026-09-25T21:17:36.297+02:00 [info    ] the step before me said: hello from dirigent [log say]
-2026-09-25T21:17:36.297+02:00 [info    ] succeeded                      [step say] block=log.write attempt=1 duration_ms=4
-2026-09-25T21:17:36.394+02:00 [info    ] succeeded                      [run] pipeline=hello run_id=01a0ad18-3220-76eb-8df9-e50dacb275d9 exit_code=0
+2026-09-26T02:01:08.204+02:00 [info    ] started                        [run] pipeline=hello run_id=01a0ad18-3220-76eb-8df9-e50dacb275d9 local=true scratch=file:///tmp/dirigent-local-8tksuueg/artifacts/runs/01a0ad18-3220-76eb-8df9-e50dacb275d9 root=/tmp/dirigent-local-8tksuueg
+2026-09-26T02:01:08.200+02:00 [info    ] queued                         [step make] block=value.const attempt=1
+2026-09-26T02:01:08.244+02:00 [info    ] finished                       [log make] duration_ms=0 output_bytes=31
+2026-09-26T02:01:08.239+02:00 [info    ] succeeded                      [step make] block=value.const attempt=1 duration_ms=9
+2026-09-26T02:01:08.297+02:00 [info    ] the step before me said: hello from dirigent [log say]
+2026-09-26T02:01:08.297+02:00 [info    ] succeeded                      [step say] block=log.write attempt=1 duration_ms=4
+2026-09-26T02:01:08.394+02:00 [info    ] succeeded                      [run] pipeline=hello run_id=01a0ad18-3220-76eb-8df9-e50dacb275d9 exit_code=0
 steps
 ┏━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ step ┃ block       ┃ outcome   ┃ after ┃ duration ┃ output                    ┃
@@ -239,10 +239,10 @@ uv run dg validate pipelines/echo-reading.yaml
 ```
 
 ```text
-2026-09-25T21:17:45.109+02:00 [info    ] valid                          [validation] code=echo-reading document=pipelines/echo-reading.yaml checked="document, offline"
+2026-09-26T02:01:15.109+02:00 [info    ] valid                          [validation] code=echo-reading document=pipelines/echo-reading.yaml checked="document, offline"
   each step under the last one it waits for
     ask  (http.request)
-2026-09-25T21:17:45.111+02:00 [info    ] valid                          [validated] documents=1 invalid=0
+2026-09-26T02:01:15.111+02:00 [info    ] valid                          [validated] documents=1 invalid=0
 ```
 
 Then store it on the instance and run it:
@@ -265,21 +265,21 @@ run 01a0ad18-60eb-7566-8497-7f16384117ed
 pipeline      echo-reading (version 1)
 status        succeeded
 triggered by  admin (token init)
-duration      0.3s
+duration      0.2s
 items         -
 
 steps
 ┏━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━┓
 ┃ step ┃ block        ┃ outcome   ┃ after ┃ attempts ┃ duration ┃ error ┃
 ┡━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━┩
-│ ask  │ http.request │ succeeded │ -     │ 1        │ 0.3s     │ -     │
+│ ask  │ http.request │ succeeded │ -     │ 1        │ 0.2s     │ -     │
 └──────┴──────────────┴───────────┴───────┴──────────┴──────────┴───────┘
 
 outputs
 ┏━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ step ┃ output                                                                        ┃
 ┡━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ ask  │ status=200  headers={12 keys}  body={3 keys}  body_bytes=273  duration_ms=245 │
+│ ask  │ status=200  headers={12 keys}  body={3 keys}  body_bytes=273  duration_ms=233 │
 └──────┴───────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -312,7 +312,7 @@ uv run dg runs show 01a0ad18-60eb-7566-8497-7f16384117ed --json \
 The query arguments came back under `args`, with the parameter's default in `station`. The same
 run is on the Runs screen of the UI, and choosing a step opens what it produced:
 
-![A run in the UI: one step named ask, succeeded in 258 milliseconds, its output showing the echoed args.](images/basics/run-first.png)
+![A run in the UI: one step named ask, succeeded in 242 milliseconds, its output showing the echoed args.](images/basics/run-first.png)
 
 *The run's only step, its one attempt, and the answer it stored.*
 
@@ -375,7 +375,7 @@ uv run dg apply
 ```
 
 ```text
-2026-09-25T21:18:40.458+02:00 [error   ] this document carries its own schemas (echo-reading), which an instance will not store: create them with `dg schema create` and let the document name them in requires.schemas [error] status=422 title="Unprocessable Content" code=server.document_refused params={"detail":"this document carries its own schemas (echo-reading), which an instance will not store: create them with `dg schema create` and let the document name them in requires.schemas"} instance=/api/v1/pipelines/$apply
+2026-09-26T02:02:14.458+02:00 [error   ] this document carries its own schemas (echo-reading), which an instance will not store: create them with `dg schema create` and let the document name them in requires.schemas [error] status=422 title="Unprocessable Content" code=server.document_refused params={"detail":"this document carries its own schemas (echo-reading), which an instance will not store: create them with `dg schema create` and let the document name them in requires.schemas"} instance=/api/v1/pipelines/$apply
   - this document carries its own schemas (echo-reading), which an instance will not store: create them with `dg schema create` and let the document name them in requires.schemas
 ```
 
@@ -400,7 +400,7 @@ steps
 ┃ step  ┃ block           ┃ outcome   ┃ after ┃ duration ┃ output                                  ┃
 ┡━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
 │ ask   │ http.request    │ succeeded │ -     │ 0.3s     │ status=200  headers={12 keys}  body={3  │
-│       │                 │           │       │          │ keys}  body_bytes=273  duration_ms=301  │
+│       │                 │           │       │          │ keys}  body_bytes=273  duration_ms=242  │
 │ check │ validate.schema │ succeeded │ ask   │ 0.0s     │ value={3 keys}                          │
 └───────┴─────────────────┴───────────┴───────┴──────────┴─────────────────────────────────────────┘
 ```
@@ -422,7 +422,7 @@ steps
 ┡━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
 │ ask           │ http.request    │ succeeded │ -     │ 0.2s     │ status=200  headers={12 keys}   │
 │               │                 │           │       │          │ body={3 keys}  body_bytes=273   │
-│               │                 │           │       │          │ duration_ms=235                 │
+│               │                 │           │       │          │ duration_ms=237                 │
 │ check  1 warn │ validate.schema │ failed    │ ask   │ 0.0s     │ -                               │
 └───────────────┴─────────────────┴───────────┴───────┴──────────┴─────────────────────────────────┘
 
@@ -567,7 +567,7 @@ steps
 ┏━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━┓
 ┃ step  ┃ block           ┃ outcome   ┃ after ┃ attempts ┃ duration ┃ error ┃
 ┡━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━┩
-│ ask   │ http.request    │ succeeded │ -     │ 1        │ 0.2s     │ -     │
+│ ask   │ http.request    │ succeeded │ -     │ 1        │ 0.3s     │ -     │
 │ check │ validate.schema │ succeeded │ ask   │ 1        │ 0.0s     │ -     │
 │ send  │ http.request    │ succeeded │ check │ 1        │ 0.2s     │ -     │
 └───────┴─────────────────┴───────────┴───────┴──────────┴──────────┴───────┘
@@ -576,9 +576,9 @@ outputs
 ┏━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ step  ┃ output                                                                        ┃
 ┡━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ ask   │ status=200  headers={12 keys}  body={3 keys}  body_bytes=273  duration_ms=224 │
+│ ask   │ status=200  headers={12 keys}  body={3 keys}  body_bytes=273  duration_ms=222 │
 │ check │ value={3 keys}                                                                │
-│ send  │ status=200  headers={12 keys}  body={7 keys}  body_bytes=378  duration_ms=199 │
+│ send  │ status=200  headers={12 keys}  body={7 keys}  body_bytes=378  duration_ms=187 │
 └───────┴───────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -703,10 +703,10 @@ steps
 ┏━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━┳━━━━━━━━┓
 ┃ step    ┃ block        ┃ outcome ┃ after ┃ duration ┃ output ┃
 ┡━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━╇━━━━━━━━┩
-│ refused │ http.request │ failed  │ -     │ 0.4s     │ -      │
+│ refused │ http.request │ failed  │ -     │ 0.2s     │ -      │
+│ unlucky │ http.request │ failed  │ -     │ 0.5s     │ -      │
 │ unlucky │ http.request │ failed  │ -     │ 0.3s     │ -      │
-│ unlucky │ http.request │ failed  │ -     │ 0.3s     │ -      │
-│ unlucky │ http.request │ failed  │ -     │ 0.3s     │ -      │
+│ unlucky │ http.request │ failed  │ -     │ 0.2s     │ -      │
 └─────────┴──────────────┴─────────┴───────┴──────────┴────────┘
 
 refused failed  http.request, attempt 1, rejected
