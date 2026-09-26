@@ -136,7 +136,7 @@ async def _connection(client: Dirigent, spec: ConnectionSpec) -> str:
 
 
 async def _apply(client: Dirigent, raw: JsonMap, origin: str) -> Record:
-    """Apply one document with its schedules paused, without the sections it carries."""
+    """Apply one document with its schedules and watches paused, without the sections it carries."""
     document = {name: value for name, value in raw.items() if name not in CARRIED}
     try:
         result = await client.pipelines.apply(
@@ -157,6 +157,7 @@ async def _apply(client: Dirigent, raw: JsonMap, origin: str) -> Record:
         pipeline=result.plan.code,
         action=result.plan.action.value,
         schedules_paused=result.triggers.schedules_created,
+        watches_paused=result.triggers.watches_created,
     )
 
 
