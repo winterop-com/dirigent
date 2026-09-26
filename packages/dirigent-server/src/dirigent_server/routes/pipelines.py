@@ -64,6 +64,7 @@ def render(row: Pipeline, counts: PipelineCounts = NO_COUNTS, last: LastRun | No
             "active_runs": counts.active_runs,
             "schedules": counts.schedules,
             "webhooks": counts.webhooks,
+            "watches": counts.watches,
             "last_run": last,
         }
     )
@@ -147,6 +148,7 @@ async def apply(
 async def prune(
     payload: PruneRequest,
     session: SessionDep,
+    services: ServicesDep,
     principal: OperatorDep,
     dry_run: Annotated[bool, Query(description="Report what would be deactivated without writing.")] = False,
 ) -> PruneResult:
@@ -160,7 +162,7 @@ async def prune(
     """
     if not payload.keep and not dry_run:
         raise Refusal(PRUNE_NAMES_NOTHING, status=status.HTTP_422_UNPROCESSABLE_CONTENT)
-    return await prune_absent(session, set(payload.keep), dry_run=dry_run)
+    return await prune_absent(session, services, set(payload.keep), dry_run=dry_run)
 
 
 @router.get(

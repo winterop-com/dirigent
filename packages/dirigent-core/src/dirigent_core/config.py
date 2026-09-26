@@ -313,6 +313,12 @@ class Settings(BaseSettings):
     scheduler_lock_key: int = Field(default=0x64_69_72_67)
     """The advisory-lock key leadership is taken on; only PostgreSQL has one to take."""
 
+    watch_backoff: Duration = Field(default=timedelta(seconds=5), gt=timedelta(0))
+    """How long a watch waits before arming again after its sensor failed; later failures double it."""
+
+    watch_backoff_max: Duration = Field(default=timedelta(minutes=5), gt=timedelta(0))
+    """The longest a watch backs off, however many waits in a row have failed."""
+
     apply_dir: Path | None = None
     """A directory of pipeline documents the server applies at boot; unset applies nothing."""
 

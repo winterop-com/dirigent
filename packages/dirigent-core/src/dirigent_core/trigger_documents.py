@@ -1,6 +1,6 @@
 """Applying, reading, and deleting a ``kind: triggers`` document.
 
-The document names one pipeline and declares clocks and webhooks for it. It has no versions:
+The document names one pipeline and declares clocks, webhooks and watches for it. It has no versions:
 what it says is operational, and the digest is only what makes an unchanged re-apply cheap.
 An unchanged one still reconciles, exactly as a pipeline document does.
 """
@@ -19,8 +19,9 @@ from dirigent_core.engine.runs import Provenance
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.engine.state import lock_pipeline
 from dirigent_core.logging import get_logger
-from dirigent_core.models import Pipeline, Schedule, TriggerDocument, WebhookTrigger
+from dirigent_core.models import Pipeline, Schedule, TriggerDocument, Watch, WebhookTrigger
 from dirigent_core.triggers.materialize import materialize_triggers, owner_issues
+from dirigent_core.triggers.watches import delete_watch
 
 _logger = get_logger("triggers")
 
@@ -51,8 +52,8 @@ async def list_trigger_documents(
     return list(rows.scalars())
 
 
-async def owned_codes(session: AsyncSession, document_id: UUID) -> tuple[list[str], list[str]]:
-    """List the schedules and the webhooks one triggers document owns, in code order."""
+async def owned_codes(session: AsyncSession, document_id: UUID) -> tuple[list[str], list[str], list[str]]:
+    """List the schedules, the webhooks and the watches one triggers document owns, in code order."""
     schedules = await session.execute(
         sa.select(Schedule.code).where(Schedule.trigger_document_id == document_id).order_by(Schedule.code)
     )
@@ -61,17 +62,29 @@ async def owned_codes(session: AsyncSession, document_id: UUID) -> tuple[list[st
         .where(WebhookTrigger.trigger_document_id == document_id)
         .order_by(WebhookTrigger.code)
     )
-    return list(schedules.scalars()), list(webhooks.scalars())
+    watches = await session.execute(
+        sa.select(Watch.code).where(Watch.trigger_document_id == document_id).order_by(Watch.code)
+    )
+    return list(schedules.scalars()), list(webhooks.scalars()), list(watches.scalars())
 
 
-async def delete_trigger_document(session: AsyncSession, row: TriggerDocument) -> None:
-    """Delete a triggers document, and with it every schedule and webhook it owns."""
+async def delete_trigger_document(session: AsyncSession, services: EngineServices, row: TriggerDocument) -> None:
+    """Delete a triggers document, and with it every schedule, webhook and watch it owns.
+
+    A watch is retired before the cascade reaches it, so the run it has waiting is cancelled
+    rather than left waiting on a watch that is gone.
+    """
+    owned = await session.execute(sa.select(Watch).where(Watch.trigger_document_id == row.id))
+    for watch in owned.scalars():
+        await delete_watch(session, services, watch)
     await session.delete(row)
     await session.flush()
     _logger.info("triggers document deleted", document=row.code)
 
 
-async def delete_absent_trigger_documents(session: AsyncSession, keep: set[str], *, dry_run: bool = False) -> list[str]:
+async def delete_absent_trigger_documents(
+    session: AsyncSession, services: EngineServices, keep: set[str], *, dry_run: bool = False
+) -> list[str]:
     """Delete every directory-provenance triggers document whose code is not in ``keep``.
 
     A pipeline is deactivated rather than deleted because its history is worth keeping. A
@@ -89,7 +102,7 @@ async def delete_absent_trigger_documents(session: AsyncSession, keep: set[str],
     if dry_run:
         return [row.code for row in absent]
     for row in absent:
-        await delete_trigger_document(session, row)
+        await delete_trigger_document(session, services, row)
     return [row.code for row in absent]
 
 
@@ -182,7 +195,9 @@ async def apply_triggers_document(
     if existing is None:
         session.add(row)
     await session.flush()
-    triggers = await materialize_triggers(session, pipeline, definition, pause_created=pause_schedules, owner=row.id)
+    triggers = await materialize_triggers(
+        session, services, pipeline, definition, pause_created=pause_schedules, owner=row.id
+    )
     _logger.info(
         "triggers document applied",
         document=definition.code,

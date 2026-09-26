@@ -10,7 +10,7 @@ from typing import Any
 import pytest
 from typer.testing import CliRunner
 
-from clisupport import asking_for_the_rendering, only, plain, rows
+from clisupport import asking_for_the_rendering, only, plain, refusal, rows
 from dirigent_cli.main import app, hoist_globals
 from dirigent_cli.output import alert_event, throttle_note, watching
 from dirigent_core.config import CONFIG_FILE_ENV, Settings, reset_settings_cache
@@ -297,6 +297,56 @@ def test_apply_paused_lands_the_documents_schedule_paused_and_a_resume_survives_
     row = rows_of("schedule", "list", "cli-demo")[0]
     assert row["cron"] == "0 4 * * *"
     assert row["paused"] is False
+
+
+#: A pipeline whose root sensor is watched, parked for longer than any test runs.
+WATCHED_DOCUMENT = """
+format: dirigent/v1
+kind: pipeline
+code: cli-demo
+steps:
+  arrive:
+    block: playground.arrive
+    config: { after_pokes: 1000, rows: 1 }
+triggers:
+  watches:
+    - code: follow
+      step: arrive
+"""
+
+
+def test_a_watch_is_listed_shown_paused_and_resumed_as_records(tmp_path: Path, server: str) -> None:
+    apply_document(tmp_path, WATCHED_DOCUMENT)
+
+    listed = machine("watch", "list", "cli-demo")
+    assert listed.exit_code == 0, listed.output
+    [row] = rows(listed.stdout, "watch")
+    assert (row["code"], row["step"], row["paused"], row["managed"]) == ("follow", "arrive", False, True)
+    armed = row["waiting_run_id"]
+    assert armed is not None
+
+    shown = machine("watch", "show", "cli-demo", "follow")
+    assert shown.exit_code == 0, shown.output
+    assert only(shown.stdout, "watch")["fields"]["waiting_run_id"] == armed
+
+    paused = machine("watch", "pause", "cli-demo", "follow")
+    assert paused.exit_code == 0, paused.output
+    assert only(paused.stdout, "watch.paused")["code"] == "follow"
+    assert rows(machine("watch", "list", "cli-demo").stdout, "watch")[0]["waiting_run_id"] is None
+
+    resumed = machine("watch", "resume", "cli-demo", "follow")
+    assert resumed.exit_code == 0, resumed.output
+    record = only(resumed.stdout, "watch.resumed")
+    assert record["waiting_run_id"] not in (None, armed)
+
+
+def test_an_unknown_watch_is_a_refusal_record(tmp_path: Path, server: str) -> None:
+    apply_document(tmp_path, WATCHED_DOCUMENT)
+
+    result = machine("watch", "show", "cli-demo", "nobody")
+
+    assert result.exit_code != 0
+    assert refusal(result.stdout)["code"] == "watch.unknown"
 
 
 def test_a_plain_apply_lands_the_documents_schedule_running(tmp_path: Path, server: str) -> None:

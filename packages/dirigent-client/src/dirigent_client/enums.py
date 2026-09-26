@@ -99,6 +99,9 @@ class TriggerKind(StrEnum):
     BACKFILL = "backfill"
     """A backfill over past windows created this one, and ``triggered_by_id`` names the schedule."""
 
+    WATCH = "watch"
+    """A watch armed this one to wait on its sensor, and ``triggered_by_id`` names the watch."""
+
 
 class ScheduleKind(StrEnum):
     """How a schedule computes its next firing."""

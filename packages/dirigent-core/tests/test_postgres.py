@@ -1785,3 +1785,31 @@ async def test_a_flush_cannot_commit_its_entries_before_an_earlier_flush(
         await asyncio.gather(first, second)
 
     assert await messages_of(pg_sessions, run.id) == ["the first flush", "the second flush"]
+
+
+async def test_watch_ticks_racing_on_postgres_arm_exactly_one_run(
+    pg_sessions: async_sessionmaker[AsyncSession], pg_services: EngineServices
+) -> None:
+    """Every armer takes the pipeline's lock and claims the watch by one conditional update."""
+    from dirigent_core.engine.definition import WatchSpec
+    from dirigent_core.models import Watch
+    from dirigent_core.triggers import watches
+
+    watched = PipelineDefinition(
+        code="watched",
+        steps={"tail": StepDefinition(block="test.stream")},
+        triggers=TriggerSpecs(watches=[WatchSpec(code="follow", step="tail", paused=True)]),
+    )
+    async with session_scope(pg_sessions) as session:
+        await apply_document(session, pg_services, watched)
+    async with session_scope(pg_sessions) as session:
+        await session.execute(sa.update(Watch).values(paused=False))
+
+    armed = await asyncio.gather(*(watches.tick(pg_sessions, pg_services) for _ in range(WORKERS)))
+
+    assert sum(len(entries) for entries in armed) == 1
+    async with pg_sessions() as session:
+        runs = await session.execute(sa.select(sa.func.count()).select_from(Run))
+        assert int(runs.scalar_one()) == 1, "one watch is one waiting run, however many ticks raced for it"
+        watch = (await session.execute(sa.select(Watch))).scalar_one()
+        assert watch.waiting_run_id is not None

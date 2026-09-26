@@ -80,6 +80,7 @@ from dirigent_client.schemas.triggers import (
     SchedulePreviewRequest,
     TriggerDocumentDetail,
     TriggerDocumentOut,
+    WatchOut,
     WebhookIn,
     WebhookOut,
     WebhookTokenOut,
@@ -168,6 +169,7 @@ __all__ = [
     "ValidationIssue",
     "WebhookIn",
     "WebhookOut",
+    "WatchOut",
     "WebhookTokenOut",
     "WorkerOut",
 ]

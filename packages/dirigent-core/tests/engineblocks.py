@@ -403,6 +403,58 @@ class CursorSensor(Sensor[CursorConfig, CursorOutput]):
         return NotYet(cursor=advance, next_poll_in=timedelta(seconds=1))
 
 
+class StreamConfig(BaseModel):
+    """How the stream sensor reads: how long it parks, and how much each batch takes."""
+
+    key: str = "default"
+    parks: int = 1
+    batch: int = 2
+
+
+class StreamOutput(BaseModel):
+    """The offsets one batch took, and the one the next batch starts at."""
+
+    offsets: list[int]
+    next_offset: int
+
+
+class StreamSensor(Sensor[StreamConfig, StreamOutput]):
+    """Tails a notional stream: parks, then takes a batch from where its cursor stands.
+
+    A key in ``failing`` makes every poke of it fail, so a test can break a watch's sensor and
+    mend it again without editing the document.
+    """
+
+    spec = SensorSpec(
+        id="test.stream",
+        summary="Tail a stream, keeping its place.",
+        default_poll=timedelta(seconds=1),
+    )
+    config_model = StreamConfig
+    output_model = StreamOutput
+    seen: ClassVar[dict[str, list[dict[str, JsonValue] | None]]] = {}
+    failing: ClassVar[set[str]] = set()
+
+    async def poke(self, config: StreamConfig, ctx: StepContext) -> StreamOutput | NotYet:
+        """Note the cursor handed over, then park or take the next batch."""
+        handed = dict(ctx.cursor) if ctx.cursor is not None else None
+        StreamSensor.seen.setdefault(config.key, []).append(handed)
+        if config.key in StreamSensor.failing:
+            raise BlockFailure(TEST_REFUSAL, error_class=ErrorClass.REJECTED, detail="the stream is down")
+        held = handed or {}
+        offset = held.get("offset", 0)
+        parked = held.get("parked", 0)
+        start = offset if isinstance(offset, int) else 0
+        waited = parked if isinstance(parked, int) else 0
+        if waited < config.parks:
+            return NotYet(cursor={"offset": start, "parked": waited + 1}, next_poll_in=timedelta(seconds=1))
+        return StreamOutput(offsets=list(range(start, start + config.batch)), next_offset=start + config.batch)
+
+    def resume_cursor(self, output: StreamOutput) -> dict[str, JsonValue] | None:
+        """Read on from where the batch ended."""
+        return {"offset": output.next_offset}
+
+
 CASES = ("upper", "lower")
 
 
@@ -438,6 +490,8 @@ def reset_blocks() -> None:
     UnsafeOperator.calls.clear()
     TickSensor.pokes.clear()
     CursorSensor.seen.clear()
+    StreamSensor.seen.clear()
+    StreamSensor.failing.clear()
     ChattyOperator.at_gate = asyncio.Event()
     ChattyOperator.released = asyncio.Event()
 
@@ -460,5 +514,5 @@ class EngineTestPlugin:
                 StoringOperator(),
                 UnsafeOperator(),
             ],
-            sensors=[TickSensor(), CursorSensor()],
+            sensors=[TickSensor(), CursorSensor(), StreamSensor()],
         )

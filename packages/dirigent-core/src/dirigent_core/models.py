@@ -484,6 +484,53 @@ class WebhookDelivery(Journal):
     source: Mapped[str | None] = mapped_column(sa.String(64))
 
 
+class Watch(Entity):
+    """A sensor made a continuous source: one run of its pipeline kept waiting on one step.
+
+    ``waiting_run_id`` is the one run a watch has waiting, and the column is the guard that
+    keeps it to one: a run is armed only by the update that moves it from null, so two armers
+    racing each other cannot both win. It is a plain id rather than a foreign key because it
+    is claimed before the run it names is written, and a run swept away by retention reads as
+    a wait that ended.
+    """
+
+    __tablename__ = "watches"
+    __table_args__ = (sa.UniqueConstraint("pipeline_id", "code"),)
+
+    pipeline_id: Mapped[UUID] = mapped_column(
+        sa.ForeignKey("pipelines.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    code: Mapped[str] = mapped_column(sa.String(200), nullable=False)
+    name: Mapped[str | None] = mapped_column(sa.String(200))
+    description: Mapped[str | None] = mapped_column(sa.Text)
+    step: Mapped[str] = mapped_column(sa.String(200), nullable=False)
+    """The root sensor step every armed run waits on."""
+
+    params: Mapped[JsonMap] = mapped_column(JsonDocument, nullable=False, default=dict)
+    managed: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False, server_default=sa.false())
+    """Whether a document's ``triggers:`` section owns this row, and may therefore remove it."""
+
+    trigger_document_id: Mapped[UUID | None] = mapped_column(
+        sa.ForeignKey("trigger_documents.id", ondelete="CASCADE"), index=True
+    )
+    """Which triggers document owns this row, or null when the pipeline's own document does."""
+
+    paused: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False, server_default=sa.false())
+    cursor: Mapped[JsonMap | None] = mapped_column(JsonDocument)
+    """Where the last successful poke of the watched step left off, seeded into the next run."""
+
+    waiting_run_id: Mapped[UUID | None] = mapped_column(sa.Uuid)
+    failures: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0, server_default=sa.text("0"))
+    """How many waits in a row ended without the sensor succeeding, which the backoff doubles on."""
+
+    last_error: Mapped[str | None] = mapped_column(sa.Text)
+    last_error_at: Mapped[datetime | None] = mapped_column(Timestamp)
+    rearm_at: Mapped[datetime | None] = mapped_column(Timestamp)
+    """When a watch with no run waiting arms its next one; null arms it on the next tick."""
+
+    last_armed_at: Mapped[datetime | None] = mapped_column(Timestamp)
+
+
 class AlertRule(Entity):
     """An event-to-channel binding, declared as data rather than code."""
 
@@ -656,6 +703,7 @@ ALL_TABLES = (
     ScheduleFiring,
     WebhookTrigger,
     WebhookDelivery,
+    Watch,
     AlertRule,
     Notification,
     LogEntry,

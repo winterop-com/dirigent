@@ -611,3 +611,78 @@ def test_a_backfill_leaves_the_concurrency_policy_in_charge_and_says_what_it_ref
     assert windows[0]["run_id"] is not None
     assert [one["run_id"] for one in windows[1:]] == [None, None]
     assert all(one["detail"] == "a run of this pipeline is already in flight" for one in windows[1:])
+
+
+WATCHES = f"{PREFIX}/pipelines/api-demo/triggers/watches"
+
+#: A pipeline whose root sensor is watched, parked for longer than any test runs.
+WATCHED = """
+format: dirigent/v1
+kind: pipeline
+code: api-demo
+steps:
+  arrive:
+    block: playground.arrive
+    config: { after_pokes: 1000, rows: 1 }
+  report:
+    block: shell.run
+    depends_on: [arrive]
+    config:
+      argv: [echo, arrived]
+triggers:
+  watches:
+    - code: follow
+      name: Follow the arrivals
+      step: arrive
+"""
+
+
+def test_an_applied_watch_is_listed_with_the_run_it_has_waiting(client: TestClient) -> None:
+    applied = apply_document(client, WATCHED)
+    assert applied["triggers"]["watches_created"] == ["follow"]
+
+    listed = client.get(WATCHES)
+    assert listed.status_code == 200, listed.text
+    [row] = listed.json()["items"]
+    assert (row["code"], row["name"], row["step"]) == ("follow", "Follow the arrivals", "arrive")
+    assert (row["paused"], row["managed"], row["failures"], row["last_error"]) == (False, True, 0, None)
+    run = client.get(f"{PREFIX}/runs/{row['waiting_run_id']}")
+    assert run.status_code == 200, run.text
+    assert run.json()["run"]["triggered_by_kind"] == "watch"
+    assert run.json()["run"]["triggered_by_label"] == "watch follow"
+
+    one = client.get(f"{WATCHES}/follow")
+    assert one.status_code == 200
+    assert one.json()["waiting_run_id"] == row["waiting_run_id"]
+
+
+def test_pausing_a_watch_cancels_its_waiting_run_and_resuming_arms_another(client: TestClient) -> None:
+    apply_document(client, WATCHED)
+    armed = client.get(f"{WATCHES}/follow").json()["waiting_run_id"]
+
+    paused = client.post(f"{WATCHES}/follow/$pause")
+    assert paused.status_code == 200, paused.text
+    assert (paused.json()["paused"], paused.json()["waiting_run_id"]) == (True, None)
+    assert client.get(f"{PREFIX}/runs/{armed}").json()["run"]["status"] == "cancelled"
+
+    resumed = client.post(f"{WATCHES}/follow/$resume")
+    assert resumed.status_code == 200, resumed.text
+    assert resumed.json()["paused"] is False
+    assert resumed.json()["waiting_run_id"] not in (None, armed)
+
+
+def test_a_watch_the_pipeline_does_not_have_is_a_404(client: TestClient) -> None:
+    apply_document(client, WATCHED)
+
+    response = client.get(f"{WATCHES}/nobody")
+
+    assert response.status_code == 404
+    assert response.json()["code"] == "watch.unknown"
+
+
+def test_the_pipeline_listing_counts_its_watches(client: TestClient) -> None:
+    apply_document(client, WATCHED)
+
+    [row] = client.get(f"{PREFIX}/pipelines").json()["items"]
+
+    assert row["watches"] == 1

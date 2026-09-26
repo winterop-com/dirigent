@@ -5,6 +5,7 @@ UPDATE SKIP LOCKED``. SQLite has neither, so leadership there is a no-op and the
 is that only the all-in-one standalone mode starts a scheduler at all.
 
 Firing and advancing the clock commit together, so a crash can neither double-fire nor skip.
+Each tick also tends the watches: one with no run waiting, and not backing off, is armed.
 """
 
 import asyncio
@@ -27,6 +28,7 @@ from dirigent_core.engine.runs import Attribution, RunCreationError, create_run
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.logging import get_logger, log_context
 from dirigent_core.models import Pipeline, PipelineVersion, Run, Schedule, ScheduleFiring, StepAttempt, utcnow
+from dirigent_core.triggers import watches
 from dirigent_core.triggers.schedules import ScheduleError, advance_clock, window_for
 
 #: How many due schedules one tick will fire before yielding.
@@ -416,6 +418,10 @@ class Scheduler:
                 await tick(self.sessions, self.services)
             except Exception as error:  # a transient database failure must not end the process
                 _logger.error("scheduler tick failed", error=str(error))
+            try:
+                await watches.tick(self.sessions, self.services)
+            except Exception as error:  # the same, for the watches
+                _logger.error("watch tick failed", error=str(error))
             await self._prune_if_due()
             await self._wait(self.tick_seconds)
 

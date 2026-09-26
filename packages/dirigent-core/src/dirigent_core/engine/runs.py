@@ -216,6 +216,8 @@ async def create_run(
     window: RunWindow | None = None,
     log_levels: JsonMap | None = None,
     priority: RunPriority | None = None,
+    cursors: Mapping[str, JsonMap] | None = None,
+    run_id: UUID | None = None,
     now: datetime | None = None,
 ) -> Run | None:
     """Instantiate a run from a pipeline version and validated parameters.
@@ -223,6 +225,10 @@ async def create_run(
     ``priority`` is the trigger's or the caller's override; omitted, the run takes the
     pipeline's own. Whichever wins is pinned on the row, so a later edit of the document
     never reorders a run already in flight.
+
+    ``cursors`` seeds the first attempt of each named step with the cursor its first poke is
+    handed, which is how a watch carries on from where its last run left off. ``run_id`` is
+    the id the run is written under, for a caller that has claimed it before the run exists.
 
     Returns None when the pipeline's ``skip`` concurrency policy refuses the run outright.
     """
@@ -245,7 +251,7 @@ async def create_run(
         # `replace` cancellation asks operators to kill remote work and a refusal after that
         # leaves those jobs dead with their run restored. The run's id is minted here so the
         # expansion can address the run it is about to belong to.
-        run_id = uuid7()
+        run_id = run_id or uuid7()
         scope = ReferenceScope(
             params=resolved_params,
             scratch=scratch_prefix(services.settings.artifact_root, run_id),
@@ -302,8 +308,11 @@ async def create_run(
             await session.flush()
             span.set_attribute("dirigent.run.id", str(run.id))
 
+            seeds = cursors or {}
             for name, elements in expanded:
-                await _create_step_rows(session, run, name, definition.steps[name], elements, moment, held=held)
+                await _create_step_rows(
+                    session, run, name, definition.steps[name], elements, moment, held=held, cursor=seeds.get(name)
+                )
             await session.flush()
             if not held:
                 await advance(session, run, definition, now=moment)
@@ -326,10 +335,11 @@ async def _create_step_rows(
     moment: datetime,
     *,
     held: bool,
+    cursor: JsonMap | None = None,
 ) -> None:
     """Write the attempt rows one step needs, one per element of an already expanded fan-out."""
     if not step.is_fan_out:
-        session.add(_new_attempt(run, name, step, moment, held=held))
+        session.add(_new_attempt(run, name, step, moment, held=held, cursor=cursor))
         return
     for index, element in enumerate(elements):
         item = RunItem(
@@ -353,10 +363,12 @@ def _new_attempt(
     *,
     held: bool,
     run_item_id: UUID | None = None,
+    cursor: JsonMap | None = None,
 ) -> StepAttempt:
     """Build one attempt row: root steps queued, everything else pending on its edges."""
     root = not step.depends_on and not held
     return StepAttempt(
+        poke_cursor=dict(cursor) if cursor is not None else None,
         run_id=run.id,
         run_item_id=run_item_id,
         step_name=name,
@@ -462,6 +474,9 @@ async def cancel_run(
     # A cancelled run frees the concurrency slot as a finished one does; without promoting
     # here, cancelling the active run of a `queue` pipeline wedges the queue forever.
     await promote_queued_run(session, services, run.pipeline_id)
+    from dirigent_core.triggers.watches import note_settled
+
+    await note_settled(session, services, run, now=moment)
     _logger.info("run cancelled", run_id=str(run.id), reason=reason, attempts=len(attempts))
     return run
 

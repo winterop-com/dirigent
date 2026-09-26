@@ -13,13 +13,14 @@ from jsonschema.exceptions import SchemaError
 from jsonschema.validators import extend as extend_validator  # pyright: ignore[reportUnknownVariableType]
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, ValidationError
 
-from dirigent_client.schemas import Catalog, ValidationIssue
+from dirigent_client.schemas import BlockKind, Catalog, ValidationIssue
 from dirigent_common import STORAGE_URI_FORMAT, Issue, JsonMap, Message, base_format_checker, validation_issue
 from dirigent_core.engine.definition import (
     FORMAT_V1,
     KIND_PIPELINE,
     KIND_TRIGGERS,
     Document,
+    ParameterError,
     PipelineDefinition,
     TriggerRule,
     TriggersDefinition,
@@ -70,6 +71,7 @@ from dirigent_core.messages import (
     TARGET_PIPELINE_INACTIVE,
     TARGET_PIPELINE_MISSING,
     UNKNOWN_DOCUMENT_KIND,
+    WATCH_PARAMS_REFUSED,
     WEBHOOK_MAPPING_REFUSED,
     WORKER_TAGS_MISSING,
     WRONG_DOCUMENT_KIND,
@@ -377,8 +379,9 @@ def validate_against_catalog(
     the codes are checked.
     """
     checker = format_checker if format_checker is not None else base_format_checker()
+    sensors = _sensors(catalog) if check_blocks else None
     if isinstance(definition, TriggersDefinition):
-        return _triggers_document_issues(definition, checker, target, check_target=check_blocks)
+        return _triggers_document_issues(definition, checker, target, check_target=check_blocks, sensors=sensors)
     # A document that brings its own connections or schemas satisfies its own references to them.
     known = {name for name in connections} | set(definition.connections)
     known_schemas = None if schemas is None else {name for name in schemas} | set(definition.schemas)
@@ -399,7 +402,7 @@ def validate_against_catalog(
     issues.extend(malformed_params)
     issues.extend(_carried_schema_issues(definition))
     issues.extend(_reference_issues(definition))
-    issues.extend(_trigger_issues(definition, checker, check_params=not malformed_params))
+    issues.extend(_trigger_issues(definition, checker, check_params=not malformed_params, sensors=sensors))
     if check_blocks:
         issues.extend(
             _step_block_issues(
@@ -473,19 +476,27 @@ def _carried_schema_issues(definition: PipelineDefinition) -> list[ValidationIss
     return issues
 
 
+def _sensors(catalog: Catalog) -> frozenset[str]:
+    """Name the installed blocks that are sensors, which are the only ones a watch can wait on."""
+    return frozenset(entry.id for entry in catalog.blocks if entry.kind is BlockKind.SENSOR)
+
+
 def _trigger_issues(
     definition: Document,
     format_checker: FormatChecker,
     *,
     check_params: bool = True,
     against: PipelineDefinition | None = None,
+    sensors: frozenset[str] | None = None,
 ) -> list[ValidationIssue]:
-    """Check the clocks a document declares, the parameters its schedules pin, and its mappings.
+    """Check the clocks a document declares, the parameters its triggers pin, and its mappings.
 
     ``check_params`` is off when the parameter schema is not itself a schema, which is already
     reported and would otherwise be reported again once per trigger. ``against`` is the
     definition whose parameter schema the pins and the mappings are checked against, which for
-    a triggers document is another document's current version.
+    a triggers document is another document's current version, and whose steps a watch is
+    checked against. ``sensors`` names the installed sensors; unset, a watched step's block
+    is not checked, because a caller holding no catalog cannot know what it is.
     """
     from dirigent_core.triggers.schedules import (
         ScheduleError,
@@ -520,6 +531,10 @@ def _trigger_issues(
                     detail=str(error).strip(),
                 )
             )
+    if isinstance(pins_against, PipelineDefinition):
+        issues.extend(
+            _watch_issues(definition, pins_against, format_checker, check_params=check_params, sensors=sensors)
+        )
     if not check_params or not isinstance(pins_against, PipelineDefinition):
         return issues
     for index, hook in enumerate(definition.triggers.webhooks):
@@ -536,12 +551,51 @@ def _trigger_issues(
     return issues
 
 
+def _watch_issues(
+    definition: Document,
+    against: PipelineDefinition,
+    format_checker: FormatChecker,
+    *,
+    check_params: bool,
+    sensors: frozenset[str] | None,
+) -> list[ValidationIssue]:
+    """Check that each watch waits on a root sensor step of the pipeline, with pins it accepts."""
+    from dirigent_core.triggers.watches import watch_issue
+
+    issues: list[ValidationIssue] = []
+    for index, watch in enumerate(definition.triggers.watches):
+        refusal = watch_issue(watch.code, watch.step, against, sensors)
+        if refusal is not None:
+            issues.append(
+                ValidationIssue(
+                    location=f"triggers.watches[{index}].step",
+                    message=refusal.message,
+                    code=refusal.code,
+                    params=refusal.params,
+                )
+            )
+        if not check_params:
+            continue
+        try:
+            against.validate_params(dict(watch.params), format_checker)
+        except ParameterError as error:
+            issues.append(
+                ValidationIssue.of(
+                    WATCH_PARAMS_REFUSED,
+                    location=f"triggers.watches[{index}].params",
+                    detail=str(error).strip(),
+                )
+            )
+    return issues
+
+
 def _triggers_document_issues(
     definition: TriggersDefinition,
     format_checker: FormatChecker,
     target: TriggerTarget | None,
     *,
     check_target: bool,
+    sensors: frozenset[str] | None = None,
 ) -> list[ValidationIssue]:
     """Check a triggers document: the pipeline it names, its clocks, and the pins they carry."""
     if not check_target:
@@ -550,7 +604,7 @@ def _triggers_document_issues(
         return [ValidationIssue.of(TARGET_PIPELINE_MISSING, location="pipeline", code=repr(definition.pipeline))]
     if not target.active:
         return [ValidationIssue.of(TARGET_PIPELINE_INACTIVE, location="pipeline", code=repr(definition.pipeline))]
-    return _trigger_issues(definition, format_checker, against=target.definition)
+    return _trigger_issues(definition, format_checker, against=target.definition, sensors=sensors)
 
 
 def _requirement_issues(
@@ -942,6 +996,7 @@ class DocumentSummary(BaseModel):
     blocks: list[str] = Field(default_factory=list[str])
     schedules: list[str] = Field(default_factory=list[str])
     webhooks: list[str] = Field(default_factory=list[str])
+    watches: list[str] = Field(default_factory=list[str])
     digest: str
 
 
@@ -962,5 +1017,6 @@ def summarize(definition: Document) -> DocumentSummary:
         blocks=blocks,
         schedules=[spec.code for spec in definition.triggers.schedules],
         webhooks=[spec.code for spec in definition.triggers.webhooks],
+        watches=[spec.code for spec in definition.triggers.watches],
         digest=digest_of(definition),
     )

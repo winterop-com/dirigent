@@ -52,6 +52,7 @@ from dirigent_core.models import (
     RunItem,
     Schedule,
     StepAttempt,
+    Watch,
     WebhookTrigger,
 )
 from dirigent_core.registry import live_worker_tags
@@ -299,7 +300,9 @@ async def apply_document(
         # definition, not the instance, so a schedule deleted by hand is restored.
         triggers = Materialized()
         if pipeline is not None and plan.action is PlanAction.UNCHANGED and not dry_run:
-            triggers = await materialize_triggers(session, pipeline, definition, pause_created=pause_schedules)
+            triggers = await materialize_triggers(
+                session, services, pipeline, definition, pause_created=pause_schedules
+            )
         return ApplyResult(
             plan=plan,
             pipeline_id=pipeline.id if pipeline else None,
@@ -309,7 +312,7 @@ async def apply_document(
         )
     version = await save_pipeline(session, definition, provenance=provenance)
     pipeline = await require_pipeline(session, definition.code)
-    triggers = await materialize_triggers(session, pipeline, definition, pause_created=pause_schedules)
+    triggers = await materialize_triggers(session, services, pipeline, definition, pause_created=pause_schedules)
     _logger.info(
         "pipeline applied",
         pipeline=definition.code,
@@ -421,15 +424,16 @@ class PipelineCounts(NamedTuple):
     active_runs: int = 0
     schedules: int = 0
     webhooks: int = 0
+    watches: int = 0
 
 
 NO_COUNTS = PipelineCounts()
 
 
 async def listing_counts(session: AsyncSession, pipeline_ids: Sequence[UUID]) -> dict[UUID, PipelineCounts]:
-    """Count the runs in flight, the schedules and the webhooks of a page of pipelines.
+    """Count the runs in flight, the schedules, the webhooks and the watches of a page of pipelines.
 
-    One statement for the whole page: three correlated counts per row, each of them a lookup
+    One statement for the whole page: four correlated counts per row, each of them a lookup
     on the ``pipeline_id`` index the table already carries.
     """
     if not pipeline_ids:
@@ -439,13 +443,14 @@ async def listing_counts(session: AsyncSession, pipeline_ids: Sequence[UUID]) ->
         _count_of(Run, Run.pipeline_id, Run.status.in_(IN_FLIGHT)).label("active_runs"),
         _count_of(Schedule, Schedule.pipeline_id).label("schedules"),
         _count_of(WebhookTrigger, WebhookTrigger.pipeline_id).label("webhooks"),
+        _count_of(Watch, Watch.pipeline_id).label("watches"),
     ).where(Pipeline.id.in_(pipeline_ids))
     rows = await session.execute(counted)
-    return {row.id: PipelineCounts(row.active_runs, row.schedules, row.webhooks) for row in rows.all()}
+    return {row.id: PipelineCounts(row.active_runs, row.schedules, row.webhooks, row.watches) for row in rows.all()}
 
 
 def _count_of(
-    entity: type[Run | Schedule | WebhookTrigger],
+    entity: type[Run | Schedule | WebhookTrigger | Watch],
     owner: InstrumentedAttribute[UUID],
     *narrow: sa.ColumnElement[bool],
 ) -> sa.ScalarSelect[int]:

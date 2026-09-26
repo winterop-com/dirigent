@@ -499,6 +499,53 @@ def upgrade() -> None:
         )
 
     op.create_table(
+        "watches",
+        sa.Column("id", sa.Uuid(), nullable=False),
+        sa.Column("pipeline_id", sa.Uuid(), nullable=False),
+        sa.Column("code", sa.String(length=200), nullable=False),
+        sa.Column("name", sa.String(length=200), nullable=True),
+        sa.Column("description", sa.Text(), nullable=True),
+        sa.Column("step", sa.String(length=200), nullable=False),
+        sa.Column("params", sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"), nullable=False),
+        sa.Column("managed", sa.Boolean(), server_default=sa.false(), nullable=False),
+        sa.Column("trigger_document_id", sa.Uuid(), nullable=True),
+        sa.Column("paused", sa.Boolean(), server_default=sa.false(), nullable=False),
+        sa.Column("cursor", sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"), nullable=True),
+        sa.Column("waiting_run_id", sa.Uuid(), nullable=True),
+        sa.Column("failures", sa.Integer(), server_default=sa.text("0"), nullable=False),
+        sa.Column("last_error", sa.Text(), nullable=True),
+        sa.Column("last_error_at", dirigent_core.types.UtcDateTime(timezone=True), nullable=True),
+        sa.Column("rearm_at", dirigent_core.types.UtcDateTime(timezone=True), nullable=True),
+        sa.Column("last_armed_at", dirigent_core.types.UtcDateTime(timezone=True), nullable=True),
+        sa.Column(
+            "created_at",
+            dirigent_core.types.UtcDateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            dirigent_core.types.UtcDateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
+        sa.ForeignKeyConstraint(
+            ["pipeline_id"], ["pipelines.id"], name=op.f("fk_watches_pipeline_id_pipelines"), ondelete="CASCADE"
+        ),
+        sa.ForeignKeyConstraint(
+            ["trigger_document_id"],
+            ["trigger_documents.id"],
+            name=op.f("fk_watches_trigger_document_id_trigger_documents"),
+            ondelete="CASCADE",
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_watches")),
+        sa.UniqueConstraint("pipeline_id", "code", name=op.f("uq_watches_pipeline_id_code")),
+    )
+    with op.batch_alter_table("watches", schema=None) as batch_op:
+        batch_op.create_index(batch_op.f("ix_watches_pipeline_id"), ["pipeline_id"], unique=False)
+        batch_op.create_index(batch_op.f("ix_watches_trigger_document_id"), ["trigger_document_id"], unique=False)
+
+    op.create_table(
         "runs",
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("pipeline_id", sa.Uuid(), nullable=False),
@@ -535,6 +582,7 @@ def upgrade() -> None:
                 "user",
                 "pipeline",
                 "backfill",
+                "watch",
                 name="trigger_kind",
                 native_enum=False,
                 length=32,
@@ -996,6 +1044,11 @@ def downgrade() -> None:
         batch_op.drop_index("ix_runs_finished_at")
 
     op.drop_table("runs")
+    with op.batch_alter_table("watches", schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f("ix_watches_trigger_document_id"))
+        batch_op.drop_index(batch_op.f("ix_watches_pipeline_id"))
+
+    op.drop_table("watches")
     with op.batch_alter_table("webhook_triggers", schema=None) as batch_op:
         batch_op.drop_index(batch_op.f("ix_webhook_triggers_trigger_document_id"))
         batch_op.drop_index(batch_op.f("ix_webhook_triggers_pipeline_id"))
