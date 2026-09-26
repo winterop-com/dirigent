@@ -146,7 +146,7 @@ export function NewConnection({
                             onChange={(event) => {
                                 setCode(event.target.value)
                             }}
-                            placeholder="postman-echo"
+                            placeholder="playground"
                         />
                     </div>
                     <div className="space-y-2">
