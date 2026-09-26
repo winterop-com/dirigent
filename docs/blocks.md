@@ -465,6 +465,7 @@ Contributed by `block-base`. Not idempotent.
 | `size` | `integer or null` |  | `null` | How many records a page holds. Unset with a page set means ten. |
 | `delay` | `string (humane-duration)` |  | `"0s"` | How long to take before answering, for a document teaching a timeout or a deadline. |
 | `fail_until` | `integer` |  | `0` | Fail this many attempts before succeeding, for a document teaching a retry. |
+| `fail_as` | `"transient" or "rejected" or "unknown"` |  | `"transient"` | Which class those failures carry, which is what decides whether they are retried. |
 | `input` | `any` |  | `null` | The value to work on, written inline or referenced from an earlier step's output. |
 
 **Output**
@@ -483,6 +484,7 @@ Contributed by `block-base`. Not idempotent.
 | `delay_ms` | `integer` |  | `0` | How long this call waited before answering, in milliseconds. |
 | `attempt` | `integer` |  | `1` | Which attempt produced this answer. |
 | `fail_until` | `integer` |  | `0` | How many attempts were set to fail before this one was allowed to succeed. |
+| `fail_as` | `"transient" or "rejected" or "unknown"` |  | `"transient"` | The class those failures were set to carry. |
 | `payload` | `string or null` |  | `null` | The filler that was asked for, when a payload size was set. |
 | `payload_bytes` | `integer or null` |  | `null` | How large that filler is, in bytes. |
 | `input_rows` | `integer or null` |  | `null` | How many elements the input carried, or null when the node generated its own records. |

@@ -154,6 +154,39 @@ async def test_failing_attempts_fail_and_then_succeed(ctx: FakeContext) -> None:
     output = await generate(ctx, fail_until=2)
     assert output.attempt == 3
     assert output.fail_until == 2
+    assert output.fail_as is ErrorClass.TRANSIENT
+
+
+@pytest.mark.parametrize(
+    "named",
+    [ErrorClass.TRANSIENT, ErrorClass.REJECTED, ErrorClass.UNKNOWN],
+)
+async def test_a_failure_carries_the_class_it_was_asked_for(ctx: FakeContext, named: ErrorClass) -> None:
+    """Every class the engine distinguishes is reachable, and the failure says which it is."""
+    ctx.attempt = 1
+    with pytest.raises(BlockFailure) as raised:
+        await generate(ctx, fail_until=1, fail_as=named.value)
+    assert raised.value.error_class is named
+    assert named.value in raised.value.message
+
+
+async def test_a_named_class_is_reported_on_the_answer_that_follows_it(ctx: FakeContext) -> None:
+    ctx.attempt = 2
+    output = await generate(ctx, fail_until=1, fail_as="unknown")
+    assert output.fail_as is ErrorClass.UNKNOWN
+
+
+async def test_the_class_does_nothing_without_a_failing_window(ctx: FakeContext) -> None:
+    """A step with no fail_until never fails, whatever class it names."""
+    output = await generate(ctx, fail_as="rejected")
+    assert output.attempt == 1
+    assert output.fail_until == 0
+    assert output.fail_as is ErrorClass.REJECTED
+
+
+async def test_a_class_outside_the_three_is_refused(ctx: FakeContext) -> None:
+    with pytest.raises(ValidationError):
+        await generate(ctx, fail_until=1, fail_as="flaky")
 
 
 async def test_a_delay_is_reported_in_milliseconds(ctx: FakeContext) -> None:

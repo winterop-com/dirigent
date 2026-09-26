@@ -59,7 +59,7 @@ steps:
   "rows": 5, "seed": 42, "locale": "en_US",
   "fields": {"who": "name", "where": "city", "when": "date_this_decade"},
   "drift": "none", "page": null, "size": null, "pages": null,
-  "delay_ms": 0, "attempt": 1, "fail_until": 0,
+  "delay_ms": 0, "attempt": 1, "fail_until": 0, "fail_as": "transient",
   "payload": null, "payload_bytes": null, "input_rows": null
 }
 ```
@@ -81,6 +81,7 @@ which knobs produced what they are looking at.
 | `payload` | unset | Filler of a chosen size, as `32kb`, beside the records. |
 | `delay` | `0s` | Take that long before answering. At most 30 seconds. |
 | `fail_until` | `0` | Fail that many attempts before succeeding. |
+| `fail_as` | `transient` | Which class those failures carry: `transient`, `rejected` or `unknown`. |
 | `input` | unset | A value from upstream to work from. |
 
 Every one of them defaults to something quiet, so a step with no config at all generates one
@@ -162,6 +163,42 @@ breaks a different kind of rule:
 | `strings` | Every number and boolean becomes a string. | A schema with `"type": "number"`. |
 | `missing` | The field map's first field is left out. | A schema with `required`. |
 | `extra` | A field called `drifted` is added. | A schema with `additionalProperties: false`. |
+
+### Failing on purpose
+
+`fail_until` fails that many attempts before succeeding. It reads the attempt number the
+engine hands the step, so a retry example really fails and really recovers rather than
+describing a recovery it never reaches. `fail_as` says what kind of failure those are, and
+the kind is the whole of what the engine reads when it decides whether to spend another
+attempt on the step:
+
+| `fail_as` | What the engine does with it | What it stands in for |
+| --- | --- | --- |
+| `transient` (default) | Retried while the step's budget lasts. | A network error, a 5xx, a timeout. |
+| `rejected` | Never retried: the step ends on its first failure, whatever `max_attempts` says. | A validation error, auth, a 4xx. |
+| `unknown` | Retried while the budget lasts. | A failure the block declines to classify, such as a command that exited 1. |
+
+```yaml
+steps:
+  refused:
+    block: playground.generate
+    retry:
+      max_attempts: 3
+    config:
+      fail_until: 9
+      # One attempt. The other two are never spent, because no later attempt would
+      # change a refusal into an acceptance.
+      fail_as: rejected
+```
+
+Those are the three classes the engine distinguishes and all three are the block's to raise,
+so the contrast that used to need a live endpoint answering 404 is an offline document now:
+[`examples/patterns/retry-only-transient.yaml`](https://github.com/winterop-com/dirigent/tree/main/examples/patterns/retry-only-transient.yaml)
+puts one policy on all three and reads the attempt counts back.
+
+Both knobs come back on the output, so an attempt says which window it was inside and what
+class its failures carried. `fail_as` on its own does nothing: a step with `fail_until: 0`
+never fails, whatever class it names.
 
 ### The three positions
 
@@ -266,6 +303,15 @@ Both are floors, so the batch arrives on the first poke that has cleared them bo
 neither and the default is one park and then the batch, which is the smallest thing that shows
 a step waiting. The step's `deadline` still ends the wait either way; the sensor's own defaults
 are a 2s poll and a 10 minute deadline.
+
+**The sensor does not fail on purpose, and `fail_until` and `fail_as` are the node's alone.**
+A sensor's word for "nothing yet" is `NotYet`, which is not a failure, and in a document the
+two would read as one thing: a poke that parks and a poke that fails both leave the step
+unsettled. They are not one thing to the engine -- a park keeps the attempt and a failure ends
+it -- and the difference shows up in the cursor, which lives on the attempt row: a failed poke
+that earns a retry starts the next attempt with no cursor and parks the whole wait again from
+zero. That is a real lesson about sensors, and it is not the lesson about retry classification;
+a document that wants the classes wants the node, which is one step and one attempt number.
 
 ### What one poke answers
 

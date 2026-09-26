@@ -176,6 +176,6 @@ PROVIDER_REFUSED = PLAYGROUND.define(
 
 FAILED_ON_PURPOSE = PLAYGROUND.define(
     "failed_on_purpose",
-    "the playground failed attempt {attempt} on purpose, because fail_until is {fail_until}; "
-    "attempt {next_attempt} will succeed",
+    "the playground failed attempt {attempt} on purpose as {fail_as}, because fail_until is {fail_until}; "
+    "attempt {next_attempt} is the first that would succeed",
 )

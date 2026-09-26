@@ -39,7 +39,7 @@ Whether a failed attempt earns another one, and how long it waits first.
 | [retry-exponential-backoff.yaml](retry-exponential-backoff.yaml) | The five fields, and the 1s, 2s, 4s they compute | `failed` |
 | [retry-with-jitter.yaml](retry-with-jitter.yaml) | Why four items that failed together must not retry together | `completed_with_errors` |
 | [retry-budget-exhausted.yaml](retry-budget-exhausted.yaml) | A budget spent in full on a hopeless failure | `failed` |
-| [retry-only-transient.yaml](retry-only-transient.yaml) | The same policy on a 500 and a 404: three attempts and one | `completed_with_errors` |
+| [retry-only-transient.yaml](retry-only-transient.yaml) | One policy on all three classes: three attempts, one, three | `completed_with_errors` |
 
 ## Timeouts and deadlines
 

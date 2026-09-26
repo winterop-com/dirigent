@@ -261,6 +261,37 @@ async def test_a_fan_out_with_one_bad_item_completes_with_errors(
     assert len(failed) == 1, "a 4xx is rejected, so it never consumes a second attempt"
 
 
+async def test_the_class_of_a_failure_decides_the_retry_and_not_the_budget(
+    engine: Engine, sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    """Character for character the same policy on three steps; the class decides."""
+    policy = RetryPolicy(max_attempts=3, backoff=timedelta(0), jitter=0.0)
+    definition = PipelineDefinition(
+        code="classified-failures",
+        steps={
+            name: StepDefinition(
+                block="playground.generate",
+                continue_on_failure=True,
+                retry=policy,
+                config={"fail_until": 9, "fail_as": name},
+            )
+            for name in ("transient", "rejected", "unknown")
+        },
+    )
+    run = await start(sessions, services, definition)
+    await drain(engine)
+
+    assert (await reload(sessions, run.id)).status is RunStatus.COMPLETED_WITH_ERRORS
+    async with sessions() as session:
+        rows = await session.execute(sa.select(StepAttempt).where(StepAttempt.run_id == run.id))
+        tried = list(rows.scalars())
+    spent = {
+        name: len([attempt for attempt in tried if attempt.step_name == name])
+        for name in ("transient", "rejected", "unknown")
+    }
+    assert spent == {"transient": 3, "rejected": 1, "unknown": 3}
+
+
 async def test_a_sensor_that_times_out_skips_its_branch(
     engine: Engine, sessions: async_sessionmaker[AsyncSession], services: EngineServices, tmp_path: Path
 ) -> None:
