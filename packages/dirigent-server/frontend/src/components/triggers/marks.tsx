@@ -96,7 +96,7 @@ export function WatchState({ watch }: { watch: WatchOut }) {
             <Dot tone={view.tone} />
             {view.kind === 'waiting' && (
                 <Link
-                    className="font-mono text-primary hover:underline"
+                    className="font-mono text-primary-ink hover:underline"
                     to={`/runs/${view.runId}`}
                     onClick={(event) => {
                         event.stopPropagation()

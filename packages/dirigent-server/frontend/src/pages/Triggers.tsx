@@ -61,6 +61,7 @@ export function Triggers() {
     const schedules = useMemo(() => rows.filter(isSchedule), [rows])
     const webhooks = useMemo(() => rows.filter(isWebhook), [rows])
     const watches = useMemo(() => rows.filter(isWatch), [rows])
+    const watchCols = useMemo(() => watchColumns(watches), [watches])
     const open = rows.find((row) => triggerId(row) === chosen) ?? null
 
     const held = useCallback((row: TriggerRow) => {
@@ -253,7 +254,7 @@ export function Triggers() {
                             </p>
                         ) : (
                             <ListTable
-                                columns={WATCH_COLUMNS}
+                                columns={watchCols}
                                 rows={watches}
                                 rowKey={triggerId}
                                 reading={state.reading}
@@ -455,7 +456,7 @@ const WATCH_COLUMNS: Column<WatchRow>[] = [
         id: 'step',
         header: 'Step',
         className: 'font-mono text-xs',
-        cell: (row) => <span className="text-muted-foreground">{row.watch.step}</span>,
+        cell: (row) => <span className="font-mono text-muted-foreground">{row.watch.step}</span>,
     },
     {
         id: 'waiting',
@@ -467,15 +468,19 @@ const WATCH_COLUMNS: Column<WatchRow>[] = [
         header: 'Last error',
         kind: 'prose',
         cell: (row) =>
-            row.watch.last_error === null ? (
-                <span className="text-xs text-faint">none</span>
-            ) : (
+            row.watch.last_error === null ? null : (
                 <span className="block truncate text-xs text-muted-foreground" title={row.watch.last_error}>
                     {row.watch.last_error}
                 </span>
             ),
     },
 ]
+
+/** The watch columns, leaving out the error column where no row has an error to show. */
+function watchColumns(rows: readonly WatchRow[]): Column<WatchRow>[] {
+    if (rows.some((row) => row.watch.last_error !== null)) return WATCH_COLUMNS
+    return WATCH_COLUMNS.filter((column) => column.id !== 'error')
+}
 
 /**
  * One trigger's lead cell: the title on one line, and beneath it the code when the title is a

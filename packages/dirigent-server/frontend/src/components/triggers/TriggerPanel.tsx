@@ -274,7 +274,7 @@ export function WatchPanel({
                 <Fact label="Waiting">
                     <WatchState watch={watch} />
                 </Fact>
-                <Fact label="Failures in a row">{String(watch.failures)}</Fact>
+                {watch.failures > 0 && <Fact label="Failures in a row">{String(watch.failures)}</Fact>}
                 {watch.last_error !== null && (
                     <Fact label="Last error">
                         <span className="break-words text-critical">{watch.last_error}</span>
@@ -428,7 +428,7 @@ function Firing({ firing }: { firing: FiringOut }) {
                     due {formatRelative(firing.scheduled_for)}
                 </span>
                 {view.runId !== null && (
-                    <Link className="font-mono text-primary hover:underline" to={`/runs/${view.runId}`}>
+                    <Link className="font-mono text-primary-ink hover:underline" to={`/runs/${view.runId}`}>
                         {shortId(view.runId)}
                     </Link>
                 )}
@@ -452,7 +452,7 @@ function Delivery({ delivery }: { delivery: DeliveryOut }) {
                     {formatRelative(delivery.created_at)}
                 </span>
                 {view.runId !== null && (
-                    <Link className="font-mono text-primary hover:underline" to={`/runs/${view.runId}`}>
+                    <Link className="font-mono text-primary-ink hover:underline" to={`/runs/${view.runId}`}>
                         {shortId(view.runId)}
                     </Link>
                 )}
