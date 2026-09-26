@@ -144,7 +144,7 @@ def unmet_needs(examples: Path) -> dict[str, Any]:
 
     A copy of the corpus's connection example, recoded and repointed.
     """
-    text = (examples / "demo" / "requires.yaml").read_text().replace("postman-echo", ABSENT_CONNECTION)
+    text = (examples / "demo" / "requires.yaml").read_text().replace("playground", ABSENT_CONNECTION)
     document: dict[str, Any] = yaml.safe_load(text)
     document["code"] = "unmet-needs"
     document["description"] = f"Names {ABSENT_CONNECTION}, which no instance holds."

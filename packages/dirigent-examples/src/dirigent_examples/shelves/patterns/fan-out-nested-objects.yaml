@@ -18,19 +18,19 @@
 #
 # Hop by hop:
 #
-#   probe    one item per feed. Each item posts its own code and its own latency budget, so
-#            the three items do genuinely different work from one step definition. Postman
-#            Echo answers with what it was sent, which is how each item's element comes back
-#            attached to that item's output.
-#   verdict  a join over the batch, comparing each feed's measured round trip against the
-#            budget that travelled with it.
+#   probe    one item per feed. Each item takes its own feed's `takes` before answering and
+#            carries its own code and its own budget into its output, so the three items do
+#            genuinely different work from one step definition.
+#   verdict  a join over the batch, comparing how long each feed took against the budget that
+#            travelled with it.
 #
 # EXPECT THIS RUN TO SUCCEED in about two seconds, with three feeds and a verdict each. The
-# items run side by side, so the run costs one round trip rather than three.
+# items run side by side, so the run costs the slowest feed rather than the sum of the three.
+# population is the one that is slow: it takes 1500ms against a 400ms budget.
 #
-# To change it: add a feed to the list, or lower a budget below the real round trip and watch
-# that feed's verdict flip to slow. The budget lives on the element rather than in params
-# because it belongs to one feed and not to the run.
+# To change it: add a feed to the list, or raise population's budget past what it takes and
+# watch its verdict flip back. The budget lives on the element rather than in params because
+# it belongs to one feed and not to the run.
 #
 #   dg run --local examples/patterns/fan-out-nested-objects.yaml
 
@@ -46,11 +46,11 @@ description: |
   A whole reference resolves to the typed value; a missing field is a rejected attempt, not
   an empty string.
 
-tags: [patterns, http, transform, fan-out, references]
+tags: [patterns, playground, transform, fan-out, references]
 
 requires:
   blocks:
-    - http.request
+    - playground.generate
     - transform.jq
 
 params:
@@ -65,23 +65,23 @@ params:
 
 steps:
   probe:
-    block: http.request
+    block: playground.generate
     # Three records, not three parallel lists. Nothing has to stay in step with anything.
     for_each:
-      - {code: cases, path: post, limits: {max_ms: 2000}}
-      - {code: climate, path: post, limits: {max_ms: 2500}}
-      - {code: population, path: post, limits: {max_ms: 400}}
+      - {code: cases, takes: 200ms, limits: {max_ms: 2000}}
+      - {code: climate, takes: 300ms, limits: {max_ms: 2500}}
+      - {code: population, takes: 1500ms, limits: {max_ms: 400}}
     config:
-      # Interpolated into a larger string, so the field is rendered as text inside the URL.
-      url: "https://postman-echo.com/${item.path}"
-      method: POST
-      body:
+      # Interpolated into a larger string, so the field is rendered as text inside the label.
+      delay: "${item.takes}"
+      input:
         feed: "${item.code}"
-        # The nested field, carried in the request so it comes back in the echo. That is how a
-        # per-item value reaches the join: the join sees outputs, not elements, so anything an
-        # element knows has to be inside an item's output to survive the fan-in. A whole
-        # reference stays typed, so this arrives as the integer it was written as.
+        # The nested field, carried into the step's own output. That is how a per-item value
+        # reaches the join: the join sees outputs, not elements, so anything an element knows
+        # has to be inside an item's output to survive the fan-in. A whole reference stays
+        # typed, so this arrives as the integer it was written as.
         max_ms: "${item.limits.max_ms}"
+        label: "the ${item.code} feed"
 
   verdict:
     block: transform.jq
@@ -90,18 +90,19 @@ steps:
       input:
         measured: "${steps.probe.output}"
         tolerance_ms: "${params.tolerance_ms}"
-      # json is the typed echo of the body that was posted, so max_ms is still a number here
-      # and needs no tonumber. A query string would have come back as text.
+      # records[0] is the object the item carried into the node, unchanged, so max_ms is still
+      # a number here and needs no tonumber. A query string would have carried it as text.
       program: |
         .tolerance_ms as $tolerance
         | {
             feeds: [
               .measured[]
               | {
-                  feed: .body.json.feed,
-                  duration_ms,
-                  budget_ms: (.body.json.max_ms + $tolerance)
+                  feed: .records[0].feed,
+                  label: .records[0].label,
+                  took_ms: .delay_ms,
+                  budget_ms: (.records[0].max_ms + $tolerance)
                 }
-              | .verdict = (if .duration_ms <= .budget_ms then "within budget" else "slow" end)
+              | .verdict = (if .took_ms <= .budget_ms then "within budget" else "slow" end)
             ]
           }

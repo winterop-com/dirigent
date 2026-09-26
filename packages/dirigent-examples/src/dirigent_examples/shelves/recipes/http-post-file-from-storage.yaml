@@ -1,8 +1,17 @@
 # POST a file that lives in storage: read it, then send what the read brought back.
 #
 # In:  a table of readings generated inline and written to the run's scratch space.
-# Out: the echo service's view of the upload -- the size it received and the content type it
+# Out: the playground's view of the upload -- the size it received and the content type it
 #      was told -- beside the size the file actually is.
+#
+# NEEDS AN INSTANCE TO CALL. The playground is served by a dirigent instance under
+# /api/v1/playground, unauthenticated, so a document teaching HTTP calls its own instance and
+# nothing on the public internet. Start one first, in the project this runs from:
+#
+#   dg dev
+#
+# `dg run --local` builds a throwaway database and mounts no API of its own, so it reaches the
+# playground the same way anything else does: over the network, at the URL below.
 #
 # A file is bytes at a URI, and a request sends a value, so the hop between them is a
 # storage.read step. Four hops:
@@ -28,6 +37,7 @@
 # To change it: point the write at s3://<bucket>/... and the read follows it, because the
 # scheme is the only thing that changes.
 #
+#   dg dev &
 #   dg run --local examples/recipes/http-post-file-from-storage.yaml
 #   dg run --local examples/recipes/http-post-file-from-storage.yaml -p stations=500
 
@@ -49,6 +59,10 @@ requires:
 params:
   type: object
   properties:
+    playground:
+      type: string
+      default: http://127.0.0.1:3333/api/v1/playground
+      description: The playground routes on the instance this calls; `dg dev` serves them here.
     day:
       type: string
       format: date
@@ -91,7 +105,7 @@ steps:
     block: http.request
     depends_on: [load]
     config:
-      url: https://postman-echo.com/post
+      url: ${params.playground}/request
       method: POST
       # A value, so the block serialises it and sends it as application/json. An endpoint
       # that wants some other type is told with content_type.
@@ -105,13 +119,15 @@ steps:
       input:
         written: ${steps.file.output.bytes_written}
         read: ${steps.load.output.bytes_read}
-        echoed: ${steps.upload.output.body}
+        received: ${steps.upload.output.body}
       program: |
         {written, read,
-         # What the receiver was told the body was, and how much of it arrived.
-         content_type: .echoed.headers["content-type"],
-         received: (.echoed.headers["content-length"] | tonumber),
-         rows: (.echoed.json.readings | length),
+         # What the receiver was told the body was, and how much of it arrived. body_bytes is
+         # the receiver's own count of the bytes, so nothing here parses a header into a
+         # number.
+         content_type: .received.request.content_type,
+         received_bytes: .received.request.body_bytes,
+         rows: (.received.request.body.readings | length),
          # The file and the read agree on one number, and the receiver counted the same
          # bytes back out of the request.
-         intact: (.written == .read and .read == (.echoed.headers["content-length"] | tonumber))}
+         intact: (.written == .read and .read == .received.request.body_bytes)}

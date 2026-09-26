@@ -1,6 +1,6 @@
 # Fetch something and keep it, at a location the run does not own.
 #
-# In:  a query the echo service reflects back.
+# In:  a query the playground reflects back.
 # Out: the same body written twice -- once to the run's scratch, once to a kept location --
 #      and a summary naming both URIs side by side.
 #
@@ -57,6 +57,10 @@ requires:
 params:
   type: object
   properties:
+    playground:
+      type: string
+      default: http://127.0.0.1:3333/api/v1/playground
+      description: The playground routes on the instance this calls; `dg dev` serves them here.
     name:
       type: string
       default: latest
@@ -64,13 +68,13 @@ params:
     station:
       type: string
       default: st-1
-      description: A query value, echoed back inside the fetched body.
+      description: A query value, reflected back inside the fetched body.
 
 steps:
   fetch:
     block: http.request
     config:
-      url: https://postman-echo.com/get
+      url: ${params.playground}/request
       method: GET
       query:
         station: ${params.station}
@@ -108,7 +112,7 @@ steps:
       input:
         swept: ${steps.working.output.uri}
         kept: ${steps.keep.output.uri}
-        station: ${steps.back.output.value.args.station}
+        station: ${steps.back.output.value.request.args.station}
       program: |
         {kept, swept, station,
          # The run id is in one of the two URIs and not in the other, which is the whole

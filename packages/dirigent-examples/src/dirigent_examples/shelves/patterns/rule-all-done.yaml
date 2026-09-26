@@ -7,7 +7,7 @@
 # Hop by hop:
 #
 #   acquire_lock  a stand-in for taking a lock, which is why something has to release it.
-#   load          /status/${params.status}, 500 by default, so it fails.
+#   load          a playground.generate step with fail_until: 1, so its one attempt fails.
 #   release_lock  all_done on the load. It runs even though the load failed, and it would run
 #                 just as surely had the load succeeded or been skipped. Note what it does not
 #                 get: an all_done edge says nothing about whether upstream worked, so a step
@@ -17,12 +17,12 @@
 # rule decides what runs and never what a failure means: the load is untolerated, so the run
 # is red however cleanly it was tidied up after.
 #
-# To change it: -p status=200 makes every step green. continue_on_failure on the load would
+# To change it: -p fail_until=0 makes every step green. continue_on_failure on the load would
 # make the run completed_with_errors instead -- a different question, and the one
 # retry-budget-exhausted.yaml and the failure/ shelf are about.
 #
-#   dg run --local examples/patterns/rule-all-done.yaml                 # fails; the lock is still released
-#   dg run --local examples/patterns/rule-all-done.yaml -p status=200   # succeeds
+#   dg run --local examples/patterns/rule-all-done.yaml                    # fails; the lock is still released
+#   dg run --local examples/patterns/rule-all-done.yaml -p fail_until=0    # succeeds
 
 format: dirigent/v1
 kind: pipeline
@@ -35,21 +35,21 @@ description: |
   As written the load fails, the lock is released anyway, and the run still reports
   `failed`: a rule decides what runs, never what a failure means.
 
-tags: [patterns, http, graph, rules]
+tags: [patterns, playground, graph, rules]
 
 requires:
   blocks:
-    - http.request
+    - playground.generate
     - value.const
 
 params:
   type: object
   properties:
-    status:
+    fail_until:
       type: integer
-      description: The status the load endpoint is asked to answer with; 500 fails, 200 does not.
-      default: 500
-      enum: [200, 500]
+      description: How many of the load's attempts fail; 1 fails it, 0 makes it succeed.
+      default: 1
+      enum: [0, 1]
 
 steps:
   acquire_lock:
@@ -62,22 +62,23 @@ steps:
         holder: "${run.id}"
 
   load:
-    block: http.request
+    block: playground.generate
     depends_on: [acquire_lock]
     config:
-      url: "https://postman-echo.com/status/${params.status}"
-      method: GET
+      # `fail_until: 1` fails the first attempt, and with no retry policy there is no second
+      # one, so the step settles failed with nothing to reach and nothing to arrange.
+      fail_until: "${params.fail_until}"
+      rows: 3
+      seed: 6
 
   release_lock:
-    block: http.request
+    block: playground.generate
     depends_on: [load]
     # The one line this file is about. all_success here would leak the lock on exactly the
     # runs where leaking it hurts most.
     rule: all_done
     config:
-      url: https://postman-echo.com/post
-      method: POST
       # Only the lock's own fields are read. Reading ${steps.load.output...} here would be the
       # mistake an all_done edge invites: the step it names may have produced nothing at all.
-      body:
+      input:
         released: "${steps.acquire_lock.output.value.lock}"

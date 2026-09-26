@@ -5,9 +5,14 @@ by what a pipeline is *for* -- moving data, reshaping it, waiting for it -- this
 organised by what the engine *does*: the edge conditions, the retry policy, the two clocks, the
 item policies, the trigger declarations, the concurrency policies, and the reference language.
 
-Every document here runs for real. The HTTP ones call [Postman Echo](https://postman-echo.com),
-a public request-and-response service, so nothing has to be stood up first; the rest are
-offline. None of them needs `--enable-unsafe`: no file on this shelf runs code on the worker.
+Every document here runs for real, and almost all of them offline: where a step has to *do*
+something -- fail on cue, take a while, produce a list -- it is `playground.generate`, a node
+that reaches nothing. The three that are about HTTP itself
+([sensor-http-ready.yaml](sensor-http-ready.yaml),
+[connections-referenced-vs-carried.yaml](connections-referenced-vs-carried.yaml),
+[webhook-signed.yaml](webhook-signed.yaml)) call the playground routes an instance serves
+under `/api/v1/playground`, so those want a `dg dev` running. None of them needs
+`--enable-unsafe`: no file on this shelf runs code on the worker.
 
 Each header says what the pipeline demonstrates end to end, what each hop hands on, what to
 change, and **what outcome to expect** -- because several of these fail on purpose, and a file
@@ -16,7 +21,7 @@ whose lesson is a failure has to say so before you run it.
 ## Trigger rules
 
 The edge condition on `depends_on`. Each of these fails a step deliberately, with
-`/status/500`, so the rule has something to react to.
+`fail_until`, so the rule has something to react to.
 
 | File | What it shows | Ends as |
 | --- | --- | --- |
@@ -118,7 +123,7 @@ local run is handed with `--also-apply examples/patterns/pipeline-run-child.yaml
 | [log-levels.yaml](log-levels.yaml) | `--log-level PATTERN=LEVEL`, a run setting rather than a document one | `succeeded` |
 | [priority-layered.yaml](priority-layered.yaml) | `priority` on the document, on a schedule, and on one ad hoc run | `succeeded` |
 | [importance-critical.yaml](importance-critical.yaml) | `importance` beside `priority`, and the alert rule that reads it | `succeeded` |
-| [connections-referenced-vs-carried.yaml](connections-referenced-vs-carried.yaml) | Named, carried, and absolute; needs `--connections` | `succeeded` |
+| [connections-referenced-vs-carried.yaml](connections-referenced-vs-carried.yaml) | Named, carried, and absolute; needs `--connections` and a `dg dev` | `succeeded` |
 
 ## Running them
 
@@ -143,3 +148,15 @@ dg run --local examples/patterns/pipeline-run-wait.yaml \
 Run the two without their flag once, on purpose: a run with no window refuses
 `${run.window.start}` by name rather than resolving it to an empty string, which is the whole
 argument for the reference language raising instead of defaulting.
+
+Three need an instance, because what they demonstrate is an HTTP call: they reach the
+playground routes a dirigent instance serves under `/api/v1/playground`, so start one first and
+they call that and nothing else.
+
+```bash
+dg dev &
+dg run --local examples/patterns/sensor-http-ready.yaml
+dg run --local examples/patterns/webhook-signed.yaml
+dg run --local examples/patterns/connections-referenced-vs-carried.yaml \
+  --connections examples/connections.yaml
+```

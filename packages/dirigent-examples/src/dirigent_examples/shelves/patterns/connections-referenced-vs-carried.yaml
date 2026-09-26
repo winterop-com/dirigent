@@ -1,7 +1,7 @@
 # Naming a connection, and carrying one, in the same document -- and when each is right.
 #
 # A document is portable precisely because it names credentials rather than holding them. A
-# step says connection: postman-echo, and the base URL, the auth, the TLS settings and the
+# step says connection: playground, and the base URL, the auth, the TLS settings and the
 # timeout live on the instance, encrypted at rest and redacted in every API response. Moving
 # from staging to production edits the connection and not one pipeline.
 #
@@ -24,6 +24,15 @@
 # naming a different connection -- there is no URL to edit. It also carries the timeout and
 # the health path, which is what dg connection check calls, so a connection can be tested
 # without running a pipeline.
+#
+# NEEDS AN INSTANCE TO CALL. The playground is served by a dirigent instance under
+# /api/v1/playground, unauthenticated, so a document teaching HTTP calls its own instance and
+# nothing on the public internet. Start one first, in the project this runs from:
+#
+#   dg dev
+#
+# `dg run --local` builds a throwaway database and mounts no API of its own, so it reaches the
+# playground the same way anything else does: over the network, at the URL below.
 #
 # A LOCAL RUN HAS NO SERVER to hold the named one, so it is handed over:
 #
@@ -68,29 +77,30 @@ requires:
   # Named here, so an apply against an instance that does not hold it is refused with the
   # code to create rather than failing at the step.
   connections:
-    - postman-echo
+    - playground
 
-# Carried, for the case with no instance to name one on. The credentials below are Postman's
-# own public demo pair. basic_password is a SecretStr: sealed on the way in, and an applied
-# connection reports which fields are set and never what they are set to.
+# Carried, for the case with no instance to name one on. The credentials below are the
+# playground's own documented pair, which guards nothing. basic_password is a SecretStr:
+# sealed on the way in, and an applied connection reports which fields are set and never what
+# they are set to.
 connections:
-  echo-carried:
+  playground-carried:
     kind: http
     config:
-      base_url: https://postman-echo.com
-      basic_username: postman
-      basic_password: password
+      base_url: http://127.0.0.1:3333/api/v1/playground
+      basic_username: playground
+      basic_password: playground
       timeout: 30s
       # What dg connection check calls. A connection with no health path can only be tested
       # by running a pipeline through it.
-      health_path: /get
+      health_path: /request
 
 params:
   type: object
   properties:
     dataset:
       type: string
-      description: Echoed by all three calls, so the three answers are comparable.
+      description: Sent by all three calls, so the three answers are comparable.
       default: cases
 
 steps:
@@ -98,10 +108,10 @@ steps:
     block: http.request
     config:
       # The code, not a URL. examples/connections.yaml is where a --local run gets it from.
-      connection: postman-echo
+      connection: playground
       # A path, resolved against the connection's base URL. This is the line that does not
       # change when the instance moves from staging to production.
-      path: /get
+      path: /request
       query:
         dataset: "${params.dataset}"
         via: named
@@ -109,8 +119,8 @@ steps:
   carried:
     block: http.request
     config:
-      connection: echo-carried
-      path: /get
+      connection: playground-carried
+      path: /request
       query:
         dataset: "${params.dataset}"
         via: carried
@@ -118,9 +128,9 @@ steps:
   absolute:
     block: http.request
     config:
-      # No connection at all. Legitimate for a public endpoint with no credential and no
+      # No connection at all. Legitimate for an endpoint with no credential and no
       # environment to move between, and nothing more than that.
-      url: https://postman-echo.com/get
+      url: http://127.0.0.1:3333/api/v1/playground/request
       query:
         dataset: "${params.dataset}"
         via: absolute
@@ -133,8 +143,8 @@ steps:
     depends_on: [named, carried, absolute]
     config:
       input:
-        named: "${steps.named.output.body.args.via}"
-        carried: "${steps.carried.output.body.args.via}"
-        absolute: "${steps.absolute.output.body.args.via}"
+        named: "${steps.named.output.body.request.args.via}"
+        carried: "${steps.carried.output.body.request.args.via}"
+        absolute: "${steps.absolute.output.body.request.args.via}"
       program: |
         {named, carried, absolute, note: "three ways to say where; one thing done"}

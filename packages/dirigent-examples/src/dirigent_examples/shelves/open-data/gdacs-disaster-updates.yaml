@@ -35,7 +35,7 @@
 #   previous  yesterday's ids, taken out of what that read produced.
 #   fresh     the difference. The comparison is over ids alone, because a revised event keeps
 #             its id and moves its date.
-#   notify    what is actually new, posted. Postman Echo by default so the shape of the post is
+#   notify    what is actually new, posted. This instance's own playground by default, so the shape of the post is
 #             visible without a receiver; point it at yours.
 #
 # To make it yours: narrow `eventlist` and `alertlevel` to what you act on, and give `store` a
@@ -96,7 +96,7 @@ params:
         tomorrow's run cannot read them.
     webhook_url:
       type: string
-      default: https://postman-echo.com/post
+      default: http://127.0.0.1:3333/api/v1/playground/request
       description: Where the digest goes.
 
 steps:

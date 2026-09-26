@@ -1,0 +1,25 @@
+{
+  "$id": "playground-reading",
+  "title": "A reading, as the playground reflects it",
+  "description": "What a call to the playground's reflection route is held to before anything reads into it: the envelope's `request`, carrying the `args` map the call sent and the `url` it was answered from. A source that changes shape under a pipeline is refused here rather than producing a wrong number three steps later.",
+  "type": "object",
+  "required": ["kind", "request"],
+  "properties": {
+    "kind": { "const": "request" },
+    "request": {
+      "type": "object",
+      "required": ["args", "url"],
+      "properties": {
+        "args": {
+          "type": "object",
+          "required": ["station", "day"],
+          "properties": {
+            "station": { "type": "string", "minLength": 1 },
+            "day": { "type": "string", "format": "date" }
+          }
+        },
+        "url": { "type": "string" }
+      }
+    }
+  }
+}

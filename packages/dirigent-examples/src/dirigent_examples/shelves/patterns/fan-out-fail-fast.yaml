@@ -8,14 +8,15 @@
 # That is the right default. A fan-out is usually N slices of one job, and half a job silently
 # succeeding is worse than a red run: it is a load somebody believes happened.
 #
-# The list below is statuses rather than regions, because the element is what decides whether
-# the item fails, and making that the visible content of the item is the shortest way to show
-# it. The second element is a 500.
+# The list below is failing windows rather than regions, because the element is what decides
+# whether the item fails, and making that the visible content of the item is the shortest way
+# to show it. The second element fails.
 #
 # Hop by hop:
 #
-#   push     one item per status, each calling /status/<item>. Items one and three answer 200;
-#            item two answers 500 and fails. Under fail_fast that is the end of the step.
+#   push     one item per element, and the element is how many of that item's attempts fail.
+#            Items one and three succeed; item two fails. Under fail_fast that is the end of
+#            the step.
 #   receipt  the default all_success edge on a failed step, so it is skipped.
 #
 # EXPECT THIS RUN TO FAIL. Look at the item grid rather than the step: some items are
@@ -23,10 +24,10 @@
 # step is failed regardless, which is the policy.
 #
 # To change it: fan-out-continue.yaml is this file with one word replaced, and it is worth
-# running both back to back. -p statuses='[200,200,200]' makes this one green.
+# running both back to back. -p failures='[0,0,0]' makes this one green.
 #
-#   dg run --local examples/patterns/fan-out-fail-fast.yaml                          # fails, by design
-#   dg run --local examples/patterns/fan-out-fail-fast.yaml -p statuses='[200,200]'  # succeeds
+#   dg run --local examples/patterns/fan-out-fail-fast.yaml                       # fails, by design
+#   dg run --local examples/patterns/fan-out-fail-fast.yaml -p failures='[0,0]'   # succeeds
 
 format: dirigent/v1
 kind: pipeline
@@ -39,42 +40,43 @@ description: |
   The right default, because a fan-out is usually N slices of one job, and half a job
   silently succeeding is worse than a red run.
 
-tags: [patterns, http, failure, fan-out]
+tags: [patterns, playground, failure, fan-out]
 
 requires:
   blocks:
-    - http.request
+    - playground.generate
 
 params:
   type: object
   properties:
-    statuses:
+    failures:
       type: array
-      description: One item per element; each item asks the endpoint for that status.
-      default: [200, 500, 200]
+      description: One item per element; each item fails that many of its attempts.
+      default: [0, 1, 0]
       minItems: 1
       maxItems: 16
       items:
         type: integer
-        enum: [200, 404, 500]
+        minimum: 0
+        maximum: 9
 
 steps:
   push:
-    block: http.request
-    for_each: "${params.statuses}"
+    block: playground.generate
+    for_each: "${params.failures}"
     # items is deliberately not written. Omitting it is what makes this file about the
     # default rather than about a setting somebody chose.
     config:
-      url: "https://postman-echo.com/status/${item}"
-      method: GET
+      # The element is the failing window. There is no retry policy, so 1 fails the item.
+      fail_until: "${item}"
+      rows: 2
+      seed: 9
 
   receipt:
-    block: http.request
+    block: playground.generate
     depends_on: [push]
     # Skipped. Under fail_fast there is no half-batch to hand on, so the edge behaves exactly
     # as it would below any other failed step.
     config:
-      url: https://postman-echo.com/post
-      method: POST
-      body:
+      input:
         pushed: "${steps.push.output}"

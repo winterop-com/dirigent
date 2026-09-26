@@ -18,16 +18,17 @@ only what passed.
     A printable copy of this page:
     [**basics.pdf**](https://winterop-com.github.io/dirigent/basics.pdf).
 
-Everything below was run against [Postman Echo](https://postman-echo.com), a public service
-that answers with the request you sent it: `/get` gives back the query arguments, `/post` gives
-back the body, and `/status/<code>` answers with that status and nothing else. That makes it a
-stand-in for any system you have not got yet -- you decide what the answer is, which is exactly
-what you want while you are learning the shape of a pipeline rather than the shape of somebody
-else's API.
+Everything below was run against the **playground**, a request-and-response service every
+dirigent instance serves itself under `/api/v1/playground`, unauthenticated. It answers with
+the request you sent it: the query arguments, the body, the headers, and whatever status you
+asked for. That makes it a stand-in for any system you have not got yet -- you decide what the
+answer is, which is exactly what you want while you are learning the shape of a pipeline rather
+than the shape of somebody else's API. And because it is your own instance answering, the calls
+below are real HTTP over a real socket that never leaves your machine.
 
-What you need: Python 3.13, [uv](https://docs.astral.sh/uv/), `jq`, outbound HTTPS, and two
-terminals. Every command below is run in the project directory. Nothing needs Docker,
-PostgreSQL, or a credential of any kind.
+What you need: Python 3.13, [uv](https://docs.astral.sh/uv/), `jq`, and two terminals. Every
+command below is run in the project directory. Nothing needs Docker, PostgreSQL, the network,
+or a credential of any kind.
 
 ## Where these documents live
 
@@ -48,7 +49,7 @@ uv sync
 ```
 
 ```text
-2026-09-26T01:58:26.030+02:00 [info    ] initialised                    [instance.initialised] directory=/home/you/basics state=.dirigent/state schema=0001_baseline admin=admin template=local version=0.19.0
+2026-09-26T12:05:38.030+02:00 [info    ] initialised                    [instance.initialised] directory=/home/you/basics state=.dirigent/state schema=0001_baseline admin=admin template=local version=0.19.0
 ```
 
 It creates the state directory, migrates the schema, creates the first admin, and mints that
@@ -139,13 +140,13 @@ uv run dg run --local hello.yaml
 ```
 
 ```text
-2026-09-26T02:01:08.204+02:00 [info    ] started                        [run] pipeline=hello run_id=01a0ad18-3220-76eb-8df9-e50dacb275d9 local=true scratch=file:///tmp/dirigent-local-8tksuueg/artifacts/runs/01a0ad18-3220-76eb-8df9-e50dacb275d9 root=/tmp/dirigent-local-8tksuueg
-2026-09-26T02:01:08.200+02:00 [info    ] queued                         [step make] block=value.const attempt=1
-2026-09-26T02:01:08.244+02:00 [info    ] finished                       [log make] duration_ms=0 output_bytes=31
-2026-09-26T02:01:08.239+02:00 [info    ] succeeded                      [step make] block=value.const attempt=1 duration_ms=9
-2026-09-26T02:01:08.297+02:00 [info    ] the step before me said: hello from dirigent [log say]
-2026-09-26T02:01:08.297+02:00 [info    ] succeeded                      [step say] block=log.write attempt=1 duration_ms=4
-2026-09-26T02:01:08.394+02:00 [info    ] succeeded                      [run] pipeline=hello run_id=01a0ad18-3220-76eb-8df9-e50dacb275d9 exit_code=0
+2026-09-26T12:06:13.204+02:00 [info    ] started                        [run] pipeline=hello run_id=01a0ad18-3220-76eb-8df9-e50dacb275d9 local=true scratch=file:///tmp/dirigent-local-8tksuueg/artifacts/runs/01a0ad18-3220-76eb-8df9-e50dacb275d9 root=/tmp/dirigent-local-8tksuueg
+2026-09-26T12:06:13.200+02:00 [info    ] queued                         [step make] block=value.const attempt=1
+2026-09-26T12:06:13.244+02:00 [info    ] finished                       [log make] duration_ms=0 output_bytes=31
+2026-09-26T12:06:13.239+02:00 [info    ] succeeded                      [step make] block=value.const attempt=1 duration_ms=9
+2026-09-26T12:06:13.297+02:00 [info    ] the step before me said: hello from dirigent [log say]
+2026-09-26T12:06:13.297+02:00 [info    ] succeeded                      [step say] block=log.write attempt=1 duration_ms=4
+2026-09-26T12:06:13.394+02:00 [info    ] succeeded                      [run] pipeline=hello run_id=01a0ad18-3220-76eb-8df9-e50dacb275d9 exit_code=0
 steps
 ┏━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ step ┃ block       ┃ outcome   ┃ after ┃ duration ┃ output                    ┃
@@ -174,20 +175,20 @@ one goes.
 
 ## 3. The first request
 
-The smallest useful read: ask Postman Echo for one station's reading. Write
-`pipelines/echo-reading.yaml`:
+The smallest useful read: ask the playground for one station's reading. Write
+`pipelines/first-reading.yaml`:
 
 ```yaml
-# Ask Postman Echo for one station's reading.
+# Ask the playground for one station's reading.
 #
 # http.request is the generic HTTP call. url: is an absolute address, which is all this needs;
 # a call that repeats against one host names a connection instead.
 
 format: dirigent/v1
 kind: pipeline
-code: echo-reading
+code: first-reading
 name: The basics pipeline
-description: Ask Postman Echo for one station's reading, and read what it answers.
+description: Ask the playground for one station's reading, and read what it answers.
 
 tags: [basics, tutorial]
 
@@ -207,7 +208,7 @@ steps:
   ask:
     block: http.request
     config:
-      url: https://postman-echo.com/get
+      url: http://127.0.0.1:3333/api/v1/playground/request
       method: GET
       query:
         station: ${params.station}
@@ -235,25 +236,25 @@ to staging and to production. This page never needs one.
 Check it offline first -- no server, no network:
 
 ```bash
-uv run dg validate pipelines/echo-reading.yaml
+uv run dg validate pipelines/first-reading.yaml
 ```
 
 ```text
-2026-09-26T02:01:15.109+02:00 [info    ] valid                          [validation] code=echo-reading document=pipelines/echo-reading.yaml checked="document, offline"
+2026-09-26T12:06:30.109+02:00 [info    ] valid                          [validation] code=first-reading document=pipelines/first-reading.yaml checked="document, offline"
   each step under the last one it waits for
     ask  (http.request)
-2026-09-26T02:01:15.111+02:00 [info    ] valid                          [validated] documents=1 invalid=0
+2026-09-26T12:06:30.111+02:00 [info    ] valid                          [validated] documents=1 invalid=0
 ```
 
 Then store it on the instance and run it:
 
 ```bash
 uv run dg apply
-uv run dg run echo-reading --watch
+uv run dg run first-reading --watch
 ```
 
 ```text
-create echo-reading  version 1 (/home/you/basics/pipelines/echo-reading.yaml)
+create first-reading  version 1 (/home/you/basics/pipelines/first-reading.yaml)
 ```
 
 `dg apply` sends every document under `pipelines/` and stores each as an immutable version;
@@ -261,26 +262,26 @@ applying an unchanged document again is not a new version. `dg run --watch` stre
 transitions and settles with the run:
 
 ```text
-run 01a0ad18-60eb-7566-8497-7f16384117ed
-pipeline      echo-reading (version 1)
+run 01a0dcff-16a4-73c7-bec7-8dfa8ad18e8a
+pipeline      first-reading (version 1)
 status        succeeded
 triggered by  admin (token init)
-duration      0.2s
+duration      0.0s
 items         -
 
 steps
 ┏━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━┓
 ┃ step ┃ block        ┃ outcome   ┃ after ┃ attempts ┃ duration ┃ error ┃
 ┡━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━┩
-│ ask  │ http.request │ succeeded │ -     │ 1        │ 0.2s     │ -     │
+│ ask  │ http.request │ succeeded │ -     │ 1        │ 0.0s     │ -     │
 └──────┴──────────────┴───────────┴───────┴──────────┴──────────┴───────┘
 
 outputs
-┏━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ step ┃ output                                                                        ┃
-┡━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ ask  │ status=200  headers={12 keys}  body={3 keys}  body_bytes=273  duration_ms=233 │
-└──────┴───────────────────────────────────────────────────────────────────────────────┘
+┏━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ step ┃ output                                                                      ┃
+┡━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ ask  │ status=200  headers={5 keys}  body={3 keys}  body_bytes=452  duration_ms=15 │
+└──────┴─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 That is the block's whole output, summarised: `status`, `headers`, `body`, `body_bytes`,
@@ -288,31 +289,43 @@ That is the block's whole output, summarised: `status`, `headers`, `body`, `body
 command writes records into a pipe, the whole of it is one `jq` away:
 
 ```bash
-uv run dg runs show 01a0ad18-60eb-7566-8497-7f16384117ed --json \
+uv run dg runs show 01a0dcff-16a4-73c7-bec7-8dfa8ad18e8a --json \
   | jq '.fields.attempts[] | select(.step_name == "ask") | .output.body'
 ```
 
 ```json
 {
-  "args": {
-    "reading": "12.4",
-    "station": "bergen-florida"
+  "kind": "request",
+  "request": {
+    "method": "GET",
+    "url": "http://127.0.0.1:3333/api/v1/playground/request?reading=12.4&station=bergen-florida",
+    "path": "/api/v1/playground/request",
+    "args": {
+      "reading": "12.4",
+      "station": "bergen-florida"
+    },
+    "headers": {
+      "host": "127.0.0.1:3333",
+      "accept": "*/*",
+      "accept-encoding": "gzip, deflate",
+      "connection": "keep-alive",
+      "user-agent": "python-httpx2/2.13.0"
+    },
+    "body": null,
+    "body_kind": "none",
+    "body_bytes": 0,
+    "content_type": null
   },
-  "headers": {
-    "host": "postman-echo.com",
-    "x-forwarded-proto": "https",
-    "accept": "*/*",
-    "user-agent": "python-httpx2/2.13.0",
-    "accept-encoding": "gzip, br"
-  },
-  "url": "https://postman-echo.com/get?reading=12.4&station=bergen-florida"
+  "status": 200
 }
 ```
 
-The query arguments came back under `args`, with the parameter's default in `station`. The same
-run is on the Runs screen of the UI, and choosing a step opens what it produced:
+Every playground answer has that shape: `kind` says which route answered, `request` is what
+arrived verbatim, and anything beside them is what the route decided. So the query arguments
+came back under `request.args`, with the parameter's default in `station`. The same run is on
+the Runs screen of the UI, and choosing a step opens what it produced:
 
-![A run in the UI: one step named ask, succeeded in 242 milliseconds, its output showing the echoed args.](images/basics/run-first.png)
+![A run in the UI: one step named ask, succeeded in 23 milliseconds, its output showing the reflected args.](images/basics/run-first.png)
 
 *The run's only step, its one attempt, and the answer it stored.*
 
@@ -334,8 +347,8 @@ requires:
     - validate.schema
 
 schemas:
-  echo-reading:
-    title: The reading, as Postman Echo answers it
+  basics-reading:
+    title: The reading, as the playground answers it
     type: object
     required: [args, url]
     properties:
@@ -359,8 +372,10 @@ steps:
     block: validate.schema
     depends_on: [ask]
     config:
-      input: ${steps.ask.output.body}
-      schema: echo-reading
+      # The envelope's `request` is the part this pipeline is about, so that is what the gate
+      # is given and what every step past it reads.
+      input: ${steps.ask.output.body.request}
+      schema: basics-reading
 ```
 
 `type`, `required` and `properties` are the three keywords that carry most of the weight:
@@ -375,8 +390,8 @@ uv run dg apply
 ```
 
 ```text
-2026-09-26T02:02:14.458+02:00 [error   ] this document carries its own schemas (echo-reading), which an instance will not store: create them with `dg schema create` and let the document name them in requires.schemas [error] status=422 title="Unprocessable Content" code=server.document_refused params={"detail":"this document carries its own schemas (echo-reading), which an instance will not store: create them with `dg schema create` and let the document name them in requires.schemas"} instance=/api/v1/pipelines/$apply
-  - this document carries its own schemas (echo-reading), which an instance will not store: create them with `dg schema create` and let the document name them in requires.schemas
+2026-09-26T12:07:01.458+02:00 [error   ] this document carries its own schemas (basics-reading), which an instance will not store: create them with `dg schema create` and let the document name them in requires.schemas [error] status=422 title="Unprocessable Content" code=server.document_refused params={"detail":"this document carries its own schemas (basics-reading), which an instance will not store: create them with `dg schema create` and let the document name them in requires.schemas"} instance=/api/v1/pipelines/$apply
+  - this document carries its own schemas (basics-reading), which an instance will not store: create them with `dg schema create` and let the document name them in requires.schemas
 ```
 
 Every refusal reads that way: the sentence, then `code`, the stable dotted name of the refusal,
@@ -391,7 +406,7 @@ A carried schema is still worth having, because a local run seeds what the docum
 and a local run is the fast loop:
 
 ```bash
-uv run dg run --local pipelines/echo-reading.yaml
+uv run dg run --local pipelines/first-reading.yaml
 ```
 
 ```text
@@ -399,9 +414,9 @@ steps
 ┏━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ step  ┃ block           ┃ outcome   ┃ after ┃ duration ┃ output                                  ┃
 ┡━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ ask   │ http.request    │ succeeded │ -     │ 0.3s     │ status=200  headers={12 keys}  body={3  │
-│       │                 │           │       │          │ keys}  body_bytes=273  duration_ms=242  │
-│ check │ validate.schema │ succeeded │ ask   │ 0.0s     │ value={3 keys}                          │
+│ ask   │ http.request    │ succeeded │ -     │ 0.0s     │ status=200  headers={5 keys}  body={3   │
+│       │                 │           │       │          │ keys}  body_bytes=452  duration_ms=28   │
+│ check │ validate.schema │ succeeded │ ask   │ 0.0s     │ value={9 keys}                          │
 └───────┴─────────────────┴───────────┴───────┴──────────┴─────────────────────────────────────────┘
 ```
 
@@ -420,9 +435,9 @@ steps
 ┏━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ step          ┃ block           ┃ outcome   ┃ after ┃ duration ┃ output                          ┃
 ┡━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ ask           │ http.request    │ succeeded │ -     │ 0.2s     │ status=200  headers={12 keys}   │
-│               │                 │           │       │          │ body={3 keys}  body_bytes=273   │
-│               │                 │           │       │          │ duration_ms=237                 │
+│ ask           │ http.request    │ succeeded │ -     │ 0.0s     │ status=200  headers={5 keys}    │
+│               │                 │           │       │          │ body={3 keys}  body_bytes=452   │
+│               │                 │           │       │          │ duration_ms=28                  │
 │ check  1 warn │ validate.schema │ failed    │ ask   │ 0.0s     │ -                               │
 └───────────────┴─────────────────┴───────────┴───────┴──────────┴─────────────────────────────────┘
 
@@ -432,7 +447,7 @@ check failed  validate.schema, attempt 1, rejected
     error: failed
 ```
 
-Postman Echo answered 200. The read succeeded. The answer was simply not the answer this
+The playground answered 200. The read succeeded. The answer was simply not the answer this
 schema was written against, and the gate says so in one line with the path in it:
 `$.args.reading`, `'12.4' is not of type 'number'`.
 
@@ -451,15 +466,15 @@ It passes again, and now it would catch `warm`.
 
 ### Hand the shape to the instance
 
-Lift the schema out of the document into `schemas/echo-reading.json`. Its own keywords carry its
+Lift the schema out of the document into `schemas/basics-reading.json`. Its own keywords carry its
 identity: `$id` becomes the code it is addressed by, `title` its name, `description` its body.
 
 ```json
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "echo-reading",
-  "title": "The reading, as Postman Echo answers it",
-  "description": "A /get answer carrying one station and one decimal reading among its query arguments.",
+  "$id": "basics-reading",
+  "title": "The reading, as the playground answers it",
+  "description": "A reflected request carrying one station and one decimal reading among its query arguments.",
   "type": "object",
   "required": ["args", "url"],
   "properties": {
@@ -478,11 +493,11 @@ identity: `$id` becomes the code it is addressed by, `title` its name, `descript
 ```
 
 ```bash
-uv run dg schema create schemas/echo-reading.json
+uv run dg schema create schemas/basics-reading.json
 ```
 
 ```text
-stored schema echo-reading
+stored schema basics-reading
 ```
 
 Then delete the document's whole `schemas:` section and declare the code instead:
@@ -493,7 +508,7 @@ requires:
     - http.request
     - validate.schema
   schemas:
-    - echo-reading
+    - basics-reading
 ```
 
 The `check` step does not change: it named the schema by code all along, and the code now
@@ -501,11 +516,11 @@ resolves to the one the instance holds.
 
 ```bash
 uv run dg apply
-uv run dg run echo-reading --watch
+uv run dg run first-reading --watch
 ```
 
 ```text
-update echo-reading  version 2 (/home/you/basics/pipelines/echo-reading.yaml)
+update first-reading  version 2 (/home/you/basics/pipelines/first-reading.yaml)
   steps added: check
 ```
 
@@ -514,19 +529,19 @@ steps
 ┏━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━┓
 ┃ step  ┃ block           ┃ outcome   ┃ after ┃ attempts ┃ duration ┃ error ┃
 ┡━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━┩
-│ ask   │ http.request    │ succeeded │ -     │ 1        │ 0.2s     │ -     │
+│ ask   │ http.request    │ succeeded │ -     │ 1        │ 0.0s     │ -     │
 │ check │ validate.schema │ succeeded │ ask   │ 1        │ 0.0s     │ -     │
 └───────┴─────────────────┴───────────┴───────┴──────────┴──────────┴───────┘
 ```
 
-![The Schemas screen with the echo-reading schema selected, its JSON shown beside the list.](images/basics/schemas.png)
+![The Schemas screen with the basics-reading schema selected, its JSON shown beside the list.](images/basics/schemas.png)
 
 *The shape the instance now holds. Any pipeline on this instance may gate on it by code.*
 
 The step's `schema` box shows the same shape: the code it names opens to the body the instance
 holds.
 
-![The pipeline editor with the check step selected, its schema box opened to the body of echo-reading.](images/basics/step-check.png)
+![The pipeline editor with the check step selected, its schema box opened to the body of basics-reading.](images/basics/step-check.png)
 
 *The code in the box, the shape behind it, and a link to the row it came from.*
 
@@ -543,7 +558,7 @@ again, it reads the gate's output:
     block: http.request
     depends_on: [check]
     config:
-      url: https://postman-echo.com/post
+      url: http://127.0.0.1:3333/api/v1/playground/request
       method: POST
       # Read out of the gate rather than out of the read: every step past a gate provably
       # received the shape the gate passed.
@@ -554,11 +569,11 @@ again, it reads the gate's output:
 
 ```bash
 uv run dg apply
-uv run dg run echo-reading --watch
+uv run dg run first-reading --watch
 ```
 
 ```text
-update echo-reading  version 3 (/home/you/basics/pipelines/echo-reading.yaml)
+update first-reading  version 3 (/home/you/basics/pipelines/first-reading.yaml)
   steps added: send
 ```
 
@@ -567,27 +582,27 @@ steps
 ┏━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━┓
 ┃ step  ┃ block           ┃ outcome   ┃ after ┃ attempts ┃ duration ┃ error ┃
 ┡━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━┩
-│ ask   │ http.request    │ succeeded │ -     │ 1        │ 0.3s     │ -     │
+│ ask   │ http.request    │ succeeded │ -     │ 1        │ 0.0s     │ -     │
 │ check │ validate.schema │ succeeded │ ask   │ 1        │ 0.0s     │ -     │
-│ send  │ http.request    │ succeeded │ check │ 1        │ 0.2s     │ -     │
+│ send  │ http.request    │ succeeded │ check │ 1        │ 0.0s     │ -     │
 └───────┴─────────────────┴───────────┴───────┴──────────┴──────────┴───────┘
 
 outputs
-┏━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ step  ┃ output                                                                        ┃
-┡━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ ask   │ status=200  headers={12 keys}  body={3 keys}  body_bytes=273  duration_ms=222 │
-│ check │ value={3 keys}                                                                │
-│ send  │ status=200  headers={12 keys}  body={7 keys}  body_bytes=378  duration_ms=187 │
-└───────┴───────────────────────────────────────────────────────────────────────────────┘
+┏━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ step  ┃ output                                                                     ┃
+┡━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ ask   │ status=200  headers={5 keys}  body={3 keys}  body_bytes=452  duration_ms=4 │
+│ check │ value={9 keys}                                                             │
+│ send  │ status=200  headers={5 keys}  body={3 keys}  body_bytes=486  duration_ms=4 │
+└───────┴────────────────────────────────────────────────────────────────────────────┘
 ```
 
-Postman Echo answers a POST with the body it was given, so its answer is the proof of what was
-sent:
+The playground answers a POST with the body it was given, under `request.body`, so its answer
+is the proof of what was sent:
 
 ```bash
-uv run dg runs show 01a0ad19-fb7b-7449-94b4-c4fa802d7715 --json \
-  | jq '.fields.attempts[] | select(.step_name == "send") | .output.body.json'
+uv run dg runs show 01a0dcff-f67c-763f-b7bf-a0348cadd4ec --json \
+  | jq '.fields.attempts[] | select(.step_name == "send") | .output.body.request.body'
 ```
 
 ```json
@@ -600,7 +615,7 @@ uv run dg runs show 01a0ad19-fb7b-7449-94b4-c4fa802d7715 --json \
 The station and the reading made it from the first step's answer, through the gate, into the
 second step's request -- and neither value was written twice in the document.
 
-![The run in the UI with the send step selected, its output showing the body Postman Echo received.](images/basics/run-send.png)
+![The run in the UI with the send step selected, its output showing the body the playground received.](images/basics/run-send.png)
 
 *The gate's output, referenced by the step after it, and the answer that came back.*
 
@@ -620,7 +635,7 @@ The schema is right; give it something that is not the shape. `-p` sets a parame
 run, and an empty station is a string the schema will not have:
 
 ```bash
-uv run dg run echo-reading --watch -p station=
+uv run dg run first-reading --watch -p station=
 ```
 
 ```text
@@ -628,7 +643,7 @@ steps
 ┏━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ step          ┃ block           ┃ outcome   ┃ after ┃ attempts ┃ duration ┃ error                ┃
 ┡━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━┩
-│ ask           │ http.request    │ succeeded │ -     │ 1        │ 0.2s     │ -                    │
+│ ask           │ http.request    │ succeeded │ -     │ 1        │ 0.0s     │ -                    │
 │ check  1 warn │ validate.schema │ failed    │ ask   │ 1        │ 0.0s     │ at $.args.station:   │
 │               │                 │           │       │          │          │ '' should be         │
 │               │                 │           │       │          │          │ non-empty            │
@@ -652,7 +667,7 @@ That is the point of a gate -- nothing downstream of it ever sees a value it ref
 
 Note the class on that failure: **rejected**. It decides whether a retry is even attempted, and
 the clearest way to see it is two steps that fail differently under the same budget. Write
-`pipelines/echo-failures.yaml`:
+`pipelines/two-failures.yaml`:
 
 ```yaml
 # Two failures with the same retry budget, to show what the budget is actually for.
@@ -662,7 +677,7 @@ the clearest way to see it is two steps that fail differently under the same bud
 
 format: dirigent/v1
 kind: pipeline
-code: echo-failures
+code: two-failures
 name: Two ways to fail
 description: One step is refused and one is unlucky, and only one of them is retried.
 
@@ -680,8 +695,10 @@ steps:
       backoff: 2s
     config:
       # 404 is the service saying the thing is not there. Asking again cannot change that.
-      url: https://postman-echo.com/status/404
+      url: http://127.0.0.1:3333/api/v1/playground/request
       method: GET
+      query:
+        status: 404
 
   unlucky:
     block: http.request
@@ -690,12 +707,14 @@ steps:
       backoff: 2s
     config:
       # 503 is the service saying it is unwell right now, which is a different sentence.
-      url: https://postman-echo.com/status/503
+      url: http://127.0.0.1:3333/api/v1/playground/request
       method: GET
+      query:
+        status: 503
 ```
 
 ```bash
-uv run dg run --local pipelines/echo-failures.yaml
+uv run dg run --local pipelines/two-failures.yaml
 ```
 
 ```text
@@ -703,29 +722,29 @@ steps
 ┏━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━┳━━━━━━━━┓
 ┃ step    ┃ block        ┃ outcome ┃ after ┃ duration ┃ output ┃
 ┡━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━╇━━━━━━━━┩
-│ refused │ http.request │ failed  │ -     │ 0.2s     │ -      │
-│ unlucky │ http.request │ failed  │ -     │ 0.5s     │ -      │
-│ unlucky │ http.request │ failed  │ -     │ 0.3s     │ -      │
-│ unlucky │ http.request │ failed  │ -     │ 0.2s     │ -      │
+│ refused │ http.request │ failed  │ -     │ 0.1s     │ -      │
+│ unlucky │ http.request │ failed  │ -     │ 0.0s     │ -      │
+│ unlucky │ http.request │ failed  │ -     │ 0.0s     │ -      │
+│ unlucky │ http.request │ failed  │ -     │ 0.0s     │ -      │
 └─────────┴──────────────┴─────────┴───────┴──────────┴────────┘
 
 refused failed  http.request, attempt 1, rejected
-  GET https://postman-echo.com/status/404 answered 404
+  GET http://127.0.0.1:3333/api/v1/playground/request answered 404
   last log lines:
     info: http call
 
 unlucky failed  http.request, attempt 1, transient
-  GET https://postman-echo.com/status/503 answered 503
+  GET http://127.0.0.1:3333/api/v1/playground/request answered 503
   last log lines:
     info: http call
 
 unlucky failed  http.request, attempt 2, transient
-  GET https://postman-echo.com/status/503 answered 503
+  GET http://127.0.0.1:3333/api/v1/playground/request answered 503
   last log lines:
     info: http call
 
 unlucky failed  http.request, attempt 3, transient
-  GET https://postman-echo.com/status/503 answered 503
+  GET http://127.0.0.1:3333/api/v1/playground/request answered 503
   last log lines:
     info: http call
 ```
@@ -740,14 +759,14 @@ Apply it and run it on the instance too, because the contrast is worth seeing on
 
 ```bash
 uv run dg apply
-uv run dg run echo-failures --watch
+uv run dg run two-failures --watch
 ```
 
 ![The failed run in the UI with the refused step selected: one attempt, class rejected, and max_attempts 3 in its config.](images/basics/run-refused.png)
 
 *One attempt, with three allowed. A rejected failure never touches the budget.*
 
-![The same run with the unlucky step selected: three attempts, each one transient, eight seconds from the first to the last.](images/basics/run-retried.png)
+![The same run with the unlucky step selected: three attempts, each one transient, six seconds from the first to the last.](images/basics/run-retried.png)
 
 *The same budget, spent. Every attempt is a row of its own, with its own resolved config and its own logs, which is what makes a retry auditable rather than a counter.*
 
@@ -826,7 +845,7 @@ examples
 ```
 
 ```bash
-uv run dg pipeline new http-fetch-validate-transform-validate-post
+uv run dg pipeline new http-fetch-validate-post
 ```
 
 It copies the document into `pipelines/` verbatim -- comments and all -- rewriting the `code:`
@@ -843,17 +862,17 @@ screen in the UI is the same catalogue, and it says per document what this insta
 
 ## The documents in full
 
-`pipelines/echo-reading.yaml`:
+`pipelines/first-reading.yaml`:
 
 ```yaml
-# Ask Postman Echo for one station's reading, hold the answer to a shape, and send the
+# Ask the playground for one station's reading, hold the answer to a shape, and send the
 # validated values back to it.
 
 format: dirigent/v1
 kind: pipeline
-code: echo-reading
+code: first-reading
 name: The basics pipeline
-description: Ask Postman Echo for one station's reading, and hold the answer to a shape.
+description: Ask the playground for one station's reading, and hold the answer to a shape.
 
 tags: [basics, tutorial]
 
@@ -862,7 +881,7 @@ requires:
     - http.request
     - validate.schema
   schemas:
-    - echo-reading
+    - basics-reading
 
 params:
   type: object
@@ -876,7 +895,7 @@ steps:
   ask:
     block: http.request
     config:
-      url: https://postman-echo.com/get
+      url: http://127.0.0.1:3333/api/v1/playground/request
       method: GET
       query:
         station: ${params.station}
@@ -886,14 +905,16 @@ steps:
     block: validate.schema
     depends_on: [ask]
     config:
-      input: ${steps.ask.output.body}
-      schema: echo-reading
+      # The envelope's `request` is the part this pipeline is about, so that is what the gate
+      # is given and what every step past it reads.
+      input: ${steps.ask.output.body.request}
+      schema: basics-reading
 
   send:
     block: http.request
     depends_on: [check]
     config:
-      url: https://postman-echo.com/post
+      url: http://127.0.0.1:3333/api/v1/playground/request
       method: POST
       # Read out of the gate rather than out of the read: every step past a gate provably
       # received the shape the gate passed.
@@ -902,8 +923,8 @@ steps:
         reading: ${steps.check.output.value.args.reading}
 ```
 
-`schemas/echo-reading.json` is the file `dg schema create` stored, printed in section 4, and
-`pipelines/echo-failures.yaml` is printed in section 6 in full.
+`schemas/basics-reading.json` is the file `dg schema create` stored, printed in section 4, and
+`pipelines/two-failures.yaml` is printed in section 6 in full.
 
 When you are done, the instance is a directory: stop `dg dev` and delete `basics/`, and nothing
 of it is left behind.

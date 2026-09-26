@@ -18,9 +18,10 @@
 # The secret lives on the connection, never in this file: a document names a credential, it
 # does not carry one.
 #
-# The receiver here is Postman Echo, which reflects whatever it is posted, so this runs
-# against no instance at all and the reflected body shows what went on the wire, signature
-# header included:
+# The receiver here is this instance's own playground, which reflects whatever it is posted,
+# so this runs against one instance rather than two and the reflected body shows what went on
+# the wire, signature header included:
+#   dg dev &
 #   dg run --local examples/composition/chained-instances.yaml \
 #     --connections examples/connections.yaml -p day=2026-01-01
 #
@@ -40,7 +41,7 @@ requires:
     - http.request
     - webhook.post
   connections:
-    - postman-echo
+    - playground
 
 params:
   type: object
@@ -56,8 +57,8 @@ steps:
   produce:
     block: http.request
     config:
-      connection: postman-echo
-      path: /post
+      connection: playground
+      path: /request
       method: POST
       body:
         day: "${params.day}"
@@ -70,11 +71,11 @@ steps:
       max_attempts: 3
       backoff: 5s
     config:
-      connection: postman-echo
-      path: /post
+      connection: playground
+      path: /request
       # The receiving instance verifies the signature against the same secret, so a handoff
       # cannot be forged by anything that merely knows the URL.
-      sign_with: postman-echo
+      sign_with: playground
       # A receiver that queues the work answers 202, which is a success here even though the
       # work has not happened yet: the handoff is what this step is responsible for.
       success_status: [200, 201, 202]
@@ -83,14 +84,14 @@ steps:
       body:
         day: "${params.day}"
         upstream_run: "${run.id}"
-        rows: "${steps.produce.output.body.json.rows}"
+        rows: "${steps.produce.output.body.request.body.rows}"
 
   confirm:
     block: http.request
     depends_on: [hand_off]
     config:
-      connection: postman-echo
-      path: /post
+      connection: playground
+      path: /request
       method: POST
       body:
         handed_off_with_status: "${steps.hand_off.output.status}"

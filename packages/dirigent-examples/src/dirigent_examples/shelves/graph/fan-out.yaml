@@ -27,7 +27,7 @@ code: fan-out
 name: One step fans out
 description: Push one payload per region, tolerating a region that refuses it.
 
-tags: [graph, execute, http]
+tags: [graph, execute, playground]
 
 params:
   type: object
@@ -44,15 +44,13 @@ params:
 
 steps:
   push:
-    block: http.request
+    block: playground.generate
     for_each: "${params.regions}"
     # One element per region, each its own attempt. items: continue lets the rest finish
     # when one region refuses; items: halt would stop the fan-out at the first failure.
     items: continue
     config:
-      url: https://postman-echo.com/post
-      method: POST
-      body:
+      input:
         day: "${params.day}"
         region: "${item}"
 

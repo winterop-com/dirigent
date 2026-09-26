@@ -1,25 +1,35 @@
 # Credentials live on a connection, not in the document. Here is what that looks like.
 #
 # In:  nothing but parameters.
-# Out: {authenticated: true} from an endpoint that refuses an unauthenticated caller with a
-#      401, proving the connection's credentials were applied.
+# Out: {authenticated: true} from a route that refuses an unauthenticated caller with a 401,
+#      proving the connection's credentials were applied.
+#
+# NEEDS AN INSTANCE TO CALL. The playground is served by a dirigent instance under
+# /api/v1/playground, unauthenticated, so a document teaching HTTP calls its own instance and
+# nothing on the public internet. Start one first, in the project this runs from:
+#
+#   dg dev
+#
+# `dg run --local` builds a throwaway database and mounts no API of its own, so it reaches the
+# playground the same way anything else does: over the network, at the URL below.
 #
 # A document is portable precisely because it names a credential rather than carrying one.
 # On a server the connection is created once and the document says only its code:
 #
-#   dg connection create http postman-echo \
-#     --set base_url=https://postman-echo.com \
-#     --set basic_username=postman --set basic_password=password
+#   dg connection create http playground \
+#     --set base_url=http://127.0.0.1:3333/api/v1/playground \
+#     --set basic_username=playground --set basic_password=playground
 #
 # basic_password is a SecretStr: sealed on the way in, encrypted at rest, and redacted in
 # every API response -- an applied connection reports which fields are set, never what they
 # are set to.
 #
 # This document carries its connection inline instead, which is the exception rather than
-# the pattern, and it is labelled below with why: the credentials are Postman's own public
-# demo pair, so the recipe runs standalone with nothing to hand it. Real credentials never
-# go in a file that lives in git. The instance will not store a document that carries a
-# connection, either, which is the format making that hard to get wrong.
+# the pattern, and it is labelled below with why: the credentials are the playground's own
+# documented pair, which guards nothing, so the recipe runs standalone with nothing to hand
+# it. Real credentials never go in a file that lives in git. The instance will not store a
+# document that carries a connection, either, which is the format making that hard to get
+# wrong.
 #
 # What the connection contributes, once named:
 #
@@ -35,11 +45,14 @@
 # version, a correlation id. A token in there is a token in the document, which is the
 # mistake this whole surface exists to prevent.
 #
-# To change it: -p path=/get calls an endpoint that takes no credentials at all and echoes
-# the headers it saw, including the Authorization the connection added.
+# To change it: -p path=/request calls a route that takes no credentials at all and reflects
+# the headers it saw -- including the Authorization the connection added, whose presence is
+# shown and whose value the playground replaces, which is the same thing dirigent does to a
+# credential anywhere else.
 #
+#   dg dev &
 #   dg run --local examples/recipes/http-headers-and-auth-connection.yaml
-#   dg run --local examples/recipes/http-headers-and-auth-connection.yaml -p path=/get
+#   dg run --local examples/recipes/http-headers-and-auth-connection.yaml -p path=/request
 
 format: dirigent/v1
 kind: pipeline
@@ -54,27 +67,26 @@ requires:
     - http.request
     - transform.jq
 
-# Carried inline so this recipe runs standalone. The pair is Postman's own public demo
-# credential, documented at https://postman-echo.com; a real one is created on the instance
-# and named by code, and an instance refuses to store a document that carries a connection
-# at all.
+# Carried inline so this recipe runs standalone. The pair is the playground's own documented
+# credential, a public constant that guards nothing; a real one is created on the instance and
+# named by code, and an instance refuses to store a document that carries a connection at all.
 connections:
-  echo-basic:
+  playground-auth:
     kind: http
     config:
-      base_url: https://postman-echo.com
-      basic_username: postman
-      basic_password: password
+      base_url: http://127.0.0.1:3333/api/v1/playground
+      basic_username: playground
+      basic_password: playground
       timeout: 30s
       # What dg connection check calls to answer green or red.
-      health_path: /get
+      health_path: /request
 
 params:
   type: object
   properties:
     path:
       type: string
-      default: /basic-auth
+      default: /auth
       description: The path resolved against the connection's base URL.
     correlation_id:
       type: string
@@ -87,7 +99,7 @@ steps:
     config:
       # A code, resolved by the instance. The host, the credentials and the default timeout
       # all come from it.
-      connection: echo-basic
+      connection: playground-auth
       path: ${params.path}
       method: GET
       headers:
@@ -103,8 +115,9 @@ steps:
         status: ${steps.call.output.status}
         body: ${steps.call.output.body}
       program: |
-        # /basic-auth answers {"authenticated": true}; /get echoes the request instead, and
-        # its .headers shows the Authorization header the connection contributed.
+        # /auth answers {"authenticated": true}; /request reflects the call instead, and its
+        # .request.headers shows that an Authorization header was presented -- its presence,
+        # never its value, which the playground replaces on the way back out.
         {status,
          authenticated: (.body.authenticated // null),
-         saw_authorization: ((.body.headers.authorization // null) != null)}
+         saw_authorization: ((.body.request.headers.authorization // null) != null)}

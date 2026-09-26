@@ -2,8 +2,8 @@
 #
 # deadline-on-a-sensor.yaml is this sensor missing its deadline. This one is the sensor doing
 # its job: something writes the object while the run is going, the sensor sees it, and the
-# pipeline carries on. Everything below is offline apart from one echo call, and the drop is
-# written by the run itself so there is nothing to arrange.
+# pipeline carries on. Everything below reaches nothing at all, and the drop is written by the
+# run itself, so there is nothing to arrange.
 #
 # THE TWO CONFIG FIELDS, and both earn their place:
 #
@@ -22,7 +22,7 @@
 #
 # Hop by hop:
 #
-#   producer  fetches the payload the drop is made of. It stands in for the upstream system.
+#   producer  makes the payload the drop is made of. It stands in for the upstream system.
 #   drop      writes that payload to a URI under this run's scratch, which is the moment the
 #             sensor is waiting for: storage.write is the only way a value leaves a run.
 #   dropped   the sensor. It matches on a glob, insists on a minimum size, and fires as soon
@@ -57,11 +57,11 @@ description: |
   Its output says which object matched, how big it is and when it was written, so downstream
   reads the answer rather than rebuilding the pattern.
 
-tags: [patterns, http, sensor, storage, transform]
+tags: [patterns, playground, sensor, storage, transform]
 
 requires:
   blocks:
-    - http.request
+    - playground.generate
     - storage.write
     - storage.exists
     - storage.copy
@@ -82,13 +82,20 @@ params:
 
 steps:
   producer:
-    block: http.request
-    # Stands in for the upstream system: it only fetches, and what it fetches is a value in
+    block: playground.generate
+    # Stands in for the upstream system: it only produces, and what it produces is a value in
     # its output like any other.
     config:
-      url: https://postman-echo.com/get
-      query:
-        day: "${params.day}"
+      rows: 12
+      seed: 31
+      fields:
+        station: license_plate
+        celsius:
+          provider: pyfloat
+          args:
+            min_value: -10
+            max_value: 30
+            right_digits: 1
 
   drop:
     block: storage.write
@@ -97,7 +104,7 @@ steps:
     # is why the sensor matches a pattern rather than this exact target.
     config:
       target: "${run.scratch}/drops/${params.day}/export-0001.json"
-      value: "${steps.producer.output.body}"
+      value: "${steps.producer.output.records}"
 
   dropped:
     block: storage.exists

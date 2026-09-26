@@ -15,9 +15,9 @@
 #
 # Hop by hop:
 #
-#   flaky_publish  /status/500 answers 500, which http.request classifies transient, which is
-#                  the class the budget is spent on. Four attempts, three delays, and it is
-#                  still 500 the fourth time.
+#   flaky_publish  a playground.generate step whose fail_until is above its budget, and its
+#                  failure is classified transient, which is the class the budget is spent
+#                  on. Four attempts, three delays, and it still fails the fourth time.
 #   receipt        never runs: the default all_success edge is not satisfied by a step that
 #                  spent its budget.
 #
@@ -25,10 +25,10 @@
 # attempt rows rather than the wall clock: there are four of them, 1s, 2s and 4s apart.
 #
 # To change it: raise max_backoff and the fourth delay would have been 8s; lower it to 2s and
-# the sequence flattens to 1s, 2s, 2s. -p status=200 makes the first attempt the only one.
+# the sequence flattens to 1s, 2s, 2s. -p fail_until=0 makes the first attempt the only one.
 #
-#   dg run --local examples/patterns/retry-exponential-backoff.yaml                 # fails after 4 attempts
-#   dg run --local examples/patterns/retry-exponential-backoff.yaml -p status=200   # succeeds on the first
+#   dg run --local examples/patterns/retry-exponential-backoff.yaml                    # fails after 4 attempts
+#   dg run --local examples/patterns/retry-exponential-backoff.yaml -p fail_until=0    # succeeds on the first
 
 format: dirigent/v1
 kind: pipeline
@@ -38,27 +38,27 @@ description: |
   The five retry fields and the delays they compute: `backoff`, `multiplier`, `max_backoff`,
   `jitter`, and the `max_attempts` that counts the first try.
 
-  As written the endpoint answers 500 four times, 1s, 2s and 4s apart, and the run reports
-  `failed`.
+  As written the step fails four times, 1s, 2s and 4s apart, and the run reports `failed`.
 
-tags: [patterns, http, failure, retry]
+tags: [patterns, playground, failure, retry]
 
 requires:
   blocks:
-    - http.request
+    - playground.generate
 
 params:
   type: object
   properties:
-    status:
+    fail_until:
       type: integer
-      description: The status the publish endpoint is asked to answer with; 500 is retried, 200 is not.
-      default: 500
-      enum: [200, 500]
+      description: How many attempts fail; above the budget below it is never going to land.
+      default: 9
+      minimum: 0
+      maximum: 9
 
 steps:
   flaky_publish:
-    block: http.request
+    block: playground.generate
     retry:
       # The budget counts the first try, so four here means one attempt and three retries.
       max_attempts: 4
@@ -73,16 +73,17 @@ steps:
       # that fans out wants this above zero; see retry-with-jitter.yaml.
       jitter: 0.0
     config:
-      url: "https://postman-echo.com/status/${params.status}"
-      method: GET
+      # Above the budget, so every attempt is inside the failing window and the four delays
+      # are the only thing that varies.
+      fail_until: "${params.fail_until}"
+      rows: 2
+      seed: 12
 
   receipt:
-    block: http.request
+    block: playground.generate
     depends_on: [flaky_publish]
     # Unreached as written. A spent budget is an ordinary failure, and the default
     # all_success edge treats it as one.
     config:
-      url: https://postman-echo.com/post
-      method: POST
-      body:
-        published_with: "${steps.flaky_publish.output.status}"
+      input:
+        published_on_attempt: "${steps.flaky_publish.output.attempt}"

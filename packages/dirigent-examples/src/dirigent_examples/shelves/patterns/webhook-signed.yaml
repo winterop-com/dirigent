@@ -34,14 +34,24 @@
 #
 #   build     assembles the notification body. Signing a value a step computed is the ordinary
 #             case; the signature is over whatever the body serialises to.
-#   notify    POSTs it signed. Postman Echo takes any body and answers with what it received,
-#             so its answer shows the header that was presented.
+#   notify    POSTs it signed. The playground takes any body and answers with what it
+#             received, so its answer shows the header that was presented.
 #   unsigned  the same POST with no sign_with, for comparison: output.signed is false.
 #   compare   reads both back and puts the two signed flags side by side.
+#
+# NEEDS AN INSTANCE TO CALL. The playground is served by a dirigent instance under
+# /api/v1/playground, unauthenticated, so a document teaching HTTP calls its own instance and
+# nothing on the public internet. Start one first, in the project this runs from:
+#
+#   dg dev
+#
+# `dg run --local` builds a throwaway database and mounts no API of its own, so it reaches the
+# playground the same way anything else does: over the network, at the URL below.
 #
 # EXPECT THIS RUN TO SUCCEED in about two seconds, with notify's signed true and unsigned's
 # signed false.
 #
+#   dg dev &
 #   dg run --local examples/patterns/webhook-signed.yaml
 
 format: dirigent/v1
@@ -66,13 +76,13 @@ requires:
 
 # Carried, because a --local run has no instance to hold a connection. Against a real
 # instance this is a connection created once, and the document names it by code:
-#   dg connection create http ops-receiver --set base_url=https://postman-echo.com \
-#     --set hmac_secret=...
+#   dg connection create http ops-receiver \
+#     --set base_url=http://127.0.0.1:3333/api/v1/playground --set hmac_secret=...
 connections:
   ops-receiver:
     kind: http
     config:
-      base_url: https://postman-echo.com
+      base_url: http://127.0.0.1:3333/api/v1/playground
       # A SecretStr: sealed on the way in, redacted on the way out, and never readable back
       # from the API. This one is a demonstration value and protects nothing.
       hmac_secret: a shared secret between two dirigent instances
@@ -106,7 +116,7 @@ steps:
     config:
       # Where it goes: the connection's base URL plus this path.
       connection: ops-receiver
-      path: /post
+      path: /request
       # What signs it. The same connection here, but it need not be: a POST to one place can
       # be signed with a secret agreed with somebody else.
       sign_with: ops-receiver
@@ -123,7 +133,7 @@ steps:
     # be compared against.
     config:
       connection: ops-receiver
-      path: /post
+      path: /request
       body: "${steps.build.output.value}"
 
   compare:
@@ -133,9 +143,9 @@ steps:
       input:
         signed: "${steps.notify.output.signed}"
         unsigned: "${steps.unsigned.output.signed}"
-        # The receiver echoes the headers it was sent, so the signature the block presented is
-        # readable here. A real receiver verifies it and says nothing about it.
-        presented: "${steps.notify.output.json_body.headers}"
+        # The receiver reflects the headers it was sent, so the signature the block presented
+        # is readable here. A real receiver verifies it and says nothing about it.
+        presented: "${steps.notify.output.json_body.request.headers}"
       program: |
         {
           signed,

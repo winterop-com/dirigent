@@ -32,7 +32,7 @@
 #             empty file, where an empty json array would still be two bytes.
 #   matched   the gate. Three seconds is plenty when the file is already there; on a quiet
 #             day it is three seconds of waiting and then a clean skip.
-#   notify    the digest, posted. It points at Postman Echo so this example runs for real
+#   notify    the digest, posted. It points at this instance's own playground so it runs for real
 #             without standing anything up; on your instance it is your own receiver, and
 #             `sign_with` naming a connection with an hmac_secret is how the receiver knows
 #             the post came from you.
@@ -90,8 +90,8 @@ params:
       description: Raise this until the digest is worth reading.
     webhook_url:
       type: string
-      default: https://postman-echo.com/post
-      description: Where the digest goes; Postman Echo so the example posts for real.
+      default: http://127.0.0.1:3333/api/v1/playground/request
+      description: Where the digest goes; this instance's own playground, so the example posts for real.
 
 steps:
   feed:

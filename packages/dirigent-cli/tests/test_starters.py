@@ -159,7 +159,7 @@ def test_a_copy_of_a_shipped_document_names_what_it_carried() -> None:
     copied = instantiate(shown["source"], "mine")
     definition = load_pipeline_text(copied)
     assert not definition.connections, "a copy carries nothing an instance would refuse"
-    assert definition.requires.connections == ["postman-echo", "echo-carried"]
+    assert definition.requires.connections == ["playground", "playground-carried"]
     assert copied.startswith("# Naming a connection, and carrying one")
     assert "# Carried, for the case with no instance to name one on." not in copied
 

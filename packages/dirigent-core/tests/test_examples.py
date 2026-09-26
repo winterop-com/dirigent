@@ -13,7 +13,7 @@ EXAMPLES = Path(__file__).resolve().parents[3] / "examples"
 
 #: Connections the examples reference by name; examples/connections.yaml defines them.
 EXAMPLE_CONNECTIONS = (
-    "postman-echo",
+    "playground",
     "modelling-api",
     "odk-central",
     "ops-webhook",
@@ -35,7 +35,7 @@ EXAMPLE_PIPELINES = (
 
 #: Named schemas the examples reference by code; examples/schemas/ defines them. A carried
 #: schema satisfies its own reference, so only the instance-held codes need to appear here.
-EXAMPLE_SCHEMAS = ("ou-record", "echo-reading", "station-reading")
+EXAMPLE_SCHEMAS = ("ou-record", "playground-reading", "station-reading")
 
 #: Files under examples/ that are not pipeline documents.
 NOT_DOCUMENTS = frozenset({"connections.yaml"})

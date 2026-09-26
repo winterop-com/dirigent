@@ -7,10 +7,11 @@
 # In:  a day, and four feeds each carrying its own readings.
 # Out: a markdown briefing under the run's scratch prefix, read back and logged.
 #
-# THE DATA IS THE DOCUMENT'S OWN, AND IT MAKES A REAL ROUND TRIP. Postman Echo has no health
-# feed to serve, so each feed's readings are written here and posted to /post, which hands
-# them back. What is being taught is the shape of the flow, and nothing about it changes when
-# the url becomes a real one.
+# THE FEED READ IS A NODE, NOT A CALL. Each feed's readings are carried in this document's own
+# parameters, and `pull` hands them to playground.generate, which takes an `input` and passes
+# it through. So the document reaches nothing -- no connection, no URL, no network -- and what
+# is being taught is the shape of the flow. Replacing `pull` with an http.request whose body
+# the filter below reads changes that one step and nothing under it.
 #
 # THE JQ FAMILY IS THREE VERBS, AND EACH IS ONE HOP HERE:
 #
@@ -20,7 +21,8 @@
 #
 # HOP BY HOP:
 #
-#   pull            http.request, once per feed. The readings go out and come back.
+#   pull            playground.generate, once per feed: that feed's readings become that
+#                   item's output, so the grid below has one feed's data per item.
 #   recent          filter.jq, once per feed: drop everything under the threshold.
 #   banded          map.jq, once per feed: label each surviving reading.
 #   feed_summary    transform.jq, once per feed: the list becomes one object.
@@ -54,11 +56,11 @@ description: |
   The three jq verbs in one document: `filter.jq` narrows a list, `map.jq` reshapes its
   elements, and `transform.jq` turns the list into an object.
 
-tags: [showcase, http, transform, validate, storage, report, fan-out, jq, filter, map, briefing, schedule, starter]
+tags: [showcase, playground, transform, validate, storage, report, fan-out, jq, filter, map, briefing, schedule, starter]
 
 requires:
   blocks:
-    - http.request
+    - playground.generate
     - filter.jq
     - map.jq
     - transform.jq
@@ -130,7 +132,7 @@ schemas:
 
 steps:
   pull:
-    block: http.request
+    block: playground.generate
     for_each: "${params.feeds}"
     items: continue
     retry:
@@ -139,12 +141,9 @@ steps:
       multiplier: 2.0
       jitter: 0.2
     config:
-      url: https://postman-echo.com/post
-      method: POST
-      body:
-        feed: "${item.feed}"
-        day: "${params.day}"
-        readings: "${item.readings}"
+      # A whole reference keeps its type, so the readings arrive as a list of integers and
+      # the node's records are that list, element for element.
+      input: "${item.readings}"
 
   recent:
     block: filter.jq
@@ -152,7 +151,7 @@ steps:
     # pull's grid, so feed three here is feed three there.
     for_each: "${steps.pull.items}"
     config:
-      input: "${steps.pull.item.output.body.data.readings}"
+      input: "${steps.pull.item.output.records}"
       # A filter program answers true or false for one element; the elements it answers true
       # for are the output, in the order they arrived.
       program: ". >= ${params.threshold}"
@@ -174,7 +173,7 @@ steps:
     config:
       input:
         feed: "${item.feed}"
-        reported: "${steps.pull.item.output.body.data.readings}"
+        reported: "${steps.pull.item.output.records}"
         kept: "${steps.banded.item.output.value}"
       # One program over the whole value, which is what turns a list into an object.
       program: |

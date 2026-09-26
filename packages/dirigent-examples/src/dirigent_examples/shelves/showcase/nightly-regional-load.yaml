@@ -1,7 +1,7 @@
 # A night's work in one document: a window, a catalogue, eight regions, and a page about it.
 #
 # This is the shelf's big one, and it is sized like the pipeline somebody actually operates
-# rather than like the smallest thing that proves a point. Fifteen steps, five of them fanned
+# rather than like the smallest thing that proves a point. Sixteen steps, six of them fanned
 # out over the same grid of regions, two gates, one sensor per export job, and a tail that
 # writes a page and says where it went.
 #
@@ -14,16 +14,21 @@
 #   maintenance_window  time.window, the gate a nightly load opens behind. A sensor, so poll
 #                       and deadline are the step's, and a closed window parks rather than
 #                       spins. Open all day here so the example runs; a real one is narrow.
-#   catalogue           http.request, the day's manifest from the source. Postman Echo hands
-#                       back what it was asked, which is exactly what a catalogue read is.
+#   catalogue           playground.generate, the day's manifest. A node stands in for the
+#                       source read, so the whole document runs with nothing to reach.
 #   check_catalogue     validate.schema, the first gate. Everything past it provably received
-#                       the shape, because it reads the gate's output rather than the raw body.
-#   submit              http.request, once per region: submit-then-probe's first half. Under
-#                       items: continue a region that refuses is recorded against its own item.
-#   await               http.ready, once per submitted job: the second half. A sensor with a
-#                       deadline, polled every two seconds, parked as a row in between.
+#                       the shape, because it reads the gate's output rather than the raw
+#                       record.
+#   submit              playground.generate, once per region: the export job, which takes
+#                       `pace` before it answers. Under items: continue a region that refuses
+#                       is recorded against its own item.
+#   deposit             storage.write, once per region: the export lands in the run's own
+#                       landing zone as an object, which is the thing a sensor can wait for.
+#   await               storage.exists, once per deposited export: a sensor with a deadline,
+#                       polled every second, parked as a row in between, and refusing an
+#                       object that is under its floor.
 #   shape               transform.jq, once per region, reading THAT region's submission and
-#                       THAT region's probe -- the matching item, not the batch.
+#                       THAT region's landing -- the matching item, not the batch.
 #   check_region        validate.schema, once per region: the gate applied per item, so a
 #                       region whose shape moved is refused on its own rather than in the join.
 #   write_region        storage.write, once per region, named for ${item} so two items never
@@ -31,7 +36,7 @@
 #   manifest            transform.jq, the join: no for_each at all, one attempt over the list
 #                       of every file that was written.
 #   totals              transform.jq, the other join: rows and datasets across the regions.
-#   publish             http.request, the batch handed on, with a retry policy over it.
+#   publish             playground.generate, the batch handed on, with a retry policy over it.
 #   page                report.render, the markdown a person reads in the morning.
 #   save                storage.write, the page beside the data it is about.
 #   announce            log.write, where the page landed, on the run's own timeline.
@@ -39,12 +44,12 @@
 #
 # EXPECT THIS RUN TO SUCCEED in a few seconds, with eight files written and a page saved.
 #
-# THE PACE KNOB IS FOR WATCHING IT. `pace` is the seconds each region's export takes before
-# its probe answers, so a run started with one has eight items visibly in flight rather than
-# a graph that is green before the screen has drawn it:
+# THE PACE KNOB IS FOR WATCHING IT. `pace` is how long each region's export takes before it
+# answers, so a run started with one has eight items visibly in flight rather than a graph
+# that is green before the screen has drawn it:
 #
 #   dg run --local examples/showcase/nightly-regional-load.yaml
-#   dg run --local examples/showcase/nightly-regional-load.yaml -p pace=6      # watchable
+#   dg run --local examples/showcase/nightly-regional-load.yaml -p pace=6s     # watchable
 #   dg run --local examples/showcase/nightly-regional-load.yaml -p regions='["east","west"]'
 #
 # On an instance it is the same document, plus the clock it carries:
@@ -59,19 +64,19 @@ code: nightly-regional-load
 name: The nightly regional load
 description: |
   A night's load over eight regions: a maintenance window, a catalogue read gated on its
-  shape, one export submitted and probed per region, a per-region gate and write, the joins
-  over them, and a page saved beside the data.
+  shape, one export submitted, deposited and waited on per region, a per-region gate and
+  write, the joins over them, and a page saved beside the data.
 
-  The pipeline the rest of this shelf is cut down from: five steps share one grid, two are
+  The pipeline the rest of this shelf is cut down from: six steps share one grid, two are
   gates, and the tail is the part somebody reads in the morning.
 
-tags: [showcase, http, sensor, transform, validate, storage, report, fan-out, graph, schedule, references, starter]
+tags: [showcase, playground, sensor, transform, validate, storage, report, fan-out, graph, schedule, references, starter]
 
 requires:
   blocks:
     - time.window
-    - http.request
-    - http.ready
+    - playground.generate
+    - storage.exists
     - validate.schema
     - transform.jq
     - storage.write
@@ -99,11 +104,9 @@ params:
         type: string
       description: One item, one export, one file, per element.
     pace:
-      type: integer
-      default: 0
-      minimum: 0
-      maximum: 10
-      description: Seconds each region's export takes before its probe answers.
+      type: string
+      default: 0s
+      description: How long each region's export takes before it answers; a humane duration.
 
 # Carried, so `dg run --local` has the shapes without an instance holding them. An instance
 # refuses a document that carries a schema, so a copy of this names them in requires instead.
@@ -123,7 +126,7 @@ schemas:
     properties:
       region: { type: string, minLength: 1 }
       day: { type: string, format: date }
-      probe_ms: { type: integer, minimum: 0 }
+      export_ms: { type: integer, minimum: 0 }
       datasets:
         type: array
         minItems: 1
@@ -152,12 +155,12 @@ steps:
       timezone: Europe/Oslo
 
   catalogue:
-    block: http.request
+    block: playground.generate
     depends_on: [maintenance_window]
     config:
-      url: https://postman-echo.com/get
-      method: GET
-      query:
+      # Stands in for the catalogue read. The node takes an input and hands it back as its
+      # records, so the gate below has a shape to hold it to.
+      input:
         day: "${params.day}"
         release: "${params.release}"
 
@@ -165,11 +168,11 @@ steps:
     block: validate.schema
     depends_on: [catalogue]
     config:
-      input: "${steps.catalogue.output.body.args}"
+      input: "${steps.catalogue.output.records.0}"
       schema: nightly-catalogue
 
   submit:
-    block: http.request
+    block: playground.generate
     depends_on: [check_catalogue]
     for_each: "${params.regions}"
     # A region that refuses is recorded against its own item and the rest finish. Under the
@@ -184,43 +187,54 @@ steps:
       multiplier: 2.0
       jitter: 0.2
     config:
-      url: https://postman-echo.com/post
-      method: POST
-      body:
+      # The export takes this long before it answers, which is what makes the grid watchable.
+      delay: "${params.pace}"
+      input:
         region: "${item}"
         day: "${params.day}"
         datasets: [cases, climate]
 
-  await:
-    block: http.ready
+  deposit:
+    block: storage.write
     depends_on: [submit]
-    # No grid of its own: it takes submit's, so probe 3 waits on submission 3.
+    # No grid of its own: it takes submit's, so deposit 3 writes submission 3.
     for_each: "${steps.submit.items}"
-    poll: 2s
+    config:
+      # The landing zone, one object per region, named for the item so two items never write
+      # the same key. write_region below is the curated output; this is the raw arrival.
+      target: "${run.scratch}/exports/${item}.json"
+      value: "${steps.submit.item.output.records.0}"
+      content_type: application/json
+
+  await:
+    block: storage.exists
+    depends_on: [deposit]
+    for_each: "${steps.deposit.items}"
+    poll: 1s
     deadline: 2m
     config:
-      # /delay/<seconds> answers 200 after that many seconds, which is what stands in here
-      # for an export service that is still writing. pace=0 answers at once.
-      # The region rides in the query string: a sensor takes a url, not a query map.
-      url: "https://postman-echo.com/delay/${params.pace}?region=${item}"
-      expect_status: [200]
+      uri: "${run.scratch}/exports/${item}.json"
+      # The floor a landing has to clear. A producer uploading a large object makes the key
+      # visible before the bytes are all there, and without this the load reads a half file.
+      min_size: 10b
 
   shape:
     block: transform.jq
     depends_on: [submit, await]
-    # await took submit's grid, so this takes await's and reaches both by item position.
+    # await took deposit's grid, which took submit's, so this reaches all three by position.
     for_each: "${steps.await.items}"
     config:
       input:
-        # The matching item's output in both cases, not the list of every item's.
-        submitted: "${steps.submit.item.output.body.data}"
-        probe_ms: "${steps.await.item.output.duration_ms}"
-      # Echo has no regional data to hand back, so the row counts are derived from the dataset
-      # name: what matters here is the shape one region's record arrives in.
+        # The matching item's output in every case, not the list of every item's.
+        submitted: "${steps.submit.item.output.records.0}"
+        export_ms: "${steps.submit.item.output.delay_ms}"
+        landed_bytes: "${steps.await.item.output.size}"
+      # The row counts are derived from the dataset name: what matters here is the shape one
+      # region's record arrives in, and that the record came from that region's own item.
       program: |
         {region: .submitted.region,
          day: .submitted.day,
-         probe_ms: .probe_ms,
+         export_ms: .export_ms,
          datasets: [.submitted.datasets[] | {dataset: ., rows: (length * 100)}]}
 
   check_region:
@@ -261,19 +275,17 @@ steps:
         {regions: length,
          rows: ([.[].value.datasets[].rows] | add),
          datasets: ([.[].value.datasets[].dataset] | unique),
-         slowest_ms: ([.[].value.probe_ms] | max)}
+         slowest_ms: ([.[].value.export_ms] | max)}
 
   publish:
-    block: http.request
+    block: playground.generate
     depends_on: [manifest, totals]
     retry:
       max_attempts: 3
       backoff: 1s
       multiplier: 2.0
     config:
-      url: https://postman-echo.com/post
-      method: POST
-      body:
+      input:
         day: "${params.day}"
         manifest: "${steps.manifest.output.value}"
         totals: "${steps.totals.output.value}"
@@ -292,7 +304,7 @@ steps:
         # Nightly load for {{ day }}
 
         {{ totals.regions }} regions loaded, {{ totals.rows }} rows across {{ totals.datasets | length }} datasets.
-        The slowest export answered in {{ totals.slowest_ms }}ms.
+        The slowest export took {{ totals.slowest_ms }}ms.
 
         {{ manifest.files }} files were written, {{ manifest.bytes }} bytes in all.
 

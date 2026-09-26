@@ -1,5 +1,14 @@
 # http.ready: waiting for a service to say it is up, without holding anything while you wait.
 #
+# NEEDS AN INSTANCE TO CALL. The playground is served by a dirigent instance under
+# /api/v1/playground, unauthenticated, so a document teaching HTTP calls its own instance and
+# nothing on the public internet. Start one first, in the project this runs from:
+#
+#   dg dev
+#
+# `dg run --local` builds a throwaway database and mounts no API of its own, so it reaches the
+# playground the same way anything else does: over the network, at the URL below.
+#
 # A sensor observes and changes nothing. Each poke here is one short GET, "not yet" is the
 # EXPECTED answer rather than a failure, and between pokes the attempt is a parked row with a
 # wake-up time -- so waiting an hour for a service to come up costs a handful of rows and no
@@ -28,8 +37,8 @@
 #
 # Hop by hop:
 #
-#   api_up     pokes an endpoint that answers 200 immediately, so it is ready on the first
-#              poke and the run does not wait at all. It also matches on the body, which is the
+#   api_up     pokes a route that answers 200 immediately, so it is ready on the first poke
+#              and the run does not wait at all. It also matches on the body, which is the
 #              guard that separates "the port is open" from "the service is up".
 #   smoke_test the ordinary call that was waiting for it, and the reason the sensor is here.
 #   report     reads the sensor's own output: which status made it ready, how long the poke
@@ -37,11 +46,12 @@
 #
 # EXPECT THIS RUN TO SUCCEED in about two seconds, with matched true.
 #
-# To change it: -p path=/status/503 never becomes ready, and after the deadline the step fails
-# -- with on_timeout: skip it would skip instead, which is timeout-skips-the-step.yaml.
+# To change it: -p status=503 never becomes ready, and after the deadline the step fails --
+# with on_timeout: skip it would skip instead, which is timeout-skips-the-step.yaml.
 #
+#   dg dev &
 #   dg run --local examples/patterns/sensor-http-ready.yaml
-#   dg run --local examples/patterns/sensor-http-ready.yaml -p path=/status/503   # fails at the deadline
+#   dg run --local examples/patterns/sensor-http-ready.yaml -p status=503   # fails at the deadline
 
 format: dirigent/v1
 kind: pipeline
@@ -65,13 +75,18 @@ requires:
 params:
   type: object
   properties:
-    path:
+    playground:
       type: string
-      description: The readiness path; /get answers 200 at once, /status/503 never answers ready.
-      default: /get
+      default: http://127.0.0.1:3333/api/v1/playground
+      description: The playground routes on the instance this pokes; `dg dev` serves them here.
+    status:
+      type: integer
+      description: What the readiness route answers; 200 is ready at once, 503 never is.
+      default: 200
+      enum: [200, 503]
     dataset:
       type: string
-      description: Echoed by the endpoint, so the body matcher below has something to match on.
+      description: Reflected by the route, so the body matcher below has something to match on.
       default: cases
 
 steps:
@@ -87,7 +102,7 @@ steps:
     config:
       # A sensor names a target and nothing else: there is no method and no query map here,
       # because looking is a GET and anything a look needs goes in the URL.
-      url: "https://postman-echo.com${params.path}?dataset=${params.dataset}"
+      url: "${params.playground}/request?dataset=${params.dataset}&status=${params.status}"
       # 200 only, rather than any 2xx. Naming it is what stops a 204 with an empty body from
       # counting as a service that is serving.
       expect_status: [200]
@@ -102,7 +117,7 @@ steps:
     # The work that was waiting. Ordinary all_success, so it never runs against a service the
     # sensor could not confirm.
     config:
-      url: https://postman-echo.com/post
+      url: "${params.playground}/request"
       method: POST
       body:
         dataset: "${params.dataset}"

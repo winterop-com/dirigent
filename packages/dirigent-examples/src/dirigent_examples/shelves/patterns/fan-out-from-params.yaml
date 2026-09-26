@@ -16,10 +16,10 @@
 #
 # Hop by hop:
 #
-#   fetch    http.request once per region, with the region in the query string so each item's
-#            call is distinguishable in the log. Postman Echo answers with what it was sent,
-#            so each item's output carries its own region back.
-#   tally    one attempt over the whole list, pulling each item's echoed region out again.
+#   fetch    playground.generate once per region, with the region as the step's input so each
+#            item's output carries its own region. A fan-in reads outputs and never elements,
+#            so anything an element knows has to be inside an item's output to survive.
+#   tally    one attempt over the whole list, pulling each item's region out again.
 #
 # EXPECT THIS RUN TO SUCCEED with four items, in a couple of seconds.
 #
@@ -42,11 +42,11 @@ description: |
   Expansion happens when the run is created, so the item grid is complete before the first
   attempt runs.
 
-tags: [patterns, http, transform, fan-out, params]
+tags: [patterns, playground, transform, fan-out, params]
 
 requires:
   blocks:
-    - http.request
+    - playground.generate
     - transform.jq
 
 params:
@@ -66,14 +66,12 @@ params:
 
 steps:
   fetch:
-    block: http.request
+    block: playground.generate
     for_each: "${params.regions}"
     config:
-      url: https://postman-echo.com/get
-      query:
-        # Each item sends its own region, so the log line for one item names the work that
-        # item did rather than the work the step did.
-        region: "${item}"
+      # Each item works on its own region, so the log line for one item names the work that
+      # item did rather than the work the step did.
+      input: "${item}"
 
   tally:
     block: transform.jq
@@ -81,4 +79,4 @@ steps:
     config:
       input: "${steps.fetch.output}"
       program: |
-        {loaded: [.[].body.args.region], count: length}
+        {loaded: [.[].records[0]], count: length}

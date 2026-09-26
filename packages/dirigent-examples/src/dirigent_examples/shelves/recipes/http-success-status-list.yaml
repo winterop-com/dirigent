@@ -21,13 +21,23 @@
 # is that a listed status must be one the steps below can act on, and the branch below here
 # does exactly that: it reads the status and reports what it means.
 #
-# https://postman-echo.com/status/<code> answers with the code it is given, which is what
-# makes this runnable without arranging a real 409.
+# GET /api/v1/playground/request?status=<code> answers with the code it is given, which is
+# what makes this runnable without arranging a real 409.
+#
+# NEEDS AN INSTANCE TO CALL. The playground is served by a dirigent instance under
+# /api/v1/playground, unauthenticated, so a document teaching HTTP calls its own instance and
+# nothing on the public internet. Start one first, in the project this runs from:
+#
+#   dg dev
+#
+# `dg run --local` builds a throwaway database and mounts no API of its own, so it reaches the
+# playground the same way anything else does: over the network, at the URL below.
 #
 # To change it: -p status=404 with -p expected=404 is the "not there" case; -p status=500
 # with the default expectations fails the run, which is the check that this recipe is not
 # just swallowing everything.
 #
+#   dg dev &
 #   dg run --local examples/recipes/http-success-status-list.yaml
 #   dg run --local examples/recipes/http-success-status-list.yaml -p status=200
 #   dg run --local examples/recipes/http-success-status-list.yaml -p status=500   # fails, on purpose
@@ -48,6 +58,10 @@ requires:
 params:
   type: object
   properties:
+    playground:
+      type: string
+      default: http://127.0.0.1:3333/api/v1/playground
+      description: The playground routes on the instance this calls; `dg dev` serves them here.
     status:
       type: integer
       default: 418
@@ -57,8 +71,12 @@ steps:
   call:
     block: http.request
     config:
-      url: https://postman-echo.com/status/${params.status}
+      url: ${params.playground}/request
       method: GET
+      query:
+        # The knob the route reads: it answers with the status it is given, and reflects the
+        # call under it so the steps below still have a body to act on.
+        status: ${params.status}
       # Replaces the default, so 200 is listed explicitly: leaving it out would fail a call
       # that succeeded ordinarily.
       success_status: [200, 404, 418]

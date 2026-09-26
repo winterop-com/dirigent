@@ -11,64 +11,68 @@
 # a block that cannot tell a corrupt input from a database that was briefly away declines to
 # guess, and the engine spends the budget rather than assuming the worst.
 #
-# http.request classifies by status: >= 500 is transient, 4xx is rejected. This file puts the
-# two side by side with the SAME retry policy on both, so the difference cannot be the policy.
+# playground.generate classifies both ways, which is why it can show them side by side:
+# `fail_until` fails on cue and is classified transient, because the point of the knob is a
+# retry; a field map naming a provider the installed Faker does not have is a configuration
+# error, so it is rejected. The two steps below carry the SAME retry policy, so the difference
+# cannot be the policy.
 #
 # Hop by hop:
 #
-#   server_error  /status/500. Transient, so all three attempts are spent: 1s, then 2s.
-#   client_error  /status/404. Rejected, so one attempt and no more -- the identical
-#                 max_attempts: 3 below it buys nothing, because retrying a 404 is retrying a
-#                 correct answer.
-#   compare       all_done on both, so it runs whatever they did and gives the run something
-#                 to end on.
+#   transient_error  fail_until above its budget. Transient, so all three attempts are spent:
+#                    1s, then 2s.
+#   rejected_error   a provider that does not exist. Rejected, so one attempt and no more --
+#                    the identical max_attempts: 3 below it buys nothing, because no later
+#                    attempt is going to invent the provider.
+#   compare          all_done on both, so it runs whatever they did and gives the run
+#                    something to end on.
 #
 # EXPECT THIS RUN TO END completed_with_errors, in about four seconds. Read the attempt
-# counts: server_error has three, client_error has one. Both failures are tolerated, which is
-# why the run is completed_with_errors and not failed.
+# counts: transient_error has three, rejected_error has one. Both failures are tolerated,
+# which is why the run is completed_with_errors and not failed.
 #
-# To change it: -p bad_status=500 and the second step spends its budget too, proving the
-# policy was never the difference. -p bad_status=429 is the interesting middle case -- a rate
-# limit is a 4xx, so it is rejected and not retried, and a pipeline that wants to back off
-# from one has to say so with success_status or a sensor rather than with a retry budget.
+# To change it: -p provider=name is a provider that does exist, so the second step succeeds
+# on its first attempt -- one attempt either way, because a rejection and a success both
+# settle immediately and only a transient failure buys another try.
 #
-#   dg run --local examples/patterns/retry-only-transient.yaml                     # completed_with_errors
-#   dg run --local examples/patterns/retry-only-transient.yaml -p bad_status=500   # both spend the budget
+#   dg run --local examples/patterns/retry-only-transient.yaml                   # completed_with_errors
+#   dg run --local examples/patterns/retry-only-transient.yaml -p provider=name  # the second step lands
 
 format: dirigent/v1
 kind: pipeline
 code: retry-only-transient
 name: Transient retries, rejected does not
 description: |
-  The same three-attempt budget on two steps: a 500 spends all three, a 404 spends one.
+  The same three-attempt budget on two steps: a transient failure spends all three, a
+  rejected one spends one.
 
   The block classifies (`transient`, `rejected`, `unknown`) and the engine decides. Only
   `rejected` is refused another attempt, however much budget is left.
 
-tags: [patterns, http, failure, retry]
+tags: [patterns, playground, failure, retry]
 
 requires:
   blocks:
-    - http.request
+    - playground.generate
     - value.const
 
 params:
   type: object
   properties:
-    good_status:
+    fail_until:
       type: integer
-      description: The status the first call answers with; anything 5xx is classified transient.
-      default: 500
-      enum: [500, 502, 503]
-    bad_status:
-      type: integer
-      description: The status the second call answers with; anything 4xx is classified rejected.
-      default: 404
-      enum: [400, 401, 404, 429, 500]
+      description: How many of the first step's attempts fail; above its budget, all of them.
+      default: 9
+      minimum: 0
+      maximum: 9
+    provider:
+      type: string
+      description: The Faker provider the second step names; one that does not exist is rejected.
+      default: not-a-provider
 
 steps:
-  server_error:
-    block: http.request
+  transient_error:
+    block: playground.generate
     continue_on_failure: true
     retry:
       max_attempts: 3
@@ -77,11 +81,12 @@ steps:
       max_backoff: 4s
       jitter: 0.0
     config:
-      url: "https://postman-echo.com/status/${params.good_status}"
-      method: GET
+      # Classified transient, because a step that fails on cue is standing in for a network
+      # having a moment, and that is what a budget is for.
+      fail_until: "${params.fail_until}"
 
-  client_error:
-    block: http.request
+  rejected_error:
+    block: playground.generate
     continue_on_failure: true
     # Character for character the policy above. That is the point: the budget is identical
     # and the number of attempts is not, because the classification differs.
@@ -92,12 +97,14 @@ steps:
       max_backoff: 4s
       jitter: 0.0
     config:
-      url: "https://postman-echo.com/status/${params.bad_status}"
-      method: GET
+      # A provider the installed Faker does not have. Classified rejected, because no later
+      # attempt is going to make the name exist.
+      fields:
+        who: "${params.provider}"
 
   compare:
     block: value.const
-    depends_on: [server_error, client_error]
+    depends_on: [transient_error, rejected_error]
     # Both prerequisites are tolerated failures, so their dependents are shown a success and
     # the default rule would fire. all_done is written anyway, because this step's job is to
     # be reached whatever happened above it, and saying so is cheaper than remembering why.

@@ -6,14 +6,14 @@ other extreme: documents with fifteen steps, eight-wide fan-outs, gates in the m
 page at the end, because that is what an operated pipeline looks like and it is what the
 screens in [the screens page](../../docs/screens.md) are photographed on.
 
-Nothing here needs infrastructure, a credential, or an allowlist entry. The HTTP calls go to
-[Postman Echo](https://postman-echo.com), the schemas are carried in the documents, and the
-files land under the run's own scratch prefix.
+Nothing here needs infrastructure, a credential, an allowlist entry, or a network: where a
+step has to do something it is `playground.generate`, a node that reaches nothing. The schemas
+are carried in the documents, and the files land under the run's own scratch prefix.
 
 | File | What it shows | Ends as |
 | --- | --- | --- |
-| [nightly-regional-load.yaml](nightly-regional-load.yaml) | Fifteen steps: a maintenance window, a gated catalogue read, submit-then-probe per region, a per-region gate and write, two joins, and a page | `succeeded` |
-| [one-region-refuses.yaml](one-region-refuses.yaml) | Eight exports where one answers 500 until its retry budget is spent, the gap named rather than implied, and a report template of its own | `completed_with_errors` |
+| [nightly-regional-load.yaml](nightly-regional-load.yaml) | Sixteen steps: a maintenance window, a gated catalogue read, submit-deposit-await per region, a per-region gate and write, two joins, and a page | `succeeded` |
+| [one-region-refuses.yaml](one-region-refuses.yaml) | Eight exports where one fails until its retry budget is spent, the gap named rather than implied, and a report template of its own | `completed_with_errors` |
 | [morning-briefing.yaml](morning-briefing.yaml) | The three jq verbs one per hop -- `filter.jq`, `map.jq`, `transform.jq` -- four feeds each narrowed and banded, joined and gated | `succeeded` |
 
 ```bash

@@ -1,15 +1,24 @@
 # Call a service, put the answer in a file, and read the file back.
 #
-# In:  a query the echo service reflects back, named by parameters.
+# In:  a query the playground reflects back, named by parameters.
 # Out: the body as a file in the run's scratch space, and a small summary read back out of
 #      that file.
+#
+# NEEDS AN INSTANCE TO CALL. The playground is served by a dirigent instance under
+# /api/v1/playground, unauthenticated, so a document teaching HTTP calls its own instance and
+# nothing on the public internet. Start one first, in the project this runs from:
+#
+#   dg dev
+#
+# `dg run --local` builds a throwaway database and mounts no API of its own, so it reaches the
+# playground the same way anything else does: over the network, at the URL below.
 #
 # An http.request step hands its answer on as `body`, and a body worth keeping travels to
 # storage the way every other value does: through a storage.write step. Four hops, and what
 # each one hands on:
 #
 #   download  http.request. Output: status, headers, body, body_bytes, duration_ms. body is
-#             the parsed document here, because the echo service answers JSON.
+#             the parsed document here, because the playground answers JSON.
 #   save      storage.write, the value to a URI. Output: uri, bytes_written, content_type.
 #             The bytes are staged beside the target and renamed on close, so the object
 #             becomes visible only once it is whole -- which is what makes a storage.exists
@@ -28,6 +37,7 @@
 # To change it: point save at s3://<bucket>/incoming/... and the same three steps become a
 # download into an object store, because the scheme is the only thing that changes.
 #
+#   dg dev &
 #   dg run --local examples/recipes/http-save-body-to-storage.yaml
 #   dg run --local examples/recipes/http-save-body-to-storage.yaml -p day=2026-02-01
 
@@ -49,6 +59,10 @@ requires:
 params:
   type: object
   properties:
+    playground:
+      type: string
+      default: http://127.0.0.1:3333/api/v1/playground
+      description: The playground routes on the instance this calls; `dg dev` serves them here.
     day:
       type: string
       format: date
@@ -57,13 +71,13 @@ params:
     station:
       type: string
       default: st-1
-      description: A query value, echoed back inside the downloaded body.
+      description: A query value, reflected back inside the downloaded body.
 
 steps:
   download:
     block: http.request
     config:
-      url: https://postman-echo.com/get
+      url: ${params.playground}/request
       method: GET
       query:
         station: ${params.station}
@@ -100,7 +114,7 @@ steps:
         body: ${steps.back.output.value}
       program: |
         {status, uri, file_bytes: .bytes,
-         summary: {url: .body.url,
-                   station: .body.args.station,
-                   day: .body.args.day,
-                   host: .body.headers.host}}
+         summary: {url: .body.request.url,
+                   station: .body.request.args.station,
+                   day: .body.request.args.day,
+                   host: .body.request.headers.host}}

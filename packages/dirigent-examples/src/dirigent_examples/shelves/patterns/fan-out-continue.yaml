@@ -22,19 +22,19 @@
 #
 # Hop by hop:
 #
-#   push       one item per status. Item two answers 500 and fails; items one and three
-#              answer 200 and do not.
+#   push       one item per element, and the element is how many of that item's attempts
+#              fail. Item two fails; items one and three do not.
 #   surviving  runs once over the whole batch, and counts what is actually there. Two, not
 #              three, and the document says so out loud rather than assuming three.
 #
 # EXPECT THIS RUN TO END completed_with_errors, with two succeeded items, one failed item, a
 # succeeded step, and a surviving.count of 2.
 #
-# To change it: -p statuses='[500,500,500]' makes every item fail, which fails the step, which
-# skips the join. That is the boundary between this file and fan-out-fail-fast.yaml.
+# To change it: -p failures='[1,1,1]' makes every item fail, which fails the step, which skips
+# the join. That is the boundary between this file and fan-out-fail-fast.yaml.
 #
-#   dg run --local examples/patterns/fan-out-continue.yaml                              # completed_with_errors
-#   dg run --local examples/patterns/fan-out-continue.yaml -p statuses='[500,500,500]'  # failed
+#   dg run --local examples/patterns/fan-out-continue.yaml                          # completed_with_errors
+#   dg run --local examples/patterns/fan-out-continue.yaml -p failures='[1,1,1]'    # failed
 
 format: dirigent/v1
 kind: pipeline
@@ -47,35 +47,39 @@ description: |
   A failed item is **absent** from the step's output list rather than null, so the batch a
   downstream step reads can be shorter than the one that was asked for.
 
-tags: [patterns, http, transform, failure, fan-out]
+tags: [patterns, playground, transform, failure, fan-out]
 
 requires:
   blocks:
-    - http.request
+    - playground.generate
     - transform.jq
 
 params:
   type: object
   properties:
-    statuses:
+    failures:
       type: array
-      description: One item per element; each item asks the endpoint for that status.
-      default: [200, 500, 200]
+      description: One item per element; each item fails that many of its attempts.
+      default: [0, 1, 0]
       minItems: 1
       maxItems: 16
       items:
         type: integer
-        enum: [200, 404, 500]
+        minimum: 0
+        maximum: 9
 
 steps:
   push:
-    block: http.request
-    for_each: "${params.statuses}"
+    block: playground.generate
+    for_each: "${params.failures}"
     # The one word this file is about.
     items: continue
     config:
-      url: "https://postman-echo.com/status/${item}"
-      method: GET
+      # The element is the failing window, so which item fails is visible in the list above
+      # rather than hidden in a branch. There is no retry policy, so 1 fails the item.
+      fail_until: "${item}"
+      rows: 2
+      seed: 9
 
   surviving:
     block: transform.jq
@@ -85,4 +89,4 @@ steps:
       # length rather than a hard-coded three: under continue the batch is whatever survived,
       # and a program that assumes otherwise reports a number nobody can trust.
       program: |
-        {statuses: [.[].status], count: length}
+        {rows: [.[].rows], count: length}

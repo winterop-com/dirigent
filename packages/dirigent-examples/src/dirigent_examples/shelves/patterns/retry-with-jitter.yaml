@@ -12,7 +12,7 @@
 #
 # Hop by hop:
 #
-#   herd     fans out over four shards, each one calling /status/500 and each one retrying
+#   herd     fans out over four shards, each one failing every attempt and each one retrying
 #            three times with a jittered 2s backoff. items: continue lets every shard spend
 #            its own budget rather than the first failure cancelling the rest, so all four
 #            item grids are there to compare -- and their retry timestamps are visibly not
@@ -28,10 +28,10 @@
 # tolerated.
 #
 # To change it: set jitter to 0.0 and run it again; the four shards' second attempts line up
-# to the same instant. -p status=200 makes every shard green on its first attempt.
+# to the same instant. -p fail_until=0 makes every shard green on its first attempt.
 #
-#   dg run --local examples/patterns/retry-with-jitter.yaml                 # completed_with_errors
-#   dg run --local examples/patterns/retry-with-jitter.yaml -p status=200   # succeeds at once
+#   dg run --local examples/patterns/retry-with-jitter.yaml                    # completed_with_errors
+#   dg run --local examples/patterns/retry-with-jitter.yaml -p fail_until=0    # succeeds at once
 
 format: dirigent/v1
 kind: pipeline
@@ -41,24 +41,25 @@ description: |
   `jitter` spreads each computed backoff randomly, so four items that failed together do not
   retry together and rebuild the herd that took the dependency down.
 
-  As written four shards each spend a three-attempt budget against a 500 and the run reports
-  `completed_with_errors`.
+  As written four shards each spend a three-attempt budget on a step that always fails, and
+  the run reports `completed_with_errors`.
 
-tags: [patterns, http, failure, retry]
+tags: [patterns, playground, failure, retry]
 
 requires:
   blocks:
-    - http.request
+    - playground.generate
     - value.const
 
 params:
   type: object
   properties:
-    status:
+    fail_until:
       type: integer
-      description: The status every shard's endpoint answers with; 500 is retried, 200 is not.
-      default: 500
-      enum: [200, 500]
+      description: How many of each shard's attempts fail; above its budget none of them land.
+      default: 9
+      minimum: 0
+      maximum: 9
     shards:
       type: array
       description: The shards the herd fans out over; more of them makes the spread easier to see.
@@ -68,7 +69,7 @@ params:
 
 steps:
   herd:
-    block: http.request
+    block: playground.generate
     for_each: "${params.shards}"
     # One bad shard is not a reason to stop the other three from spending their budgets, and
     # the point here is to have four retry timelines to compare.
@@ -85,11 +86,12 @@ steps:
       # becomes 2s..6s, redrawn per item. Set this to 0.0 and watch the four line up.
       jitter: 0.5
     config:
-      url: "https://postman-echo.com/status/${params.status}"
-      method: GET
-      headers:
-        # The shard is in the request, so a log line says which item made which call.
-        x-shard: "${item}"
+      # Above the budget, so every shard spends all three attempts and there are four
+      # retry timelines to compare.
+      fail_until: "${params.fail_until}"
+      # The shard is in the step's own input, so an attempt's record says which shard it was.
+      input:
+        shard: "${item}"
 
   settle:
     block: value.const

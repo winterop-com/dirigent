@@ -10,15 +10,15 @@
 # calls this with a region of 42 applies cleanly and fails at that step, which is why
 # additionalProperties: false and the bounds below are worth having.
 #
-# The status parameter exists for one of the parents. pipeline-run-strict.yaml needs a child
-# that settles completed_with_errors on purpose, and this is how: a tolerated failure, which
-# is a failed step whose dependents carry on and whose run is not clean.
+# The fail_until parameter exists for one of the parents. pipeline-run-strict.yaml needs a
+# child that settles completed_with_errors on purpose, and this is how: a tolerated failure,
+# which is a failed step whose dependents carry on and whose run is not clean.
 #
 # Hop by hop:
 #
-#   fetch     a tolerated call. Asked for 200 it succeeds and the run is green; asked for 500
-#             it settles failed and is tolerated, so the run ends completed_with_errors with
-#             the branch below it still running.
+#   fetch     a tolerated step. With 0 it succeeds and the run is green; with 1 its one
+#             attempt fails and is tolerated, so the run ends completed_with_errors with the
+#             branch below it still running.
 #   summarise reads the parameters back into the small record a parent reads as this pipeline's
 #             answer. It runs either way, because a tolerated failure reads as a success to
 #             whatever depends on it.
@@ -26,7 +26,7 @@
 # EXPECT THIS RUN TO SUCCEED on its defaults, in about a second:
 #
 #   dg run --local examples/patterns/pipeline-run-child.yaml -p region=east
-#   dg run --local examples/patterns/pipeline-run-child.yaml -p region=east -p status=500  # completed_with_errors
+#   dg run --local examples/patterns/pipeline-run-child.yaml -p region=east -p fail_until=1  # completed_with_errors
 #
 # Apply it before any of the parents; each of them names it in requires.pipelines, so a parent
 # applied to an instance without it is refused up front with the code to apply first.
@@ -39,14 +39,14 @@ description: |
   An ordinary pipeline that four composition examples call. Nothing about it declares that
   it is a child; its parameter schema is the whole interface.
 
-  `-p status=500` makes it settle `completed_with_errors` on purpose, which is what
+  `-p fail_until=1` makes it settle `completed_with_errors` on purpose, which is what
   `pipeline-run-strict.yaml` needs something to do.
 
-tags: [patterns, http, transform, composition]
+tags: [patterns, playground, transform, composition]
 
 requires:
   blocks:
-    - http.request
+    - playground.generate
     - transform.jq
 
 params:
@@ -67,23 +67,24 @@ params:
       format: date
       description: The day being loaded.
       default: "2026-01-01"
-    status:
+    fail_until:
       type: integer
-      description: What the tolerated call is answered with; 500 settles this run completed_with_errors.
-      default: 200
-      enum: [200, 500]
+      description: How many of the tolerated step's attempts fail; 1 settles this run completed_with_errors.
+      default: 0
+      enum: [0, 1]
 
 steps:
   fetch:
-    block: http.request
+    block: playground.generate
     # Tolerated: it settles failed, its dependents are shown a success, and the run reports
     # completed_with_errors rather than failed. That third status is what strict is about.
     continue_on_failure: true
     config:
-      # A conditional written as data: the parameter picks the status, because the reference
+      # A conditional written as data: the parameter picks the outcome, because the reference
       # language has no branching construct and does not want one.
-      url: "https://postman-echo.com/status/${params.status}"
-      method: GET
+      fail_until: "${params.fail_until}"
+      rows: 6
+      seed: 17
 
   summarise:
     block: transform.jq

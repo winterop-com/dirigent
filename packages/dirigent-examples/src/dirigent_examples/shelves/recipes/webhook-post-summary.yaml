@@ -4,6 +4,15 @@
 # Out: a notification POSTed to a receiver, and its answer -- with the summary built as
 #      structure and the human sentence derived from it, not the other way round.
 #
+# NEEDS AN INSTANCE TO DELIVER TO. The playground is served by a dirigent instance under
+# /api/v1/playground, unauthenticated, so a document teaching a delivery posts to its own
+# instance and nothing on the public internet. Start one first, in the project this runs from:
+#
+#   dg dev
+#
+# `dg run --local` builds a throwaway database and mounts no API of its own, so it reaches the
+# playground the same way anything else does: over the network.
+#
 # A notification body is an interface, so this recipe builds one rather than formatting a
 # message:
 #
@@ -27,6 +36,7 @@
 # To change it: -p failures=0 sends the green version, and severity, text and routing all
 # follow from the numbers without another branch in the document.
 #
+#   dg dev &
 #   dg run --local examples/recipes/webhook-post-summary.yaml
 #   dg run --local examples/recipes/webhook-post-summary.yaml -p failures=0
 
@@ -44,12 +54,12 @@ requires:
     - webhook.post
 
 connections:
-  echo-webhook:
+  playground-receiver:
     kind: http
     config:
-      base_url: https://postman-echo.com
+      base_url: http://127.0.0.1:3333/api/v1/playground
       timeout: 30s
-      health_path: /get
+      health_path: /request
 
 params:
   type: object
@@ -118,8 +128,8 @@ steps:
     # goes quiet exactly when somebody needs it.
     rule: all_done
     config:
-      connection: echo-webhook
-      path: /post
+      connection: playground-receiver
+      path: /request
       body: ${steps.summary.output.value}
       headers:
         # Routing the receiver can dispatch on without parsing the body.
@@ -134,9 +144,11 @@ steps:
       input:
         status: ${steps.notify.output.status}
         signed: ${steps.notify.output.signed}
-        echoed: ${steps.notify.output.json_body}
+        received: ${steps.notify.output.json_body}
       program: |
+        # The playground reflects the delivery, so the routing header and the body that went
+        # out are both readable here without a receiver to write.
         {status, signed,
-         severity: .echoed.headers["x-severity"],
-         text: .echoed.json.text,
-         rejected_keys: .echoed.json.rejected_keys}
+         severity: .received.request.headers["x-severity"],
+         text: .received.request.body.text,
+         rejected_keys: .received.request.body.rejected_keys}

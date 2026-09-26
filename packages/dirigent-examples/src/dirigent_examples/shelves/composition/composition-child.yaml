@@ -20,7 +20,7 @@ code: composition-child
 name: The called pipeline
 description: Load one region's data for one day; callable on its own or by a parent pipeline.
 
-tags: [composition, http, storage]
+tags: [composition, playground, storage]
 
 params:
   type: object
@@ -37,13 +37,14 @@ params:
 
 steps:
   fetch:
-    block: http.request
+    block: playground.generate
     retry:
       max_attempts: 3
     config:
-      url: https://postman-echo.com/post
-      method: POST
-      body:
+      # Stands in for the region's source read. Seeded from the region's own name, so two
+      # children of the same parent load genuinely different rows.
+      rows: 10
+      input:
         region: "${params.region}"
         day: "${params.day}"
 
@@ -54,7 +55,7 @@ steps:
       # The child writes under its own run's scratch, so two children of the same parent
       # never write to the same place, whatever region they were given.
       target: "${run.scratch}/regions/${params.region}.json"
-      value: "${steps.fetch.output.body}"
+      value: "${steps.fetch.output.records}"
 
   archive:
     block: storage.copy

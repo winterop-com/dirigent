@@ -7,18 +7,28 @@
 # and not the other -- and it catches it before the bad row leaves the building.
 #
 # In:  a station and a day, as parameters.
-# Out: one checked row, posted to a public echo service, and a receipt saying what it saw.
+# Out: one checked row, posted to the instance's own playground, and a receipt saying what it
+#      saw.
+#
+# NEEDS AN INSTANCE TO CALL. The playground is served by a dirigent instance under
+# /api/v1/playground, unauthenticated, so a document teaching HTTP calls its own instance and
+# nothing on the public internet. Start one first, in the project this runs from:
+#
+#   dg dev
+#
+# `dg run --local` builds a throwaway database and mounts no API of its own, so it reaches the
+# playground the same way anything else does: over the network, at the URL below.
 #
 # Five hops, and what each one hands on:
 #
-#   fetch     http.request. A GET whose query carries the two parameters, answered by Postman
-#             Echo, a public request-and-response service, so this runs against something real
-#             with nothing to stand up first. Output: status, headers, body, body_bytes.
-#   checked   validate.schema against `echo-reading`: the source's shape, as this document
+#   fetch     http.request. A GET whose query carries the two parameters, answered by the
+#             playground's reflection route, so this runs against something real with nothing
+#             to stand up but an instance. Output: status, headers, body, body_bytes.
+#   checked   validate.schema against `playground-reading`: the source's shape, as this document
 #             understands it. The block passes the value through unchanged when it holds, so
 #             the next step reads the gate's output rather than reaching back past it -- which
 #             is what makes the gate impossible to skip by accident.
-#   reading   transform.jq. The reshaping: the query the echo service reflected back becomes
+#   reading   transform.jq. The reshaping: the query the playground reflected back becomes
 #             the row a receiver wants, and the temperature becomes a number, because a query
 #             string carries text and a downstream average cannot add text.
 #   verified  validate.schema again, against `station-reading` this time: the shape this
@@ -33,15 +43,16 @@
 # preflight: an apply against an instance missing either one is refused up front, naming what
 # is missing, instead of failing on the first run.
 #
-#   dg schema create examples/schemas/echo-reading.json
+#   dg schema create examples/schemas/playground-reading.json
 #   dg schema create examples/schemas/station-reading.json
 #   dg apply examples/recipes/http-fetch-validate-post.yaml
 #   dg run http-fetch-validate-post --watch
 #
 # Locally there is no instance holding them, so hand them over on the command line:
 #
+#   dg dev &
 #   dg run --local examples/recipes/http-fetch-validate-post.yaml \
-#     --schema examples/schemas/echo-reading.json \
+#     --schema examples/schemas/playground-reading.json \
 #     --schema examples/schemas/station-reading.json
 #
 # TO MAKE IT YOURS: point `fetch` at your source, rewrite the two schemas for its shape and
@@ -53,8 +64,8 @@ kind: pipeline
 code: http-fetch-validate-post
 name: Fetch, validate, transform, validate, post
 description: |
-  The full shape: a GET from a public endpoint, a schema gate on what came back, a jq
-  reshaping, a second gate on what was made, and a POST of the result.
+  The full shape: a GET from an endpoint, a schema gate on what came back, a jq reshaping, a
+  second gate on what was made, and a POST of the result.
 
   The second gate is the point. The first one catches the source changing; the second catches
   this document's own program going wrong, before the bad row is delivered.
@@ -68,12 +79,16 @@ requires:
     - validate.schema
   # The preflight that refuses this document on an instance holding neither shape.
   schemas:
-    - echo-reading
+    - playground-reading
     - station-reading
 
 params:
   type: object
   properties:
+    playground:
+      type: string
+      default: http://127.0.0.1:3333/api/v1/playground
+      description: The playground routes on the instance this calls; `dg dev` serves them here.
     station:
       type: string
       minLength: 1
@@ -93,7 +108,7 @@ steps:
   fetch:
     block: http.request
     config:
-      url: https://postman-echo.com/get
+      url: ${params.playground}/request
       method: GET
       query:
         station: ${params.station}
@@ -107,7 +122,7 @@ steps:
     config:
       input: ${steps.fetch.output.body}
       # A code naming a schema the instance holds, never a shape written here.
-      schema: echo-reading
+      schema: playground-reading
 
   reading:
     block: transform.jq
@@ -115,7 +130,7 @@ steps:
     config:
       input: ${steps.checked.output.value}
       program: |
-        .args
+        .request.args
         | {station: .station,
            day: .day,
            # tonumber, because a query string carried this as text and a receiver that
@@ -133,7 +148,7 @@ steps:
     block: http.request
     depends_on: [verified]
     config:
-      url: https://postman-echo.com/post
+      url: ${params.playground}/request
       method: POST
       # The value the gate passed through, serialised by the block.
       body: ${steps.verified.output.value}

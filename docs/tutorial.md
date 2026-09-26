@@ -5,10 +5,11 @@ terminal actually prints, fixes it, and then puts it on a schedule with an alert
 it. Every command and every fragment here was run against a real instance; the failure in the
 middle is a real mistake, not a planted typo, and the shape of it is worth more than the fix.
 
-Budget about twenty minutes. You need Python and `uv`, and outbound HTTPS -- the pipeline calls
-[Postman Echo](https://postman-echo.com), a public request-and-response service, so you do not
-have to stand anything up to make the HTTP steps real. Nothing here needs Docker, PostgreSQL,
-or the unsafe-block allowlist.
+Budget about twenty minutes. You need Python and `uv`, and nothing else: the pipeline's HTTP
+steps call the **playground**, a request-and-response service every dirigent instance serves
+itself under `/api/v1/playground`, unauthenticated. So the calls are real HTTP over a real
+socket, and they reach the instance you are about to start rather than the public internet.
+Nothing here needs Docker, PostgreSQL, the network, or the unsafe-block allowlist.
 
 ## What we are building
 
@@ -133,7 +134,7 @@ steps:
     block: http.request
     depends_on: [wait_for_window]
     config:
-      url: https://postman-echo.com/get
+      url: http://127.0.0.1:3333/api/v1/playground/request
       method: GET
       query:
         day: "${params.day}"
@@ -147,19 +148,19 @@ steps:
       max_attempts: 3
       backoff: 2s
     config:
-      url: https://postman-echo.com/post
+      url: http://127.0.0.1:3333/api/v1/playground/request
       method: POST
       body:
         day: "${params.day}"
         region: "${item}"
-        manifest: "${steps.fetch_manifest.output.json_body.args.day}"
+        manifest: "${steps.fetch_manifest.output.json_body.request.args.day}"
 
   notify_failure:
     block: http.request
     depends_on: [push]
     rule: one_failed
     config:
-      url: https://postman-echo.com/post
+      url: http://127.0.0.1:3333/api/v1/playground/request
       method: POST
       body:
         text: "the regional load failed for ${params.day}"
@@ -300,12 +301,12 @@ cause and then effect:
 2026-01-01T18:23:02.454+01:00 [info    ] queued                         [step push[east]] block=http.request attempt=1
 2026-01-01T18:23:02.455+01:00 [info    ] queued                         [step push[west]] block=http.request attempt=1
 2026-01-01T18:23:02.455+01:00 [info    ] queued                         [step push[north]] block=http.request attempt=1
-2026-01-01T18:23:03.536+01:00 [info    ] http call                      [log fetch_manifest] method=GET url=https://postman-echo.com/get status=200 bytes=227 duration_ms=250
+2026-01-01T18:23:03.536+01:00 [info    ] http call                      [log fetch_manifest] method=GET url=http://127.0.0.1:3333/api/v1/playground/request status=200 bytes=406 duration_ms=29
 2026-01-01T18:23:03.538+01:00 [info    ] succeeded                      [step fetch_manifest] block=http.request attempt=1 duration_ms=256
 2026-01-01T18:23:03.798+01:00 [info    ] failed                         [step push[east]] block=http.request attempt=1
 2026-01-01T18:23:03.798+01:00 [info    ] failed                         [step push[west]] block=http.request attempt=1
 2026-01-01T18:23:03.798+01:00 [info    ] failed                         [step push[north]] block=http.request attempt=1
-2026-01-01T18:23:04.099+01:00 [info    ] http call                      [log notify_failure] method=POST url=https://postman-echo.com/post status=200 bytes=388 duration_ms=285
+2026-01-01T18:23:04.099+01:00 [info    ] http call                      [log notify_failure] method=POST url=http://127.0.0.1:3333/api/v1/playground/request status=200 bytes=491 duration_ms=4
 2026-01-01T18:23:04.100+01:00 [info    ] succeeded                      [step notify_failure] block=http.request attempt=1 duration_ms=302
 2026-01-01T18:23:04.918+01:00 [error   ] failed                         [run] pipeline=regional-load run_id=01a04d50-9c18-70f2-a9f8-b0914f5b07fe pipeline_version=1 triggered_by="dev (token dev)" duration_ms=1330 items_total=3 items_failed=3 exit_code=1 priority=normal
 ```
@@ -334,7 +335,7 @@ item, so a fan-out tells you whether one region is broken or all of them are:
 
 ```text
 push failed  http.request, attempt 1, rejected
-  ${steps.fetch_manifest.output.json_body.args.day} cannot be resolved: steps.fetch_manifest.output has no 'json_body' (body, body_bytes, duration_ms, headers, status)
+  ${steps.fetch_manifest.output.json_body.request.args.day} cannot be resolved: steps.fetch_manifest.output has no 'json_body' (body, body_bytes, duration_ms, headers, status)
 ```
 
 There are three things in that line, and each is worth stopping on.
@@ -439,7 +440,7 @@ because those outputs are durable artifacts rather than something held in a proc
 A prefix too many. In `push`:
 
 ```yaml
-        manifest: "${steps.fetch_manifest.output.body.args.day}"
+        manifest: "${steps.fetch_manifest.output.body.request.args.day}"
 ```
 
 ```bash
@@ -469,11 +470,11 @@ dg run regional-load -p day=2026-01-15 --watch
 2026-01-01T18:26:49.112+01:00 [info    ] queued                         [step push[east]] block=http.request attempt=1
 2026-01-01T18:26:49.112+01:00 [info    ] queued                         [step push[west]] block=http.request attempt=1
 2026-01-01T18:26:49.112+01:00 [info    ] queued                         [step push[north]] block=http.request attempt=1
-2026-01-01T18:26:50.381+01:00 [info    ] http call                      [log fetch_manifest] method=GET url=https://postman-echo.com/get status=200 bytes=227 duration_ms=345
+2026-01-01T18:26:50.381+01:00 [info    ] http call                      [log fetch_manifest] method=GET url=http://127.0.0.1:3333/api/v1/playground/request status=200 bytes=406 duration_ms=36
 2026-01-01T18:26:50.382+01:00 [info    ] succeeded                      [step fetch_manifest] block=http.request attempt=1 duration_ms=363
-2026-01-01T18:26:50.848+01:00 [info    ] http call                      [log push[west]] method=POST url=https://postman-echo.com/post status=200 bytes=408 duration_ms=290
-2026-01-01T18:26:50.849+01:00 [info    ] http call                      [log push[north]] method=POST url=https://postman-echo.com/post status=200 bytes=410 duration_ms=287
-2026-01-01T18:26:50.849+01:00 [info    ] http call                      [log push[east]] method=POST url=https://postman-echo.com/post status=200 bytes=408 duration_ms=296
+2026-01-01T18:26:50.848+01:00 [info    ] http call                      [log push[west]] method=POST url=http://127.0.0.1:3333/api/v1/playground/request status=200 bytes=501 duration_ms=3
+2026-01-01T18:26:50.849+01:00 [info    ] http call                      [log push[north]] method=POST url=http://127.0.0.1:3333/api/v1/playground/request status=200 bytes=502 duration_ms=3
+2026-01-01T18:26:50.849+01:00 [info    ] http call                      [log push[east]] method=POST url=http://127.0.0.1:3333/api/v1/playground/request status=200 bytes=501 duration_ms=4
 2026-01-01T18:26:50.852+01:00 [info    ] succeeded                      [step push[west]] block=http.request attempt=1 duration_ms=298
 2026-01-01T18:26:50.853+01:00 [info    ] succeeded                      [step push[north]] block=http.request attempt=1 duration_ms=295
 2026-01-01T18:26:50.875+01:00 [info    ] succeeded                      [step push[east]] block=http.request attempt=1 duration_ms=327

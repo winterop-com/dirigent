@@ -10,36 +10,40 @@
 # A tolerated failure reads as succeeded to its dependents, so the branch carries on, while
 # the run itself reports completed_with_errors rather than succeeded.
 #
-# As written, publish hits a deliberate 503 three times over six seconds and then gives up,
-# which is what makes the retry visible. Pass a different status to watch the publish
-# succeed -- the optional cache still times out, so the run still ends completed_with_errors:
+# As written, publish fails three attempts over six seconds and then gives up, which is what
+# makes the retry visible. `fail_until` is how the playground node fails on cue: it reads the
+# attempt number the engine hands it and fails while that number is inside the window. Set it
+# to 0 to watch the publish succeed -- the optional cache still times out, so the run still
+# ends completed_with_errors:
 #
 # This one uses shell.run, which executes code on the worker and is refused unless the
 # instance allowlists it: export DIRIGENT_ENABLED_UNSAFE_BLOCKS='["shell.run"]', or pass
 # --enable-unsafe shell.run to a local run.
 #
-#   dg run --local examples/failure/retries.yaml              # completed_with_errors
-#   dg run --local examples/failure/retries.yaml -p status=200  # publish succeeds; completed_with_errors
+#   dg run --local examples/failure/retries.yaml                  # completed_with_errors
+#   dg run --local examples/failure/retries.yaml -p fail_until=0  # publish succeeds; completed_with_errors
 
 format: dirigent/v1
 kind: pipeline
 code: retries
 name: Retry behavior
-description: Publish to a service that refuses, then warm an optional cache that is slow.
+description: Publish through a step that refuses, then warm an optional cache that is slow.
 
-tags: [failure, execute, http, retry]
+tags: [failure, execute, playground, retry]
 
 params:
   type: object
   properties:
-    status:
+    fail_until:
       type: integer
-      description: The status the publish endpoint is asked to return.
-      default: 503
+      description: How many of the publish's attempts fail; 0 makes the first one land.
+      default: 9
+      minimum: 0
+      maximum: 9
 
 steps:
   publish:
-    block: http.request
+    block: playground.generate
     continue_on_failure: true
     retry:
       # 2s, then 4s, then give up: multiplier doubles the wait and max_backoff caps it, so a
@@ -51,22 +55,22 @@ steps:
       multiplier: 2.0
       jitter: 0.2
     config:
-      url: "https://postman-echo.com/status/${params.status}"
-      method: GET
+      fail_until: "${params.fail_until}"
+      rows: 12
+      seed: 8
 
   warm_cache:
-    block: http.request
+    block: playground.generate
     depends_on: [publish]
     continue_on_failure: true
-    # The endpoint sleeps five seconds and the timeout is one, so this fails on time rather
-    # than on the service: an optional step is not allowed to hold the run open.
+    # The step takes five seconds and the timeout is one, so this fails on time rather than
+    # on the work: an optional step is not allowed to hold the run open.
     timeout: 1s
     retry:
       max_attempts: 2
       backoff: 1s
     config:
-      url: https://postman-echo.com/delay/5
-      method: GET
+      delay: 5s
 
   finish:
     block: shell.run

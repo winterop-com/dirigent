@@ -1,7 +1,17 @@
 # A daily digest: fetch, aggregate, write a csv somebody opens, and post the summary.
 #
-# In:  a day, as a parameter. The readings are generated so the recipe runs anywhere; the
-#      one HTTP call is the delivery at the end.
+# In:  a day, as a parameter. The readings are generated so the recipe builds its numbers
+#      anywhere; the one HTTP call is the delivery at the end.
+#
+# NEEDS AN INSTANCE TO DELIVER TO. The playground is served by a dirigent instance under
+# /api/v1/playground, unauthenticated, so a document teaching a delivery posts to its own
+# instance and nothing on the public internet. Start one first, in the project this runs from:
+#
+#   dg dev
+#
+# `dg run --local` builds a throwaway database and mounts no API of its own, so it reaches the
+# playground the same way anything else does: over the network.
+
 # Out: a csv artifact per region in the run's scratch space, a markdown-ish digest line, and
 #      a delivered notification whose body carries the numbers.
 #
@@ -31,6 +41,7 @@
 #
 # To change it: -p day=2026-02-03 reruns for another day; -p regions='["east"]' narrows it.
 #
+#   dg dev &
 #   dg run --local examples/recipes/report-daily-digest.yaml
 #   dg run --local examples/recipes/report-daily-digest.yaml -p day=2026-02-03
 
@@ -50,12 +61,12 @@ requires:
     - webhook.post
 
 connections:
-  echo-webhook:
+  playground-receiver:
     kind: http
     config:
-      base_url: https://postman-echo.com
+      base_url: http://127.0.0.1:3333/api/v1/playground
       timeout: 30s
-      health_path: /get
+      health_path: /request
 
 params:
   type: object
@@ -170,8 +181,8 @@ steps:
     depends_on: [digest]
     rule: all_done
     config:
-      connection: echo-webhook
-      path: /post
+      connection: playground-receiver
+      path: /request
       body: ${steps.digest.output.value}
       success_status: [200, 202, 204]
 
@@ -181,6 +192,11 @@ steps:
     config:
       input:
         status: ${steps.notify.output.status}
-        echoed: ${steps.notify.output.json_body}
+        received: ${steps.notify.output.json_body}
       program: |
-        {status, text: .echoed.json.text, lines: .echoed.json.lines, file: .echoed.json.file}
+        # The playground reflects the delivery, so the body that went out is under
+        # .request.body and the delivery can be read back without a receiver to write.
+        {status,
+         text: .received.request.body.text,
+         lines: .received.request.body.lines,
+         file: .received.request.body.file}

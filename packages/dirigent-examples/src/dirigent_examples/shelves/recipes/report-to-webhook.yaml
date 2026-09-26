@@ -2,7 +2,16 @@
 # ticket without anything on this side storing it.
 #
 # In:  a batch of load results, some of them rejected.
-# Out: a markdown page delivered to Postman Echo, and what the receiver echoed back.
+# Out: a markdown page delivered to the playground, and what the receiver reflected back.
+#
+# NEEDS AN INSTANCE TO DELIVER TO. The playground is served by a dirigent instance under
+# /api/v1/playground, unauthenticated, so a document teaching a delivery posts to its own
+# instance and nothing on the public internet. Start one first, in the project this runs from:
+#
+#   dg dev
+#
+# `dg run --local` builds a throwaway database and mounts no API of its own, so it reaches the
+# playground the same way anything else does: over the network.
 #
 # Three hops, and what each one hands on:
 #   summary   transform.jq, the counts and the identifiers, computed before anything is
@@ -28,6 +37,7 @@
 # TO CHANGE IT: -p failures=0 sends the green version, and the severity and the wording both
 # follow from the numbers without another branch in the document.
 #
+#   dg dev &
 #   dg run --local examples/recipes/report-to-webhook.yaml
 #   dg run --local examples/recipes/report-to-webhook.yaml -p failures=0
 
@@ -46,12 +56,12 @@ requires:
     - webhook.post
 
 connections:
-  echo-webhook:
+  playground-receiver:
     kind: http
     config:
-      base_url: https://postman-echo.com
+      base_url: http://127.0.0.1:3333/api/v1/playground
       timeout: 30s
-      health_path: /get
+      health_path: /request
 
 params:
   type: object
@@ -122,8 +132,8 @@ steps:
     # Sent whether the work above passed or failed.
     rule: all_done
     config:
-      connection: echo-webhook
-      path: /post
+      connection: playground-receiver
+      path: /request
       body:
         pipeline: report-to-webhook
         day: ${params.day}

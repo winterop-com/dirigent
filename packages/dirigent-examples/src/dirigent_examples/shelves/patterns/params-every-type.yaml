@@ -180,7 +180,7 @@ params:
     catalog_url:
       type: string
       description: Where the catalog is read from.
-      default: https://postman-echo.com/get
+      default: http://127.0.0.1:3333/api/v1/playground/request
       format: uri
 
     owner_email:

@@ -25,13 +25,15 @@
 # than one bad step.
 #
 # As written the load fails, so the notify branch runs and the success branch is skipped.
+# The load is a playground.generate step with `fail_until` set, which fails the attempts
+# inside that window on purpose, so the failing path is real and reaches nothing to fail at.
 #
 # This one uses shell.run, which executes code on the worker and is refused unless the
 # instance allowlists it: export DIRIGENT_ENABLED_UNSAFE_BLOCKS='["shell.run"]', or pass
 # --enable-unsafe shell.run to a local run.
 #
 #   dg run --local examples/failure/error-handler.yaml
-#   dg run --local examples/failure/error-handler.yaml -p status=200   # the other branch
+#   dg run --local examples/failure/error-handler.yaml -p fail_until=0   # the other branch
 
 format: dirigent/v1
 kind: pipeline
@@ -39,36 +41,39 @@ code: error-handler
 name: Handle a failing step
 description: Load a batch, alert on failure, and always release the lock afterwards.
 
-tags: [failure, execute, http, graph]
+tags: [failure, execute, playground, graph]
 
 params:
   type: object
   properties:
-    status:
+    fail_until:
       type: integer
-      description: The status the load endpoint is asked to return.
-      default: 500
+      description: How many of the load's attempts fail; 0 makes it succeed on the first.
+      default: 9
+      minimum: 0
+      maximum: 9
 
 steps:
   load_batch:
-    block: http.request
+    block: playground.generate
     retry:
       max_attempts: 2
       backoff: 1s
     config:
-      url: "https://postman-echo.com/status/${params.status}"
-      method: GET
+      # Both attempts are inside the failing window, so the budget is spent and the step
+      # settles failed. The failure is classified transient, which is what a budget buys.
+      fail_until: "${params.fail_until}"
+      rows: 3
+      seed: 4
 
   notify_failure:
-    block: http.request
+    block: playground.generate
     depends_on: [load_batch]
     # one_failed is what makes this a handler: it runs only on the path where the load
     # failed, and skips silently on the path where it did not.
     rule: one_failed
     config:
-      url: https://postman-echo.com/post
-      method: POST
-      body:
+      input:
         text: the nightly load failed
 
   publish_success:
@@ -79,11 +84,11 @@ steps:
       argv: [echo, "load succeeded"]
 
   release_lock:
-    block: http.request
+    block: playground.generate
     depends_on: [notify_failure, publish_success]
     # Exactly one of the two branches above runs and the other skips, so all_done is what
     # releases the lock either way. all_success would wait for a step that never runs.
     rule: all_done
     config:
-      url: https://postman-echo.com/delete
-      method: DELETE
+      input:
+        released: nightly-load

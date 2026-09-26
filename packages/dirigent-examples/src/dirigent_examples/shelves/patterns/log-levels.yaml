@@ -13,13 +13,13 @@
 # PATTERN is an fnmatch over the BLOCK ID, and the most specific match wins -- the longest
 # pattern, with an exact id beating any wildcard. So:
 #
-#   --log-level 'http.*=debug'                 both HTTP blocks, nothing else
-#   --log-level 'http.request=debug'           one block, even alongside a looser http.* rule
+#   --log-level 'playground.*=debug'           every playground block, nothing else
+#   --log-level 'playground.generate=debug'    one block, even alongside a looser rule
 #   --log-level debug --log-level 'transform.*=warning'
 #                                              everything loud, except the jq steps
 #
 # WHY IT IS PER-FAMILY AND NOT PER-STEP: a level is about a block's own chattiness, and the
-# same block is usually several steps. Turning http.* up is asking one implementation to
+# same block is usually several steps. Turning one family up is asking one implementation to
 # explain itself, which is what an investigation actually wants.
 #
 # This document exists to give the flag something to bite on: three block families, several
@@ -29,18 +29,18 @@
 #
 # Hop by hop:
 #
-#   fetch_one, fetch_two   two http.request steps, so an http.* pattern has more than one
-#                          thing to affect.
-#   shape, tally           two transform.jq steps, the family to turn DOWN when the HTTP is
-#                          what is being investigated.
+#   fetch_one, fetch_two   two playground.generate steps, so a playground.* pattern has more
+#                          than one thing to affect.
+#   shape, tally           two transform.jq steps, the family to turn DOWN when the other one
+#                          is what is being investigated.
 #   settle                 a value.const, a third family, so a wildcard has a boundary.
 #
 # EXPECT THIS RUN TO SUCCEED in about two seconds, whichever levels are set.
 #
 #   dg run --local examples/patterns/log-levels.yaml
-#   dg run --local examples/patterns/log-levels.yaml --log-level 'http.*=debug'
+#   dg run --local examples/patterns/log-levels.yaml --log-level 'playground.*=debug'
 #   dg run --local examples/patterns/log-levels.yaml --log-level debug --log-level 'transform.*=warning'
-#   dg run --local examples/patterns/log-levels.yaml --log-level 'http.*=debug' | dg format
+#   dg run --local examples/patterns/log-levels.yaml --log-level 'transform.*=warning' | dg format
 #
 # A schedule carries its own log levels too, which is how a nightly firing can be made
 # permanently loud without every ad hoc run being loud with it.
@@ -56,11 +56,11 @@ description: |
   The pattern is an fnmatch over the block id and the most specific match wins. The records
   a run emits are the same either way; only the log lines change.
 
-tags: [patterns, http, transform, observability]
+tags: [patterns, playground, transform, observability]
 
 requires:
   blocks:
-    - http.request
+    - playground.generate
     - transform.jq
     - value.const
 
@@ -69,25 +69,23 @@ params:
   properties:
     dataset:
       type: string
-      description: Echoed by both calls, so a debug line names which step made which request.
+      description: Carried by both steps, so a log line names which step did which part.
       default: cases
 
 steps:
   fetch_one:
-    block: http.request
+    block: playground.generate
     config:
-      url: https://postman-echo.com/get
-      query:
+      input:
         dataset: "${params.dataset}"
         part: "1"
 
   fetch_two:
-    block: http.request
+    block: playground.generate
     # No edge to fetch_one, so the two run side by side and their log lines interleave --
     # which is exactly when knowing that every line carries its step name starts to matter.
     config:
-      url: https://postman-echo.com/get
-      query:
+      input:
         dataset: "${params.dataset}"
         part: "2"
 
@@ -96,8 +94,8 @@ steps:
     depends_on: [fetch_one, fetch_two]
     config:
       input:
-        one: "${steps.fetch_one.output.body.args}"
-        two: "${steps.fetch_two.output.body.args}"
+        one: "${steps.fetch_one.output.records.0}"
+        two: "${steps.fetch_two.output.records.0}"
       program: |
         {parts: [.one.part, .two.part], dataset: .one.dataset}
 
@@ -112,8 +110,8 @@ steps:
   settle:
     block: value.const
     depends_on: [tally]
-    # A third family, so 'http.*' and 'transform.*' each have something they plainly do not
-    # cover.
+    # A third family, so 'playground.*' and 'transform.*' each have something they plainly do
+    # not cover.
     config:
       value:
         note: the run's records do not change with its log level

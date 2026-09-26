@@ -9,10 +9,16 @@
 #
 # The connection carries the credentials, and the document carries only its name. Create it
 # once on a server:
-#   dg connection create http postman-echo --set base_url=https://postman-echo.com
+#   dg connection create http playground \
+#     --set base_url=http://127.0.0.1:3333/api/v1/playground \
+#     --set basic_username=playground --set basic_password=playground
 #
 # Or hand it to a local run, which has no server to hold it:
+#   dg dev &
 #   dg run --local examples/demo/requires.yaml --connections examples/connections.yaml
+#
+# The playground is served by a dirigent instance under /api/v1/playground, so the calls below
+# reach the instance `dg dev` started and nothing on the public internet.
 
 format: dirigent/v1
 kind: pipeline
@@ -28,7 +34,7 @@ requires:
     - storage.write
     - storage.copy
   connections:
-    - postman-echo
+    - playground
 
 steps:
   authenticate:
@@ -36,16 +42,16 @@ steps:
     config:
       # The connection holds the base URL and the credential, so the document names a path
       # and never a secret. What is stored is which connection, not what is in it.
-      connection: postman-echo
-      path: /basic-auth
+      connection: playground
+      path: /auth
       method: GET
 
   publish:
     block: http.request
     depends_on: [authenticate]
     config:
-      connection: postman-echo
-      path: /post
+      connection: playground
+      path: /request
       method: POST
       body:
         authenticated: "${steps.authenticate.output.status}"
