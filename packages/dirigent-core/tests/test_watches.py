@@ -23,10 +23,10 @@ from dirigent_core.engine.definition import (
     WatchSpec,
 )
 from dirigent_core.engine.executor import Engine
-from dirigent_core.engine.runs import cancel_run
+from dirigent_core.engine.runs import RunCreationError, cancel_run, retry_step
 from dirigent_core.engine.services import EngineServices
-from dirigent_core.models import Run, StepAttempt, Watch
-from dirigent_core.pipelines import apply_document
+from dirigent_core.models import PipelineVersion, Run, StepAttempt, Watch
+from dirigent_core.pipelines import apply_document, delete_pipeline, set_active
 from dirigent_core.triggers import watches
 from dirigent_core.triggers.watches import backoff_for, set_paused
 from engineblocks import StreamSensor
@@ -384,7 +384,7 @@ def test_the_backoff_doubles_up_to_its_cap(settings: Settings) -> None:
 async def test_a_sensor_that_ran_out_its_deadline_arms_again_without_backing_off(
     engine: Engine, sessions: async_sessionmaker[AsyncSession], services: EngineServices
 ) -> None:
-    """Nothing arriving before the deadline is an empty wait, not a broken one."""
+    """Nothing arriving before the deadline is an empty wait, not a broken one, and ends a failure streak."""
     definition = tailing(downstream=False, parks=1_000)
     quiet = definition.model_copy(
         update={
@@ -397,6 +397,8 @@ async def test_a_sensor_that_ran_out_its_deadline_arms_again_without_backing_off
     )
     await apply(sessions, services, quiet)
     first = (await the_watch(sessions)).waiting_run_id
+    async with session_scope(sessions) as session:
+        await session.execute(sa.update(Watch).values(failures=2))
 
     async def moved_on() -> bool:
         return (await the_watch(sessions)).waiting_run_id not in (None, first)
@@ -567,3 +569,265 @@ async def test_a_triggers_document_watching_an_operator_is_refused(
     )
 
     assert [issue.code for issue in result.plan.issues] == ["document.watch_not_a_root"]
+
+
+# -- the review round ----------------------------------------------------------------
+
+#: A triggers document declaring one watch on the tailing pipeline's sensor.
+OPS_WATCH = (
+    "format: dirigent/v1\nkind: triggers\ncode: ops-watches\npipeline: tailing\n"
+    "triggers:\n  watches:\n    - { code: ops-follow, step: tail }\n"
+)
+
+
+def unwatched(**changes: Any) -> PipelineDefinition:
+    """The tailing pipeline with no watch of its own, and whatever else a test changes."""
+    return tailing().model_copy(update={"triggers": TriggerSpecs(), **changes})
+
+
+async def status_of(sessions: async_sessionmaker[AsyncSession], run_id: Any) -> RunStatus:
+    """Read one run's status."""
+    async with sessions() as session:
+        run = await session.get(Run, run_id)
+        assert run is not None
+        return run.status
+
+
+async def test_a_watch_on_a_replace_pipeline_is_refused_at_apply(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    result = await apply(sessions, services, tailing(concurrency=ConcurrencyPolicy.REPLACE))
+
+    assert [issue.code for issue in result.plan.issues] == ["document.watch_replace_policy"]
+    assert await watch_runs(sessions) == []
+
+
+async def test_a_version_that_switches_a_watched_pipeline_to_replace_is_refused(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    await apply(sessions, services, tailing())
+
+    result = await apply(sessions, services, tailing(concurrency=ConcurrencyPolicy.REPLACE))
+
+    assert result.plan.action is PlanAction.INVALID
+    assert [issue.code for issue in result.plan.issues] == ["document.watch_replace_policy"]
+
+
+async def test_a_version_that_breaks_a_triggers_documents_watch_is_refused(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    await apply(sessions, services, unwatched())
+    await apply(sessions, services, OPS_WATCH)
+
+    renamed = unwatched(
+        steps={
+            "tap": StepDefinition(block="test.stream", poll=timedelta(seconds=1)),
+            "load": StepDefinition(block="test.echo", depends_on=["tap"]),
+        }
+    )
+    switched = unwatched(concurrency=ConcurrencyPolicy.REPLACE)
+
+    for broken in (renamed, switched):
+        result = await apply(sessions, services, broken)
+        assert result.plan.action is PlanAction.INVALID
+        assert [issue.code for issue in result.plan.issues] == ["document.watch_would_break"]
+
+
+async def test_deleting_a_triggers_document_withdraws_the_run_waiting_now_not_a_stale_one(
+    engine: Engine, sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    """A session that read the watch before its wait moved on still cancels only the new wait."""
+    from dirigent_core.trigger_documents import delete_trigger_document, find_trigger_document
+
+    await apply(sessions, services, unwatched())
+    await apply(sessions, services, OPS_WATCH)
+    first = (await the_watch(sessions, "ops-follow")).waiting_run_id
+
+    stale = sessions()
+    try:
+        held = (await stale.execute(sa.select(Watch))).scalar_one()
+        assert held.waiting_run_id == first
+        await stale.commit()
+
+        async def first_taken() -> bool:
+            return len(await batches(sessions)) >= 1
+
+        await pump(engine, first_taken)
+        second = (await the_watch(sessions, "ops-follow")).waiting_run_id
+        assert second not in (None, first)
+
+        row = await find_trigger_document(stale, "ops-watches")
+        assert row is not None
+        await delete_trigger_document(stale, services, row)
+        await stale.commit()
+    finally:
+        await stale.close()
+
+    assert await status_of(sessions, first) is RunStatus.RUNNING, "the run whose batch arrived carries on"
+    assert await status_of(sessions, second) is RunStatus.CANCELLED
+
+
+async def test_a_new_version_moves_the_waiting_run_onto_it_from_the_same_cursor(
+    engine: Engine, sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    await apply(sessions, services, tailing(downstream=False))
+
+    async def one_taken() -> bool:
+        return len(await batches(sessions)) >= 1
+
+    await pump(engine, one_taken)
+    before = await the_watch(sessions)
+    old_wait = before.waiting_run_id
+
+    changed = tailing(downstream=False, batch=3)
+    result = await apply(sessions, services, changed)
+    assert result.version == 2
+
+    after = await the_watch(sessions)
+    assert after.cursor == before.cursor == {"offset": 2}
+    assert await status_of(sessions, old_wait) is RunStatus.CANCELLED
+    async with sessions() as session:
+        run = await session.get(Run, after.waiting_run_id)
+        assert run is not None
+        version = await session.get(PipelineVersion, run.pipeline_version_id)
+        assert version is not None
+        assert version.version == 2
+        seeded = await session.execute(
+            sa.select(StepAttempt.poke_cursor).where(StepAttempt.run_id == run.id, StepAttempt.step_name == "tail")
+        )
+        assert seeded.scalar_one() == {"offset": 2}
+
+
+async def test_a_manual_retry_of_the_waiting_runs_watched_step_starts_from_its_cursor(
+    engine: Engine, sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    """A second root keeps the run in flight, so the failed watched step is still the wait."""
+    definition = tailing(downstream=False, key="flaky").model_copy(
+        update={
+            "steps": {
+                "tail": StepDefinition(block="test.stream", config={"key": "flaky"}, poll=timedelta(seconds=1)),
+                "wait": StepDefinition(block="test.stream", config={"key": "wait", "parks": 1_000}),
+            }
+        }
+    )
+    await apply(sessions, services, definition)
+    run_id = (await the_watch(sessions)).waiting_run_id
+
+    async def watched(status: AttemptStatus) -> bool:
+        async with sessions() as session:
+            found = await session.execute(
+                sa.select(StepAttempt.status).where(StepAttempt.run_id == run_id, StepAttempt.step_name == "tail")
+            )
+            return status in set(found.scalars())
+
+    async def parked() -> bool:
+        return await watched(AttemptStatus.WAITING)
+
+    moment = await pump(engine, parked)
+    StreamSensor.failing.add("flaky")
+
+    async def failed() -> bool:
+        return await watched(AttemptStatus.FAILED)
+
+    await pump(engine, failed, start_at=moment)
+    assert (await the_watch(sessions)).waiting_run_id == run_id
+
+    async with session_scope(sessions) as session:
+        run = await session.get(Run, run_id)
+        assert run is not None
+        retried = await retry_step(session, services, run, "tail", idempotency_key="again")
+        assert retried.poke_cursor == {"offset": 0, "parked": 1}
+
+
+async def test_a_manual_retry_of_a_watched_step_the_watch_moved_past_is_refused(
+    engine: Engine, sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    await apply(sessions, services, tailing(downstream=False, key="gone"))
+    StreamSensor.failing.add("gone")
+    run_id = (await the_watch(sessions)).waiting_run_id
+
+    async def backing_off() -> bool:
+        return (await the_watch(sessions)).waiting_run_id is None
+
+    await pump(engine, backing_off)
+
+    async with session_scope(sessions) as session:
+        run = await session.get(Run, run_id)
+        assert run is not None
+        with pytest.raises(RunCreationError) as refused:
+            await retry_step(session, services, run, "tail", idempotency_key="again")
+    assert refused.value.code == "run.retry_watch_moved_on"
+
+
+async def test_deactivating_cancels_the_waiting_run_and_activating_arms_again(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    await apply(sessions, services, tailing())
+    first = (await the_watch(sessions)).waiting_run_id
+
+    async with session_scope(sessions) as session:
+        await set_active(session, services, "tailing", active=False)
+    assert await status_of(sessions, first) is RunStatus.CANCELLED
+    watch = await the_watch(sessions)
+    assert (watch.waiting_run_id, watch.failures) == (None, 0)
+
+    async with session_scope(sessions) as session:
+        await set_active(session, services, "tailing", active=True)
+    assert (await the_watch(sessions)).waiting_run_id not in (None, first)
+
+
+async def test_a_live_watch_does_not_hold_up_deleting_its_pipeline(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    await apply(sessions, services, tailing())
+
+    async with session_scope(sessions) as session:
+        await delete_pipeline(session, services, "tailing")
+
+    async with sessions() as session:
+        assert (await session.execute(sa.select(sa.func.count()).select_from(Watch))).scalar_one() == 0
+
+
+async def test_a_watch_run_settles_under_the_pipeline_lock_before_the_run_lock(
+    engine: Engine,
+    sessions: async_sessionmaker[AsyncSession],
+    services: EngineServices,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Pipeline then run, the order a pause and a cancel take them in, so the two cannot cycle."""
+    from dirigent_core.engine import executor
+
+    await apply(sessions, services, tailing(downstream=False, parks=0))
+    unit = await engine.claim()
+    assert unit is not None
+
+    taken: list[str] = []
+    real_run, real_pipeline = executor.lock_run, executor.lock_pipeline
+
+    async def run_lock(session: AsyncSession, run_id: Any) -> None:
+        taken.append("run")
+        await real_run(session, run_id)
+
+    async def pipeline_lock(session: AsyncSession, pipeline_id: Any) -> None:
+        taken.append("pipeline")
+        await real_pipeline(session, pipeline_id)
+
+    monkeypatch.setattr(executor, "lock_run", run_lock)
+    monkeypatch.setattr(executor, "lock_pipeline", pipeline_lock)
+    await engine.run_unit(unit)
+
+    assert taken[:2] == ["pipeline", "run"]
+
+
+async def test_resuming_clears_the_failure_count(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    await apply(sessions, services, tailing(paused=True))
+    async with session_scope(sessions) as session:
+        await session.execute(sa.update(Watch).values(failures=4))
+
+    async with session_scope(sessions) as session:
+        row = (await session.execute(sa.select(Watch))).scalar_one()
+        await set_paused(session, services, row, paused=False)
+
+    assert (await the_watch(sessions)).failures == 0

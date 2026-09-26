@@ -31,9 +31,8 @@ def carry_cursor(sensor: AnySensor, answer: BaseModel, ctx: FakeContext) -> None
     """Hand the next poke the cursor the engine would, after one poke answered this.
 
     A park that returned a cursor replaces the one the context held, and one that returned
-    none leaves it. A success hands on what :meth:`Sensor.resume_cursor` says, which is the
-    cursor a watch starts its next run's poke from, so poking again after a success is the
-    first poke of that next run.
+    none leaves it. A success hands on what :meth:`Sensor.resume_cursor` says, as a watch
+    hands it to the first poke of its next run.
     """
     if isinstance(answer, NotYet):
         if answer.cursor is not None:

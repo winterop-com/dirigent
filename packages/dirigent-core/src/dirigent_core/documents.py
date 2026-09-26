@@ -496,7 +496,7 @@ def _trigger_issues(
     definition whose parameter schema the pins and the mappings are checked against, which for
     a triggers document is another document's current version, and whose steps a watch is
     checked against. ``sensors`` names the installed sensors; unset, a watched step's block
-    is not checked, because a caller holding no catalog cannot know what it is.
+    is not checked.
     """
     from dirigent_core.triggers.schedules import (
         ScheduleError,

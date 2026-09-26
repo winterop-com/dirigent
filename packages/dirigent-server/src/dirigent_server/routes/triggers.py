@@ -70,7 +70,7 @@ from dirigent_core.triggers import (
 from dirigent_server.dependencies import ServicesDep, SessionDep
 from dirigent_server.pagination import DEFAULT_PAGE, AfterParam, LimitParam, clip, int_cursor
 from dirigent_server.security import OperatorDep, PrincipalDep
-from dirigent_server.transactions import Transactional
+from dirigent_server.transactions import Transactional, retried_on_deadlock
 
 router = APIRouter(route_class=Transactional, tags=["triggers"])
 
@@ -534,8 +534,12 @@ async def pause_watch(
     code: str, watch: str, session: SessionDep, services: ServicesDep, principal: OperatorDep
 ) -> WatchOut:
     """Stop a watch, cancelling the run it has waiting, and keep where it left off."""
-    row = await _require_watch(session, code, watch)
-    return await _watch_out(session, await set_watch_paused(session, services, row, paused=True))
+
+    async def pause_once() -> WatchOut:
+        row = await _require_watch(session, code, watch)
+        return await _watch_out(session, await set_watch_paused(session, services, row, paused=True))
+
+    return await retried_on_deadlock(session, pause_once)
 
 
 @router.post(
@@ -548,8 +552,12 @@ async def resume_watch(
     code: str, watch: str, session: SessionDep, services: ServicesDep, principal: OperatorDep
 ) -> WatchOut:
     """Start a watch again, arming a run from where its last success left off."""
-    row = await _require_watch(session, code, watch)
-    return await _watch_out(session, await set_watch_paused(session, services, row, paused=False))
+
+    async def resume_once() -> WatchOut:
+        row = await _require_watch(session, code, watch)
+        return await _watch_out(session, await set_watch_paused(session, services, row, paused=False))
+
+    return await retried_on_deadlock(session, resume_once)
 
 
 async def _watch_out(session: AsyncSession, row: Watch) -> WatchOut:

@@ -689,10 +689,9 @@ class Sensor[ConfigT: BaseModel, OutputT: BaseModel](ABC):
         """Say where a poke that succeeded left off, read from the output it succeeded with.
 
         A watch stores what this returns and hands it to the first poke of the next run it
-        arms as ``ctx.cursor``, so a source is read on from where the last batch ended rather
-        than from wherever a fresh poke starts. None, the default, starts every run fresh. It
-        is stored in the transaction that settles the step, so it is only as far along as the
-        last success that committed, and the next poke may read that ground again.
+        arms as ``ctx.cursor``. None, the default, starts every run fresh. It is stored in the
+        transaction that settles the step, so it is only as far along as the last success that
+        committed, and the next poke may read that ground again.
         """
         return None
 

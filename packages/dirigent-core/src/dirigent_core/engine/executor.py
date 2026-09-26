@@ -55,7 +55,7 @@ from dirigent_core.engine.runs import (
     promote_queued_run,
 )
 from dirigent_core.engine.services import EngineServices
-from dirigent_core.engine.state import advance, lock_run
+from dirigent_core.engine.state import advance, lock_pipeline, lock_run
 from dirigent_core.ids import uuid7
 from dirigent_core.logging import get_logger, log_context
 from dirigent_core.messages import (
@@ -659,7 +659,12 @@ class Engine:
             # that inserted a log row first would hold a share lock on the run and then have
             # to upgrade it, which is how two workers finishing at once deadlock. The lock
             # also orders this transaction against the claim and the lease sweeper, which
-            # is what makes the lease check below a fence rather than a guess.
+            # is what makes the lease check below a fence rather than a guess. A run a watch
+            # armed may re-arm or end its watch's wait here, which takes the pipeline's lock,
+            # so that lock is taken first: pipeline then run, the order a pause and a cancel
+            # take them in.
+            if run.triggered_by_kind is TriggerKind.WATCH:
+                await lock_pipeline(session, run.pipeline_id)
             await lock_run(session, run.id)
             attempt = await session.get(StepAttempt, unit.attempt_id)
             if attempt is None:  # pragma: no cover - foreign keys prevent this
@@ -778,8 +783,8 @@ class Engine:
     ) -> int | None:
         """Persist an output as an artifact reference, mark the attempt succeeded, and size it.
 
-        ``cursor`` replaces whatever the attempt's last park held, because what a watch carries
-        forward is where the success left off rather than where the wait before it stood.
+        ``cursor`` replaces whatever the attempt's last park held: it is where the success left
+        off, which a watch reads when it arms its next run.
         """
         reference = await persist_output(
             session,
@@ -914,9 +919,7 @@ class Engine:
     ) -> None:
         """Fail an attempt, and schedule the next one when the retry policy earns it.
 
-        The retry of a run a watch armed starts from the cursor the failed attempt held, which
-        began as where the watch's last success left off, so a retry does not read the source
-        from wherever a fresh poke would.
+        The retry of a run a watch armed starts from the cursor the failed attempt held.
         """
         attempt.status = AttemptStatus.FAILED
         attempt.finished_at = now

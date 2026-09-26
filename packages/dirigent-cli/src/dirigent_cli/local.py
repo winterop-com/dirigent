@@ -645,8 +645,7 @@ async def run_document(
                 async with session_scope(sessions) as session:
                     await _apply_supporting(session, services, extra_definition)
             async with session_scope(sessions) as session:
-                # A throwaway instance runs the one run it was asked for, so its triggers land
-                # paused: a watch armed here would compete with that run for its pipeline.
+                # Triggers land paused: the instance runs only the run it was asked for.
                 applied = await apply_document(session, services, definition, pause_schedules=True)
                 if not applied.plan.ok:
                     raise LocalError(

@@ -58,6 +58,7 @@ from dirigent_core.models import (
 from dirigent_core.registry import live_worker_tags
 from dirigent_core.schemas import schema_codes
 from dirigent_core.triggers.materialize import materialize_triggers, owner_issues
+from dirigent_core.triggers.watches import arm_all, follow_version, held_watch_issues, withdraw_all
 
 _logger = get_logger("pipelines")
 
@@ -222,6 +223,7 @@ async def plan_apply(
     pipeline = await find_pipeline(session, definition.code)
     if not issues and pipeline is not None:
         issues = await owner_issues(session, pipeline, definition.triggers, owner=None)
+        issues.extend(await held_watch_issues(session, pipeline, definition, services.host.sensors))
     if issues:
         return PipelinePlan(
             code=definition.code,
@@ -313,6 +315,7 @@ async def apply_document(
     version = await save_pipeline(session, definition, provenance=provenance)
     pipeline = await require_pipeline(session, definition.code)
     triggers = await materialize_triggers(session, services, pipeline, definition, pause_created=pause_schedules)
+    await follow_version(session, services, pipeline.id)
     _logger.info(
         "pipeline applied",
         pipeline=definition.code,
@@ -359,11 +362,20 @@ async def revalidate(
     )
 
 
-async def set_active(session: AsyncSession, code: str, *, active: bool) -> Pipeline:
-    """Activate or deactivate a pipeline, keeping its code and its history."""
+async def set_active(session: AsyncSession, services: EngineServices, code: str, *, active: bool) -> Pipeline:
+    """Activate or deactivate a pipeline, keeping its code and its history.
+
+    Deactivating cancels the run each of its watches has waiting; activating arms one for
+    every watch that is not paused.
+    """
     pipeline = await require_pipeline(session, code)
+    await lock_pipeline(session, pipeline.id)
     pipeline.active = active
     await session.flush()
+    if active:
+        await arm_all(session, services, pipeline.id)
+    else:
+        await withdraw_all(session, services, pipeline.id, reason="its pipeline was deactivated")
     _logger.info("pipeline activation changed", pipeline=code, active=active)
     return pipeline
 
@@ -389,18 +401,20 @@ RUN_FAMILY: Final[tuple[type[ArtifactRef | LogEntry | Notification | RunItem | S
 )
 
 
-async def delete_pipeline(session: AsyncSession, code: str) -> None:
+async def delete_pipeline(session: AsyncSession, services: EngineServices, code: str) -> None:
     """Delete a pipeline and every run ever attributed to it, in one transaction.
 
     Refuses while runs are in flight, because deleting those would strand work a worker still
     holds a lease on: finish or cancel them first. Settled history goes with the pipeline --
     its runs, their items, attempts, logs and artifact references -- and the row itself takes
-    its versions, schedules, webhooks and alert rules through their cascades.
+    its versions, schedules, webhooks, watches and alert rules through their cascades. The run
+    each watch has waiting is cancelled before the in-flight check.
     """
     pipeline = await require_pipeline(session, code)
     # Run creation takes the same lock, so a run that commits between the count and the
     # delete is either seen here or created against a pipeline this delete already removed.
     await lock_pipeline(session, pipeline.id)
+    await withdraw_all(session, services, pipeline.id, reason="its pipeline was deleted")
     live = await count_runs(session, pipeline.id, Run.status.in_(IN_FLIGHT))
     if live:
         raise PipelineInUse(code, live)

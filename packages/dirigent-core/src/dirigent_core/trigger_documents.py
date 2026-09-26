@@ -71,8 +71,7 @@ async def owned_codes(session: AsyncSession, document_id: UUID) -> tuple[list[st
 async def delete_trigger_document(session: AsyncSession, services: EngineServices, row: TriggerDocument) -> None:
     """Delete a triggers document, and with it every schedule, webhook and watch it owns.
 
-    A watch is retired before the cascade reaches it, so the run it has waiting is cancelled
-    rather than left waiting on a watch that is gone.
+    Each watch it owns is retired before the cascade, cancelling the run it has waiting.
     """
     owned = await session.execute(sa.select(Watch).where(Watch.trigger_document_id == row.id))
     for watch in owned.scalars():

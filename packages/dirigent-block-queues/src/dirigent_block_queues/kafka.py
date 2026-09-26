@@ -398,7 +398,7 @@ class KafkaConsumeSensor(Sensor[KafkaConsumeConfig, KafkaConsumeOutput]):
             await close(consumer)
 
     def resume_cursor(self, output: KafkaConsumeOutput) -> JsonMap | None:
-        """Read on from where the batch ended, so a watch's next run needs no consumer group."""
+        """Read on from the offsets the batch ended at."""
         return {"offsets": dict(output.cursor)}
 
     def classify_error(self, error: Exception) -> ErrorClass:

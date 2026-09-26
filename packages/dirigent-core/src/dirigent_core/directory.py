@@ -132,7 +132,7 @@ async def prune_absent(
     documents = await delete_absent_trigger_documents(session, services, keep, dry_run=dry_run)
     if not dry_run:
         for code in absent:
-            await set_active(session, code, active=False)
+            await set_active(session, services, code, active=False)
     return PruneResult(pruned=absent, trigger_documents_removed=documents, dry_run=dry_run)
 
 

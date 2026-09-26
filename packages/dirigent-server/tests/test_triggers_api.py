@@ -3,8 +3,11 @@
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.exc import DBAPIError
 
+from dirigent_core.database import DEADLOCK
 from tests_support import DOCUMENT, apply_document
 
 PREFIX = "/api/v1"
@@ -669,6 +672,36 @@ def test_pausing_a_watch_cancels_its_waiting_run_and_resuming_arms_another(clien
     assert resumed.status_code == 200, resumed.text
     assert resumed.json()["paused"] is False
     assert resumed.json()["waiting_run_id"] not in (None, armed)
+
+
+class _Aborted(Exception):
+    """A driver error carrying the SQLSTATE PostgreSQL breaks a deadlock with."""
+
+    sqlstate = DEADLOCK
+
+
+def test_a_pause_the_database_aborted_to_break_a_deadlock_is_run_again(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from dirigent_server.routes import triggers as routes
+
+    apply_document(client, WATCHED)
+    real = routes.set_watch_paused
+    calls: list[bool] = []
+
+    async def deadlocks_once(*args: Any, **kwargs: Any) -> Any:
+        calls.append(True)
+        if len(calls) == 1:
+            raise DBAPIError("SELECT 1", None, _Aborted())
+        return await real(*args, **kwargs)
+
+    monkeypatch.setattr(routes, "set_watch_paused", deadlocks_once)
+
+    paused = client.post(f"{WATCHES}/follow/$pause")
+
+    assert paused.status_code == 200, paused.text
+    assert paused.json()["paused"] is True
+    assert len(calls) == 2
 
 
 def test_a_watch_the_pipeline_does_not_have_is_a_404(client: TestClient) -> None:

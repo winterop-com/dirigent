@@ -55,6 +55,7 @@ from dirigent_core.messages import (
     NOT_RETRYABLE,
     PARENT_GONE,
     RETRY_CONCURRENCY,
+    RETRY_WATCH_MOVED_ON,
     RUN_PIPELINE_INACTIVE,
     RUN_PIPELINE_NO_VERSIONS,
     RUN_PIPELINE_UNREADABLE,
@@ -63,7 +64,7 @@ from dirigent_core.messages import (
     SELF_START,
     STEP_REFUSED,
 )
-from dirigent_core.models import Pipeline, PipelineVersion, Run, RunItem, StepAttempt, utcnow
+from dirigent_core.models import Pipeline, PipelineVersion, Run, RunItem, StepAttempt, Watch, utcnow
 from dirigent_core.storage import scratch_prefix
 from dirigent_plugin import RemoteHandle, RunRefused, RunSnapshot, RunState, StartedRun
 
@@ -629,6 +630,7 @@ async def retry_step(
     latest = attempts[0]
     if latest.status not in (AttemptStatus.FAILED, AttemptStatus.SKIPPED, AttemptStatus.CANCELLED):
         raise RunCreationError(NOT_RETRYABLE, step=repr(step_name), status=latest.status.value)
+    watched = await _watched_by(session, run, step_name)
 
     await _admit_retry(session, services, run, definition, moment)
 
@@ -643,6 +645,7 @@ async def retry_step(
         available_at=moment,
         idempotency_key=scoped,
         input={IDEMPOTENCY_KEY: idempotency_key},
+        poke_cursor=dict(latest.poke_cursor) if watched and latest.poke_cursor is not None else None,
     )
     session.add(retried)
     await _reopen_propagated_skips(session, run.id)
@@ -652,6 +655,22 @@ async def retry_step(
     await session.flush()
     _logger.info("manual retry created", run_id=str(run.id), step=step_name, attempt=retried.attempt)
     return retried
+
+
+async def _watched_by(session: AsyncSession, run: Run, step_name: str) -> bool:
+    """Say whether a step is the one a watch waits on in this run, refusing a retry the watch moved past.
+
+    The watched step of any run but the watch's waiting one is refused.
+    """
+    if run.triggered_by_kind is not TriggerKind.WATCH or run.triggered_by_id is None:
+        return False
+    watch = await session.get(Watch, run.triggered_by_id)
+    if watch is None or watch.step != step_name:
+        return False
+    await session.refresh(watch)
+    if watch.waiting_run_id != run.id:
+        raise RunCreationError(RETRY_WATCH_MOVED_ON, step=repr(step_name), run=run.id, watch=repr(watch.code))
+    return True
 
 
 async def _definition_of(session: AsyncSession, run: Run) -> PipelineDefinition:

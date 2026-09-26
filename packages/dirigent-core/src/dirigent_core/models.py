@@ -488,10 +488,9 @@ class Watch(Entity):
     """A sensor made a continuous source: one run of its pipeline kept waiting on one step.
 
     ``waiting_run_id`` is the one run a watch has waiting, and the column is the guard that
-    keeps it to one: a run is armed only by the update that moves it from null, so two armers
-    racing each other cannot both win. It is a plain id rather than a foreign key because it
-    is claimed before the run it names is written, and a run swept away by retention reads as
-    a wait that ended.
+    keeps it to one: a run is armed only by the update that moves it from null. It is claimed
+    before the run it names is written, so it is a plain id and not a foreign key, and a run
+    swept away by retention reads as a wait that ended.
     """
 
     __tablename__ = "watches"

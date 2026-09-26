@@ -6,8 +6,7 @@ next run, so runs overlap by design: the one that succeeded carries on downstrea
 next one waits. A wait that ends any other way -- the step failed after its own retries, or
 the run was cancelled -- arms again after a backoff, from the cursor the last success stored.
 
-Every write to a watch row happens after the pipeline's lock, which is the order run
-creation takes, so arming and settling never wait on each other in opposite orders.
+Every write to a watch row happens under the pipeline's lock, taken before any run's.
 """
 
 from collections.abc import Container
@@ -20,10 +19,11 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from dirigent_client.enums import AttemptStatus, RunStatus, TriggerKind
+from dirigent_client.schemas import ValidationIssue
 from dirigent_common import EntityName, Issue, JsonMap, StepName
 from dirigent_core.config import Settings
 from dirigent_core.database import session_scope
-from dirigent_core.engine.definition import PipelineDefinition, WatchSpec, load_definition
+from dirigent_core.engine.definition import ConcurrencyPolicy, PipelineDefinition, WatchSpec, load_definition
 from dirigent_core.engine.runs import ACTIVE_RUN_STATUSES, Attribution, cancel_run, create_run
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.engine.state import lock_pipeline
@@ -37,13 +37,15 @@ from dirigent_core.messages import (
     WATCH_FANS_OUT,
     WATCH_NOT_A_ROOT,
     WATCH_NOT_A_SENSOR,
+    WATCH_REPLACE_POLICY,
     WATCH_RUN_GONE,
-    WATCH_STEP_GONE,
+    WATCH_UNARMABLE,
     WATCH_UNKNOWN_STEP,
     WATCH_WAIT_CANCELLED,
     WATCH_WAIT_FAILED,
+    WATCH_WOULD_BREAK,
 )
-from dirigent_core.models import Pipeline, PipelineVersion, Run, StepAttempt, Watch, utcnow
+from dirigent_core.models import Pipeline, PipelineVersion, Run, StepAttempt, TriggerDocument, Watch, utcnow
 
 _logger = get_logger("watches")
 
@@ -117,11 +119,11 @@ def watch_issue(
 ) -> Issue | None:
     """Say why a step cannot be watched, or nothing when it can.
 
-    A watched step is a root, so the run it waits in has nothing upstream of it to wait on
-    first; one sensor, so one poke's cursor is the whole of where it left off; and a sensor,
-    because an operator has nothing to wait for. ``sensors`` unset leaves the last of those
-    unchecked, for a caller that does not know which blocks are sensors.
+    A watched step is a root sensor that does not fan out, on a pipeline whose concurrency
+    is not ``replace``. ``sensors`` unset leaves the block unchecked.
     """
+    if definition.concurrency is ConcurrencyPolicy.REPLACE:
+        return Issue.of(WATCH_REPLACE_POLICY, code=repr(code))
     step = definition.steps.get(step_name)
     if step is None:
         return Issue.of(
@@ -208,8 +210,8 @@ async def update_watch(
 ) -> Watch:
     """Redeclare a watch, keeping whether it is paused.
 
-    Moving it to another step abandons the wait it has and the cursor it holds, both of which
-    belong to the step it was watching, and arms afresh on the new one.
+    Moving it to another step cancels the run it has waiting, drops its cursor, and arms
+    afresh on the new step.
     """
     moved = watch.step != request.step
     watch.name = request.name
@@ -247,8 +249,8 @@ async def set_paused(
 ) -> Watch:
     """Pause a watch, cancelling the run it has waiting, or resume it and arm one.
 
-    Pausing keeps the cursor, so resuming reads on from where the last success left off
-    rather than from wherever a fresh poke would start.
+    The cursor survives both, so a resumed watch reads on from where its last success left
+    off. Resuming clears the failure count and any backoff.
     """
     await session.flush()
     await lock_pipeline(session, watch.pipeline_id)
@@ -258,6 +260,7 @@ async def set_paused(
         await _withdraw(session, services, watch, reason="its watch was paused", now=now)
     else:
         watch.rearm_at = None
+        watch.failures = 0
         await session.flush()
         await arm(session, services, watch, now=now)
     await session.flush()
@@ -270,9 +273,13 @@ async def _withdraw(
 ) -> None:
     """Take away the run a watch has waiting, and cancel it if it is still in flight.
 
-    The pointer is cleared before the cancel, so the cancel's own settlement does not read as
-    a wait that failed.
+    The pointer is read under the pipeline's lock, which every settlement also holds, and
+    cleared before the cancel, so the cancel's own settlement does not read as a wait that
+    failed.
     """
+    await session.flush()
+    await lock_pipeline(session, watch.pipeline_id)
+    await session.refresh(watch)
     run_id = watch.waiting_run_id
     watch.waiting_run_id = None
     await session.flush()
@@ -298,8 +305,8 @@ async def arm(
 
     The claim is one conditional update that moves ``waiting_run_id`` from null to the id
     the run is about to be written under, so of two armers only one can win, whichever
-    database they race on. The run is created through the ordinary path, so the pipeline's
-    concurrency policy and parameter schema apply to it as to any other.
+    database they race on. The run is created through ``create_run``, under the pipeline's
+    concurrency policy and parameter schema.
 
     Returns None when nothing was armed: the watch is paused, already has a run waiting, its
     pipeline cannot be run, or the run was refused, which is recorded on the watch.
@@ -314,10 +321,11 @@ async def arm(
     if version is None:
         return None
     definition = load_definition(version.document)
-    if watch_issue(watch.code, watch.step, definition, services.host.sensors) is not None:
+    refusal = watch_issue(watch.code, watch.step, definition, services.host.sensors)
+    if refusal is not None:
         _failed(
             watch,
-            WATCH_STEP_GONE.render(code=repr(watch.code), step=repr(watch.step), version=version.version),
+            WATCH_UNARMABLE.render(code=repr(watch.code), version=version.version, detail=refusal.message),
             moment,
             services.settings,
         )
@@ -389,9 +397,8 @@ def _failed(watch: Watch, error: str, moment: datetime, settings: Settings) -> N
 async def _watch_of(session: AsyncSession, run: Run) -> Watch | None:
     """Find the watch a run is the waiting run of, or None when it is not one.
 
-    The first read takes no lock, so a step settling in a run that is not waiting costs one
-    lookup. It can be trusted to say no: a run is made the waiting run in the transaction that
-    creates it, before any of its attempts can settle.
+    The first read takes no lock and is trusted only to say no: a run is made the waiting run
+    in the transaction that creates it, before any of its attempts can settle.
     """
     if run.triggered_by_kind is not TriggerKind.WATCH or run.triggered_by_id is None:
         return None
@@ -471,6 +478,7 @@ async def _end_wait(
     elif watched is not None and watched.status is AttemptStatus.SKIPPED:
         watch.waiting_run_id = None
         watch.rearm_at = None
+        watch.failures = 0
     else:
         detail = (watched.error if watched is not None else None) or run.error or run.status.value
         _failed(
@@ -494,6 +502,87 @@ async def _watched_attempt(session: AsyncSession, run_id: UUID, step: str) -> St
         .limit(1)
     )
     return found.scalar_one_or_none()
+
+
+async def follow_version(
+    session: AsyncSession, services: EngineServices, pipeline_id: UUID, *, now: datetime | None = None
+) -> list[Run]:
+    """Move every live watch of a pipeline onto its current version.
+
+    A waiting run pins the version it was created from, so one armed before an apply is
+    cancelled and armed again from the same cursor. A run whose watched step already succeeded
+    is no longer the waiting run, and is left to carry on.
+    """
+    await lock_pipeline(session, pipeline_id)
+    pipeline = await session.get(Pipeline, pipeline_id)
+    if pipeline is None or pipeline.current_version is None:
+        return []
+    current = await _current_version(session, pipeline_id)
+    armed: list[Run] = []
+    for watch in await list_watches(session, pipeline_id):
+        await session.refresh(watch)
+        if watch.paused or watch.waiting_run_id is None:
+            continue
+        waiting = await session.get(Run, watch.waiting_run_id)
+        if waiting is None or current is None or waiting.pipeline_version_id == current.id:
+            continue
+        await _withdraw(session, services, watch, reason="a new version of its pipeline was applied", now=now)
+        run = await arm(session, services, watch, now=now)
+        if run is not None:
+            armed.append(run)
+    return armed
+
+
+async def withdraw_all(
+    session: AsyncSession, services: EngineServices, pipeline_id: UUID, *, reason: str, now: datetime | None = None
+) -> None:
+    """Cancel the run every watch of a pipeline has waiting, leaving each watch as it is."""
+    await lock_pipeline(session, pipeline_id)
+    for watch in await list_watches(session, pipeline_id):
+        await _withdraw(session, services, watch, reason=reason, now=now)
+
+
+async def arm_all(
+    session: AsyncSession, services: EngineServices, pipeline_id: UUID, *, now: datetime | None = None
+) -> list[Run]:
+    """Arm every unpaused watch of a pipeline that has no run waiting."""
+    await lock_pipeline(session, pipeline_id)
+    armed: list[Run] = []
+    for watch in await list_watches(session, pipeline_id):
+        run = await arm(session, services, watch, now=now)
+        if run is not None:
+            armed.append(run)
+    return armed
+
+
+async def held_watch_issues(
+    session: AsyncSession,
+    pipeline: Pipeline,
+    definition: PipelineDefinition,
+    sensors: Container[str] | None,
+) -> list[ValidationIssue]:
+    """Refuse a pipeline version that a watch another document declares could not wait on."""
+    rows = await session.execute(
+        sa.select(Watch, TriggerDocument.code)
+        .join(TriggerDocument, TriggerDocument.id == Watch.trigger_document_id)
+        .where(Watch.pipeline_id == pipeline.id)
+        .order_by(Watch.code)
+    )
+    issues: list[ValidationIssue] = []
+    for watch, owner in rows.all():
+        refusal = watch_issue(watch.code, watch.step, definition, sensors)
+        if refusal is None:
+            continue
+        issues.append(
+            ValidationIssue.of(
+                WATCH_WOULD_BREAK,
+                location="steps",
+                code=repr(watch.code),
+                owner=f"the triggers document {owner!r}",
+                detail=refusal.message,
+            )
+        )
+    return issues
 
 
 async def tick(

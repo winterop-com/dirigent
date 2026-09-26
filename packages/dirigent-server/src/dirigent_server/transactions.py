@@ -1,11 +1,13 @@
 """Where a request's transaction is committed: before its response, not after."""
 
-from collections.abc import Callable, Coroutine
+from collections.abc import Awaitable, Callable, Coroutine
 from typing import Any
 
 from fastapi import Request, Response
 from fastapi.routing import APIRoute
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from dirigent_core.database import with_deadlock_retry
 
 
 class Transactional(APIRoute):
@@ -32,3 +34,17 @@ class Transactional(APIRoute):
             return response
 
         return commit_then_respond
+
+
+async def retried_on_deadlock[T](session: AsyncSession, work: Callable[[], Awaitable[T]]) -> T:
+    """Run a route's write in a savepoint of the request's transaction, again after a deadlock.
+
+    The savepoint is what a deadlock rolls back, taking the locks it took with it, so the
+    transaction lives on for the attempt after it. ``work`` re-reads everything it decides on.
+    """
+
+    async def once() -> T:
+        async with session.begin_nested():
+            return await work()
+
+    return await with_deadlock_retry(once)

@@ -203,9 +203,9 @@ async def test_a_pipeline_can_be_deactivated_and_activated_again(
     async with session_scope(sessions) as session:
         await apply_document(session, services, load_text(DOCUMENT))
     async with session_scope(sessions) as session:
-        assert (await set_active(session, "daily-load", active=False)).active is False
+        assert (await set_active(session, services, "daily-load", active=False)).active is False
     async with session_scope(sessions) as session:
-        assert (await set_active(session, "daily-load", active=True)).active is True
+        assert (await set_active(session, services, "daily-load", active=True)).active is True
 
 
 async def test_deleting_a_pipeline_with_no_runs_removes_it(
@@ -214,7 +214,7 @@ async def test_deleting_a_pipeline_with_no_runs_removes_it(
     async with session_scope(sessions) as session:
         await apply_document(session, services, load_text(DOCUMENT))
     async with session_scope(sessions) as session:
-        await delete_pipeline(session, "daily-load")
+        await delete_pipeline(session, services, "daily-load")
     async with session_scope(sessions) as session:
         assert await list_pipelines(session) == []
 
@@ -246,7 +246,7 @@ async def test_deleting_a_pipeline_takes_its_settled_history_with_it(
     async with session_scope(sessions) as session:
         assert await counted(session, StepAttempt) > 0, "the run must have left attempts to cascade"
     async with session_scope(sessions) as session:
-        await delete_pipeline(session, "daily-load")
+        await delete_pipeline(session, services, "daily-load")
     async with session_scope(sessions) as session:
         assert await list_pipelines(session) == []
         for entity in (Run, StepAttempt, LogEntry, ArtifactRef):
@@ -263,7 +263,7 @@ async def test_deleting_refuses_while_a_run_is_in_flight(
         await create_run(session, services, await get_version(session, pipeline), attribution=Attribution())
     async with session_scope(sessions) as session:
         with pytest.raises(PipelineInUse, match="in flight"):
-            await delete_pipeline(session, "daily-load")
+            await delete_pipeline(session, services, "daily-load")
     async with session_scope(sessions) as session:
         assert len(await list_pipelines(session)) == 1, "a refused delete leaves the pipeline alone"
         assert await counted(session, Run) == 1
@@ -274,7 +274,7 @@ async def test_deleting_frees_the_code_for_a_fresh_apply(
 ) -> None:
     await settled_run(sessions, services)
     async with session_scope(sessions) as session:
-        await delete_pipeline(session, "daily-load")
+        await delete_pipeline(session, services, "daily-load")
     async with session_scope(sessions) as session:
         result = await apply_document(session, services, load_text(DOCUMENT))
     assert result.plan.action is PlanAction.CREATE
