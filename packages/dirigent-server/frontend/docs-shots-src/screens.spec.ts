@@ -20,13 +20,19 @@ const BRIEFING = 'morning-briefing'
 /** How long each region's export takes on the run photographed mid-flight, a humane duration. */
 const PACE = '10s'
 
-/** The step that picture is of: the readiness probe, one per submitted export. */
-const WATCHED = 'await'
+/**
+ * The step that picture is of: the export, one per region, which is the paced one.
+ *
+ * It is the only step of this document that is in flight long enough to photograph. Everything
+ * downstream of it -- the deposit, the readiness probe, the per-region shape -- has its whole
+ * grid laid out and waiting, and each of those answers the instant its turn comes.
+ */
+const WATCHED = 'submit'
 
 /**
- * The grid that run fans out over: wider than the worker has slots, so half of it is in
- * progress while the other half waits its turn, which is what a fan-out looks like from the
- * inside and what the picture is there to show.
+ * The grid that run fans out over: wider than the worker has slots, so one wave is in progress
+ * while the next waits its turn, which is what a fan-out looks like from the inside and what
+ * the picture is there to show.
  */
 const WIDE = [
     'east',
@@ -50,12 +56,12 @@ const WIDE = [
 /**
  * The tag the pipelines picture is filtered to.
  *
- * THE UNFILTERED LISTING IS THE WRONG PICTURE. It sorts by name, so the first screen of a
- * hundred and sixty documents is whatever begins with A, every row reads "never run", and the
- * screen looks like a directory rather than like somewhere work happens. `fan-out` is a tag
- * the three showcase documents share with ten patterns, so filtering to it is one screen of
- * rows that are all about the same thing, carry the vocabulary in their tags column, and --
- * once the cast below has run -- have real last runs with a failure among them.
+ * THE UNFILTERED LISTING IS THE WRONG PICTURE. It sorts by name, so the first screen of the
+ * whole corpus is whatever begins with A, every row reads "never run", and the screen looks
+ * like a directory rather than like somewhere work happens. `fan-out` is a tag the three
+ * showcase documents share with eleven more, so filtering to it is one screen of rows that are
+ * all about the same thing, carry the vocabulary in their tags column, and -- once the cast
+ * below has run -- have real last runs with a failure among them.
  */
 const TAG = 'fan-out'
 
@@ -136,16 +142,12 @@ async function nothingScrollsSideways(page: Page, name: string): Promise<void> {
  * Wait until the screen has stopped changing under the camera.
  *
  * The corner identity fills over its reads after every full load, so a shot taken while it is
- * asking would put the wrong topbar in the frame.
+ * asking would put the wrong topbar in the frame. What says the read landed is the corner
+ * naming the instance and its environment; the version is in the popover and never in the bar,
+ * so a camera waiting for one waits out its whole timeout before every picture.
  */
 async function readyForShot(page: Page, name: string): Promise<void> {
-    await page
-        .waitForFunction(
-            () => /\d+\.\d+\.\d+/.test(document.querySelector('header')?.textContent ?? ''),
-            undefined,
-            { timeout: 15_000 },
-        )
-        .catch(() => undefined)
+    await page.getByRole('button', { name: 'Instance' }).filter({ hasText: '·' }).waitFor({ timeout: 15_000 })
     await page.waitForTimeout(900)
     await nothingScrollsSideways(page, name)
 }
@@ -183,15 +185,6 @@ async function statusOf(request: APIRequestContext, runId: string): Promise<stri
     return detail.run.status
 }
 
-/** What one step of a run is doing right now, as the graph reports it. */
-async function stepOutcome(request: APIRequestContext, runId: string, step: string): Promise<string | null> {
-    const prefix = await apiPrefix(request)
-    const detail = (await (await request.get(`${prefix}/runs/${runId}`)).json()) as {
-        dag: { nodes: { code: string; outcome: string }[] }
-    }
-    return detail.dag.nodes.find((node) => node.code === step)?.outcome ?? null
-}
-
 /** Wait for a run to stop moving, and answer with where it stopped. */
 async function settled(request: APIRequestContext, runId: string): Promise<string> {
     let status = 'pending'
@@ -218,9 +211,9 @@ async function declareRule(request: APIRequestContext): Promise<void> {
 /**
  * Wait until the seeding has stopped putting things into the instance.
  *
- * The seed applies a hundred and sixty documents and starts six runs while this camera would
- * otherwise already be shooting, and a page built on a half-seeded instance shows neither the
- * corpus nor the failures.
+ * The seed applies the whole corpus and starts six runs while this camera would otherwise
+ * already be shooting, and a page built on a half-seeded instance shows neither the corpus nor
+ * the failures.
  */
 async function seedingSettled(page: Page): Promise<void> {
     let stored = 0
@@ -324,43 +317,49 @@ test('the nine pictures docs/screens.md is built out of', async ({ page }) => {
     await shot(page, 'blocks')
 
     // THE RUN IN FLIGHT, LAST, because it is the only picture with a clock on it. Each region's
-    // readiness probe answers after PACE, so the screen is navigated to before the run
-    // reaches the sensor and the camera waits there rather than spending the window arriving.
+    // export answers after PACE, so the screen is navigated to before the first wave settles and
+    // the camera waits there rather than spending the window arriving.
     await midFlight(page)
 })
 
 /**
  * Photograph a run while its fan-out is still in the air.
  *
- * THE WINDOW IS THE PACE THE PROBES ARE GIVEN, so nothing here navigates inside it: the run is
- * started, the screen is opened on it at once, and the camera waits there for the sensor to go
- * into progress. Sixteen regions against a worker with eight slots is what makes the window
- * wide enough to work in, and what puts half a grid in progress and half of it waiting.
+ * THE WINDOW IS THE PACE THE EXPORTS ARE GIVEN, so nothing here navigates inside it: the run is
+ * started, the screen is opened on it at once, and the camera waits there. Sixteen regions
+ * against a worker with eight slots is what makes the window wide enough to work in, and what
+ * puts one wave in progress and the next waiting.
  *
- * THE SUBJECT IS CHECKED LAST, immediately before the shutter, because a run that settled while
- * the screen was being waited on is a failed attempt rather than a picture. Then it is started
- * again.
+ * THE SECOND WAVE IS THE PICTURE, not the first. A shot taken the instant the step goes into
+ * progress shows sixteen rows in one state and teaches nothing; one taken once a wave has
+ * landed shows what a fan-out against a bounded worker actually looks like.
+ *
+ * THE SCREEN IS WHAT IS WAITED FOR, not the API behind it. The run screen follows its run on a
+ * stream that backs off while nothing changes, so a shot timed off a read of `/runs/{id}` can
+ * be of a card several seconds behind the run. What the picture has to show is what the card
+ * has to say, so that is the wait -- and it is checked again immediately before the shutter,
+ * because a run that moved on while the screen settled is a failed attempt rather than a
+ * picture. Then it is started again.
  */
 async function midFlight(page: Page): Promise<void> {
     for (let attempt = 1; attempt <= 3; attempt += 1) {
         const runId = await startRun(page.request, BIG, { params: { pace: PACE, regions: WIDE } })
         await page.goto(`/runs/${runId}`)
-        await page.locator('.react-flow__node').first().waitFor({ timeout: 60_000 })
+        const node = page.locator('.react-flow__node').filter({ hasText: WATCHED })
+        await node.waitFor({ timeout: 60_000 })
 
-        let caught = false
-        for (let waited = 0; waited < 120_000 && !caught; waited += 400) {
-            const outcome = await stepOutcome(page.request, runId, WATCHED)
-            caught = outcome === 'running'
-            if (!caught && outcome !== null && !['pending', 'queued'].includes(outcome)) break
-            if (!caught) await page.waitForTimeout(400)
-        }
+        const mixed = node.getByText(/\d+ succeeded · \d+ running/)
+        const caught = await mixed.waitFor({ timeout: 120_000 }).then(
+            () => true,
+            () => false,
+        )
         if (!caught) continue
 
-        // The sensor's own items are what the picture is of, so the step is opened on them.
-        await page.locator('.react-flow__node').getByText(WATCHED, { exact: true }).click()
+        // The step's own items are what the picture is of, so the step is opened on them.
+        await node.getByText(WATCHED, { exact: true }).click()
         await page.getByRole('tab', { name: 'Step', exact: true }).waitFor({ timeout: 15_000 })
         await readyForShot(page, 'run-in-flight')
-        if ((await stepOutcome(page.request, runId, WATCHED)) !== 'running') continue
+        if (!(await mixed.isVisible())) continue
 
         await capture(page, 'run-in-flight')
         return
