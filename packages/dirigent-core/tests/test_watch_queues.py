@@ -1,7 +1,7 @@
 """The queue lane for watches: a watched ``kafka.consume`` reading a real topic, run after run.
 
-    docker compose -f infra/compose.queues.yaml up -d
-    make test-queues
+docker compose -f infra/compose.queues.yaml up -d
+make test-queues
 """
 
 import asyncio
@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from dirigent_block_queues import plugin as queues_plugin
 from dirigent_block_queues.kafka import KafkaConnectionConfig, KafkaConnectionKind
 from dirigent_client.enums import AttemptStatus
+from dirigent_core.config import Settings
 from dirigent_core.database import session_scope
 from dirigent_core.engine.definition import PipelineDefinition, StepDefinition, TriggerSpecs, WatchSpec
 from dirigent_core.engine.executor import Engine
@@ -25,7 +26,6 @@ from dirigent_core.engine.services import EngineServices
 from dirigent_core.models import Connection, Run, StepAttempt, Watch
 from dirigent_core.pipelines import apply_document
 from dirigent_core.plugins import PluginHost
-from dirigent_core.config import Settings
 from engineblocks import EngineTestPlugin
 
 pytestmark = pytest.mark.queues
@@ -40,9 +40,7 @@ READY_TIMEOUT = 60.0
 @pytest.fixture
 def host() -> PluginHost:
     """The engine's test blocks beside the real queue blocks."""
-    return PluginHost(
-        {"engine-tests": EngineTestPlugin().contribute(), "block-queues": queues_plugin.contribute()}
-    )
+    return PluginHost({"engine-tests": EngineTestPlugin().contribute(), "block-queues": queues_plugin.contribute()})
 
 
 @pytest.fixture

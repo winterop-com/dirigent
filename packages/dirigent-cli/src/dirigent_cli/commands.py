@@ -350,7 +350,9 @@ def apply_command(
     as_code: Annotated[str | None, typer.Option("--as", help="Register under a different code.")] = None,
     paused: Annotated[
         bool,
-        typer.Option("--paused", help="Create the schedules and watches this apply mints paused; existing ones are untouched."),
+        typer.Option(
+            "--paused", help="Create the schedules and watches this apply mints paused; existing ones are untouched."
+        ),
     ] = False,
     prune: Annotated[
         bool,
