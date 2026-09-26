@@ -48,6 +48,7 @@ Two properties are worth reading before a block is used:
 | [`log.write`](#logwrite) | operator | log | Write a line to the run's log. | `block-base` |
 | [`map.jq`](#mapjq) | operator | transform | Replace every element of a list with what a jq program makes of it. | `block-jq` |
 | [`pipeline.run`](#pipelinerun) | operator | execute | Run another pipeline on this instance. | `block-base` |
+| [`playground.arrive`](#playgroundarrive) | sensor | playground | Park for a configured wait, then arrive with a generated batch. | `block-base` |
 | [`playground.generate`](#playgroundgenerate) | operator | playground | Generate rows, a delay, a failure, or a payload, with nothing to call. | `block-base` |
 | [`rabbitmq.consume`](#rabbitmqconsume) | sensor | rabbitmq | Wait for messages on a RabbitMQ queue. | `block-queues` |
 | [`rabbitmq.publish`](#rabbitmqpublish) | operator | rabbitmq | Publish one message to an exchange. | `block-queues` |
@@ -455,13 +456,13 @@ Contributed by `block-base`. Not idempotent.
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `fields` | `object of string or object` |  |  | Which Faker provider fills each field of a generated record. |
-| `rows` | `integer` |  | `1` | How many records exist. Ignored when an input is supplied: the input decides. |
+| `rows` | `integer` |  | `1` | How many records to generate. |
 | `locale` | `string` |  | `"en_US"` | The Faker locale the providers generate in. |
 | `seed` | `integer or null` |  | `null` | Makes the answer reproducible. Unset draws one, and the answer says which it drew. |
 | `drift` | `"none" or "strings" or "missing" or "extra"` |  | `"none"` | How the records depart from the field map, for a document teaching a schema gate. |
+| `payload` | `string or integer or null` |  | `null` | Return filler of this size beside the records, to push an output over a threshold. |
 | `page` | `integer or null` |  | `null` | Which page of the records to answer with, counting from one; unset answers all of them. |
 | `size` | `integer or null` |  | `null` | How many records a page holds. Unset with a page set means ten. |
-| `payload` | `string or integer or null` |  | `null` | Return filler of this size beside the records, to push an output over a threshold. |
 | `delay` | `string (humane-duration)` |  | `"0s"` | How long to take before answering, for a document teaching a timeout or a deadline. |
 | `fail_until` | `integer` |  | `0` | Fail this many attempts before succeeding, for a document teaching a retry. |
 | `input` | `any` |  | `null` | The value to work on, written inline or referenced from an earlier step's output. |
@@ -823,6 +824,40 @@ Contributed by `block-queues`. Not idempotent. Polls every 30s unless the step s
 | `messages` | `object[]` | yes |  | The messages this poke read, partition by partition. |
 | `count` | `integer` | yes |  | How many messages the batch holds. |
 | `cursor` | `object of integer` | yes |  | The offset each partition is read up to, keyed by partition number as a string. |
+
+### `playground.arrive`
+
+Park for a configured wait, then arrive with a generated batch.
+
+Contributed by `block-base`. Not idempotent. Polls every 2s unless the step says otherwise. Gives up after 10m unless the step says otherwise.
+
+**Config**
+
+| Field | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `fields` | `object of string or object` |  |  | Which Faker provider fills each field of a generated record. |
+| `rows` | `integer` |  | `1` | How many records to generate. |
+| `locale` | `string` |  | `"en_US"` | The Faker locale the providers generate in. |
+| `seed` | `integer or null` |  | `null` | Makes the answer reproducible. Unset draws one, and the answer says which it drew. |
+| `drift` | `"none" or "strings" or "missing" or "extra"` |  | `"none"` | How the records depart from the field map, for a document teaching a schema gate. |
+| `payload` | `string or integer or null` |  | `null` | Return filler of this size beside the records, to push an output over a threshold. |
+| `after_pokes` | `integer` |  | `1` | How many pokes park before the batch arrives; zero lets the first poke carry it. |
+| `after` | `string (humane-duration)` |  | `"0s"` | How long the wait lasts, measured from when the attempt started, such as `10s`. |
+
+**Output**
+
+| Field | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `messages` | `object[]` | yes |  | The messages the batch holds, in the order they were generated. |
+| `count` | `integer` | yes |  | How many messages the batch holds. |
+| `pokes` | `integer` | yes |  | How many pokes the step took, the one that carried the batch included. |
+| `waited_ms` | `integer` | yes |  | How long the wait lasted, from the attempt's start to the batch, in milliseconds. |
+| `seed` | `integer` | yes |  | The seed the records came from. Sending it back reproduces them exactly. |
+| `locale` | `string` | yes |  | The locale the providers generated in. |
+| `fields` | `object of string or object` | yes |  | The field map the records were generated from. |
+| `drift` | `"none" or "strings" or "missing" or "extra"` | yes |  | The drift applied to the records. |
+| `payload` | `string or null` |  | `null` | The filler that was asked for, when a payload size was set. |
+| `payload_bytes` | `integer or null` |  | `null` | How large that filler is, in bytes. |
 
 ### `rabbitmq.consume`
 

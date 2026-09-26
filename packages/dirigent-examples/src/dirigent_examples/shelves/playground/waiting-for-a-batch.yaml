@@ -1,0 +1,92 @@
+# A step that waits for data instead of asking for it, with nothing to wait on.
+#
+# playground.arrive is a sensor, so the engine pokes it on a cadence, each poke is one cheap
+# read-only question, and the run holds no worker slot in between. The question here is "has
+# the batch arrived yet", and the answer is no for as many pokes -- or for as long -- as the
+# document asks. Then one poke generates the batch and hands it downstream.
+#
+# The output is shaped the way a queue consumer's is on purpose: `messages` with an `offset`
+# and a `value` each, and `count` beside them. A document written against this reads almost
+# unchanged against kafka.consume once there is a real topic to point it at.
+#
+# What makes it worth having is that nothing has to be standing up. A readiness wait needed a
+# live endpoint for http.ready to poke, so it could not be an offline example; this one
+# answers "not yet" for a while against no broker, no URL and no file.
+#
+# The generation knobs are the ones playground.generate has, and they mean the same thing:
+# fields, rows, locale, seed, drift and payload. after_pokes and after are the sensor's own,
+# and they decide only when the parking stops.
+#
+# Hop by hop:
+#
+#   wait_for_batch   parks for two pokes, then arrives with four seeded records.
+#   unpack           reads the batch the way a step downstream of a topic would.
+#
+# EXPECT THIS RUN TO END completed, in about two seconds: the poll is 1s and two pokes park.
+# Read `wait_for_batch` in `dg runs show`: the parked attempts say "poke 1 of 3" and carry a
+# progress fraction, and the attempt after them carries the batch.
+#
+# To change it: -p after_pokes=10 to watch it tick for longer, and -p rows=1 for a batch of
+# one. `after: 5s` instead of a poke count waits on the clock rather than on the cadence.
+#
+#   dg run --local examples/playground/waiting-for-a-batch.yaml
+#   dg run --local examples/playground/waiting-for-a-batch.yaml -p after_pokes=10
+
+format: dirigent/v1
+kind: pipeline
+code: waiting-for-a-batch
+name: Waiting for a batch to arrive
+description: |
+  A sensor that answers "not yet" for a few pokes and then hands over a generated batch.
+
+  The consume shape -- messages, offsets, a count -- with no broker to stand up and nothing
+  to reach.
+
+tags: [playground, sensor, transform, jq, starter]
+
+requires:
+  blocks:
+    - playground.arrive
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    after_pokes:
+      type: integer
+      description: How many pokes park before the batch arrives.
+      default: 2
+      minimum: 0
+      maximum: 20
+    rows:
+      type: integer
+      description: How many messages the batch carries.
+      default: 4
+      minimum: 1
+      maximum: 50
+
+steps:
+  wait_for_batch:
+    block: playground.arrive
+    # poll, deadline and on_timeout are the engine's, uniform across every sensor, and never
+    # part of a block's own config. The sensor's own knobs say when to stop parking; these
+    # say how often it is asked and how long the asking may go on.
+    poll: 1s
+    deadline: 1m
+    config:
+      after_pokes: ${params.after_pokes}
+      rows: ${params.rows}
+      # Seeded, so the stations below are the same ones on every run and on every machine.
+      seed: 42
+      fields:
+        station: city
+        reading: pyfloat
+
+  unpack:
+    block: transform.jq
+    depends_on: [wait_for_batch]
+    config:
+      input: ${steps.wait_for_batch.output}
+      program: >-
+        {count: .count, pokes: .pokes, waited_ms: .waited_ms,
+         stations: [.messages[].value.station]}

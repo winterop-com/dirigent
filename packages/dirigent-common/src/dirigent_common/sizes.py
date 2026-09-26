@@ -7,6 +7,7 @@ therefore the same number, and the canonical rendering is the short spelling.
 
 import math
 import re
+import string
 from typing import Annotated, Final
 
 from pydantic import AfterValidator, BeforeValidator, PlainSerializer, WithJsonSchema
@@ -135,3 +136,13 @@ type Size = Annotated[
         }
     ),
 ]
+
+#: What fills a requested payload: a fixed repeating pattern, so a payload of a given size is
+#: the same bytes on every call and nothing about it is left for a seed to decide.
+FILLER: Final = string.ascii_lowercase + string.digits
+
+
+def filler(size: int) -> str:
+    """A payload of exactly this many bytes, from the fixed repeating pattern."""
+    repeats = size // len(FILLER) + 1
+    return (FILLER * repeats)[:size]
