@@ -1,9 +1,13 @@
-"""``playground.generate``: a node that makes something happen, anywhere in a document.
+"""The playground blocks: ``playground.generate`` makes something happen, ``playground.arrive`` waits.
 
-At the start of a flow it needs nothing: its knobs generate rows, take a while, fail their
-first attempts, or return a payload of a chosen size. In the middle it takes an input and
-works from that value. At the end it is simply the last output, so a document may finish on
-it. It reaches nothing: no connection, no URL, no network, no file.
+At the start of a flow the node needs nothing: its knobs generate rows, take a while, fail
+their first attempts, or return a payload of a chosen size. In the middle it takes an input
+and works from that value. At the end it is simply the last output, so a document may finish
+on it. It reaches nothing: no connection, no URL, no network, no file.
+
+``playground.arrive`` is the same generation behind a sensor's shape: each poke parks until
+the wait the document configured is over, and the poke that fires generates a batch and hands
+it downstream as messages. It is the poll-driven half of a queue without a queue to stand up.
 
 The whole of Faker is reachable through the field map, which names a provider per field. A
 provider name is therefore a string from a document that selects an attribute on a library
@@ -18,8 +22,7 @@ must not be able to reach into each other's sequence.
 import asyncio
 import math
 import random
-import string
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from functools import lru_cache
 from typing import Annotated, Any, ClassVar, Final, cast
@@ -35,17 +38,27 @@ from dirigent_block_base.messages import (
     UNKNOWN_LOCALE,
     UNKNOWN_PROVIDER,
 )
-from dirigent_common import BlockModel, Duration, Size
-from dirigent_plugin import BlockFailure, ErrorClass, Operator, OperatorSpec, StepContext
+from dirigent_common import BlockModel, Duration, JsonMap, Size, filler
+from dirigent_plugin import (
+    BlockFailure,
+    ErrorClass,
+    NotYet,
+    Operator,
+    OperatorSpec,
+    Sensor,
+    SensorSpec,
+    StepContext,
+)
 
-#: The most records one call may generate. The routes are unauthenticated, so every knob
-#: that costs work is bounded rather than left to the caller.
+#: The most records one call may generate. A field map costs a line to write and a provider
+#: call per field per row to honour, so the count is bounded rather than left to the document.
 MAX_ROWS: Final = 1000
 
 #: The most records one page may carry.
 MAX_PAGE_SIZE: Final = 500
 
-#: The largest filler payload one call may ask for.
+#: The largest filler payload one call may ask for. The playground's streaming route offers
+#: the same knob to an unauthenticated caller, so the ceiling has to hold outside a run too.
 MAX_PAYLOAD: Final = 1024 * 1024
 
 #: The longest a call may be asked to take before answering.
@@ -93,11 +106,11 @@ class Drift(StrEnum):
     """A field the map never named is added, so a closed schema refuses it."""
 
 
-class Knobs(BlockModel):
-    """Everything the playground can be asked for.
+class Generation(BlockModel):
+    """What a record is made of, which is the same question wherever the playground is asked it.
 
-    Every knob defaults to something quiet, so a call that sets nothing still generates one
-    row and answers at once.
+    Every block and every route that generates reads these six knobs and reads them the same
+    way, so a document that moves a field map from one to another moves it unchanged.
     """
 
     fields: dict[str, FieldSpec] = Field(default_factory=lambda: dict(DEFAULT_FIELDS))
@@ -109,7 +122,7 @@ class Knobs(BlockModel):
     """
 
     rows: Annotated[int, Field(ge=0, le=MAX_ROWS)] = 1
-    """How many records exist. Ignored when an input is supplied: the input decides."""
+    """How many records to generate."""
 
     locale: str = DEFAULT_LOCALE
     """The Faker locale the providers generate in."""
@@ -120,14 +133,22 @@ class Knobs(BlockModel):
     drift: Drift = Drift.NONE
     """How the records depart from the field map, for a document teaching a schema gate."""
 
+    payload: Annotated[Size, Field(le=MAX_PAYLOAD)] | None = None
+    """Return filler of this size beside the records, to push an output over a threshold."""
+
+
+class Knobs(Generation):
+    """Everything the playground node can be asked for.
+
+    Every knob defaults to something quiet, so a call that sets nothing still generates one
+    row and answers at once.
+    """
+
     page: Annotated[int, Field(ge=1)] | None = None
     """Which page of the records to answer with, counting from one; unset answers all of them."""
 
     size: Annotated[int, Field(ge=1, le=MAX_PAGE_SIZE)] | None = None
     """How many records a page holds. Unset with a page set means ten."""
-
-    payload: Annotated[Size, Field(le=MAX_PAYLOAD)] | None = None
-    """Return filler of this size beside the records, to push an output over a threshold."""
 
     delay: Annotated[Duration, Field(ge=timedelta(0), le=MAX_DELAY)] = timedelta(0)
     """How long to take before answering, for a document teaching a timeout or a deadline."""
@@ -202,10 +223,6 @@ DEFAULT_PAGE_SIZE: Final = 10
 
 #: The field a drifted record gains under ``extra``.
 DRIFT_FIELD: Final = "drifted"
-
-#: What fills a requested payload: a fixed repeating pattern, so a payload of a given size
-#: is the same bytes on every run and a seed has nothing to decide about it.
-FILLER: Final = string.ascii_lowercase + string.digits
 
 #: Names a provider object carries that generate nothing: Faker's own plumbing, and the
 #: seeding entry points a field map must never reach.
@@ -340,13 +357,7 @@ def _drifted(record: JsonValue, drift: Drift, first: str | None) -> JsonValue:
             return record
 
 
-def filler(size: int) -> str:
-    """A payload of exactly this many bytes, from a fixed repeating pattern."""
-    repeats = size // len(FILLER) + 1
-    return (FILLER * repeats)[:size]
-
-
-def _base(knobs: Knobs, fake: Faker, supplied: JsonValue | None, extend: bool) -> list[JsonValue]:
+def _base(knobs: Generation, fake: Faker, supplied: JsonValue | None, extend: bool) -> list[JsonValue]:
     """The records before drift and paging: generated from the knobs, or built from an input.
 
     An input is the data, so it decides how many records there are and ``rows`` is not
@@ -360,7 +371,7 @@ def _base(knobs: Knobs, fake: Faker, supplied: JsonValue | None, extend: bool) -
     return [_extended(fake, knobs, element) for element in elements]
 
 
-def _extended(fake: Faker, knobs: Knobs, element: JsonValue) -> JsonValue:
+def _extended(fake: Faker, knobs: Generation, element: JsonValue) -> JsonValue:
     """One element of a supplied input, with the named fields generated onto it."""
     generated = _record(fake, knobs.fields, knobs.locale)
     if isinstance(element, dict):
@@ -368,21 +379,36 @@ def _extended(fake: Faker, knobs: Knobs, element: JsonValue) -> JsonValue:
     return {"value": element, **generated}
 
 
-def build(knobs: Knobs, *, supplied: JsonValue | None = None, extend: bool = False, attempt: int = 1) -> Generated:
-    """Generate one answer from one set of knobs, and say which knobs produced it.
+def drawn_seed(seed: int | None) -> int:
+    """The seed a generation runs under: the one it was given, or one drawn for it."""
+    return seed if seed is not None else random.randrange(2**31)
+
+
+def generate(
+    knobs: Generation,
+    seed: int,
+    *,
+    supplied: JsonValue | None = None,
+    extend: bool = False,
+) -> list[JsonValue]:
+    """The records one set of generation knobs makes, seeded and drifted.
 
     ``extend`` says whether a supplied input has generated fields added to it, which is what
-    distinguishes a document that named a field map from one that only passed a value
-    through.
+    distinguishes a caller that named a field map from one that only passed a value through.
     """
     locale = _checked(knobs.locale)
-    seed = knobs.seed if knobs.seed is not None else random.randrange(2**31)
     fake = _build(locale)
     fake.seed_instance(seed)
-
     records = _base(knobs, fake, supplied, extend)
     first = next(iter(knobs.fields), None)
-    records = [_drifted(record, knobs.drift, first) for record in records]
+    return [_drifted(record, knobs.drift, first) for record in records]
+
+
+def build(knobs: Knobs, *, supplied: JsonValue | None = None, extend: bool = False, attempt: int = 1) -> Generated:
+    """Generate one answer from one set of knobs, and say which knobs produced it."""
+    locale = _checked(knobs.locale)
+    seed = drawn_seed(knobs.seed)
+    records = generate(knobs, seed, supplied=supplied, extend=extend)
     rows = len(records)
 
     page, size, pages = _paging(knobs, rows)
@@ -451,7 +477,8 @@ class PlaygroundConfig(Knobs):
     """The value to work on, written inline or referenced from an earlier step's output.
 
     Left out, the node generates from its knobs alone, which is what a first step does. A
-    list arrives as one record per element and an object or a scalar as a single record. An
+    list arrives as one record per element and an object or a scalar as a single record, so a
+    supplied input decides how many records there are and ``rows`` is not consulted. An
     element gains the generated fields only when ``fields`` is named, so a node that names
     no fields passes its input through unchanged."""
 
@@ -516,3 +543,169 @@ def _input_rows(supplied: JsonValue) -> int | None:
     if supplied is None:
         return None
     return len(supplied) if isinstance(supplied, list) else 1
+
+
+#: The most pokes a sensor may be asked to park for before its batch arrives.
+MAX_PARKED_POKES: Final = 1000
+
+#: The shortest park the sensor asks for, so the last sliver of a timed wait is one poke.
+MIN_ARRIVE_POLL: Final = timedelta(milliseconds=100)
+
+#: Where the poke count lives between pokes, which is the only thing this sensor remembers.
+POKES: Final = "pokes"
+
+
+class ArriveConfig(Generation):
+    """When the batch arrives, and what it is made of.
+
+    The six generation knobs mean here exactly what they mean on ``playground.generate``.
+    The two below are the sensor's own, and they decide only when the parking stops.
+    """
+
+    after_pokes: Annotated[int, Field(ge=0, le=MAX_PARKED_POKES)] = 1
+    """How many pokes park before the batch arrives; zero lets the first poke carry it."""
+
+    after: Annotated[Duration, Field(ge=timedelta(0))] = timedelta(0)
+    """How long the wait lasts, measured from when the attempt started, such as ``10s``.
+
+    This and ``after_pokes`` are both floors, so the batch arrives on the first poke that has
+    cleared them both. The step's ``deadline`` still ends the wait either way.
+    """
+
+
+class ArrivedMessage(BlockModel):
+    """One message of an arrived batch, shaped the way a consumed message is."""
+
+    offset: int
+    """Its place in the batch, counting from zero."""
+
+    value: JsonValue
+    """The generated record."""
+
+    timestamp: datetime
+    """When the batch arrived, which is the poke that carried it and not the attempt's start."""
+
+
+class ArriveOutput(BlockModel):
+    """The batch a poke arrived with, and the knobs that decided it."""
+
+    messages: list[ArrivedMessage]
+    """The messages the batch holds, in the order they were generated."""
+
+    count: int
+    """How many messages the batch holds."""
+
+    pokes: int
+    """How many pokes the step took, the one that carried the batch included."""
+
+    waited_ms: int
+    """How long the wait lasted, from the attempt's start to the batch, in milliseconds."""
+
+    seed: int
+    """The seed the records came from. Sending it back reproduces them exactly."""
+
+    locale: str
+    """The locale the providers generated in."""
+
+    fields: dict[str, FieldSpec]
+    """The field map the records were generated from."""
+
+    drift: Drift
+    """The drift applied to the records."""
+
+    payload: str | None = None
+    """The filler that was asked for, when a payload size was set."""
+
+    payload_bytes: int | None = None
+    """How large that filler is, in bytes."""
+
+
+class PlaygroundArriveSensor(Sensor[ArriveConfig, ArriveOutput]):
+    """Parks for a configured wait, then arrives with a generated batch, reaching nothing.
+
+    A poll-driven source without anything to poll: the sensor answers ``NotYet`` while the
+    wait lasts and generates the batch in the poke that ends it, so a document can be watched
+    ticking against no broker, no endpoint and no file. The batch arrives as ``messages``,
+    each with an offset and the record as its ``value``, which is the shape a queue consumer
+    hands downstream.
+
+    The poke count lives in the cursor, and a cursor is at-least-once: a worker that dies
+    between a park and its commit makes the next poke recount the same one, so the sensor
+    parks a poke longer rather than arriving early.
+    """
+
+    spec = SensorSpec(
+        id="playground.arrive",
+        summary="Park for a configured wait, then arrive with a generated batch.",
+        default_poll=timedelta(seconds=2),
+        default_deadline=timedelta(minutes=10),
+    )
+    config_model: ClassVar[type[BaseModel]] = ArriveConfig
+    output_model: ClassVar[type[BaseModel]] = ArriveOutput
+
+    async def poke(self, config: ArriveConfig, ctx: StepContext) -> ArriveOutput | NotYet:
+        """Count this poke, then either park or generate the batch the wait was for."""
+        moment = datetime.now(UTC)
+        poke = parked_pokes(ctx.cursor) + 1
+        waited = moment - ctx.started_at
+        remaining = config.after - waited
+        if poke <= config.after_pokes or remaining > timedelta(0):
+            waiting = _waiting(config, poke, remaining)
+            ctx.log.debug("nothing has arrived yet", poke=poke, waited_ms=_milliseconds(waited))
+            return NotYet(
+                cursor={POKES: poke},
+                next_poll_in=max(remaining, MIN_ARRIVE_POLL) if remaining > timedelta(0) else None,
+                progress=_progress(config, poke, waited),
+                message=waiting,
+            )
+        seed = drawn_seed(config.seed)
+        records = generate(config, seed)
+        payload = filler(config.payload) if config.payload is not None else None
+        ctx.log.info("a batch arrived", count=len(records), pokes=poke, seed=seed)
+        return ArriveOutput(
+            messages=[
+                ArrivedMessage(offset=offset, value=value, timestamp=moment) for offset, value in enumerate(records)
+            ],
+            count=len(records),
+            pokes=poke,
+            waited_ms=_milliseconds(waited),
+            seed=seed,
+            locale=config.locale,
+            fields=config.fields,
+            drift=config.drift,
+            payload=payload,
+            payload_bytes=None if payload is None else len(payload),
+        )
+
+
+def parked_pokes(cursor: JsonMap | None) -> int:
+    """How many pokes the last committed park counted, and none when there has been no park."""
+    held = (cursor or {}).get(POKES)
+    return held if isinstance(held, int) else 0
+
+
+def _milliseconds(value: timedelta) -> int:
+    """Render a duration as the whole milliseconds emitted data measures timings in."""
+    return round(value.total_seconds() * 1000)
+
+
+def _waiting(config: ArriveConfig, poke: int, remaining: timedelta) -> str:
+    """What the sensor is seeing while it waits, in the terms the document asked in."""
+    seen: list[str] = []
+    if config.after_pokes:
+        seen.append(f"poke {poke} of {config.after_pokes + 1}")
+    if remaining > timedelta(0):
+        seen.append(f"{_milliseconds(remaining)}ms of the wait left")
+    return ", ".join(seen)
+
+
+def _progress(config: ArriveConfig, poke: int, waited: timedelta) -> float | None:
+    """How far along the wait is, read off whichever floor is furthest from being cleared."""
+    fractions: list[float] = []
+    if config.after_pokes:
+        fractions.append(poke / (config.after_pokes + 1))
+    if config.after > timedelta(0):
+        fractions.append(waited / config.after)
+    if not fractions:
+        return None
+    return min(min(fractions), 1.0)

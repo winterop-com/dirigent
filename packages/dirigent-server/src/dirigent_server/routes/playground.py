@@ -8,6 +8,17 @@ Every route answers the same envelope. ``kind`` names the answer, ``request`` ho
 arrived verbatim, and every other key is what the route decided -- the knobs resolved, after
 defaults and after a seed was drawn. So ``request.args.rows`` is the string that was sent
 and ``rows`` is the number that was used.
+
+``/playground/stream`` is the one route that cannot repeat the envelope, because a stream has
+one set of headers and many bodies. It sends the envelope as its first line instead, and the
+lines after it carry only what changes.
+
+Nothing here generates records. A field map is Faker, Faker lives in the block family that
+contributes ``playground.generate``, and the server does not depend on a block package: blocks
+are contributed through pluginkit and run on workers, and a server-only install in a split
+deployment must not have to carry the built-in block set to serve an API. So the division is
+along what each surface is for -- the routes hand a consumer bytes arriving over time, and the
+blocks put generated data into a pipeline, which is where the field map belongs.
 """
 
 import asyncio
@@ -15,16 +26,18 @@ import base64
 import binascii
 import json
 import secrets
-from datetime import timedelta
+import time
+from collections.abc import AsyncIterator
+from datetime import UTC, datetime, timedelta
 from typing import Annotated, Final
 from urllib.parse import unquote_plus, urlencode
 
 from fastapi import APIRouter, Query, Request, Response
 from fastapi import status as http_status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, JsonValue
 
-from dirigent_common import Duration
+from dirigent_common import Duration, Size, filler
 from dirigent_server.errors import Refusal
 from dirigent_server.messages import (
     PLAYGROUND_BAD_KNOB,
@@ -77,6 +90,24 @@ FORBIDDEN_HEADERS: Final = frozenset(
 
 #: Query names the routes read as knobs, so ``response-headers`` never sets one as a header.
 RESERVED_ARGS: Final = frozenset({"delay", "status"})
+
+#: The most messages one stream may be asked for.
+MAX_STREAM_MESSAGES: Final = 100
+
+#: The longest gap one stream may be asked to leave between messages.
+MAX_GAP: Final = timedelta(seconds=10)
+
+#: The longest a whole stream may take. The gap and the message count multiply, so each one
+#: being inside its own bound is not enough to keep an unauthenticated connection short.
+MAX_SPAN: Final = timedelta(seconds=60)
+
+#: The largest filler one stream message may carry. The same ceiling the ``playground.generate``
+#: node puts on its own ``payload``, which is the same filler at the same size.
+MAX_PAYLOAD: Final = 1024 * 1024
+
+#: What a stream is served as: one JSON record per line, which is the shape every record this
+#: project emits already has, and what ``jq`` reads a line at a time.
+NDJSON: Final = "application/x-ndjson"
 
 #: The credential ``/playground/auth`` accepts. Public constants, documented as such: they
 #: protect nothing and unlock nothing but this one route's 200.
@@ -170,6 +201,55 @@ class SetHeaders(Answer):
 
     headers: dict[str, str]
     """Every header this answer set, exactly as it was asked to."""
+
+
+class StreamOpened(Answer):
+    """A stream's first line: the request facts, and every knob the lines after it run under.
+
+    A stream has one set of headers and many bodies, so the envelope cannot ride on each
+    message the way it rides on every other playground answer. It is sent once, here.
+    """
+
+    messages: int
+    """How many messages follow this line."""
+
+    gap_ms: int
+    """How long the stream waits before each message, in milliseconds."""
+
+    payload_bytes: int | None = None
+    """How large the filler on each message is, when a payload size was asked for."""
+
+
+class StreamMessage(BaseModel):
+    """One message of a stream, carrying only what the first line could not say in advance."""
+
+    kind: str = "stream.message"
+    """What this line is, which is what a reader dispatches on."""
+
+    offset: int
+    """Its place in the stream, counting from zero."""
+
+    sent_at: datetime
+    """When this message left the instance."""
+
+    elapsed_ms: int
+    """How long after the first line this message left, so a cadence can be measured."""
+
+    payload: str | None = None
+    """The filler that was asked for, when a payload size was set."""
+
+
+class StreamClosed(BaseModel):
+    """A stream's last line, which is how a reader tells an ending from a cut connection."""
+
+    kind: str = "stream.closed"
+    """What this line is, which is what a reader dispatches on."""
+
+    messages: int
+    """How many messages the stream sent."""
+
+    duration_ms: int
+    """How long the whole stream took, from its first line to this one."""
 
 
 class Credential(Answer):
@@ -399,6 +479,82 @@ async def unreliable(
         outcome="failed" if failing else "succeeded",
     )
     return _answer(answer, code)
+
+
+@router.get(
+    f"{PREFIX}/stream",
+    operation_id="playgroundStream",
+    summary="Send a stream of messages instead of one body",
+    response_model=None,
+    responses={
+        200: {"content": {NDJSON: {}}, "description": "One JSON record per line: an envelope, messages, an end."},
+        422: {"description": "A stream that would run longer than the playground holds a connection open."},
+    },
+)
+async def stream(
+    request: Request,
+    messages: Annotated[
+        int,
+        Query(ge=1, le=MAX_STREAM_MESSAGES, description="How many messages to send after the envelope."),
+    ] = 5,
+    every: Annotated[Duration, Query(description="How long to wait before each message, as `250ms` or `2s`.")] = (
+        timedelta(seconds=1)
+    ),
+    payload: Annotated[
+        Size | None,
+        Query(description="Filler of this size on every message, as `16kb`, to make each one large."),
+    ] = None,
+    delay: DelayArg = timedelta(0),
+) -> Response:
+    """Send an envelope, then a message every ``every``, then a line saying the stream ended.
+
+    The one route whose answer arrives in pieces, for a consumer that has to be tested against
+    bytes that turn up over time rather than a body that is already whole. It generates
+    nothing: a message carries its offset, when it was sent, how long after the envelope that
+    was, and the filler a ``payload`` asked for.
+    """
+    if every < timedelta(0) or every > MAX_GAP:
+        raise _bad_knob(f"a gap is between 0 and {int(MAX_GAP.total_seconds())}s")
+    if payload is not None and payload > MAX_PAYLOAD:
+        raise _bad_knob(f"a payload is at most {MAX_PAYLOAD} bytes")
+    if messages * every > MAX_SPAN:
+        raise _bad_knob(
+            f"{messages} messages {int(every.total_seconds() * 1000)}ms apart would hold the "
+            f"connection open longer than {int(MAX_SPAN.total_seconds())}s"
+        )
+    await _delayed(delay)
+    opened = StreamOpened(
+        kind="stream",
+        request=await _facts(request),
+        messages=messages,
+        gap_ms=round(every.total_seconds() * 1000),
+        payload_bytes=payload,
+    )
+    return StreamingResponse(
+        _lines(opened, every, None if payload is None else filler(payload)),
+        media_type=NDJSON,
+        # A stream a proxy holds until it is whole is not a stream, and the point of the route
+        # is that its pieces arrive apart.
+        headers={"cache-control": "no-cache", "x-accel-buffering": "no"},
+    )
+
+
+async def _lines(opened: StreamOpened, every: timedelta, padding: str | None) -> AsyncIterator[str]:
+    """The lines one stream sends: the envelope, a message per gap, and the end."""
+    started = time.monotonic()
+    yield opened.model_dump_json() + "\n"
+    for offset in range(opened.messages):
+        if every > timedelta(0):
+            await asyncio.sleep(every.total_seconds())
+        message = StreamMessage(
+            offset=offset,
+            sent_at=datetime.now(UTC),
+            elapsed_ms=round((time.monotonic() - started) * 1000),
+            payload=padding,
+        )
+        yield message.model_dump_json() + "\n"
+    closed = StreamClosed(messages=opened.messages, duration_ms=round((time.monotonic() - started) * 1000))
+    yield closed.model_dump_json() + "\n"
 
 
 @router.get(

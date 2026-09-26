@@ -1,5 +1,8 @@
 """The playground's routes: the envelope, the knobs, the credential, and the setting."""
 
+import json
+from typing import Any
+
 import pytest
 from cryptography.fernet import Fernet
 from fastapi.testclient import TestClient
@@ -219,3 +222,95 @@ def test_the_setting_unmounts_the_playground() -> None:
     with TestClient(create_app(settings, scheduler=False)) as client:
         assert client.get(f"{PREFIX}/request").status_code == 404
         assert f"{PREFIX}/request" not in client.get("/openapi.json").json()["paths"]
+
+
+def lines(playground: TestClient, **params: str | int) -> list[dict[str, Any]]:
+    """Read a stream to its end, as a consumer that parses one JSON record per line does."""
+    with playground.stream("GET", f"{PREFIX}/stream", params=params) as response:
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/x-ndjson")
+        return [json.loads(line) for line in response.iter_lines() if line]
+
+
+def test_a_stream_opens_with_the_envelope_and_closes_with_an_end(playground: TestClient) -> None:
+    """A stream has one set of headers, so the request facts go out once, on the first line."""
+    read = lines(playground, messages=3, every="0s")
+    assert [record["kind"] for record in read] == [
+        "stream",
+        "stream.message",
+        "stream.message",
+        "stream.message",
+        "stream.closed",
+    ]
+    assert read[0]["request"]["path"] == f"{PREFIX}/stream"
+    assert read[0]["request"]["args"] == {"messages": "3", "every": "0s"}
+    assert read[0]["messages"] == 3
+
+
+def test_only_the_first_line_carries_the_request(playground: TestClient) -> None:
+    read = lines(playground, messages=2, every="0s")
+    assert all("request" not in record for record in read[1:])
+
+
+def test_the_messages_are_offset_in_order_and_the_end_counts_them(playground: TestClient) -> None:
+    read = lines(playground, messages=4, every="0s")
+    assert [record["offset"] for record in read[1:-1]] == [0, 1, 2, 3]
+    assert read[-1]["messages"] == 4
+    assert read[-1]["duration_ms"] >= 0
+
+
+def test_a_gap_puts_the_messages_apart_in_time(playground: TestClient) -> None:
+    read = lines(playground, messages=2, every="60ms")
+    elapsed = [record["elapsed_ms"] for record in read[1:-1]]
+    assert elapsed[0] >= 55
+    assert elapsed[1] >= elapsed[0] + 55
+    assert read[-1]["duration_ms"] >= elapsed[-1]
+
+
+def test_a_payload_rides_on_every_message_at_the_size_it_was_asked_for(playground: TestClient) -> None:
+    read = lines(playground, messages=2, every="0s", payload="2kb")
+    assert read[0]["payload_bytes"] == 2048
+    assert all(len(record["payload"]) == 2048 for record in read[1:-1])
+
+
+def test_no_payload_means_no_filler(playground: TestClient) -> None:
+    read = lines(playground, messages=1, every="0s")
+    assert read[0]["payload_bytes"] is None
+    assert read[1]["payload"] is None
+
+
+def test_the_default_stream_needs_no_knobs_at_all(playground: TestClient) -> None:
+    with playground.stream("GET", f"{PREFIX}/stream", params={"every": "0s"}) as response:
+        read = [json.loads(line) for line in response.iter_lines() if line]
+    assert read[0]["messages"] == 5
+    assert len([record for record in read if record["kind"] == "stream.message"]) == 5
+
+
+def test_a_stream_that_would_hold_the_connection_too_long_is_refused(playground: TestClient) -> None:
+    """The gap and the count multiply, so each being inside its own bound is not enough."""
+    response = playground.get(f"{PREFIX}/stream", params={"messages": 100, "every": "10s"})
+    assert response.status_code == 422
+    assert "60s" in response.json()["detail"]
+
+
+def test_a_gap_longer_than_the_playground_allows_is_refused(playground: TestClient) -> None:
+    assert playground.get(f"{PREFIX}/stream", params={"messages": 1, "every": "30s"}).status_code == 422
+
+
+def test_more_messages_than_the_playground_sends_are_refused(playground: TestClient) -> None:
+    assert playground.get(f"{PREFIX}/stream", params={"messages": 5000, "every": "0s"}).status_code == 422
+
+
+def test_a_payload_larger_than_the_playground_fills_is_refused(playground: TestClient) -> None:
+    assert (
+        playground.get(f"{PREFIX}/stream", params={"messages": 1, "every": "0s", "payload": "8mb"}).status_code == 422
+    )
+
+
+def test_a_stream_needs_no_credential_either(playground: TestClient) -> None:
+    assert playground.get(f"{PREFIX}/stream", params={"messages": 1, "every": "0s"}).status_code == 200
+
+
+def test_the_stream_is_in_the_openapi_document_as_ndjson(client: TestClient) -> None:
+    operation = client.get("/openapi.json").json()["paths"][f"{PREFIX}/stream"]["get"]
+    assert "application/x-ndjson" in operation["responses"]["200"]["content"]

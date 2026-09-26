@@ -117,6 +117,7 @@ def test_the_catalog_is_served_and_filterable(client: TestClient) -> None:
     assert {block["id"] for block in sensors["blocks"]} == {
         "http.ready",
         "kafka.consume",
+        "playground.arrive",
         "rabbitmq.consume",
         "storage.exists",
         "time.sleep",
@@ -152,6 +153,7 @@ def test_the_catalog_carries_the_group_each_block_declares(client: TestClient) -
         "log.write": "log",
         "map.jq": "transform",
         "pipeline.run": "execute",
+        "playground.arrive": "playground",
         "playground.generate": "playground",
         "rabbitmq.consume": "rabbitmq",
         "rabbitmq.publish": "rabbitmq",

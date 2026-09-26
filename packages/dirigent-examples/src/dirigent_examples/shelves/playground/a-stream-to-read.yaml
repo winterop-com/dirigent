@@ -1,0 +1,102 @@
+# A body that arrives in pieces, and what a step that reads one actually gets.
+#
+# /playground/stream is the one playground route whose answer does not arrive whole. It sends
+# an envelope line, then a message every `every`, then a line saying the stream ended. The
+# format is NDJSON -- one JSON record per line, each carrying a `kind` -- which is the shape
+# everything this project emits already has, so `jq` selects a line the same way here as it
+# does over `dg runs show`.
+#
+# A stream has one set of headers and many bodies, so the request facts cannot ride on every
+# message the way they ride on every other playground answer. They go out once, on the first
+# line, and the lines after it carry only what changes.
+#
+# The lesson is in the second step. http.request reads a bounded body and hands the whole of
+# it on, so this step waits for the last line and then gets all of them at once. A stream is
+# worth having for a consumer that reads it as it arrives -- a client library, a browser, a
+# terminal with `curl | jq -c` -- while inside a DAG the step is the unit and the step's unit
+# is the whole answer. The lines are still the value, and jq splits them.
+#
+# The route generates nothing: a message carries its offset, when it was sent, how long after
+# the envelope that was, and the filler a `payload` asks for. Generated records come from the
+# blocks instead, because a field map is Faker and the server does not carry a block package.
+# ../playground/waiting-for-a-batch.yaml is the block that does.
+#
+# This one needs an instance, because a route is served by one. Start it first:
+#   dg dev
+# and then, in another terminal:
+#   dg run --local examples/playground/a-stream-to-read.yaml
+#
+# Hop by hop:
+#
+#   read_stream   five messages, 200ms apart, read to the end.
+#   count_lines   split the lines, parse each one, and count what came.
+#
+# EXPECT THIS RUN TO END completed, in about a second. Read `count_lines`: one `stream` line,
+# five `stream.message` lines, one `stream.closed` line, and the query the envelope reflected.
+#
+# To change it: -p messages=20 for a longer stream, and -p every=1s to watch it take longer.
+# Watching it arrive rather than reading it whole is a terminal's job:
+#   curl -N 'http://127.0.0.1:3333/api/v1/playground/stream?messages=20&every=500ms'
+
+format: dirigent/v1
+kind: pipeline
+code: a-stream-to-read
+name: A stream to read
+description: |
+  The playground's streaming route, read by a step and split back into its lines.
+
+  One JSON record per line, the request facts on the first one, and an end a reader can tell
+  from a cut connection.
+
+tags: [playground, http, transform, jq]
+
+requires:
+  blocks:
+    - http.request
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    instance:
+      type: string
+      description: Where this instance's API answers; `dg dev` serves it here.
+      default: http://127.0.0.1:3333
+    messages:
+      type: integer
+      description: How many messages the stream sends after the envelope.
+      default: 5
+      minimum: 1
+      maximum: 50
+    every:
+      type: string
+      description: How long the stream waits before each message.
+      default: 200ms
+
+steps:
+  read_stream:
+    block: http.request
+    config:
+      # No connection and no credential: the playground is served by the instance to itself,
+      # and a step calling it must not need a token.
+      url: ${params.instance}/api/v1/playground/stream
+      method: GET
+      query:
+        messages: ${params.messages}
+        every: ${params.every}
+
+  count_lines:
+    block: transform.jq
+    depends_on: [read_stream]
+    config:
+      # NDJSON is not JSON, so the body arrives as text and the lines are parsed here.
+      input: ${steps.read_stream.output.body}
+      program: |
+        split("\n")
+        | map(select(length > 0) | fromjson)
+        | {
+            lines: length,
+            kinds: (group_by(.kind) | map({kind: .[0].kind, count: length})),
+            asked_for: .[0].request.args,
+            ended: (map(select(.kind == "stream.closed")) | length == 1)
+          }

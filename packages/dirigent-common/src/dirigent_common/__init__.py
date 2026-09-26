@@ -45,10 +45,12 @@ from dirigent_common.names import (
 from dirigent_common.programs import JQ_MEDIA_TYPE, SHELL_MEDIA_TYPE, SQL_MEDIA_TYPE, TEMPLATE_MEDIA_TYPE
 from dirigent_common.schemas import BlockModel, HealthReport, HttpConnectionConfig
 from dirigent_common.sizes import (
+    FILLER,
     SIZE_PATTERN,
     NegativeSize,
     Size,
     SizeError,
+    filler,
     format_size,
     parse_size,
 )
@@ -64,6 +66,7 @@ __all__ = [
     "API_VERSION",
     "DURATION_PATTERN",
     "EMAIL_MAX_LENGTH",
+    "FILLER",
     "EMAIL_PATTERN",
     "ENTITY_NAME_MAX_LENGTH",
     "ENTITY_NAME_PATTERN",
@@ -102,6 +105,7 @@ __all__ = [
     "entity_name_error",
     "build_client",
     "compile_template",
+    "filler",
     "format_duration",
     "format_size",
     "is_entity_name",

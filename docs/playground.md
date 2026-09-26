@@ -1,9 +1,10 @@
 # The playground
 
-Two things an instance gives a document that needs something to happen instead of a service
-to call: a **node** that generates data and behaviour in the run itself, and a handful of
-**HTTP routes** the instance serves to itself. Both are always on, both are ours, and neither
-needs a network.
+Three things an instance gives a document that needs something to happen instead of a service
+to call: a **node** that generates data and behaviour in the run itself, a **sensor** that
+makes the run wait for that data the way it waits for a queue, and a handful of **HTTP
+routes** the instance serves to itself. All of them are always on, all of them are ours, and
+none of them needs a network.
 
 ## Which one to reach for
 
@@ -13,12 +14,26 @@ needs a shape that drifts, a storage example that needs a payload over the thres
 connection, no URL, no network, and it works at the start of a flow, in the middle of one, or
 as its last step.
 
-**The routes are for a document that is teaching HTTP itself.** A request with headers and a
-query, a status a client has to handle, a redirect, a delay against a timeout. Those
-documents want a real HTTP hop, and now they have one they own.
+**The sensor, `playground.arrive`, is for a document that needs to wait for something.** A
+readiness poke, a batch that turns up after a while, a step that has to be seen parking before
+it is seen working. It is the node's generation behind a sensor's shape, so a document can
+watch a pipeline tick without a broker, an endpoint or a file to poke.
 
-A document that wants rows should reach for the node. A document that wants to show
-`http.request` doing something should reach for the routes.
+**The routes are for a document that is teaching HTTP itself.** A request with headers and a
+query, a status a client has to handle, a redirect, a delay against a timeout, a body that
+arrives in pieces. Those documents want a real HTTP hop, and now they have one they own.
+
+A document that wants rows should reach for the node. A document that wants to be seen waiting
+should reach for the sensor. A document that wants to show `http.request` doing something
+should reach for the routes.
+
+**The routes generate nothing, and that is deliberate rather than an omission.** A field map is
+Faker, Faker lives in the block family that contributes `playground.generate`, and
+`dirigent-server` does not depend on a block package: blocks are a plugin surface, contributed
+through pluginkit and run on workers, and a server-only install in a split deployment must not
+have to carry the built-in block set to serve an API. So the split is along what each surface
+is for -- the routes hand a consumer bytes arriving over time, and the blocks put generated
+data into a pipeline, which is where the field map belongs.
 
 ## The node
 
@@ -160,6 +175,132 @@ shows all three:
 - **At the end**, as the document's last step. It requires nothing downstream, and its output
   is an account of what happened: the records, the seed, and every knob.
 
+### "Do it once, do it ten times"
+
+`rows: 10` is one step run whose one output holds ten records. Ten *separate* units of work is
+a different thing, and the engine already has a word for it: `for_each` on the step, which
+fixes the cardinality when the run is created and gives each element its own attempt, its own
+retry budget and its own row in the grid.
+
+```yaml
+steps:
+  # One unit of work, ten records in its output.
+  batch:
+    block: playground.generate
+    config:
+      rows: 10
+
+  # Ten units of work, each generating its own records.
+  one_each:
+    block: playground.generate
+    for_each: ${params.stations}
+    config:
+      rows: 1
+      fields:
+        station: city
+```
+
+So there is no `mode` knob and there will not be one. "Do it once" is `rows: 1`, "do it ten
+times" is `for_each`, and a knob that renamed either would put a block-local spelling beside
+an engine semantic that is uniform across every block -- the same reason `poll`, `deadline`
+and `retry` live on the step and never inside a block's config.
+
+Streaming *through* the DAG is a third thing again, and it is not a knob on this node: a step
+is the unit, and a step's unit is its whole output. The sensor below is the shape that works
+on today's engine, and it is where a document that wants to watch a pipeline tick should go.
+
+## The sensor
+
+One block, `playground.arrive`, contributed by the same family. It is a **sensor**, so the
+engine pokes it on a cadence instead of running it once: each poke is one cheap, read-only
+question, the run holds no worker slot between pokes, and `poll`, `deadline` and `on_timeout`
+are the step's own engine semantics exactly as they are for `storage.exists` or
+`kafka.consume`.
+
+The question it answers is "has the batch arrived yet". It answers no for as many pokes -- or
+for as long -- as the document asks, and then one poke generates the batch and hands it
+downstream.
+
+```yaml
+steps:
+  wait_for_batch:
+    block: playground.arrive
+    poll: 1s
+    deadline: 1m
+    config:
+      after_pokes: 2
+      rows: 4
+      seed: 42
+      fields:
+        station: city
+        reading: pyfloat
+```
+
+```json
+{
+  "messages": [
+    {"offset": 0, "value": {"station": "East Donald", "reading": 409.37}, "timestamp": "..."}
+  ],
+  "count": 4, "pokes": 3, "waited_ms": 2038,
+  "seed": 42, "locale": "en_US",
+  "fields": {"station": "city", "reading": "pyfloat"},
+  "drift": "none", "payload": null, "payload_bytes": null
+}
+```
+
+### The knobs
+
+The six **generation** knobs are the node's, and they mean the same thing here: `fields`,
+`rows`, `locale`, `seed`, `drift` and `payload`. `rows` is how many messages the batch holds.
+A field map moved from one block to the other is unchanged, and the same seed gives the same
+records on both.
+
+Two knobs are the sensor's own, and they decide only when the parking stops:
+
+| Knob | Default | What it does |
+| --- | --- | --- |
+| `after_pokes` | `1` | How many pokes park before the batch arrives. `0` lets the first poke carry it. |
+| `after` | `0s` | How long the wait lasts, measured from when the attempt started. |
+
+Both are floors, so the batch arrives on the first poke that has cleared them both. Set
+neither and the default is one park and then the batch, which is the smallest thing that shows
+a step waiting. The step's `deadline` still ends the wait either way; the sensor's own defaults
+are a 2s poll and a 10 minute deadline.
+
+### What one poke answers
+
+A poke answers one of two things, and neither is a failure:
+
+- **`NotYet`**, while the wait lasts. It carries the poke count forward in the **cursor**, the
+  remaining time as `next_poll_in` when `after` is what is holding it back, a progress fraction
+  read off whichever floor is furthest from being cleared, and a message -- `poke 1 of 3`, or
+  `1400ms of the wait left` -- that shows on the waiting attempt.
+- **The batch**, on the poke that clears both floors. Nothing is generated before that poke, so
+  a park costs a comparison and not a field map.
+
+**The poke count lives in the cursor and nowhere else**, which is what makes the wait durable
+across a worker restart. A cursor is at-least-once: a worker that dies between a park and the
+transaction that commits it leaves the older count for the next poke to read, so the sensor
+parks one poke longer rather than arriving early.
+
+### The consume shape
+
+The output is shaped the way a queue consumer's is on purpose. `messages` with an `offset` and
+a `value` each, and `count` beside them, is what `kafka.consume` hands downstream, so a
+document written against the playground reads almost unchanged against a real topic once there
+is one to point it at.
+
+What it does not have is what the playground has nothing to put in: no topic, no partition, no
+key, no headers, and no broker offsets to commit. `timestamp` is when the batch arrived.
+
+### A readiness wait, offline
+
+`http.ready` needs a live endpoint to poke, so a document teaching a readiness wait could not
+be an offline example and could not be verified by `dg run --local`. `playground.arrive`
+answers "not yet, ask again" against no broker, no URL and no file, so that document can exist
+now:
+[`examples/playground/waiting-for-a-batch.yaml`](https://github.com/winterop-com/dirigent/tree/main/examples/playground/waiting-for-a-batch.yaml).
+
 ## The routes
 
 The instance serves these to itself under `/api/v1/playground`. They need **no credential**:
@@ -217,6 +358,7 @@ take first, as `250ms` or `2s`, at most 30 seconds).
 | `/playground/unreliable` | GET | Answers a failing status until a given attempt. |
 | `/playground/response-headers` | GET | Sets the query's pairs as response headers. |
 | `/playground/auth` | GET | Requires a credential, and refuses a call without one. |
+| `/playground/stream` | GET | Sends a stream of messages instead of one body. |
 
 **`/playground/request`** is the degenerate case: it adds nothing of its own. One path serves
 all five methods, so there is no wrong method to answer.
@@ -248,6 +390,50 @@ enforces here is refused with a 422: `set-cookie`, `strict-transport-security`,
 `playground-token`. Both are public constants printed here on purpose: they guard nothing and
 unlock nothing but this route's 200. Without one it answers 401 with
 `WWW-Authenticate: Basic realm="playground"`.
+
+### A body that arrives in pieces
+
+**`/playground/stream`** is the one route whose answer does not arrive whole, for a consumer
+that has to be tested against bytes that turn up over time rather than a body that is already
+there. It takes `messages` (up to 100, default 5), `every` (the gap before each message, up to
+10s, default `1s`) and `payload` (filler of a chosen size on every message, the same filler the
+node's `payload` returns at the same size).
+
+It is **NDJSON**, `application/x-ndjson`: one JSON record per line, each carrying a `kind`,
+which is the shape everything this project emits already has. Server-sent events were the other
+candidate and were not chosen -- `event:` would be a second framing vocabulary beside the `kind`
+this project already dispatches on, and the consumers that meet this route are `curl | jq -c`, a
+client library and `http.request`, none of which speaks `EventSource`. The instance's own SSE
+lives on `/runs/{id}/$logs` and `/runs/{id}/$events`, where the consumer *is* a browser.
+
+**The envelope goes out once, on the first line.** A stream has one set of headers and many
+bodies, so the request facts cannot ride on every message the way they ride on every other
+playground answer. The first line is the envelope, the lines after it carry only what changes,
+and the last line says the stream ended -- which is how a reader tells an ending from a cut
+connection.
+
+```console
+$ curl -N 'http://127.0.0.1:3333/api/v1/playground/stream?messages=3&every=100ms'
+{"kind":"stream","request":{...},"messages":3,"gap_ms":100,"payload_bytes":null}
+{"kind":"stream.message","offset":0,"sent_at":"...","elapsed_ms":101,"payload":null}
+{"kind":"stream.message","offset":1,"sent_at":"...","elapsed_ms":202,"payload":null}
+{"kind":"stream.message","offset":2,"sent_at":"...","elapsed_ms":303,"payload":null}
+{"kind":"stream.closed","messages":3,"duration_ms":303}
+```
+
+The messages carry no generated records, for the reason at the top of this page: a field map is
+Faker and the server does not depend on a block package. `playground.arrive` is where generated
+data arrives over time inside a pipeline.
+
+The count and the gap multiply, so each one being inside its own bound is not enough: a stream
+that would hold the connection open longer than 60 seconds is refused with a 422. The route
+also sets `cache-control: no-cache` and `x-accel-buffering: no`, because a stream a proxy holds
+until it is whole is not a stream.
+
+**Inside a DAG a step reads the whole of it.** `http.request` reads a bounded body and hands it
+on, so a step waits for the last line and then gets all of them at once, as text -- NDJSON is
+not JSON. The lines are still the value, and `transform.jq` splits them:
+[`examples/playground/a-stream-to-read.yaml`](https://github.com/winterop-com/dirigent/tree/main/examples/playground/a-stream-to-read.yaml).
 
 ### Statuses that carry no body
 
