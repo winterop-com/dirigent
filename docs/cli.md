@@ -1045,6 +1045,7 @@ dg schedule list | pause | resume | firings | delete PIPELINE CODE
 dg webhook create PIPELINE CODE [--map param='$.path'] [--hmac-secret S] [--rate-limit 60]
                                 [--name TEXT] [--description TEXT] [--priority low|normal|high]
 dg webhook list | rotate-token | deliveries | delete PIPELINE CODE
+dg watch list PIPELINE | show | pause | resume PIPELINE CODE
 dg trigger-document list | show CODE | delete CODE
 dg alerts rules list | pause | resume | delete CODE
 dg alerts rules create CODE --event run_failed
@@ -1219,12 +1220,24 @@ inactive, so apply the pipeline first -- a whole-project `dg apply` does that fo
 ```bash
 dg apply clocks.yaml                        # says which pipeline it schedules
 dg trigger-document list                    # every clock file, and what each one fires
-dg trigger-document show fleet-clocks       # the schedules and webhooks it owns
+dg trigger-document show fleet-clocks       # the schedules, webhooks and watches it owns
 dg trigger-document delete fleet-clocks     # the document and its rows; the pipeline stays
 ```
 
 `dg schedule list` says which document declares each row, so a clock a document owns is never
-mistaken for one somebody added by hand. `dg run --local` refuses a triggers document: it
+mistaken for one somebody added by hand.
+
+A watch is declared only by a document, so `dg watch` has no `create`: it reads and steers
+what an apply made. `list` and `show` write a `watch` record per row, carrying the step it
+waits on, the run it has waiting, the cursor it holds and its health -- `failures`,
+`last_error`, and `rearm_at` while it backs off. `pause` cancels the waiting run and writes
+`watch.paused`; `resume` arms a run from the stored cursor and writes `watch.resumed` naming it.
+
+```bash
+dg watch list tailing
+dg watch pause tailing follow
+dg watch resume tailing follow
+``` `dg run --local` refuses a triggers document: it
 declares clocks for a pipeline and has nothing to run itself.
 
 ## Priority, when one run cannot wait

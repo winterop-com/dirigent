@@ -162,7 +162,7 @@ stays clean, and every example stays executable.
 - **A TUI for watching a run.** A scrolling stream is the wrong shape for a DAG: it cannot
   show a step updating in place, a fan-out's item grid, or logs beside structure. Wanted: a
   Textual app over `dirigent-client` -- the run's graph with live per-step state, items,
-  attempts, and a log pane -- reachable as `dg watch` or `dg runs show --tui`. It is pure
+  attempts, and a log pane -- reachable as `dg runs show --tui`. It is pure
   Python on the SDK with no frontend build, and the run screen the web UI ships is the
   information design to follow. A `rich.Live` in-place display for `--watch` is the smaller
   version of the same idea if the full app is too much.

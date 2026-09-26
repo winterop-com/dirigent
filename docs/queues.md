@@ -50,8 +50,8 @@ Three rules govern it, and they are the same three for every sensor:
   behind, and the next poke reads the same ground again. A poke must tolerate that, and these
   two do.
 - **It lives only as long as the waiting attempt.** A poke that succeeds ends the step, and
-  nothing carries the cursor past it. What a downstream step needs is in the output --
-  `kafka.consume` puts the offsets it ended at there for exactly that reason.
+  only a [watch](concepts.md#watches) carries the cursor past it. What a downstream step needs
+  is in the output -- `kafka.consume` puts the offsets it ended at there for exactly that reason.
 
 At-least-once is not a shortcut here; it is the only thing achievable. Exactly-once would need
 the broker's state and this instance's database to move in one transaction, and nothing can
@@ -120,15 +120,16 @@ on rather than starting over.
 
 `start` decides where a poke with no cursor begins -- `latest` (the default) at whatever
 arrives next, `earliest` at the oldest record the broker still holds. It applies to the first
-poke of an attempt only; after that the cursor answers the question. A first poke that read
+poke of an attempt only, and under a watch to the first run's only; after that the cursor
+answers the question. A first poke that read
 nothing still writes down the place it began, so a message arriving between two pokes is read
 by the second rather than seeked past.
 
 `group_id` is the one real choice.
 
 **Left unset**, the sensor tracks offsets itself and commits nothing to the broker. The offsets
-live on the waiting attempt and nowhere else, so two pipelines reading one topic each see every
-message, and a topic can be read without arranging anything on the cluster.
+live on the waiting attempt, and under a watch on the watch, so two pipelines reading one topic
+each see every message, and a topic can be read without arranging anything on the cluster.
 
 **Set**, the broker keeps the group's offsets too, and the commit happens in the poke that
 *succeeds* -- never in one that parks. A batch too small to act on is therefore read again by
@@ -145,6 +146,16 @@ the step as **rejected**, not retried: reading it again will not make it parse.
 
 The output carries the batch, its `count`, and the `cursor` it ended at -- the next offset to
 read per partition, one past the last message taken.
+
+**Watched, a topic is a stream.** A [watch](concepts.md#watches) on a `kafka.consume` step keeps
+one run waiting on the topic and arms the next the moment a batch is taken, starting it from the
+offsets that batch ended at. Run after run reads the topic on without a gap and without a
+consumer group, while each finished batch carries on through the rest of the pipeline. A
+`group_id` set beside it still commits what each batch took; the watch's cursor is what the next
+run reads from.
+[`examples/queues/kafka-watch-then-transform.yaml`](https://github.com/winterop-com/dirigent/tree/main/examples/queues/kafka-watch-then-transform.yaml)
+is the shape. `rabbitmq.consume` needs no cursor across runs, because the broker's
+acknowledgements already say what has been taken.
 
 ## `kafka.produce`: what a publish promises
 

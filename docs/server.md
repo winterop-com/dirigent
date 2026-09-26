@@ -105,12 +105,12 @@ All three render at a terminal and write NDJSON into a pipe; `--json` asks for t
 a terminal, and `dg format` reads a stream that was kept.
 
 The last one is the instance's triggers documents -- the `kind: triggers` documents that
-declare schedules and webhooks for a pipeline defined elsewhere. Three routes serve them:
+declare schedules, webhooks and watches for a pipeline defined elsewhere. Three routes serve them:
 
 | Route | What it answers |
 | --- | --- |
 | `GET /api/v1/trigger-documents` | Every triggers document, in code order, with the pipeline each fires |
-| `GET /api/v1/trigger-documents/{code}` | One of them, the document itself, and the schedule and webhook codes it owns |
+| `GET /api/v1/trigger-documents/{code}` | One of them, the document itself, and the schedule, webhook and watch codes it owns |
 | `DELETE /api/v1/trigger-documents/{code}` | Removes it and every row it declared; the pipeline and its own triggers stay |
 
 Reading either is a viewer's; the delete is an operator's.
