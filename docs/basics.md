@@ -845,7 +845,7 @@ examples
 ```
 
 ```bash
-uv run dg pipeline new http-fetch-validate-transform-validate-post
+uv run dg pipeline new http-fetch-validate-post
 ```
 
 It copies the document into `pipelines/` verbatim -- comments and all -- rewriting the `code:`
