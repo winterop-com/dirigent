@@ -83,11 +83,11 @@ params:
 
 steps:
   produce:
-    block: http.request
+    block: playground.generate
     config:
-      url: https://postman-echo.com/post
-      method: POST
-      body:
+      rows: 8
+      seed: 13
+      input:
         day: "${params.day}"
 
   stage:
@@ -97,7 +97,7 @@ steps:
     # ${run.scratch} lives. The copy below is the only line that mentions s3.
     config:
       target: "${run.scratch}/local/${params.day}.json"
-      value: "${steps.produce.output.body}"
+      value: "${steps.produce.output.records}"
 
   upload:
     block: storage.copy

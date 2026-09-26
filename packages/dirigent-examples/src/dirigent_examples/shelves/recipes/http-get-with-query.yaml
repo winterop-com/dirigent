@@ -1,12 +1,21 @@
 # A GET with query parameters, and what to do with the answer.
 #
 # In:  a station code and a day, as parameters.
-# Out: the echo service's view of the request -- the query it received -- reshaped into a
+# Out: the playground's view of the request -- the query it received -- reshaped into a
 #      small record, plus the status and how long the call took.
 #
-# https://postman-echo.com/get answers with the request it was given, so a recipe about
-# building a request can show what actually arrived on the wire without standing anything
-# up. Against a real API the only lines that change are url or connection, and the path.
+# GET /api/v1/playground/request answers with the request it was given, so a recipe about
+# building a request can show what actually arrived on the wire. Against a real API the only
+# lines that change are url or connection, and the path.
+#
+# NEEDS AN INSTANCE TO CALL. The playground is served by a dirigent instance under
+# /api/v1/playground, unauthenticated, so a document teaching HTTP calls its own instance and
+# nothing on the public internet. Start one first, in the project this runs from:
+#
+#   dg dev
+#
+# `dg run --local` builds a throwaway database and mounts no API of its own, so it reaches the
+# playground the same way anything else does: over the network, at the URL below.
 #
 # The query is a map, not a string, and that is the whole point of the field: the block
 # encodes each value once, correctly, so a station code with a space or an ampersand in it
@@ -28,6 +37,7 @@
 #
 # To change it: -p station=st-9, or point url at your own endpoint and keep the rest.
 #
+#   dg dev &
 #   dg run --local examples/recipes/http-get-with-query.yaml
 #   dg run --local examples/recipes/http-get-with-query.yaml -p station=st-9 -p day=2026-02-01
 
@@ -47,6 +57,10 @@ requires:
 params:
   type: object
   properties:
+    playground:
+      type: string
+      default: http://127.0.0.1:3333/api/v1/playground
+      description: The playground routes on the instance this calls; `dg dev` serves them here.
     station:
       type: string
       default: st-1
@@ -69,7 +83,7 @@ steps:
       # An absolute url, for the case where no connection is configured. A pipeline that
       # runs against an instance names a connection instead, so moving from staging to
       # production edits the connection and no document.
-      url: https://postman-echo.com/get
+      url: ${params.playground}/request
       method: GET
       query:
         station: ${params.station}
@@ -86,11 +100,11 @@ steps:
       input:
         status: ${steps.fetch.output.status}
         duration_ms: ${steps.fetch.output.duration_ms}
-        # The parsed body. The echo service puts what it received under .args.
+        # The parsed body. The playground puts what it received under .request.
         body: ${steps.fetch.output.body}
       program: |
         {status, duration_ms,
-         url: .body.url,
+         url: .body.request.url,
          # Every query value arrives back as text, because that is what a query string is.
-         query: .body.args,
-         page_size_is_text: (.body.args.page_size | type)}
+         query: .body.request.args,
+         page_size_is_text: (.body.request.args.page_size | type)}

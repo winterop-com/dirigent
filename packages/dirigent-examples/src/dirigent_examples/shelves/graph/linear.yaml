@@ -7,6 +7,10 @@
 # The answer travels as a value in the fetch step's output, and storage.write is what puts
 # it in the run's scratch space, so the copy step has a real object to move.
 #
+# playground.generate stands in for the source read, so the chain runs with nothing to reach:
+# no connection, no URL, no network. Swapping it for an http.request whose body the store step
+# reads changes that one step and nothing below it.
+#
 # report uses shell.run, which executes code on the worker and is refused unless the
 # instance allowlists it:
 #   export DIRIGENT_ENABLED_UNSAFE_BLOCKS='["shell.run"]'
@@ -18,9 +22,9 @@ format: dirigent/v1
 kind: pipeline
 code: linear
 name: A straight line of steps
-description: Fetch a payload, store it, archive the object, then report what was archived.
+description: Generate a payload, store it, archive the object, then report what was archived.
 
-tags: [graph, execute, http, storage]
+tags: [graph, execute, playground, storage]
 
 params:
   type: object
@@ -32,12 +36,18 @@ params:
 
 steps:
   fetch:
-    block: http.request
+    block: playground.generate
     config:
-      url: https://postman-echo.com/get
-      method: GET
-      query:
-        day: "${params.day}"
+      rows: 4
+      seed: 11
+      fields:
+        station: license_plate
+        celsius:
+          provider: pyfloat
+          args:
+            min_value: -10
+            max_value: 30
+            right_digits: 1
 
   store:
     block: storage.write
@@ -46,7 +56,7 @@ steps:
       # storage.write is the only way a value leaves the run, so the answer the fetch
       # carries becomes an object here and nowhere else.
       target: "${run.scratch}/incoming/${params.day}.json"
-      value: "${steps.fetch.output.body}"
+      value: "${steps.fetch.output.records}"
 
   archive:
     block: storage.copy
@@ -63,4 +73,4 @@ steps:
     config:
       argv:
         - echo
-        - "service ${steps.fetch.output.status}, archived ${steps.archive.output.bytes_copied} bytes"
+        - "read ${steps.fetch.output.rows} rows, archived ${steps.archive.output.bytes_copied} bytes"

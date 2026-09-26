@@ -24,8 +24,8 @@
 #
 # Hop by hop:
 #
-#   fetch      an http.request. The answer is a few hundred bytes, so its copy is inlined,
-#              and the next step reads .body straight out of the output.
+#   fetch      a playground.generate step. Its answer is a few hundred bytes, so its copy is
+#              inlined, and the next step reads .records straight out of the output.
 #   bulk       jq builds four thousand rows from it. The serialised output is far over the
 #              default cap, so the engine spills that copy to the run's scratch.
 #   count      reads ${steps.bulk.output.value} anyway. A spilled copy changes nothing for a
@@ -51,11 +51,11 @@ description: |
   at or below `inline_artifact_max` (16KB by default) it is inlined on the attempt, and
   above it spilled to the run's scratch space. A reference resolves either way.
 
-tags: [patterns, http, storage, transform, outputs]
+tags: [patterns, playground, storage, transform, outputs]
 
 requires:
   blocks:
-    - http.request
+    - playground.generate
     - transform.jq
     - storage.write
     - storage.read
@@ -65,7 +65,7 @@ params:
   properties:
     dataset:
       type: string
-      description: Echoed back by the endpoint, so the answer has something recognisable in it.
+      description: Carried by the first step, so the answer has something recognisable in it.
       default: cases
     rows:
       type: integer
@@ -75,10 +75,9 @@ params:
 
 steps:
   fetch:
-    block: http.request
+    block: playground.generate
     config:
-      url: https://postman-echo.com/get
-      query:
+      input:
         dataset: "${params.dataset}"
 
   bulk:
@@ -86,10 +85,10 @@ steps:
     depends_on: [fetch]
     config:
       input:
-        dataset: "${steps.fetch.output.body.args.dataset}"
+        dataset: "${steps.fetch.output.records.0.dataset}"
         rows: "${params.rows}"
       program: |
-        . as {$dataset, $rows} | [range($rows) | {row: ., dataset: $dataset, seen_at: "postman-echo"}]
+        . as {$dataset, $rows} | [range($rows) | {row: ., dataset: $dataset, made_by: "playground"}]
 
   count:
     block: transform.jq
@@ -123,7 +122,7 @@ steps:
     depends_on: [fetch, count, keep, read_back]
     config:
       input:
-        inline_dataset: "${steps.fetch.output.body.args.dataset}"
+        inline_dataset: "${steps.fetch.output.records.0.dataset}"
         counted: "${steps.count.output.value.rows}"
         written_uri: "${steps.keep.output.uri}"
         written_bytes: "${steps.keep.output.bytes_written}"

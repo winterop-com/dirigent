@@ -11,18 +11,18 @@
 #
 # Hop by hop:
 #
-#   load        /status/${params.status}, 500 by default, so it fails.
+#   load        a playground.generate step with fail_until: 1, so its one attempt fails.
 #   handler     one_failed on the load, so it runs on the failing path and skips on the green one.
 #   optimistic  all_success on the load, so it does the opposite.
 #   summary     always, on all three. One of handler and optimistic is skipped on every
 #               possible run, so this edge is the only one that fires either way.
 #
 # EXPECT THIS RUN TO FAIL. summary runs and succeeds; the load is failed and untolerated, so
-# the run is failed. Pass -p status=200 and summary runs just the same, off the other branch,
-# and the run succeeds.
+# the run is failed. Pass -p fail_until=0 and summary runs just the same, off the other
+# branch, and the run succeeds.
 #
-#   dg run --local examples/patterns/rule-always.yaml                 # fails; summary runs anyway
-#   dg run --local examples/patterns/rule-always.yaml -p status=200   # succeeds
+#   dg run --local examples/patterns/rule-always.yaml                    # fails; summary runs anyway
+#   dg run --local examples/patterns/rule-always.yaml -p fail_until=0    # succeeds
 
 format: dirigent/v1
 kind: pipeline
@@ -35,57 +35,54 @@ description: |
   It ignores the outcome, never the ordering: the engine still waits for upstream to
   finish. As written the run reports `failed` with the summary delivered.
 
-tags: [patterns, http, graph, rules]
+tags: [patterns, playground, graph, rules]
 
 requires:
   blocks:
-    - http.request
+    - playground.generate
 
 params:
   type: object
   properties:
-    status:
+    fail_until:
       type: integer
-      description: The status the load endpoint is asked to answer with; 500 fails, 200 does not.
-      default: 500
-      enum: [200, 500]
+      description: How many of the load's attempts fail; 1 fails it, 0 makes it succeed.
+      default: 1
+      enum: [0, 1]
 
 steps:
   load:
-    block: http.request
+    block: playground.generate
     config:
-      url: "https://postman-echo.com/status/${params.status}"
-      method: GET
+      # `fail_until: 1` fails the first attempt, and with no retry policy there is no second
+      # one, so the step settles failed with nothing to reach and nothing to arrange.
+      fail_until: "${params.fail_until}"
+      rows: 3
+      seed: 6
 
   handler:
-    block: http.request
+    block: playground.generate
     depends_on: [load]
     rule: one_failed
     config:
-      url: https://postman-echo.com/post
-      method: POST
-      body:
+      input:
         text: handled
 
   optimistic:
-    block: http.request
+    block: playground.generate
     depends_on: [load]
     config:
-      url: https://postman-echo.com/post
-      method: POST
-      body:
+      input:
         text: no handling needed
 
   summary:
-    block: http.request
+    block: playground.generate
     depends_on: [load, handler, optimistic]
     # Three prerequisites, one of which is guaranteed to be skipped on every possible run.
     # That is the shape always is for.
     rule: always
     config:
-      url: https://postman-echo.com/post
-      method: POST
-      body:
+      input:
         # Nothing upstream is referenced, because under this rule nothing upstream is
         # promised. A summary that needs a value takes it from a step it can name safely.
         run: "${run.id}"

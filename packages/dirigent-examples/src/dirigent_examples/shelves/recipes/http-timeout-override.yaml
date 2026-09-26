@@ -23,20 +23,31 @@
 # and a health check that should answer in one second is a step-level override in the other
 # direction.
 #
-# https://postman-echo.com/delay/<seconds> answers after the seconds it is given, so the
+# GET /api/v1/playground/request?delay=<duration> answers after the time it is given, so the
 # relationship is visible: with the default the call takes about 2s against a 10s budget and
-# the run is green. Setting -p delay=6 against -p timeout=3 fails the step instead, as a
+# the run is green. Setting -p delay=6s against -p timeout=3 fails the step instead, as a
 # timeout rather than as an error the server returned, which is a different failure class
 # and retried differently.
+#
+# NEEDS AN INSTANCE TO CALL. The playground is served by a dirigent instance under
+# /api/v1/playground, unauthenticated, so a document teaching HTTP calls its own instance and
+# nothing on the public internet. Start one first, in the project this runs from:
+#
+#   dg dev
+#
+# `dg run --local` builds a throwaway database and mounts no API of its own, so it reaches the
+# playground the same way anything else does: over the network, at the URL below.
+
 #
 # The engine's own step timeout is set here too, comfortably above the call's, so that a
 # hang outside the HTTP client -- a name that never resolves, a socket that never closes --
 # still ends the attempt.
 #
-# To change it: -p delay=6 -p timeout=3 to see the failure, or -p delay=1 for a fast run.
+# To change it: -p delay=6s -p timeout=3 to see the failure, or -p delay=1s for a fast run.
 #
+#   dg dev &
 #   dg run --local examples/recipes/http-timeout-override.yaml
-#   dg run --local examples/recipes/http-timeout-override.yaml -p delay=6 -p timeout=3   # fails, on purpose
+#   dg run --local examples/recipes/http-timeout-override.yaml -p delay=6s -p timeout=3   # fails, on purpose
 
 format: dirigent/v1
 kind: pipeline
@@ -52,24 +63,22 @@ requires:
     - transform.jq
 
 connections:
-  echo-slow:
+  playground-slow:
     kind: http
     config:
-      base_url: https://postman-echo.com
+      base_url: http://127.0.0.1:3333/api/v1/playground
       # The default for every call through this connection. Deliberately short, so the
       # override below is doing real work.
       timeout: 3s
-      health_path: /get
+      health_path: /request
 
 params:
   type: object
   properties:
     delay:
-      type: integer
-      minimum: 0
-      maximum: 10
-      default: 2
-      description: How many seconds the endpoint waits before answering.
+      type: string
+      default: 2s
+      description: How long the route waits before answering; a humane duration.
     timeout:
       type: number
       default: 10
@@ -82,10 +91,12 @@ steps:
     # outside the HTTP client still ends the step.
     timeout: 60s
     config:
-      connection: echo-slow
-      path: /delay/${params.delay}
+      connection: playground-slow
+      path: /request
       method: GET
-      # This call alone; every other call through echo-slow keeps the 3 second default.
+      query:
+        delay: ${params.delay}
+      # This call alone; every other call through playground-slow keeps the 3 second default.
       timeout: ${params.timeout}
 
   timing:

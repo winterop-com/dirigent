@@ -10,7 +10,7 @@
 #   poll       how often to look. Cost per hour of waiting.
 #   deadline   how long to keep looking. When to give up.
 #   on_timeout what giving up MEANS: fail (the default, this file) or skip
-#              (timeout-skips-the-step.yaml).
+#              (timeout-skips-the-step.yaml, the same sensor with that one line added).
 #
 # This one takes the default, because a drop that has not landed by its deadline is a real
 # problem here: somebody promised a file and did not send it, and the run being red is how
@@ -53,13 +53,13 @@ description: |
   A parked sensor costs rows, not workers. As written the drop never lands, the deadline
   expires with the default `on_timeout: fail`, and the run reports `failed`.
 
-tags: [patterns, http, sensor, storage, timeout]
+tags: [patterns, playground, sensor, storage, timeout]
 
 requires:
   blocks:
     - storage.exists
     - storage.copy
-    - http.request
+    - playground.generate
 
 params:
   type: object
@@ -95,12 +95,10 @@ steps:
       target: "${run.scratch}/loaded/${params.day}.parquet"
 
   page_someone:
-    block: http.request
+    block: playground.generate
     depends_on: [wait_for_drop]
     rule: one_failed
     config:
-      url: https://postman-echo.com/post
-      method: POST
-      body:
+      input:
         text: the drop did not land inside its deadline
         day: "${params.day}"

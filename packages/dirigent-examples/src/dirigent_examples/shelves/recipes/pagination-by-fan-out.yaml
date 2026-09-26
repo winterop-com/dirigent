@@ -28,12 +28,22 @@
 # rather than .output.value, which is a field of one item's output and not of the list. Only
 # items that succeeded contribute.
 #
-# https://postman-echo.com/get echoes the query it was given, so each item's response
+# GET /api/v1/playground/request answers with the query it was given, so each item's response
 # carries its own page number and the stitching is visibly per-page.
+#
+# NEEDS AN INSTANCE TO CALL. The playground is served by a dirigent instance under
+# /api/v1/playground, unauthenticated, so a document teaching HTTP calls its own instance and
+# nothing on the public internet. Start one first, in the project this runs from:
+#
+#   dg dev
+#
+# `dg run --local` builds a throwaway database and mounts no API of its own, so it reaches the
+# playground the same way anything else does: over the network, at the URL below.
 #
 # To change it: -p pages='[1,2]' fetches fewer; -p page_size=10 changes what each call asks
 # for. In a real pipeline the pages usually come from an earlier run's count.
 #
+#   dg dev &
 #   dg run --local examples/recipes/pagination-by-fan-out.yaml
 #   dg run --local examples/recipes/pagination-by-fan-out.yaml -p pages='[1,2]'
 
@@ -53,6 +63,10 @@ requires:
 params:
   type: object
   properties:
+    playground:
+      type: string
+      default: http://127.0.0.1:3333/api/v1/playground
+      description: The playground routes on the instance this calls; `dg dev` serves them here.
     pages:
       type: array
       default: [1, 2, 3, 4]
@@ -84,7 +98,7 @@ steps:
       max_attempts: 3
       backoff: 1s
     config:
-      url: https://postman-echo.com/get
+      url: ${params.playground}/request
       method: GET
       query:
         page: ${item}
@@ -101,10 +115,10 @@ steps:
       program: |
         . as $items
         | [$items[]
-           | {page: (.body.args.page | tonumber),
+           | {page: (.body.request.args.page | tonumber),
               status: .status,
               duration_ms: .duration_ms,
-              url: .body.url}] as $fetched
+              url: .body.request.url}] as $fetched
         | {pages: ($fetched | length),
            # In item order, which is the order the pages were asked for and not the order
            # they came back in.

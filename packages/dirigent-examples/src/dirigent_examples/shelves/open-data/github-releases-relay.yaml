@@ -30,7 +30,7 @@
 #   written   json to ndjson, because an empty list has to encode as an empty file for the
 #             gate below to see the difference.
 #   matched   the gate: nothing new is a skip, not a failure, and the relay skips with it.
-#   relay     the digest, posted. Postman Echo by default so this runs for real.
+#   relay     the digest, posted. This instance's own playground by default, so this runs for real.
 #   marker    the newest stamp seen, plus what the rate limit had left, computed under
 #             rule: all_done so a quiet run still records where it got to. GitHub reports the
 #             remaining budget in a response header, which is worth keeping beside the stamp:
@@ -90,7 +90,7 @@ params:
       description: One page is one request against a 60-per-hour budget; ask for enough.
     webhook_url:
       type: string
-      default: https://postman-echo.com/post
+      default: http://127.0.0.1:3333/api/v1/playground/request
 
 steps:
   releases:

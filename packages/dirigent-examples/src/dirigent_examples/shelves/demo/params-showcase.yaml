@@ -35,7 +35,7 @@ code: params-showcase
 name: Every parameter shape
 description: Everything a run form is built from, in one parameter schema.
 
-tags: [demo, http]
+tags: [demo, playground]
 
 params:
   type: object
@@ -72,21 +72,18 @@ params:
 
 steps:
   process:
-    block: http.request
+    block: playground.generate
     # The fan-out is over a parameter, so how wide the run is is decided when it starts
     # rather than when the document is written.
     for_each: "${params.regions}"
     items: continue
     config:
-      url: https://postman-echo.com/post
-      method: POST
-      query:
+      # Every resolved parameter, carried into the step's own output, so the run shows what
+      # the schema above actually produced. A whole reference keeps its type: batch_size
+      # arrives as a number and dry_run as a boolean.
+      input:
         day: "${params.day}"
         dataset: "${params.dataset}"
         region: "${item}"
         batch_size: "${params.batch_size}"
         dry_run: "${params.dry_run}"
-      body:
-        day: "${params.day}"
-        dataset: "${params.dataset}"
-        region: "${item}"

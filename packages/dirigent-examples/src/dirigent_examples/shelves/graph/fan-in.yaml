@@ -11,7 +11,7 @@
 #      absent rather than null, so the list can be shorter than the input, and index 0 is
 #      the first item that worked rather than the first one asked for.
 #
-# The list can be indexed: ${steps.fetch.output.0.status} is the integer 200. Bear rule 3
+# The list can be indexed: ${steps.fetch.output.0.records} is the first item's rows. Bear rule 3
 # in mind before using it -- with one failure upstream, index 0 is a different dataset than
 # it was yesterday. Reading the whole list is the honest form.
 #
@@ -26,25 +26,25 @@
 # with rule: all_done is refused -- there is no stored output to read, and the attempt
 # settles as rejected rather than silently receiving an empty list.
 #
-# One block, used twice, and it runs no code on the worker, so this one needs no allowlist:
+# One block, used twice, and it reaches nothing at all, so this one runs offline:
 #
 #   dg run --local examples/graph/fan-in.yaml
 #   dg run --local examples/graph/fan-in.yaml -p datasets='["temperature","humidity"]'
 #
-# The latency point: four slow fetches cost four parked rows and nothing else. The engine
+# The latency point: four slow reads cost four parked rows and nothing else. The engine
 # is not holding four workers for the duration; it is holding four rows in the database.
 
 format: dirigent/v1
 kind: pipeline
 code: fan-in
 name: Branches that join
-description: Fetch several datasets in parallel, then send the whole batch on in one call.
+description: Read several datasets in parallel, then hand the whole batch on in one step.
 
-tags: [graph, http]
+tags: [graph, playground]
 
 requires:
   blocks:
-    - http.request
+    - playground.generate
 
 params:
   type: object
@@ -57,24 +57,30 @@ params:
 
 steps:
   fetch:
-    block: http.request
+    block: playground.generate
     for_each: "${params.datasets}"
     items: continue
     config:
-      url: https://postman-echo.com/get
-      method: GET
-      query:
-        dataset: "${item}"
+      # The element is the input, so each item's output carries its own dataset. A fan-in
+      # reads outputs and never elements, so anything an element knows has to be in there.
+      input: "${item}"
+      seed: 5
+      fields:
+        station: license_plate
+        celsius:
+          provider: pyfloat
+          args:
+            min_value: -10
+            max_value: 30
+            right_digits: 1
 
   report:
-    block: http.request
+    block: playground.generate
     depends_on: [fetch]
     config:
-      url: https://postman-echo.com/post
-      method: POST
-      body:
-        # A fan-out step's output is the list of its elements' outputs, in the order the
-        # elements were created, so one reference collects the whole fan and an index
-        # reaches one element of it.
+      # A fan-out step's output is the list of its elements' outputs, in the order the
+      # elements were created, so one reference collects the whole fan and an index
+      # reaches one element of it.
+      input:
         collected: "${steps.fetch.output}"
-        first_status: "${steps.fetch.output.0.status}"
+        first_dataset: "${steps.fetch.output.0.records.0.value}"

@@ -227,8 +227,8 @@ def test_a_connections_file_is_read_in_either_shape(tmp_path: Path) -> None:
 def test_the_bundled_connections_file_is_readable() -> None:
     specs = load_connection_specs(EXAMPLES / "connections.yaml")
     by_code = {spec.code: spec for spec in specs}
-    assert "postman-echo" in by_code, "the corpus's own HTTP endpoint, which most examples name"
-    assert by_code["postman-echo"].config["base_url"] == "https://postman-echo.com"
+    assert "playground" in by_code, "the corpus's own HTTP endpoint, which the HTTP examples name"
+    assert by_code["playground"].config["base_url"] == "http://127.0.0.1:3333/api/v1/playground"
 
 
 def test_a_connection_of_an_unknown_kind_is_refused(tmp_path: Path) -> None:

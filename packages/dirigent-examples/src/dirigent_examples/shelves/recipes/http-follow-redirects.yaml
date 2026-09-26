@@ -1,8 +1,21 @@
 # Redirects are not followed unless a step says so, and both answers are useful.
 #
-# In:  a redirect status and a target, as parameters.
+# In:  a redirect status and a destination, as parameters.
 # Out: the same call made twice -- once returning the 3xx itself, once following it to the
 #      end -- so the difference is one output rather than an argument.
+#
+# NEEDS AN INSTANCE TO CALL. The playground is served by a dirigent instance under
+# /api/v1/playground, unauthenticated, so a document teaching HTTP calls its own instance and
+# nothing on the public internet. Start one first, in the project this runs from:
+#
+#   dg dev
+#
+# `dg run --local` builds a throwaway database and mounts no API of its own, so it reaches the
+# playground the same way anything else does: over the network, at the URL below.
+
+# GET /api/v1/playground/redirect issues the redirect. Its `to` is a path on the instance and
+# never an absolute URL: an open redirect is a phishing tool wearing the instance's own
+# domain, and there is nothing to teach that needs one.
 #
 # follow_redirects defaults to false, and the default is the interesting choice. A redirect
 # is information: it says the resource moved, or that a load balancer wants a different
@@ -25,8 +38,9 @@
 # describes, on the one status that most deserves it.
 #
 # To change it: -p status=301 makes it a permanent move, which is the one worth reporting
-# rather than following, since the URL in the document is now wrong.
+# rather than following, since the URL in the document is now wrong. -p hops=3 walks a chain.
 #
+#   dg dev &
 #   dg run --local examples/recipes/http-follow-redirects.yaml
 #   dg run --local examples/recipes/http-follow-redirects.yaml -p status=301
 
@@ -46,24 +60,35 @@ requires:
 params:
   type: object
   properties:
+    playground:
+      type: string
+      default: http://127.0.0.1:3333/api/v1/playground
+      description: The playground routes on the instance this calls; `dg dev` serves them here.
     status:
       type: integer
       default: 302
-      description: The redirect status the endpoint answers with.
-    target:
+      description: The redirect status each hop answers with.
+    hops:
+      type: integer
+      minimum: 1
+      maximum: 10
+      default: 1
+      description: How many redirects to issue before arriving.
+    destination:
       type: string
-      default: https://postman-echo.com/get
-      description: Where the redirect points.
+      default: /api/v1/playground/request
+      description: Where the last hop points, as a path on the instance.
 
 steps:
   unfollowed:
     block: http.request
     config:
-      url: https://postman-echo.com/redirect-to
+      url: ${params.playground}/redirect
       method: GET
       query:
-        url: ${params.target}
-        status_code: ${params.status}
+        to: ${params.destination}
+        hops: ${params.hops}
+        status: ${params.status}
       # The default, written out because this document is about it.
       follow_redirects: false
       # A 3xx is not a 2xx, so the status the call is asking for has to be listed.
@@ -73,11 +98,12 @@ steps:
   followed:
     block: http.request
     config:
-      url: https://postman-echo.com/redirect-to
+      url: ${params.playground}/redirect
       method: GET
       query:
-        url: ${params.target}
-        status_code: ${params.status}
+        to: ${params.destination}
+        hops: ${params.hops}
+        status: ${params.status}
       follow_redirects: true
       timeout: 20s
 
@@ -97,4 +123,4 @@ steps:
          followed: {status: .followed_status,
                     # The destination answered, and nothing in the response says a redirect
                     # happened on the way.
-                    url: .followed_body.url}}
+                    url: .followed_body.request.url}}

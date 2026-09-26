@@ -1,17 +1,26 @@
 # POST a JSON body built from upstream work, and read the receipt.
 #
 # In:  a batch of readings built inline.
-# Out: the echo service's view of the POST -- the body it parsed and the headers it saw --
+# Out: the playground's view of the POST -- the body it parsed and the headers it saw --
 #      alongside the status and the payload's own row count.
+#
+# NEEDS AN INSTANCE TO CALL. The playground is served by a dirigent instance under
+# /api/v1/playground, unauthenticated, so a document teaching HTTP calls its own instance and
+# nothing on the public internet. Start one first, in the project this runs from:
+#
+#   dg dev
+#
+# `dg run --local` builds a throwaway database and mounts no API of its own, so it reaches the
+# playground the same way anything else does: over the network, at the URL below.
 #
 # body is a value, not a string. The block serialises it, sets the content type, and sends
 # it, so a payload assembled by a jq step upstream travels as structure the whole way and
 # nothing hand-builds JSON with string interpolation. That is what keeps a quote in a
 # station name from becoming a syntax error on somebody else's parser.
 #
-# https://postman-echo.com/post answers with what it received, so the .json field of the
-# response is this pipeline's own body coming back -- which is why the last step can compare
-# what was sent with what arrived and report them side by side.
+# POST /api/v1/playground/request answers with what it received, so the .request.body field
+# of the response is this pipeline's own body coming back -- which is why the last step can
+# compare what was sent with what arrived and report them side by side.
 #
 # Two headers are worth knowing about. The block sets content-type itself, so a header map
 # is for what the receiver wants on top: a routing key, an idempotency key, an API version.
@@ -25,12 +34,13 @@
 #
 # To change it: -p batch=3 sends a bigger payload; the shape of the document does not move.
 #
-#   dg run --local examples/recipes/http-post-json-echo.yaml
-#   dg run --local examples/recipes/http-post-json-echo.yaml -p batch=3
+#   dg dev &
+#   dg run --local examples/recipes/http-post-json-body.yaml
+#   dg run --local examples/recipes/http-post-json-body.yaml -p batch=3
 
 format: dirigent/v1
 kind: pipeline
-code: http-post-json-echo
+code: http-post-json-body
 name: POST a JSON body
 description: Build a payload upstream, POST it as structure rather than as text, and read the receipt the endpoint answers with.
 
@@ -44,6 +54,10 @@ requires:
 params:
   type: object
   properties:
+    playground:
+      type: string
+      default: http://127.0.0.1:3333/api/v1/playground
+      description: The playground routes on the instance this calls; `dg dev` serves them here.
     batch:
       type: integer
       minimum: 1
@@ -73,7 +87,7 @@ steps:
     block: http.request
     depends_on: [payload]
     config:
-      url: https://postman-echo.com/post
+      url: ${params.playground}/request
       method: POST
       # A value, serialised by the block. Nothing here builds JSON out of strings.
       body: ${steps.payload.output.value}
@@ -93,13 +107,13 @@ steps:
         sent: ${steps.payload.output.value}
         status: ${steps.publish.output.status}
         duration_ms: ${steps.publish.output.duration_ms}
-        echoed: ${steps.publish.output.body}
+        received: ${steps.publish.output.body}
       program: |
         {status, duration_ms,
          sent_rows: (.sent.readings | length),
-         # The echo service returns the parsed body under .json, so this is the payload
+         # The playground returns the parsed body under .request.body, so this is the payload
          # having made the round trip.
-         received_rows: (.echoed.json.readings | length),
-         identical: (.echoed.json == .sent),
-         content_type: .echoed.headers["content-type"],
-         batch_day_header: .echoed.headers["x-batch-day"]}
+         received_rows: (.received.request.body.readings | length),
+         identical: (.received.request.body == .sent),
+         content_type: .received.request.headers["content-type"],
+         batch_day_header: .received.request.headers["x-batch-day"]}

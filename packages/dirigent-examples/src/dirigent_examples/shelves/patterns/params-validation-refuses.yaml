@@ -38,7 +38,7 @@
 #   plan     builds the load plan out of the validated parameters. If it runs at all, every
 #            value it reads has already satisfied the schema -- which is why no step in this
 #            file checks anything.
-#   receipt  posts the plan on, standing in for the work.
+#   receipt  carries the plan on, standing in for the work.
 #
 # EXPECT THIS RUN TO SUCCEED with the defaults, in about a second. The demonstration is the
 # runs that never start:
@@ -65,12 +65,12 @@ description: |
   `format`, bounds, `required` and `additionalProperties: false` are four different guards.
   The last one catches the typo, which is the one people forget.
 
-tags: [patterns, http, transform, params]
+tags: [patterns, playground, transform, params]
 
 requires:
   blocks:
     - transform.jq
-    - http.request
+    - playground.generate
 
 params:
   type: object
@@ -122,10 +122,8 @@ steps:
         {tenant, day, attempts, regions, work: ((.regions | length) * .attempts)}
 
   receipt:
-    block: http.request
+    block: playground.generate
     depends_on: [plan]
     config:
-      url: https://postman-echo.com/post
-      method: POST
-      body:
+      input:
         plan: "${steps.plan.output.value}"

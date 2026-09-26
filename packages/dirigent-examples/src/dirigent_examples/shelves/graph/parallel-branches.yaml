@@ -17,9 +17,9 @@ format: dirigent/v1
 kind: pipeline
 code: parallel-branches
 name: Branches in parallel
-description: Call two endpoints in parallel and summarise both results.
+description: Run two branches in parallel and summarise both results.
 
-tags: [graph, execute, http]
+tags: [graph, execute, playground]
 
 steps:
   prepare:
@@ -28,24 +28,24 @@ steps:
       argv: [echo, "starting both branches"]
 
   read_side:
-    block: http.request
+    block: playground.generate
     depends_on: [prepare]
     config:
-      url: https://postman-echo.com/get
-      method: GET
-      query:
-        branch: read
+      rows: 2
+      seed: 1
+      fields:
+        branch: word
 
   write_side:
-    block: http.request
+    block: playground.generate
     # Both branches depend on prepare and on nothing else, which is the whole of what makes
     # them parallel: the engine runs whatever is claimable, and nothing here orders these two.
     depends_on: [prepare]
     config:
-      url: https://postman-echo.com/post
-      method: POST
-      body:
-        branch: write
+      rows: 3
+      seed: 2
+      fields:
+        branch: word
 
   summarise:
     block: shell.run
@@ -54,4 +54,4 @@ steps:
     config:
       argv:
         - echo
-        - "read ${steps.read_side.output.status}, write ${steps.write_side.output.status}"
+        - "read ${steps.read_side.output.rows}, wrote ${steps.write_side.output.rows}"

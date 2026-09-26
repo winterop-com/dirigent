@@ -6,21 +6,21 @@
 #
 # Hop by hop:
 #
-#   load       http.request against /status/${params.status}. 500 by default, so it fails.
+#   load       a playground.generate step with fail_until: 1, so its one attempt fails.
 #   transform  reads load's output over an all_success edge that is not written down. The
 #              prerequisite failed, so this is SKIPPED -- not failed, not run, skipped.
 #   publish    reads transform, and a skip propagates: an all_success edge is not satisfied by
 #              a skipped prerequisite either, so the whole branch below the failure goes out.
 #
 # EXPECT THIS RUN TO FAIL. load settles failed, transform and publish settle skipped, and the
-# run reports failed. That is the demonstration; pass -p status=200 and the same three steps
-# all succeed with nothing else changed.
+# run reports failed. That is the demonstration; pass -p fail_until=0 and the same three
+# steps all succeed with nothing else changed.
 #
 # To change it: the other three rules are rule-all-done.yaml, rule-one-failed.yaml and
 # rule-always.yaml, each the same shape with one word replaced.
 #
-#   dg run --local examples/patterns/rule-all-success.yaml                 # fails, by design
-#   dg run --local examples/patterns/rule-all-success.yaml -p status=200   # succeeds
+#   dg run --local examples/patterns/rule-all-success.yaml                    # fails, by design
+#   dg run --local examples/patterns/rule-all-success.yaml -p fail_until=0    # succeeds
 
 format: dirigent/v1
 kind: pipeline
@@ -30,32 +30,35 @@ description: |
   The default trigger rule: a step runs once every prerequisite **succeeded**.
 
   As written the load fails, so the two steps below it are `skipped` and the run reports
-  `failed`. Pass `-p status=200` for the green path.
+  `failed`. Pass `-p fail_until=0` for the green path.
 
-tags: [patterns, http, transform, graph, rules]
+tags: [patterns, playground, transform, graph, rules]
 
 requires:
   blocks:
-    - http.request
+    - playground.generate
     - transform.jq
 
 params:
   type: object
   properties:
-    status:
+    fail_until:
       type: integer
-      description: The status the load endpoint is asked to answer with; 500 fails, 200 does not.
-      default: 500
-      enum: [200, 500]
+      description: How many of the load's attempts fail; 1 fails it, 0 makes it succeed.
+      default: 1
+      enum: [0, 1]
 
 steps:
   load:
-    block: http.request
+    block: playground.generate
     # No retry policy at all, so max_attempts is 1: this step settles on its first answer,
     # because what is being shown is the edge below it and not a retry budget.
     config:
-      url: "https://postman-echo.com/status/${params.status}"
-      method: GET
+      # `fail_until: 1` fails the first attempt, and with no retry policy there is no
+      # second one, so the step settles failed with nothing to reach and nothing to arrange.
+      fail_until: "${params.fail_until}"
+      rows: 3
+      seed: 6
 
   transform:
     block: transform.jq
@@ -63,17 +66,15 @@ steps:
     # The rule is deliberately left unwritten. Omitting it is what makes this file about the
     # default rather than about a setting somebody chose.
     config:
-      input: "${steps.load.output.status}"
+      input: "${steps.load.output.rows}"
       program: |
-        {loaded_with: .}
+        {loaded_rows: .}
 
   publish:
-    block: http.request
+    block: playground.generate
     depends_on: [transform]
     # Skipped for a second reason: its prerequisite was skipped rather than failed, and
     # all_success is satisfied by neither.
     config:
-      url: https://postman-echo.com/post
-      method: POST
-      body:
-        published: "${steps.transform.output.value.loaded_with}"
+      input:
+        published: "${steps.transform.output.value.loaded_rows}"

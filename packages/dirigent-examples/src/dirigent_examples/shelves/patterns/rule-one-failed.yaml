@@ -6,7 +6,7 @@
 #
 # Hop by hop:
 #
-#   load      /status/${params.status}, 500 by default, so it fails.
+#   load      a playground.generate step with fail_until: 1, so its one attempt fails.
 #   alert     one_failed on the load. It runs, and it is the only place the failure is
 #             described in words a human reads.
 #   carry_on  all_success on the load, the default. It is skipped, because the two branches
@@ -14,16 +14,16 @@
 #             the pair runs and the other skips.
 #
 # EXPECT THIS RUN TO FAIL. The handler running is not a repair: the load is still red and
-# untolerated, so the run reports failed with the alert delivered. Pass -p status=200 and the
-# mirror image happens -- carry_on runs, alert skips, and the run succeeds.
+# untolerated, so the run reports failed with the alert delivered. Pass -p fail_until=0 and
+# the mirror image happens -- carry_on runs, alert skips, and the run succeeds.
 #
 # One sharp edge worth knowing before reaching for this: a step marked
 # continue_on_failure: true shows its dependents a success, so a one_failed handler hung below
 # a tolerated step never fires. Tolerating a failure and handling one are opposite
 # instructions.
 #
-#   dg run --local examples/patterns/rule-one-failed.yaml                 # fails; the alert branch runs
-#   dg run --local examples/patterns/rule-one-failed.yaml -p status=200   # succeeds; the alert skips
+#   dg run --local examples/patterns/rule-one-failed.yaml                    # fails; the alert branch runs
+#   dg run --local examples/patterns/rule-one-failed.yaml -p fail_until=0    # succeeds; the alert skips
 
 format: dirigent/v1
 kind: pipeline
@@ -36,51 +36,50 @@ description: |
   As written the load fails, the alert branch runs, the success branch is skipped, and the
   run reports `failed`.
 
-tags: [patterns, http, graph, rules]
+tags: [patterns, playground, graph, rules]
 
 requires:
   blocks:
-    - http.request
+    - playground.generate
 
 params:
   type: object
   properties:
-    status:
+    fail_until:
       type: integer
-      description: The status the load endpoint is asked to answer with; 500 fails, 200 does not.
-      default: 500
-      enum: [200, 500]
+      description: How many of the load's attempts fail; 1 fails it, 0 makes it succeed.
+      default: 1
+      enum: [0, 1]
 
 steps:
   load:
-    block: http.request
+    block: playground.generate
     config:
-      url: "https://postman-echo.com/status/${params.status}"
-      method: GET
+      # `fail_until: 1` fails the first attempt, and with no retry policy there is no second
+      # one, so the step settles failed with nothing to reach and nothing to arrange.
+      fail_until: "${params.fail_until}"
+      rows: 3
+      seed: 6
 
   alert:
-    block: http.request
+    block: playground.generate
     depends_on: [load]
     # The whole file in one word. This step is unreachable on the happy path, and the graph
-    # says so without anything having to read a status code.
+    # says so without anything having to read an outcome.
     rule: one_failed
     config:
-      url: https://postman-echo.com/post
-      method: POST
-      body:
+      input:
         text: the nightly load failed
         # ${run.id} is what an operator pastes into dg runs show, so an alert carrying it is
         # an alert somebody can act on.
         run: "${run.id}"
 
   carry_on:
-    block: http.request
+    block: playground.generate
     depends_on: [load]
     # The default rule, written out this once so the pair reads as a fork rather than as one
     # step with an option on it.
     rule: all_success
     config:
-      url: https://postman-echo.com/post
-      method: POST
-      body:
+      input:
         text: the nightly load landed

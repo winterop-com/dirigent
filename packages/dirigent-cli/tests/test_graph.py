@@ -18,7 +18,7 @@ def drawn(name: str) -> list[str]:
 
 def test_a_chain_is_drawn_as_a_chain() -> None:
     assert drawn("graph/linear.yaml") == [
-        "fetch  (http.request)",
+        "fetch  (playground.generate)",
         "  store  (storage.write)",
         "    archive  (storage.copy)",
         "      report  (shell.run)",
@@ -36,10 +36,10 @@ def test_roots_sit_at_the_margin_and_the_step_joining_them_sits_under_the_last()
 
 def test_a_rule_other_than_the_default_is_named_and_the_default_is_not() -> None:
     assert drawn("failure/error-handler.yaml") == [
-        "load_batch  (http.request)",
-        "  notify_failure  (http.request)  when one_failed",
+        "load_batch  (playground.generate)",
+        "  notify_failure  (playground.generate)  when one_failed",
         "  publish_success  (shell.run)",
-        "    release_lock  (http.request)  also after notify_failure  when all_done",
+        "    release_lock  (playground.generate)  also after notify_failure  when all_done",
     ]
 
 

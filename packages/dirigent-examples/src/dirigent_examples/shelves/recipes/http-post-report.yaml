@@ -6,6 +6,15 @@
 #      document: a markdown page rendered when the run settles, stored with the run, and
 #      read back with `dg runs report ID --markdown`.
 #
+# NEEDS AN INSTANCE TO CALL. The playground is served by a dirigent instance under
+# /api/v1/playground, unauthenticated, so a document teaching HTTP calls its own instance and
+# nothing on the public internet. Start one first, in the project this runs from:
+#
+#   dg dev
+#
+# `dg run --local` builds a throwaway database and mounts no API of its own, so it reaches the
+# playground the same way anything else does: over the network, at the URL below.
+#
 # The four hops:
 #
 #   readings  a jq program builds the batch. range() twice is a cross product, so
@@ -13,14 +22,14 @@
 #             the arithmetic is fixed rather than random: the same parameters always POST
 #             the same bytes, which is what makes a rerun comparable to the first run.
 #   publish   the batch goes out as structure. body is a value the block serialises, so a
-#             quote in a station name is not somebody else's parse error. The URL is here
-#             rather than on a connection because Postman Echo is public and this recipe
-#             should run with nothing applied first.
-#   summary   postman-echo answers with what it received: the parsed body under .json and
-#             the headers it saw under .headers. This hop keeps a page's worth of it -- a
-#             row count, min, max and mean, the first few rows, and the headers as a list
-#             of {name, value} pairs, because a template loops over a list without asking
-#             anything of the sandbox.
+#             quote in a station name is not somebody else's parse error. The URL is a
+#             parameter rather than a connection because the playground needs no credential
+#             and this recipe should run with nothing applied first.
+#   summary   the playground answers with what it received: the parsed body under
+#             .request.body and the headers it saw under .request.headers. This hop keeps a
+#             page's worth of it -- a row count, min, max and mean, the first few rows, and
+#             the headers as a list of {name, value} pairs, because a template loops over a
+#             list without asking anything of the sandbox.
 #   report    the section at the bottom. It renders no data of its own: everything in it is
 #             the run's facts and the outputs the three steps left behind.
 #
@@ -50,6 +59,7 @@
 # report: section stops the document being rendered at all, and `report: {}` swaps this page
 # for the built-in one -- report-built-in.yaml is that document.
 #
+#   dg dev &
 #   dg run --local examples/recipes/http-post-report.yaml
 #   dg apply examples/recipes/http-post-report.yaml
 #   dg run http-post-report --watch
@@ -59,7 +69,7 @@ format: dirigent/v1
 kind: pipeline
 code: http-post-report
 name: POST a batch and report on it
-description: POST a generated batch to an echo service, summarise the receipt, and render the run's own markdown report from the run's facts and its steps' outputs.
+description: POST a generated batch to the playground, summarise the receipt, and render the run's own markdown report from the run's facts and its steps' outputs.
 
 tags: [recipes, http, transform, report, starter]
 
@@ -71,6 +81,10 @@ requires:
 params:
   type: object
   properties:
+    playground:
+      type: string
+      default: http://127.0.0.1:3333/api/v1/playground
+      description: The playground routes on the instance this calls; `dg dev` serves them here.
     stations:
       type: integer
       minimum: 1
@@ -108,7 +122,7 @@ steps:
     block: http.request
     depends_on: [readings]
     config:
-      url: https://postman-echo.com/post
+      url: ${params.playground}/request
       method: POST
       # A value the block serialises. Nothing here builds JSON out of strings.
       body: ${steps.readings.output.value}
@@ -125,18 +139,18 @@ steps:
       input:
         shown: ${params.rows_shown}
         status: ${steps.publish.output.status}
-        echoed: ${steps.publish.output.body}
+        received: ${steps.publish.output.body}
       program: |
-        . as {$shown, $status, $echoed}
-        | ($echoed.json.readings | map(.celsius)) as $values
+        . as {$shown, $status, $received}
+        | ($received.request.body.readings | map(.celsius)) as $values
         | {status: $status,
-           rows: ($echoed.json.readings | length),
+           rows: ($received.request.body.readings | length),
            min: ($values | min),
            max: ($values | max),
            mean: (($values | add) / ($values | length)),
-           first_rows: ($echoed.json.readings[:$shown]),
+           first_rows: ($received.request.body.readings[:$shown]),
            # A list rather than a map: a template loops over a list with no filter at all.
-           headers: ($echoed.headers | to_entries | map({name: .key, value: (.value | tostring)}))}
+           headers: ($received.request.headers | to_entries | map({name: .key, value: (.value | tostring)}))}
 
 report:
   template: |
@@ -160,14 +174,14 @@ report:
 
     ## What came back
 
-    {% set echoed = step.summary.output.value %}
-    {% if echoed %}
-    The echo service answered {{ echoed.status }} and parsed {{ echoed.rows }} readings back,
-    between {{ echoed.min }}C and {{ echoed.max }}C, averaging {{ echoed.mean | round(1) }}C.
+    {% set received = step.summary.output.value %}
+    {% if received %}
+    The playground answered {{ received.status }} and parsed {{ received.rows }} readings back,
+    between {{ received.min }}C and {{ received.max }}C, averaging {{ received.mean | round(1) }}C.
 
     | station | day | celsius |
     | --- | --- | --- |
-    {% for row in echoed.first_rows %}
+    {% for row in received.first_rows %}
     | {{ row.station }} | {{ row.day }} | {{ row.celsius }} |
     {% endfor %}
 
@@ -175,7 +189,7 @@ report:
 
     | header | value |
     | --- | --- |
-    {% for header in echoed.headers %}
+    {% for header in received.headers %}
     | {{ header.name }} | {{ header.value }} |
     {% endfor %}
     {% else %}

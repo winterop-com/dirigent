@@ -2,7 +2,8 @@
 
 The shapes a DAG takes: a straight line, branches that split and join, a fan over a list,
 and a chain deep enough to watch the engine walk it. Every one runs with `dg run --local`,
-and the ones that call out use only Postman Echo.
+and none of them calls out at all: where a step has to do something it is
+`playground.generate`, a node that reaches nothing.
 
 ```bash
 dg run --local examples/graph/linear.yaml -p day=2026-01-01 --enable-unsafe shell.run
