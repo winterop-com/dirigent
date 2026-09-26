@@ -118,7 +118,9 @@ export function StepTab({
     const [named, setNamed] = useState(stepName(document, step) ?? '')
     const config = configOf(document, step)
     const fields = useMemo(() => fieldsOf(block?.config_schema), [block])
-    const problems = useMemo(() => validateFields(fields, config), [fields, config])
+    // A step's config is the document's, so a `${...}` in one is the run's to resolve. Its
+    // clocks and its retry budget below are the engine's own keys and are read literally.
+    const problems = useMemo(() => validateFields(fields, config, true), [fields, config])
     const prerequisites = dependsOn(document, step)
     const offered = stepNames(document).filter((name) => name !== step && !prerequisites.includes(name))
     const keys = stepKeyValues(document, step)
@@ -167,6 +169,7 @@ export function StepTab({
                         disabled={disabled}
                         fold
                         references={{ document, schemas, connections }}
+                        deferred
                         onChange={(name, value) => {
                             const next = { ...config }
                             if (value === undefined) delete next[name]

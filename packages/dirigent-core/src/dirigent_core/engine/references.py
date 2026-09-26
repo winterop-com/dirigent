@@ -59,6 +59,14 @@ is not matched at all and passes through untouched.
 #: A reference that is the entire value, which resolves to the typed value rather than text.
 WHOLE_REFERENCE: Final = re.compile(r"^\$\{([^{}]+)\}$")
 
+JSON_REFERENCE_PATTERN: Final = r"(^|[^$])(\$\$)*\$\{[^{}]+\}"
+"""The same grammar as a JSON Schema ``pattern``: a live reference anywhere in the string.
+
+``has_reference`` counts the dollars and stops; a regular expression cannot count, so this
+consumes them in pairs and leaves one over, which says the same thing. It is what a published
+schema puts beside a field's own type, so an editor does not squiggle a value an apply defers.
+"""
+
 
 class UnknownReference(DomainError):
     """A document named something the run does not have."""

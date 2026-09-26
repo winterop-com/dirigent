@@ -19,6 +19,10 @@
  * A REFERENCE NAMES NO CODE. The document language lets `${...}` stand wherever a value goes, so
  * a field written as one holds a value the run will compute rather than a key anything can be
  * looked up by, and there is nothing to resolve or to draw.
+ *
+ * WHAT IS A REFERENCE IS DECIDED HERE, ONCE, because it is also what says a value may not be
+ * checked against the field it stands in. `hasReference` is `has_reference` in
+ * `dirigent_core.engine.references`, down to the escape.
  */
 
 import type { JsonMap } from '@/lib/api'
@@ -39,6 +43,27 @@ export type ConnectionResolution =
     | { source: 'unread' }
 
 /**
+ * A run of dollars before a braced name, which is the whole of the reference grammar.
+ *
+ * The dollars collapse in pairs: each `$$` is one literal dollar, and a single dollar left over
+ * makes what follows a reference. So `${x}` is one, `$${x}` is the literal `${x}` and is not,
+ * and `${}` names nothing and is therefore text like any other.
+ */
+const REFERENCE = /(\$+)\{[^{}]+\}/g
+
+/**
+ * Whether a value is resolved at run time rather than being the text it was written as.
+ *
+ * This is what a document may write anywhere a value goes, and what nothing may be checked
+ * against: what a reference stands for has no length, no bounds and no type until the run
+ * resolves it.
+ */
+export function hasReference(value: unknown): boolean {
+    if (typeof value !== 'string') return false
+    return [...value.matchAll(REFERENCE)].some((match) => match[1].length % 2 === 1)
+}
+
+/**
  * The code one field value names, or null when it names none.
  *
  * Empty is nothing to look up, a value that is not text is not a code, and a value carrying
@@ -47,7 +72,7 @@ export type ConnectionResolution =
 export function codeNamed(value: unknown): string | null {
     if (typeof value !== 'string') return null
     const code = value.trim()
-    if (code === '' || code.includes('${')) return null
+    if (code === '' || hasReference(code)) return null
     return code
 }
 

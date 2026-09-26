@@ -15,6 +15,7 @@ import type { JsonMap } from '@/lib/api'
 import type { ConnectionOut } from '@/lib/connections'
 import type { SchemaOut } from '@/lib/schemas'
 import {
+    drawnAsText,
     effectiveValue,
     fallbackText,
     foldLabel,
@@ -28,6 +29,7 @@ import {
     pairsValue,
     parseInput,
     partition,
+    referenceNote,
     sameJson,
     switchCell,
     type FieldDescriptor,
@@ -78,8 +80,11 @@ import { cn } from '@/lib/utils'
  * pair into. What it writes is the plain object, so the document, a run's parameters and a
  * connection's config all keep the shape they had. A key written twice marks its row and is not
  * written until it is fixed, which shuts the caller's verb the same way unreadable text does.
- * A field carrying a reference instead of a map is not a table at all: the reference is the text
- * it was written as, said beside the label, and clearing the box brings the table back.
+ *
+ * A FIELD WRITTEN AS A REFERENCE IS A BOX. A table, a choice and a switch each draw a value the
+ * schema describes, and `${...}` is none of those, so the text is drawn instead, what it is is
+ * said beside the label, and clearing the box brings the control back. Under `deferred` such a
+ * value is also refused nothing, because the run is what resolves it.
  *
  * THE TEXT IN A BOX IS THE BOX'S UNTIL IT PARSES. A control that re-read its value from the
  * document on every keystroke could not be typed a decimal point or a half-written JSON list
@@ -102,6 +107,7 @@ export function SchemaForm({
     disabled,
     fold,
     references,
+    deferred,
     onChange,
     onTouch,
     onUnreadable,
@@ -119,6 +125,8 @@ export function SchemaForm({
     fold?: boolean
     /** What a field that names a connection or a schema is resolved against, or nothing. */
     references?: FormReferences
+    /** Whether these values are a document's, so a `${...}` in one is the run's to resolve. */
+    deferred?: boolean
     onChange: (name: string, value: unknown) => void
     /** Called when a field is left, which is what earns it the right to be told off. */
     onTouch?: (name: string) => void
@@ -146,6 +154,7 @@ export function SchemaForm({
             stated={stated === undefined || stated.has(field.name)}
             disabled={disabled}
             references={references}
+            deferred={deferred === true}
             onChange={(value) => {
                 onChange(field.name, value)
             }}
@@ -187,6 +196,7 @@ function Field({
     stated,
     disabled,
     references,
+    deferred,
     onChange,
     onTouch,
     onUnreadable,
@@ -198,6 +208,7 @@ function Field({
     stated: boolean
     disabled?: string
     references?: FormReferences
+    deferred: boolean
     onChange: (value: unknown) => void
     onTouch: () => void
     onUnreadable: (message: string | null) => void
@@ -218,11 +229,11 @@ function Field({
     )
     const shown = unreadable ?? (stated ? problem : null)
     const fallback = fallbackText(field)
-    // A reference stands for the whole map, so there is a table to draw only when there is none.
-    const reference = field.kind === 'pairs' ? pairsReference(value) : null
+    // What this field's own control cannot hold is drawn as the text it was written as.
+    const asText = drawnAsText(field, value)
+    const note = referenceNote(field, value)
     // Whether one control carries the label's `for`. A pane and a table are not one control.
-    const single =
-        field.kind === 'pairs' ? reference !== null : field.kind !== 'code' && field.kind !== 'json'
+    const single = field.kind === 'pairs' ? asText : field.kind !== 'code' && field.kind !== 'json'
 
     return (
         <div className="flex flex-col gap-1.5">
@@ -237,18 +248,20 @@ function Field({
                     {field.name}
                 </Label>
                 {field.required && <span className="text-xs text-primary">required</span>}
-                {/* A field written as a reference is not a table, so what a cell would take is
-                    not what this field is about. */}
-                {field.hint !== null && reference === null && (
+                {/* A field written as a reference is not the control the hint describes, so what
+                    that control would take is not what this field is about. */}
+                {field.hint !== null && note === null && (
                     <span className="text-xs text-faint">{field.hint}</span>
                 )}
-                {reference !== null && <span className="text-xs text-faint">a reference, not a table</span>}
+                {note !== null && <span className="text-xs text-faint">{note}</span>}
                 {fallback !== null && <span className="text-xs text-faint">default {fallback}</span>}
             </div>
             <Control
                 id={id}
                 field={field}
                 value={value}
+                asText={asText}
+                deferred={deferred}
                 invalid={shown !== null}
                 disabled={disabled !== undefined}
                 onChange={onChange}
@@ -288,6 +301,8 @@ function Control({
     id,
     field,
     value,
+    asText,
+    deferred,
     invalid,
     disabled,
     onChange,
@@ -297,12 +312,30 @@ function Control({
     id: string
     field: FieldDescriptor
     value: unknown
+    /** Whether this field's own control gives way to a box holding what was written. */
+    asText: boolean
+    deferred: boolean
     invalid: boolean
     disabled: boolean
     onChange: (value: unknown) => void
     onUnreadable: (message: string | null) => void
     onTouch: () => void
 }) {
+    if (asText && field.kind !== 'pairs') {
+        return (
+            <TextControl
+                id={id}
+                field={field}
+                value={value}
+                deferred={deferred}
+                invalid={invalid}
+                disabled={disabled}
+                onChange={onChange}
+                onUnreadable={onUnreadable}
+                onTouch={onTouch}
+            />
+        )
+    }
     if (field.kind === 'switch') {
         return (
             <Switch
@@ -353,7 +386,7 @@ function Control({
         )
     }
     if (field.kind === 'pairs') {
-        const reference = pairsReference(value)
+        const reference = asText ? pairsReference(value) : null
         if (reference !== null) {
             return (
                 <Input
@@ -375,6 +408,7 @@ function Control({
             <PairsTable
                 field={field}
                 value={value}
+                deferred={deferred}
                 disabled={disabled}
                 onChange={onChange}
                 onUnreadable={onUnreadable}
@@ -387,6 +421,7 @@ function Control({
             id={id}
             field={field}
             value={value}
+            deferred={deferred}
             invalid={invalid}
             disabled={disabled}
             onChange={onChange}
@@ -411,6 +446,7 @@ function Control({
 function PairsTable({
     field,
     value,
+    deferred,
     disabled,
     onChange,
     onUnreadable,
@@ -418,6 +454,7 @@ function PairsTable({
 }: {
     field: FieldDescriptor
     value: unknown
+    deferred: boolean
     disabled: boolean
     onChange: (value: unknown) => void
     onUnreadable: (message: string | null) => void
@@ -437,16 +474,16 @@ function PairsTable({
         // oxlint-disable-next-line react/exhaustive-deps
     }, [field, value])
 
-    const problems = pairProblems(field, rows)
+    const problems = pairProblems(field, rows, deferred)
     const marked = (row: number, where: 'key' | 'value') =>
         problems.some((one) => one.row === row && one.where === where)
 
     const put = (next: readonly Pair[]) => {
         const grown = pairRows(field, next)
         setRows(grown)
-        const wrong = pairProblems(field, grown)
+        const wrong = pairProblems(field, grown, deferred)
         onUnreadable(wrong.length === 0 ? null : wrong[0].message)
-        const map = pairsValue(field, grown)
+        const map = pairsValue(field, grown, deferred)
         const carried = Object.keys(map).length === 0 ? undefined : map
         written.current = carried
         onChange(carried)
@@ -555,6 +592,7 @@ function TextControl({
     id,
     field,
     value,
+    deferred,
     invalid,
     disabled,
     onChange,
@@ -564,6 +602,7 @@ function TextControl({
     id: string
     field: FieldDescriptor
     value: unknown
+    deferred: boolean
     invalid: boolean
     disabled: boolean
     onChange: (value: unknown) => void
@@ -586,7 +625,7 @@ function TextControl({
 
     const write = (next: string) => {
         setText(next)
-        const parsed = parseInput(field, next)
+        const parsed = parseInput(field, next, deferred)
         if (!parsed.ok) {
             onUnreadable(parsed.message)
             return
@@ -636,8 +675,8 @@ function TextControl({
     return (
         <Input
             id={id}
-            type={field.kind === 'text' ? 'text' : 'text'}
-            inputMode={field.kind === 'text' ? undefined : 'decimal'}
+            type="text"
+            inputMode={field.kind === 'number' || field.kind === 'integer' ? 'decimal' : undefined}
             spellCheck={false}
             disabled={disabled}
             aria-invalid={invalid}

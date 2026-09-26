@@ -11,17 +11,10 @@ const DEV_USERNAME = 'dev'
 const DEV_PASSWORD = 'dirigent-dev'
 
 async function shot(page: Page, mode: string, name: string): Promise<void> {
-    // The corner identity fills over its reads after every full load; a picture of the
-    // asking state would put the wrong topbar in every frame.
-    await page
-        .waitForFunction(
-            () => /\d+\.\d+\.\d+/.test(document.querySelector('header')?.textContent ?? ''),
-            undefined,
-            {
-                timeout: 8000,
-            },
-        )
-        .catch(() => undefined)
+    // The corner identity fills over its reads after every full load; a picture of the asking
+    // state would put the wrong topbar in every frame. What says the read landed is the corner
+    // naming the instance and its environment, not a version: the bar carries none.
+    await page.getByRole('button', { name: 'Instance' }).filter({ hasText: '·' }).waitFor({ timeout: 8000 })
     await page.waitForTimeout(800)
     await page.screenshot({ path: path.join(OUT, `${name}--${mode}.png`) })
 }

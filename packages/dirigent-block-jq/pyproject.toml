@@ -1,6 +1,6 @@
 [project]
 name = "dirigent-block-jq"
-version = "0.19.0"
+version = "0.20.0"
 description = "The jq engine for dirigent's transform verbs: transform.jq, map.jq and filter.jq."
 readme = "README.md"
 requires-python = ">=3.13"
@@ -11,8 +11,8 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    "dirigent-common==0.19.0",
-    "dirigent-plugin==0.19.0",
+    "dirigent-common==0.20.0",
+    "dirigent-plugin==0.20.0",
     "jq>=1.8",
 ]
 

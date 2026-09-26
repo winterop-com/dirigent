@@ -35,11 +35,18 @@
  * requires plus what the document already sets, and the optional keys it does not -- so a block
  * with twenty fields and two answers reads as two.
  *
+ * A VALUE WRITTEN AS A REFERENCE IS NOT CHECKED AGAINST THE FIELD IT STANDS IN. `${...}` stands
+ * wherever a value goes in a document, and what it stands for has no text, no bounds and no type
+ * until the run resolves it, so a field carrying one is checked for nothing else. That holds only
+ * where a document is being edited: a run's parameters and a connection's config are values, and
+ * the server checks those literally, so `deferred` is what a caller says it is editing.
+ *
  * THE SERVER REMAINS THE AUTHORITY. `validateField` checks the bounds the descriptor carries so
  * a form can refuse before it asks, and an apply is what decides.
  */
 
 import type { JsonMap } from '@/lib/api'
+import { hasReference } from '@/lib/references'
 
 /** Which control a field is edited with. */
 export type FieldKind = 'text' | 'code' | 'number' | 'integer' | 'switch' | 'select' | 'json' | 'pairs'
@@ -440,18 +447,24 @@ export function foldLabel(count: number): string {
  * This is the client half of a refusal, and it checks only what the descriptor carries. A
  * document that satisfies every field here can still be refused at apply, which is where the
  * whole document -- its graph, its references, its blocks -- is decided.
+ *
+ * `deferred` says the values are a document's, where `${...}` stands wherever a value goes: a
+ * field carrying one is left alone, exactly as `defer_references` leaves it alone on the server.
+ * Whether the reference names anything a run will have is the whole document's question, and
+ * Validate is what asks it.
  */
-export function validateField(field: FieldDescriptor, value: unknown): string | null {
+export function validateField(field: FieldDescriptor, value: unknown, deferred = false): string | null {
     if (value === undefined) return field.required ? `${field.name} is required` : null
+    if (deferred && hasReference(value)) return null
     if (value === null) return field.nullable ? null : `${field.name} may not be null`
 
     if (field.accepts.length === 0) {
-        return shapeProblem(field, { kind: field.kind, bounds: field.bounds }, value)
+        return shapeProblem(field, { kind: field.kind, bounds: field.bounds }, value, deferred)
     }
     // A union: the value is fine under any branch. When none takes it, the branch whose
     // type the value already is says what is wrong with it, because "min_size is text"
     // about a badly written size sends somebody looking at the wrong thing.
-    const problems = field.accepts.map((branch) => shapeProblem(field, branch, value))
+    const problems = field.accepts.map((branch) => shapeProblem(field, branch, value, deferred))
     if (problems.includes(null)) return null
     const typed = field.accepts.findIndex((branch) => typeMatches(branch.kind, value))
     if (typed !== -1) return problems[typed] ?? null
@@ -459,7 +472,12 @@ export function validateField(field: FieldDescriptor, value: unknown): string | 
 }
 
 /** What is wrong with a value under one shape, or null. */
-function shapeProblem(field: FieldDescriptor, shape: BranchShape, value: unknown): string | null {
+function shapeProblem(
+    field: FieldDescriptor,
+    shape: BranchShape,
+    value: unknown,
+    deferred: boolean,
+): string | null {
     switch (shape.kind) {
         case 'select':
             if (!field.options.some((option) => sameJson(option.value, value))) {
@@ -479,7 +497,7 @@ function shapeProblem(field: FieldDescriptor, shape: BranchShape, value: unknown
                 ? numberProblem(field, shape, value)
                 : `${field.name} is a number`
         case 'pairs':
-            return mapProblem(field, value)
+            return mapProblem(field, value, deferred)
         case 'json':
             return null
     }
@@ -488,16 +506,16 @@ function shapeProblem(field: FieldDescriptor, shape: BranchShape, value: unknown
 /**
  * What is wrong with a whole map, or null.
  *
- * A REFERENCE STANDS FOR THE WHOLE FIELD. The document language lets `${...}` be written
- * wherever a value goes, so a string here is that reference and nothing to refuse -- the same
- * courtesy a map edited as JSON has always had.
+ * Where a document is being edited, a reference standing for the whole field never reaches
+ * here: `validateField` has already let it through. One entry of the map may be written as one
+ * too, and the same holds for that.
  */
-function mapProblem(field: FieldDescriptor, value: unknown): string | null {
-    if (typeof value === 'string') return null
+function mapProblem(field: FieldDescriptor, value: unknown, deferred: boolean): string | null {
     if (value === null || typeof value !== 'object' || Array.isArray(value)) {
         return `${field.name} is a map, or a reference to one`
     }
     for (const [key, held] of Object.entries(value as JsonMap)) {
+        if (deferred && hasReference(held)) continue
         if (!fits(field.holds, held)) return `${field.name}.${key} is ${wordsOf(field.holds)}`
     }
     return null
@@ -584,10 +602,14 @@ function numberProblem(field: FieldDescriptor, shape: BranchShape, value: number
 }
 
 /** Every field of a form that has something wrong with it, by name. */
-export function validateFields(fields: FieldDescriptor[], values: JsonMap): Record<string, string> {
+export function validateFields(
+    fields: FieldDescriptor[],
+    values: JsonMap,
+    deferred = false,
+): Record<string, string> {
     const problems: Record<string, string> = {}
     for (const field of fields) {
-        const problem = validateField(field, values[field.name])
+        const problem = validateField(field, values[field.name], deferred)
         if (problem !== null) problems[field.name] = problem
     }
     return problems
@@ -601,9 +623,14 @@ export type Parsed = { ok: true; value: unknown } | { ok: false; message: string
  *
  * EMPTY IS NOT A VALUE. Clearing a control removes the key, so a field left blank falls back to
  * the schema's own default rather than writing an empty string into the document.
+ *
+ * A REFERENCE IS THE TEXT IT WAS TYPED AS, so a number field a document writes `${params.rows}`
+ * in can be typed as well as read. JSON is the exception, because a reference is written there
+ * the way every other string is, in quotes.
  */
-export function parseInput(field: FieldDescriptor, text: string): Parsed {
+export function parseInput(field: FieldDescriptor, text: string, deferred = false): Parsed {
     if (text.trim() === '') return { ok: true, value: undefined }
+    if (deferred && field.kind !== 'json' && hasReference(text)) return { ok: true, value: text }
     switch (field.kind) {
         case 'number':
         case 'integer': {
@@ -671,6 +698,35 @@ export function pairsReference(value: unknown): string | null {
 }
 
 /**
+ * Whether a field gives way to a box, because what it holds is text its own control cannot.
+ *
+ * A choice, a switch and a key/value table each draw a value the schema describes, and text is
+ * none of those: drawn by its own control it would read as unset, off or empty, and the first
+ * touch would write that over the document. So the text is drawn instead, and clearing the box
+ * brings the control back. A table gives way to any text, having no cell that could hold it; a
+ * choice and a switch only to a reference, because any other text is a value they may refuse.
+ */
+export function drawnAsText(field: FieldDescriptor, value: unknown): boolean {
+    if (field.kind === 'pairs') return pairsReference(value) !== null
+    return (field.kind === 'select' || field.kind === 'switch') && hasReference(value)
+}
+
+/** What is said beside the label of a field written as a reference, or null when it is not. */
+export function referenceNote(field: FieldDescriptor, value: unknown): string | null {
+    if (!hasReference(value)) return null
+    switch (field.kind) {
+        case 'pairs':
+            return 'a reference, not a table'
+        case 'select':
+            return 'a reference, not a choice'
+        case 'switch':
+            return 'a reference, not a switch'
+        default:
+            return null
+    }
+}
+
+/**
  * What a table of rows writes: the plain object, in the order the rows are in.
  *
  * A ROW IS A PAIR ONLY ONCE IT IS ONE. A row with no key, a row whose cell is empty, and a row
@@ -678,14 +734,14 @@ export function pairsReference(value: unknown): string | null {
  * than writing a key with no value into the document. A key written twice is written once, by
  * the first row that carries it, and `pairProblems` is what marks the other.
  */
-export function pairsValue(field: FieldDescriptor, rows: readonly Pair[]): JsonMap {
+export function pairsValue(field: FieldDescriptor, rows: readonly Pair[], deferred = false): JsonMap {
     const written: JsonMap = {}
     const seen = new Set<string>()
     for (const row of rows) {
         const key = row.key.trim()
         if (key === '' || seen.has(key)) continue
         seen.add(key)
-        const cell = parseCell(field, row.text)
+        const cell = parseCell(field, row.text, deferred)
         if (!cell.ok || cell.value === undefined) continue
         written[key] = cell.value
     }
@@ -693,7 +749,7 @@ export function pairsValue(field: FieldDescriptor, rows: readonly Pair[]): JsonM
 }
 
 /** Every cell of a table that is not a value, in the order a reader meets them. */
-export function pairProblems(field: FieldDescriptor, rows: readonly Pair[]): PairProblem[] {
+export function pairProblems(field: FieldDescriptor, rows: readonly Pair[], deferred = false): PairProblem[] {
     const problems: PairProblem[] = []
     const seen = new Set<string>()
     rows.forEach((row, index) => {
@@ -704,7 +760,7 @@ export function pairProblems(field: FieldDescriptor, rows: readonly Pair[]): Pai
             }
             seen.add(key)
         }
-        const cell = parseCell(field, row.text)
+        const cell = parseCell(field, row.text, deferred)
         if (!cell.ok) problems.push({ row: index, where: 'value', message: cell.message })
     })
     return problems
@@ -717,9 +773,12 @@ export function pairProblems(field: FieldDescriptor, rows: readonly Pair[]): Pai
  * number or a boolean, and `2` in that box is the number 2 rather than the text "2" -- a query
  * string is the same either way, and a map that also took text would otherwise never carry a
  * number at all. Where the map takes text alone, `2` is the text "2" and nothing else.
+ *
+ * A cell written as a reference is the text it was typed as, whatever the map holds.
  */
-export function parseCell(field: FieldDescriptor, text: string): Parsed {
+export function parseCell(field: FieldDescriptor, text: string, deferred = false): Parsed {
     if (text.trim() === '') return { ok: true, value: undefined }
+    if (deferred && hasReference(text)) return { ok: true, value: text }
     const reading = Number(text)
     if (field.holds.includes('integer') && Number.isInteger(reading)) return { ok: true, value: reading }
     if (field.holds.includes('number') && Number.isFinite(reading)) return { ok: true, value: reading }
