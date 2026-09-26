@@ -9,9 +9,9 @@
 #      the gap, and a run that ends completed_with_errors.
 #
 # EXPECT THIS RUN TO END completed_with_errors in about ten seconds, with south missing.
-# `south` is pointed at /status/500 in the defaults, which is a transient class, so its item
-# is retried twice -- two seconds, then four -- before it is given up on. The other seven
-# answer at once.
+# `south` carries a failing window wider than its retry budget in the defaults, and a step
+# that fails on cue is classified transient, so its item is retried twice -- two seconds, then
+# four -- before it is given up on. The other seven answer at once.
 #
 # WHY THAT IS A THIRD STATUS AND NOT A SHADE OF FAILED. Under items: continue a refused
 # element is recorded against its own run item and the rest of the grid finishes, so the step
@@ -26,7 +26,7 @@
 #
 # HOP BY HOP:
 #
-#   collect     http.request, once per region, with a retry policy and items: continue.
+#   collect     playground.generate, once per region, with a retry policy and items: continue.
 #   shape       transform.jq, once per region that answered.
 #   batch       transform.jq, the join over the regions that made it.
 #   check_batch validate.schema, the gate: a short batch is still a well-shaped batch.
@@ -37,12 +37,12 @@
 #   notify      log.write at warning, which is the line an alert rule on this run reads beside.
 #   settle      log.write behind rule: all_done, so the night is closed out either way.
 #
-# TO CHANGE IT: move the 500 to another region, or give every region a 200 and watch the same
-# document end green with no gap to report.
+# TO CHANGE IT: move the failing window to another region, or give every region a 0 and watch
+# the same document end green with no gap to report.
 #
 #   dg run --local examples/showcase/one-region-refuses.yaml   # completed_with_errors
 #   dg run --local examples/showcase/one-region-refuses.yaml \
-#     -p exports='[{"region":"east","answers":200},{"region":"west","answers":200}]'  # green
+#     -p exports='[{"region":"east","rows":840,"fails":0},{"region":"west","rows":610,"fails":0}]'  # green
 #
 #   dg apply examples/showcase/one-region-refuses.yaml
 #   dg run one-region-refuses --watch
@@ -53,17 +53,17 @@ kind: pipeline
 code: one-region-refuses
 name: One region refuses
 description: |
-  Eight regional exports where one answers 500 twice over and is given up on: the item is
+  Eight regional exports where one fails every attempt and is given up on: the item is
   recorded against itself, the other seven finish, and the run ends `completed_with_errors`.
 
   The gap is not left implicit. What was asked for is compared against what arrived, and the
   page that comes out of it names the region that is missing.
 
-tags: [showcase, http, transform, validate, storage, report, fan-out, failure, retry, references]
+tags: [showcase, playground, transform, validate, storage, report, fan-out, failure, retry, references]
 
 requires:
   blocks:
-    - http.request
+    - playground.generate
     - transform.jq
     - validate.schema
     - storage.write
@@ -81,24 +81,25 @@ params:
       description: The day the exports cover.
     exports:
       type: array
-      description: One row per region, each saying what that region's export service answers.
+      description: One row per region, saying how many rows it reports and how many attempts fail.
       minItems: 1
       maxItems: 16
       default:
-        - { region: east, answers: 200 }
-        - { region: west, answers: 200 }
-        - { region: north, answers: 200 }
-        - { region: south, answers: 500 }
-        - { region: central, answers: 200 }
-        - { region: coastal, answers: 200 }
-        - { region: highland, answers: 200 }
-        - { region: lakeside, answers: 200 }
+        - { region: east, rows: 840, fails: 0 }
+        - { region: west, rows: 610, fails: 0 }
+        - { region: north, rows: 470, fails: 0 }
+        - { region: south, rows: 520, fails: 9 }
+        - { region: central, rows: 930, fails: 0 }
+        - { region: coastal, rows: 380, fails: 0 }
+        - { region: highland, rows: 240, fails: 0 }
+        - { region: lakeside, rows: 700, fails: 0 }
       items:
         type: object
-        required: [region, answers]
+        required: [region, rows, fails]
         properties:
           region: { type: string }
-          answers: { type: integer }
+          rows: { type: integer, minimum: 0 }
+          fails: { type: integer, minimum: 0 }
 
 # Carried, so `dg run --local` has the shape without an instance holding it.
 schemas:
@@ -113,33 +114,36 @@ schemas:
         minItems: 1
         items:
           type: object
-          required: [region, status, rows]
+          required: [region, attempts, rows]
           additionalProperties: false
           properties:
             region: { type: string, minLength: 1 }
-            status: { type: integer }
+            attempts: { type: integer, minimum: 1 }
             rows: { type: integer, minimum: 0 }
 
 steps:
   collect:
-    block: http.request
+    block: playground.generate
     for_each: "${params.exports}"
     # The item policy is the whole document: continue records a refusal against its own item
     # and lets the rest of the grid finish. fail_fast would sink seven good regions over one.
     items: continue
     retry:
-      # A 500 is classified transient, so the budget is spent on it: 2s, then 4s, then given
-      # up on. A 404 would be rejected on the first attempt, however much budget was left.
+      # A step that fails on cue is classified transient, so the budget is spent on it: 2s,
+      # then 4s, then given up on. A rejected failure would end the item on the first attempt,
+      # however much budget was left.
       max_attempts: 3
       backoff: 2s
       max_backoff: 30s
       multiplier: 2.0
       jitter: 0.2
     config:
-      # Each element says what its own service answers, so which region refuses is data rather
-      # than something hidden in a branch.
-      url: "https://postman-echo.com/status/${item.answers}"
-      method: GET
+      # Each element says how many of its own attempts fail, so which region refuses is data
+      # rather than something hidden in a branch. Nine is wider than the budget above.
+      fail_until: "${item.fails}"
+      input:
+        region: "${item.region}"
+        rows: "${item.rows}"
 
   shape:
     block: transform.jq
@@ -149,13 +153,13 @@ steps:
     for_each: "${steps.collect.items}"
     config:
       input:
-        region: "${item.region}"
-        status: "${steps.collect.item.output.status}"
+        export: "${steps.collect.item.output.records.0}"
+        attempts: "${steps.collect.item.output.attempt}"
         day: "${params.day}"
-      # Echo answers with a status and nothing else, so the row count stands in for the volume
-      # a real export would have reported.
+      # The element's own numbers, carried through the item that produced them: the join below
+      # sees outputs and never elements, so the region and its volume have to be in there.
       program: |
-        {region, status, day, rows: (.region | length * 120)}
+        {region: .export.region, attempts: .attempts, day: .day, rows: .export.rows}
 
   batch:
     block: transform.jq
@@ -165,7 +169,7 @@ steps:
       input: "${steps.shape.output}"
       program: |
         {day: .[0].value.day,
-         regions: [.[] | .value | {region, status, rows}]}
+         regions: [.[] | .value | {region, attempts, rows}]}
 
   check_batch:
     block: validate.schema
