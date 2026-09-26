@@ -13,6 +13,7 @@ from dirigent_block_queues.kafka import (
     KafkaConnectionConfig,
     KafkaConnectionKind,
     KafkaConsumeConfig,
+    KafkaConsumeOutput,
     KafkaConsumeSensor,
     KafkaProduceConfig,
     KafkaProduceOperator,
@@ -20,7 +21,7 @@ from dirigent_block_queues.kafka import (
     read_cursor,
 )
 from dirigent_plugin import BlockFailure, ErrorClass, NotYet
-from dirigent_testing import FakeContext
+from dirigent_testing import FakeContext, carry_cursor
 
 #: When every fake record says it was written.
 STAMPED = datetime(2026, 6, 1, 12, tzinfo=UTC)
@@ -277,6 +278,25 @@ async def test_a_poke_reads_on_from_the_cursor_it_was_handed(ctx: FakeContext, c
 
     assert not isinstance(output, NotYet)
     assert [message.offset for message in output.messages] == [1]
+
+
+async def test_a_success_hands_a_watch_the_offsets_its_next_run_reads_on_from(
+    ctx: FakeContext, cluster: FakeConsumer
+) -> None:
+    """No group is committed, so the watch's cursor is the whole of where the topic was read to."""
+    cluster.log[0] = [Record(number, f'{{"id": {number}}}'.encode()) for number in range(6)]
+    sensor = KafkaConsumeSensor()
+    watched = connected(ctx)
+    batches: list[list[int]] = []
+    for _ in range(3):
+        output = await sensor.poke(config(start="earliest", max_messages=2), watched.as_context())
+        assert isinstance(output, KafkaConsumeOutput)
+        batches.append([message.offset for message in output.messages])
+        carry_cursor(sensor, output, watched)
+
+    assert batches == [[0, 1], [2, 3], [4, 5]]
+    assert watched.cursor == {"offsets": {"0": 6}}
+    assert cluster.commits == 0
 
 
 async def test_the_batch_never_runs_past_max_messages(ctx: FakeContext, cluster: FakeConsumer) -> None:

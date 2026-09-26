@@ -5,7 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from dirigent_plugin import AnyOperator, AnySensor, Operator, StepContext
+from dirigent_plugin import AnyOperator, AnySensor, NotYet, Operator, StepContext
 from dirigent_testing.doubles import FakeContext
 
 
@@ -25,3 +25,19 @@ async def call_block(
     if isinstance(block, Operator):
         return await block.execute(validated, context)
     return await block.poke(validated, context)
+
+
+def carry_cursor(sensor: AnySensor, answer: BaseModel, ctx: FakeContext) -> None:
+    """Hand the next poke the cursor the engine would, after one poke answered this.
+
+    A park that returned a cursor replaces the one the context held, and one that returned
+    none leaves it. A success hands on what :meth:`Sensor.resume_cursor` says, which is the
+    cursor a watch starts its next run's poke from, so poking again after a success is the
+    first poke of that next run.
+    """
+    if isinstance(answer, NotYet):
+        if answer.cursor is not None:
+            ctx.cursor = dict(answer.cursor)
+        return
+    resumed = sensor.resume_cursor(answer)
+    ctx.cursor = dict(resumed) if resumed is not None else None

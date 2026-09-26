@@ -5,8 +5,9 @@ run the way a clock or a POST does: each poke reads what has arrived since the l
 succeeds the moment there is enough, handing the batch downstream as its output.
 
 The place a poke has read to is the sensor's cursor. Without a ``group_id`` that is the whole
-of the bookkeeping -- the offsets live in the attempt row and nowhere else, so nothing is
-committed to the broker and two pipelines over one topic never take each other's messages.
+of the bookkeeping -- the offsets live in the attempt row, and under a watch in the watch that
+hands them to its next run, so nothing is committed to the broker and two pipelines over one
+topic never take each other's messages.
 With a ``group_id`` the broker keeps the group's offsets too, and the commit happens in the
 poke that succeeds rather than in one that parks, so a batch too small to act on is read
 again rather than lost. Either way the cursor is at-least-once, which is why the output
@@ -44,7 +45,7 @@ from dirigent_block_queues.messages import (
     KAFKA_READ_FAILED,
     SASL_NEEDS_A_CREDENTIAL,
 )
-from dirigent_common import BlockModel, Duration, HealthReport
+from dirigent_common import BlockModel, Duration, HealthReport, JsonMap
 from dirigent_plugin import (
     BlockFailure,
     ConnectionKind,
@@ -268,8 +269,8 @@ class KafkaConsumeConfig(BlockModel):
 
     start: Literal["latest", "earliest"] = "latest"
     """Where a poke with no cursor begins: at whatever arrives next, or at the oldest record
-    the broker still holds. It applies to the first poke of an attempt only; after that the
-    cursor says where to read from."""
+    the broker still holds. It applies to the first poke of an attempt only, and under a watch
+    to the first run's only; after that the cursor says where to read from."""
 
     min_messages: int = Field(default=1, ge=1)
     """How many messages a batch needs before the sensor succeeds. Below it the poke parks,
@@ -395,6 +396,10 @@ class KafkaConsumeSensor(Sensor[KafkaConsumeConfig, KafkaConsumeOutput]):
             ) from error
         finally:
             await close(consumer)
+
+    def resume_cursor(self, output: KafkaConsumeOutput) -> JsonMap | None:
+        """Read on from where the batch ended, so a watch's next run needs no consumer group."""
+        return {"offsets": dict(output.cursor)}
 
     def classify_error(self, error: Exception) -> ErrorClass:
         """A cluster that could not be reached is transient; one that said no is not."""

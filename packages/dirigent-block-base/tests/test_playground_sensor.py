@@ -11,10 +11,11 @@ from dirigent_block_base.playground import (
     Drift,
     PlaygroundArriveSensor,
     PlaygroundRefusal,
+    first_offset,
     parked_pokes,
 )
 from dirigent_plugin import ErrorClass, NotYet
-from dirigent_testing import FakeContext, call_block
+from dirigent_testing import FakeContext, call_block, carry_cursor
 
 
 async def poke(ctx: FakeContext, **config: object) -> ArriveOutput | NotYet:
@@ -32,7 +33,7 @@ async def until_it_arrives(ctx: FakeContext, limit: int = 10, **config: object) 
         if isinstance(answer, ArriveOutput):
             return parked, answer
         parked.append(answer)
-        ctx.cursor = dict(answer.cursor) if answer.cursor is not None else None
+        carry_cursor(PlaygroundArriveSensor(), answer, ctx)
     raise AssertionError(f"the sensor never arrived in {limit} pokes")
 
 
@@ -47,7 +48,7 @@ async def test_the_first_poke_parks_and_the_second_arrives(ctx: FakeContext) -> 
     """The default: one poke parks, so a document is seen waiting before it is seen working."""
     parked, output = await until_it_arrives(ctx, rows=3, seed=5, fields={"who": "name"})
     assert len(parked) == 1
-    assert parked[0].cursor == {"pokes": 1}
+    assert parked[0].cursor == {"pokes": 1, "offset": 0}
     assert output.pokes == 2
     assert output.count == 3
 
@@ -124,6 +125,37 @@ async def test_the_messages_are_offset_in_order(ctx: FakeContext) -> None:
     _, output = await until_it_arrives(ctx, rows=5, seed=3, fields={"who": "name"})
     assert [message.offset for message in output.messages] == [0, 1, 2, 3, 4]
     assert all(message.timestamp == output.messages[0].timestamp for message in output.messages)
+
+
+async def test_a_success_says_the_next_batch_starts_where_this_one_ended(ctx: FakeContext) -> None:
+    _, output = await until_it_arrives(ctx, rows=3, seed=3, fields={"who": "name"})
+    assert output.next_offset == 3
+    assert PlaygroundArriveSensor().resume_cursor(output) == {"offset": 3}
+
+
+async def test_offsets_carry_on_across_the_batches_a_watch_hands_on(ctx: FakeContext) -> None:
+    """Each success is carried as a watch carries it, so three batches are one run of offsets."""
+    offsets: list[int] = []
+    for _ in range(3):
+        _, output = await until_it_arrives(ctx, rows=2, seed=3, fields={"who": "name"})
+        offsets.extend(message.offset for message in output.messages)
+        carry_cursor(PlaygroundArriveSensor(), output, ctx)
+    assert offsets == [0, 1, 2, 3, 4, 5]
+    assert ctx.cursor == {"offset": 6}
+
+
+async def test_a_park_keeps_the_offset_the_batch_will_start_at(ctx: FakeContext) -> None:
+    ctx.cursor = {"offset": 40}
+    answer = await poke(ctx, after_pokes=2)
+    assert isinstance(answer, NotYet)
+    assert answer.cursor == {"pokes": 1, "offset": 40}
+
+
+async def test_an_offset_that_is_not_one_reads_as_zero() -> None:
+    assert first_offset(None) == 0
+    assert first_offset({"offset": -3}) == 0
+    assert first_offset({"offset": "ten"}) == 0
+    assert first_offset({"offset": 7}) == 7
 
 
 async def test_drift_reaches_the_records_a_batch_carries(ctx: FakeContext) -> None:

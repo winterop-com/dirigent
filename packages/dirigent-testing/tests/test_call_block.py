@@ -5,8 +5,9 @@ from datetime import timedelta
 import pytest
 from pydantic import BaseModel, Field, ValidationError
 
+from dirigent_common import JsonMap
 from dirigent_plugin import NotYet, Operator, OperatorSpec, Sensor, SensorSpec, StepContext
-from dirigent_testing import FakeContext, call_block
+from dirigent_testing import FakeContext, call_block, carry_cursor
 
 
 class GreetConfig(BaseModel):
@@ -78,3 +79,72 @@ async def test_a_sensor_that_is_ready_returns_its_output(block_ctx: FakeContext)
 
     assert isinstance(result, WaitOutput)
     assert result.observed is True
+
+
+class TailConfig(BaseModel):
+    batch: int = 2
+
+
+class TailOutput(BaseModel):
+    offsets: list[int]
+    next_offset: int
+
+
+class Tail(Sensor[TailConfig, TailOutput]):
+    """Reads a notional stream: parks once, then takes a batch from where the cursor stands."""
+
+    spec = SensorSpec(id="test.tail", summary="Tails a stream it keeps its place in")
+    config_model = TailConfig
+    output_model = TailOutput
+
+    async def poke(self, config: TailConfig, ctx: StepContext) -> TailOutput | NotYet:
+        held = ctx.cursor or {}
+        offset = held.get("offset", 0)
+        start = offset if isinstance(offset, int) else 0
+        if not held.get("parked"):
+            return NotYet(cursor={"offset": start, "parked": True})
+        return TailOutput(offsets=list(range(start, start + config.batch)), next_offset=start + config.batch)
+
+    def resume_cursor(self, output: TailOutput) -> JsonMap | None:
+        return {"offset": output.next_offset}
+
+
+async def test_a_sensor_says_nothing_about_where_it_left_off_unless_it_chooses_to(block_ctx: FakeContext) -> None:
+    output = await call_block(Wait(), {"ready": True}, block_ctx)
+
+    assert isinstance(output, WaitOutput)
+    assert Wait().resume_cursor(output) is None
+
+
+async def test_a_success_hands_the_next_poke_where_it_left_off(block_ctx: FakeContext) -> None:
+    """Carried as a watch carries it: each batch starts where the one before it ended."""
+    sensor = Tail()
+    seen: list[list[int]] = []
+    for _ in range(6):
+        answer = await call_block(sensor, {}, block_ctx)
+        if isinstance(answer, TailOutput):
+            seen.append(answer.offsets)
+        carry_cursor(sensor, answer, block_ctx)
+
+    assert seen == [[0, 1], [2, 3], [4, 5]]
+    assert block_ctx.cursor == {"offset": 6}
+
+
+async def test_a_park_that_returns_no_cursor_leaves_the_one_that_was_there(block_ctx: FakeContext) -> None:
+    block_ctx.cursor = {"offset": 4}
+    answer = await call_block(Wait(), {}, block_ctx)
+
+    carry_cursor(Wait(), answer, block_ctx)
+
+    assert block_ctx.cursor == {"offset": 4}
+
+
+async def test_a_success_from_a_sensor_that_keeps_no_place_starts_the_next_poke_fresh(
+    block_ctx: FakeContext,
+) -> None:
+    block_ctx.cursor = {"offset": 4}
+    answer = await call_block(Wait(), {"ready": True}, block_ctx)
+
+    carry_cursor(Wait(), answer, block_ctx)
+
+    assert block_ctx.cursor is None
