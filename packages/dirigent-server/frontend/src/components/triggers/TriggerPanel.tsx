@@ -3,7 +3,7 @@ import { Link } from 'react-router'
 
 import { Refusable } from '@/components/Refusable'
 import { sayRefusal } from '@/components/Refusal'
-import { Chip, Clock, Dot, NextFire, OwnerChip } from '@/components/triggers/marks'
+import { Chip, Clock, Dot, NextFire, OwnerChip, WatchState } from '@/components/triggers/marks'
 import { Button } from '@/components/ui/button'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { usePaged } from '@/hooks/use-paged'
@@ -18,11 +18,13 @@ import {
     readFirings,
     rotateWebhookToken,
     setSchedulePaused,
+    setWatchPaused,
     setWebhookActive,
     signing,
     type DeliveryOut,
     type FiringOut,
     type ScheduleOut,
+    type WatchOut,
     type WebhookOut,
     type WebhookTokenOut,
 } from '@/lib/triggers'
@@ -35,10 +37,10 @@ import {
  * it -- the same `usePaged` the listings use, and for the same reason: there is no total to
  * state and no page to jump to.
  *
- * WHAT IS EDITABLE HERE IS WHAT DOES NOT LIVE IN THE DOCUMENT. Whether a schedule is paused
- * and whether a webhook accepts deliveries are operational state the instance owns, so both
- * are verbs here even on a managed trigger; the clock and the mapping came from a document and
- * change by applying one.
+ * WHAT IS EDITABLE HERE IS WHAT DOES NOT LIVE IN THE DOCUMENT. Whether a schedule or a watch is
+ * paused and whether a webhook accepts deliveries are operational state the instance owns, so
+ * each is a verb here even on a managed trigger; the clock, the mapping and the watched step
+ * came from a document and change by applying one.
  */
 export function SchedulePanel({
     pipeline,
@@ -232,6 +234,87 @@ export function WebhookPanel({
                 onMore={more}
                 render={(delivery) => <Delivery delivery={delivery} />}
             />
+        </div>
+    )
+}
+
+export function WatchPanel({
+    pipeline,
+    watch,
+    onChanged,
+}: {
+    pipeline: string
+    watch: WatchOut
+    /** Called with what a verb answered, so the row behind updates without a re-read. */
+    onChanged: (row: WatchOut) => void
+}) {
+    const [busy, setBusy] = useState(false)
+    const write = useMayWrite()
+
+    const toggle = () => {
+        setBusy(true)
+        void setWatchPaused(pipeline, watch.code, !watch.paused)
+            .then(onChanged, sayRefusal)
+            .finally(() => {
+                setBusy(false)
+            })
+    }
+
+    return (
+        <div className="space-y-4 p-4">
+            <Head thing={watch} pipeline={pipeline} description={watch.description}>
+                <OwnerChip managed={watch.managed} document={watch.trigger_document} />
+                {watch.paused && <Chip>paused</Chip>}
+            </Head>
+
+            <dl className="space-y-1.5">
+                <Fact label="Step">
+                    <span className="font-mono">{watch.step}</span>
+                </Fact>
+                <Fact label="Waiting">
+                    <WatchState watch={watch} />
+                </Fact>
+                <Fact label="Failures in a row">{String(watch.failures)}</Fact>
+                {watch.last_error !== null && (
+                    <Fact label="Last error">
+                        <span className="break-words text-critical">{watch.last_error}</span>
+                        {watch.last_error_at !== null && (
+                            <span
+                                className="ml-2 text-xs text-faint"
+                                title={formatInstant(watch.last_error_at)}
+                            >
+                                {formatRelative(watch.last_error_at)}
+                            </span>
+                        )}
+                    </Fact>
+                )}
+                {watch.cursor !== null && (
+                    <Fact label="Cursor">
+                        <pre className="mt-1 overflow-x-auto rounded-md bg-secondary/50 p-2 font-mono text-xs">
+                            {asJson(watch.cursor)}
+                        </pre>
+                    </Fact>
+                )}
+                {Object.keys(watch.params).length > 0 && (
+                    <Fact label="Pinned parameters">
+                        <pre className="mt-1 overflow-x-auto rounded-md bg-secondary/50 p-2 font-mono text-xs">
+                            {asJson(watch.params)}
+                        </pre>
+                    </Fact>
+                )}
+            </dl>
+
+            <Refusable why={write.why}>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={busy || !write.may}
+                    title={write.why}
+                    onClick={toggle}
+                >
+                    {watch.paused ? 'Resume' : 'Pause'}
+                </Button>
+            </Refusable>
         </div>
     )
 }

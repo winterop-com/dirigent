@@ -66,6 +66,7 @@ export function PipelineTab({
     const triggers = mapAt(document, 'triggers')
     const schedules = mapsIn(triggers, 'schedules')
     const webhooks = mapsIn(triggers, 'webhooks')
+    const watches = mapsIn(triggers, 'watches')
 
     return (
         <div className="flex flex-col gap-4 p-4">
@@ -196,7 +197,7 @@ export function PipelineTab({
             </Section>
 
             <Section title="Triggers">
-                {schedules.length === 0 && webhooks.length === 0 ? (
+                {schedules.length === 0 && webhooks.length === 0 && watches.length === 0 ? (
                     <p className="text-xs text-muted-foreground">
                         Nothing fires this pipeline on its own. A document declares them under its triggers
                         key.
@@ -213,6 +214,12 @@ export function PipelineTab({
                         {webhooks.map((webhook, index) => (
                             <li key={`webhook-${String(index)}`}>
                                 webhook <span className="font-mono">{stringAt(webhook, 'code') ?? '--'}</span>
+                            </li>
+                        ))}
+                        {watches.map((watch, index) => (
+                            <li key={`watch-${String(index)}`}>
+                                watch <span className="font-mono">{stringAt(watch, 'code') ?? '--'}</span> on{' '}
+                                <span className="font-mono">{stringAt(watch, 'step') ?? '--'}</span>
                             </li>
                         ))}
                     </ul>

@@ -5,9 +5,9 @@ import { Link } from 'react-router'
 import { ApiChip } from '@/components/ApiChip'
 import { ListTable, type Column } from '@/components/list/ListTable'
 import { PageHeader, PageState } from '@/components/PageState'
-import { Chip, Clock, Dot, NextFire, OwnerChip } from '@/components/triggers/marks'
+import { Chip, Clock, Dot, NextFire, OwnerChip, WatchState } from '@/components/triggers/marks'
 import { MintedToken, NewSchedule, NewWebhook } from '@/components/triggers/NewTrigger'
-import { SchedulePanel, WebhookPanel } from '@/components/triggers/TriggerPanel'
+import { SchedulePanel, WatchPanel, WebhookPanel } from '@/components/triggers/TriggerPanel'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { usePaged } from '@/hooks/use-paged'
 import { formatInstant, formatRelative } from '@/lib/format'
@@ -26,24 +26,27 @@ import {
     type ScheduleOut,
     type ScheduleRow,
     type TriggerRow,
+    type WatchOut,
+    type WatchRow,
     type WebhookOut,
     type WebhookRow,
     type WebhookTokenOut,
 } from '@/lib/triggers'
 
 /**
- * Everything that fires a pipeline without a person: the clocks, and the inbound endpoints.
+ * Everything that fires a pipeline without a person: the clocks, the inbound endpoints, and the
+ * watches that keep a run waiting on a sensor.
  *
- * TWO SECTIONS, ONE WALK. This API has no listing of every schedule on the instance -- a
+ * THREE SECTIONS, ONE WALK. This API has no listing of every schedule on the instance -- a
  * trigger hangs off the pipeline it fires -- so the screen walks pipelines and reads the
- * triggers of the ones the pipelines listing already counted at least one of. Both sections
- * grow from the same page, which is why both feet state the same walk and one "load more"
+ * triggers of the ones the pipelines listing already counted at least one of. Every section
+ * grows from the same page, which is why every foot states the same walk and one "load more"
  * carries them together.
  *
  * MANAGED IS NOT A LOCK, IT IS A SOURCE. A trigger a document declared changes when that
  * document is applied again, and the chip says so; whether it is paused, whether it accepts
  * deliveries, and what token it answers on are the instance's, and those are the verbs the
- * panel offers.
+ * panel offers. A watch is only ever declared by a document, so there is no New for one.
  */
 export function Triggers() {
     const [chosen, setChosen] = useState<string | null>(null)
@@ -57,6 +60,7 @@ export function Triggers() {
     const rows = useMemo(() => state.rows.map((row) => fresher[triggerId(row)] ?? row), [fresher, state.rows])
     const schedules = useMemo(() => rows.filter(isSchedule), [rows])
     const webhooks = useMemo(() => rows.filter(isWebhook), [rows])
+    const watches = useMemo(() => rows.filter(isWatch), [rows])
     const open = rows.find((row) => triggerId(row) === chosen) ?? null
 
     const held = useCallback((row: TriggerRow) => {
@@ -74,26 +78,42 @@ export function Triggers() {
             [
                 {
                     id: 'trigger',
-                    label: open.kind === 'schedule' ? 'Schedule' : 'Webhook',
-                    render: () =>
-                        open.kind === 'schedule' ? (
-                            <SchedulePanel
-                                pipeline={open.pipeline}
-                                schedule={open.schedule}
-                                onChanged={(schedule: ScheduleOut) => {
-                                    held({ ...open, schedule })
-                                }}
-                            />
-                        ) : (
-                            <WebhookPanel
-                                pipeline={open.pipeline}
-                                webhook={open.webhook}
-                                onChanged={(webhook: WebhookOut) => {
-                                    held({ ...open, webhook })
-                                }}
-                                onMinted={setMinted}
-                            />
-                        ),
+                    label: PANEL_LABEL[open.kind],
+                    render: () => {
+                        switch (open.kind) {
+                            case 'schedule':
+                                return (
+                                    <SchedulePanel
+                                        pipeline={open.pipeline}
+                                        schedule={open.schedule}
+                                        onChanged={(schedule: ScheduleOut) => {
+                                            held({ ...open, schedule })
+                                        }}
+                                    />
+                                )
+                            case 'webhook':
+                                return (
+                                    <WebhookPanel
+                                        pipeline={open.pipeline}
+                                        webhook={open.webhook}
+                                        onChanged={(webhook: WebhookOut) => {
+                                            held({ ...open, webhook })
+                                        }}
+                                        onMinted={setMinted}
+                                    />
+                                )
+                            case 'watch':
+                                return (
+                                    <WatchPanel
+                                        pipeline={open.pipeline}
+                                        watch={open.watch}
+                                        onChanged={(watch: WatchOut) => {
+                                            held({ ...open, watch })
+                                        }}
+                                    />
+                                )
+                        }
+                    },
                 },
             ],
             { screen: 'triggers' },
@@ -224,6 +244,27 @@ export function Triggers() {
                             />
                         )}
                     </section>
+
+                    <section className="space-y-2">
+                        <h2 className="text-sm font-semibold">Watches</h2>
+                        {watches.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">
+                                No watches. A document declares one under its triggers key.
+                            </p>
+                        ) : (
+                            <ListTable
+                                columns={WATCH_COLUMNS}
+                                rows={watches}
+                                rowKey={triggerId}
+                                reading={state.reading}
+                                next={state.next}
+                                onMore={more}
+                                noun="watches"
+                                onSelect={select}
+                                selected={(row) => triggerId(row) === chosen}
+                            />
+                        )}
+                    </section>
                 </div>
             </PageState>
 
@@ -258,6 +299,14 @@ export function Triggers() {
 
 const isSchedule = (row: TriggerRow): row is ScheduleRow => row.kind === 'schedule'
 const isWebhook = (row: TriggerRow): row is WebhookRow => row.kind === 'webhook'
+const isWatch = (row: TriggerRow): row is WatchRow => row.kind === 'watch'
+
+/** What the panel's strip calls the trigger it holds. */
+const PANEL_LABEL: Record<TriggerRow['kind'], string> = {
+    schedule: 'Schedule',
+    webhook: 'Webhook',
+    watch: 'Watch',
+}
 
 const SCHEDULE_COLUMNS: Column<ScheduleRow>[] = [
     {
@@ -370,6 +419,61 @@ const WEBHOOK_COLUMNS: Column<WebhookRow>[] = [
         id: 'last',
         header: 'Last delivery',
         cell: (row) => <LastDelivery row={row} />,
+    },
+]
+
+const WATCH_COLUMNS: Column<WatchRow>[] = [
+    {
+        id: 'watch',
+        header: 'Watch',
+        kind: 'title',
+        cell: (row) => (
+            <Titled thing={row.watch}>
+                <OwnerChip managed={row.watch.managed} document={row.watch.trigger_document} />
+                {row.watch.paused && <Chip>paused</Chip>}
+            </Titled>
+        ),
+    },
+    {
+        id: 'pipeline',
+        header: 'Pipeline',
+        kind: 'prose',
+        cell: (row) => (
+            <Link
+                className="block truncate text-sm hover:text-primary"
+                to={`/pipelines/${encodeURIComponent(row.pipeline)}`}
+                title={row.pipeline}
+                onClick={(event) => {
+                    event.stopPropagation()
+                }}
+            >
+                {row.pipeline}
+            </Link>
+        ),
+    },
+    {
+        id: 'step',
+        header: 'Step',
+        className: 'font-mono text-xs',
+        cell: (row) => <span className="text-muted-foreground">{row.watch.step}</span>,
+    },
+    {
+        id: 'waiting',
+        header: 'Waiting',
+        cell: (row) => <WatchState watch={row.watch} />,
+    },
+    {
+        id: 'error',
+        header: 'Last error',
+        kind: 'prose',
+        cell: (row) =>
+            row.watch.last_error === null ? (
+                <span className="text-xs text-faint">none</span>
+            ) : (
+                <span className="block truncate text-xs text-muted-foreground" title={row.watch.last_error}>
+                    {row.watch.last_error}
+                </span>
+            ),
     },
 ]
 

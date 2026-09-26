@@ -100,6 +100,7 @@ function pipeline(code: string, schedules: number, over: Partial<PipelineOut> = 
         active_runs: 0,
         schedules,
         webhooks: 0,
+        watches: 0,
         last_run: null,
         created_at: '2026-01-01T00:00:00Z',
         updated_at: '2026-01-01T00:00:00Z',

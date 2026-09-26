@@ -9,9 +9,11 @@ import {
     oneTimeView,
     signing,
     triggerId,
+    watchView,
     type DeliveryOut,
     type FiringOut,
     type ScheduleOut,
+    type WatchOut,
     type WebhookOut,
 } from '@/lib/triggers'
 
@@ -222,7 +224,55 @@ describe('what a webhook shows of itself', () => {
     })
 })
 
-describe('the rows of both kinds in one listing', () => {
+const WATCH: WatchOut = {
+    id: '33333333-3333-7333-8333-333333333333',
+    code: 'follow',
+    name: null,
+    description: null,
+    step: 'arrive',
+    params: {},
+    paused: false,
+    managed: true,
+    trigger_document: null,
+    cursor: { offset: 6 },
+    waiting_run_id: '44444444-4444-7444-8444-444444444444',
+    failures: 0,
+    last_error: null,
+    last_error_at: null,
+    rearm_at: null,
+    last_armed_at: '2026-03-01T04:00:00Z',
+    created_at: '2026-03-01T00:00:00Z',
+}
+
+describe('what a watch is doing', () => {
+    test('is waiting on the run it armed', () => {
+        expect(watchView(WATCH)).toEqual({ kind: 'waiting', tone: 'good', runId: WATCH.waiting_run_id })
+    })
+
+    test('is backing off until the instant a failed wait set', () => {
+        const failing = { ...WATCH, waiting_run_id: null, rearm_at: '2026-03-01T04:00:10Z' }
+        expect(watchView(failing)).toEqual({
+            kind: 'backing-off',
+            tone: 'warn',
+            until: '2026-03-01T04:00:10Z',
+        })
+    })
+
+    test('is arming when nothing waits and nothing holds it back', () => {
+        expect(watchView({ ...WATCH, waiting_run_id: null })).toEqual({ kind: 'arming', tone: 'quiet' })
+    })
+
+    test('is paused whatever else its row still carries', () => {
+        const paused = { ...WATCH, paused: true, rearm_at: '2026-03-01T04:00:10Z' }
+        expect(watchView(paused)).toEqual({ kind: 'paused', tone: 'quiet' })
+    })
+})
+
+describe('the rows of every kind in one listing', () => {
+    test('a watch is never the same row as a schedule or a webhook', () => {
+        expect(triggerId({ kind: 'watch', pipeline: 'p', watch: WATCH })).toBe(`watch:${WATCH.id}`)
+    })
+
     test('a schedule and a webhook are never the same row', () => {
         expect(triggerId({ kind: 'schedule', pipeline: 'p', schedule: SCHEDULE, latest: null })).toBe(
             `schedule:${SCHEDULE.id}`,
