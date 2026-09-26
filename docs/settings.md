@@ -67,6 +67,8 @@ environment, and the server inside one never opens the file.
 | `scheduler_tick` | `DIRIGENT_SCHEDULER_TICK` | `"5s"` | How often the leader asks the database which schedules are due. |
 | `scheduler_misfire_grace` | `DIRIGENT_SCHEDULER_MISFIRE_GRACE` | `"5m"` | How late a firing may be before it counts as a misfire: fire once, advance, no catchup storm. |
 | `scheduler_lock_key` | `DIRIGENT_SCHEDULER_LOCK_KEY` | `1684632167` | The advisory-lock key leadership is taken on; only PostgreSQL has one to take. |
+| `watch_backoff` | `DIRIGENT_WATCH_BACKOFF` | `"5s"` | How long a watch waits before arming again after its sensor failed; later failures double it. |
+| `watch_backoff_max` | `DIRIGENT_WATCH_BACKOFF_MAX` | `"5m"` | The longest a watch backs off, however many waits in a row have failed. |
 | `apply_dir` | `DIRIGENT_APPLY_DIR` | `null` | A directory of pipeline documents the server applies at boot; unset applies nothing. |
 | `apply_prune` | `DIRIGENT_APPLY_PRUNE` | `false` | Whether the boot apply also deactivates directory-provenance pipelines absent from it. |
 | `apply_lock_key` | `DIRIGENT_APPLY_LOCK_KEY` | `1684632161` | The advisory-lock key the boot apply is serialised on, distinct from the scheduler's. |

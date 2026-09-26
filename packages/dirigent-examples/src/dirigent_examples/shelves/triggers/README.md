@@ -1,10 +1,10 @@
 # Trigger examples
 
-What starts a run on its own: a clock, or an inbound webhook. A trigger is declared in the
-document and materialised by `dg apply`; the scheduler fires the clocks and the server
-answers the hooks, on the instance the document was applied to. Operational state -- paused,
-last fired, the firing and delivery history -- stays in the instance, so none of it appears
-in these files. [docs/design.md](../../docs/design.md#the-misfire-policy) is the page behind
+What starts a run on its own: a clock, an inbound webhook, or a watch. A trigger is declared
+in the document and materialised by `dg apply`; the scheduler fires the clocks, the server
+answers the hooks, and a watch keeps a run waiting on its sensor, on the instance the document
+was applied to. Operational state -- paused, last fired, the firing and delivery history, the
+cursor a watch holds -- stays in the instance, so none of it appears in these files. [docs/design.md](../../docs/design.md#the-misfire-policy) is the page behind
 the clocks.
 
 Each file is prefixed with the clock kind it teaches, the way `transform/`'s files are
@@ -34,6 +34,7 @@ dg run --local examples/triggers/cron-windowed.yaml --window 2026-06-01..2026-06
 | [managed-and-manual.yaml](managed-and-manual.yaml) | Against a real instance: what an apply materialises, what it removes, and the hand-made schedule it leaves alone. |
 | [document-nightly.yaml](document-nightly.yaml) | A `kind: triggers` document: clocks for a pipeline defined elsewhere, owning its own rows and refusing a pipeline no instance holds. |
 | [webhook-trigger.yaml](webhook-trigger.yaml) | The inbound trigger: a token minted at apply, a strict payload-to-parameter mapping, and everything else in the POST ignored. |
+| [watch-a-sensor.yaml](watch-a-sensor.yaml) | A watch: one run always waiting on `playground.arrive`, the next armed the moment a batch arrives, the runs overlapping and the offsets carrying on from batch to batch. |
 
 A pipeline carries as many schedules as it needs, each with its own zone and its own
 parameters: nightly against production and hourly against staging is two schedules on one

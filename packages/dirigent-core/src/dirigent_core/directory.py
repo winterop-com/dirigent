@@ -101,7 +101,9 @@ class DirectorySummary(BaseModel):
     """Why the walk stopped early: an instance fault, which no list of refusals should wear."""
 
 
-async def prune_absent(session: AsyncSession, keep: set[str], *, dry_run: bool = False) -> PruneResult:
+async def prune_absent(
+    session: AsyncSession, services: EngineServices, keep: set[str], *, dry_run: bool = False
+) -> PruneResult:
     """Reconcile against a directory: deactivate absent pipelines, delete absent triggers documents.
 
     The narrowing is by the CURRENT version's provenance: what a directory applied last, a
@@ -127,10 +129,10 @@ async def prune_absent(session: AsyncSession, keep: set[str], *, dry_run: bool =
         .order_by(Pipeline.code)
     )
     absent = [str(code) for (code,) in rows.all()]
-    documents = await delete_absent_trigger_documents(session, keep, dry_run=dry_run)
+    documents = await delete_absent_trigger_documents(session, services, keep, dry_run=dry_run)
     if not dry_run:
         for code in absent:
-            await set_active(session, code, active=False)
+            await set_active(session, services, code, active=False)
     return PruneResult(pruned=absent, trigger_documents_removed=documents, dry_run=dry_run)
 
 
@@ -160,7 +162,7 @@ async def apply_directory(
         try:
             await _walk(sessions, services, root, summary, dry_run=dry_run, pause_schedules=pause_schedules)
             if prune:
-                await _prune(sessions, summary, dry_run=dry_run)
+                await _prune(sessions, services, summary, dry_run=dry_run)
         except SQLAlchemyError as error:
             summary.aborted = str(error).splitlines()[0]
             _logger.error("directory apply aborted by an instance fault", root=str(root), error=summary.aborted)
@@ -317,7 +319,13 @@ async def _apply_one(
         summary.unchanged.append(plan.code)
 
 
-async def _prune(sessions: async_sessionmaker[AsyncSession], summary: DirectorySummary, *, dry_run: bool) -> None:
+async def _prune(
+    sessions: async_sessionmaker[AsyncSession],
+    services: EngineServices,
+    summary: DirectorySummary,
+    *,
+    dry_run: bool,
+) -> None:
     """Reconcile after the walk: deactivate what the directory no longer holds.
 
     Schema codes are dropped from what is kept: they name no pipeline, and no schema is pruned.
@@ -334,6 +342,6 @@ async def _prune(sessions: async_sessionmaker[AsyncSession], summary: DirectoryS
         return
     keep = codes - set(summary.schemas)
     async with session_scope(sessions) as session:
-        result = await prune_absent(session, keep, dry_run=dry_run)
+        result = await prune_absent(session, services, keep, dry_run=dry_run)
     summary.pruned = result.pruned
     summary.trigger_documents_removed = result.trigger_documents_removed

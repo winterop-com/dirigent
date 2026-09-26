@@ -63,7 +63,7 @@ from dirigent_server.messages import (
 )
 from dirigent_server.pagination import DEFAULT_PAGE, AfterParam, LimitParam, clip, int_cursor, uuid_cursor
 from dirigent_server.security import OperatorDep, PrincipalDep
-from dirigent_server.transactions import Transactional
+from dirigent_server.transactions import Transactional, retried_on_deadlock
 
 router = APIRouter(route_class=Transactional, tags=["runs"])
 
@@ -383,10 +383,14 @@ def _render_attempt(attempt: StepAttempt, spilled: dict[UUID, tuple[str, int | N
 @router.post("/runs/{run_id}/$cancel", operation_id="cancelRun", summary="Cancel a run", response_model=RunOut)
 async def cancel(run_id: UUID, session: SessionDep, services: ServicesDep, principal: OperatorDep) -> RunOut:
     """Stop what has not started, and tell the remote about what has."""
-    run = await _run_row(session, run_id)
-    pipeline, version, _ = await _context(session, run)
-    await cancel_run(session, services, run, reason=f"cancelled by {principal.label}")
-    return _render_run(run, pipeline, version)
+
+    async def cancel_once() -> RunOut:
+        run = await _run_row(session, run_id)
+        pipeline, version, _ = await _context(session, run)
+        await cancel_run(session, services, run, reason=f"cancelled by {principal.label}")
+        return _render_run(run, pipeline, version)
+
+    return await retried_on_deadlock(session, cancel_once)
 
 
 @router.post(

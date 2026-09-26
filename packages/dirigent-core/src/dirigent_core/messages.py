@@ -225,6 +225,41 @@ SCHEDULE_PARAMS_REFUSED = DOCUMENT.define("schedule_params_refused", "{detail}")
 
 WEBHOOK_MAPPING_REFUSED = DOCUMENT.define("webhook_mapping_refused", "{detail}")
 
+WATCH_PARAMS_REFUSED = DOCUMENT.define("watch_params_refused", "{detail}")
+
+WATCH_UNKNOWN_STEP = DOCUMENT.define(
+    "watch_unknown_step",
+    "watch {code} waits on step {step}, which the pipeline does not have ({available})",
+)
+
+WATCH_NOT_A_ROOT = DOCUMENT.define(
+    "watch_not_a_root",
+    "watch {code} waits on step {step}, which depends on {depends}; a watch waits on a root step, one "
+    "that depends on nothing",
+)
+
+WATCH_NOT_A_SENSOR = DOCUMENT.define(
+    "watch_not_a_sensor",
+    "watch {code} waits on step {step}, whose block {block} is not a sensor; a watch waits on a sensor, "
+    "such as playground.arrive or kafka.consume",
+)
+
+WATCH_REPLACE_POLICY = DOCUMENT.define(
+    "watch_replace_policy",
+    "watch {code} is on a pipeline whose concurrency is replace, which cancels the run a batch just "
+    "arrived in whenever the next run is armed; use allow or queue",
+)
+
+WATCH_WOULD_BREAK = DOCUMENT.define(
+    "watch_would_break",
+    "this version would break watch {code}, which {owner} declares: {detail}",
+)
+
+WATCH_FANS_OUT = DOCUMENT.define(
+    "watch_fans_out",
+    "watch {code} waits on step {step}, which fans out; a watch waits on one sensor, so drop its for_each",
+)
+
 TARGET_PIPELINE_MISSING = DOCUMENT.define(
     "target_pipeline_missing",
     "no pipeline coded {code} exists on this instance; apply it before the document that schedules it",
@@ -424,6 +459,27 @@ BACKFILL_TOO_MANY = SCHEDULE.define(
     "backfill_too_many",
     "a backfill creates at most {cap} runs, and {code} over {start}..{end} enumerates {counted}; narrow the interval",
 )
+
+
+WATCH = Catalogue("watch")
+
+DUPLICATE_WATCH = WATCH.define("duplicate", "pipeline {pipeline} already has a watch coded {code}")
+
+UNKNOWN_WATCH = WATCH.define("unknown", "pipeline {pipeline} has no watch coded {code}")
+
+WATCH_UNARMABLE = WATCH.define(
+    "unarmable",
+    "watch {code} cannot arm a run of version {version} of the pipeline: {detail}; apply a document "
+    "it can watch, or retire the watch",
+)
+
+WATCH_ARM_REFUSED = WATCH.define("arm_refused", "the watch could not arm a run: {detail}")
+
+WATCH_WAIT_FAILED = WATCH.define("wait_failed", "step {step} failed in run {run}: {detail}")
+
+WATCH_WAIT_CANCELLED = WATCH.define("wait_cancelled", "run {run} was cancelled while it waited: {reason}")
+
+WATCH_RUN_GONE = WATCH.define("run_gone", "run {run}, which the watch had waiting, no longer exists")
 
 
 WEBHOOK = Catalogue("webhook")
@@ -640,6 +696,12 @@ NO_ATTEMPT_TO_RETRY = RUN.define("no_attempt_to_retry", "run {run} has no attemp
 NOT_RETRYABLE = RUN.define("not_retryable", "step {step} is {status}, and only a settled failure can be retried")
 
 RUN_VERSION_GONE = RUN.define("version_gone", "run {run} pins a pipeline version that is gone")
+
+RETRY_WATCH_MOVED_ON = RUN.define(
+    "retry_watch_moved_on",
+    "step {step} of run {run} is what watch {watch} waited on, and the watch has moved past this run; "
+    "retrying it would read again what the watch's next run reads",
+)
 
 RETRY_CONCURRENCY = RUN.define(
     "retry_concurrency",

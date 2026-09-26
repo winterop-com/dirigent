@@ -173,7 +173,7 @@ refusals is its own thing: `validation` beside `common` for the pydantic mapping
 beside `cli` for the checks, `notify` for the built-in notifiers. A block family owns its
 family name (`base`, `execute`, `http`, `parquet`, `queues`, `sql`, `storage`), an engine
 inside a family owns two segments (`sql.duckdb`, `transform.jq`), and the core owns one
-prefix per area (`auth`, `pipeline`, `document`, `schedule`, `webhook`, `alert`, `secret`,
+prefix per area (`auth`, `pipeline`, `document`, `schedule`, `webhook`, `watch`, `alert`, `secret`,
 `artifacts`, `run`, `reference`, `host`, `parameter`, `schema`). A pack's prefix is its pack
 name -- `dhis2` for `dirigent-dhis2`. `dirigent-common/tests/test_messages.py` walks every
 catalogue the workspace imports and fails when a prefix is unowned or a code is minted twice.

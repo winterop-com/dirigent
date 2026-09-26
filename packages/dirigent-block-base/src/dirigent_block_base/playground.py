@@ -564,8 +564,11 @@ MAX_PARKED_POKES: Final = 1000
 #: The shortest park the sensor asks for, so the last sliver of a timed wait is one poke.
 MIN_ARRIVE_POLL: Final = timedelta(milliseconds=100)
 
-#: Where the poke count lives between pokes, which is the only thing this sensor remembers.
+#: Where the poke count lives between pokes.
 POKES: Final = "pokes"
+
+#: Where the next batch's first offset lives, which a watch carries from one run to the next.
+OFFSET: Final = "offset"
 
 
 class ArriveConfig(Generation):
@@ -590,7 +593,8 @@ class ArrivedMessage(BlockModel):
     """One message of an arrived batch, shaped the way a consumed message is."""
 
     offset: int
-    """Its place in the batch, counting from zero."""
+    """Its place in the stream: from zero in a run of its own, and on from the last batch in a
+    run a watch armed."""
 
     value: JsonValue
     """The generated record."""
@@ -607,6 +611,9 @@ class ArriveOutput(BlockModel):
 
     count: int
     """How many messages the batch holds."""
+
+    next_offset: int
+    """The offset the next batch starts at, which a watch hands the next run it arms."""
 
     pokes: int
     """How many pokes the step took, the one that carried the batch included."""
@@ -642,9 +649,10 @@ class PlaygroundArriveSensor(Sensor[ArriveConfig, ArriveOutput]):
     each with an offset and the record as its ``value``, which is the shape a queue consumer
     hands downstream.
 
-    The poke count lives in the cursor, and a cursor is at-least-once: a worker that dies
-    between a park and its commit makes the next poke recount the same one, so the sensor
-    parks a poke longer rather than arriving early.
+    The poke count and the first offset live in the cursor, and a cursor is at-least-once: a
+    worker that dies between a park and its commit makes the next poke recount the same one,
+    so the sensor parks a poke longer rather than arriving early. Under a watch, each run's
+    batch is offset on from where the last one ended.
     """
 
     spec = SensorSpec(
@@ -660,13 +668,14 @@ class PlaygroundArriveSensor(Sensor[ArriveConfig, ArriveOutput]):
         """Count this poke, then either park or generate the batch the wait was for."""
         moment = datetime.now(UTC)
         poke = parked_pokes(ctx.cursor) + 1
+        start = first_offset(ctx.cursor)
         waited = moment - ctx.started_at
         remaining = config.after - waited
         if poke <= config.after_pokes or remaining > timedelta(0):
             waiting = _waiting(config, poke, remaining)
             ctx.log.debug("nothing has arrived yet", poke=poke, waited_ms=_milliseconds(waited))
             return NotYet(
-                cursor={POKES: poke},
+                cursor={POKES: poke, OFFSET: start},
                 next_poll_in=max(remaining, MIN_ARRIVE_POLL) if remaining > timedelta(0) else None,
                 progress=_progress(config, poke, waited),
                 message=waiting,
@@ -677,9 +686,11 @@ class PlaygroundArriveSensor(Sensor[ArriveConfig, ArriveOutput]):
         ctx.log.info("a batch arrived", count=len(records), pokes=poke, seed=seed)
         return ArriveOutput(
             messages=[
-                ArrivedMessage(offset=offset, value=value, timestamp=moment) for offset, value in enumerate(records)
+                ArrivedMessage(offset=offset, value=value, timestamp=moment)
+                for offset, value in enumerate(records, start=start)
             ],
             count=len(records),
+            next_offset=start + len(records),
             pokes=poke,
             waited_ms=_milliseconds(waited),
             seed=seed,
@@ -690,11 +701,21 @@ class PlaygroundArriveSensor(Sensor[ArriveConfig, ArriveOutput]):
             payload_bytes=None if payload is None else len(payload),
         )
 
+    def resume_cursor(self, output: ArriveOutput) -> JsonMap | None:
+        """Start the next run's batch where this one ended, with its poke count back at zero."""
+        return {OFFSET: output.next_offset}
+
 
 def parked_pokes(cursor: JsonMap | None) -> int:
     """How many pokes the last committed park counted, and none when there has been no park."""
     held = (cursor or {}).get(POKES)
     return held if isinstance(held, int) else 0
+
+
+def first_offset(cursor: JsonMap | None) -> int:
+    """Where this batch's offsets start: where a watch's last batch ended, or zero."""
+    held = (cursor or {}).get(OFFSET)
+    return held if isinstance(held, int) and held >= 0 else 0
 
 
 def _milliseconds(value: timedelta) -> int:

@@ -528,7 +528,7 @@ async def test_deleting_a_pipeline_cascades_its_history_and_frees_the_code(
         run.status = RunStatus.SUCCEEDED
 
     async with session_scope(pg_sessions) as session:
-        await delete_pipeline(session, "jsonb-round-trip")
+        await delete_pipeline(session, pg_services, "jsonb-round-trip")
 
     async with session_scope(pg_sessions) as session:
         assert await list_pipelines(session) == []
@@ -805,12 +805,12 @@ async def test_a_deactivated_pipeline_stops_its_schedules_firing(
     await _due_schedule(pg_sessions, pipeline)
 
     async with session_scope(pg_sessions) as session:
-        await set_active(session, "clocked", active=False)
+        await set_active(session, pg_services, "clocked", active=False)
 
     assert await tick(pg_sessions, pg_services) == []
 
     async with session_scope(pg_sessions) as session:
-        await set_active(session, "clocked", active=True)
+        await set_active(session, pg_services, "clocked", active=True)
     assert len(await tick(pg_sessions, pg_services)) == 1
 
 
@@ -1229,7 +1229,7 @@ async def test_a_delete_and_a_run_started_beside_it_cannot_both_win(
 
     async def delete() -> None:
         async with session_scope(pg_sessions) as session:
-            await pipelines.delete_pipeline(session, definition.code)
+            await pipelines.delete_pipeline(session, pg_services, definition.code)
 
     async def create() -> Run | None:
         await counting.wait()
@@ -1785,3 +1785,64 @@ async def test_a_flush_cannot_commit_its_entries_before_an_earlier_flush(
         await asyncio.gather(first, second)
 
     assert await messages_of(pg_sessions, run.id) == ["the first flush", "the second flush"]
+
+
+async def test_watch_ticks_racing_on_postgres_arm_exactly_one_run(
+    pg_sessions: async_sessionmaker[AsyncSession], pg_services: EngineServices
+) -> None:
+    """Every armer takes the pipeline's lock and claims the watch by one conditional update."""
+    from dirigent_core.engine.definition import WatchSpec
+    from dirigent_core.models import Watch
+    from dirigent_core.triggers import watches
+
+    watched = PipelineDefinition(
+        code="watched",
+        steps={"tail": StepDefinition(block="test.stream")},
+        triggers=TriggerSpecs(watches=[WatchSpec(code="follow", step="tail", paused=True)]),
+    )
+    async with session_scope(pg_sessions) as session:
+        await apply_document(session, pg_services, watched)
+    async with session_scope(pg_sessions) as session:
+        await session.execute(sa.update(Watch).values(paused=False))
+
+    armed = await asyncio.gather(*(watches.tick(pg_sessions, pg_services) for _ in range(WORKERS)))
+
+    assert sum(len(entries) for entries in armed) == 1
+    async with pg_sessions() as session:
+        runs = await session.execute(sa.select(sa.func.count()).select_from(Run))
+        assert int(runs.scalar_one()) == 1, "one watch is one waiting run, however many ticks raced for it"
+        watch = (await session.execute(sa.select(Watch))).scalar_one()
+        assert watch.waiting_run_id is not None
+
+
+async def test_a_watch_settling_while_it_is_paused_never_deadlocks_on_postgres(
+    pg_sessions: async_sessionmaker[AsyncSession], pg_services: EngineServices
+) -> None:
+    """The settlement and the pause both take the pipeline's lock before the run's."""
+    from dirigent_core.engine.definition import WatchSpec
+    from dirigent_core.models import Watch
+    from dirigent_core.triggers.watches import set_paused
+
+    watched = PipelineDefinition(
+        code="raced",
+        steps={"tail": StepDefinition(block="test.stream", config={"parks": 0})},
+        triggers=TriggerSpecs(watches=[WatchSpec(code="follow", step="tail")]),
+    )
+    async with session_scope(pg_sessions) as session:
+        await apply_document(session, pg_services, watched)
+    worker = Engine(pg_sessions, pg_services, owner="racing-worker")
+
+    async def toggle(paused: bool) -> None:
+        async with session_scope(pg_sessions) as session:
+            row = (await session.execute(sa.select(Watch))).scalar_one()
+            await set_paused(session, pg_services, row, paused=paused)
+
+    for _ in range(10):
+        unit = await worker.claim()
+        assert unit is not None
+        await asyncio.gather(worker.run_unit(unit), toggle(True))
+        async with pg_sessions() as session:
+            watch = (await session.execute(sa.select(Watch))).scalar_one()
+            assert watch.paused is True
+            assert watch.waiting_run_id is None, "a paused watch keeps no run waiting"
+        await toggle(False)

@@ -43,6 +43,8 @@ OPERATOR_ONLY = [
     ("post", "/pipelines/api-demo/triggers/webhooks/intake/$disable"),
     ("post", "/pipelines/api-demo/triggers/webhooks/intake/$enable"),
     ("delete", "/pipelines/api-demo/triggers/webhooks/intake"),
+    ("post", "/pipelines/api-demo/triggers/watches/tail/$pause"),
+    ("post", "/pipelines/api-demo/triggers/watches/tail/$resume"),
     ("delete", "/trigger-documents/nightly-clocks"),
     ("post", "/alert-rules"),
     ("patch", "/alert-rules/whatever"),

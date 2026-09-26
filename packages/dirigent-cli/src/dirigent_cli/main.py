@@ -127,6 +127,7 @@ app.add_typer(commands.schema_app, rich_help_panel=DEFINE_PANEL)
 app.add_typer(commands.connection_app, rich_help_panel=CONNECT_PANEL)
 app.add_typer(triggers.schedule_app, rich_help_panel=TRIGGER_PANEL)
 app.add_typer(triggers.webhook_app, rich_help_panel=TRIGGER_PANEL)
+app.add_typer(triggers.watch_app, rich_help_panel=TRIGGER_PANEL)
 app.add_typer(triggers.trigger_document_app, rich_help_panel=TRIGGER_PANEL)
 app.add_typer(triggers.alerts_app, rich_help_panel=TRIGGER_PANEL)
 app.add_typer(docker_app, rich_help_panel=PROCESS_PANEL)
@@ -911,7 +912,7 @@ def dev(
         typer.Option(
             "--seed",
             help="Apply every dirigent/v1 document under this directory once the API answers, "
-            "with its schedules paused; name it more than once to seed one directory after another.",
+            "with its schedules and watches paused; name it more than once to seed one directory after another.",
         ),
     ] = None,
     seed_installed: Annotated[
@@ -934,7 +935,7 @@ def dev(
 
     --seed fills the instance from a directory of documents the moment it answers: the
     connections a file or a document declares are created first, then every document is
-    applied with its schedules paused. A document an instance will not store is reported
+    applied with its schedules and watches paused. A document an instance will not store is reported
     and passed over, because a corpus holds those on purpose.
     """
     import asyncio

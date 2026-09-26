@@ -156,6 +156,7 @@ async def test_a_corpus_is_applied_and_its_refusals_reported(dg: Dirigent, corpu
     assert [record["pipeline"] for record in applied] == ["seeded-carrying", "seeded-plain"]
     assert {record["action"] for record in applied} == {PlanAction.CREATE.value}
     assert [record["schedules_paused"] for record in applied] == [[], ["nightly"]]
+    assert [record["watches_paused"] for record in applied] == [[], []]
     refused = of_kind(stream, "seed.refused")
     assert len(refused) == 1
     assert refused[0]["document"].endswith("refused.yaml")

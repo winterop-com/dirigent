@@ -278,7 +278,7 @@ steps:
   "messages": [
     {"offset": 0, "value": {"station": "East Donald", "reading": 409.37}, "timestamp": "..."}
   ],
-  "count": 4, "pokes": 3, "waited_ms": 2038,
+  "count": 4, "next_offset": 4, "pokes": 3, "waited_ms": 2038,
   "seed": 42, "locale": "en_US",
   "fields": {"station": "city", "reading": "pyfloat"},
   "drift": "none", "payload": null, "payload_bytes": null
@@ -308,9 +308,9 @@ are a 2s poll and a 10 minute deadline.
 A sensor's word for "nothing yet" is `NotYet`, which is not a failure, and in a document the
 two would read as one thing: a poke that parks and a poke that fails both leave the step
 unsettled. They are not one thing to the engine -- a park keeps the attempt and a failure ends
-it -- and the difference shows up in the cursor, which lives on the attempt row: a failed poke
-that earns a retry starts the next attempt with no cursor and parks the whole wait again from
-zero. That is a real lesson about sensors, and it is not the lesson about retry classification;
+it -- and the difference shows up in the cursor, which lives on the attempt row: outside a
+watch, a failed poke that earns a retry starts the next attempt with no cursor and parks the
+whole wait again from zero. That is a real lesson about sensors, and it is not the lesson about retry classification;
 a document that wants the classes wants the node, which is one step and one attempt number.
 
 ### What one poke answers
@@ -325,7 +325,7 @@ A poke answers one of two things, and neither is a failure:
   a park costs a comparison and not a field map.
 
 **The poke count lives in the cursor and nowhere else**, which is what makes the wait durable
-across a worker restart. A cursor is at-least-once: a worker that dies between a park and the
+across a worker restart. So does the offset the batch will start at. A cursor is at-least-once: a worker that dies between a park and the
 transaction that commits it leaves the older count for the next poke to read, so the sensor
 parks one poke longer rather than arriving early.
 
@@ -337,7 +337,17 @@ document written against the playground reads almost unchanged against a real to
 is one to point it at.
 
 What it does not have is what the playground has nothing to put in: no topic, no partition, no
-key, no headers, and no broker offsets to commit. `timestamp` is when the batch arrived.
+key, no headers, and no broker offsets to commit. `timestamp` is when the batch arrived, and
+`next_offset` is where the next batch starts.
+
+### Watched, it is a stream
+
+Under a [watch](concepts.md#watches), `playground.arrive` is a source that never runs dry: one
+run always waits on it, and the moment a batch arrives the next run is armed and starts its
+offsets where this batch's ended. Three runs of three rows carry offsets 0 to 8 between them,
+with nothing to connect to, so the run list filling and the graph lighting up batch after batch
+is what watching a topic looks like, offline:
+[`examples/triggers/watch-a-sensor.yaml`](https://github.com/winterop-com/dirigent/tree/main/examples/triggers/watch-a-sensor.yaml).
 
 ### A readiness wait, offline
 

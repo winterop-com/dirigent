@@ -90,6 +90,9 @@ export function triggerChanges(triggers: Materialized): string[] {
         ['webhooks created', triggers.webhooks_created],
         ['webhooks updated', triggers.webhooks_updated],
         ['webhooks removed', triggers.webhooks_removed],
+        ['watches created', triggers.watches_created],
+        ['watches updated', triggers.watches_updated],
+        ['watches removed', triggers.watches_removed],
     ] as const) {
         if (names.length > 0) lines.push(`${what}: ${names.join(', ')}`)
     }

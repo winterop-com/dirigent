@@ -55,6 +55,7 @@ from dirigent_core.messages import (
     NOT_RETRYABLE,
     PARENT_GONE,
     RETRY_CONCURRENCY,
+    RETRY_WATCH_MOVED_ON,
     RUN_PIPELINE_INACTIVE,
     RUN_PIPELINE_NO_VERSIONS,
     RUN_PIPELINE_UNREADABLE,
@@ -63,7 +64,7 @@ from dirigent_core.messages import (
     SELF_START,
     STEP_REFUSED,
 )
-from dirigent_core.models import Pipeline, PipelineVersion, Run, RunItem, StepAttempt, utcnow
+from dirigent_core.models import Pipeline, PipelineVersion, Run, RunItem, StepAttempt, Watch, utcnow
 from dirigent_core.storage import scratch_prefix
 from dirigent_plugin import RemoteHandle, RunRefused, RunSnapshot, RunState, StartedRun
 
@@ -216,6 +217,8 @@ async def create_run(
     window: RunWindow | None = None,
     log_levels: JsonMap | None = None,
     priority: RunPriority | None = None,
+    cursors: Mapping[str, JsonMap] | None = None,
+    run_id: UUID | None = None,
     now: datetime | None = None,
 ) -> Run | None:
     """Instantiate a run from a pipeline version and validated parameters.
@@ -223,6 +226,10 @@ async def create_run(
     ``priority`` is the trigger's or the caller's override; omitted, the run takes the
     pipeline's own. Whichever wins is pinned on the row, so a later edit of the document
     never reorders a run already in flight.
+
+    ``cursors`` seeds the first attempt of each named step with the cursor its first poke is
+    handed, which is how a watch carries on from where its last run left off. ``run_id`` is
+    the id the run is written under, for a caller that has claimed it before the run exists.
 
     Returns None when the pipeline's ``skip`` concurrency policy refuses the run outright.
     """
@@ -245,7 +252,7 @@ async def create_run(
         # `replace` cancellation asks operators to kill remote work and a refusal after that
         # leaves those jobs dead with their run restored. The run's id is minted here so the
         # expansion can address the run it is about to belong to.
-        run_id = uuid7()
+        run_id = run_id or uuid7()
         scope = ReferenceScope(
             params=resolved_params,
             scratch=scratch_prefix(services.settings.artifact_root, run_id),
@@ -302,8 +309,11 @@ async def create_run(
             await session.flush()
             span.set_attribute("dirigent.run.id", str(run.id))
 
+            seeds = cursors or {}
             for name, elements in expanded:
-                await _create_step_rows(session, run, name, definition.steps[name], elements, moment, held=held)
+                await _create_step_rows(
+                    session, run, name, definition.steps[name], elements, moment, held=held, cursor=seeds.get(name)
+                )
             await session.flush()
             if not held:
                 await advance(session, run, definition, now=moment)
@@ -326,10 +336,11 @@ async def _create_step_rows(
     moment: datetime,
     *,
     held: bool,
+    cursor: JsonMap | None = None,
 ) -> None:
     """Write the attempt rows one step needs, one per element of an already expanded fan-out."""
     if not step.is_fan_out:
-        session.add(_new_attempt(run, name, step, moment, held=held))
+        session.add(_new_attempt(run, name, step, moment, held=held, cursor=cursor))
         return
     for index, element in enumerate(elements):
         item = RunItem(
@@ -353,10 +364,12 @@ def _new_attempt(
     *,
     held: bool,
     run_item_id: UUID | None = None,
+    cursor: JsonMap | None = None,
 ) -> StepAttempt:
     """Build one attempt row: root steps queued, everything else pending on its edges."""
     root = not step.depends_on and not held
     return StepAttempt(
+        poke_cursor=dict(cursor) if cursor is not None else None,
         run_id=run.id,
         run_item_id=run_item_id,
         step_name=name,
@@ -462,6 +475,9 @@ async def cancel_run(
     # A cancelled run frees the concurrency slot as a finished one does; without promoting
     # here, cancelling the active run of a `queue` pipeline wedges the queue forever.
     await promote_queued_run(session, services, run.pipeline_id)
+    from dirigent_core.triggers.watches import note_settled
+
+    await note_settled(session, services, run, now=moment)
     _logger.info("run cancelled", run_id=str(run.id), reason=reason, attempts=len(attempts))
     return run
 
@@ -614,6 +630,7 @@ async def retry_step(
     latest = attempts[0]
     if latest.status not in (AttemptStatus.FAILED, AttemptStatus.SKIPPED, AttemptStatus.CANCELLED):
         raise RunCreationError(NOT_RETRYABLE, step=repr(step_name), status=latest.status.value)
+    watched = await _watched_by(session, run, step_name)
 
     await _admit_retry(session, services, run, definition, moment)
 
@@ -628,6 +645,7 @@ async def retry_step(
         available_at=moment,
         idempotency_key=scoped,
         input={IDEMPOTENCY_KEY: idempotency_key},
+        poke_cursor=dict(latest.poke_cursor) if watched and latest.poke_cursor is not None else None,
     )
     session.add(retried)
     await _reopen_propagated_skips(session, run.id)
@@ -637,6 +655,22 @@ async def retry_step(
     await session.flush()
     _logger.info("manual retry created", run_id=str(run.id), step=step_name, attempt=retried.attempt)
     return retried
+
+
+async def _watched_by(session: AsyncSession, run: Run, step_name: str) -> bool:
+    """Say whether a step is the one a watch waits on in this run, refusing a retry the watch moved past.
+
+    The watched step of any run but the watch's waiting one is refused.
+    """
+    if run.triggered_by_kind is not TriggerKind.WATCH or run.triggered_by_id is None:
+        return False
+    watch = await session.get(Watch, run.triggered_by_id)
+    if watch is None or watch.step != step_name:
+        return False
+    await session.refresh(watch)
+    if watch.waiting_run_id != run.id:
+        raise RunCreationError(RETRY_WATCH_MOVED_ON, step=repr(step_name), run=run.id, watch=repr(watch.code))
+    return True
 
 
 async def _definition_of(session: AsyncSession, run: Run) -> PipelineDefinition:

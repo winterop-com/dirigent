@@ -1,0 +1,85 @@
+# A sensor made a continuous source: one run always waiting on it, the next armed the moment
+# it succeeds.
+#
+# A schedule starts a run at a moment and a webhook when somebody calls. A watch starts one
+# whenever the last one has what it was waiting for: it keeps exactly one run of this pipeline
+# waiting on the `arrive` step, and the transaction that settles that step's success arms the
+# next run. The run that succeeded carries on downstream while the next one waits, so the runs
+# overlap -- batch N is being summarised while batch N+1 is being waited for -- and the run list
+# fills the way a topic being consumed does. Nothing here needs a network or an allowlist:
+#
+#   dg apply examples/triggers/watch-a-sensor.yaml
+#   dg watch list watch-a-sensor                 # the run it has waiting, and where it left off
+#   dg runs list --pipeline watch-a-sensor       # a new run every five seconds or so
+#   dg watch pause watch-a-sensor follow         # cancels the waiting run, keeps the cursor
+#   dg watch resume watch-a-sensor follow        # arms a run that reads on from there
+#
+# `dg run --local` runs the pipeline once, as an ordinary run: a throwaway instance runs the
+# one run it was asked for, so the watch lands paused there.
+#
+# Hop by hop:
+#
+#   arrive      playground.arrive, parked for five seconds, then a batch of three generated
+#               readings. Under the watch its offsets carry on from the batch before: the
+#               first run's are 0 to 2, the next run's 3 to 5, and so on.
+#   summarise   a jq transform over the batch, which reads it the way a step downstream of a
+#               topic would: how many, and the first and last offset.
+#
+# THE WATCH OWNS THE CURSOR. playground.arrive says where a batch ended, and the watch stores
+# that and hands it to the next run's first poke. kafka.consume does the same with its
+# offsets, which is how a watched topic is read on without a consumer group:
+# examples/queues/kafka-watch-then-transform.yaml is the same shape against a real broker.
+#
+# A WAIT THAT FAILS BACKS OFF. Were `arrive` to fail after its retries, the watch would record
+# why (`dg watch show watch-a-sensor follow` reads it as last_error) and arm again after five
+# seconds, doubling up to five minutes, from the last cursor a success stored. A deadline
+# that ran out under on_timeout: skip found nothing, which is no failure: it arms at once.
+
+format: dirigent/v1
+kind: pipeline
+code: watch-a-sensor
+name: Watch a sensor
+description: |
+  A watch keeps one run waiting on a generated batch and arms the next the moment it
+  arrives, so the runs overlap and the offsets carry on from one batch to the next.
+
+tags: [triggers, playground, sensor, jq, starter]
+
+requires:
+  blocks:
+    - playground.arrive
+    - transform.jq
+
+steps:
+  arrive:
+    block: playground.arrive
+    # A watch waits on a root step, one that depends on nothing, and on a sensor: the watch
+    # is refused at apply otherwise.
+    poll: 1s
+    deadline: 1m
+    config:
+      # Five seconds from when the attempt started, so a new batch lands every five seconds
+      # or so. after_pokes is zero because the clock is what this wait is about.
+      after: 5s
+      after_pokes: 0
+      rows: 3
+      fields:
+        station: city
+        reading: pyfloat
+
+  summarise:
+    block: transform.jq
+    depends_on: [arrive]
+    config:
+      input: ${steps.arrive.output}
+      program: >-
+        {count: .count, first_offset: .messages[0].offset,
+         last_offset: .messages[-1].offset, next_offset: .next_offset}
+
+triggers:
+  watches:
+    - code: follow
+      name: Follow the arrivals
+      # The step every armed run waits on. Its success arms the next run; everything
+      # downstream of it runs in the run that succeeded.
+      step: arrive

@@ -1,4 +1,4 @@
-"""A pipeline's persisted triggers: its schedules and its inbound webhooks.
+"""A pipeline's persisted triggers: its schedules, its inbound webhooks, and its watches.
 
 The instance keeps only the hash of a webhook's token, so the token is readable exactly
 once: when it is minted or rotated.
@@ -22,6 +22,7 @@ from dirigent_client.schemas import (
     ScheduleOut,
     SchedulePreview,
     SchedulePreviewRequest,
+    WatchOut,
     WebhookIn,
     WebhookOut,
     WebhookTokenOut,
@@ -34,6 +35,7 @@ from dirigent_core.models import (
     Schedule,
     ScheduleFiring,
     TriggerDocument,
+    Watch,
     WebhookDelivery,
     WebhookTrigger,
 )
@@ -41,6 +43,7 @@ from dirigent_core.pipelines import get_version, require_pipeline
 from dirigent_core.triggers import (
     ScheduleRequest,
     UnknownSchedule,
+    UnknownWatch,
     UnknownWebhook,
     WebhookRequest,
     check_schedule_params,
@@ -50,21 +53,24 @@ from dirigent_core.triggers import (
     delete_schedule,
     delete_webhook,
     find_schedule,
+    find_watch,
     find_webhook,
     list_deliveries,
     list_firings,
     list_schedules,
+    list_watches,
     list_webhooks,
     preview_firings,
     rotate_token,
     set_active,
     set_paused,
+    set_watch_paused,
     update_schedule,
 )
 from dirigent_server.dependencies import ServicesDep, SessionDep
 from dirigent_server.pagination import DEFAULT_PAGE, AfterParam, LimitParam, clip, int_cursor
 from dirigent_server.security import OperatorDep, PrincipalDep
-from dirigent_server.transactions import Transactional
+from dirigent_server.transactions import Transactional, retried_on_deadlock
 
 router = APIRouter(route_class=Transactional, tags=["triggers"])
 
@@ -101,7 +107,7 @@ def _webhook_request(payload: WebhookIn) -> WebhookRequest:
     )
 
 
-async def owning_documents(session: AsyncSession, rows: Sequence[Schedule | WebhookTrigger]) -> dict[UUID, str]:
+async def owning_documents(session: AsyncSession, rows: Sequence[Schedule | WebhookTrigger | Watch]) -> dict[UUID, str]:
     """Read the code of every triggers document that owns one of these rows."""
     wanted = {row.trigger_document_id for row in rows if row.trigger_document_id is not None}
     if not wanted:
@@ -154,6 +160,29 @@ def render_webhook(row: WebhookTrigger, documents: Mapping[UUID, str] = MappingP
         rate_limit_per_minute=row.rate_limit_per_minute,
         priority=row.priority,
         last_delivery_at=row.last_delivery_at,
+        created_at=row.created_at,
+    )
+
+
+def render_watch(row: Watch, documents: Mapping[UUID, str] = MappingProxyType({})) -> WatchOut:
+    """Render a watch row: what it waits on, where it left off, and how its waits are going."""
+    return WatchOut(
+        id=row.id,
+        code=row.code,
+        name=row.name,
+        description=row.description,
+        step=row.step,
+        params=dict(row.params),
+        paused=row.paused,
+        managed=row.managed,
+        trigger_document=documents.get(row.trigger_document_id) if row.trigger_document_id else None,
+        cursor=dict(row.cursor) if row.cursor is not None else None,
+        waiting_run_id=row.waiting_run_id,
+        failures=row.failures,
+        last_error=row.last_error,
+        last_error_at=row.last_error_at,
+        rearm_at=row.rearm_at,
+        last_armed_at=row.last_armed_at,
         created_at=row.created_at,
     )
 
@@ -463,6 +492,79 @@ async def remove_webhook(code: str, webhook: str, session: SessionDep, principal
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+@router.get(
+    "/pipelines/{code}/triggers/watches",
+    operation_id="listWatches",
+    summary="List a pipeline's watches",
+    response_model=Page[WatchOut],
+)
+async def watches(
+    code: str,
+    session: SessionDep,
+    principal: PrincipalDep,
+    after: AfterParam = None,
+    limit: LimitParam = DEFAULT_PAGE,
+) -> Page[WatchOut]:
+    """List every watch on a pipeline, with the run each one has waiting."""
+    pipeline = await _require(session, code)
+    rows = await list_watches(session, pipeline.id, after=after, limit=limit + 1)
+    documents = await owning_documents(session, rows)
+    items, following = clip([render_watch(row, documents) for row in rows], limit, lambda row: row.code)
+    return Page(items=items, next=following)
+
+
+@router.get(
+    "/pipelines/{code}/triggers/watches/{watch}",
+    operation_id="getWatch",
+    summary="Read one watch",
+    response_model=WatchOut,
+)
+async def get_watch(code: str, watch: str, session: SessionDep, principal: PrincipalDep) -> WatchOut:
+    """Read one watch by code."""
+    return await _watch_out(session, await _require_watch(session, code, watch))
+
+
+@router.post(
+    "/pipelines/{code}/triggers/watches/{watch}/$pause",
+    operation_id="pauseWatch",
+    summary="Pause a watch",
+    response_model=WatchOut,
+)
+async def pause_watch(
+    code: str, watch: str, session: SessionDep, services: ServicesDep, principal: OperatorDep
+) -> WatchOut:
+    """Stop a watch, cancelling the run it has waiting, and keep where it left off."""
+
+    async def pause_once() -> WatchOut:
+        row = await _require_watch(session, code, watch)
+        return await _watch_out(session, await set_watch_paused(session, services, row, paused=True))
+
+    return await retried_on_deadlock(session, pause_once)
+
+
+@router.post(
+    "/pipelines/{code}/triggers/watches/{watch}/$resume",
+    operation_id="resumeWatch",
+    summary="Resume a watch",
+    response_model=WatchOut,
+)
+async def resume_watch(
+    code: str, watch: str, session: SessionDep, services: ServicesDep, principal: OperatorDep
+) -> WatchOut:
+    """Start a watch again, arming a run from where its last success left off."""
+
+    async def resume_once() -> WatchOut:
+        row = await _require_watch(session, code, watch)
+        return await _watch_out(session, await set_watch_paused(session, services, row, paused=False))
+
+    return await retried_on_deadlock(session, resume_once)
+
+
+async def _watch_out(session: AsyncSession, row: Watch) -> WatchOut:
+    """Render one watch, with the code of whichever triggers document owns it."""
+    return render_watch(row, await owning_documents(session, [row]))
+
+
 async def _check_pins(session: AsyncSession, services: EngineServices, pipeline_id: UUID, payload: ScheduleIn) -> None:
     """Check a schedule's pinned parameters against the definition its firings will run.
 
@@ -499,6 +601,15 @@ async def _require_schedule(session: AsyncSession, pipeline_code: str, code: str
     if schedule is None:
         raise UnknownSchedule(pipeline_code, code)
     return schedule
+
+
+async def _require_watch(session: AsyncSession, pipeline_code: str, code: str) -> Watch:
+    """Read one watch within its pipeline, or say which half was not found."""
+    pipeline = await _require(session, pipeline_code)
+    watch = await find_watch(session, pipeline.id, code)
+    if watch is None:
+        raise UnknownWatch(pipeline_code, code)
+    return watch
 
 
 async def _require_webhook(session: AsyncSession, pipeline_code: str, code: str) -> WebhookTrigger:

@@ -4,7 +4,7 @@ import { Instant } from '@/components/Instant'
 import { Copyable, Fact, Section } from '@/components/run/Panel'
 import { StatusChip } from '@/components/run/StatusChip'
 import { asJson, elapsedBetween, formatDuration, formatWindow } from '@/lib/format'
-import type { RunOut } from '@/lib/runs'
+import { triggerSummary, type RunOut } from '@/lib/runs'
 
 export const COPY_TRACE_LABEL = 'Copy the trace id'
 export const COPY_RUN_LABEL = 'Copy the run id'
@@ -40,7 +40,7 @@ export function RunTab({ run }: { run: RunOut }) {
 
             <Section title="Trigger">
                 <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
-                    <Fact term="kind" detail={run.triggered_by_kind} />
+                    <Fact term="kind" detail={triggerSummary(run).kind} />
                     <Fact term="by" detail={run.triggered_by_label ?? 'not recorded'} />
                 </dl>
             </Section>

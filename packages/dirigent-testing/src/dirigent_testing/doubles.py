@@ -226,7 +226,7 @@ class FakeContext:
         self.started_at = datetime.now(UTC)
         self.inline_capture = 8 * 1024
         self.cursor: dict[str, JsonValue] | None = None
-        """What the last committed ``NotYet`` returned, which a test sets to poke again."""
+        """What the next poke is handed: set by a test, or by ``carry_cursor`` as the engine would."""
         self.params: dict[str, JsonValue] = {}
         self.log = RecordingLogger()
         self.connections: dict[str, BaseModel] = {}

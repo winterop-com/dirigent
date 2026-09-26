@@ -18,6 +18,7 @@ from dirigent_client.resources.schedules import Schedules
 from dirigent_client.resources.schemas import Schemas
 from dirigent_client.resources.system import System, Workers
 from dirigent_client.resources.trigger_documents import TriggerDocuments
+from dirigent_client.resources.watches import Watches
 from dirigent_client.resources.webhooks import Webhooks
 from dirigent_client.transport import API_PREFIX, DEFAULT_RETRIES, DEFAULT_TIMEOUT, Transport
 
@@ -56,6 +57,7 @@ class Dirigent:
         self.examples = Examples(self.transport)
         self.schedules = Schedules(self.transport)
         self.webhooks = Webhooks(self.transport)
+        self.watches = Watches(self.transport)
         self.trigger_documents = TriggerDocuments(self.transport)
         self.alerts = Alerts(self.transport)
         self.system = System(self.transport)
@@ -99,6 +101,7 @@ class BlockingDirigent:
         self.examples = self.client.examples
         self.schedules = self.client.schedules
         self.webhooks = self.client.webhooks
+        self.watches = self.client.watches
         self.trigger_documents = self.client.trigger_documents
         self.alerts = self.client.alerts
         self.system = self.client.system

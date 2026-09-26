@@ -79,6 +79,8 @@ export interface PipelineOut {
     active_runs: number
     schedules: number
     webhooks: number
+    /** How many watches keep a run of this pipeline waiting on a sensor. */
+    watches: number
     last_run: LastRun | null
     created_at: string
     updated_at: string
@@ -146,6 +148,9 @@ export interface Materialized {
     webhooks_created: string[]
     webhooks_updated: string[]
     webhooks_removed: string[]
+    watches_created: string[]
+    watches_updated: string[]
+    watches_removed: string[]
 }
 
 /** The outcome of an apply, or of the dry run that plans one. `ApplyResult`. */
@@ -352,12 +357,15 @@ export function applyPipeline(document: JsonMap, dryRun: boolean): Promise<Apply
 }
 
 /** What fires a pipeline on its own, in words, which is what the glyphs are titled with. */
-export function triggerSummary(row: Pick<PipelineOut, 'schedules' | 'webhooks'>): string {
-    const parts = [count(row.schedules, 'schedule'), count(row.webhooks, 'webhook')].filter(
-        (part) => part !== null,
-    )
+export function triggerSummary(row: Pick<PipelineOut, 'schedules' | 'webhooks' | 'watches'>): string {
+    const parts = [
+        count(row.schedules, 'schedule'),
+        count(row.webhooks, 'webhook'),
+        count(row.watches, 'watch', 'watches'),
+    ].filter((part) => part !== null)
     if (parts.length === 0) return 'nothing fires this on its own'
-    return parts.join(' and ')
+    if (parts.length === 1) return parts[0]
+    return `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`
 }
 
 /**
@@ -375,9 +383,9 @@ export function emptyNote(loaded: number, tags: readonly string[]): string {
 }
 
 /** A count and the thing counted, or nothing at all when there are none. */
-function count(many: number, thing: string): string | null {
+function count(many: number, thing: string, things = `${thing}s`): string | null {
     if (many === 0) return null
-    return `${String(many)} ${thing}${many === 1 ? '' : 's'}`
+    return `${String(many)} ${many === 1 ? thing : things}`
 }
 
 /** How a pipeline's last run reads in the listing: a state, when it was, and what went wrong. */

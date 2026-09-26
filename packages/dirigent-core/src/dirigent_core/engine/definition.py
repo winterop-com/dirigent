@@ -241,6 +241,26 @@ class WebhookSpec(BaseModel):
     """The priority every accepted delivery's run carries, or null to take the pipeline's own."""
 
 
+class WatchSpec(BaseModel):
+    """A sensor step made a continuous source: one run always waiting on it, the next armed on success.
+
+    ``paused`` is the state a watch is created in. Once it exists, pausing and resuming are
+    the instance's, as they are for a schedule, and an apply leaves them as they are.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    code: EntityName
+    name: str | None = None
+    description: str | None = None
+    step: StepName
+    """The root step, a sensor, that every run this watch arms waits on."""
+
+    paused: bool = False
+    params: JsonMap = Field(default_factory=dict)
+    """The parameters every armed run carries, pinned as a schedule's are."""
+
+
 class TriggerSpecs(BaseModel):
     """The triggers a document declares, which travel with it but stay optional."""
 
@@ -248,11 +268,12 @@ class TriggerSpecs(BaseModel):
 
     schedules: list[ScheduleSpec] = Field(default_factory=list[ScheduleSpec])
     webhooks: list[WebhookSpec] = Field(default_factory=list[WebhookSpec])
+    watches: list[WatchSpec] = Field(default_factory=list[WatchSpec])
 
     @property
     def empty(self) -> bool:
         """Report whether this document declares no triggers at all."""
-        return not self.schedules and not self.webhooks
+        return not self.schedules and not self.webhooks and not self.watches
 
 
 class ReportSpec(BaseModel):
@@ -448,7 +469,7 @@ def _schema_problem(error: Exception) -> str:
 
 
 class TriggersDefinition(BaseModel):
-    """A ``dirigent/v1`` triggers document: clocks and webhooks for a pipeline defined elsewhere."""
+    """A ``dirigent/v1`` triggers document: clocks, webhooks and watches for a pipeline defined elsewhere."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -465,7 +486,7 @@ class TriggersDefinition(BaseModel):
 
     @model_validator(mode="after")
     def _check_trigger_codes(self) -> Self:
-        """Reject two schedules or two webhooks sharing a code."""
+        """Reject two schedules, two webhooks, or two watches sharing a code."""
         _require_unique_trigger_codes(self.triggers)
         return self
 
@@ -548,10 +569,11 @@ def _ordered_opaque(value: JsonValue) -> JsonValue:
 
 
 def _require_unique_trigger_codes(triggers: TriggerSpecs) -> None:
-    """Reject two schedules or two webhooks sharing a code."""
+    """Reject two schedules, two webhooks, or two watches sharing a code."""
     for label, codes in (
         ("schedule", [schedule.code for schedule in triggers.schedules]),
         ("webhook", [webhook.code for webhook in triggers.webhooks]),
+        ("watch", [watch.code for watch in triggers.watches]),
     ):
         duplicates = sorted({code for code in codes if codes.count(code) > 1})
         if duplicates:

@@ -26,6 +26,7 @@ const ROW: PipelineOut = {
     active_runs: 0,
     schedules: 0,
     webhooks: 0,
+    watches: 0,
     last_run: null,
     created_at: '2026-03-01T00:00:00Z',
     updated_at: '2026-03-01T00:00:00Z',
@@ -127,13 +128,19 @@ describe('what an empty pipelines table says', () => {
 
 describe('what fires a pipeline', () => {
     test('is said as nothing when nothing does', () => {
-        expect(triggerSummary({ schedules: 0, webhooks: 0 })).toBe('nothing fires this on its own')
+        expect(triggerSummary({ schedules: 0, webhooks: 0, watches: 0 })).toBe(
+            'nothing fires this on its own',
+        )
     })
 
     test('counts each kind, and only the kinds there are', () => {
-        expect(triggerSummary({ schedules: 1, webhooks: 0 })).toBe('1 schedule')
-        expect(triggerSummary({ schedules: 0, webhooks: 2 })).toBe('2 webhooks')
-        expect(triggerSummary({ schedules: 2, webhooks: 1 })).toBe('2 schedules and 1 webhook')
+        expect(triggerSummary({ schedules: 1, webhooks: 0, watches: 0 })).toBe('1 schedule')
+        expect(triggerSummary({ schedules: 0, webhooks: 2, watches: 0 })).toBe('2 webhooks')
+        expect(triggerSummary({ schedules: 2, webhooks: 1, watches: 0 })).toBe('2 schedules and 1 webhook')
+        expect(triggerSummary({ schedules: 0, webhooks: 0, watches: 2 })).toBe('2 watches')
+        expect(triggerSummary({ schedules: 1, webhooks: 1, watches: 1 })).toBe(
+            '1 schedule, 1 webhook and 1 watch',
+        )
     })
 })
 

@@ -645,7 +645,8 @@ async def run_document(
                 async with session_scope(sessions) as session:
                     await _apply_supporting(session, services, extra_definition)
             async with session_scope(sessions) as session:
-                applied = await apply_document(session, services, definition)
+                # Triggers land paused: the instance runs only the run it was asked for.
+                applied = await apply_document(session, services, definition, pause_schedules=True)
                 if not applied.plan.ok:
                     raise LocalError(
                         "the document does not validate against the installed catalog:\n"
@@ -697,8 +698,8 @@ def _parse_supporting(text: str) -> PipelineDefinition:
 
 
 async def _apply_supporting(session: AsyncSession, services: EngineServices, supporting: PipelineDefinition) -> None:
-    """Apply one document a run depends on, without running it."""
-    applied = await apply_document(session, services, supporting)
+    """Apply one document a run depends on, without running it or arming its triggers."""
+    applied = await apply_document(session, services, supporting, pause_schedules=True)
     if not applied.plan.ok:
         raise LocalError(
             f"the supporting document {supporting.code!r} does not validate:\n"

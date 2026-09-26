@@ -107,7 +107,8 @@ engine keeps the latest of each on the waiting attempt and logs the message when
 It may also carry a `cursor`, an arbitrary JSON map the next poke receives as `ctx.cursor`,
 which is where a sensor writes down how far it has read: an offset, a watermark, a last-seen
 id. It replaces rather than merges, and it lives only as long as the waiting attempt, because
-a poke that succeeds ends the step. Advancing it is at-least-once, exactly as a probe's handle
+a poke that succeeds ends the step -- unless the sensor's `resume_cursor` says where a success
+left off, which a watch stores and hands the next run it arms. Advancing it is at-least-once, exactly as a probe's handle
 metadata is: the cursor is written by the transaction that parks the attempt, so a worker that
 dies before that commit leaves the older cursor for the next poke, and a poke must tolerate
 reading the same ground twice.
@@ -678,6 +679,9 @@ reduces to writing one honest error classifier per block. Everything else is con
   verification, rate limiting, and a declarative payload-to-parameter mapping validated
   against the pipeline's schema. The endpoint validates, maps, enqueues, and returns the run
   id; nothing else executes in the request path.
+- **Watches.** A root sensor step made a continuous source: one run always waiting on it,
+  and the next armed in the transaction that settles its success, from the cursor the success
+  left off at.
 - **Chaining.** Two sanctioned forms: the `pipeline.run` operator, and the outbound
   `webhook.post` operator or notifier carrying run outputs.
 
@@ -888,6 +892,53 @@ deleting the pipeline takes its triggers documents, which are meaningless withou
 schedule created through the API does -- and again at fire time, so a later pipeline version
 that stops accepting the pins turns into a failed firing with the message on the firing row
 rather than a silent one.
+
+### Watches
+
+A watch row names a pipeline and a root sensor step, and holds the operational state the
+declaration does not: `paused`, the `cursor`, `waiting_run_id`, a `failures` count,
+`last_error`, and `rearm_at`.
+
+**One waiting run, by construction.** A run is armed only by the update that moves
+`waiting_run_id` from null to the id the run is about to be written under, taken under the
+pipeline's lock. Every armer races on that one statement -- an apply creating the watch, the
+settlement of the watched step, a resume, the scheduler's tick -- and only one of them can win
+it, on SQLite and on PostgreSQL alike. The run is then created through `create_run`, so the
+concurrency policy, the parameter schema and the allowlist apply exactly as they do to a run a
+schedule fires.
+
+**Re-arming rides the settlement.** The transaction that records the watched step's success
+also stores the cursor the sensor's `resume_cursor` returned, clears the watch's failures, and
+arms the next run seeded with that cursor. A crash can therefore neither lose a batch's place
+nor arm twice: the success, the cursor and the next run commit together or not at all.
+
+**Everything else is the end of a wait.** When the waiting run settles without its watched
+step succeeding, the watch clears `waiting_run_id`, counts a failure, records why, and sets
+`rearm_at` to the backoff: `watch_backoff` doubling to `watch_backoff_max`. A deadline skip
+is an empty wait and re-arms at once. The scheduler's tick arms every live watch with nothing
+waiting whose `rearm_at` has passed, and reads a waiting run that has settled or been swept
+away as the end of its wait -- which is what makes a restart, or a settlement that happened
+while nothing was listening, converge on one waiting run again.
+
+**Pausing and retiring cancel.** Pausing clears `waiting_run_id` and then cancels the run, so
+the cancel is not read as a failure; retiring a watch from its document, or deleting the
+triggers document that owns it, does the same before the row goes, and so do deactivating and
+deleting the pipeline; activating it arms every unpaused watch again. `_withdraw` reads the
+pointer under the pipeline's lock, which every settlement holds too, so it can never cancel a
+run that has already moved downstream. The retry of a failed watched attempt starts from the
+cursor the failed attempt held, automatic or manual, and a manual retry of the watched step of
+a run that is no longer the waiting one is refused.
+
+**Lock order.** Every path that writes a watch takes the pipeline's lock before any run's. The
+settlement of an attempt in a run a watch armed takes the pipeline's lock first for that
+reason, so re-arming inside it never waits on a pause or a cancel holding the two the other
+way round.
+
+**Versions and policies.** An apply that writes a new version cancels a waiting run pinned to
+an older one and arms again from the same cursor. `concurrency: replace` is refused on a watched
+pipeline, at the watch and at any later version, because arming the next run would cancel the
+run a batch has just arrived in; a version that would leave a triggers document's watch on a
+step it cannot wait on is refused the same way.
 
 ## 9. Alerting
 

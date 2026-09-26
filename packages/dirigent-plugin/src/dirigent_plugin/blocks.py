@@ -280,8 +280,9 @@ class NotYet(BaseModel):
     worker that dies before that commit leaves the older cursor for the next poke to read
     from again. So a poke must tolerate reading the same ground twice.
 
-    The cursor's life is the waiting attempt. A poke that succeeds ends the step, and
-    nothing carries the cursor past it.
+    The cursor's life is the waiting attempt. A poke that succeeds ends the step, and only
+    :meth:`Sensor.resume_cursor` carries a cursor past it: a watch hands what that returns to
+    the first poke of the run it arms next.
     """
 
 
@@ -551,7 +552,9 @@ class StepContext(Protocol):
     cursor: JsonMap | None
     """The cursor the last committed :class:`NotYet` returned, and None on the first poke.
 
-    Only a sensor's poke reads it; every other call sees None.
+    The first poke of a run a watch armed is handed where the watch's last success left off
+    instead, which is what :meth:`Sensor.resume_cursor` returned. Only a sensor's poke reads
+    it; every other call sees None.
     """
 
     def connection[C: BaseModel](self, ref: ConnectionRef, model: type[C]) -> C:
@@ -681,6 +684,16 @@ class Sensor[ConfigT: BaseModel, OutputT: BaseModel](ABC):
     async def poke(self, config: ConfigT, ctx: StepContext) -> OutputT | NotYet:
         """Observe the world once, read-only and briefly; NotYet is not a failure."""
         ...
+
+    def resume_cursor(self, output: OutputT) -> JsonMap | None:
+        """Say where a poke that succeeded left off, read from the output it succeeded with.
+
+        A watch stores what this returns and hands it to the first poke of the next run it
+        arms as ``ctx.cursor``. None, the default, starts every run fresh. It is stored in the
+        transaction that settles the step, so it is only as far along as the last success that
+        committed, and the next poke may read that ground again.
+        """
+        return None
 
     def check_config(self, config: BaseModel) -> list[Issue]:
         """List the extra refusals this block makes at apply, beyond what its schema says.

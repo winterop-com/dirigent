@@ -52,11 +52,13 @@ from dirigent_core.models import (
     RunItem,
     Schedule,
     StepAttempt,
+    Watch,
     WebhookTrigger,
 )
 from dirigent_core.registry import live_worker_tags
 from dirigent_core.schemas import schema_codes
 from dirigent_core.triggers.materialize import materialize_triggers, owner_issues
+from dirigent_core.triggers.watches import arm_all, follow_version, held_watch_issues, withdraw_all
 
 _logger = get_logger("pipelines")
 
@@ -221,6 +223,7 @@ async def plan_apply(
     pipeline = await find_pipeline(session, definition.code)
     if not issues and pipeline is not None:
         issues = await owner_issues(session, pipeline, definition.triggers, owner=None)
+        issues.extend(await held_watch_issues(session, pipeline, definition, services.host.sensors))
     if issues:
         return PipelinePlan(
             code=definition.code,
@@ -268,7 +271,7 @@ async def apply_document(
     """Validate, plan, and -- unless this is a dry run -- commit what a document declares.
 
     A pipeline document commits a new version; a triggers document writes itself and its rows.
-    ``pause_schedules`` governs the schedules this apply creates, and only those: a schedule
+    ``pause_schedules`` governs the schedules and watches this apply creates, and only those: one
     the instance already holds keeps whatever paused state an operator gave it, because that
     is state about this instance rather than something the document declares.
     """
@@ -299,7 +302,9 @@ async def apply_document(
         # definition, not the instance, so a schedule deleted by hand is restored.
         triggers = Materialized()
         if pipeline is not None and plan.action is PlanAction.UNCHANGED and not dry_run:
-            triggers = await materialize_triggers(session, pipeline, definition, pause_created=pause_schedules)
+            triggers = await materialize_triggers(
+                session, services, pipeline, definition, pause_created=pause_schedules
+            )
         return ApplyResult(
             plan=plan,
             pipeline_id=pipeline.id if pipeline else None,
@@ -309,7 +314,8 @@ async def apply_document(
         )
     version = await save_pipeline(session, definition, provenance=provenance)
     pipeline = await require_pipeline(session, definition.code)
-    triggers = await materialize_triggers(session, pipeline, definition, pause_created=pause_schedules)
+    triggers = await materialize_triggers(session, services, pipeline, definition, pause_created=pause_schedules)
+    await follow_version(session, services, pipeline.id)
     _logger.info(
         "pipeline applied",
         pipeline=definition.code,
@@ -356,11 +362,20 @@ async def revalidate(
     )
 
 
-async def set_active(session: AsyncSession, code: str, *, active: bool) -> Pipeline:
-    """Activate or deactivate a pipeline, keeping its code and its history."""
+async def set_active(session: AsyncSession, services: EngineServices, code: str, *, active: bool) -> Pipeline:
+    """Activate or deactivate a pipeline, keeping its code and its history.
+
+    Deactivating cancels the run each of its watches has waiting; activating arms one for
+    every watch that is not paused.
+    """
     pipeline = await require_pipeline(session, code)
+    await lock_pipeline(session, pipeline.id)
     pipeline.active = active
     await session.flush()
+    if active:
+        await arm_all(session, services, pipeline.id)
+    else:
+        await withdraw_all(session, services, pipeline.id, reason="its pipeline was deactivated")
     _logger.info("pipeline activation changed", pipeline=code, active=active)
     return pipeline
 
@@ -386,18 +401,20 @@ RUN_FAMILY: Final[tuple[type[ArtifactRef | LogEntry | Notification | RunItem | S
 )
 
 
-async def delete_pipeline(session: AsyncSession, code: str) -> None:
+async def delete_pipeline(session: AsyncSession, services: EngineServices, code: str) -> None:
     """Delete a pipeline and every run ever attributed to it, in one transaction.
 
     Refuses while runs are in flight, because deleting those would strand work a worker still
     holds a lease on: finish or cancel them first. Settled history goes with the pipeline --
     its runs, their items, attempts, logs and artifact references -- and the row itself takes
-    its versions, schedules, webhooks and alert rules through their cascades.
+    its versions, schedules, webhooks, watches and alert rules through their cascades. The run
+    each watch has waiting is cancelled before the in-flight check.
     """
     pipeline = await require_pipeline(session, code)
     # Run creation takes the same lock, so a run that commits between the count and the
     # delete is either seen here or created against a pipeline this delete already removed.
     await lock_pipeline(session, pipeline.id)
+    await withdraw_all(session, services, pipeline.id, reason="its pipeline was deleted")
     live = await count_runs(session, pipeline.id, Run.status.in_(IN_FLIGHT))
     if live:
         raise PipelineInUse(code, live)
@@ -421,15 +438,16 @@ class PipelineCounts(NamedTuple):
     active_runs: int = 0
     schedules: int = 0
     webhooks: int = 0
+    watches: int = 0
 
 
 NO_COUNTS = PipelineCounts()
 
 
 async def listing_counts(session: AsyncSession, pipeline_ids: Sequence[UUID]) -> dict[UUID, PipelineCounts]:
-    """Count the runs in flight, the schedules and the webhooks of a page of pipelines.
+    """Count the runs in flight, the schedules, the webhooks and the watches of a page of pipelines.
 
-    One statement for the whole page: three correlated counts per row, each of them a lookup
+    One statement for the whole page: four correlated counts per row, each of them a lookup
     on the ``pipeline_id`` index the table already carries.
     """
     if not pipeline_ids:
@@ -439,13 +457,14 @@ async def listing_counts(session: AsyncSession, pipeline_ids: Sequence[UUID]) ->
         _count_of(Run, Run.pipeline_id, Run.status.in_(IN_FLIGHT)).label("active_runs"),
         _count_of(Schedule, Schedule.pipeline_id).label("schedules"),
         _count_of(WebhookTrigger, WebhookTrigger.pipeline_id).label("webhooks"),
+        _count_of(Watch, Watch.pipeline_id).label("watches"),
     ).where(Pipeline.id.in_(pipeline_ids))
     rows = await session.execute(counted)
-    return {row.id: PipelineCounts(row.active_runs, row.schedules, row.webhooks) for row in rows.all()}
+    return {row.id: PipelineCounts(row.active_runs, row.schedules, row.webhooks, row.watches) for row in rows.all()}
 
 
 def _count_of(
-    entity: type[Run | Schedule | WebhookTrigger],
+    entity: type[Run | Schedule | WebhookTrigger | Watch],
     owner: InstrumentedAttribute[UUID],
     *narrow: sa.ColumnElement[bool],
 ) -> sa.ScalarSelect[int]:

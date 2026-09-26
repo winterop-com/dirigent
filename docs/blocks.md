@@ -811,7 +811,7 @@ Contributed by `block-queues`. Not idempotent. Polls every 30s unless the step s
 | `connection` | `string` | yes |  | The `kafka` connection naming the cluster and holding its credential. |
 | `topic` | `string` | yes |  | The topic to read. |
 | `group_id` | `string or null` |  | `null` | The consumer group to commit through, or unset to track offsets in the cursor alone. |
-| `start` | `"latest" or "earliest"` |  | `"latest"` | Where a poke with no cursor begins: at whatever arrives next, or at the oldest record the broker still holds. It applies to the first poke of an attempt only; after that the cursor says where to read from. |
+| `start` | `"latest" or "earliest"` |  | `"latest"` | Where a poke with no cursor begins: at whatever arrives next, or at the oldest record the broker still holds. It applies to the first poke of an attempt only, and under a watch to the first run's only; after that the cursor says where to read from. |
 | `min_messages` | `integer` |  | `1` | How many messages a batch needs before the sensor succeeds. Below it the poke parks, keeping the offsets it read so the next poke carries on from there. |
 | `max_messages` | `integer` |  | `100` | The most messages one poke takes, which bounds the output a step carries. |
 | `poll_timeout` | `string (humane-duration)` |  | `"5s"` | How long one poke waits on the broker before answering with what it has, such as `5s`. |
@@ -852,6 +852,7 @@ Contributed by `block-base`. Not idempotent. Polls every 2s unless the step says
 | --- | --- | --- | --- | --- |
 | `messages` | `object[]` | yes |  | The messages the batch holds, in the order they were generated. |
 | `count` | `integer` | yes |  | How many messages the batch holds. |
+| `next_offset` | `integer` | yes |  | The offset the next batch starts at, which a watch hands the next run it arms. |
 | `pokes` | `integer` | yes |  | How many pokes the step took, the one that carried the batch included. |
 | `waited_ms` | `integer` | yes |  | How long the wait lasted, from the attempt's start to the batch, in milliseconds. |
 | `seed` | `integer` | yes |  | The seed the records came from. Sending it back reproduces them exactly. |

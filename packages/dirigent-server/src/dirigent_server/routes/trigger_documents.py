@@ -1,4 +1,4 @@
-"""Triggers documents: the clocks and webhooks one document declares for another's pipeline.
+"""Triggers documents: the clocks, webhooks and watches one document declares for another's pipeline.
 
 A document is applied through ``POST /pipelines/$apply`` like any other; what is here is
 reading the ones the instance holds, and removing one with the rows it owns.
@@ -16,7 +16,7 @@ from dirigent_core.trigger_documents import (
     list_trigger_documents,
     owned_codes,
 )
-from dirigent_server.dependencies import SessionDep
+from dirigent_server.dependencies import ServicesDep, SessionDep
 from dirigent_server.errors import Refusal
 from dirigent_server.messages import NO_TRIGGER_DOCUMENT
 from dirigent_server.pagination import DEFAULT_PAGE, AfterParam, LimitParam, clip
@@ -71,13 +71,14 @@ async def list_all(
 async def get_one(code: str, session: SessionDep, principal: PrincipalDep) -> TriggerDocumentDetail:
     """Read one triggers document, the document itself, and the rows it owns."""
     row = await _require(session, code)
-    schedules, webhooks = await owned_codes(session, row.id)
+    schedules, webhooks, watches = await owned_codes(session, row.id)
     base = render(row, await _pipeline_code(session, row))
     return TriggerDocumentDetail(
         **base.model_dump(),
         document=dict(row.document),
         schedules=schedules,
         webhooks=webhooks,
+        watches=watches,
     )
 
 
@@ -87,13 +88,13 @@ async def get_one(code: str, session: SessionDep, principal: PrincipalDep) -> Tr
     summary="Delete a triggers document and its rows",
     status_code=status.HTTP_204_NO_CONTENT,
 )
-async def delete(code: str, session: SessionDep, principal: OperatorDep) -> Response:
-    """Remove a triggers document, and with it every schedule and webhook it declared.
+async def delete(code: str, session: SessionDep, services: ServicesDep, principal: OperatorDep) -> Response:
+    """Remove a triggers document, and with it every schedule, webhook and watch it declared.
 
     The pipeline it named is untouched, and so is anything the pipeline's own document or an
     operator declared on it.
     """
-    await delete_trigger_document(session, await _require(session, code))
+    await delete_trigger_document(session, services, await _require(session, code))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

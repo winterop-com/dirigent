@@ -217,6 +217,18 @@ behind, and the next poke reads the same ground again, so a poke must tolerate t
 **lives only as long as the waiting attempt** -- a poke that succeeds ends the step, and
 nothing carries the cursor past it. Anything a downstream step needs belongs in the output.
 
+A sensor that reads a source a watch may follow says where a success left off by overriding
+`resume_cursor`, which reads it off the output the poke succeeded with. A watch stores what it
+returns and hands it to the first poke of the next run it arms, so the source is read on from
+the end of the last batch; `None`, the default, starts every run fresh. In a test,
+`carry_cursor(sensor, answer, ctx)` from `dirigent-testing` hands the next poke what the engine
+would, after a park or after a success:
+
+```python
+def resume_cursor(self, output: QueueDepthOutput) -> JsonMap | None:
+    return {"offset": output.messages[-1].offset + 1} if output.messages else None
+```
+
 ## A formatter is a second extension point
 
 `dg format` renders a stream, and the formatter it dispatches on is contributed through a

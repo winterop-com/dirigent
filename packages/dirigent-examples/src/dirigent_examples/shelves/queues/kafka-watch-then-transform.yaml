@@ -1,0 +1,88 @@
+# A topic read as a stream: a watch keeps one run waiting on it, and each batch it takes arms
+# the next run from where that batch ended.
+#
+# NEEDS A BROKER, and a topic to read:
+#   docker compose -f infra/compose.queues.yaml up -d --wait
+#   docker exec -it dirigent-queues-redpanda-1 rpk topic create orders
+#   dg connection create kafka orders-topic --set bootstrap_servers='["127.0.0.1:9092"]'
+#   dg apply examples/queues/kafka-watch-then-transform.yaml
+# Then produce to the topic in another shell, as often as you like, and watch the runs line up:
+#   docker exec -it dirigent-queues-redpanda-1 \
+#     rpk topic produce orders --format '%v\n'   # then type JSON lines and press ctrl-d
+#   dg runs list --pipeline kafka-watch-then-transform
+# On the compose stack the broker is the infra/compose.brokers.yaml overlay and the connection
+# names it as `redpanda:9092`; docs/queues.md is the family's home.
+#
+# Two hops, and what each one hands on:
+#   take       kafka.consume, the watched step. It parks until there is a batch, then hands on
+#              the messages, their count, and the offsets it ended at.
+#   summarise  a jq transform over that batch, in the run that took it -- while the next run
+#              is already waiting on the topic.
+#
+# THE WATCH OWNS THE CURSOR, SO NO group_id. kafka.consume says where a batch ended, the watch
+# stores it, and the next run's first poke reads on from exactly there. Nothing is committed
+# to the broker, nothing on the cluster has to be arranged, and a second pipeline over the same
+# topic still sees every message. Set a group_id as well if the broker should know how far this
+# pipeline has read; the watch's cursor stays what the next run starts from.
+#
+# start: earliest APPLIES ONCE. It says where the very first run begins, which here is the
+# oldest message the broker still holds. Every run after it starts from the watch's cursor, so
+# nothing is replayed and nothing is skipped between two runs.
+#
+# NO deadline. A watched sensor waits as long as the topic is quiet, and that costs a row with a
+# due time, not a worker. `dg watch pause kafka-watch-then-transform follow` stops it, cancelling
+# the run that is waiting and keeping the cursor for `dg watch resume`.
+#
+# READING THE SAME GROUND TWICE. The cursor is stored by the transaction that settles the
+# batch, so a worker that dies before that commit leaves the older offsets behind and the next
+# poke reads those messages again. A step that must not act twice on a message makes itself
+# idempotent; this one only reshapes, so it does not care.
+#
+# TO MAKE IT YOURS: point the connection at your own cluster, change the topic, and replace the
+# summarise step with whatever consumes the batch.
+
+format: dirigent/v1
+kind: pipeline
+code: kafka-watch-then-transform
+name: Watch a Kafka topic, then transform each batch
+description: |
+  A watch on kafka.consume reads a topic run after run from where the last batch ended, with
+  no consumer group, and each batch is reshaped in the run that took it.
+
+tags: [queues, kafka, sensor, transform, triggers]
+
+requires:
+  blocks:
+    - kafka.consume
+    - transform.jq
+  connections:
+    - orders-topic
+
+steps:
+  take:
+    block: kafka.consume
+    poll: 5s
+    config:
+      connection: orders-topic
+      topic: orders
+      min_messages: 1
+      # Bounds what one run carries: a burst of a thousand messages becomes ten runs of a
+      # hundred, each summarised on its own while the next one is taken.
+      max_messages: 100
+      start: earliest
+      value_format: json
+
+  summarise:
+    block: transform.jq
+    depends_on: [take]
+    config:
+      input: ${steps.take.output}
+      program: >-
+        {count: .count, first_offset: (.messages | map(.offset) | min),
+         last_offset: (.messages | map(.offset) | max), resume_from: .cursor}
+
+triggers:
+  watches:
+    - code: follow
+      name: Follow the orders
+      step: take

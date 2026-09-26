@@ -213,7 +213,7 @@ async def test_a_declared_priority_is_materialized_and_redeclared(
     )
     async with session_scope(sessions) as session:
         version = await save_pipeline(session, declared)
-        await materialize_triggers(session, await pipeline_of(session, version.pipeline_id), declared)
+        await materialize_triggers(session, services, await pipeline_of(session, version.pipeline_id), declared)
 
     async with sessions() as session:
         assert (await session.execute(sa.select(Schedule))).scalars().one().priority is RunPriority.NORMAL
@@ -228,7 +228,7 @@ async def test_a_declared_priority_is_materialized_and_redeclared(
         }
     )
     async with session_scope(sessions) as session:
-        result = await materialize_triggers(session, await pipeline_of(session, version.pipeline_id), lowered)
+        result = await materialize_triggers(session, services, await pipeline_of(session, version.pipeline_id), lowered)
         assert result.schedules_updated == ["nightly"]
         assert result.webhooks_updated == ["push"]
 

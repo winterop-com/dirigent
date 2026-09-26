@@ -1,7 +1,17 @@
 import type { CSSProperties, ReactNode } from 'react'
+import { Link } from 'react-router'
 
 import { Instant } from '@/components/Instant'
-import { clockOf, nextFireView, oneTimeView, type OutcomeTone, type ScheduleOut } from '@/lib/triggers'
+import { shortId } from '@/lib/format'
+import {
+    clockOf,
+    nextFireView,
+    oneTimeView,
+    watchView,
+    type OutcomeTone,
+    type ScheduleOut,
+    type WatchOut,
+} from '@/lib/triggers'
 
 /**
  * The small things the triggers screen and its panel both draw of a trigger.
@@ -74,6 +84,34 @@ export function NextFire({ schedule }: { schedule: ScheduleOut }) {
             {next.kind === 'paused' && <span className="text-muted-foreground">paused</span>}
             {next.kind === 'none' && <span className="text-faint">nothing scheduled</span>}
             {next.kind === 'due' && <Instant className="text-muted-foreground" at={next.at} />}
+        </span>
+    )
+}
+
+/** What a watch is doing: the run it has waiting, or why it has none. */
+export function WatchState({ watch }: { watch: WatchOut }) {
+    const view = watchView(watch)
+    return (
+        <span className="flex items-center gap-2 text-xs">
+            <Dot tone={view.tone} />
+            {view.kind === 'waiting' && (
+                <Link
+                    className="font-mono text-primary-ink hover:underline"
+                    to={`/runs/${view.runId}`}
+                    onClick={(event) => {
+                        event.stopPropagation()
+                    }}
+                >
+                    {shortId(view.runId)}
+                </Link>
+            )}
+            {view.kind === 'backing-off' && (
+                <span className="flex items-baseline gap-1.5 text-muted-foreground">
+                    backing off until <Instant at={view.until} />
+                </span>
+            )}
+            {view.kind === 'paused' && <span className="text-muted-foreground">paused</span>}
+            {view.kind === 'arming' && <span className="text-faint">arming</span>}
         </span>
     )
 }

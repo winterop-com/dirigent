@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 
-import { apiPrefix, applyExample, signIn } from './support.ts'
+import { apiPrefix, applyDocument, applyExample, signIn } from './support.ts'
 
 /**
  * The two screens that show what an instance is wired to, against a real one.
@@ -295,6 +295,41 @@ test('a schedule opens its own facts and its firing history beside the listing',
 
     await panel.getByRole('button', { name: 'Resume' }).click()
     await expect(panel.getByTestId('next-fire')).toHaveText(/^in \d+[mhd]$/)
+})
+
+/** A pipeline whose root sensor is watched, parked for longer than the suite runs. */
+const WATCHED = {
+    format: 'dirigent/v1',
+    kind: 'pipeline',
+    code: 'e2e-watched',
+    steps: { arrive: { block: 'playground.arrive', config: { after_pokes: 1000, rows: 1 } } },
+    triggers: { watches: [{ code: 'follow', name: 'Follow the arrivals', step: 'arrive' }] },
+}
+
+test('a watch shows the run it has waiting, and pausing it leaves none', async ({ page }) => {
+    await signIn(page)
+    await applyDocument(page.request, WATCHED)
+
+    await page.goto('/triggers')
+    const row = rowOf(page, 'Follow the arrivals')
+    await expect(row).toContainText('follow')
+    await expect(row).toContainText('e2e-watched')
+    await expect(row).toContainText('arrive')
+    await expect(page.getByText(/\d+ watch(es)?/)).toBeVisible()
+
+    await row.getByText('Follow the arrivals', { exact: true }).click()
+    const panel = page.getByRole('tabpanel')
+    await expect(panel).toContainText('arrive')
+    await panel.getByRole('button', { name: 'Pause' }).click()
+    await expect(panel.getByText('paused').first()).toBeVisible()
+
+    await panel.getByRole('button', { name: 'Resume' }).click()
+    await expect(panel.getByRole('button', { name: 'Pause' })).toBeVisible()
+    await expect(panel.getByRole('link', { name: /^[0-9a-f]+$/ })).toBeVisible()
+
+    // Left paused, so no run waits on the instance the rest of the suite counts runs on.
+    await panel.getByRole('button', { name: 'Pause' }).click()
+    await expect(panel.getByRole('button', { name: 'Resume' })).toBeVisible()
 })
 
 test('a webhook minted in the browser shows its token once and never again', async ({ page }) => {

@@ -153,6 +153,11 @@ describe('what started a run', () => {
         }
         expect(triggerSummary(filled)).toEqual({ kind: 'backfill', who: 'backfill nightly' })
     })
+
+    test('names a watch, which armed the run to wait on its sensor', () => {
+        const armed = { ...RUN, triggered_by_kind: 'watch' as const, triggered_by_label: 'watch follow' }
+        expect(triggerSummary(armed)).toEqual({ kind: 'watch', who: 'watch follow' })
+    })
 })
 
 describe('what an empty runs listing says', () => {

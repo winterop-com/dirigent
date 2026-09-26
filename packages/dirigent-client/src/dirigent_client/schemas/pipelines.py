@@ -76,6 +76,9 @@ class PipelineOut(WireModel):
     webhooks: int = 0
     """How many inbound endpoints fire this pipeline."""
 
+    watches: int = 0
+    """How many watches keep a run of this pipeline waiting on a sensor."""
+
     last_run: LastRun | None = None
     """How the newest run of this pipeline went, or nothing when it has never run."""
 
@@ -110,7 +113,7 @@ class ApplyRequest(BaseModel):
     source_ref: str | None = Field(default=None, description="The file path or URL the document came from.")
     pause_schedules: bool = Field(
         default=False,
-        description="Create the schedules this apply brings into being already paused.",
+        description="Create the schedules and watches this apply brings into being already paused.",
     )
 
 
@@ -323,6 +326,9 @@ class Materialized(WireModel):
     webhooks_created: list[str] = Field(default_factory=list[str])
     webhooks_updated: list[str] = Field(default_factory=list[str])
     webhooks_removed: list[str] = Field(default_factory=list[str])
+    watches_created: list[str] = Field(default_factory=list[str])
+    watches_updated: list[str] = Field(default_factory=list[str])
+    watches_removed: list[str] = Field(default_factory=list[str])
 
     @property
     def empty(self) -> bool:
@@ -334,6 +340,9 @@ class Materialized(WireModel):
             or self.webhooks_created
             or self.webhooks_updated
             or self.webhooks_removed
+            or self.watches_created
+            or self.watches_updated
+            or self.watches_removed
         )
 
 
@@ -373,4 +382,4 @@ class ApplyResult(WireModel):
     version: int | None = None
     dry_run: bool = False
     triggers: Materialized = Field(default_factory=Materialized)
-    """Which schedules and webhooks the document's ``triggers:`` section created, changed, or retired."""
+    """Which schedules, webhooks and watches the document's ``triggers:`` section created, changed, or retired."""

@@ -50,7 +50,7 @@ async def engine(sqlite_settings: Settings) -> AsyncIterator[AsyncEngine]:
 def test_every_table_is_registered_in_the_metadata() -> None:
     declared = {model.__tablename__ for model in ALL_TABLES}
     assert declared == set(Base.metadata.tables)
-    assert len(declared) == 19
+    assert len(declared) == 20
 
 
 def test_every_entity_is_identified_and_stamped_the_same_way() -> None:

@@ -186,7 +186,8 @@ with its `NotYet`, and the next poke receives. It is stored by the transaction t
 attempt, so it advances at-least-once the way an operator's probe metadata does -- a worker
 that dies before that commit leaves the older cursor behind, and the next poke reads the same
 ground again. The cursor lives only as long as the waiting attempt; a poke that succeeds ends
-the step, and anything a downstream step needs belongs in the output.
+the step, and anything a downstream step needs belongs in the output. The one thing that
+carries a cursor past a success is a [watch](#watches), and only as far as the sensor says.
 
 Sensors carry their own deadline, and what happens when it expires is configuration:
 `on_timeout: fail` or `on_timeout: skip`. `skip` is the interesting one, because `skipped` is a
@@ -357,7 +358,7 @@ already public and the document has to stand alone; anywhere else the instance h
 
 ## Trigger
 
-What starts a run. Three kinds:
+What starts a run. Four kinds:
 
 - **Ad hoc** -- `dg run`, the API, or the UI. Always available, always parameterized.
 - **A schedule** -- cron, a fixed interval, or a single instant, each with its own timezone and
@@ -366,6 +367,8 @@ What starts a run. Three kinds:
 - **A webhook** -- `POST /hooks/{token}`, with a token that is the whole credential, optional
   HMAC over the raw body, a rate limit, and a small declarative mapping from the JSON payload
   to run parameters.
+- **A watch** -- a sensor made a continuous source: one run always waiting on a root sensor
+  step, and the next armed the moment it succeeds. See [watches](#watches) below.
 
 Each carries a `code` unique within its pipeline, plus the same optional `name` and
 `description` a pipeline has. A schedule and a webhook may each pin a `priority` on the runs
@@ -377,12 +380,13 @@ the pipeline declares, and every required parameter without a default is mapped.
 problems are reported at once. The mapped *values* are not checked here -- they exist only
 once a delivery arrives, and are validated then.
 
-Schedules and webhooks can be declared in the document's `triggers:` section, in which case an
-apply materialises them and marks them *managed*. One created by hand with `dg schedule
-create` is not managed, and an apply that does not mention it leaves it alone.
+Schedules, webhooks and watches can be declared in the document's `triggers:` section, in which
+case an apply materialises them and marks them *managed*. One created by hand with `dg schedule
+create` is not managed, and an apply that does not mention it leaves it alone. A watch is only
+ever declared by a document.
 
-A `kind: triggers` document is the third owner. It names one pipeline and declares clocks and
-webhooks for it, which is how an operations team keeps a clock file over a pipeline another
+A `kind: triggers` document is the third owner. It names one pipeline and declares clocks,
+webhooks and watches for it, which is how an operations team keeps a clock file over a pipeline another
 team defines:
 
 ```yaml
@@ -414,11 +418,69 @@ orders pipeline documents before triggers documents, so a directory carrying bot
 in one pass.
 
 The instance's triggers documents are read at `GET /api/v1/trigger-documents` and
-`GET /api/v1/trigger-documents/{code}`, which names the schedules and webhooks the document
-owns, and with `dg trigger-document list` and `dg trigger-document show CODE`. Deleting one --
+`GET /api/v1/trigger-documents/{code}`, which names the schedules, webhooks and watches the
+document owns, and with `dg trigger-document list` and `dg trigger-document show CODE`. Deleting one --
 `DELETE /api/v1/trigger-documents/{code}` or `dg trigger-document delete CODE` -- takes its
 rows with it and leaves the pipeline, its inline triggers, and every hand-made row alone.
 Deleting the pipeline takes its triggers documents, which are meaningless without it.
+
+### Watches
+
+A sensor on its own answers one question once: has the batch arrived yet. A watch turns it into
+a source that never stops answering. It keeps **exactly one** run of its pipeline waiting on one
+root sensor step, and the transaction that settles that step's success arms the next run. The
+run that succeeded carries on downstream while the next one waits, so runs overlap by design:
+batch N is being transformed while batch N+1 is being waited for, and the run list and the graph
+fill as the source delivers.
+
+```yaml
+steps:
+  arrive:                       # a root step, and a sensor: the only kind a watch may name
+    block: playground.arrive
+    config: {after: 5s, rows: 3}
+  load:
+    block: playground.generate
+    depends_on: [arrive]
+    config: {input: "${steps.arrive.output.messages}"}
+triggers:
+  watches:
+    - code: follow              # unique among this pipeline's watches
+      name: Follow the arrivals # optional, like description
+      step: arrive
+      params: {}                # pinned on every run it arms, checked like a schedule's
+      paused: false             # the state a new watch starts in; an apply never changes it after
+```
+
+**The watch owns the cursor.** A sensor whose success says where it left off -- `kafka.consume`
+and `playground.arrive` both do -- has that cursor stored on the watch, and the next run's first
+poke is handed it as `ctx.cursor`. So a topic is read on from where the last batch ended, run
+after run, without a consumer group; a `group_id` still works beside it.
+
+**A wait that ends badly backs off.** When the watched step fails after its own retries, or its
+run is cancelled, the watch records why as `last_error`, counts the failure, and arms again from
+its last good cursor after `watch_backoff` (5s), doubling each time up to `watch_backoff_max`
+(5m). The next success clears the count and the error. A sensor that runs out its `deadline`
+under `on_timeout: skip` found nothing, which is not a failure: the watch arms again at once.
+
+**Pausing cancels the waiting run** and keeps the cursor; **resuming arms a new one** from it.
+The scheduler's tick arms any live watch that has no run waiting and is not backing off, which is
+what brings one back after a server restart, and the waiting run is claimed by one conditional
+update under the pipeline's lock, so however many ticks and settlements race, a watch never has
+two runs waiting. Deactivating the pipeline cancels the run each watch has waiting, activating
+it arms them again, and deleting it takes its watches with it. Applying a new version moves a
+waiting run onto that version, from the same cursor. The next run goes through the ordinary
+run creation, so the pipeline's concurrency policy applies: under `queue` the next run is held
+until the one ahead settles, and under `skip` the overlap a watch is for is traded away.
+`replace` is refused outright, on the watch and on any later version of its pipeline, because
+arming the next run would cancel the run a batch had just arrived in.
+
+A manual retry of a watched step in the run that is still waiting starts from that attempt's
+cursor. Retrying the watched step of a run the watch has moved past is refused: the watch's
+next run reads that ground again from its own cursor.
+
+A watch refuses at apply to name anything but a root sensor step that does not fan out, and a
+pipeline version is refused when a watch another document declares could not wait on it.
+`dg watch list | show | pause | resume` and the Triggers screen read and steer them.
 
 Detail: [design.md section 8](design.md#8-triggers) for the misfire policy, the webhook
 security model, and exactly what an apply does and does not touch.
