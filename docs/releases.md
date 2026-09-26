@@ -16,6 +16,39 @@ tag is what publishes: `.github/workflows/release.yaml` builds every package and
 to PyPI through trusted publishing, then builds the image from that commit and pushes it as
 `<version>` and `latest`. The two sibling repositories then relock against the tag and bump.
 
+## 0.21.0
+
+Released 2026-09-26. Every package in the workspace moves to 0.21.0 together, and so do
+`dirigent-dhis2` and `dirigent-integration`.
+
+- **A watch keeps a sensor waiting.** A third trigger beside schedules and webhooks, declared
+  under `triggers: watches:` in a pipeline document or a `kind: triggers` document. A watch
+  keeps exactly one run of its pipeline waiting on one root sensor step; when that step
+  succeeds, the same transaction arms the next run, and the run that succeeded carries on
+  downstream. Runs overlap by design: one batch is being transformed while the next is being
+  waited for. A run that ends without its sensor succeeding re-arms from the last good point
+  after a backoff that doubles from `watch_backoff` to `watch_backoff_max`. Apply refuses a
+  watch on a step that is unknown, not a root, fans out, is not a sensor, or sits in a
+  `replace` pipeline, and a later version that would break one.
+- **The cursor belongs to the watch.** A sensor's success can say where it left off:
+  `Sensor.resume_cursor(output)`, with a default of none, so every existing sensor starts each
+  run fresh as before. The watch stores what it returns and seeds the next run with it, which
+  the block reads through `ctx.cursor`. `kafka.consume` continues its offsets across runs with
+  no consumer group, and `playground.arrive` numbers each batch on from the last. Pausing
+  keeps the cursor, and resuming arms a run from it. `dirigent-testing` gains `carry_cursor`,
+  which hands a sensor's next poke what the engine would.
+- **`dg watch`** lists, shows, pauses and resumes watches, writing `watch`, `watch.paused` and
+  `watch.resumed` records; the API has the same four routes under
+  `/pipelines/{code}/triggers/watches`. `dg dev --seed`, `dg apply --paused` and
+  `dg run --local` create watches paused, so a demo or a single local run is never competing
+  with one.
+- **The Triggers screen lists watches** beside schedules and webhooks, with their state,
+  cursor, failures and last error, and so do the pipelines listing and the pipeline tab.
+- **Two documents teach it**: `triggers/watch-a-sensor.yaml` over `playground.arrive`, runnable
+  with no network, and `queues/kafka-watch-then-transform.yaml` over a real topic.
+- **The New connection form suggests the playground** as its example code, not a service the
+  corpus has left.
+
 ## 0.20.0
 
 Released 2026-09-26. Every package in the workspace moves to 0.20.0 together, and so do
