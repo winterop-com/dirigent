@@ -18,7 +18,7 @@ to PyPI through trusted publishing, then builds the image from that commit and p
 
 ## 0.21.0
 
-Released 2026-09-26. Every package in the workspace moves to 0.21.0 together, and so do
+Released 2026-09-27. Every package in the workspace moves to 0.21.0 together, and so do
 `dirigent-dhis2` and `dirigent-integration`.
 
 - **A watch keeps a sensor waiting.** A third trigger beside schedules and webhooks, declared
