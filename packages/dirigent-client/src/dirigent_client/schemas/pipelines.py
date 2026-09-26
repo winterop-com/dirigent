@@ -113,7 +113,7 @@ class ApplyRequest(BaseModel):
     source_ref: str | None = Field(default=None, description="The file path or URL the document came from.")
     pause_schedules: bool = Field(
         default=False,
-        description="Create the schedules this apply brings into being already paused.",
+        description="Create the schedules and watches this apply brings into being already paused.",
     )
 
 

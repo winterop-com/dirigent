@@ -114,7 +114,7 @@ async def apply(
 ) -> ApplyResult:
     """Validate a document against this instance and commit a new version, or plan one.
 
-    ``pause_schedules`` on the request creates this apply's new schedules paused; one the
+    ``pause_schedules`` on the request creates this apply's new schedules and watches paused; one the
     instance already holds keeps the paused state it has.
     """
     raw = dict(payload.document)

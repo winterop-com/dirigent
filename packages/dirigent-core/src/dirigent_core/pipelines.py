@@ -269,7 +269,7 @@ async def apply_document(
     """Validate, plan, and -- unless this is a dry run -- commit what a document declares.
 
     A pipeline document commits a new version; a triggers document writes itself and its rows.
-    ``pause_schedules`` governs the schedules this apply creates, and only those: a schedule
+    ``pause_schedules`` governs the schedules and watches this apply creates, and only those: one
     the instance already holds keeps whatever paused state an operator gave it, because that
     is state about this instance rather than something the document declares.
     """
