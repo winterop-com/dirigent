@@ -86,7 +86,8 @@ jobs:
     name: queues lane
     runs-on: ubuntu-24.04
     env:
-      # As in the compose lane: set, and the brokers are pulled as that account.
+      # Unset, and the brokers are pulled anonymously, against a rate limit the runner's
+      # address shares with every other job on the machine.
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
     steps:
@@ -131,7 +132,8 @@ jobs:
     # lane may fail without blocking a merge.
     continue-on-error: true
     env:
-      # As in the compose lane: set, and the image the lane runs is pulled as that account.
+      # Unset, and the image is pulled anonymously, against a rate limit the runner's
+      # address shares with every other job on the machine.
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
     steps:
