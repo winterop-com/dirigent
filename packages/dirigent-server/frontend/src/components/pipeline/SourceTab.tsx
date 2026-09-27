@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
+import { WindowedPane } from '@/components/WindowedPane'
 import { CodePane } from '@/components/pipeline/CodePane'
 import type { JsonMap } from '@/lib/api'
 import { toYaml } from '@/lib/pipeline-document'
@@ -78,6 +79,29 @@ export function SourceTab({
         )
     }
 
+    // The pane in place and the pane in the window name one path, so monaco hands them a single
+    // model: what is typed in either is what the other shows, and closing the window loses
+    // nothing.
+    const pane = (where: string | null) => (
+        <CodePane
+            value={text}
+            schema={schema}
+            path={DOCUMENT_PATH}
+            label={where === null ? DOCUMENT_LABEL : `${DOCUMENT_LABEL}, ${where}`}
+            className={where === null ? 'h-full' : 'min-h-0 flex-1'}
+            readOnly={readOnly}
+            onChange={(next) => {
+                typed.current = true
+                setText(next)
+                if (timer.current !== null) clearTimeout(timer.current)
+                timer.current = setTimeout(() => {
+                    typed.current = false
+                    onWrite(next)
+                }, SETTLE_MS)
+            }}
+        />
+    )
+
     return (
         <div className="flex h-full min-h-0 flex-col">
             {parseError !== null && (
@@ -86,24 +110,9 @@ export function SourceTab({
                     <p className="mt-1">The other tabs are showing the last document that parsed.</p>
                 </div>
             )}
-            <div className="min-h-0 flex-1">
-                <CodePane
-                    value={text}
-                    schema={schema}
-                    path={DOCUMENT_PATH}
-                    label={DOCUMENT_LABEL}
-                    readOnly={readOnly}
-                    onChange={(next) => {
-                        typed.current = true
-                        setText(next)
-                        if (timer.current !== null) clearTimeout(timer.current)
-                        timer.current = setTimeout(() => {
-                            typed.current = false
-                            onWrite(next)
-                        }, SETTLE_MS)
-                    }}
-                />
-            </div>
+            <WindowedPane name={DOCUMENT_LABEL} className="min-h-0 flex-1" windowed={pane('in a window')}>
+                {pane(null)}
+            </WindowedPane>
         </div>
     )
 }
