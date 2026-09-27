@@ -17,7 +17,7 @@ name: dirigent-queues
 services:
   # Redpanda speaks the Kafka protocol and needs no ZooKeeper, so one container is a cluster.
   redpanda:
-    image: ${DIRIGENT_KAFKA_IMAGE:-redpandadata/redpanda:v24.2.18}
+    image: ${DIRIGENT_KAFKA_IMAGE:-redpandadata/redpanda:v24.2.18@sha256:0270951e8793c77f0dd9178d137198018fa7ffd920e5a2a3b02a050ec76195b8}
     restart: unless-stopped
     command:
       - redpanda
@@ -41,7 +41,7 @@ services:
       retries: 30
 
   rabbitmq:
-    image: ${DIRIGENT_RABBITMQ_IMAGE:-rabbitmq:3-management-alpine}
+    image: ${DIRIGENT_RABBITMQ_IMAGE:-rabbitmq:3-management-alpine@sha256:606d8c0d6b3c18d1da9afc53bc7cdb2a8d5486df91b5a9830e9e07626c9ae281}
     restart: unless-stopped
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-dirigent}

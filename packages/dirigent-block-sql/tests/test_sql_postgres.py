@@ -22,7 +22,7 @@ from dirigent_testing import FakeContext
 
 pytestmark = pytest.mark.postgres
 
-POSTGRES_IMAGE = "postgres:17-alpine"
+POSTGRES_IMAGE = "postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24"
 
 
 @pytest.fixture(scope="session")
