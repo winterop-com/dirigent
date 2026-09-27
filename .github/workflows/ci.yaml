@@ -85,6 +85,10 @@ jobs:
   queues:
     name: queues lane
     runs-on: ubuntu-24.04
+    env:
+      # As in the compose lane: set, and the brokers are pulled as that account.
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v7
 
@@ -98,6 +102,15 @@ jobs:
 
       - name: Sync the workspace
         run: uv sync --all-packages --locked
+
+      - name: Sign in to Docker Hub
+        if: env.DOCKERHUB_USERNAME != ''
+        run: echo "$DOCKERHUB_TOKEN" | docker login --username "$DOCKERHUB_USERNAME" --password-stdin
+
+      # `up --wait` has no retry of its own, so a dropped pull would fail the lane before a
+      # broker ever starts.
+      - name: Pull the brokers
+        run: docker compose -f infra/compose.queues.yaml config --images | xargs python3 scripts/pull_images.py
 
       # An assignment, a seek, a group's commit and a requeued nack are the client library's
       # half of the contract, and no fake covers them.
@@ -117,6 +130,10 @@ jobs:
     # docker.run needs a daemon socket, which not every runner or fork's CI has, so this
     # lane may fail without blocking a merge.
     continue-on-error: true
+    env:
+      # As in the compose lane: set, and the image the lane runs is pulled as that account.
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v7
 
@@ -131,8 +148,12 @@ jobs:
       - name: Sync the workspace
         run: uv sync --all-packages --locked
 
+      - name: Sign in to Docker Hub
+        if: env.DOCKERHUB_USERNAME != ''
+        run: echo "$DOCKERHUB_TOKEN" | docker login --username "$DOCKERHUB_USERNAME" --password-stdin
+
       - name: Pull the images the lane runs
-        run: docker pull alpine:3
+        run: python3 scripts/pull_images.py alpine:3
 
       - name: Docker lane
         run: make test-docker
@@ -176,18 +197,42 @@ jobs:
   compose:
     name: compose
     runs-on: ubuntu-24.04
+    env:
+      # An anonymous pull is rate-limited by the address it comes from, and a runner shares
+      # that address with every other job on the machine. Set both repository secrets and the
+      # lane pulls as that account; leave either unset and it pulls anonymously.
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v7
+
+      - name: Sign in to Docker Hub
+        if: env.DOCKERHUB_USERNAME != ''
+        run: echo "$DOCKERHUB_TOKEN" | docker login --username "$DOCKERHUB_USERNAME" --password-stdin
+
+      - name: Write the environment the stack reads
+        run: |
+          cp .env.example .env
+          python -c "from secrets import token_bytes; import base64; print('DIRIGENT_SECRET_KEY=' + base64.urlsafe_b64encode(token_bytes(32)).decode())" >> .env
+          echo "DIRIGENT_BOOTSTRAP_ADMIN_PASSWORD=ci-admin-password" >> .env
+          echo "DIRIGENT_ENABLED_UNSAFE_BLOCKS=docker.run,docker.build,docker.compose.up,docker.compose.down" >> .env
+
+      # Both halves come from a public registry that drops a connection now and then: the
+      # stages the build reads, and the images the stack runs. `config --images` resolves
+      # what this file set actually names, so a service added to it is pulled here too.
+      - name: Pull what the lane runs
+        run: |
+          { awk '$1 == "FROM" { print $2 }' infra/Dockerfile
+            docker compose --project-directory . \
+              -f infra/compose.yaml -f infra/compose.brokers.yaml -f infra/compose.sql.yaml \
+              config --images | grep -v '^dirigent:local$'
+          } | sort -u | xargs python3 scripts/pull_images.py
 
       - name: Build the image
         run: docker build -t dirigent:local -f infra/Dockerfile .
 
       - name: Start the stack
         run: |
-          cp .env.example .env
-          python -c "from secrets import token_bytes; import base64; print('DIRIGENT_SECRET_KEY=' + base64.urlsafe_b64encode(token_bytes(32)).decode())" >> .env
-          echo "DIRIGENT_BOOTSTRAP_ADMIN_PASSWORD=ci-admin-password" >> .env
-          echo "DIRIGENT_ENABLED_UNSAFE_BLOCKS=docker.run,docker.build,docker.compose.up,docker.compose.down" >> .env
           docker compose --project-directory . \
             -f infra/compose.yaml -f infra/compose.brokers.yaml -f infra/compose.sql.yaml \
             up -d --wait --wait-timeout 300
