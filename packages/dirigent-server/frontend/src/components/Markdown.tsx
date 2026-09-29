@@ -176,7 +176,7 @@ function run(inline: Inline, index: number): ReactNode {
             return (
                 <a
                     key={index}
-                    className="text-primary hover:underline"
+                    className="text-primary-ink hover:underline"
                     href={inline.href}
                     target="_blank"
                     rel="noopener noreferrer"

@@ -49,7 +49,7 @@ export function RunTab({ run }: { run: RunOut }) {
                                 (started.who ?? 'not recorded')
                             ) : (
                                 <Link
-                                    className="text-primary hover:underline"
+                                    className="text-primary-ink hover:underline"
                                     to={`/runs/${started.parent}`}
                                     title={started.said ?? undefined}
                                 >
@@ -100,7 +100,7 @@ export function RunTab({ run }: { run: RunOut }) {
                     <Fact
                         term="pipeline"
                         detail={
-                            <Link className="text-primary hover:underline" to={`/pipelines/${run.pipeline}`}>
+                            <Link className="text-primary-ink hover:underline" to={`/pipelines/${run.pipeline}`}>
                                 {run.pipeline}
                             </Link>
                         }

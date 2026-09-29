@@ -478,7 +478,7 @@ export function Run({ notification }: { notification: NotificationOut }) {
     if (notification.run_id === null) return <span className="text-muted-foreground">no run</span>
     const named = notification.run_pipeline ?? 'a run'
     return (
-        <Link className="text-primary hover:underline" to={`/runs/${notification.run_id}`}>
+        <Link className="text-primary-ink hover:underline" to={`/runs/${notification.run_id}`}>
             <span className="text-sm">{named}</span>
             {notification.run_started_at !== null && (
                 <Instant className="ml-1.5 text-xs text-muted-foreground" at={notification.run_started_at} />
