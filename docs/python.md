@@ -172,10 +172,20 @@ without parsing a sentence for it.
 pointing at the wrong thing. The client decides it by the absence of `X-Dirigent-Version`,
 which a dirigent instance puts on every response, errors included.
 
-Retries are automatic and narrow: a transport failure or a 5xx is retried with exponential
+Retries are automatic and narrow: a lost connection or a 5xx is retried with exponential
 backoff, and only for idempotent methods. A `POST` or a `PATCH` is never repeated, because it
 may have taken effect before the connection broke, and a repeat would mean a second run, a
-second token, a second account.
+second token, a second account. A connection that was never established is not retried at all:
+a refused port, a name that does not resolve and a host that never answers reproduce on the
+next attempt, so trying again only spends the wait twice more.
+
+Reaching an instance and waiting for its answer have separate budgets, because they fail for
+different reasons. `connect_timeout=` is how long getting as far as the instance may take --
+the name resolved, the socket accepted, the TLS handshake done -- and it defaults to two
+seconds, so a wrong URL is refused while a person is still looking at the terminal. `timeout=`
+is how long the answer may take once the request is on its way, and it defaults to thirty:
+applying a large document or listing a busy instance's runs takes tens of seconds and is not
+a failure. A call may name its own `timeout=`, and the connect budget still applies to it.
 
 ## Streaming logs
 

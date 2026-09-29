@@ -1618,7 +1618,7 @@ replaced, and it invalidates the old one immediately.
 
 | Plane | Holds | Lives |
 | --- | --- | --- |
-| Profiles | A server URL, and how to get a token for it | Beside the person: `.dirigent/profiles.yaml` in a project, then `~/.config/dirigent/profiles.yaml` |
+| Profiles | A server URL, how to get a token for it, and how patient to be with it | Beside the person: `.dirigent/profiles.yaml` in a project, then `~/.config/dirigent/profiles.yaml` |
 | Server settings | `DIRIGENT_DATABASE_URL`, `DIRIGENT_SECRET_KEY`, the artifact root, the unsafe-block allowlist | On the host running the server, the workers, and the scheduler |
 | Connections | Third-party credentials | Encrypted inside the server's database |
 
@@ -1627,7 +1627,12 @@ refused on sight: a CLI that could reach the database would bypass authenticatio
 attribution, and validation entirely. The token has three interchangeable mechanisms and no
 secret-manager assumption -- inline (`token`), an environment variable (`token_env`), or any
 command that prints it (`token_cmd`) -- and precedence is flags, then `DG_*`, then the
-selected profile.
+selected profile. `connect_timeout`, `timeout` and `retries` are the profile's patience, and
+they are separate because reaching an instance and waiting for its answer fail for different
+reasons: a refused port or a name that does not resolve is the wrong address, and no amount of
+waiting or repeating turns it into the right one, so the CLI gives it two seconds and one
+attempt; a request that reached the instance gets thirty seconds and, if its method is safe to
+repeat, two more attempts.
 
 **`dg run` takes a code or a document.** Given a code it starts a run of a pipeline the
 instance already has. Given a file, a URL, or `-`, it applies the document first, exactly as

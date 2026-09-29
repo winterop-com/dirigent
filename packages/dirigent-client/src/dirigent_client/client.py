@@ -20,7 +20,13 @@ from dirigent_client.resources.system import System, Workers
 from dirigent_client.resources.trigger_documents import TriggerDocuments
 from dirigent_client.resources.watches import Watches
 from dirigent_client.resources.webhooks import Webhooks
-from dirigent_client.transport import API_PREFIX, DEFAULT_RETRIES, DEFAULT_TIMEOUT, Transport
+from dirigent_client.transport import (
+    API_PREFIX,
+    DEFAULT_CONNECT_TIMEOUT,
+    DEFAULT_RETRIES,
+    DEFAULT_TIMEOUT,
+    Transport,
+)
 
 SHUTDOWN_SECONDS = 5.0
 
@@ -34,6 +40,7 @@ class Dirigent:
         url: str,
         token: str | None = None,
         timeout: float = DEFAULT_TIMEOUT,
+        connect_timeout: float = DEFAULT_CONNECT_TIMEOUT,
         retries: int = DEFAULT_RETRIES,
         headers: Mapping[str, str] | None = None,
         http_transport: httpx2.AsyncBaseTransport | None = None,
@@ -45,6 +52,7 @@ class Dirigent:
             api_prefix=api_prefix,
             token=token,
             timeout=timeout,
+            connect_timeout=connect_timeout,
             retries=retries,
             headers=headers,
             http_transport=http_transport,

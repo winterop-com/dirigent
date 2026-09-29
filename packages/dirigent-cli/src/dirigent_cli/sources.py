@@ -8,10 +8,13 @@ import httpx2
 import yaml
 from pydantic import BaseModel, ConfigDict
 
+from dirigent_client import DEFAULT_CONNECT_TIMEOUT
 from dirigent_client.enums import ProvenanceSource
 
 STDIN: Final = "-"
-FETCH_TIMEOUT: Final = 30.0
+
+#: The body may take thirty seconds to arrive, and reaching the host that serves it two.
+FETCH_TIMEOUT: Final = httpx2.Timeout(30.0, connect=DEFAULT_CONNECT_TIMEOUT)
 
 
 class SourceError(Exception):

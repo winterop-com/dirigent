@@ -13,7 +13,7 @@ from typer.testing import CliRunner
 from clisupport import closing, of_kind, only, plain, records, refusal
 from dirigent_cli import main, triggers
 from dirigent_cli.commands import GUARD_EXIT
-from dirigent_cli.context import CliState
+from dirigent_cli.context import CliState, client_for
 from dirigent_cli.main import (
     LIST_ALIASES,
     PANEL_ORDER,
@@ -45,6 +45,26 @@ def test_the_version_flag_answers_with_one_plain_line() -> None:
     result = runner.invoke(app, ["--version"])
     assert result.exit_code == 0, result.output
     assert result.output.strip() == f"dg {distribution_version('dirigent-cli')}"
+
+
+def test_the_patience_a_profile_asks_for_reaches_the_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    (tmp_path / ".dirigent").mkdir()
+    (tmp_path / ".dirigent" / "profiles.yaml").write_text(
+        "profiles:\n"
+        "  far:\n"
+        "    url: https://dirigent.example.org\n"
+        "    token: a-token\n"
+        "    timeout: 2m\n"
+        "    connect_timeout: 9s\n"
+        "    retries: 4\n"
+    )
+    monkeypatch.chdir(tmp_path)
+    for name in ("DG_URL", "DG_TOKEN", "DG_PROFILE"):
+        monkeypatch.delenv(name, raising=False)
+
+    with client_for(CliState()) as session:
+        assert session.client.transport.connect_timeout == 9.0
+        assert session.client.transport.retries == 4
 
 
 def test_the_secret_key_command_answers_with_one_plain_line() -> None:
