@@ -5,6 +5,7 @@ from dirigent_testing.doubles import FakeCapture, FakeContext, FakeRuns, FakeSin
 from dirigent_testing.environment import CONFIGURING_PREFIXES, TEST_WIDTH, pin_terminal, scrub_configuration
 from dirigent_testing.fixtures import no_connection_outlives_its_loop
 from dirigent_testing.running import call_block, carry_cursor
+from dirigent_testing.wording import check_pack_messages
 
 __all__ = [
     "CONFIGURING_PREFIXES",
@@ -19,6 +20,7 @@ __all__ = [
     "call_block",
     "carry_cursor",
     "check_pack_examples",
+    "check_pack_messages",
     "no_connection_outlives_its_loop",
     "pin_terminal",
     "scrub_configuration",

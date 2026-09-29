@@ -9,8 +9,10 @@ from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 from dirigent_client.enums import DocumentKind, Importance, LogLevel, ProvenanceSource, RunPriority, RunStatus
 from dirigent_client.messages import (
+    BACKFILL_RUNS_FORWARDS,
     EMPTY_LOG_LEVEL_PATTERN,
     WINDOW_HAS_TWO_ENDS,
+    WINDOW_RUNS_FORWARDS,
 )
 from dirigent_client.schemas.common import WireModel
 from dirigent_common import EntityName, Issue, JsonMap, Message
@@ -176,8 +178,7 @@ class RunRequest(BaseModel):
             raise ValueError(WINDOW_HAS_TWO_ENDS.render())
         if self.window_start is not None and self.window_end is not None and self.window_start >= self.window_end:
             raise ValueError(
-                f"a window runs forwards and covers something: {self.window_start.isoformat()} "
-                f"is not before {self.window_end.isoformat()}"
+                WINDOW_RUNS_FORWARDS.render(start=self.window_start.isoformat(), end=self.window_end.isoformat())
             )
         return self
 
@@ -215,10 +216,7 @@ class BackfillRequest(BaseModel):
     def _runs_forwards(self) -> "BackfillRequest":
         """Refuse an empty or backwards interval, which encloses no firing at all."""
         if self.from_ >= self.to:
-            raise ValueError(
-                f"a backfill runs forwards and covers something: {self.from_.isoformat()} "
-                f"is not before {self.to.isoformat()}"
-            )
+            raise ValueError(BACKFILL_RUNS_FORWARDS.render(start=self.from_.isoformat(), end=self.to.isoformat()))
         return self
 
 

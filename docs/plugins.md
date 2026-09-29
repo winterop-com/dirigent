@@ -162,6 +162,45 @@ beside the rendered sentence, so an operator can select one refusal out of a str
 prefix is its pack name, and it owns everything under it. A param never carries a secret: the
 connection's code names it, its credential does not appear.
 
+A config's own validators are held to the same rule, and they are the one place it is easy to
+forget: pydantic owns the code a validator's refusal reaches the wire under, so the message is
+rendered into the `ValueError` it wraps rather than given to it.
+
+```python
+@model_validator(mode="after")
+def _needs_a_credential(self) -> "AcmeConnectionConfig":
+    if self.api_key is None:
+        raise ValueError(NO_CREDENTIAL.render(connection=self.code, url=self.base_url))
+    return self
+```
+
+### Checking that every refusal carries one
+
+`dirigent-testing` ships the check, so a pack holds its own wording to this page without
+reaching into the engine's repository. It is one call, and nothing is autouse:
+
+```python
+from pathlib import Path
+
+import dirigent_acme
+from dirigent_testing import check_pack_messages
+
+
+def test_every_refusal_the_pack_makes_carries_a_code():
+    assert check_pack_messages(Path(dirigent_acme.__file__).parent) == []
+```
+
+It reads every module under the directory and reports three things: a refusal raised under no
+code, a message minted and never read, and a code two catalogues both define. That last walk
+is over every catalogue the process has imported -- the engine's and the pack's -- so a prefix
+a pack has taken from something installed beside it is named in the pack's own suite.
+
+What it deliberately does not judge is written in its docstring, with a reason for each. The
+two worth knowing here: a block's `summary` and a config field's docstring are documentation
+written beside the value, not refusals, so they are not held to this; and an exception a pack
+raises for itself and catches before it answers is not a refusal until something catches it
+and refuses under a code.
+
 ### A stream a block captures comes through the context
 
 A block that runs something which prints -- a process, a container, a remote job -- never

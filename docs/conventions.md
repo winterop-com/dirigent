@@ -187,6 +187,14 @@ param. What must never happen is a refusal reaching a person under no code at al
 Log lines are not refusals. `ctx.log.info`, a `process` record, a worker's heartbeat: those
 are events, they carry no code, and nothing here applies to them.
 
+`dirigent_testing.check_pack_messages` holds a package to all of this, and
+`packages/dirigent-testing/tests/test_wording.py` points it at this workspace. It ships from
+`dirigent-testing` rather than from `scripts/` because a pack in its own repository is held to
+the same rule and cannot reach into this one; [the plugin page](plugins.md#checking-that-every-refusal-carries-one)
+is where a pack author reads it. The frontend's half of the same rule -- every word a person
+reads minted in `src/lib/labels.ts` -- is `scripts/check_ui_labels.py`, and
+[the UI conventions](ui-conventions.md) is where that one is written down.
+
 ## Plugins are pluginkit, and files end in `.yaml`
 
 Any extension point -- blocks, connection kinds, storage backends, notifiers, format checkers
