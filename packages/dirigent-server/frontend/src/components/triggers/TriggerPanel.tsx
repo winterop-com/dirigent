@@ -108,11 +108,13 @@ export function SchedulePanel({
                 )}
                 {Object.keys(schedule.params).length > 0 && (
                     <Fact label="Pinned parameters">
-                        <JsonBlock
-                            title={`${schedule.code} · pinned parameters`}
-                            text={asJson(schedule.params)}
-                            className="mt-1 max-h-64"
-                        />
+                        <div className="mt-1">
+                            <JsonBlock
+                                title={`${schedule.code} · pinned parameters`}
+                                text={asJson(schedule.params)}
+                                className="max-h-64"
+                            />
+                        </div>
                     </Fact>
                 )}
             </dl>
@@ -205,11 +207,13 @@ export function WebhookPanel({
                 </Fact>
                 {Object.keys(webhook.params_from_payload).length > 0 && (
                     <Fact label="Payload mapping">
-                        <JsonBlock
-                            title={`${webhook.code} · payload mapping`}
-                            text={asJson(webhook.params_from_payload)}
-                            className="mt-1 max-h-64"
-                        />
+                        <div className="mt-1">
+                            <JsonBlock
+                                title={`${webhook.code} · payload mapping`}
+                                text={asJson(webhook.params_from_payload)}
+                                className="max-h-64"
+                            />
+                        </div>
                     </Fact>
                 )}
             </dl>
@@ -323,20 +327,24 @@ export function WatchPanel({
                 )}
                 {watch.cursor !== null && (
                     <Fact label="Cursor">
-                        <JsonBlock
-                            title={`${watch.code} · cursor`}
-                            text={asJson(watch.cursor)}
-                            className="mt-1 max-h-64"
-                        />
+                        <div className="mt-1">
+                            <JsonBlock
+                                title={`${watch.code} · cursor`}
+                                text={asJson(watch.cursor)}
+                                className="max-h-64"
+                            />
+                        </div>
                     </Fact>
                 )}
                 {Object.keys(watch.params).length > 0 && (
                     <Fact label="Pinned parameters">
-                        <JsonBlock
-                            title={`${watch.code} · pinned parameters`}
-                            text={asJson(watch.params)}
-                            className="mt-1 max-h-64"
-                        />
+                        <div className="mt-1">
+                            <JsonBlock
+                                title={`${watch.code} · pinned parameters`}
+                                text={asJson(watch.params)}
+                                className="max-h-64"
+                            />
+                        </div>
                     </Fact>
                 )}
             </dl>

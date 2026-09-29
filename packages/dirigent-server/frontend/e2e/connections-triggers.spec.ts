@@ -422,12 +422,22 @@ test('a pinned parameters block stands off the light panel it is drawn on', asyn
             }
             return Array.from(context.getImageData(0, 0, 1, 1).data.slice(0, 3))
         }
-        let ground = element.parentElement
+        // The block's box is the nearest element inside the panel that draws an edge.
+        const panel = element.closest('[role="tabpanel"]')
+        let box: Element = element
+        while (
+            box !== panel &&
+            box.parentElement !== null &&
+            Number.parseFloat(getComputedStyle(box).borderTopWidth) < 1
+        ) {
+            box = box.parentElement
+        }
+        let ground = box.parentElement
         while (ground !== null && getComputedStyle(ground).backgroundColor === 'rgba(0, 0, 0, 0)') {
             ground = ground.parentElement
         }
         const under = ground === null ? 'white' : getComputedStyle(ground).backgroundColor
-        const style = getComputedStyle(element)
+        const style = getComputedStyle(box)
         const base = paint([under])
         const edge = paint([under, style.backgroundColor, style.borderTopColor])
         const width = Number.parseFloat(style.borderTopWidth)
