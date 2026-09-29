@@ -603,16 +603,51 @@ def test_a_for_each_is_validated_the_way_a_config_is(host: PluginHost) -> None:
     assert "undeclared parameter" in issues[0].message
 
 
-def test_a_for_each_may_not_read_a_step_output(host: PluginHost) -> None:
-    """Fan-out cardinality is fixed when the run is created, before any step has run."""
+def test_a_for_each_may_read_an_ancestors_output(host: PluginHost) -> None:
+    """A step's output makes the grid late, and any ancestor may be the one it reads."""
     definition = load_text(
-        "format: dirigent/v1\ncode: too-late\nsteps:\n"
+        "format: dirigent/v1\ncode: late\nsteps:\n"
         "  a: { block: test.echo, config: {value: hi} }\n"
-        "  b: { block: test.echo, depends_on: [a], for_each: '${steps.a.output.value}', config: {value: '${item}'} }\n"
+        "  b: { block: test.echo, depends_on: [a], config: {value: hi} }\n"
+        "  c: { block: test.echo, depends_on: [b], for_each: '${steps.a.output.value}', config: {value: '${item}'} }\n"
+    )
+    assert validate_against_catalog(definition, host.catalog()) == []
+
+
+def test_a_for_each_may_not_read_a_step_that_is_not_upstream(host: PluginHost) -> None:
+    definition = load_text(
+        "format: dirigent/v1\ncode: sideways\nsteps:\n"
+        "  a: { block: test.echo, config: {value: hi} }\n"
+        "  b: { block: test.echo, for_each: '${steps.a.output.value}', config: {value: '${item}'} }\n"
     )
     issues = validate_against_catalog(definition, host.catalog())
-    assert [issue.location for issue in issues] == ["steps.b.for_each"]
-    assert "expanded when the run is created" in issues[0].message
+    assert [(issue.location, issue.code) for issue in issues] == [
+        ("steps.b.for_each", "document.reference_not_upstream")
+    ]
+
+
+def test_a_for_each_may_not_read_a_matching_item(host: PluginHost) -> None:
+    definition = load_text(
+        "format: dirigent/v1\ncode: paired-list\nsteps:\n"
+        "  a: { block: test.echo, for_each: [x], config: {value: hi} }\n"
+        "  b: { block: test.echo, depends_on: [a], for_each: '${steps.a.item.output}', config: {value: hi} }\n"
+    )
+    issues = validate_against_catalog(definition, host.catalog())
+    assert [(issue.location, issue.code) for issue in issues] == [
+        ("steps.b.for_each", "document.for_each_step_reference")
+    ]
+
+
+def test_a_late_grid_under_one_failed_is_refused(host: PluginHost) -> None:
+    """one_failed is ready before the output a late grid reads exists."""
+    definition = load_text(
+        "format: dirigent/v1\ncode: late-handler\nsteps:\n"
+        "  a: { block: test.echo, config: {value: hi} }\n"
+        "  b: { block: test.echo, depends_on: [a], rule: one_failed, for_each: '${steps.a.output.value}',"
+        " config: {value: '${item}'} }\n"
+    )
+    issues = validate_against_catalog(definition, host.catalog())
+    assert [(issue.location, issue.code) for issue in issues] == [("steps.b.rule", "document.late_grid_one_failed")]
 
 
 def test_a_literal_string_for_each_is_refused_at_apply_time(host: PluginHost) -> None:

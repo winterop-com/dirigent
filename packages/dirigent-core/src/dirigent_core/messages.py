@@ -384,11 +384,16 @@ REFERENCE_UNKNOWN_NAMESPACE = DOCUMENT.define(
     "${{{reference}}} names {namespace}, which is not one of params, steps, item, run, artifacts",
 )
 
-FOR_EACH_READS_OUTPUT = DOCUMENT.define(
-    "for_each_reads_output",
-    "${{{reference}}} reads a step's output, and fan-out is expanded when the run is created: "
-    "for_each may read params, run, and an upstream fan-out's grid as ${{steps.<name>.items}}, "
-    "but not a step's output",
+FOR_EACH_STEP_REFERENCE = DOCUMENT.define(
+    "for_each_step_reference",
+    "${{{reference}}} is not a list for_each can map over: it reads an upstream step's output "
+    "as ${{steps.<name>.output.<field>}}, or maps over another fan-out's grid when the whole "
+    "value is ${{steps.<name>.items}}",
+)
+
+LATE_GRID_ONE_FAILED = DOCUMENT.define(
+    "late_grid_one_failed",
+    "a step whose for_each reads a step's output cannot use one_failed, which is ready before that output exists",
 )
 
 FOR_EACH_READS_ITEM = DOCUMENT.define(
@@ -677,11 +682,25 @@ FAN_OUT_NOT_FANNING = RUN.define(
     "step {step} maps over step {adopted}'s items, but {adopted} does not fan out",
 )
 
-FAN_OUT_READS_OUTPUT = RUN.define(
-    "fan_out_reads_output",
-    "step {step} maps over {expression}: fan-out is expanded when the run is created, so for_each "
-    "may read params, run, and an upstream fan-out's grid as ${{steps.<name>.items}}, "
-    "but not a step's output",
+FAN_OUT_TOO_WIDE = RUN.define(
+    "fan_out_too_wide",
+    "step {step} maps over {count} items, and this instance allows at most {maximum} in one grid (fan_out_max_items)",
+)
+
+FAN_OUT_EMPTY = RUN.define(
+    "fan_out_empty",
+    "step {step} maps over {expression}, which {source} left empty, so the step is skipped",
+)
+
+FAN_OUT_WITHOUT_ITEM = RUN.define(
+    "fan_out_without_item",
+    "step {step} fans out, and an attempt with no item has nothing to run over",
+)
+
+GATE_NOT_RETRYABLE = RUN.define(
+    "gate_not_retryable",
+    "step {step} has no item to retry: its grid is read from {source} once, when the step "
+    "becomes ready; retry {source}, or an item of {step} once the grid has expanded",
 )
 
 FAN_OUT_NOT_A_LIST = RUN.define(

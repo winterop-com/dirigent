@@ -923,20 +923,6 @@ async def test_a_fan_out_over_an_empty_list_skips_the_step(
     assert (await statuses(sessions, run.id))["after"] == [AttemptStatus.SKIPPED]
 
 
-async def test_a_fan_out_over_an_upstream_output_is_refused_at_creation(
-    sessions: Any, services: EngineServices
-) -> None:
-    definition = PipelineDefinition(
-        code="late-fanout",
-        steps=steps(
-            first=StepDefinition(block="test.echo"),
-            push=StepDefinition(block="test.echo", depends_on=["first"], for_each="${steps.first.output.value}"),
-        ),
-    )
-    with pytest.raises(FanOutError, match="expanded when the run is created"):
-        await start(sessions, services, definition)
-
-
 async def test_a_fan_out_over_a_non_list_is_refused(sessions: Any, services: EngineServices) -> None:
     definition = PipelineDefinition(
         code="scalar-fanout",

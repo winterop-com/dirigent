@@ -13,6 +13,7 @@ from dirigent_client.enums import Importance, RunPriority
 from dirigent_client.schemas import Requirements
 from dirigent_common import TEMPLATE_MEDIA_TYPE, EntityName, JsonMap, StepName, TemplateError, compile_template
 from dirigent_common.durations import Duration
+from dirigent_core.engine.references import references_in
 from dirigent_core.errors import DomainError
 from dirigent_core.messages import (
     BAD_TAG,
@@ -57,6 +58,9 @@ _TAG = re.compile(TAG_PATTERN)
 #: A ``for_each`` that maps over another fan-out's grid, written as that step's ``items`` and
 #: nothing else: an adoption is the whole value, never a fragment of a larger string.
 ADOPTED_GRID: Final = re.compile(r"^\$\{\s*steps\.([a-z][a-z0-9_]*)\.items\s*\}$")
+
+#: A reference that reads a step's stored output, which is what makes a ``for_each`` late.
+OUTPUT_REFERENCE: Final = re.compile(r"^\s*steps\.([a-z][a-z0-9_]*)\.output(\.|\s*$)")
 
 
 class ParameterError(DomainError, ValueError):
@@ -141,10 +145,11 @@ class StepDefinition(BaseModel):
     for_each: str | list[JsonValue] | None = None
     """A reference to a list, or a literal list: one run item per element.
 
-    A reference may read params, run, and an upstream fan-out's grid as
-    ``${steps.<name>.items}``, which maps this step over that step's items so each of them
-    reads its match with ``${steps.<name>.item.output}``. Cardinality is fixed when the run
-    is created either way.
+    A reference may read params and run, which fixes the grid when the run is created, or an
+    upstream step's output as ``${steps.<name>.output.<field>}``, which expands the grid when
+    this step becomes ready. ``${steps.<name>.items}`` maps this step over another fan-out's
+    grid, so each of its items reads its match with ``${steps.<name>.item.output}``, and is
+    expanded when that grid is.
     """
 
     items: ItemPolicy = ItemPolicy.FAIL_FAST
@@ -180,6 +185,15 @@ class StepDefinition(BaseModel):
             return None
         adopted = ADOPTED_GRID.match(self.for_each)
         return adopted.group(1) if adopted is not None else None
+
+    @property
+    def output_source(self) -> str | None:
+        """Name the first step whose output this step's ``for_each`` reads, or None when it reads none."""
+        for reference in references_in(cast("JsonValue", self.for_each)):
+            read = OUTPUT_REFERENCE.match(reference)
+            if read is not None:
+                return read.group(1)
+        return None
 
 
 def anchor_naive_moment(moment: datetime | None, timezone: str) -> datetime | None:
@@ -422,6 +436,27 @@ class PipelineDefinition(BaseModel):
             family.append(current)
             current = self.steps[current].adopted_grid
         return family
+
+    def grid_source(self, name: str) -> str | None:
+        """Name the step a late grid waits for, or None when the grid is fixed at creation.
+
+        A ``for_each`` that reads a step's output waits for that step. One that adopts a late
+        grid waits for the step it adopts from, whose items are what it expands into.
+        """
+        step = self.steps.get(name)
+        if step is None:
+            return None
+        if step.output_source is not None:
+            return step.output_source
+        adopted = step.adopted_grid
+        seen: set[str] = {name}
+        current = adopted
+        while current is not None and current in self.steps and current not in seen:
+            if self.steps[current].output_source is not None:
+                return adopted
+            seen.add(current)
+            current = self.steps[current].adopted_grid
+        return None
 
     def topological_order(self) -> list[str]:
         """Order the steps so every prerequisite precedes its dependents."""

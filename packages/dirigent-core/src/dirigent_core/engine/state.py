@@ -17,6 +17,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dirigent_client.enums import AttemptStatus, RunItemStatus, RunStatus
 from dirigent_client.schemas import AttemptOut
 from dirigent_core.engine.definition import ItemPolicy, PipelineDefinition, StepDefinition, TriggerRule
+from dirigent_core.engine.expansion import expand_gate, is_gate
+from dirigent_core.engine.services import EngineServices
 from dirigent_core.models import Pipeline, Run, RunItem, StepAttempt, utcnow
 
 
@@ -90,9 +92,10 @@ def evaluate_rule(rule: TriggerRule, outcomes: Sequence[StepOutcome]) -> Readine
 def aggregate_items(outcomes: Sequence[StepOutcome], policy: ItemPolicy) -> StepOutcome:
     """Fold a fan-out step's per-item outcomes into one step outcome.
 
-    A grid is laid out in full the moment the step it is adopted from expands it, so every item
-    of a step far downstream has a row long before anything claims one. Not one of them started
-    is the step pending; one of them started is the step running.
+    A grid fixed at creation is laid out in full with the run, so every item of a step far
+    downstream has a row long before anything claims one. Not one of them started is the step
+    pending; one of them started is the step running. A late grid's gate is one outcome here,
+    and it is what keeps a step whose items do not exist yet from folding to skipped.
     """
     if not outcomes:
         return StepOutcome.SKIPPED
@@ -305,12 +308,18 @@ async def load_attempts(session: AsyncSession, run_id: UUID) -> list[StepAttempt
 
 
 async def advance(
-    session: AsyncSession, run: Run, definition: PipelineDefinition, *, now: datetime | None = None
+    session: AsyncSession,
+    run: Run,
+    definition: PipelineDefinition,
+    *,
+    services: EngineServices,
+    now: datetime | None = None,
 ) -> RunStatus:
     """Walk the DAG once: ready what is unblocked, skip what can never run, settle the run.
 
     This is the last statement of an outcome transaction, so it must reach a fixpoint in one
-    pass: skipping a step can unblock or doom its own dependents.
+    pass: skipping a step can unblock or doom its own dependents. A ready gate is expanded
+    rather than queued, and its items join the walk as queued attempts.
     """
     moment = now or utcnow()
     await session.flush()
@@ -322,10 +331,17 @@ async def advance(
     while changed:
         changed = False
         states = build_step_states(definition, attempts)
-        for attempt in pending:
+        for attempt in list(pending):
             if attempt.status is not AttemptStatus.PENDING:
                 continue
             match readiness_of(definition, attempt.step_name, states):
+                case Readiness.READY if is_gate(definition, attempt):
+                    written = await expand_gate(session, services, run, definition, attempt, moment)
+                    if written is not None:
+                        pending.remove(attempt)
+                        attempts.remove(attempt)
+                        attempts.extend(written)
+                    changed = True
                 case Readiness.READY:
                     attempt.status = AttemptStatus.QUEUED
                     attempt.available_at = moment

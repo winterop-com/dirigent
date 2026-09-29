@@ -246,6 +246,12 @@ class Settings(BaseSettings):
     moment the step ends, so a ten-minute command is visible working. A step that logs faster
     than the interval flushes sooner, when its buffer fills."""
 
+    fan_out_max_items: int = Field(default=10000, ge=1)
+    """How many items one fan-out grid may expand into; a run that would be wider is refused.
+
+    A grid fixed at creation over it refuses the run. One read from a step's output is
+    expanded when that step has settled, so there the gate fails as ``rejected`` instead."""
+
     log_entries_per_attempt: int = Field(default=1000, ge=1)
     """How many entries one attempt may log before the rest are dropped with one warning."""
 

@@ -73,6 +73,31 @@ class EchoOperator(Operator[EchoConfig, EchoOutput]):
         return EchoOutput(value=rendered, length=len(rendered))
 
 
+class ListConfig(BaseModel):
+    """What the list operator answers with."""
+
+    values: list[JsonValue] = []
+
+
+class ListOutput(BaseModel):
+    """A list, and something beside it that is not one."""
+
+    values: list[JsonValue]
+    count: int
+
+
+class ListOperator(Operator[ListConfig, ListOutput]):
+    """Answers with the list it was configured with, which a later step can fan out over."""
+
+    spec = OperatorSpec(id="test.list", summary="Answer with a list.", idempotent=True)
+    config_model = ListConfig
+    output_model = ListOutput
+
+    async def execute(self, config: ListConfig, ctx: StepContext) -> ListOutput | RemoteHandle:
+        """Hand the configured list back."""
+        return ListOutput(values=list(config.values), count=len(config.values))
+
+
 class ShellishConfig(ShellVariables):
     """A config with a field the block declares as being handed to a shell."""
 
@@ -508,6 +533,7 @@ class EngineTestPlugin:
                 ChattyOperator(),
                 EchoOperator(),
                 FailOperator(),
+                ListOperator(),
                 NonIdempotentOperator(),
                 RemoteOperator(),
                 ShellishOperator(),

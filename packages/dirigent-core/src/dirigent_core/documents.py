@@ -39,7 +39,8 @@ from dirigent_core.messages import (
     DOCUMENT_UNSATISFIED,
     FOR_EACH_LITERAL,
     FOR_EACH_READS_ITEM,
-    FOR_EACH_READS_OUTPUT,
+    FOR_EACH_STEP_REFERENCE,
+    LATE_GRID_ONE_FAILED,
     NO_FORMAT,
     NOT_A_MAPPING,
     NOT_YAML,
@@ -836,10 +837,8 @@ def _reference_issues(definition: PipelineDefinition) -> list[ValidationIssue]:
                 issues.append(_at(f"steps.{name}.config", problem))
         issues.extend(_fan_out_literal_issues(name, step.for_each))
         issues.extend(_adoption_issues(definition, name))
-        # for_each carries one extra rule: cardinality is fixed when the run is created, so
-        # it cannot read a step's output.
         for reference in sorted(set(references_in(cast("JsonValue", step.for_each)))):
-            problem = _for_each_problem(reference.strip(), definition, name, declared)
+            problem = _for_each_problem(reference.strip(), definition, name, upstream, declared)
             if problem is not None:
                 issues.append(_at(f"steps.{name}.for_each", problem))
     return issues
@@ -853,29 +852,41 @@ def _fan_out_literal_issues(step: str, for_each: str | list[JsonValue] | None) -
 
 
 def _adoption_issues(definition: PipelineDefinition, step: str) -> list[ValidationIssue]:
-    """Refuse ``rule: one_failed`` on a step that maps over another fan-out's grid.
+    """Refuse ``rule: one_failed``, which is ready before a grid read from upstream exists.
 
     That rule fires as soon as one prerequisite has failed, while the rest are still running,
-    so the step it belongs to would be claimed before the grid it pairs with has settled.
+    so a step that maps over another fan-out's grid would be claimed before that grid has
+    settled, and one whose ``for_each`` reads a step's output before that output exists.
     """
-    if definition.steps[step].adopted_grid is None or definition.steps[step].rule is not TriggerRule.ONE_FAILED:
+    declared = definition.steps[step]
+    if declared.rule is not TriggerRule.ONE_FAILED:
         return []
-    return [ValidationIssue.of(ADOPTION_ONE_FAILED, location=f"steps.{step}.rule")]
+    if declared.adopted_grid is not None:
+        return [ValidationIssue.of(ADOPTION_ONE_FAILED, location=f"steps.{step}.rule")]
+    if declared.output_source is not None:
+        return [ValidationIssue.of(LATE_GRID_ONE_FAILED, location=f"steps.{step}.rule")]
+    return []
 
 
 def _for_each_problem(
     reference: str,
     definition: PipelineDefinition,
     step: str,
+    upstream: set[str],
     declared: set[str] | None,
 ) -> Issue | None:
-    """Say what is wrong with a reference inside ``for_each``, or nothing when it will resolve."""
+    """Say what is wrong with a reference inside ``for_each``, or nothing when it will resolve.
+
+    A step's output may be read from any ancestor, which is what makes the grid late.
+    """
     parts = [part for part in reference.split(".") if part]
     match parts:
         case ["steps", target, "items"] if definition.steps[step].adopted_grid == target:
             return _adopted_grid_problem(reference, definition, step, target)
+        case ["steps", _, "output", *_]:
+            return _reference_problem(reference, definition, step, upstream, declared, set())
         case ["steps", *_]:
-            return Issue.of(FOR_EACH_READS_OUTPUT, reference=reference)
+            return Issue.of(FOR_EACH_STEP_REFERENCE, reference=reference)
         case ["item", *_]:
             return Issue.of(FOR_EACH_READS_ITEM, reference=reference)
         case _:
