@@ -292,6 +292,19 @@ stays clean, and every example stays executable.
   who wins when the document changes shape under a stored layout, and whether better flow
   algorithms close the gap without storing anything.
 
+- **The corner belongs to the person, not to a keyboard hint.** The topbar's right corner
+  holds three unrelated controls: a dropdown of instance facts and health that also happens to
+  carry the username and Sign out, a button whose entire content is the chord `⌘K`, and the
+  panel toggle. Wanted instead: one profile control there, holding who is signed in, what this
+  instance is and how it is doing, the theme mode, Settings and Sign out -- so the shell's own
+  facts are gathered the way a screen's already are. Settings is then reached from the profile
+  rather than from the foot's cell and the drawer's row, which leaves the foot carrying only
+  what the current screen is doing.
+  Two things to settle rather than assume: whether the palette keeps any visible affordance
+  once the button that spells out its chord is gone, since a person who does not know the chord
+  would have nothing left to discover it by; and what happens below the breakpoint, where there
+  is no keyboard and the search glyph is the only way into the palette at all.
+
 ## Blocks wanted
 
 Block families we expect to want. Each is a package that ships on its own, and none
