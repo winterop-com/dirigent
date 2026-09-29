@@ -89,33 +89,45 @@ stays clean, and every example stays executable.
    After that, stage 3 starts with item-by-item scheduling: item i of B ready when item i of
    A succeeds rather than when all of A has. Streaming a single step comes last, and only if
    it is still wanted.
-2. **An `endpoint` trigger: a pipeline behind a path of its own.** A webhook is a token URL that
-   takes a delivery and starts a run. An endpoint is the Camel REST shape: the pipeline declares
-   a path and its methods, and the server serves it under a prefix of its own:
-   ```yaml
-   triggers:
-     endpoints:
-       hello:
-         path: /hello
-         methods: [GET]
-         params: {name: "${request.query.name}"}
-         reply: {step: greet, timeout: 10s}
-   ```
-   The request's query, path parameters, headers and body map onto params and are validated
-   like a webhook's. With `reply`, the caller waits for the named step's output as its response.
-   Without it, the caller gets 202 and the run's id. Apply refuses two pipelines claiming one
-   path. An endpoint is public or asks for a token. `dg endpoint` lists and manages endpoints,
-   and they appear on the Triggers screen. It is inbound to dirigent's own server, like a
-   webhook, so the outbound-only rule stands. The limit to state plainly: a reply goes through
-   the queue, a worker and every step, so it takes a few hundred milliseconds at best. That is
-   a pipeline behind an API, not an API server.
-   To decide in its design round:
-   - the prefix;
-   - what the reply is when the run fails or the timeout passes;
-   - whether a reply can set its status and headers;
-   - how a burst of requests is bounded;
-   - the delivery history, which webhooks already keep.
-3. **Adapter packs.** Every further pack takes the shape `dirigent-dhis2` set: its own
+2. **Input sources: a pipeline that is always listening.** A source is a pipeline's first
+   node, `steps: echo: source: {kind: endpoint, path: /echo, methods: [POST]}`, and its
+   lifecycle belongs to the pipeline. It listens from the moment the pipeline is applied and
+   active until it is paused. Each input becomes a run: the input is the source node's
+   output, settled by whoever received it, and flows into the next blocks
+   (`${steps.echo.output.body}`). Several source nodes give several entries: an input enters
+   at its own node and the other entry nodes are skipped.
+   - `endpoint` is the first kind: received by dirigent's own server under `/endpoints`, in
+     the shape of Camel's REST DSL. It takes JSON, form or text up to `max_body`, and no
+     files; a caller with a file posts a URI and the pipeline fetches it. An
+     `endpoint.reply` node answers a caller that waits; without one the caller gets 202 and
+     the run id. Auth is a per-endpoint token by default and `public` only when written.
+   - Consumer kinds (Kafka, RabbitMQ) hold a subscription on a worker through a lease.
+     Watches and webhooks fold in as kinds, and packs contribute kinds through pluginkit.
+   - A reply goes through the queue and a worker, so it takes a few hundred milliseconds
+     today. Workers poll every 500 ms and nothing uses LISTEN/NOTIFY; that wake-up is its
+     own slice and speeds up every pipeline.
+   The design round decides the node model, the source states, the reply contract, the
+   slices and a large examples shelf.
+3. **dirigent-fhir.** Start simple. The first flagship needs no pack: an endpoint source
+   taking `application/fhir+json`, `transform.jq`, the dhis2 pack's import, and a reply. It
+   lives in `dirigent-integration`'s `shelves/fhir/`, with a standalone `fhir-to-dhis2`
+   walkthrough beside it. The pack then comes in stages, on dhis2w's FHIR libraries called
+   in-process by blocks and never as a separate server:
+   - a `fhir` connection kind with read, search, create, update and transaction/batch
+     blocks;
+   - FHIRPath as a transform engine on the verb frames (`transform.fhirpath`,
+     `map.fhirpath`, `filter.fhirpath`) over `dhis2w-fhir-engine`, which carries no DHIS2
+     coupling;
+   - structural validation, then **profiles and IG packages**: a profile resolved from a
+     pinned package (`name#version` from the FHIR package registry), a package cache, and
+     terminology for bindings;
+   - measures and CQL;
+   - the read side (`/metadata`, reads, searches, history) served by dhis2w's facade
+     routers mounted inside the dirigent server, picking only the routers wanted. This
+     needs a routes contribution surface, the open question "A server in the mix" below.
+   Converting a QuestionnaireResponse into DHIS2 uses `dhis2w-fhir` and belongs in
+   `dirigent-dhis2`. The plan sets the milestones.
+4. **Adapter packs.** Every further pack takes the shape `dirigent-dhis2` set: its own
    repository, its own examples and tests, self-testing against `dirigent-plugin`'s main,
    wired through a connection kind, with a client written fresh or wrapping a stable one, and
    assembled by `dirigent-integration`.
@@ -163,8 +175,9 @@ stays clean, and every example stays executable.
   and a screen to the dirigent server itself through pluginkit -- a seventh surface beside
   blocks and connection kinds, the server mounting a pack's router under `/api/v1/<pack>` --
   which raises who authenticates those routes, how they appear in the OpenAPI document, and
-  whether the outbound-only decision admits a pack that listens. The `endpoint` trigger above answers the narrower case: a
-  pipeline, rather than a pack, answering a path. The other is a pipeline whose
+  whether the outbound-only decision admits a pack that listens. Input sources above answer the narrower case, a pipeline
+  answering a path. dirigent-fhir's read side is the first concrete user of the other: a pack
+  mounting routers. The other is a pipeline whose
   step is a long-lived service: an app a run starts, health-checks with `http.ready`, uses for
   the rest of the run, and tears down, the shape `docker.compose.up` and `.down` already give a
   compose stack, but for a process the worker owns. To decide first: which of the two is
@@ -195,6 +208,17 @@ stays clean, and every example stays executable.
   pipeline rather than in advance, and revisit if the answer turns out to be that everything
   lives in object storage anyway, where a URI and a bucket policy may be all the tracking
   anyone needs.
+
+- **The cross-boundary shelves on PyPI.** `dirigent-integration` is already a plugin whose
+  `examples()` hook contributes its shelves. Run from its checkout, an instance lists all 258
+  examples: 178 core, 56 dhis2, 24 cross-boundary. Nothing published carries the 24, so a
+  `dg init` project never sees them. Publishing it gives one install for every pack plus
+  every shelf, and could build the full image. A release then pins its dependencies at
+  `==X.Y.Z`, the wheel carries only the plugin and its shelves, and the repo gains a release
+  workflow with its own PyPI publisher. Not everyone wants every pack, so a shelves-only
+  package beside it may be the better default; its documents already name what they need
+  under `requires`. The Examples screen then wants a "runnable here" filter (every
+  requirement installed) and a filter by contributing plugin.
 
 - **A TUI for watching a run.** A scrolling stream is the wrong shape for a DAG: it cannot
   show a step updating in place, a fan-out's item grid, or logs beside structure. Wanted: a
@@ -314,15 +338,6 @@ requires touching the engine. None is near-term.
   The boundary to keep: in-memory transforms are for records you can hold -- API payloads,
   a few thousand rows -- not a data-engineering framework. Past that line the answer is SQL
   over files or a container, and saying so early avoids a half-built pandas.
-
-- **FHIR, an important addition.** Likely the most common transform case in practice, and
-  only partly generalisable: mapping to and from FHIR resources is regular enough to deserve
-  blocks (parse, render, validate against a profile, a `fhir` connection kind for a server's
-  base URL and auth, search and read and transaction bundles, and the bundle handling every
-  integration rewrites) but each deployment's mapping to its own concepts is not. Wanted: the
-  general half as blocks, with the specific half left to a pipeline's own transform steps. Sits
-  close to the codecs above and should be designed with them. Not for now, but not far off:
-  this and AI are the two additions that matter most.
 
 - **AI, an important addition.** A pipeline step that asks
   a model: an `ai.complete` operator (a prompt, optional context from upstream outputs, a
