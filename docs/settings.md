@@ -44,7 +44,7 @@ environment, and the server inside one never opens the file.
 | `worker_name` | `DIRIGENT_WORKER_NAME` | `null` | Registry name of this worker; defaults to hostname plus process id. |
 | `lease` | `DIRIGENT_LEASE` | `"1m"` | How long a claimed attempt's lease is valid before the sweeper may reclaim it. |
 | `heartbeat` | `DIRIGENT_HEARTBEAT` | `"15s"` | How often a worker refreshes the leases it holds and its registry row. |
-| `claim_idle` | `DIRIGENT_CLAIM_IDLE` | `"500ms"` | How long a worker waits before asking for work again when the queue is empty. |
+| `claim_idle` | `DIRIGENT_CLAIM_IDLE` | `"500ms"` | How long an idle worker waits before asking for work again when nothing wakes it. |
 | `log_flush_interval` | `DIRIGENT_LOG_FLUSH_INTERVAL` | `"1s"` | How often a running attempt's buffered log entries are written to the run. |
 | `log_entries_per_attempt` | `DIRIGENT_LOG_ENTRIES_PER_ATTEMPT` | `1000` | How many entries one attempt may log before the rest are dropped with one warning. |
 | `log_flush_batch` | `DIRIGENT_LOG_FLUSH_BATCH` | `100` | How many buffered entries write themselves without waiting for the flush interval. |
