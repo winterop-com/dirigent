@@ -405,7 +405,7 @@ export function NewWebhook({
                                                 {field.name}
                                             </Label>
                                             {field.required && (
-                                                <p className="text-xs text-primary">required</p>
+                                                <p className="text-xs text-primary-ink">required</p>
                                             )}
                                         </div>
                                         <Input

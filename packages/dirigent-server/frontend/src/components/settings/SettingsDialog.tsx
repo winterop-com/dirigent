@@ -295,7 +295,7 @@ function PaletteSwatches({ value, onChoose }: { value: PaletteName; onChoose: (n
                         </span>
                         <span className="flex items-center gap-1 text-xs">
                             {palette.label}
-                            {chosen && <Check className="size-3 text-primary" aria-hidden />}
+                            {chosen && <Check className="size-3 text-primary-ink" aria-hidden />}
                         </span>
                     </button>
                 )

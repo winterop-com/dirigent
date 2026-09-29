@@ -84,7 +84,10 @@ export function RunTab({ run }: { run: RunOut }) {
                     <Fact
                         term="pipeline"
                         detail={
-                            <Link className="text-primary hover:underline" to={`/pipelines/${run.pipeline}`}>
+                            <Link
+                                className="text-primary-ink hover:underline"
+                                to={`/pipelines/${run.pipeline}`}
+                            >
                                 {run.pipeline}
                             </Link>
                         }

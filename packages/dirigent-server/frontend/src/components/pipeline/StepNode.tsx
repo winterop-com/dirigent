@@ -97,7 +97,7 @@ export function StepNode({ data, selected }: NodeProps<DocumentNode>) {
                     </span>
                 )}
                 {data.edited && !data.missing && (
-                    <span className="ml-auto shrink-0 rounded-sm border border-primary px-1 text-xs text-primary">
+                    <span className="ml-auto shrink-0 rounded-sm border border-primary px-1 text-xs text-primary-ink">
                         edited
                     </span>
                 )}

@@ -193,6 +193,8 @@ a fill and an inline link's ink and nothing else: a link is a thing the reader c
 wears the colour that means action, and it wears the ink twin because it is text. A screen that
 set a heading, a label or a hint in it would be spending that colour on something nobody can
 press.
+`scripts/check_ui_classes.py` refuses a bare `text-primary` anywhere in the app's own source:
+amber on the ground is `text-primary-ink`.
 
 **Status is named for the state machine.** `--status-succeeded`, `--status-failed`,
 `--status-running`, `--status-waiting`, `--status-queued`, `--status-pending`,
@@ -915,6 +917,11 @@ unregister -- the same shape as registering palette actions, and for the same re
 cannot outlive the screen whose data it is drawing. A tab is an id, a label and a `render`, and
 the open tab is remembered by id, so a screen that gains a tab does not move the reader onto a
 different one. A screen that fills nothing gets the line saying so.
+
+**Whether the panel stands open is the reader's; a screen opens it for one visit.** The toggle is
+the only thing that writes the stored preference. A selection, or an address that names a row,
+opens the panel through `openPanel` for that screen alone, and the next screen starts from the
+preference, so a link into one screen never decides how every other screen first draws.
 
 **The status bar is the shell's; the two facts on it are the screen's.** `lib/screen-status`
 holds one note and one identifier, stated for as long as a screen is mounted -- where a run's

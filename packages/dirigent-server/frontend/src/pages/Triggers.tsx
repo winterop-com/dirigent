@@ -511,7 +511,7 @@ function LastFiring({ row }: { row: ScheduleRow }) {
             {view !== null && <span>{view.label}</span>}
             {view !== null && view.runId !== null && (
                 <Link
-                    className="font-mono text-primary hover:underline"
+                    className="font-mono text-primary-ink hover:underline"
                     to={`/runs/${view.runId}`}
                     onClick={(event) => {
                         event.stopPropagation()
@@ -541,7 +541,7 @@ function LastDelivery({ row }: { row: WebhookRow }) {
             </span>
             {view !== null && view.runId !== null && (
                 <Link
-                    className="font-mono text-primary hover:underline"
+                    className="font-mono text-primary-ink hover:underline"
                     to={`/runs/${view.runId}`}
                     onClick={(event) => {
                         event.stopPropagation()
