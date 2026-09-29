@@ -96,9 +96,9 @@ steps:
   load:
     block: pipeline.run
     depends_on: [plan]
-    # The fan-out reads params, not the plan step's output: cardinality is fixed when the run
-    # is created, so a for_each names params, run, or another fan-out's grid -- never a step's
-    # output.
+    # The fan-out reads params rather than the plan step's output, so every child is on the
+    # graph from the moment the run is visible. ${steps.plan.output.regions} would work too,
+    # and write the grid once plan had answered.
     for_each: "${params.regions}"
     # One region refusing is not a reason to abandon the others; the join below counts what
     # actually landed.

@@ -6,10 +6,9 @@
 # in Dim1, and the number in NumericValue. The envelope is OData's; the rows inside it are what
 # anyone actually wants.
 #
-# What this shows, beyond the fetch: how a fan-out is read back. `for_each` is expanded when the
-# run is created, so it can read params, run and item -- and never another step's output. And a
-# fan-out step stores one output: the list of its items' outputs, in item order, with a failed
-# item absent from it. So there is no way for item three of one step to ask item three of another
+# What this shows, beyond the fetch: how a fan-out is read back. `for_each` here reads params,
+# so the grid is fixed when the run is created. And a fan-out step stores one output: the list
+# of its items' outputs, in item order, with a failed item absent from it. So there is no way for item three of one step to ask item three of another
 # what it produced; what a downstream step gets is the whole list at once. That is why the
 # flattening below is a single step over every envelope, and why the country is read out of
 # SpatialDim: the join key lives in the data, where a fan-in can see it.

@@ -65,6 +65,7 @@ One step definition, many run items.
 | [fan-out-then-join.yaml](fan-out-then-join.yaml) | The join, which is just a step with no `for_each` of its own | `succeeded` |
 | [fan-out-nested-objects.yaml](fan-out-nested-objects.yaml) | Elements that are objects, and `${item.limits.max_ms}` | `succeeded` |
 | [fan-out-item-wise.yaml](fan-out-item-wise.yaml) | A second fan-out over the same grid, and the item it pairs with | `succeeded` |
+| [fan-out-over-an-output.yaml](fan-out-over-an-output.yaml) | List, then fan out over what was listed: a grid written when its source succeeds | `succeeded` |
 
 ## Parameters
 

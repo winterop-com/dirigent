@@ -7,10 +7,9 @@
 # A fan-out is `for_each` on a step: the run gets one item per element, each with its own
 # status, error, retry budget and output. Two things about it shape this recipe:
 #
-#   for_each is expanded when the run is created, so it reads params.*, run.*, and another
-#   fan-out's grid as ${steps.<step>.items} -- never a step's output. That is why the regions
-#   are a parameter here and not the result of an upstream read: the item grid exists from the
-#   moment the run is visible.
+#   The regions are a parameter, so for_each is expanded when the run is created and the
+#   item grid exists from the moment the run is visible. Were they the result of an upstream
+#   read, ${steps.<step>.output.<field>} would write the grid when that read had settled.
 #   A fan-out step's output is the list of its items' outputs, in item order. So the step
 #   after the fan reads the whole batch at once, and it reads ${steps.<step>.output} --
 #   the list -- rather than ${steps.<step>.output.uri}, which is a field of one item's

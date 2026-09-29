@@ -1,0 +1,104 @@
+# List, then fan out over what was listed.
+#
+# Every other fan-out on this shelf knows its width before anything runs: a literal list, a
+# parameter, or another fan-out's grid. This one does not. `stations` asks the world what there
+# is, and `read` makes one item per thing it answered with -- so the width of `read` is only
+# known once `stations` has succeeded.
+#
+# for_each: ${steps.<name>.output.<field>} is that. A step output makes the grid late: the run
+# is created with `read` waiting as one pending attempt, and when `stations` succeeds the same
+# transaction writes one item per element of the list, in list order, each queued at once.
+#
+# Four things follow from the grid being written late:
+#
+#   1. Before `stations` succeeds, `read` is pending, not skipped: the run cannot settle early,
+#      and the graph says what it waits for.
+#   2. The source may be any step upstream of this one, not only a direct dependency, and the
+#      list may come from a fan-out: ${steps.<fan-out>.output} is its items' outputs.
+#   3. An empty list skips the step, as an empty list written in the document does. So does
+#      everything behind it that needed it: -p stations=0 shows it.
+#   4. The grid is read once. Retrying an item of `read` retries that item; nothing re-reads
+#      `stations`, so the grid is exactly what it was when it was written.
+#
+# A value that is not a list, or a field the output does not have, fails `read` as rejected
+# with nothing written; a list wider than the instance's fan_out_max_items does the same.
+#
+# Hop by hop:
+#
+#   stations  the listing. playground.generate makes the rows up, seeded, so the run is the
+#             same on every machine; in a real document this is the call that asks what exists.
+#   read      one item per listed station. ${item} is that station's record, and the node adds
+#             a generated reading to it, so each item's output is one station, read.
+#   summary   the join, with no for_each of its own: the list of every item's output, in the
+#             order the stations were listed.
+#
+# EXPECT THIS RUN TO SUCCEED at once, with four items under `read` and a summary naming the
+# four stations in the order they were listed.
+#
+# To change it: -p stations=12 for a wider grid from the same document, and -p stations=0 for
+# an empty listing, which skips `read` and `summary` and still ends the run succeeded.
+#
+#   dg run --local examples/patterns/fan-out-over-an-output.yaml
+#   dg run --local examples/patterns/fan-out-over-an-output.yaml -p stations=0  # read is skipped
+#   dg validate --explain examples/patterns/fan-out-over-an-output.yaml
+
+format: dirigent/v1
+kind: pipeline
+code: fan-out-over-an-output
+name: Fan out over what was listed
+description: |
+  `for_each: ${steps.<name>.output.<field>}` maps a step over a list an upstream step
+  produced, so the grid is written when that step succeeds rather than when the run is created.
+
+  Until then the step is pending on it; an empty list skips the step.
+
+tags: [patterns, transform, fan-out, references]
+
+requires:
+  blocks:
+    - playground.generate
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    stations:
+      type: integer
+      default: 4
+      minimum: 0
+      maximum: 50
+      description: How many stations the listing answers with, which is how wide `read` becomes.
+
+steps:
+  stations:
+    block: playground.generate
+    config:
+      rows: ${params.stations}
+      seed: 7
+      fields:
+        station: city
+
+  read:
+    block: playground.generate
+    depends_on: [stations]
+    # The whole point of the file: a step's output, so the grid is as wide as that list turns
+    # out to be.
+    for_each: ${steps.stations.output.records}
+    config:
+      # One station's record, which the node extends with the fields named below. No seed, so
+      # each item draws its own reading; the stations themselves are seeded above.
+      input: ${item}
+      fields:
+        celsius:
+          provider: pyint
+          args: {min_value: -20, max_value: 30}
+
+  summary:
+    block: transform.jq
+    depends_on: [read]
+    config:
+      # read's output is the list of its items' outputs, and each of those carries its one
+      # record under `records`.
+      input: ${steps.read.output}
+      program: |
+        {stations: length, read: [.[].records[0] | {station, celsius}]}

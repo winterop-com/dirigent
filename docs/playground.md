@@ -216,8 +216,9 @@ shows all three:
 
 `rows: 10` is one step run whose one output holds ten records. Ten *separate* units of work is
 a different thing, and the engine already has a word for it: `for_each` on the step, which
-fixes the cardinality when the run is created and gives each element its own attempt, its own
-retry budget and its own row in the grid.
+gives each element its own attempt, its own retry budget and its own row in the grid. Over a
+parameter the grid is fixed when the run is created; over an earlier node's
+`${steps.<name>.output.records}` it is written once that node has answered.
 
 ```yaml
 steps:

@@ -7,12 +7,10 @@
 # ordinary run.
 #
 # What a fan-out actually is: one step definition, N run items, one attempt each, all of them
-# claimable at once. The item grid exists from the moment the run is visible, because
-# for_each is expanded when the run is CREATED. That has a consequence worth knowing before
-# you reach for it: for_each may read params, run, and another fan-out's grid as
-# ${steps.<step>.items}, but never a step's output, because the cardinality has to be known
-# before anything executes. A fan-out over a list fetched at run time is not expressible, and
-# that is deliberate rather than missing.
+# claimable at once. A literal list is expanded when the run is CREATED, so the item grid exists
+# from the moment the run is visible. A list fetched at run time is the other shape: a for_each
+# over ${steps.<step>.output.<field>} is written when that step has settled, and
+# fan-out-over-an-output.yaml is that on its own.
 #
 # Hop by hop:
 #

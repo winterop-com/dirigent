@@ -547,6 +547,30 @@ steps:
     assert settled == {("greet", "east"), ("greet", "west"), ("greet", "north")}
 
 
+def test_the_late_fan_out_example_streams_its_items_and_never_the_gate_they_replaced() -> None:
+    """The step waits as one attempt with no item, which is not a unit of work anybody watches."""
+    result = invoke("run", "--local", str(EXAMPLES / "patterns" / "fan-out-over-an-output.yaml"))
+    assert result.exit_code == 0, result.output
+    streamed = [
+        (event["item"], event["message"])
+        for event in of_kind(records(result.stdout), "step")
+        if event["step"] == "read"
+    ]
+    assert {item for item, message in streamed if message == "succeeded"} == {"0", "1", "2", "3"}
+    assert all(item is not None for item, _ in streamed), "no transition belongs to the gate"
+    end = closing(result.stdout)
+    assert end["message"] == "succeeded"
+    summary = next(step for step in end["steps"] if step["step"] == "summary")
+    assert summary["output"]["value"]["stations"] == 4
+
+
+def test_the_late_fan_out_example_skips_its_fan_out_over_an_empty_listing() -> None:
+    result = invoke("run", "--local", str(EXAMPLES / "patterns" / "fan-out-over-an-output.yaml"), "-p", "stations=0")
+    assert result.exit_code == 0, result.output
+    settled = {step["step"]: step["status"] for step in closing(result.stdout)["steps"]}
+    assert settled == {"stations": "succeeded", "read": "skipped", "summary": "skipped"}
+
+
 def test_the_stream_shows_what_a_block_reported_rather_than_only_that_it_reported(tmp_path: Path) -> None:
     result = invoke("run", "--local", str(write(tmp_path, HELLO)), "--enable-unsafe", "shell.run")
     reported = next(

@@ -195,9 +195,10 @@ Worth reading before you run it:
   outcome, the default `all_success` edges skip the branch behind it too.
 
 - **`for_each` on `push` is the fan-out.** One run item per region, each with its own status
-  and its own retry. It is expanded when the run is created, which is why it may read
-  `params.*`, `run.*`, and an upstream fan-out's grid as `${steps.<name>.items}`, but not a
-  step's output: the cardinality has to be known before anything executes.
+  and its own retry. It reads `params.*`, so it is expanded when the run is created and the
+  grid is on screen before anything executes. A `for_each` may read an upstream step's output
+  too, as `${steps.<name>.output.<field>}`; that grid is written when the step it reads has
+  settled.
 
   `items: continue` says a region that refuses does not stop the others. Under the default,
   `fail_fast`, any failed item fails the step.

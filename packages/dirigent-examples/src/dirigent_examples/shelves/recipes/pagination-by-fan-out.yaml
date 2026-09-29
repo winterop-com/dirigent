@@ -4,19 +4,17 @@
 # Out: one HTTP call per page, each with its own status and retry budget, and a fan-in step
 #      that stitches the pages back into one list.
 #
-# for_each is expanded when the run is created, so it reads params.*, item and run.* -- and
-# never another step's output. That is the constraint this recipe is built around, and it
-# cuts both ways:
+# for_each reads params here, so it is expanded when the run is created. That is the choice
+# this recipe is built around, and it cuts both ways:
 #
 #   What you get. The item grid exists from the moment the run is visible, so a person
 #   watching sees six pages and their statuses rather than a step that might turn into six
 #   later. Items run concurrently, each with its own status, error and retry budget, so one
 #   slow page does not serialise the rest and one failed page is recorded against itself.
-#   What you give up. A fan-out whose cardinality depends on what an earlier call returned
-#   is not expressible: this is why the pages are a literal list. When the count really is
-#   unknown, either the first call reports it and a second pipeline is run with it as a
-#   parameter, or the pipeline walks the cursor one call at a time and gives up the
-#   concurrency.
+#   What you give up. The pages have to be known up front. When the count really is unknown,
+#   a first call that reports the pages can feed a for_each over its output instead,
+#   ${steps.<step>.output.<field>}, whose grid is written once that call has answered --
+#   patterns/fan-out-over-an-output.yaml shows the shape.
 #
 # items decides what one bad page means. Under the default, fail_fast, any failed item fails
 # the step. Under continue, the step succeeds as long as one item did, the failures are
