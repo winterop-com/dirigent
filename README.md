@@ -286,6 +286,7 @@ make lint           # mutating: ruff format + ruff check --fix
 make static         # read-only gate without the tests: ruff, mypy, pyright, the UI type scale
 make check          # the static gate, the UI's, then the tests
 make test           # the fast unit lane, on SQLite
+make test-affected  # only the suites a change since BASE=origin/main can reach
 make test-postgres  # the concurrency lane, against a real PostgreSQL (needs Docker)
 make test-docker    # the docker family, against a real daemon
 make test-queues    # the queue sensors, against real Kafka and RabbitMQ brokers
@@ -298,8 +299,14 @@ make docs           # serve the documentation site on 127.0.0.1:3334 (dirigent i
 make docs-build     # build the site, failing on any warning
 ```
 
-`make gate` is what CI runs, with the documentation build beside it and separate jobs for the
-concurrency, s3, queue, docker, browser and compose lanes. Every
+`make gate` is the whole thing in one command, and CI splits it. A pull request runs the
+static half over the whole repository and only the suites its diff can reach:
+`scripts/affected_suites.py` reads the packages' own dependency declarations and answers with
+the packages the diff touches plus everyone who depends on them, so a change to
+`dirigent-common` still runs all nineteen and a change to one block family does not. A push to
+main runs every suite under coverage, which is where the 90 percent floor is held. Both report
+through a job named `check`, alongside separate jobs for the concurrency, s3, queue, docker,
+browser and compose lanes. Every
 package is type-checked under mypy with `disallow_untyped_defs` and pyright in strict mode.
 `docs/blocks.md` and `docs/settings.md` are generated -- `make docs-blocks` and
 `make docs-settings` rewrite them from the catalog and the settings model.

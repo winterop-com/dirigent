@@ -43,8 +43,9 @@ uv run dg --version
 ```
 
 Every `dg` below becomes `uv run dg` in a source checkout. `make check` is the read-only gate:
-ruff, mypy, pyright, the UI's own checks, and the fast test lane. `make gate` is what CI runs,
-which is the same static half with the tests once under coverage.
+ruff, mypy, pyright, the UI's own checks, and the fast test lane. `make gate` is the same
+static half with the tests once under coverage, which is what a push to main runs; a pull
+request runs the static half and `make test-affected`, the suites its diff can reach.
 
 ## The zero-setup smoke test
 

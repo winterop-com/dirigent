@@ -5,6 +5,12 @@ UV ?= uv
 #: Passed to `docker compose build`; a rebuild sets them to defeat the cache.
 BUILD_FLAGS ?=
 
+#: How many processes a test lane spreads itself across. `auto` is one per core.
+WORKERS ?= auto
+
+#: The ref `test-affected` measures a change from, through its merge base with HEAD.
+BASE ?= origin/main
+
 #: Where a release's image is published, and the version every package in the workspace carries.
 IMAGE_REPO ?= ghcr.io/winterop-com/dirigent
 VERSION := $(shell sed -n 's/^version = "\(.*\)"/\1/p' packages/dirigent-cli/pyproject.toml)
@@ -27,7 +33,7 @@ COMPOSE_SINKS ?= $(COMPOSE) -f infra/compose.sinks.yaml
 #: Every overlay at once, which is what "take it all away" has to name to reach every volume.
 COMPOSE_ALL ?= $(COMPOSE) -f infra/compose.brokers.yaml -f infra/compose.sql.yaml -f infra/compose.otel.yaml -f infra/compose.sinks.yaml
 
-.PHONY: help install lint static check gate e2e queues-up queues-down schemas dev dev-seeded ui ui-dev ui-fmt ui-lint ui-shots ui-test ui-e2e ui-gate ui-static ui-wheel docs-shots docker-build docker-rebuild docker-run docker-run-queues docker-run-sql docker-run-otel docker-run-sinks docker-run-all docker-clean test test-postgres test-s3 test-docker test-queues load coverage docs docs-blocks docs-settings docs-build docs-pdf clean refresh
+.PHONY: help install lint static check gate e2e queues-up queues-down schemas dev dev-seeded ui ui-dev ui-fmt ui-lint ui-shots ui-test ui-e2e ui-gate ui-static ui-wheel docs-shots docker-build docker-rebuild docker-run docker-run-queues docker-run-sql docker-run-otel docker-run-sinks docker-run-all docker-clean test test-affected test-postgres test-s3 test-docker test-queues load coverage docs docs-blocks docs-settings docs-build docs-pdf clean refresh
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -51,13 +57,18 @@ static: ## Read-only gate without the tests: ruff, mypy, pyright, the UI type sc
 	$(UV) run python scripts/check_ui_classes.py
 
 check: static ui-gate ## Read-only gate: the static one, the UI's, then the tests
-	$(UV) run pytest
+	$(UV) run pytest -n $(WORKERS)
 
 e2e: ## Only the end-to-end lane: dg dev, dg apply, dg run, dg runs, as subprocesses
 	$(UV) run pytest -m e2e
 
 test: ## Run the fast unit lane (SQLite)
-	$(UV) run pytest
+	$(UV) run pytest -n $(WORKERS)
+
+test-affected: ## Run only the suites a change since $(BASE) can reach
+	@suites=$$($(UV) run python scripts/affected_suites.py --base $(BASE)) || exit 1; \
+	if [ -z "$$suites" ]; then echo "Nothing this change touches has a suite."; \
+	else $(UV) run pytest -n $(WORKERS) $$suites; fi
 
 test-slowest: ## Run the fast lane and list the 25 slowest tests
 	$(UV) run pytest --durations=25 --durations-min=0.1
@@ -203,7 +214,9 @@ docker-clean: ## Remove the stack: containers, volumes, orphans, and the images 
 	@exit 1
 
 coverage: ## Run the test suite once, under coverage, and hold the gate
-	$(UV) run coverage run -m pytest
+	# pytest-cov rather than `coverage run`: an xdist worker is a subprocess of its own, and
+	# this is what gathers each one's data into the single file the report then reads.
+	$(UV) run pytest -n $(WORKERS) --cov --cov-report=
 	$(UV) run coverage report --fail-under=90
 
 gate: static coverage ## What CI runs: the static gate, then the tests once, under coverage

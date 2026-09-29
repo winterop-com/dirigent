@@ -203,6 +203,16 @@ only a real PostgreSQL proves, `s3` for a real object store, `docker` for a real
 is marked so `make e2e` can run it alone, but it is *in* the fast lane and gates every change
 with the rest.
 
+A pull request does not run the whole fast lane. `make test-affected` asks
+`scripts/affected_suites.py` which packages the diff reaches -- the ones it touches, and every
+package that depends on one of them -- and runs only those suites. The graph comes from the
+packages' own `pyproject.toml` files, plus the two edges no manifest states: the plugin host
+discovers every `dirigent.*` entry point in the interpreter, so a pack reaches
+`dirigent-core`, and `dirigent-testing` ships a pytest plugin, so it reaches every suite.
+Anything outside `packages/` runs all of them, because a document, an infra file or the root
+manifest is read by tests that reach out of their own package. A push to main runs every
+suite once under coverage, and that is where the 90 percent floor is held.
+
 `load` is the exception that never runs in the gate. `make load` fans a run out over fifty
 attempts logging five thousand lines each, against a real PostgreSQL, and writes what the log
 path cost -- rows a second, flush sizes and durations, how long a line takes to become
