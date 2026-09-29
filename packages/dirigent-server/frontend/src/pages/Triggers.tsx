@@ -5,6 +5,7 @@ import { Link } from 'react-router'
 import { ApiChip } from '@/components/ApiChip'
 import { ListTable, type Column } from '@/components/list/ListTable'
 import { PageHeader, PageState } from '@/components/PageState'
+import { PipelineRef } from '@/components/PipelineRef'
 import { Chip, Clock, Dot, NextFire, OwnerChip, WatchState } from '@/components/triggers/marks'
 import { MintedToken, NewSchedule, NewWebhook } from '@/components/triggers/NewTrigger'
 import { SchedulePanel, WatchPanel, WebhookPanel } from '@/components/triggers/TriggerPanel'
@@ -20,9 +21,11 @@ import {
     deliveryView,
     firingView,
     hookPath,
+    nextFireView,
     readTriggerPage,
     signing,
     triggerId,
+    watchView,
     type ScheduleOut,
     type ScheduleRow,
     type TriggerRow,
@@ -61,6 +64,7 @@ export function Triggers() {
     const schedules = useMemo(() => rows.filter(isSchedule), [rows])
     const webhooks = useMemo(() => rows.filter(isWebhook), [rows])
     const watches = useMemo(() => rows.filter(isWatch), [rows])
+    const scheduleCols = useMemo(() => scheduleColumns(schedules), [schedules])
     const watchCols = useMemo(() => watchColumns(watches), [watches])
     const open = rows.find((row) => triggerId(row) === chosen) ?? null
 
@@ -86,6 +90,7 @@ export function Triggers() {
                                 return (
                                     <SchedulePanel
                                         pipeline={open.pipeline}
+                                        pipelineName={open.pipelineName}
                                         schedule={open.schedule}
                                         onChanged={(schedule: ScheduleOut) => {
                                             held({ ...open, schedule })
@@ -96,6 +101,7 @@ export function Triggers() {
                                 return (
                                     <WebhookPanel
                                         pipeline={open.pipeline}
+                                        pipelineName={open.pipelineName}
                                         webhook={open.webhook}
                                         onChanged={(webhook: WebhookOut) => {
                                             held({ ...open, webhook })
@@ -107,6 +113,7 @@ export function Triggers() {
                                 return (
                                     <WatchPanel
                                         pipeline={open.pipeline}
+                                        pipelineName={open.pipelineName}
                                         watch={open.watch}
                                         onChanged={(watch: WatchOut) => {
                                             held({ ...open, watch })
@@ -214,7 +221,7 @@ export function Triggers() {
                             </p>
                         ) : (
                             <ListTable
-                                columns={SCHEDULE_COLUMNS}
+                                columns={scheduleCols}
                                 rows={schedules}
                                 rowKey={triggerId}
                                 reading={state.reading}
@@ -325,18 +332,7 @@ const SCHEDULE_COLUMNS: Column<ScheduleRow>[] = [
         id: 'pipeline',
         header: 'Pipeline',
         kind: 'prose',
-        cell: (row) => (
-            <Link
-                className="block truncate text-sm hover:text-primary"
-                to={`/pipelines/${encodeURIComponent(row.pipeline)}`}
-                title={row.pipeline}
-                onClick={(event) => {
-                    event.stopPropagation()
-                }}
-            >
-                {row.pipeline}
-            </Link>
-        ),
+        cell: (row) => <PipelineRef code={row.pipeline} name={row.pipelineName} />,
     },
     {
         id: 'clock',
@@ -353,7 +349,9 @@ const SCHEDULE_COLUMNS: Column<ScheduleRow>[] = [
         id: 'next',
         header: 'Next',
         className: 'text-xs',
-        cell: (row) => <NextFire schedule={row.schedule} />,
+        // The paused chip in the title cell already says why there is no instant.
+        cell: (row) =>
+            nextFireView(row.schedule).kind === 'paused' ? null : <NextFire schedule={row.schedule} />,
     },
     {
         id: 'last',
@@ -378,18 +376,7 @@ const WEBHOOK_COLUMNS: Column<WebhookRow>[] = [
         id: 'pipeline',
         header: 'Pipeline',
         kind: 'prose',
-        cell: (row) => (
-            <Link
-                className="block truncate text-sm hover:text-primary"
-                to={`/pipelines/${encodeURIComponent(row.pipeline)}`}
-                title={row.pipeline}
-                onClick={(event) => {
-                    event.stopPropagation()
-                }}
-            >
-                {row.pipeline}
-            </Link>
-        ),
+        cell: (row) => <PipelineRef code={row.pipeline} name={row.pipelineName} />,
     },
     {
         id: 'endpoint',
@@ -439,18 +426,7 @@ const WATCH_COLUMNS: Column<WatchRow>[] = [
         id: 'pipeline',
         header: 'Pipeline',
         kind: 'prose',
-        cell: (row) => (
-            <Link
-                className="block truncate text-sm hover:text-primary"
-                to={`/pipelines/${encodeURIComponent(row.pipeline)}`}
-                title={row.pipeline}
-                onClick={(event) => {
-                    event.stopPropagation()
-                }}
-            >
-                {row.pipeline}
-            </Link>
-        ),
+        cell: (row) => <PipelineRef code={row.pipeline} name={row.pipelineName} />,
     },
     {
         id: 'step',
@@ -461,7 +437,8 @@ const WATCH_COLUMNS: Column<WatchRow>[] = [
     {
         id: 'waiting',
         header: 'Waiting',
-        cell: (row) => <WatchState watch={row.watch} />,
+        // The paused chip in the title cell already says why nothing is waiting.
+        cell: (row) => (watchView(row.watch).kind === 'paused' ? null : <WatchState watch={row.watch} />),
     },
     {
         id: 'error',
@@ -476,10 +453,22 @@ const WATCH_COLUMNS: Column<WatchRow>[] = [
     },
 ]
 
-/** The watch columns, leaving out the error column where no row has an error to show. */
+/** The schedule columns, leaving out Next where every row is paused and so has none. */
+function scheduleColumns(rows: readonly ScheduleRow[]): Column<ScheduleRow>[] {
+    if (rows.some((row) => nextFireView(row.schedule).kind !== 'paused')) return SCHEDULE_COLUMNS
+    return SCHEDULE_COLUMNS.filter((column) => column.id !== 'next')
+}
+
+/**
+ * The watch columns, leaving out Waiting where every row is paused and the error column where
+ * no row has an error to show.
+ */
 function watchColumns(rows: readonly WatchRow[]): Column<WatchRow>[] {
-    if (rows.some((row) => row.watch.last_error !== null)) return WATCH_COLUMNS
-    return WATCH_COLUMNS.filter((column) => column.id !== 'error')
+    const waiting = rows.some((row) => watchView(row.watch).kind !== 'paused')
+    const erred = rows.some((row) => row.watch.last_error !== null)
+    return WATCH_COLUMNS.filter(
+        (column) => (waiting || column.id !== 'waiting') && (erred || column.id !== 'error'),
+    )
 }
 
 /**

@@ -76,19 +76,18 @@ export function Clock({ schedule }: { schedule: ScheduleOut }) {
     return <span className={clock.mono ? 'font-mono text-xs' : 'text-sm'}>{clock.text}</span>
 }
 
-/** When a schedule fires next, or the reason there is no instant to give. */
+/** When a schedule fires next, or that nothing is scheduled; a paused one draws nothing, its chip says it. */
 export function NextFire({ schedule }: { schedule: ScheduleOut }) {
     const next = nextFireView(schedule)
     return (
         <span data-testid="next-fire">
-            {next.kind === 'paused' && <span className="text-muted-foreground">paused</span>}
             {next.kind === 'none' && <span className="text-faint">nothing scheduled</span>}
             {next.kind === 'due' && <Instant className="text-muted-foreground" at={next.at} />}
         </span>
     )
 }
 
-/** What a watch is doing: the run it has waiting, or why it has none. */
+/** What a watch is doing: the run it has waiting, or why it has none; a paused one wears its chip instead. */
 export function WatchState({ watch }: { watch: WatchOut }) {
     const view = watchView(watch)
     return (
@@ -110,7 +109,6 @@ export function WatchState({ watch }: { watch: WatchOut }) {
                     backing off until <Instant at={view.until} />
                 </span>
             )}
-            {view.kind === 'paused' && <span className="text-muted-foreground">paused</span>}
             {view.kind === 'arming' && <span className="text-faint">arming</span>}
         </span>
     )
