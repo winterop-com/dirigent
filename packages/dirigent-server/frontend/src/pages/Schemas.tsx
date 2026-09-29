@@ -15,6 +15,7 @@ import { useMayWrite } from '@/hooks/use-may-write'
 import { usePaged } from '@/hooks/use-paged'
 import { useRead } from '@/hooks/use-read'
 import { headingOf, oneLine } from '@/lib/identity'
+import { LABELS } from '@/lib/labels'
 import { LIST_GROUP, registerActions } from '@/lib/palette'
 import { closePanel, fillPanel, openPanel } from '@/lib/panels'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
@@ -76,7 +77,7 @@ export function Schemas() {
             [
                 {
                     id: 'schema',
-                    label: 'Schema',
+                    label: LABELS.word.schema,
                     render: () => <SchemaPanel key={open.code} schema={open} onDeleted={reload} />,
                 },
             ],
@@ -94,7 +95,7 @@ export function Schemas() {
                 ? [
                       {
                           id: 'schemas:new',
-                          title: 'New schema',
+                          title: LABELS.schemas.new,
                           group: LIST_GROUP,
                           screen: true,
                           icon: FileJson,
@@ -107,7 +108,7 @@ export function Schemas() {
                 : []),
             {
                 id: 'schemas:reload',
-                title: 'Read the schemas listing again',
+                title: LABELS.schemas.reload,
                 group: LIST_GROUP,
                 screen: true,
                 icon: RefreshCw,
@@ -122,14 +123,14 @@ export function Schemas() {
     return (
         <>
             <PageHeader
-                title="Schemas"
+                title={LABELS.screen.schemas.name}
                 aside={
                     <>
                         <ApiChip tag="schemas" />
                         <Refusable why={write.why}>
                             <Button
                                 size="sm"
-                                aria-label="New schema"
+                                aria-label={LABELS.schemas.new}
                                 disabled={!write.may}
                                 title={write.why}
                                 onClick={() => {
@@ -137,7 +138,7 @@ export function Schemas() {
                                 }}
                             >
                                 <FileJson aria-hidden />
-                                New
+                                {LABELS.action.new}
                             </Button>
                         </Refusable>
                     </>
@@ -147,7 +148,7 @@ export function Schemas() {
                 loading={!state.read}
                 problem={state.problem}
                 empty={rows.length === 0}
-                emptyMessage="No schemas."
+                emptyMessage={LABELS.schemas.empty}
             >
                 <ListTable
                     columns={columns}
@@ -156,7 +157,7 @@ export function Schemas() {
                     reading={state.reading}
                     next={state.next}
                     onMore={more}
-                    noun="schemas"
+                    noun={LABELS.schemas.noun}
                     onSelect={(row) => {
                         // The row is not another page of history: it is which one is being read.
                         void navigate(`/schemas/${encodeURIComponent(row.code)}`, { replace: true })
@@ -175,10 +176,10 @@ export function Schemas() {
 
 function buildColumns(): Column<SchemaOut>[] {
     return [
-        { id: 'schema', header: 'Schema', kind: 'title', cell: (row) => <Named row={row} /> },
+        { id: 'schema', header: LABELS.word.schema, kind: 'title', cell: (row) => <Named row={row} /> },
         {
             id: 'description',
-            header: 'Description',
+            header: LABELS.word.description,
             kind: 'prose',
             // The one line a row has room for, and nothing where the schema says nothing.
             cell: (row) => {
@@ -230,7 +231,7 @@ function SchemaPanel({ schema, onDeleted }: { schema: SchemaOut; onDeleted: () =
         <div className="flex min-h-0 flex-col gap-4 p-4">
             <Description text={schema.description} />
             <JsonBlock
-                title={`${schema.code} · schema`}
+                title={LABELS.schemas.body_title(schema.code)}
                 text={JSON.stringify(schema.body, null, 2)}
                 className="max-h-[60vh]"
             />
@@ -243,7 +244,7 @@ function SchemaPanel({ schema, onDeleted }: { schema: SchemaOut; onDeleted: () =
                     title={write.why}
                     onClick={remove}
                 >
-                    {removing ? 'Deleting' : 'Delete'}
+                    {removing ? LABELS.schemas.deleting : LABELS.action.delete}
                 </Button>
             </Refusable>
         </div>

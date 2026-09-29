@@ -7,6 +7,7 @@ import { AdminOnly } from '@/components/admin/AdminOnly'
 import { WorkersTable } from '@/components/admin/WorkersTable'
 import { PageHeader } from '@/components/PageState'
 import { usePaged } from '@/hooks/use-paged'
+import { LABELS } from '@/lib/labels'
 import { ADMIN_GROUP, registerActions } from '@/lib/palette'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
 import { readWorkers, worstConcern, concernNote, type WorkerOut } from '@/lib/workers'
@@ -42,7 +43,7 @@ function Workers() {
 
     // Two strings rather than the worker itself: `worstConcern` answers a fresh object every
     // render, and an effect keyed on it would clear and restate the bar on every one of them.
-    const note = worst === null ? 'every worker is answering' : concernNote(worst.worker, worst.concern)
+    const note = worst === null ? LABELS.workers.all_answering : concernNote(worst.worker, worst.concern)
     const tone = worst === null ? 'quiet' : 'warn'
 
     useEffect(() => {
@@ -54,7 +55,7 @@ function Workers() {
         return registerActions([
             {
                 id: 'workers:reload',
-                title: 'Read the worker registry again',
+                title: LABELS.workers.reload_action,
                 group: ADMIN_GROUP,
                 screen: true,
                 icon: RefreshCw,
@@ -66,12 +67,8 @@ function Workers() {
 
     return (
         <>
-            <PageHeader title="Workers" aside={<ApiChip tag="workers" />} />
-            <WorkersTable
-                state={workers.state}
-                more={workers.more}
-                empty="No workers. Start one with dg worker; nothing is claimed until one registers."
-            />
+            <PageHeader title={LABELS.screen.workers.name} aside={<ApiChip tag="workers" />} />
+            <WorkersTable state={workers.state} more={workers.more} empty={LABELS.workers.empty} />
         </>
     )
 }

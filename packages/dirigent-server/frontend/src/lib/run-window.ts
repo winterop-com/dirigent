@@ -15,18 +15,19 @@
  */
 
 import type { JsonMap } from '@/lib/api'
+import { LABELS } from '@/lib/labels'
 
 /** What a step writes to read an edge of its run's window. */
 const WINDOW_REFERENCE = 'run.window'
 
 /** Why Run is shut on a document whose steps read a window nothing has given them. */
-export const WINDOW_NEEDED = 'This pipeline needs a window'
+export const WINDOW_NEEDED = LABELS.runs.window_needed
 
 /** Why Run is shut on one end of a window given without the other. */
-export const WINDOW_HALF = 'A window has two ends: give both, or neither.'
+export const WINDOW_HALF = LABELS.runs.window_half
 
 /** Why Run is shut on a window that does not run forwards. */
-export const WINDOW_BACKWARDS = 'A window runs forwards: the start is before the end.'
+export const WINDOW_BACKWARDS = LABELS.runs.window_backwards
 
 /** What a `datetime-local` box holds: a wall clock to the minute, with no zone on it. */
 const LOCAL_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/

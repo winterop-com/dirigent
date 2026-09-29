@@ -3,15 +3,15 @@ import { Settings } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useStore } from '@/hooks/use-store'
-import { authStore } from '@/lib/auth'
+import { LABELS } from '@/lib/labels'
 import { RAIL_COLLAPSED_WIDTH, railCollapsed, railDragging, railWidth } from '@/lib/panels'
 import { screenStatus, type StatusTone } from '@/lib/screen-status'
 import { cn } from '@/lib/utils'
 
-export const SETTINGS_LABEL = 'Settings'
+export const SETTINGS_LABEL = LABELS.shell.settings
 
 /**
- * The line along the foot of the app: settings, who this is, and what the screen is doing.
+ * The line along the foot of the app: settings, and what the screen is doing.
  *
  * ONE ELEMENT ACROSS THE WHOLE WIDTH, WITH CELLS INSIDE IT. The rail's foot and the status
  * line were two elements each drawing its own top border, and two borders meeting at a column
@@ -28,8 +28,9 @@ export const SETTINGS_LABEL = 'Settings'
  * `lib/screen-status` while it is mounted -- where a run's one event stream is, and the trace
  * the run is on -- and the bar draws them without knowing which screen wrote them.
  *
- * WHAT THIS INSTANCE IS BELONGS TO THE CORNER, NOT HERE. A fact appears once in the shell, and
- * the identity in the topbar already carries the name, the environment and the version.
+ * WHAT THIS INSTANCE IS, AND WHO IS SIGNED IN, BELONG TO THE CORNER, NOT HERE. A fact appears
+ * once in the shell, and the identity in the topbar already carries the name, the environment,
+ * the version, the health of every check and the username it is all being read as.
  */
 
 /** How each tone is inked. A live stream is information, not a warning. */
@@ -40,7 +41,6 @@ const TONE: Record<StatusTone, string> = {
 }
 
 export function StatusBar({ onSettings }: { onSettings: () => void }) {
-    const auth = useStore(authStore)
     const status = useStore(screenStatus)
     const collapsed = useStore(railCollapsed)
     const width = useStore(railWidth)
@@ -84,9 +84,6 @@ export function StatusBar({ onSettings }: { onSettings: () => void }) {
             </div>
 
             <div data-shell-cell="status" className="flex min-w-0 flex-1 items-center gap-3 px-3">
-                {auth.identity !== null && (
-                    <span className="font-mono text-xs text-muted-foreground">{auth.identity.username}</span>
-                )}
                 {status.note !== null && (
                     <span className={cn('truncate text-xs', TONE[status.tone])}>{status.note}</span>
                 )}

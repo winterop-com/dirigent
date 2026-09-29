@@ -8,6 +8,7 @@ import { useApiPrefix } from '@/hooks/use-api-prefix'
 import { ApiError, type Problem } from '@/lib/api'
 import { artifactUrl, readReportDocument, type ReportDocument } from '@/lib/artifacts'
 import { formatDuration } from '@/lib/format'
+import { LABELS } from '@/lib/labels'
 import { itemsNote, type RunReport } from '@/lib/runs'
 import { cn } from '@/lib/utils'
 
@@ -91,9 +92,7 @@ export function ReportTab({
     const found = read?.of === runId ? read : null
 
     if (!settled) {
-        return (
-            <p className="p-4 text-sm text-muted-foreground">The report is written when this run settles.</p>
-        )
+        return <p className="p-4 text-sm text-muted-foreground">{LABELS.runs.report_pending}</p>
     }
 
     if (found !== null && found.refusal !== null) {
@@ -101,7 +100,7 @@ export function ReportTab({
     }
 
     if (found === null) {
-        return <p className="p-4 text-sm text-muted-foreground">Reading the report.</p>
+        return <p className="p-4 text-sm text-muted-foreground">{LABELS.runs.report_reading}</p>
     }
 
     if (found.document === null) return <Summary report={report} problem={problem} />
@@ -126,7 +125,7 @@ export function ReportTab({
                         download={DOCUMENT_NAME}
                         rel="noopener"
                     >
-                        Download the markdown
+                        {LABELS.runs.report_download}
                     </a>
                 )}
             </div>
@@ -144,19 +143,17 @@ function Summary({ report, problem }: { report: RunReport | null; problem: Probl
     const items = report === null ? null : itemsNote(report.items_total, report.items_failed)
     return (
         <div className="flex flex-col gap-4 p-4">
-            <p className="text-sm text-muted-foreground">
-                This run rendered no report document. A pipeline document declares one under its report key.
-            </p>
-            <Section title="Summary">
+            <p className="text-sm text-muted-foreground">{LABELS.runs.report_missing}</p>
+            <Section title={LABELS.word.summary}>
                 {problem !== null ? (
                     <p className="text-xs text-muted-foreground">{problem.detail}</p>
                 ) : report === null ? (
-                    <p className="text-xs text-muted-foreground">Reading the summary.</p>
+                    <p className="text-xs text-muted-foreground">{LABELS.runs.summary_reading}</p>
                 ) : (
                     <>
                         <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
-                            <Fact term="took" detail={formatDuration(report.duration_ms)} />
-                            {items !== null && <Fact term="items" detail={items} />}
+                            <Fact term={LABELS.runs.fact.took} detail={formatDuration(report.duration_ms)} />
+                            {items !== null && <Fact term={LABELS.runs.fact.items} detail={items} />}
                         </dl>
                         <ul className="mt-2 space-y-1">
                             {report.steps.map((step) => (
@@ -164,7 +161,9 @@ function Summary({ report, problem }: { report: RunReport | null; problem: Probl
                                     <StatusChip status={step.outcome} />
                                     <span className="truncate text-sm">{step.step}</span>
                                     {step.warnings > 0 && (
-                                        <span className="text-xs text-warning">{step.warnings} warned</span>
+                                        <span className="text-xs text-warning">
+                                            {LABELS.runs.step_warned(String(step.warnings))}
+                                        </span>
                                     )}
                                     <span className="ml-auto shrink-0 text-xs text-faint">
                                         {formatDuration(step.duration_ms)}

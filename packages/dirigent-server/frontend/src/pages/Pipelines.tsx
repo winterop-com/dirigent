@@ -17,6 +17,7 @@ import { usePaged } from '@/hooks/use-paged'
 import { useRead } from '@/hooks/use-read'
 import { formatInstant } from '@/lib/format'
 import { headingOf, oneLine } from '@/lib/identity'
+import { LABELS } from '@/lib/labels'
 import { NEW_PIPELINE_PATH } from '@/lib/nav'
 import {
     DropdownMenu,
@@ -87,11 +88,11 @@ const StarterPicker = lazy(() =>
 /** Which tab of the right panel a chosen row opens. */
 const PREVIEW_TAB = 'pipeline'
 
-export const NEW_PIPELINE_LABEL = 'New pipeline'
+export const NEW_PIPELINE_LABEL = LABELS.pipelines.new
 
-export const FROM_FILE_LABEL = 'From file…'
+export const FROM_FILE_LABEL = LABELS.pipelines.from_file
 
-export const FROM_STARTER_LABEL = 'From a starter'
+export const FROM_STARTER_LABEL = LABELS.pipelines.from_starter
 
 /**
  * Every pipeline this instance holds, in the order the titles on screen read in.
@@ -174,7 +175,7 @@ export function Pipelines() {
                       },
                       {
                           id: 'pipelines:from-starter',
-                          title: 'New pipeline from a starter',
+                          title: LABELS.pipelines.palette.from_starter,
                           group: LIST_GROUP,
                           screen: true,
                           icon: BookOpen,
@@ -185,7 +186,7 @@ export function Pipelines() {
                       },
                       {
                           id: 'pipelines:from-file',
-                          title: 'New pipeline from a file',
+                          title: LABELS.pipelines.palette.from_file,
                           group: LIST_GROUP,
                           screen: true,
                           icon: FilePlus2,
@@ -198,7 +199,7 @@ export function Pipelines() {
                 : []),
             {
                 id: 'pipelines:reload',
-                title: 'Read the pipelines listing again',
+                title: LABELS.pipelines.palette.reload,
                 group: LIST_GROUP,
                 screen: true,
                 icon: RefreshCw,
@@ -214,7 +215,7 @@ export function Pipelines() {
         return [
             {
                 id: PREVIEW_TAB,
-                label: 'Pipeline',
+                label: LABELS.word.pipeline,
                 render: () => (
                     <Suspense fallback={<PanelReading />}>
                         <PipelinePreview key={chosen.code} pipeline={chosen} />
@@ -229,7 +230,7 @@ export function Pipelines() {
     return (
         <>
             <PageHeader
-                title="Pipelines"
+                title={LABELS.screen.pipelines.name}
                 aside={
                     <>
                         <ApiChip tag="pipelines" />
@@ -265,7 +266,7 @@ export function Pipelines() {
                                         void navigate(NEW_PIPELINE_PATH)
                                     }}
                                 >
-                                    New
+                                    {LABELS.action.new}
                                 </Button>
                             </Refusable>
                             <DropdownMenu>
@@ -274,7 +275,7 @@ export function Pipelines() {
                                         <Button
                                             size="sm"
                                             className="rounded-l-none border-l border-primary-foreground/20 px-1.5"
-                                            aria-label="More ways to start a pipeline"
+                                            aria-label={LABELS.pipelines.more_ways}
                                             disabled={!write.may}
                                             title={write.why}
                                         >
@@ -307,11 +308,7 @@ export function Pipelines() {
             />
 
             <div className="mb-4 flex flex-wrap items-center gap-2">
-                <SearchField
-                    value={needle}
-                    label="Search pipelines by code, name or tag"
-                    onChange={setNeedle}
-                />
+                <SearchField value={needle} label={LABELS.pipelines.search} onChange={setNeedle} />
                 <TagFilter chosen={tags} offered={offered.value ?? []} onChange={setTags} />
             </div>
 
@@ -338,7 +335,7 @@ export function Pipelines() {
                     reading={state.reading}
                     next={state.next}
                     onMore={more}
-                    noun="pipelines"
+                    noun={LABELS.pipelines.noun}
                 />
             </PageState>
 
@@ -390,7 +387,7 @@ function narrow(rows: readonly PipelineOut[], needle: string): PipelineOut[] {
  */
 function summary(shown: number, loaded: number): string | null {
     if (shown === loaded) return null
-    return `${String(shown)} of ${String(loaded)}`
+    return LABELS.pipelines.shown_of_loaded(String(shown), String(loaded))
 }
 
 /**
@@ -403,7 +400,7 @@ function pipelineColumns(onTag: (tag: string) => void): Column<PipelineOut>[] {
     return [
         {
             id: 'pipeline',
-            header: 'Pipeline',
+            header: LABELS.word.pipeline,
             kind: 'title',
             cell: (row) => {
                 const retired = retirement(row)
@@ -428,7 +425,7 @@ function pipelineColumns(onTag: (tag: string) => void): Column<PipelineOut>[] {
                             {retired !== null && (
                                 <span
                                     className="rounded-sm border border-border px-1.5 text-xs text-faint"
-                                    title="deactivated: its schedules are paused and it cannot be run"
+                                    title={LABELS.pipelines.deactivated.explained}
                                 >
                                     {retired}
                                 </span>
@@ -453,14 +450,14 @@ function pipelineColumns(onTag: (tag: string) => void): Column<PipelineOut>[] {
         },
         {
             id: 'tags',
-            header: 'Tags',
+            header: LABELS.word.tags,
             // No width of its own: the cell's own bound is what stops the column, and the lead
             // column's `w-full` takes everything the chips did not need.
             cell: (row) => (row.tags.length === 0 ? null : <TagChips tags={row.tags} onSelect={onTag} />),
         },
         {
             id: 'triggers',
-            header: 'Triggers',
+            header: LABELS.pipelines.column.triggers,
             cell: (row) =>
                 row.schedules === 0 && row.webhooks === 0 && row.watches === 0 ? null : (
                     <span
@@ -490,7 +487,7 @@ function pipelineColumns(onTag: (tag: string) => void): Column<PipelineOut>[] {
         },
         {
             id: 'last-run',
-            header: 'Last run',
+            header: LABELS.pipelines.column.last_run,
             // One line, and no wider than that line: what this column says is short, and every
             // pixel it does not need is the title's.
             className: 'whitespace-nowrap',
@@ -512,11 +509,14 @@ function LastRunCell({ row }: { row: PipelineOut }) {
                 style={statusTokens('running') as CSSProperties}
             >
                 <span className="status-dot" aria-hidden />
-                {row.active_runs === 1 ? 'running' : `${String(row.active_runs)} running`}
+                {row.active_runs === 1
+                    ? LABELS.state.run.running.chip
+                    : LABELS.pipelines.last_run.running(String(row.active_runs))}
             </span>
         )
     }
-    if (view === null || row.last_run === null) return <span className="text-xs text-faint">never run</span>
+    if (view === null || row.last_run === null)
+        return <span className="text-xs text-faint">{LABELS.pipelines.last_run.never}</span>
     return (
         // Bounded in the table, where half of it is the identity's and this column's own words
         // are what it gives back: the instant stands and what follows it is cut with the whole
@@ -535,8 +535,11 @@ function LastRunCell({ row }: { row: PipelineOut }) {
                     {statusLabel(view.status)}
                 </span>
             ) : (
-                <span className="truncate text-muted-foreground" title={`at ${view.failedStep}`}>
-                    at {view.failedStep}
+                <span
+                    className="truncate text-muted-foreground"
+                    title={LABELS.pipelines.last_run.failed_at(view.failedStep)}
+                >
+                    {LABELS.pipelines.last_run.failed_at(view.failedStep)}
                 </span>
             )}
         </span>

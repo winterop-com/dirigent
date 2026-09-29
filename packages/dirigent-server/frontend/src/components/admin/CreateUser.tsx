@@ -14,6 +14,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { type Problem } from '@/lib/api'
+import { LABELS } from '@/lib/labels'
 import { local, refusalOf } from '@/lib/refusal'
 import type { UserRole } from '@/lib/auth'
 import { createUser, MIN_PASSWORD_LENGTH, ROLE_HINTS, USER_ROLES } from '@/lib/users'
@@ -47,7 +48,7 @@ export function CreateUser({
 
     const send = () => {
         if (form.password.length < MIN_PASSWORD_LENGTH) {
-            setProblem(local(`A password must be at least ${String(MIN_PASSWORD_LENGTH)} characters.`))
+            setProblem(local(LABELS.users.password_too_short(String(MIN_PASSWORD_LENGTH))))
             return
         }
         setBusy(true)
@@ -78,14 +79,12 @@ export function CreateUser({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-md" showCloseButton={false}>
                 <DialogHeader>
-                    <DialogTitle>New account</DialogTitle>
-                    <DialogDescription>
-                        The password is what it signs in with the first time.
-                    </DialogDescription>
+                    <DialogTitle>{LABELS.users.new_account}</DialogTitle>
+                    <DialogDescription>{LABELS.users.new_account_hint}</DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-2">
-                    <Label htmlFor="new-username">Username</Label>
+                    <Label htmlFor="new-username">{LABELS.word.username}</Label>
                     <Input
                         id="new-username"
                         value={form.username}
@@ -97,12 +96,12 @@ export function CreateUser({
                 </div>
 
                 <div className="space-y-2">
-                    <Label htmlFor="new-name">Name</Label>
+                    <Label htmlFor="new-name">{LABELS.word.name}</Label>
                     <Input
                         id="new-name"
                         value={form.name}
                         autoComplete="off"
-                        placeholder="Optional"
+                        placeholder={LABELS.users.optional}
                         onChange={(event) => {
                             setForm((current) => ({ ...current, name: event.target.value }))
                         }}
@@ -110,12 +109,12 @@ export function CreateUser({
                 </div>
 
                 <div className="space-y-2">
-                    <Label htmlFor="new-email">Email</Label>
+                    <Label htmlFor="new-email">{LABELS.word.email}</Label>
                     <Input
                         id="new-email"
                         value={form.email}
                         autoComplete="off"
-                        placeholder="Optional"
+                        placeholder={LABELS.users.optional}
                         onChange={(event) => {
                             setForm((current) => ({ ...current, email: event.target.value }))
                         }}
@@ -123,7 +122,7 @@ export function CreateUser({
                 </div>
 
                 <div className="space-y-2">
-                    <Label htmlFor="new-password">Password</Label>
+                    <Label htmlFor="new-password">{LABELS.word.password}</Label>
                     <Input
                         id="new-password"
                         type="password"
@@ -136,7 +135,7 @@ export function CreateUser({
                 </div>
 
                 <fieldset className="space-y-2">
-                    <legend className="text-sm font-medium">Role</legend>
+                    <legend className="text-sm font-medium">{LABELS.word.role}</legend>
                     {USER_ROLES.map((role) => (
                         <label key={role} className="flex items-start gap-2 text-sm">
                             <input
@@ -161,12 +160,12 @@ export function CreateUser({
                 {problem !== null && <Refusal problem={problem} />}
 
                 <DialogFooter>
-                    <DialogClose render={<Button variant="ghost" />}>Cancel</DialogClose>
+                    <DialogClose render={<Button variant="ghost" />}>{LABELS.action.cancel}</DialogClose>
                     <Button
                         disabled={busy || form.username.trim() === '' || form.password === ''}
                         onClick={send}
                     >
-                        Create
+                        {LABELS.action.create}
                     </Button>
                 </DialogFooter>
             </DialogContent>

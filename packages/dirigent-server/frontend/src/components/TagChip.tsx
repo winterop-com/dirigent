@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils'
+import { LABELS } from '@/lib/labels'
 
 /**
  * One tag, drawn the one way this app draws a tag.
@@ -34,8 +35,8 @@ export function TagChip({
         <button
             type="button"
             className={cn(face, 'cursor-pointer hover:border-foreground/40 hover:text-foreground')}
-            aria-label={label ?? `Filter by ${tag}`}
-            title={label ?? `Filter by ${tag}`}
+            aria-label={label ?? LABELS.shell.filter_by_tag(tag)}
+            title={label ?? LABELS.shell.filter_by_tag(tag)}
             onClick={(event) => {
                 event.stopPropagation()
                 onSelect()

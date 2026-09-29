@@ -4,6 +4,7 @@ import { Section } from '@/components/run/Panel'
 import { useApiPrefix } from '@/hooks/use-api-prefix'
 import { artifactUrl, readArtifacts, reportArtifact, type ArtifactOut } from '@/lib/artifacts'
 import { countedHeading, formatBytes, shortenUri } from '@/lib/format'
+import { LABELS } from '@/lib/labels'
 import type { RunDetailState } from '@/lib/run-detail'
 import { runSettled } from '@/lib/status'
 
@@ -56,18 +57,26 @@ export function OutputTab({ state, runId }: { state: RunDetailState; runId: stri
 
     return (
         <div className="flex flex-col gap-4 p-4">
-            <Section title={artifacts === null ? 'Artifacts' : countedHeading('Artifacts', rows.length)}>
+            <Section
+                title={
+                    artifacts === null
+                        ? LABELS.word.artifacts
+                        : countedHeading(LABELS.word.artifacts, rows.length)
+                }
+            >
                 {artifacts === null ? (
-                    <p className="text-xs text-muted-foreground">Reading the artifacts.</p>
+                    <p className="text-xs text-muted-foreground">{LABELS.runs.artifacts_reading}</p>
                 ) : rows.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">No step of this run wrote an output.</p>
+                    <p className="text-xs text-muted-foreground">{LABELS.runs.artifacts_empty}</p>
                 ) : (
                     <ul className="space-y-2">
                         {rows.map((row) => (
                             <li key={row.id} className="space-y-0.5">
                                 <div className="flex items-baseline gap-2">
                                     {prefix === null ? (
-                                        <span className="truncate text-sm">{row.step_name ?? 'the run'}</span>
+                                        <span className="truncate text-sm">
+                                            {row.step_name ?? LABELS.runs.artifact_of_run}
+                                        </span>
                                     ) : (
                                         <a
                                             className="truncate text-sm text-primary-ink hover:underline"
@@ -75,7 +84,7 @@ export function OutputTab({ state, runId }: { state: RunDetailState; runId: stri
                                             download
                                             rel="noopener"
                                         >
-                                            {row.step_name ?? 'the run'}
+                                            {row.step_name ?? LABELS.runs.artifact_of_run}
                                         </a>
                                     )}
                                     {row.uri !== null && items.get(row.uri) !== undefined && (

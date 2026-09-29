@@ -2,6 +2,7 @@ import { Fragment } from 'react'
 import { Link } from 'react-router'
 
 import { cn } from '@/lib/utils'
+import { LABELS } from '@/lib/labels'
 
 /** One step of a trail: what it says, where it goes, and whether it wears the mono face. */
 export interface Crumb {
@@ -32,7 +33,7 @@ export function Breadcrumb({ trail, code }: { trail: readonly Crumb[]; code?: st
     return (
         <nav
             className="flex min-w-0 items-center gap-1.5 text-sm"
-            aria-label="Breadcrumb"
+            aria-label={LABELS.shell.breadcrumb}
             title={trail.map((crumb) => crumb.label).join(' / ')}
         >
             {trail.map((crumb, index) => {

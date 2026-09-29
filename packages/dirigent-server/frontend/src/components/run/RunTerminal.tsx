@@ -10,6 +10,7 @@ import { useDragSize } from '@/hooks/use-drag-size'
 import { useStore } from '@/hooks/use-store'
 import { ApiError } from '@/lib/api'
 import { formatClock } from '@/lib/format'
+import { LABELS } from '@/lib/labels'
 import { followTails } from '@/lib/preferences'
 import { itemLabels, itemOfEntry, type RunDetailState } from '@/lib/run-detail'
 import { readLogs, type LogEntryOut } from '@/lib/runs'
@@ -23,7 +24,6 @@ import {
     endNote,
     EVERY_LINE,
     fieldsText,
-    LEVEL_LABELS,
     LEVELS,
     lineCount,
     setTerminalHeight,
@@ -40,14 +40,14 @@ import { runSettled } from '@/lib/status'
 import type { LogLevel } from '@/lib/status'
 import { cn } from '@/lib/utils'
 
-export const HIDE_TERMINAL_LABEL = 'Hide the terminal'
-export const RESIZE_TERMINAL_LABEL = 'Resize the terminal'
-export const COPY_LINES_LABEL = 'Copy the lines on screen'
-export const DOWNLOAD_LOG_LABEL = 'Download every line as NDJSON'
-export const LEVEL_LABEL = 'Least level shown'
-export const STEP_LABEL = 'Filter by step'
-export const MATCH_LABEL = 'Filter lines by text'
-export const NEWEST_LABEL = 'Jump to newest'
+export const HIDE_TERMINAL_LABEL = LABELS.terminal.hide
+export const RESIZE_TERMINAL_LABEL = LABELS.terminal.resize
+export const COPY_LINES_LABEL = LABELS.terminal.copy_lines
+export const DOWNLOAD_LOG_LABEL = LABELS.terminal.download
+export const LEVEL_LABEL = LABELS.terminal.level_filter
+export const STEP_LABEL = LABELS.terminal.step_filter
+export const MATCH_LABEL = LABELS.terminal.match_filter
+export const NEWEST_LABEL = LABELS.terminal.newest
 
 /** How far one arrow press moves the top edge. A keyboard has to do what the pointer does. */
 const KEYBOARD_STEP = 16
@@ -144,8 +144,11 @@ export function RunTerminal({
 
     const copy = () => {
         void navigator.clipboard?.writeText(copyText(shown)).then(
-            () => toast.success(drawn === 1 ? '1 line copied' : `${String(drawn)} lines copied`),
-            () => toast.error('this browser would not give up its clipboard'),
+            () =>
+                toast.success(
+                    drawn === 1 ? LABELS.terminal.copied_one : LABELS.terminal.copied_many(String(drawn)),
+                ),
+            () => toast.error(LABELS.runs.clipboard_refused),
         )
     }
 
@@ -186,11 +189,13 @@ export function RunTerminal({
                 anchor.click()
                 anchor.remove()
                 URL.revokeObjectURL(url)
-                toast.success(`${String(collected.length)} lines saved`)
+                toast.success(LABELS.terminal.saved(String(collected.length)))
             },
             (error: unknown) => {
                 setSaving(false)
-                toast.error(error instanceof ApiError ? error.problem.detail : 'the server did not answer')
+                toast.error(
+                    error instanceof ApiError ? error.problem.detail : LABELS.terminal.download_failed,
+                )
             },
         )
     }
@@ -217,7 +222,7 @@ export function RunTerminal({
             />
             <section
                 ref={drawer}
-                aria-label="Run terminal"
+                aria-label={LABELS.terminal.name}
                 data-run-terminal="true"
                 className="flex shrink-0 flex-col overflow-hidden rounded-md border border-border-strong"
                 style={{ height }}
@@ -225,7 +230,7 @@ export function RunTerminal({
                 <div className="flex flex-wrap items-center gap-2 border-b border-border bg-sidebar px-3 py-2">
                     <span className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-faint uppercase">
                         <SquareTerminal className="size-4" aria-hidden />
-                        Terminal
+                        {LABELS.terminal.heading}
                     </span>
 
                     <Select
@@ -235,12 +240,14 @@ export function RunTerminal({
                         }}
                     >
                         <SelectTrigger size="sm" className="w-40" aria-label={LEVEL_LABEL}>
-                            <SelectValue>{(value) => LEVEL_LABELS[String(value) as LogLevel]}</SelectValue>
+                            <SelectValue>
+                                {(value) => LABELS.terminal.level[String(value) as LogLevel]}
+                            </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
                             {LEVELS.map((level) => (
                                 <SelectItem key={level} value={level}>
-                                    {LEVEL_LABELS[level]}
+                                    {LABELS.terminal.level[level]}
                                 </SelectItem>
                             ))}
                         </SelectContent>
@@ -254,11 +261,13 @@ export function RunTerminal({
                     >
                         <SelectTrigger size="sm" className="w-44" aria-label={STEP_LABEL}>
                             <SelectValue>
-                                {(value) => (value === EVERY_STEP ? 'Every step' : String(value))}
+                                {(value) =>
+                                    value === EVERY_STEP ? LABELS.terminal.every_step : String(value)
+                                }
                             </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value={EVERY_STEP}>Every step</SelectItem>
+                            <SelectItem value={EVERY_STEP}>{LABELS.terminal.every_step}</SelectItem>
                             {steps.map((step) => (
                                 <SelectItem key={step} value={step}>
                                     {step}
@@ -274,7 +283,7 @@ export function RunTerminal({
                             const match = event.target.value
                             setFilters((current) => ({ ...current, match }))
                         }}
-                        placeholder="Search lines"
+                        placeholder={LABELS.terminal.match_placeholder}
                         aria-label={MATCH_LABEL}
                     />
 
@@ -409,7 +418,7 @@ function Line({
             <span className="text-terminal-faint">{formatClock(entry.created_at)} </span>
             <span className={cn(LEVEL_INK[entry.level] ?? 'text-terminal-muted')}>{entry.level} </span>
             {step === null ? (
-                <span className="text-terminal-faint">run</span>
+                <span className="text-terminal-faint">{LABELS.terminal.run_line}</span>
             ) : (
                 <button
                     type="button"

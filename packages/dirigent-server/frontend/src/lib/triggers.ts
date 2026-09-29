@@ -17,6 +17,7 @@
  */
 
 import { apiJson, apiSend, type JsonMap, type Page } from '@/lib/api'
+import { LABELS } from '@/lib/labels'
 import { PAGE } from '@/lib/paging'
 import type { RunPriority } from '@/lib/runs'
 import { readPipelines, type PipelineOut } from '@/lib/pipelines'
@@ -473,9 +474,9 @@ export interface ClockView {
 export function clockOf(schedule: Pick<ScheduleOut, 'cron' | 'interval' | 'at'>): ClockView {
     if (schedule.cron !== null) return { kind: 'cron', text: schedule.cron, mono: true }
     if (schedule.interval !== null)
-        return { kind: 'interval', text: `every ${schedule.interval}`, mono: false }
+        return { kind: 'interval', text: LABELS.triggers.schedule.every(schedule.interval), mono: false }
     if (schedule.at !== null) return { kind: 'at', text: schedule.at, mono: false }
-    return { kind: 'none', text: 'no clock', mono: false }
+    return { kind: 'none', text: LABELS.triggers.schedule.no_clock, mono: false }
 }
 
 /** How loudly one outcome is drawn. The tones are the semantic aliases in index.css. */
@@ -502,7 +503,7 @@ export interface FiringView {
 export function firingView(firing: FiringOut): FiringView {
     return {
         tone: firing.misfired ? 'warn' : TONES[firing.outcome],
-        label: firing.misfired ? `${firing.outcome} (misfired)` : firing.outcome,
+        label: firing.misfired ? LABELS.triggers.schedule.misfired(firing.outcome) : firing.outcome,
         runId: firing.run_id,
         detail: firing.detail,
     }
@@ -540,7 +541,7 @@ export function hookPath(webhook: Pick<WebhookOut, 'token_prefix'>): string {
 
 /** Whether a webhook proves who sent a delivery, in the words the column uses. */
 export function signing(webhook: Pick<WebhookOut, 'signed'>): string {
-    return webhook.signed ? 'HMAC' : 'unsigned'
+    return webhook.signed ? LABELS.triggers.webhook.signed : LABELS.triggers.webhook.unsigned
 }
 
 /** How a watch's waits are going, in the one reading the listing and the panel both draw. */

@@ -13,6 +13,8 @@ import {
 import { Maximize2, ZoomIn, ZoomOut } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 
+import { LABELS } from '@/lib/labels'
+
 import {
     fittedZoom,
     fitOptionsFor,
@@ -213,9 +215,9 @@ export function GraphCanvas({
     )
 }
 
-export const ZOOM_IN_LABEL = 'Zoom in'
-export const ZOOM_OUT_LABEL = 'Zoom out'
-export const FIT_VIEW_LABEL = 'Fit view'
+export const ZOOM_IN_LABEL = LABELS.shell.zoom_in
+export const ZOOM_OUT_LABEL = LABELS.shell.zoom_out
+export const FIT_VIEW_LABEL = LABELS.shell.fit_view
 
 /**
  * What the canvas offers in its corner: a zoom step worth pressing either way, the shared fit,

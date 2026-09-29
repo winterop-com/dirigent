@@ -28,6 +28,7 @@ import {
 } from 'lucide-react'
 
 import type { UserRole } from '@/lib/auth'
+import { LABELS } from '@/lib/labels'
 
 /** One entry in the rail: where it goes, what it is called, and the mark beside it. */
 export interface NavEntry {
@@ -78,81 +79,81 @@ export const NAV: NavSection[] = [
         entries: [
             {
                 path: DASHBOARD_PATH,
-                label: 'Dashboard',
-                hint: 'How this instance is doing',
+                label: LABELS.screen.dashboard.name,
+                hint: LABELS.screen.dashboard.hint,
                 icon: House,
             },
             {
                 path: '/pipelines',
-                label: 'Pipelines',
-                hint: 'Definitions and their versions',
+                label: LABELS.screen.pipelines.name,
+                hint: LABELS.screen.pipelines.hint,
                 icon: Workflow,
             },
             {
                 path: '/runs',
-                label: 'Runs',
-                hint: 'Every execution, newest first',
+                label: LABELS.screen.runs.name,
+                hint: LABELS.screen.runs.hint,
                 icon: Play,
             },
             {
                 path: '/triggers',
-                label: 'Triggers',
-                hint: 'Clocks and inbound endpoints',
+                label: LABELS.screen.triggers.name,
+                hint: LABELS.screen.triggers.hint,
                 icon: CalendarClock,
             },
             {
                 path: '/connections',
-                label: 'Connections',
-                hint: 'Named credentials and their health',
+                label: LABELS.screen.connections.name,
+                hint: LABELS.screen.connections.hint,
                 icon: Plug,
             },
             {
                 path: '/blocks',
-                label: 'Blocks',
-                hint: 'What the plugins contribute',
+                label: LABELS.screen.blocks.name,
+                hint: LABELS.screen.blocks.hint,
                 icon: Blocks,
             },
             {
                 path: '/examples',
-                label: 'Examples',
-                hint: 'The documents the plugins ship, and the starters',
+                label: LABELS.screen.examples.name,
+                hint: LABELS.screen.examples.hint,
                 icon: BookOpen,
             },
             {
                 path: '/schemas',
-                label: 'Schemas',
-                hint: 'Shapes a payload is checked against',
+                label: LABELS.screen.schemas.name,
+                hint: LABELS.screen.schemas.hint,
                 icon: FileJson,
             },
         ],
     },
     {
         id: 'admin',
-        label: 'Admin',
+        label: LABELS.screen.admin,
         requires: 'admin',
         entries: [
             {
                 path: '/admin',
-                label: 'Overview',
-                hint: 'This instance, at a glance',
+                label: LABELS.screen.overview.name,
+                hint: LABELS.screen.overview.hint,
                 icon: LayoutDashboard,
             },
             {
                 path: '/admin/users',
-                label: 'Users',
-                hint: 'Accounts and automation tokens',
+                label: LABELS.screen.users.name,
+                hint: LABELS.screen.users.hint,
                 icon: Users,
             },
             {
                 path: '/admin/workers',
-                label: 'Workers',
-                hint: 'The nodes claiming work',
+                label: LABELS.screen.workers.name,
+                hint: LABELS.screen.workers.hint,
                 icon: Cpu,
             },
             {
                 path: '/admin/alerting',
-                label: 'Alerting',
-                hint: 'Rules and the delivery queue',
+                label: LABELS.screen.alerting.name,
+                hint: LABELS.screen.alerting.hint,
                 icon: Bell,
             },
         ],

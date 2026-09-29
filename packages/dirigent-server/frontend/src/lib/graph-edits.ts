@@ -14,6 +14,7 @@
  */
 
 import type { JsonMap } from '@/lib/api'
+import { LABELS } from '@/lib/labels'
 import { dependsOn, edgesIn, stepsIn, withDependsOn } from '@/lib/pipeline-document'
 
 /** A document where `to` waits for `from`, or the same document when it already did. */
@@ -93,5 +94,5 @@ export function cycleThrough(document: JsonMap | null, from: string, to: string)
 
 /** Why an edge was refused, in the words of the steps that refuse it. */
 export function cycleRefusal(from: string, to: string, cycle: string[]): string {
-    return `${to} cannot wait for ${from}: that closes a loop, ${cycle.join(' → ')}`
+    return LABELS.editor.canvas.cycle_refused(to, from, cycle.join(' → '))
 }

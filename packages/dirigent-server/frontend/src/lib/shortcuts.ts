@@ -13,6 +13,8 @@
  * buried in an effect.
  */
 
+import { LABELS } from '@/lib/labels'
+
 /** The letter that opens the command palette, under either modifier. */
 export const PALETTE_KEY = 'k'
 
@@ -130,11 +132,11 @@ export interface Shortcut {
 export function shortcuts(apple: boolean): Shortcut[] {
     const modifier = modifierLabel(apple)
     return [
-        { id: 'palette', action: 'Open the command palette', keys: [modifier, 'K'] },
-        { id: 'rail', action: 'Collapse or expand the navigation', keys: [modifier, 'B'] },
-        { id: 'terminal', action: "Show or hide a run's terminal", keys: ['T'] },
-        { id: 'shortcuts', action: 'Open this list', keys: [SHORTCUTS_KEY] },
-        { id: 'dismiss', action: 'Close a dialog, a menu, or the palette', keys: ['Esc'] },
-        { id: 'choose', action: 'Open the row that has focus', keys: ['Enter'] },
+        { id: 'palette', action: LABELS.shell.open_palette, keys: [modifier, 'K'] },
+        { id: 'rail', action: LABELS.shell.chord.rail, keys: [modifier, 'B'] },
+        { id: 'terminal', action: LABELS.shell.chord.terminal, keys: ['T'] },
+        { id: 'shortcuts', action: LABELS.shell.chord.shortcuts, keys: [SHORTCUTS_KEY] },
+        { id: 'dismiss', action: LABELS.shell.chord.dismiss, keys: ['Esc'] },
+        { id: 'choose', action: LABELS.shell.chord.choose, keys: ['Enter'] },
     ]
 }

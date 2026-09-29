@@ -11,8 +11,9 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { nextForm, TABLE, type Form } from '@/lib/card-form'
+import { LABELS } from '@/lib/labels'
 
-export const MORE_ACTIONS_LABEL = 'More actions'
+export const MORE_ACTIONS_LABEL = LABELS.shell.more_actions
 
 /** One verb on a screen's strip, said once and drawn either as a button or as a menu row. */
 export interface ToolbarAction {

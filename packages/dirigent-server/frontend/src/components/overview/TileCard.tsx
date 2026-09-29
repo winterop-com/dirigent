@@ -1,6 +1,7 @@
 import { Link } from 'react-router'
 
 import { Card, CardContent } from '@/components/ui/card'
+import { LABELS } from '@/lib/labels'
 import type { Tile, TileTone } from '@/lib/overview'
 
 /** How each tone is inked: the four semantic aliases, and the absence of one. */
@@ -69,7 +70,7 @@ export function StatTile({ tile }: { tile: Tile }) {
 export function TilePlaceholder() {
     return (
         <Card className="h-full">
-            <CardContent className="p-3 text-xs text-faint">Reading</CardContent>
+            <CardContent className="p-3 text-xs text-faint">{LABELS.dashboard.reading}</CardContent>
         </Card>
     )
 }

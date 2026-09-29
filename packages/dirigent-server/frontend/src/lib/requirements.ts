@@ -18,6 +18,7 @@
  */
 
 import type { JsonMap } from '@/lib/api'
+import { LABELS } from '@/lib/labels'
 import { blockOf, stepsIn, stepNames } from '@/lib/pipeline-document'
 
 /** One step whose block this instance does not publish. */
@@ -84,11 +85,11 @@ export function anythingUnmet(unmet: Unmet): boolean {
  */
 export function unmetLines(unmet: Unmet): string[] {
     return [
-        ...unmet.steps.map((one) => `this run will fail at ${one.step}: ${one.block} is not installed`),
+        ...unmet.steps.map((one) => LABELS.editor.unmet.step(one.step, one.block)),
         ...unmet.blocks
             .filter((block) => !unmet.steps.some((one) => one.block === block))
-            .map((block) => `this document requires ${block}, which is not installed`),
-        ...unmet.connections.map((name) => `the connection ${name} is not configured on this instance`),
+            .map((block) => LABELS.editor.unmet.block(block)),
+        ...unmet.connections.map((name) => LABELS.editor.unmet.connection(name)),
     ]
 }
 

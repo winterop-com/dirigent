@@ -19,6 +19,7 @@ import { useMayWrite } from '@/hooks/use-may-write'
 import { useStore } from '@/hooks/use-store'
 import { ApiError, type JsonMap, type Problem } from '@/lib/api'
 import { formatInstant } from '@/lib/format'
+import { LABELS } from '@/lib/labels'
 import { fillPanel, openPanel, openPanelTab, type PanelTab } from '@/lib/panels'
 import { RUN_GROUP, registerActions } from '@/lib/palette'
 import { readPipeline, startRun, stepsOf } from '@/lib/pipelines'
@@ -38,9 +39,9 @@ const RunGraph = lazy(() =>
     import('@/components/run/RunGraph').then((module) => ({ default: module.RunGraph })),
 )
 
-export const CANCEL_LABEL = 'Cancel this run'
-export const RERUN_LABEL = 'Run this pipeline again'
-export const TERMINAL_LABEL = "Show or hide this run's terminal"
+export const CANCEL_LABEL = LABELS.runs.cancel_action
+export const RERUN_LABEL = LABELS.runs.rerun_action
+export const TERMINAL_LABEL = LABELS.runs.toggle_terminal
 
 /** How often the screen re-reads the clock while the run is live, for the retry countdowns. */
 const TICK_MS = 1000
@@ -216,7 +217,7 @@ export function RunDetail() {
         return () => {
             void startRun(run.pipeline, run.params, null, window).then((accepted) => {
                 if (accepted.run_id === null) {
-                    toast.warning(accepted.detail ?? `nothing started: ${accepted.status}`)
+                    toast.warning(accepted.detail ?? LABELS.runs.nothing_started(accepted.status))
                     return
                 }
                 void navigate(`/runs/${accepted.run_id}`)
@@ -250,7 +251,7 @@ export function RunDetail() {
                 screen: true,
                 icon: SquareTerminal,
                 keywords: ['console', 'logs', 'output', 'lines'],
-                hint: 'Every line this run wrote, in the order it wrote them',
+                hint: LABELS.runs.terminal_hint,
                 run: toggleTerminal,
             },
             ...(cancel === null
@@ -284,7 +285,7 @@ export function RunDetail() {
                 : [
                       {
                           id: 'run:trace',
-                          title: 'Copy this run trace id',
+                          title: LABELS.runs.copy_trace_action,
                           group: shelf,
                           screen: true,
                           icon: Copy,
@@ -292,8 +293,8 @@ export function RunDetail() {
                           hint: trace,
                           run: () => {
                               void navigator.clipboard?.writeText(trace).then(
-                                  () => toast.success('trace id copied'),
-                                  () => toast.error('this browser would not give up its clipboard'),
+                                  () => toast.success(LABELS.runs.trace_copied),
+                                  () => toast.error(LABELS.runs.clipboard_refused),
                               )
                           },
                       },
@@ -306,10 +307,10 @@ export function RunDetail() {
         return [
             {
                 id: 'step',
-                label: 'Step',
+                label: LABELS.word.step,
                 render: () =>
                     chosen === null ? (
-                        <p className="p-4 text-sm text-muted-foreground">No step chosen.</p>
+                        <p className="p-4 text-sm text-muted-foreground">{LABELS.runs.no_step_chosen}</p>
                     ) : (
                         <StepTab
                             state={state}
@@ -322,15 +323,15 @@ export function RunDetail() {
                         />
                     ),
             },
-            { id: 'run', label: 'Run', render: () => <RunTab run={state.run} /> },
+            { id: 'run', label: LABELS.word.run, render: () => <RunTab run={state.run} /> },
             {
                 id: 'output',
-                label: 'Output',
+                label: LABELS.word.output,
                 render: () => <OutputTab state={state} runId={id} />,
             },
             {
                 id: 'report',
-                label: 'Report',
+                label: LABELS.word.report,
                 render: () => (
                     <ReportTab
                         runId={id}
@@ -358,7 +359,7 @@ export function RunDetail() {
             <div className="flex items-center gap-x-3">
                 <Breadcrumb
                     trail={[
-                        { label: 'Runs', to: '/runs' },
+                        { label: LABELS.screen.runs.name, to: '/runs' },
                         {
                             label: state.run.pipeline,
                             to: `/pipelines/${state.run.pipeline}`,
@@ -401,7 +402,7 @@ export function RunDetail() {
                             : [
                                   {
                                       id: 'cancel',
-                                      label: 'Cancel',
+                                      label: LABELS.action.cancel_run,
                                       icon: Ban,
                                       destructive: true,
                                       disabled: !write.may,
@@ -414,7 +415,7 @@ export function RunDetail() {
                             : [
                                   {
                                       id: 'rerun',
-                                      label: 'Re-run',
+                                      label: LABELS.action.rerun,
                                       icon: RotateCw,
                                       disabled: !write.may,
                                       why: write.why,
@@ -433,9 +434,7 @@ export function RunDetail() {
                     )}
                 >
                     {state.dag.nodes.length === 0 ? (
-                        <p className="p-4 text-sm text-muted-foreground">
-                            This run's pinned definition has no steps to draw.
-                        </p>
+                        <p className="p-4 text-sm text-muted-foreground">{LABELS.runs.graph_empty}</p>
                     ) : (
                         <Suspense
                             fallback={

@@ -23,19 +23,20 @@ import {
     type Holdings,
 } from '@/lib/examples'
 import { headingOf } from '@/lib/identity'
+import { LABELS } from '@/lib/labels'
 import { sayRefusal } from '@/components/Refusal'
 import { instantiate } from '@/lib/starters'
 import { cn } from '@/lib/utils'
 
-export const FROM_A_STARTER = 'From a starter'
+export const FROM_A_STARTER = LABELS.pipelines.from_starter
 
-export const PICKER_PLACEHOLDER = 'Search the starters'
+export const PICKER_PLACEHOLDER = LABELS.pipelines.starters.placeholder
 
-export const PICKER_EMPTY = 'No starter answers to that'
+export const PICKER_EMPTY = LABELS.pipelines.starters.empty
 
-export const PICKER_READING = 'Reading the corpus'
+export const PICKER_READING = LABELS.pipelines.starters.reading
 
-export const PICKER_NONE = 'No starters installed — plugins contribute them.'
+export const PICKER_NONE = LABELS.pipelines.starters.none
 
 /**
  * One starter out of the installed corpus, chosen the way everything else here is chosen.
@@ -103,7 +104,7 @@ export function StarterPicker({
                 if (!next) setQuery('')
             }}
             title={FROM_A_STARTER}
-            description="Copy a shipped document into the editor, under a code of your own"
+            description={LABELS.pipelines.starters.description}
             className="top-[15vh] w-full p-0 shadow-2xl sm:max-w-[768px]"
         >
             <Command shouldFilter={false} label={FROM_A_STARTER} className="dg-palette p-0">

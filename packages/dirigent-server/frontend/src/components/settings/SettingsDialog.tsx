@@ -21,6 +21,7 @@ import { type Problem } from '@/lib/api'
 import { authStore, signOut } from '@/lib/auth'
 import { API_DOCS_URL, DOCS_URL } from '@/lib/docs'
 import { formatRelative } from '@/lib/format'
+import { LABELS } from '@/lib/labels'
 import { LOGIN_PATH } from '@/lib/nav'
 import { changePassword, formProblem, NO_PASSWORD, refusalOf, type PasswordForm } from '@/lib/password'
 import { followTails, highlightLine, setFollowTails, setHighlightLine } from '@/lib/preferences'
@@ -40,7 +41,7 @@ import { choosePalette, paletteAfter, PALETTES, paletteStore, type PaletteName }
 import { chooseTimes, TIMES_LABELS, TIMES_MODES, timesMode } from '@/lib/times'
 import { cn } from '@/lib/utils'
 
-export const SETTINGS_TITLE = 'Settings'
+export const SETTINGS_TITLE = LABELS.settings.title
 
 /**
  * Two panes: what there is on the left, one category of it on the right.
@@ -88,7 +89,7 @@ export function SettingsDialog({
                     <nav className="flex w-36 shrink-0 flex-col gap-1 overflow-y-auto border-r border-border bg-sidebar p-2 md:w-52">
                         <Input
                             value={query}
-                            aria-label="Search the settings"
+                            aria-label={LABELS.settings.search}
                             placeholder={SEARCH_PLACEHOLDER}
                             className="mb-1"
                             onChange={(event) => {
@@ -128,7 +129,7 @@ export function SettingsDialog({
 
                     <div className="min-h-0 flex-1 overflow-y-auto p-4">
                         {heading === null ? (
-                            <p className="text-sm text-muted-foreground">Nothing matches that.</p>
+                            <p className="text-sm text-muted-foreground">{LABELS.settings.no_match}</p>
                         ) : (
                             <>
                                 <h2 className="mb-3 text-sm font-semibold">{heading.label}</h2>
@@ -144,7 +145,7 @@ export function SettingsDialog({
 
 /** Which pane one category is. Each holds its own reads, so a closed pane reads nothing. */
 function Pane({ category, rows, apple }: { category: string; rows: SettingsRow[]; apple: boolean }) {
-    if (rows.length === 0) return <p className="text-sm text-muted-foreground">Nothing matches that.</p>
+    if (rows.length === 0) return <p className="text-sm text-muted-foreground">{LABELS.settings.no_match}</p>
     switch (category) {
         case 'general':
             return <GeneralPane rows={rows} />
@@ -197,7 +198,7 @@ function ThemePane({ rows }: { rows: SettingsRow[] }) {
                     return (
                         <Row key={row.id} row={row}>
                             <Segmented
-                                label="Appearance"
+                                label={LABELS.settings.row.appearance}
                                 value={mode}
                                 options={MODES.map((one) => ({ value: one, label: MODE_LABELS[one] }))}
                                 onChoose={setTheme}
@@ -255,7 +256,7 @@ function PaletteSwatches({ value, onChoose }: { value: PaletteName; onChoose: (n
     }
 
     return (
-        <div role="radiogroup" aria-label="Palette" className="flex gap-2">
+        <div role="radiogroup" aria-label={LABELS.settings.row.palette} className="flex gap-2">
             {PALETTES.map((palette, index) => {
                 const chosen = palette.name === value
                 return (
@@ -316,7 +317,7 @@ function GeneralPane({ rows }: { rows: SettingsRow[] }) {
                     return (
                         <Row key={row.id} row={row}>
                             <Segmented
-                                label="Times"
+                                label={LABELS.settings.times_control}
                                 value={times}
                                 options={TIMES_MODES.map((one) => ({ value: one, label: TIMES_LABELS[one] }))}
                                 onChoose={chooseTimes}
@@ -335,7 +336,7 @@ function GeneralPane({ rows }: { rows: SettingsRow[] }) {
                                     setFollowTails(!tails)
                                 }}
                             >
-                                {tails ? 'Following' : 'Not following'}
+                                {tails ? LABELS.settings.following : LABELS.settings.not_following}
                             </Button>
                         </Row>
                     )
@@ -350,7 +351,7 @@ function GeneralPane({ rows }: { rows: SettingsRow[] }) {
                                 setHighlightLine(!highlight)
                             }}
                         >
-                            {highlight ? 'Highlighted' : 'Not highlighted'}
+                            {highlight ? LABELS.settings.highlighted : LABELS.settings.not_highlighted}
                         </Button>
                     </Row>
                 )
@@ -369,7 +370,9 @@ function AccountPane({ rows }: { rows: SettingsRow[] }) {
                 if (row.id === 'account:identity') {
                     return (
                         <Row key={row.id} row={row}>
-                            <span className="font-mono text-sm">{auth.identity?.username ?? 'nobody'}</span>
+                            <span className="font-mono text-sm">
+                                {auth.identity?.username ?? LABELS.settings.nobody}
+                            </span>
                             {auth.identity !== null && <Badge variant="outline">{auth.identity.role}</Badge>}
                         </Row>
                     )
@@ -397,7 +400,7 @@ function AccountPane({ rows }: { rows: SettingsRow[] }) {
                                         setChanging(true)
                                     }}
                                 >
-                                    Change
+                                    {LABELS.action.change}
                                 </Button>
                             )}
                         </Row>
@@ -427,7 +430,7 @@ function SignOutRow() {
                 void signOut().then(() => navigate(LOGIN_PATH, { replace: true }))
             }}
         >
-            Sign out
+            {LABELS.action.sign_out}
         </Button>
     )
 }
@@ -456,7 +459,7 @@ function ChangePassword({ onDone }: { onDone: () => void }) {
             .then(
                 () => {
                     setForm(NO_PASSWORD)
-                    toast.success('Password changed. Every other session of this account is signed out.')
+                    toast.success(LABELS.settings.password_changed)
                     onDone()
                 },
                 (error: unknown) => {
@@ -472,7 +475,7 @@ function ChangePassword({ onDone }: { onDone: () => void }) {
         <div className="space-y-3 rounded-lg border border-border bg-secondary/30 p-3">
             <div className="flex flex-col gap-3 md:flex-row">
                 <div className="min-w-0 flex-1 space-y-1">
-                    <Label htmlFor="password-current">Current password</Label>
+                    <Label htmlFor="password-current">{LABELS.settings.current_password}</Label>
                     <Input
                         id="password-current"
                         type="password"
@@ -484,7 +487,7 @@ function ChangePassword({ onDone }: { onDone: () => void }) {
                     />
                 </div>
                 <div className="min-w-0 flex-1 space-y-1">
-                    <Label htmlFor="password-new">New password</Label>
+                    <Label htmlFor="password-new">{LABELS.settings.new_password}</Label>
                     <Input
                         id="password-new"
                         type="password"
@@ -501,10 +504,10 @@ function ChangePassword({ onDone }: { onDone: () => void }) {
 
             <div className="flex justify-end gap-2">
                 <Button variant="ghost" size="sm" onClick={onDone}>
-                    Cancel
+                    {LABELS.action.cancel}
                 </Button>
                 <Button size="sm" disabled={busy} onClick={send}>
-                    Change password
+                    {LABELS.settings.change_password}
                 </Button>
             </div>
         </div>
@@ -531,7 +534,7 @@ function ShortcutsPane({ rows, apple }: { rows: SettingsRow[]; apple: boolean })
                     </KbdGroup>
                 </div>
             ))}
-            <p className="mt-3 text-xs text-faint">Anywhere but inside a text box.</p>
+            <p className="mt-3 text-xs text-faint">{LABELS.settings.shortcuts_apply}</p>
         </div>
     )
 }
@@ -570,7 +573,9 @@ function ServerPane({ rows }: { rows: SettingsRow[] }) {
                             <span className="text-sm">{TONE[status.state].word}</span>
                             {status.checkedAt !== null && (
                                 <span className="ml-1 text-xs text-faint">
-                                    checked {formatRelative(new Date(status.checkedAt).toISOString())}
+                                    {LABELS.settings.checked(
+                                        formatRelative(new Date(status.checkedAt).toISOString()),
+                                    )}
                                 </span>
                             )}
                             <Button
@@ -581,7 +586,7 @@ function ServerPane({ rows }: { rows: SettingsRow[] }) {
                                 onClick={recheck}
                             >
                                 <RefreshCw aria-hidden />
-                                Recheck
+                                {LABELS.action.recheck}
                             </Button>
                         </Row>
                     )
@@ -589,7 +594,7 @@ function ServerPane({ rows }: { rows: SettingsRow[] }) {
                 return (
                     <Row key={row.id} row={row}>
                         {value === null ? (
-                            <span className="text-xs text-faint">Reading</span>
+                            <span className="text-xs text-faint">{LABELS.settings.reading}</span>
                         ) : (
                             <span className="font-mono text-xs">{factOf(row.id, value)}</span>
                         )}
@@ -603,10 +608,10 @@ function ServerPane({ rows }: { rows: SettingsRow[] }) {
                     target="_blank"
                     rel="noreferrer"
                 >
-                    Documentation
+                    {LABELS.settings.documentation}
                 </a>
                 <a className="text-primary-ink hover:underline" href={API_DOCS_URL}>
-                    API reference
+                    {LABELS.settings.api_reference}
                 </a>
             </p>
         </div>
@@ -625,8 +630,8 @@ function factOf(id: string, info: SystemInfo): string {
         case 'server:blocks':
             return String(info.blocks)
         case 'server:storage':
-            return info.storage_schemes.length === 0 ? 'none' : info.storage_schemes.join(', ')
+            return info.storage_schemes.length === 0 ? LABELS.word.none : info.storage_schemes.join(', ')
         default:
-            return info.plugins.length === 0 ? 'none' : info.plugins.join(', ')
+            return info.plugins.length === 0 ? LABELS.word.none : info.plugins.join(', ')
     }
 }

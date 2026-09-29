@@ -1,4 +1,5 @@
 import { REPORTS_DOCS_URL } from '@/lib/docs'
+import { LABELS } from '@/lib/labels'
 
 /**
  * What a program's language offers, beside the window it is written in.
@@ -26,118 +27,121 @@ interface Group {
 
 const JQ: Group[] = [
     {
-        title: 'Paths',
+        title: LABELS.reference.jq.paths.title,
         entries: [
-            { form: '.a.b', says: 'a field of a field' },
-            { form: '.[0]  .[-1]', says: 'first and last of a list' },
-            { form: '.[]', says: 'each element in turn' },
-            { form: '.a?', says: 'null instead of an error when it is not there' },
-            { form: '.. | .id?', says: 'every id, anywhere in the value' },
+            { form: '.a.b', says: LABELS.reference.jq.paths.nested },
+            { form: '.[0]  .[-1]', says: LABELS.reference.jq.paths.ends },
+            { form: '.[]', says: LABELS.reference.jq.paths.each },
+            { form: '.a?', says: LABELS.reference.jq.paths.optional },
+            { form: '.. | .id?', says: LABELS.reference.jq.paths.descend },
         ],
     },
     {
-        title: 'Shape',
+        title: LABELS.reference.jq.shape.title,
         entries: [
-            { form: '{code: .id, name}', says: 'an object from picked fields' },
-            { form: '[.[] | .value]', says: 'a list from each element' },
-            { form: '. + {seen: true}', says: 'an object with one more field' },
-            { form: 'to_entries  from_entries', says: 'an object as {key, value} pairs and back' },
+            { form: '{code: .id, name}', says: LABELS.reference.jq.shape.object },
+            { form: '[.[] | .value]', says: LABELS.reference.jq.shape.list },
+            { form: '. + {seen: true}', says: LABELS.reference.jq.shape.added_field },
+            { form: 'to_entries  from_entries', says: LABELS.reference.jq.shape.entries },
         ],
     },
     {
-        title: 'Filter and reduce',
+        title: LABELS.reference.jq.filter.title,
         entries: [
-            { form: 'map(f)  select(cond)', says: 'apply to each; keep the ones that match' },
-            { form: 'add  length  min  max', says: 'sum, count, extremes' },
-            { form: 'group_by(.k)  sort_by(.k)', says: 'lists by a key' },
-            { form: 'unique_by(.k)  min_by(.k)', says: 'one per key; the smallest by key' },
-            { form: 'reduce .[] as $x (0; . + $x)', says: 'a fold, with the state as .' },
+            { form: 'map(f)  select(cond)', says: LABELS.reference.jq.filter.map },
+            { form: 'add  length  min  max', says: LABELS.reference.jq.filter.aggregate },
+            { form: 'group_by(.k)  sort_by(.k)', says: LABELS.reference.jq.filter.group },
+            { form: 'unique_by(.k)  min_by(.k)', says: LABELS.reference.jq.filter.unique },
+            { form: 'reduce .[] as $x (0; . + $x)', says: LABELS.reference.jq.filter.reduce },
         ],
     },
     {
-        title: 'Strings and dates',
+        title: LABELS.reference.jq.strings.title,
         entries: [
-            { form: 'ascii_downcase  ltrimstr("x")', says: 'case and trimming' },
-            { form: 'split(",")  join(",")', says: 'a string as a list and back' },
-            { form: 'tostring  tonumber', says: 'across the string boundary' },
-            { form: '@csv  @tsv  @base64', says: 'a list encoded for another program' },
-            { form: 'now | todate', says: 'the moment as ISO 8601' },
-            { form: 'strptime("%Y-%m-%d") | mktime', says: 'a date string as seconds' },
+            { form: 'ascii_downcase  ltrimstr("x")', says: LABELS.reference.jq.strings.case },
+            { form: 'split(",")  join(",")', says: LABELS.reference.jq.strings.split },
+            { form: 'tostring  tonumber', says: LABELS.reference.jq.strings.convert },
+            { form: '@csv  @tsv  @base64', says: LABELS.reference.jq.strings.encode },
+            { form: 'now | todate', says: LABELS.reference.jq.strings.now },
+            { form: 'strptime("%Y-%m-%d") | mktime', says: LABELS.reference.jq.strings.parse_date },
         ],
     },
     {
-        title: 'Missing values',
+        title: LABELS.reference.jq.missing.title,
         entries: [
-            { form: '.a // "default"', says: 'the right side when the left is null or false' },
-            { form: 'has("a")  in(.)', says: 'whether a key is there' },
-            { form: 'if . == null then empty else . end', says: 'drop a null from a stream' },
+            { form: '.a // "default"', says: LABELS.reference.jq.missing.alternative },
+            { form: 'has("a")  in(.)', says: LABELS.reference.jq.missing.has_key },
+            { form: 'if . == null then empty else . end', says: LABELS.reference.jq.missing.drop_null },
         ],
     },
     {
-        title: 'In this runtime',
+        title: LABELS.reference.jq.runtime.title,
         entries: [
-            { form: '. as $rows | ...', says: 'the input, bound for the rest of the program' },
-            { form: 'env  $ENV', says: 'an empty object here: the worker keeps its environment' },
-            { form: 'input  inputs', says: 'not available: the whole input is .' },
+            { form: '. as $rows | ...', says: LABELS.reference.jq.runtime.bind_input },
+            { form: 'env  $ENV', says: LABELS.reference.jq.runtime.environment },
+            { form: 'input  inputs', says: LABELS.reference.jq.runtime.inputs },
         ],
     },
 ]
 
 const SQL: Group[] = [
     {
-        title: 'In this runtime',
+        title: LABELS.reference.sql.runtime.title,
         entries: [
             {
                 form: 'select ... where day = :day',
-                says: 'a value bound by name from params, never interpolated',
+                says: LABELS.reference.sql.runtime.bound_value,
             },
             {
                 form: 'one statement',
-                says: 'sql.query runs one; sql.execute runs several as one transaction',
+                says: LABELS.reference.sql.runtime.statements,
             },
-            { form: 'max_rows', says: 'the cap on what the output carries' },
+            { form: 'max_rows', says: LABELS.reference.sql.runtime.max_rows },
         ],
     },
 ]
 
 const SHELL: Group[] = [
     {
-        title: 'In this runtime',
+        title: LABELS.reference.shell.runtime.title,
         entries: [
-            { form: 'argv: [cmd, arg]', says: 'no shell: each argument as written' },
-            { form: 'command: "a | b"', says: '/bin/sh -c, for a pipe or a redirect' },
-            { form: 'env  env_allowlist', says: 'variables set here, and the worker variables let through' },
-            { form: 'cwd', says: 'relative to the run’s work directory, never absolute' },
+            { form: 'argv: [cmd, arg]', says: LABELS.reference.shell.runtime.argv },
+            { form: 'command: "a | b"', says: LABELS.reference.shell.runtime.command },
+            { form: 'env  env_allowlist', says: LABELS.reference.shell.runtime.environment },
+            { form: 'cwd', says: LABELS.reference.shell.runtime.cwd },
         ],
     },
 ]
 
 const JINJA: Group[] = [
     {
-        title: 'The facts',
+        title: LABELS.reference.jinja.facts.title,
         entries: [
-            { form: 'run.status  run.params.x', says: 'the run and what it was started with' },
-            { form: 'pipeline.name  pipeline.code', says: 'what ran' },
-            { form: 'step.name.output.value', says: 'one step by name, its last output' },
-            { form: 'steps  items  items_failed', says: 'every step in order; the fan-out items' },
-            { form: 'rendered_at  url', says: 'when this page was written, and the run’s address' },
+            { form: 'run.status  run.params.x', says: LABELS.reference.jinja.facts.run },
+            { form: 'pipeline.name  pipeline.code', says: LABELS.reference.jinja.facts.pipeline },
+            { form: 'step.name.output.value', says: LABELS.reference.jinja.facts.step },
+            { form: 'steps  items  items_failed', says: LABELS.reference.jinja.facts.steps },
+            { form: 'rendered_at  url', says: LABELS.reference.jinja.facts.rendered },
         ],
     },
     {
-        title: 'Filters',
+        title: LABELS.reference.jinja.filters.title,
         entries: [
-            { form: '{{ s.duration_ms | duration }}', says: '1s34ms' },
-            { form: '{{ s.output_bytes | bytes }}', says: '1.2KB' },
-            { form: '{{ run.started_at | iso }}', says: 'ISO 8601' },
-            { form: '{{ x | round(1) }}  {{ xs | join(", ") }}', says: 'Jinja’s own' },
+            { form: '{{ s.duration_ms | duration }}', says: LABELS.reference.jinja.filters.duration },
+            { form: '{{ s.output_bytes | bytes }}', says: LABELS.reference.jinja.filters.bytes },
+            { form: '{{ run.started_at | iso }}', says: LABELS.reference.jinja.filters.iso },
+            {
+                form: '{{ x | round(1) }}  {{ xs | join(", ") }}',
+                says: LABELS.reference.jinja.filters.builtin,
+            },
         ],
     },
     {
-        title: 'Control',
+        title: LABELS.reference.jinja.control.title,
         entries: [
-            { form: '{% for name, s in step.items() %}', says: 'a table row per step' },
-            { form: '{% if step.keep.output %}', says: 'a section only when a step ran' },
-            { form: '{{ missing }}', says: 'renders as nothing, never an error' },
+            { form: '{% for name, s in step.items() %}', says: LABELS.reference.jinja.control.loop },
+            { form: '{% if step.keep.output %}', says: LABELS.reference.jinja.control.conditional },
+            { form: '{{ missing }}', says: LABELS.reference.jinja.control.missing },
         ],
     },
 ]
@@ -150,16 +154,16 @@ interface Reference {
 
 const REFERENCES: Record<string, Reference> = {
     'application/jq': {
-        title: 'jq',
+        title: LABELS.reference.jq.title,
         groups: JQ,
-        manual: { label: 'The jq manual', href: 'https://jqlang.org/manual/' },
+        manual: { label: LABELS.reference.jq.manual, href: 'https://jqlang.org/manual/' },
     },
-    'application/sql': { title: 'SQL', groups: SQL, manual: null },
-    'text/x-shellscript': { title: 'shell', groups: SHELL, manual: null },
+    'application/sql': { title: LABELS.reference.sql.title, groups: SQL, manual: null },
+    'text/x-shellscript': { title: LABELS.reference.shell.title, groups: SHELL, manual: null },
     'text/x-jinja': {
-        title: 'Jinja',
+        title: LABELS.reference.jinja.title,
         groups: JINJA,
-        manual: { label: 'What a template may read', href: REPORTS_DOCS_URL },
+        manual: { label: LABELS.reference.jinja.manual, href: REPORTS_DOCS_URL },
     },
 }
 
@@ -174,7 +178,7 @@ export function ProgramReference({ mediaType }: { mediaType: string | null | und
     return (
         <div className="flex flex-col gap-4 text-sm">
             <p className="text-xs tracking-wide text-muted-foreground uppercase">
-                {reference.title} reference
+                {LABELS.reference.heading(reference.title)}
             </p>
             {reference.groups.map((group) => (
                 <section key={group.title} className="flex flex-col gap-1.5">

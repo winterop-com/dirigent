@@ -15,11 +15,9 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { type Problem } from '@/lib/api'
+import { LABELS } from '@/lib/labels'
 import { refusalOf } from '@/lib/refusal'
 import { createToken, createTokenFor, type IssuedTokenOut } from '@/lib/users'
-
-/** What the dialog says about the one showing of the secret. */
-export const TOKEN_ONCE = 'This is the only time this token will be shown.'
 
 /**
  * Mint a token for automation, and show the secret once.
@@ -86,29 +84,27 @@ export function CreateToken({
         <Dialog open={open} onOpenChange={close}>
             <DialogContent className="sm:max-w-lg" showCloseButton={false}>
                 <DialogHeader>
-                    <DialogTitle>New token</DialogTitle>
+                    <DialogTitle>{LABELS.users.new_token}</DialogTitle>
                     <DialogDescription>
                         {username === undefined
-                            ? 'It holds whatever this account holds.'
-                            : `It holds whatever ${username} holds.`}
+                            ? LABELS.users.token_scope_self
+                            : LABELS.users.token_scope_for(username)}
                     </DialogDescription>
                 </DialogHeader>
 
                 {issued === null ? (
                     <div className="space-y-2">
-                        <Label htmlFor="new-token-name">Name</Label>
+                        <Label htmlFor="new-token-name">{LABELS.word.name}</Label>
                         <Input
                             id="new-token-name"
                             value={name}
                             autoComplete="off"
-                            placeholder="ci-deploy"
+                            placeholder={LABELS.users.token_name_placeholder}
                             onChange={(event) => {
                                 setName(event.target.value)
                             }}
                         />
-                        <p className="text-xs text-muted-foreground">
-                            Lower case, digits and single hyphens. It is what the token is revoked by.
-                        </p>
+                        <p className="text-xs text-muted-foreground">{LABELS.users.token_name_hint}</p>
                     </div>
                 ) : (
                     <div className="space-y-2 rounded-lg border border-border bg-secondary/40 p-3">
@@ -116,7 +112,7 @@ export function CreateToken({
                             <span className="text-sm font-medium">{issued.name}</span>
                             <span className="font-mono text-xs text-muted-foreground">{issued.username}</span>
                         </p>
-                        <p className="text-xs text-warning">{TOKEN_ONCE}</p>
+                        <p className="text-xs text-warning">{LABELS.users.token_once}</p>
                         <div className="flex items-center gap-2">
                             <code className="flex-1 overflow-x-auto rounded-md border border-border bg-background p-2 font-mono text-xs break-all">
                                 {issued.token}
@@ -124,7 +120,7 @@ export function CreateToken({
                             <Button
                                 variant="outline"
                                 size="sm"
-                                aria-label="Copy the token"
+                                aria-label={LABELS.users.copy_token}
                                 onClick={() => {
                                     void navigator.clipboard.writeText(issued.token).then(
                                         () => {
@@ -137,7 +133,7 @@ export function CreateToken({
                                 }}
                             >
                                 {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
-                                {copied ? 'Copied' : 'Copy'}
+                                {copied ? LABELS.users.copied : LABELS.users.copy}
                             </Button>
                         </div>
                     </div>
@@ -147,11 +143,11 @@ export function CreateToken({
 
                 <DialogFooter>
                     <DialogClose render={<Button variant={issued === null ? 'ghost' : 'default'} />}>
-                        {issued === null ? 'Cancel' : 'Done'}
+                        {issued === null ? LABELS.action.cancel : LABELS.action.done}
                     </DialogClose>
                     {issued === null && (
                         <Button disabled={busy || name.trim() === ''} onClick={send}>
-                            Create
+                            {LABELS.action.create}
                         </Button>
                     )}
                 </DialogFooter>

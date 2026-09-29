@@ -25,6 +25,7 @@ import { useMayWrite } from '@/hooks/use-may-write'
 import { type JsonMap, type Problem } from '@/lib/api'
 import { formatMoment } from '@/lib/format'
 import { headingOf } from '@/lib/identity'
+import { LABELS } from '@/lib/labels'
 import type { PickerOption } from '@/lib/picker'
 import { byTitle, paramsOf, priorityOf, readAllPipelines, readPipeline } from '@/lib/pipelines'
 import { refusalOf } from '@/lib/refusal'
@@ -56,17 +57,19 @@ import {
 /** Which clock a new schedule is declared with. Exactly one, which is what the core accepts. */
 type Clock = 'cron' | 'interval' | 'at'
 
+const CLOCK = LABELS.triggers.schedule.dialog.clock
+
 const CLOCKS: { value: Clock; label: string; hint: string }[] = [
-    { value: 'cron', label: 'Cron', hint: '0 5 * * *' },
-    { value: 'interval', label: 'Interval', hint: '15m' },
-    { value: 'at', label: 'One time', hint: '2026-06-01T09:00:00Z' },
+    { value: 'cron', label: CLOCK.cron.name, hint: CLOCK.cron.hint },
+    { value: 'interval', label: CLOCK.interval.name, hint: CLOCK.interval.hint },
+    { value: 'at', label: CLOCK.at.name, hint: CLOCK.at.hint },
 ]
 
 /** How long a clock is left alone before it is read back, so a keystroke is not a request. */
 const PREVIEW_DELAY = 300
 
 /** Why Create is shut while the pinned parameters are not a value the pipeline would take. */
-const PARAMS_SHUT = 'A pinned parameter is not what this pipeline takes.'
+const PARAMS_SHUT = LABELS.triggers.schedule.dialog.params_refused
 
 /**
  * Declare one schedule on a pipeline.
@@ -157,17 +160,17 @@ export function NewSchedule({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-xl" showCloseButton={false}>
                 <DialogHeader>
-                    <DialogTitle>New schedule</DialogTitle>
+                    <DialogTitle>{LABELS.triggers.schedule.new}</DialogTitle>
                 </DialogHeader>
 
                 <div className="space-y-2">
-                    <Label htmlFor="schedule-pipeline">Pipeline</Label>
+                    <Label htmlFor="schedule-pipeline">{LABELS.word.pipeline}</Label>
                     <Picker
                         id="schedule-pipeline"
-                        label="Pipeline"
+                        label={LABELS.word.pipeline}
                         value={pipeline}
                         options={pipelines}
-                        placeholder="Search by name or code"
+                        placeholder={LABELS.triggers.dialog.pipeline_hint}
                         onChange={(picked) => {
                             setPipeline(picked)
                             params.reset()
@@ -178,35 +181,35 @@ export function NewSchedule({
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                     <Field
                         id="schedule-code"
-                        label="Code"
+                        label={LABELS.word.code}
                         value={code}
                         onChange={setCode}
-                        placeholder="nightly"
+                        placeholder={LABELS.triggers.schedule.dialog.code_hint}
                         mono
                     />
                     <Field
                         id="schedule-name"
-                        label="Name"
+                        label={LABELS.word.name}
                         value={named}
                         onChange={setNamed}
-                        placeholder="What to call it on screen"
+                        placeholder={LABELS.triggers.dialog.name_hint}
                     />
                 </div>
 
                 <Field
                     id="schedule-description"
-                    label="Description"
+                    label={LABELS.word.description}
                     value={description}
                     onChange={setDescription}
-                    placeholder="What this clock is for"
+                    placeholder={LABELS.triggers.schedule.dialog.description_hint}
                 />
 
                 <div className="space-y-2">
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                         <div className="space-y-2">
-                            <Label>Clock</Label>
+                            <Label>{LABELS.word.clock}</Label>
                             <Segmented
-                                label="Clock"
+                                label={LABELS.word.clock}
                                 size="md"
                                 value={clock}
                                 options={CLOCKS.map((one) => ({ value: one.value, label: one.label }))}
@@ -227,13 +230,13 @@ export function NewSchedule({
 
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                     <div className="space-y-2">
-                        <Label htmlFor="schedule-timezone">Timezone</Label>
+                        <Label htmlFor="schedule-timezone">{LABELS.word.timezone}</Label>
                         <Picker
                             id="schedule-timezone"
-                            label="Timezone"
+                            label={LABELS.word.timezone}
                             value={timezone}
                             options={zones}
-                            placeholder="Search by zone or offset"
+                            placeholder={LABELS.triggers.schedule.dialog.timezone_hint}
                             onChange={setTimezone}
                         />
                     </div>
@@ -250,10 +253,10 @@ export function NewSchedule({
                 {problem !== null && <Refusal problem={problem} />}
 
                 <DialogFooter>
-                    <DialogClose render={<Button variant="ghost" />}>Close</DialogClose>
+                    <DialogClose render={<Button variant="ghost" />}>{LABELS.action.close}</DialogClose>
                     <Refusable why={shut}>
                         <Button disabled={busy || shut !== undefined} title={shut} onClick={send}>
-                            {busy ? 'Creating' : 'Create'}
+                            {busy ? LABELS.triggers.dialog.creating : LABELS.action.create}
                         </Button>
                     </Refusable>
                 </DialogFooter>
@@ -340,17 +343,17 @@ export function NewWebhook({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-xl" showCloseButton={false}>
                 <DialogHeader>
-                    <DialogTitle>New webhook</DialogTitle>
+                    <DialogTitle>{LABELS.triggers.webhook.new}</DialogTitle>
                 </DialogHeader>
 
                 <div className="space-y-2">
-                    <Label htmlFor="webhook-pipeline">Pipeline</Label>
+                    <Label htmlFor="webhook-pipeline">{LABELS.word.pipeline}</Label>
                     <Picker
                         id="webhook-pipeline"
-                        label="Pipeline"
+                        label={LABELS.word.pipeline}
                         value={pipeline}
                         options={pipelines}
-                        placeholder="Search by name or code"
+                        placeholder={LABELS.triggers.dialog.pipeline_hint}
                         onChange={(picked) => {
                             setPipeline(picked)
                             setPaths({})
@@ -361,37 +364,37 @@ export function NewWebhook({
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                     <Field
                         id="webhook-code"
-                        label="Code"
+                        label={LABELS.word.code}
                         value={code}
                         onChange={setCode}
-                        placeholder="upstream-publish"
+                        placeholder={LABELS.triggers.webhook.dialog.code_hint}
                         mono
                     />
                     <Field
                         id="webhook-name"
-                        label="Name"
+                        label={LABELS.word.name}
                         value={named}
                         onChange={setNamed}
-                        placeholder="What to call it on screen"
+                        placeholder={LABELS.triggers.dialog.name_hint}
                     />
                 </div>
 
                 <Field
                     id="webhook-description"
-                    label="Description"
+                    label={LABELS.word.description}
                     value={description}
                     onChange={setDescription}
-                    placeholder="What sends to this endpoint"
+                    placeholder={LABELS.triggers.webhook.dialog.description_hint}
                 />
 
                 <div className="space-y-2">
-                    <Label>Payload mapping</Label>
+                    <Label>{LABELS.word.payload_mapping}</Label>
                     <div className="max-h-[32vh] overflow-y-auto rounded-md border border-border p-3">
                         {chosen.fields.length === 0 ? (
                             <p className="text-sm text-muted-foreground">
                                 {pipeline === ''
-                                    ? 'No pipeline chosen.'
-                                    : 'This pipeline takes no parameters.'}
+                                    ? LABELS.triggers.dialog.no_pipeline
+                                    : LABELS.triggers.dialog.no_params}
                             </p>
                         ) : (
                             <div className="space-y-3">
@@ -405,14 +408,16 @@ export function NewWebhook({
                                                 {field.name}
                                             </Label>
                                             {field.required && (
-                                                <p className="text-xs text-primary-ink">required</p>
+                                                <p className="text-xs text-primary-ink">
+                                                    {LABELS.triggers.webhook.dialog.required}
+                                                </p>
                                             )}
                                         </div>
                                         <Input
                                             id={`mapping-${field.name}`}
                                             className="font-mono"
                                             spellCheck={false}
-                                            placeholder="$."
+                                            placeholder={LABELS.triggers.webhook.dialog.path_hint}
                                             value={paths[field.name] ?? ''}
                                             onChange={(event) => {
                                                 setPaths((held) => ({
@@ -426,14 +431,11 @@ export function NewWebhook({
                             </div>
                         )}
                     </div>
-                    <p className="text-xs text-faint">
-                        One JSONPath per parameter the pipeline declares. Anything else in the payload is
-                        ignored.
-                    </p>
+                    <p className="text-xs text-faint">{LABELS.triggers.webhook.dialog.mapping_note}</p>
                 </div>
 
                 <div className="space-y-2">
-                    <Label htmlFor="webhook-secret">Signing secret</Label>
+                    <Label htmlFor="webhook-secret">{LABELS.triggers.webhook.dialog.secret}</Label>
                     <InputGroup className="bg-field dark:bg-field">
                         <InputGroupInput
                             id="webhook-secret"
@@ -443,7 +445,7 @@ export function NewWebhook({
                             onChange={(event) => {
                                 setSecret(event.target.value)
                             }}
-                            placeholder="Leave empty for an unsigned endpoint"
+                            placeholder={LABELS.triggers.webhook.dialog.secret_hint}
                         />
                         <InputGroupAddon align="inline-end">
                             <InputGroupButton
@@ -451,7 +453,7 @@ export function NewWebhook({
                                     setSecret(generatedSecret())
                                 }}
                             >
-                                Generate
+                                {LABELS.action.generate}
                             </InputGroupButton>
                         </InputGroupAddon>
                     </InputGroup>
@@ -460,7 +462,7 @@ export function NewWebhook({
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                     <Field
                         id="webhook-rate"
-                        label="Deliveries a minute"
+                        label={LABELS.triggers.webhook.dialog.rate}
                         value={rate}
                         onChange={setRate}
                         placeholder={String(RATE_LIMIT)}
@@ -478,12 +480,12 @@ export function NewWebhook({
 
                 <DialogFooter>
                     <p className="mr-auto self-center text-xs text-muted-foreground">
-                        Its token is shown once, after Create.
+                        {LABELS.triggers.webhook.dialog.token_once}
                     </p>
-                    <DialogClose render={<Button variant="ghost" />}>Close</DialogClose>
+                    <DialogClose render={<Button variant="ghost" />}>{LABELS.action.close}</DialogClose>
                     <Refusable why={shut}>
                         <Button disabled={busy || shut !== undefined} title={shut} onClick={send}>
-                            {busy ? 'Creating' : 'Create'}
+                            {busy ? LABELS.triggers.dialog.creating : LABELS.action.create}
                         </Button>
                     </Refusable>
                 </DialogFooter>
@@ -523,11 +525,8 @@ export function MintedToken({ token, onClose }: { token: WebhookTokenOut; onClos
         >
             <DialogContent className="sm:max-w-xl" showCloseButton={false}>
                 <DialogHeader>
-                    <DialogTitle>The token for {token.code}</DialogTitle>
-                    <DialogDescription>
-                        This instance keeps only its hash. This is the only time it can be read; rotating the
-                        webhook is how a lost token is replaced.
-                    </DialogDescription>
+                    <DialogTitle>{LABELS.triggers.webhook.token.title(token.code)}</DialogTitle>
+                    <DialogDescription>{LABELS.triggers.webhook.token.note}</DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-2 rounded-lg border border-border bg-secondary/40 p-3">
@@ -536,17 +535,17 @@ export function MintedToken({ token, onClose }: { token: WebhookTokenOut; onClos
                     </p>
                     <Button variant="outline" size="sm" onClick={copy}>
                         {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
-                        {copied ? 'Copied' : 'Copy token'}
+                        {copied ? LABELS.triggers.webhook.token.copied : LABELS.triggers.webhook.token.copy}
                     </Button>
                 </div>
 
                 <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">Where to POST</p>
+                    <p className="text-xs text-muted-foreground">{LABELS.triggers.webhook.token.url}</p>
                     <p className="font-mono text-xs break-all">{token.url_path}</p>
                 </div>
 
                 <DialogFooter>
-                    <Button onClick={onClose}>Done</Button>
+                    <Button onClick={onClose}>{LABELS.action.done}</Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
@@ -598,7 +597,7 @@ function useFirings(open: boolean, clock: Clock, expression: string, timezone: s
                     if (live) setAnswered({ asked, reading: { kind: 'firings', firings: answer.firings } })
                 },
                 (error: unknown) => {
-                    const detail = refusalOf(error).detail ?? 'This clock cannot be read.'
+                    const detail = refusalOf(error).detail ?? LABELS.triggers.schedule.dialog.unreadable_clock
                     if (live) setAnswered({ asked, reading: { kind: 'refused', detail } })
                 },
             )
@@ -781,13 +780,13 @@ function ParamsBox({
     return (
         <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
-                <Label>Pinned parameters</Label>
+                <Label>{LABELS.word.pinned_parameters}</Label>
                 <Segmented
-                    label="How the parameters are written"
+                    label={LABELS.triggers.dialog.params_written}
                     value={params.mode}
                     options={[
-                        { value: 'form' as const, label: 'Form' },
-                        { value: 'json' as const, label: 'JSON' },
+                        { value: 'form' as const, label: LABELS.triggers.dialog.params_form },
+                        { value: 'json' as const, label: LABELS.triggers.dialog.params_json },
                     ]}
                     onChoose={params.show}
                 />
@@ -795,7 +794,7 @@ function ParamsBox({
             <div className="max-h-[32vh] overflow-y-auto rounded-md border border-border p-3">
                 {fields.length === 0 ? (
                     <p className="text-sm text-muted-foreground">
-                        {chosen ? 'This pipeline takes no parameters.' : 'No pipeline chosen.'}
+                        {chosen ? LABELS.triggers.dialog.no_params : LABELS.triggers.dialog.no_pipeline}
                     </p>
                 ) : params.mode === 'form' ? (
                     <SchemaForm
@@ -810,7 +809,7 @@ function ParamsBox({
                 ) : (
                     <div className="space-y-1">
                         <Textarea
-                            aria-label="Pinned parameters as JSON"
+                            aria-label={LABELS.triggers.dialog.params_json_label}
                             className="h-32 font-mono"
                             spellCheck={false}
                             value={params.text}
@@ -845,7 +844,7 @@ function PriorityField({
 }) {
     return (
         <div className="space-y-2">
-            <Label htmlFor={id}>Priority</Label>
+            <Label htmlFor={id}>{LABELS.word.priority}</Label>
             <Select
                 value={value}
                 onValueChange={(chosen: string | null) => {
@@ -879,7 +878,7 @@ function Priority({ chosen, pipeline }: { chosen: string; pipeline: RunPriority 
     if (chosen !== INHERITED) return chosen
     return (
         <>
-            The pipeline&apos;s
+            {LABELS.triggers.dialog.priority_inherited}
             {pipeline !== null && <span className="font-mono text-muted-foreground"> {pipeline}</span>}
         </>
     )

@@ -30,6 +30,7 @@ import {
     type SurfaceEntry,
 } from '@/lib/connections'
 import { kindGlyph } from '@/lib/glyphs'
+import { LABELS } from '@/lib/labels'
 import { kindMarks } from '@/lib/marks'
 import { refusalOf } from '@/lib/refusal'
 import { firstShut } from '@/lib/roles'
@@ -130,15 +131,13 @@ export function NewConnection({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-xl" showCloseButton={false}>
                 <DialogHeader>
-                    <DialogTitle>New connection</DialogTitle>
-                    <DialogDescription>
-                        Secret fields are sealed on the way in and never read back out.
-                    </DialogDescription>
+                    <DialogTitle>{LABELS.connections.new}</DialogTitle>
+                    <DialogDescription>{LABELS.connections.sealed}</DialogDescription>
                 </DialogHeader>
 
                 <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-2">
-                        <Label htmlFor="connection-code">Code</Label>
+                        <Label htmlFor="connection-code">{LABELS.word.code}</Label>
                         <Input
                             id="connection-code"
                             className="font-mono"
@@ -146,11 +145,11 @@ export function NewConnection({
                             onChange={(event) => {
                                 setCode(event.target.value)
                             }}
-                            placeholder="playground"
+                            placeholder={LABELS.connections.code_placeholder}
                         />
                     </div>
                     <div className="space-y-2">
-                        <Label htmlFor="connection-kind">Kind</Label>
+                        <Label htmlFor="connection-kind">{LABELS.word.kind}</Label>
                         <Select
                             value={kind}
                             onValueChange={(picked) => {
@@ -168,7 +167,7 @@ export function NewConnection({
                                     somebody picked is the row they are looking at. Nothing
                                     chosen draws the placeholder, which names no kind and so
                                     wears no mark. */}
-                                <SelectValue placeholder="Choose a kind">
+                                <SelectValue placeholder={LABELS.connections.choose_kind}>
                                     {chosen === null ? undefined : () => <KindRow kind={chosen.id} />}
                                 </SelectValue>
                             </SelectTrigger>
@@ -184,19 +183,19 @@ export function NewConnection({
                 </div>
 
                 <div className="space-y-2">
-                    <Label htmlFor="connection-name-new">Name</Label>
+                    <Label htmlFor="connection-name-new">{LABELS.word.name}</Label>
                     <Input
                         id="connection-name-new"
                         value={named}
                         onChange={(event) => {
                             setNamed(event.target.value)
                         }}
-                        placeholder="What to call it on screen. Optional; nothing references it."
+                        placeholder={LABELS.connections.new_name_placeholder}
                     />
                 </div>
 
                 <div className="space-y-2">
-                    <Label htmlFor="connection-description-new">Description</Label>
+                    <Label htmlFor="connection-description-new">{LABELS.word.description}</Label>
                     <Textarea
                         id="connection-description-new"
                         className="h-24"
@@ -204,13 +203,15 @@ export function NewConnection({
                         onChange={(event) => {
                             setDescription(event.target.value)
                         }}
-                        placeholder="What this credential is for. Markdown is rendered."
+                        placeholder={LABELS.connections.description_placeholder}
                     />
                 </div>
 
                 {chosen !== null && (
                     <div className="space-y-3">
-                        <p className="text-xs font-semibold tracking-wide text-faint uppercase">Settings</p>
+                        <p className="text-xs font-semibold tracking-wide text-faint uppercase">
+                            {LABELS.connections.settings_heading}
+                        </p>
                         <div className="max-h-[40vh] space-y-3 overflow-y-auto pr-1">
                             <SchemaForm
                                 fields={fields}
@@ -253,10 +254,10 @@ export function NewConnection({
                 {problem !== null && <Refusal problem={problem} />}
 
                 <DialogFooter>
-                    <DialogClose render={<Button variant="ghost" />}>Close</DialogClose>
+                    <DialogClose render={<Button variant="ghost" />}>{LABELS.action.close}</DialogClose>
                     <Refusable why={shut}>
                         <Button disabled={busy || shut !== undefined} title={shut} onClick={send}>
-                            {busy ? 'Creating' : 'Create'}
+                            {busy ? LABELS.connections.creating : LABELS.action.create}
                         </Button>
                     </Refusable>
                 </DialogFooter>
@@ -288,10 +289,10 @@ function unready(
     problems: Record<string, string>,
     unreadable: ReadonlySet<string>,
 ): string | undefined {
-    if (code.trim() === '') return 'A connection is addressed by its code, and this one has none.'
-    if (kind === '') return 'No kind is chosen, and a connection is a credential of one kind.'
-    if (unreadable.size > 0) return 'A setting below holds text that is not a value.'
-    if (!maySubmit(problems, unreadable)) return 'A setting below is not what its kind accepts.'
+    if (code.trim() === '') return LABELS.connections.needs_code
+    if (kind === '') return LABELS.connections.needs_kind
+    if (unreadable.size > 0) return LABELS.connections.unreadable_setting
+    if (!maySubmit(problems, unreadable)) return LABELS.connections.new_settings_refused
     return undefined
 }
 

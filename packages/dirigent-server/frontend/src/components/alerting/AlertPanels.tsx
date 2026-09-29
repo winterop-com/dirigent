@@ -18,7 +18,6 @@ import { usePaged } from '@/hooks/use-paged'
 import { BODY_HINT, given, SUBJECT_HINT, TEMPLATE_MEDIA_TYPE } from '@/lib/alert-form'
 import {
     deleteRule,
-    EVENT_LABELS,
     importanceNote,
     NO_FILTERS,
     readNotifications,
@@ -34,6 +33,7 @@ import {
 import type { Problem } from '@/lib/api'
 import { kindGlyph } from '@/lib/glyphs'
 import { headingOf, type Addressable } from '@/lib/identity'
+import { LABELS } from '@/lib/labels'
 import { refusalOf } from '@/lib/refusal'
 
 /**
@@ -95,23 +95,23 @@ export function RulePanel({
     return (
         <div className="space-y-4 p-4">
             <Head thing={rule}>
-                {rule.paused && <Chip>paused</Chip>}
-                {!rule.active && <Chip>off</Chip>}
+                {rule.paused && <Chip>{LABELS.state.armed.paused}</Chip>}
+                {!rule.active && <Chip>{LABELS.state.armed.off}</Chip>}
             </Head>
             <Description text={rule.description} />
 
             <dl className="space-y-1.5">
-                <Fact label="Event">{EVENT_LABELS[rule.event]}</Fact>
-                <Fact label="Scope">
+                <Fact label={LABELS.word.event}>{LABELS.alerting.event[rule.event]}</Fact>
+                <Fact label={LABELS.word.scope}>
                     <span className="flex flex-wrap items-baseline gap-x-1.5">
                         {scopeNote(rule)}
                         {floor !== null && <span className="text-xs text-muted-foreground">{floor}</span>}
                     </span>
                 </Fact>
-                <Fact label="Delivers through">
+                <Fact label={LABELS.word.delivers_through}>
                     <Target notifier={rule.notifier} connection={rule.connection} />
                 </Fact>
-                <Fact label="Throttle">{throttleNote(rule.throttle)}</Fact>
+                <Fact label={LABELS.word.throttle}>{throttleNote(rule.throttle)}</Fact>
                 {editing ? (
                     <RuleText
                         key={rule.code}
@@ -126,10 +126,10 @@ export function RulePanel({
                     />
                 ) : (
                     <>
-                        <Fact label="Subject">
+                        <Fact label={LABELS.word.subject}>
                             <span className="flex flex-wrap items-baseline gap-2">
                                 {rule.template === null ? (
-                                    <span className="text-muted-foreground">none</span>
+                                    <span className="text-muted-foreground">{LABELS.word.none}</span>
                                 ) : (
                                     <span className="font-mono text-xs break-all">{rule.template}</span>
                                 )}
@@ -143,13 +143,13 @@ export function RulePanel({
                                             setEditingCode(rule.code)
                                         }}
                                     >
-                                        Edit
+                                        {LABELS.action.edit}
                                     </Button>
                                 </Refusable>
                             </span>
                         </Fact>
                         {rule.body !== null && (
-                            <Fact label="Body">
+                            <Fact label={LABELS.word.body}>
                                 <span className="line-clamp-3 font-mono text-xs break-words whitespace-pre-wrap">
                                     {rule.body}
                                 </span>
@@ -157,9 +157,9 @@ export function RulePanel({
                         )}
                     </>
                 )}
-                <Fact label="Last sent">
+                <Fact label={LABELS.alerting.last_sent}>
                     {rule.last_sent_at === null ? (
-                        <span className="text-muted-foreground">never</span>
+                        <span className="text-muted-foreground">{LABELS.word.never}</span>
                     ) : (
                         <Instant at={rule.last_sent_at} />
                     )}
@@ -175,7 +175,7 @@ export function RulePanel({
                         title={write.why}
                         onClick={toggle}
                     >
-                        {rule.paused ? 'Resume' : 'Pause'}
+                        {rule.paused ? LABELS.alerting.resume : LABELS.alerting.pause}
                     </Button>
                 </Refusable>
                 <Refusable why={write.why}>
@@ -186,7 +186,7 @@ export function RulePanel({
                         title={write.why}
                         onClick={onTest}
                     >
-                        Send a test
+                        {LABELS.action.send_test}
                     </Button>
                 </Refusable>
                 <Refusable why={write.why}>
@@ -198,15 +198,17 @@ export function RulePanel({
                         title={write.why}
                         onClick={remove}
                     >
-                        Delete
+                        {LABELS.action.delete}
                     </Button>
                 </Refusable>
             </div>
 
             <div className="space-y-2">
-                <p className="text-xs text-muted-foreground">Recent deliveries</p>
-                {!state.read && <p className="text-xs text-faint">Reading from the server</p>}
-                {state.read && mine.length === 0 && <p className="text-xs text-faint">Nothing sent.</p>}
+                <p className="text-xs text-muted-foreground">{LABELS.alerting.recent_deliveries}</p>
+                {!state.read && <p className="text-xs text-faint">{LABELS.alerting.reading}</p>}
+                {state.read && mine.length === 0 && (
+                    <p className="text-xs text-faint">{LABELS.alerting.deliveries_empty}</p>
+                )}
                 <ul className="divide-y divide-border">
                     {mine.map((row) => (
                         <li key={row.id} className="row-hover -mx-4 flex items-center gap-2 px-4 py-2">
@@ -271,14 +273,14 @@ function RuleText({
     return (
         <div className="space-y-3 rounded-lg border border-border bg-secondary/30 p-3">
             <div className="space-y-2">
-                <Label htmlFor={subjectId}>Subject</Label>
+                <Label htmlFor={subjectId}>{LABELS.word.subject}</Label>
                 <Input
                     id={subjectId}
                     className="font-mono"
                     spellCheck={false}
                     autoComplete="off"
                     value={template}
-                    placeholder="{{ run.pipeline }} run {{ run.status }}"
+                    placeholder={LABELS.alerting.subject_placeholder}
                     onChange={(event) => {
                         setTemplate(event.target.value)
                     }}
@@ -287,10 +289,10 @@ function RuleText({
             </div>
 
             <div className="space-y-2">
-                <Label>Body</Label>
+                <Label>{LABELS.word.body}</Label>
                 <p className="text-xs text-faint">{BODY_HINT}</p>
                 <WindowedPane
-                    name="body"
+                    name={LABELS.alerting.body_pane}
                     className="overflow-hidden rounded-md border border-border bg-background"
                     aside={<ProgramReference mediaType={TEMPLATE_MEDIA_TYPE} />}
                     windowed={
@@ -298,7 +300,7 @@ function RuleText({
                             value={body}
                             mediaType={TEMPLATE_MEDIA_TYPE}
                             path={path}
-                            label="body, in a window"
+                            label={LABELS.alerting.body_pane_windowed(LABELS.alerting.body_pane)}
                             className="min-h-0 flex-1"
                             onChange={setBody}
                         />
@@ -308,8 +310,8 @@ function RuleText({
                         value={body}
                         mediaType={TEMPLATE_MEDIA_TYPE}
                         path={path}
-                        label="body"
-                        placeholder="{{ run.pipeline }} ended {{ run.status }}: {{ run.url }}"
+                        label={LABELS.alerting.body_pane}
+                        placeholder={LABELS.alerting.body_placeholder}
                         className="h-40 min-h-32"
                         onChange={setBody}
                     />
@@ -320,10 +322,10 @@ function RuleText({
 
             <div className="flex justify-end gap-2">
                 <Button variant="ghost" size="sm" onClick={onDone}>
-                    Cancel
+                    {LABELS.action.cancel}
                 </Button>
                 <Button size="sm" disabled={busy} onClick={save}>
-                    {busy ? 'Saving' : 'Save'}
+                    {busy ? LABELS.alerting.saving : LABELS.action.save}
                 </Button>
             </div>
         </div>
@@ -369,47 +371,45 @@ export function NotificationPanel({
                 {/* A test is raised by nothing, and the event on its row is a placeholder the
                     queue needed rather than something that happened -- so it is not drawn. */}
                 {notification.rule === null ? (
-                    <Fact label="Raised by">
-                        <span className="text-muted-foreground">a test, not a rule</span>
+                    <Fact label={LABELS.alerting.raised_by}>
+                        <span className="text-muted-foreground">{LABELS.alerting.raised_by_test}</span>
                     </Fact>
                 ) : (
                     <>
-                        <Fact label="Event">{EVENT_LABELS[notification.event]}</Fact>
-                        <Fact label="Rule">
+                        <Fact label={LABELS.word.event}>{LABELS.alerting.event[notification.event]}</Fact>
+                        <Fact label={LABELS.word.rule}>
                             <span className="font-mono text-xs">{notification.rule}</span>
                         </Fact>
                     </>
                 )}
-                <Fact label="Delivers through">
+                <Fact label={LABELS.word.delivers_through}>
                     <Channel notifier={notification.notifier} connection={notification.connection} />
                 </Fact>
-                <Fact label="Run">
+                <Fact label={LABELS.word.run}>
                     <Run notification={notification} />
                 </Fact>
-                <Fact label="Queued">
+                <Fact label={LABELS.alerting.queued_at}>
                     <Instant at={notification.created_at} />
                 </Fact>
                 {notification.status === 'sent' ? (
-                    <Fact label="Sent">
+                    <Fact label={LABELS.alerting.sent_at}>
                         <Instant at={notification.sent_at} />
                     </Fact>
                 ) : (
-                    <Fact label="Next try">
+                    <Fact label={LABELS.alerting.next_try}>
                         <Instant at={notification.available_at} />
                     </Fact>
                 )}
-                <Fact label="Attempts">
-                    {notification.attempt} of {notification.max_attempts}
+                <Fact label={LABELS.alerting.attempts}>
+                    {LABELS.alerting.attempts_of(notification.attempt, notification.max_attempts)}
                 </Fact>
             </dl>
 
             {notification.error !== null && (
                 <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">What the channel said</p>
+                    <p className="text-xs text-muted-foreground">{LABELS.alerting.channel_said}</p>
                     <p className="text-xs break-words text-critical">{notification.error}</p>
-                    <p className="text-xs text-faint">
-                        Only the latest refusal is kept. Earlier attempts are counted, not stored.
-                    </p>
+                    <p className="text-xs text-faint">{LABELS.alerting.latest_refusal_only}</p>
                 </div>
             )}
 
@@ -422,12 +422,12 @@ export function NotificationPanel({
                         title={write.why}
                         onClick={again}
                     >
-                        Retry now
+                        {LABELS.action.retry_now}
                     </Button>
                 </Refusable>
                 {notification.run_id !== null && (
                     <Button variant="outline" size="sm" render={<Link to={`/runs/${notification.run_id}`} />}>
-                        Open the run
+                        {LABELS.alerting.open_run}
                     </Button>
                 )}
             </div>
@@ -475,8 +475,9 @@ export function Channel({ notifier, connection }: { notifier: string; connection
  * the cell says; the id is what the link carries.
  */
 export function Run({ notification }: { notification: NotificationOut }) {
-    if (notification.run_id === null) return <span className="text-muted-foreground">no run</span>
-    const named = notification.run_pipeline ?? 'a run'
+    if (notification.run_id === null)
+        return <span className="text-muted-foreground">{LABELS.alerting.no_run}</span>
+    const named = notification.run_pipeline ?? LABELS.alerting.a_run
     return (
         <Link className="text-primary-ink hover:underline" to={`/runs/${notification.run_id}`}>
             <span className="text-sm">{named}</span>

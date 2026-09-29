@@ -21,6 +21,7 @@ import {
     type ConnectionOut,
     type HealthLabel,
 } from '@/lib/connections'
+import { LABELS } from '@/lib/labels'
 import { PAGE } from '@/lib/paging'
 import type { Importance } from '@/lib/pipelines'
 
@@ -40,19 +41,6 @@ export const ALERT_EVENTS: readonly AlertEvent[] = [
     'run_succeeded',
     'run_stuck',
 ]
-
-/**
- * What each event is called wherever one is drawn, in plain product English.
- *
- * ONE VOCABULARY. The listing, the dialog and a panel all say `Failed` for `run_failed`: the
- * wire's word is what a rule is declared with, and this is what a reader is shown.
- */
-export const EVENT_LABELS: Record<AlertEvent, string> = {
-    run_failed: 'Failed',
-    run_completed_with_errors: 'Completed with errors',
-    run_succeeded: 'Succeeded',
-    run_stuck: 'Stuck',
-}
 
 /** Every state a delivery can be in, in the order the filter offers them. */
 export const NOTIFICATION_STATUSES: readonly NotificationStatus[] = ['pending', 'sending', 'sent', 'failed']
@@ -118,7 +106,7 @@ const NO_THROTTLE = '0s'
  * it instead.
  */
 export function throttleNote(throttle: string): string {
-    return throttle === NO_THROTTLE ? 'none' : throttle
+    return throttle === NO_THROTTLE ? LABELS.word.none : throttle
 }
 
 /** One message the queue holds. `NotificationOut`. */
@@ -162,13 +150,16 @@ export interface TestQueued {
 
 /** What one rule matches, said in one phrase. */
 export function matchNote(rule: AlertRuleOut): string {
-    const where = rule.scope === 'pipeline' && rule.pipeline !== null ? rule.pipeline : 'every pipeline'
-    return `${EVENT_LABELS[rule.event]} — ${where}`
+    const where =
+        rule.scope === 'pipeline' && rule.pipeline !== null ? rule.pipeline : LABELS.alerting.every_pipeline
+    return LABELS.alerting.match_note(LABELS.alerting.event[rule.event], where)
 }
 
 /** Where a rule delivers: every pipeline, or the one it watches. */
 export function scopeNote(rule: AlertRuleOut): string {
-    return rule.scope === 'pipeline' && rule.pipeline !== null ? rule.pipeline : 'every pipeline'
+    return rule.scope === 'pipeline' && rule.pipeline !== null
+        ? rule.pipeline
+        : LABELS.alerting.every_pipeline
 }
 
 /**
@@ -178,7 +169,7 @@ export function scopeNote(rule: AlertRuleOut): string {
  * importance at all, so the column would be empty down its whole length.
  */
 export function importanceNote(importance: Importance | null): string | null {
-    return importance === null ? null : `${importance} and above`
+    return importance === null ? null : LABELS.alerting.importance_floor(importance)
 }
 
 /** Whether a rule is delivering at all: a paused one matches nothing the engine settles. */
@@ -403,7 +394,10 @@ export function channelLink(channel: Channel): string | null {
  * said in the words somebody would use rather than in the shape of the thing that is missing.
  * The words are the tooltip's; the chip itself carries the dot.
  */
-export type ChannelLabel = HealthLabel | 'ready' | 'not set up'
+export type ChannelLabel =
+    | HealthLabel
+    | typeof LABELS.alerting.channel.ready
+    | typeof LABELS.alerting.channel.not_set_up
 
 /** How a channel reads its own health: the dot's colour, the word, and what the check said. */
 export interface ChannelView {
@@ -432,8 +426,9 @@ export interface ChannelView {
  * nothing checks the log, and a notifier with no credential has nothing to check.
  */
 export function channelView(channel: Channel): ChannelView {
-    if (channel.notifier === LOG_NOTIFIER) return { tone: 'good', label: 'ready', detail: null }
-    if (!channel.reachable) return { tone: 'quiet', label: 'not set up', detail: null }
+    if (channel.notifier === LOG_NOTIFIER)
+        return { tone: 'good', label: LABELS.alerting.channel.ready, detail: null }
+    if (!channel.reachable) return { tone: 'quiet', label: LABELS.alerting.channel.not_set_up, detail: null }
     const health = healthOf(channel)
     return { tone: health.tone ?? 'quiet', label: health.label, detail: health.detail }
 }

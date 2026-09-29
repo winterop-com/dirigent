@@ -10,6 +10,7 @@ import { useStore } from '@/hooks/use-store'
 import { authStore, signOut } from '@/lib/auth'
 import { LOGIN_PATH } from '@/lib/nav'
 import { formatRelative } from '@/lib/format'
+import { LABELS } from '@/lib/labels'
 import {
     RECHECK_INTERVAL_MS,
     checkServer,
@@ -19,15 +20,15 @@ import {
 } from '@/lib/server-status'
 import { cn } from '@/lib/utils'
 
-export const SERVER_STATUS_LABEL = 'Instance'
+export const SERVER_STATUS_LABEL = LABELS.shell.instance.label
 
 /** What each state paints and says. The settings dialog's Health row draws the same pair. */
 export const TONE: Record<ServerState, { dot: string; word: string }> = {
-    unknown: { dot: 'bg-muted-foreground', word: 'asking…' },
-    healthy: { dot: 'bg-good', word: 'healthy' },
-    degraded: { dot: 'bg-warning', word: 'degraded' },
-    unhealthy: { dot: 'bg-critical', word: 'unhealthy' },
-    offline: { dot: 'bg-critical', word: 'offline' },
+    unknown: { dot: 'bg-muted-foreground', word: LABELS.state.server.asking },
+    healthy: { dot: 'bg-good', word: LABELS.state.server.healthy },
+    degraded: { dot: 'bg-warning', word: LABELS.state.server.degraded },
+    unhealthy: { dot: 'bg-critical', word: LABELS.state.server.unhealthy },
+    offline: { dot: 'bg-critical', word: LABELS.state.server.offline },
 }
 
 /** One fact about the instance, on the row every fact here shares. */
@@ -105,12 +106,13 @@ export function ServerStatusButton() {
                     <Dot state={status.state} wide />
                     <span className="text-sm font-medium">{TONE[status.state].word}</span>
                     {status.state === 'offline' && (
-                        <span className="text-xs text-muted-foreground">the server did not answer</span>
+                        <span className="text-xs text-muted-foreground">{LABELS.shell.instance.offline}</span>
                     )}
                     <span className="flex-1" />
                     {status.checkedAt !== null && (
                         <span className="text-xs text-faint">
-                            checked {formatRelative(new Date(status.checkedAt).toISOString())}
+                            {LABELS.shell.instance.checked}{' '}
+                            {formatRelative(new Date(status.checkedAt).toISOString())}
                         </span>
                     )}
                 </div>
@@ -118,8 +120,14 @@ export function ServerStatusButton() {
                     used to repeat the version along its right edge, which is a fact appearing
                     twice in one shell. */}
                 <dl className="grid grid-cols-[auto_1fr] gap-x-3 border-t border-border px-0 py-2 text-xs">
-                    <Fact term="environment" detail={status.environment ?? 'not said'} />
-                    <Fact term="version" detail={status.version ?? 'not said'} />
+                    <Fact
+                        term={LABELS.shell.instance.environment}
+                        detail={status.environment ?? LABELS.shell.instance.unknown}
+                    />
+                    <Fact
+                        term={LABELS.shell.instance.version}
+                        detail={status.version ?? LABELS.shell.instance.unknown}
+                    />
                     {status.checks.map((check) => (
                         <div
                             key={check.name}
@@ -163,7 +171,7 @@ export function ServerStatusButton() {
                                 void signOut().then(() => navigate(LOGIN_PATH, { replace: true }))
                             }}
                         >
-                            Sign out
+                            {LABELS.action.sign_out}
                         </Button>
                     </div>
                 )}

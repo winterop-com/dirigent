@@ -12,6 +12,7 @@
  * is why building the registry needs to know what kind of keyboard this is.
  */
 
+import { LABELS } from '@/lib/labels'
 import { shortcuts } from '@/lib/shortcuts'
 
 /** The headings the left nav lays categories out under. */
@@ -21,9 +22,9 @@ export interface SettingsGroup {
 }
 
 export const SETTINGS_GROUPS: readonly SettingsGroup[] = [
-    { id: 'preferences', label: 'Preferences' },
-    { id: 'you', label: 'You' },
-    { id: 'instance', label: 'This instance' },
+    { id: 'preferences', label: LABELS.settings.group.preferences },
+    { id: 'you', label: LABELS.settings.group.you },
+    { id: 'instance', label: LABELS.settings.group.instance },
 ]
 
 /** One entry in the left nav. */
@@ -34,11 +35,11 @@ export interface SettingsCategory {
 }
 
 export const SETTINGS_CATEGORIES: readonly SettingsCategory[] = [
-    { id: 'general', label: 'General', group: 'preferences' },
-    { id: 'theme', label: 'Theme', group: 'preferences' },
-    { id: 'shortcuts', label: 'Shortcuts', group: 'preferences' },
-    { id: 'account', label: 'Account', group: 'you' },
-    { id: 'server', label: 'Server', group: 'instance' },
+    { id: 'general', label: LABELS.settings.category.general, group: 'preferences' },
+    { id: 'theme', label: LABELS.settings.category.theme, group: 'preferences' },
+    { id: 'shortcuts', label: LABELS.settings.category.shortcuts, group: 'preferences' },
+    { id: 'account', label: LABELS.word.account, group: 'you' },
+    { id: 'server', label: LABELS.settings.category.server, group: 'instance' },
 ]
 
 /**
@@ -71,51 +72,51 @@ export function settingsRows(apple: boolean): SettingsRow[] {
         {
             id: 'theme:appearance',
             category: 'theme',
-            label: 'Appearance',
+            label: LABELS.settings.row.appearance,
             keywords: ['theme', 'mode', 'dark', 'light', 'system', 'colour', 'color'],
         },
         {
             id: 'theme:palette',
             category: 'theme',
-            label: 'Palette',
+            label: LABELS.settings.row.palette,
             keywords: ['palette', 'theme', 'colour', 'color', 'paper', 'contrast', 'accessibility'],
         },
         {
             id: 'general:times',
             category: 'general',
-            label: 'Timezone',
-            description: 'Timestamps everywhere; a schedule keeps its own.',
+            label: LABELS.word.timezone,
+            description: LABELS.settings.description.timezone,
             keywords: ['timezone', 'utc', 'clock', 'local', 'zone'],
         },
         {
             id: 'general:tails',
             category: 'general',
-            label: 'Follow logs',
+            label: LABELS.settings.row.follow_logs,
             keywords: ['logs', 'scroll', 'follow', 'tail', 'live'],
         },
         {
             id: 'general:highlight',
             category: 'general',
-            label: 'Current line',
-            description: 'Every editor, in place and in a window, including read-only ones.',
+            label: LABELS.settings.row.current_line,
+            description: LABELS.settings.description.current_line,
             keywords: ['editor', 'caret', 'cursor', 'row', 'line', 'highlight', 'source'],
         },
         {
             id: 'account:identity',
             category: 'account',
-            label: 'Signed in as',
+            label: LABELS.settings.row.signed_in_as,
             keywords: ['user', 'username', 'role', 'account', 'who'],
         },
         {
             id: 'account:password',
             category: 'account',
-            label: 'Password',
+            label: LABELS.word.password,
             keywords: ['change', 'credentials', 'secret'],
         },
         {
             id: 'account:sign-out',
             category: 'account',
-            label: 'Session',
+            label: LABELS.settings.row.session,
             keywords: ['sign out', 'logout', 'leave', 'exit'],
         },
         ...shortcuts(apple).map((shortcut) => ({
@@ -127,43 +128,43 @@ export function settingsRows(apple: boolean): SettingsRow[] {
         {
             id: 'server:health',
             category: 'server',
-            label: 'Health',
+            label: LABELS.word.health,
             keywords: ['readiness', 'probe', 'recheck', 'ready', 'status'],
         },
         {
             id: 'server:version',
             category: 'server',
-            label: 'Version',
+            label: LABELS.word.version,
             keywords: ['release', 'build'],
         },
         {
             id: 'server:environment',
             category: 'server',
-            label: 'Environment',
+            label: LABELS.word.environment,
             keywords: ['dev', 'production', 'staging'],
         },
         {
             id: 'server:database',
             category: 'server',
-            label: 'Database',
+            label: LABELS.word.database,
             keywords: ['sqlite', 'postgres', 'postgresql'],
         },
         {
             id: 'server:blocks',
             category: 'server',
-            label: 'Blocks',
+            label: LABELS.settings.row.blocks,
             keywords: ['catalog', 'steps', 'plugins'],
         },
         {
             id: 'server:storage',
             category: 'server',
-            label: 'Storage',
+            label: LABELS.word.storage,
             keywords: ['s3', 'file', 'artifacts', 'uri', 'schemes'],
         },
         {
             id: 'server:plugins',
             category: 'server',
-            label: 'Plugins',
+            label: LABELS.settings.row.plugins,
             keywords: ['extensions', 'packages', 'installed'],
         },
     ]

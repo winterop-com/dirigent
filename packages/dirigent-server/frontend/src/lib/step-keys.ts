@@ -17,6 +17,7 @@
  */
 
 import type { JsonMap } from '@/lib/api'
+import { LABELS } from '@/lib/labels'
 import { stepsIn } from '@/lib/pipeline-document'
 import { fieldsOf, sameJson, type FieldDescriptor } from '@/lib/schema-form'
 
@@ -48,42 +49,41 @@ const STEP_SCHEMA: JsonMap = {
             type: 'string',
             enum: ['all_success', 'all_done', 'one_failed', 'always'],
             default: 'all_success',
-            description: 'When this step becomes ready, over the steps it waits for.',
+            description: LABELS.editor.step_keys.rule,
         },
         for_each: {
             anyOf: [{ type: 'string' }, { type: 'array', items: {} }],
-            description:
-                "A reference to a list, or a literal list: one run item per element. A reference may read params, run, and an upstream fan-out's grid as ${steps.<name>.items}, which maps this step over that step's items.",
+            description: LABELS.editor.step_keys.for_each,
             examples: ['${params.regions}', '${steps.spread.items}'],
         },
         items: {
             type: 'string',
             enum: ['fail_fast', 'continue'],
             default: 'fail_fast',
-            description: 'Whether one failed item stops the batch, or the rest carry on.',
+            description: LABELS.editor.step_keys.items,
         },
         timeout: {
             ...DURATION,
-            description: 'How long one attempt may take.',
+            description: LABELS.editor.step_keys.timeout,
         },
         poll: {
             ...DURATION,
-            description: "How often a sensor checks. Defaults to the sensor's own cadence.",
+            description: LABELS.editor.step_keys.poll,
         },
         deadline: {
             ...DURATION,
-            description: 'How long the step may wait before the timeout applies.',
+            description: LABELS.editor.step_keys.deadline,
         },
         on_timeout: {
             type: 'string',
             enum: ['fail', 'skip'],
             default: 'fail',
-            description: 'What an expired deadline does to the step.',
+            description: LABELS.editor.step_keys.on_timeout,
         },
         continue_on_failure: {
             type: 'boolean',
             default: false,
-            description: 'Dependents still run when this step fails, and the run completes with errors.',
+            description: LABELS.editor.step_keys.continue_on_failure,
         },
     },
 }
@@ -97,23 +97,23 @@ const RETRY_SCHEMA: JsonMap = {
             minimum: 1,
             maximum: 100,
             default: 1,
-            description: 'Total attempts, including the first.',
+            description: LABELS.editor.step_keys.max_attempts,
         },
-        backoff: { ...DURATION, default: '30s', description: 'The delay after the first failure.' },
-        max_backoff: { ...DURATION, default: '1h', description: 'The longest delay between attempts.' },
+        backoff: { ...DURATION, default: '30s', description: LABELS.editor.step_keys.backoff },
+        max_backoff: { ...DURATION, default: '1h', description: LABELS.editor.step_keys.max_backoff },
         multiplier: {
             type: 'number',
             minimum: 1,
             maximum: 10,
             default: 2,
-            description: 'What each delay is multiplied by.',
+            description: LABELS.editor.step_keys.multiplier,
         },
         jitter: {
             type: 'number',
             minimum: 0,
             maximum: 1,
             default: 0.2,
-            description: 'How much of the delay is spread randomly.',
+            description: LABELS.editor.step_keys.jitter,
         },
     },
 }

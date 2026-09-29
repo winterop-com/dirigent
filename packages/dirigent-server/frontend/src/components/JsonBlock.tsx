@@ -3,6 +3,7 @@ import { useMemo } from 'react'
 import { CodePane } from '@/components/pipeline/CodePane'
 import { WindowedPane } from '@/components/WindowedPane'
 import { tokenizeJson, type JsonTokenKind } from '@/lib/json-tokens'
+import { LABELS } from '@/lib/labels'
 import { cn } from '@/lib/utils'
 
 /** The colour each kind of piece wears, from the palette the rest of the screen is drawn in. */
@@ -35,7 +36,7 @@ export function JsonBlock({ title, text, className }: { title: string; text: str
                     value={text}
                     mediaType="application/json"
                     path={`window/${title}`}
-                    label={`${title}, in a window`}
+                    label={LABELS.shell.in_window(title)}
                     readOnly
                     className="min-h-0 flex-1"
                 />

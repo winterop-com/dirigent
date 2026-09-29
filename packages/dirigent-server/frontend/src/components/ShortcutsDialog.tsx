@@ -1,8 +1,9 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Kbd, KbdGroup } from '@/components/ui/kbd'
 import { applePlatform, shortcuts } from '@/lib/shortcuts'
+import { LABELS } from '@/lib/labels'
 
-export const SHORTCUTS_TITLE = 'Keyboard shortcuts'
+export const SHORTCUTS_TITLE = LABELS.shell.shortcuts
 
 /**
  * The list of every key this app answers.

@@ -7,6 +7,7 @@ import { StatusChip } from '@/components/run/StatusChip'
 import { TagChip } from '@/components/TagChip'
 import type { JsonMap } from '@/lib/api'
 import { shortDigest } from '@/lib/format'
+import { LABELS } from '@/lib/labels'
 import { headingOf } from '@/lib/identity'
 import type { ConnectionOut } from '@/lib/connections'
 import type { PipelineOut, PipelineVersionOut } from '@/lib/pipelines'
@@ -81,12 +82,12 @@ export function PipelineTab({
                             : 'rounded-sm border border-dashed border-border px-1.5 py-0.5 text-xs text-muted-foreground'
                     }
                 >
-                    {pipeline.active ? 'active' : 'deactivated'}
+                    {pipeline.active ? LABELS.state.armed.active : LABELS.state.armed.deactivated}
                 </span>
                 <span className="font-mono text-xs text-faint">
                     {pipeline.current_version === null
-                        ? 'no version'
-                        : `v${String(pipeline.current_version)}`}
+                        ? LABELS.editor.version.none
+                        : LABELS.editor.version.short(String(pipeline.current_version))}
                 </span>
                 {heading.code !== null && (
                     <span className="font-mono text-xs text-muted-foreground">{heading.code}</span>
@@ -105,14 +106,16 @@ export function PipelineTab({
                 </div>
             )}
             {pipeline.description === null ? (
-                <p className="text-sm text-muted-foreground">This pipeline carries no description.</p>
+                <p className="text-sm text-muted-foreground">{LABELS.editor.pipeline_pane.no_description}</p>
             ) : (
                 <Description text={pipeline.description} />
             )}
 
-            <Section title="Parameters">
+            <Section title={LABELS.word.parameters}>
                 {parameters.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">This pipeline takes no parameters.</p>
+                    <p className="text-xs text-muted-foreground">
+                        {LABELS.editor.pipeline_pane.no_parameters}
+                    </p>
                 ) : (
                     <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
                         {parameters.map((field) => (
@@ -132,9 +135,11 @@ export function PipelineTab({
                 )}
             </Section>
 
-            <Section title="Connections">
+            <Section title={LABELS.editor.pipeline_pane.connections}>
                 {named.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">This pipeline names no connections.</p>
+                    <p className="text-xs text-muted-foreground">
+                        {LABELS.editor.pipeline_pane.no_connections}
+                    </p>
                 ) : (
                     <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
                         {named.map((name) => {
@@ -153,8 +158,8 @@ export function PipelineTab({
                                                 }
                                             >
                                                 {connectionMissing(unmet, name)
-                                                    ? 'not configured'
-                                                    : 'health unread'}
+                                                    ? LABELS.editor.not_configured
+                                                    : LABELS.editor.pipeline_pane.health_unread}
                                             </span>
                                         ) : (
                                             <span className="text-muted-foreground">
@@ -169,7 +174,7 @@ export function PipelineTab({
                 )}
             </Section>
 
-            <Section title="Requires">
+            <Section title={LABELS.word.requires}>
                 <div className="flex flex-wrap gap-1.5">
                     {requiredChips(document, unmet).map((chip) => (
                         <span
@@ -182,7 +187,7 @@ export function PipelineTab({
                             title={
                                 chip.met
                                     ? undefined
-                                    : `${chip.name} is not installed on this instance, so applying and running this document will fail`
+                                    : LABELS.editor.pipeline_pane.missing_chip_title(chip.name)
                             }
                         >
                             {chip.label}
@@ -190,35 +195,35 @@ export function PipelineTab({
                     ))}
                     {requiredChips(document, unmet).length === 0 && (
                         <span className="text-xs text-muted-foreground">
-                            This document requires nothing in particular of an instance.
+                            {LABELS.editor.pipeline_pane.requires_nothing}
                         </span>
                     )}
                 </div>
             </Section>
 
-            <Section title="Triggers">
+            <Section title={LABELS.editor.pipeline_pane.triggers}>
                 {schedules.length === 0 && webhooks.length === 0 && watches.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">
-                        Nothing fires this pipeline on its own. A document declares them under its triggers
-                        key.
-                    </p>
+                    <p className="text-xs text-muted-foreground">{LABELS.editor.pipeline_pane.no_triggers}</p>
                 ) : (
                     <ul className="space-y-0.5 text-xs text-muted-foreground">
                         {schedules.map((schedule, index) => (
                             <li key={`schedule-${String(index)}`}>
-                                schedule{' '}
+                                {LABELS.editor.pipeline_pane.schedule}{' '}
                                 <span className="font-mono">{stringAt(schedule, 'code') ?? '--'}</span>{' '}
                                 {clockOf(schedule)}
                             </li>
                         ))}
                         {webhooks.map((webhook, index) => (
                             <li key={`webhook-${String(index)}`}>
-                                webhook <span className="font-mono">{stringAt(webhook, 'code') ?? '--'}</span>
+                                {LABELS.editor.pipeline_pane.webhook}{' '}
+                                <span className="font-mono">{stringAt(webhook, 'code') ?? '--'}</span>
                             </li>
                         ))}
                         {watches.map((watch, index) => (
                             <li key={`watch-${String(index)}`}>
-                                watch <span className="font-mono">{stringAt(watch, 'code') ?? '--'}</span> on{' '}
+                                {LABELS.editor.pipeline_pane.watch}{' '}
+                                <span className="font-mono">{stringAt(watch, 'code') ?? '--'}</span>{' '}
+                                {LABELS.editor.pipeline_pane.watch_on}{' '}
                                 <span className="font-mono">{stringAt(watch, 'step') ?? '--'}</span>
                             </li>
                         ))}
@@ -226,9 +231,9 @@ export function PipelineTab({
                 )}
             </Section>
 
-            <Section title="Recent runs">
+            <Section title={LABELS.editor.pipeline_pane.recent_runs}>
                 {runs.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">No runs.</p>
+                    <p className="text-xs text-muted-foreground">{LABELS.editor.pipeline_pane.no_runs}</p>
                 ) : (
                     <ul className="space-y-1">
                         {runs.map((run) => (
@@ -246,9 +251,9 @@ export function PipelineTab({
                 )}
             </Section>
 
-            <Section title="Versions">
+            <Section title={LABELS.editor.pipeline_pane.versions}>
                 {versions.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">No versions.</p>
+                    <p className="text-xs text-muted-foreground">{LABELS.editor.pipeline_pane.no_versions}</p>
                 ) : (
                     <ul className="space-y-1">
                         {versions.map((version) => (
@@ -256,9 +261,13 @@ export function PipelineTab({
                                 key={version.id}
                                 className="row-hover -mx-4 flex flex-wrap items-baseline gap-2 px-4 py-0.5 text-xs"
                             >
-                                <span className="font-mono">v{version.version}</span>
+                                <span className="font-mono">
+                                    {LABELS.editor.version.short(String(version.version))}
+                                </span>
                                 <span className="text-muted-foreground">{version.provenance_source}</span>
-                                <span className="text-faint">{version.applied_by ?? 'not recorded'}</span>
+                                <span className="text-faint">
+                                    {version.applied_by ?? LABELS.editor.pipeline_pane.not_recorded}
+                                </span>
                                 <Instant className="text-faint" at={version.created_at} />
                             </li>
                         ))}
@@ -276,21 +285,28 @@ function rangeOf(field: FieldDescriptor): string | null {
         return `${minimum === undefined ? '' : String(minimum)}..${maximum === undefined ? '' : String(maximum)}`
     }
     if (minLength !== undefined || maxLength !== undefined) {
-        return `${minLength === undefined ? '0' : String(minLength)}..${maxLength === undefined ? '' : String(maxLength)} chars`
+        return LABELS.editor.pipeline_pane.length_range(
+            minLength === undefined ? '0' : String(minLength),
+            maxLength === undefined ? '' : String(maxLength),
+        )
     }
     if (field.options.length > 0) return field.options.map((option) => option.label).join('|')
     return null
 }
 
 function defaultOf(field: FieldDescriptor): string | null {
-    return field.fallback === undefined ? null : `default ${String(field.fallback)}`
+    return field.fallback === undefined
+        ? null
+        : LABELS.editor.pipeline_pane.default_of(String(field.fallback))
 }
 
 /** How a connection's last check reads. */
 function healthOf(connection: ConnectionOut): string {
-    if (connection.last_check_at === null) return 'never checked'
-    if (connection.last_check_healthy === null) return 'not verified'
-    return connection.last_check_healthy ? 'answering' : (connection.last_check_detail ?? 'not answering')
+    if (connection.last_check_at === null) return LABELS.state.health.unchecked
+    if (connection.last_check_healthy === null) return LABELS.state.health.unverified
+    return connection.last_check_healthy
+        ? LABELS.editor.pipeline_pane.answering
+        : (connection.last_check_detail ?? LABELS.editor.pipeline_pane.not_answering)
 }
 
 /** One chip under "requires": what is needed, and whether this instance has it. */
@@ -312,13 +328,21 @@ function requiredChips(document: JsonMap | null, unmet: Unmet): RequiredChip[] {
     return [
         ...requiredBlocks(document).map((name) => ({
             name,
-            label: `block ${name}`,
+            label: LABELS.editor.pipeline_pane.block_chip(name),
             met: !blockMissing(unmet, name),
         })),
         ...listAt(mapAt(document, 'requires'), 'connections')
             .flatMap((one) => (typeof one === 'string' ? [one] : []))
-            .map((name) => ({ name, label: `connection ${name}`, met: !connectionMissing(unmet, name) })),
-        ...requiredPipelines(document).map((name) => ({ name, label: `pipeline ${name}`, met: true })),
+            .map((name) => ({
+                name,
+                label: LABELS.editor.pipeline_pane.connection_chip(name),
+                met: !connectionMissing(unmet, name),
+            })),
+        ...requiredPipelines(document).map((name) => ({
+            name,
+            label: LABELS.editor.pipeline_pane.pipeline_chip(name),
+            met: true,
+        })),
     ]
 }
 
@@ -328,7 +352,7 @@ function clockOf(schedule: JsonMap): string {
         const value = schedule[key]
         if (value !== null && value !== undefined) return `${key} ${String(value)}`
     }
-    return 'no clock'
+    return LABELS.editor.pipeline_pane.no_clock
 }
 
 function mapAt(value: JsonMap | null, key: string): JsonMap | null {

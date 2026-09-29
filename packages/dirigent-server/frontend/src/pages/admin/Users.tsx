@@ -18,6 +18,7 @@ import { usePaged } from '@/hooks/use-paged'
 import { ApiError, type Problem } from '@/lib/api'
 import type { UserRole } from '@/lib/auth'
 import { formatInstant, formatRelative } from '@/lib/format'
+import { LABELS } from '@/lib/labels'
 import { ADMIN_GROUP, registerActions } from '@/lib/palette'
 import { closePanel, fillPanel, openPanel } from '@/lib/panels'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
@@ -138,7 +139,7 @@ function Users() {
             [
                 {
                     id: 'account',
-                    label: 'Account',
+                    label: LABELS.word.account,
                     render: () => (
                         <AccountPanel
                             user={chosen}
@@ -176,7 +177,7 @@ function Users() {
         return registerActions([
             {
                 id: 'admin:new-user',
-                title: 'Create an account',
+                title: LABELS.users.new_user_action,
                 group: ADMIN_GROUP,
                 screen: true,
                 icon: UserPlus,
@@ -187,7 +188,7 @@ function Users() {
             },
             {
                 id: 'admin:new-token',
-                title: 'Mint an automation token',
+                title: LABELS.users.new_token_action,
                 group: ADMIN_GROUP,
                 screen: true,
                 icon: KeyRound,
@@ -198,7 +199,7 @@ function Users() {
             },
             {
                 id: 'admin:reload-users',
-                title: 'Read the accounts listing again',
+                title: LABELS.users.reload_action,
                 group: ADMIN_GROUP,
                 screen: true,
                 icon: RefreshCw,
@@ -231,7 +232,7 @@ function Users() {
     return (
         <>
             <PageHeader
-                title="Users and tokens"
+                title={LABELS.screen.users.heading}
                 aside={
                     <>
                         <ApiChip tag="users" />
@@ -242,19 +243,19 @@ function Users() {
                             }}
                         >
                             <UserPlus aria-hidden />
-                            New account
+                            {LABELS.users.new_account}
                         </Button>
                     </>
                 }
             />
 
             <section className="space-y-2">
-                <h2 className="text-sm font-semibold">Accounts</h2>
+                <h2 className="text-sm font-semibold">{LABELS.users.accounts_heading}</h2>
                 <PageState
                     loading={!users.state.read}
                     problem={users.state.problem}
                     empty={users.state.rows.length === 0}
-                    emptyMessage="No accounts."
+                    emptyMessage={LABELS.users.accounts_empty}
                 >
                     <ListTable
                         columns={columns}
@@ -267,7 +268,7 @@ function Users() {
                         reading={users.state.reading}
                         next={users.state.next}
                         onMore={users.more}
-                        noun="accounts"
+                        noun={LABELS.users.accounts_noun}
                     />
                 </PageState>
             </section>
@@ -275,8 +276,8 @@ function Users() {
             <section className="mt-8 space-y-2">
                 <div className="flex items-center justify-between gap-4">
                     <div className="space-y-1">
-                        <h2 className="text-sm font-semibold">Tokens</h2>
-                        <p className="text-sm text-muted-foreground">A session is never listed here.</p>
+                        <h2 className="text-sm font-semibold">{LABELS.users.tokens_heading}</h2>
+                        <p className="text-sm text-muted-foreground">{LABELS.users.tokens_hint}</p>
                     </div>
                     <Button
                         variant="outline"
@@ -286,7 +287,7 @@ function Users() {
                         }}
                     >
                         <KeyRound aria-hidden />
-                        New token
+                        {LABELS.users.new_token}
                     </Button>
                 </div>
 
@@ -296,7 +297,7 @@ function Users() {
                     loading={!tokens.state.read}
                     problem={tokens.state.problem}
                     empty={tokens.state.rows.length === 0}
-                    emptyMessage="No tokens."
+                    emptyMessage={LABELS.users.tokens_empty}
                 >
                     <ListTable
                         columns={tokenColumns}
@@ -306,7 +307,7 @@ function Users() {
                         reading={tokens.state.reading}
                         next={tokens.state.next}
                         onMore={tokens.more}
-                        noun="tokens"
+                        noun={LABELS.users.tokens_noun}
                     />
                 </PageState>
             </section>
@@ -342,7 +343,7 @@ function userColumns(choose: (user: UserOut) => void): Column<UserOut>[] {
     return [
         {
             id: 'username',
-            header: 'Username',
+            header: LABELS.word.username,
             cell: (user) => (
                 <button
                     type="button"
@@ -357,37 +358,37 @@ function userColumns(choose: (user: UserOut) => void): Column<UserOut>[] {
         },
         {
             id: 'name',
-            header: 'Name',
+            header: LABELS.word.name,
             cell: (user) => (user.name === null ? null : <span className="text-sm">{user.name}</span>),
         },
         {
             id: 'role',
-            header: 'Role',
+            header: LABELS.word.role,
             cell: (user) => <Badge variant="outline">{user.role}</Badge>,
         },
         {
             id: 'active',
-            header: 'Active',
+            header: LABELS.users.active_column,
             cell: (user) =>
                 user.active ? (
-                    <span className="text-xs text-good">active</span>
+                    <span className="text-xs text-good">{LABELS.state.armed.active}</span>
                 ) : (
-                    <span className="text-xs text-muted-foreground">deactivated</span>
+                    <span className="text-xs text-muted-foreground">{LABELS.state.armed.deactivated}</span>
                 ),
         },
         {
             id: 'seen',
-            header: 'Last signed in',
+            header: LABELS.users.last_signed_in_column,
             className: 'text-xs',
             cell: (user) => (
                 <span className="text-muted-foreground" title={formatInstant(user.last_login_at)}>
-                    {user.last_login_at === null ? 'never' : formatRelative(user.last_login_at)}
+                    {user.last_login_at === null ? LABELS.word.never : formatRelative(user.last_login_at)}
                 </span>
             ),
         },
         {
             id: 'created',
-            header: 'Created',
+            header: LABELS.word.created,
             className: 'text-xs',
             cell: (user) => (
                 <span className="text-muted-foreground" title={formatInstant(user.created_at)}>
@@ -403,24 +404,24 @@ function tokenRows(revoke: (token: TokenOut) => void): Column<TokenOut>[] {
     return [
         {
             id: 'account',
-            header: 'Account',
+            header: LABELS.word.account,
             className: 'font-mono text-xs',
             cell: (token) => <span>{token.username}</span>,
         },
         {
             id: 'name',
-            header: 'Name',
+            header: LABELS.word.name,
             cell: (token) => <span className="text-sm font-medium">{token.name}</span>,
         },
         {
             id: 'prefix',
-            header: 'Prefix',
+            header: LABELS.word.prefix,
             className: 'font-mono text-xs',
             cell: (token) => <span className="text-muted-foreground">{token.prefix}</span>,
         },
         {
             id: 'created',
-            header: 'Created',
+            header: LABELS.word.created,
             className: 'text-xs',
             cell: (token) => (
                 <span className="text-muted-foreground" title={formatInstant(token.created_at)}>
@@ -430,11 +431,11 @@ function tokenRows(revoke: (token: TokenOut) => void): Column<TokenOut>[] {
         },
         {
             id: 'used',
-            header: 'Last used',
+            header: LABELS.users.last_used_column,
             className: 'text-xs',
             cell: (token) => (
                 <span className="text-muted-foreground" title={formatInstant(token.last_used_at)}>
-                    {token.last_used_at === null ? 'never' : formatRelative(token.last_used_at)}
+                    {token.last_used_at === null ? LABELS.word.never : formatRelative(token.last_used_at)}
                 </span>
             ),
         },
@@ -448,16 +449,16 @@ function tokenRows(revoke: (token: TokenOut) => void): Column<TokenOut>[] {
                         variant="ghost"
                         size="xs"
                         className="destructive-action"
-                        aria-label={`Revoke ${token.name}`}
+                        aria-label={LABELS.users.revoke_row(token.name)}
                         onClick={() => {
                             revoke(token)
                         }}
                     >
-                        Revoke
+                        {LABELS.action.revoke}
                     </Button>
                 ) : (
                     <span className="text-xs text-muted-foreground" title={formatInstant(token.revoked_at)}>
-                        revoked
+                        {LABELS.state.armed.revoked}
                     </span>
                 ),
         },
@@ -517,53 +518,54 @@ function AccountPanel({
                     {heading.code !== null && (
                         <span className="font-mono text-xs text-muted-foreground">{heading.code}</span>
                     )}
-                    {!user.active && <span className="text-xs text-muted-foreground">deactivated</span>}
+                    {!user.active && (
+                        <span className="text-xs text-muted-foreground">
+                            {LABELS.state.armed.deactivated}
+                        </span>
+                    )}
                 </p>
                 <p className="text-xs text-faint">
-                    Created <Instant at={user.created_at} /> ·{' '}
+                    {LABELS.word.created} <Instant at={user.created_at} /> ·{' '}
                     {user.last_login_at === null ? (
-                        'never signed in'
+                        LABELS.users.never_signed_in
                     ) : (
                         <>
-                            last signed in <Instant at={user.last_login_at} />
+                            {LABELS.users.last_signed_in} <Instant at={user.last_login_at} />
                         </>
                     )}
                 </p>
             </div>
 
             <div className="space-y-1.5">
-                <Label htmlFor="panel-name">Name</Label>
+                <Label htmlFor="panel-name">{LABELS.word.name}</Label>
                 <Input
                     id="panel-name"
                     value={draft.name}
                     autoComplete="off"
-                    placeholder="What to call this account on screen"
+                    placeholder={LABELS.users.name_placeholder}
                     onChange={(event) => {
                         onDraft({ ...draft, name: event.target.value })
                     }}
                 />
-                <p className="text-xs text-faint">
-                    Display only. This account signs in as {user.username}, and that is what every reference
-                    to it is by.
-                </p>
+                <p className="text-xs text-faint">{LABELS.users.name_hint(user.username)}</p>
             </div>
 
             <div className="space-y-1.5">
-                <Label htmlFor="panel-email">Email</Label>
+                <Label htmlFor="panel-email">{LABELS.word.email}</Label>
                 <Input
                     id="panel-email"
                     value={draft.email}
                     autoComplete="off"
-                    placeholder="Optional"
+                    placeholder={LABELS.users.optional}
                     onChange={(event) => {
                         onDraft({ ...draft, email: event.target.value })
                     }}
                 />
-                <p className="text-xs text-faint">Unique across accounts.</p>
+                <p className="text-xs text-faint">{LABELS.users.email_hint}</p>
             </div>
 
             <fieldset className="space-y-2">
-                <legend className="text-sm font-medium">Role</legend>
+                <legend className="text-sm font-medium">{LABELS.word.role}</legend>
                 {USER_ROLES.map((role) => (
                     <label key={role} className="flex items-start gap-2 text-sm">
                         <input
@@ -587,7 +589,7 @@ function AccountPanel({
 
             <div className="flex flex-wrap gap-2">
                 <Button size="sm" disabled={busy || !changed} onClick={onSave}>
-                    Save
+                    {LABELS.action.save}
                 </Button>
                 <Button
                     variant="outline"
@@ -598,16 +600,16 @@ function AccountPanel({
                         onActive(!user.active)
                     }}
                 >
-                    {user.active ? 'Deactivate' : 'Activate'}
+                    {user.active ? LABELS.users.deactivate : LABELS.users.activate}
                 </Button>
             </div>
 
             <div className="flex flex-wrap gap-2">
                 <Button variant="outline" size="sm" disabled={busy} onClick={onResetPassword}>
-                    Reset password
+                    {LABELS.users.reset_password}
                 </Button>
                 <Button variant="outline" size="sm" disabled={busy} onClick={onMintToken}>
-                    New token
+                    {LABELS.users.new_token}
                 </Button>
             </div>
         </div>

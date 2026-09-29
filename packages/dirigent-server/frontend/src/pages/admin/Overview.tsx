@@ -15,6 +15,7 @@ import { useHeartbeat } from '@/hooks/use-heartbeat'
 import { useRead } from '@/hooks/use-read'
 import { useStore } from '@/hooks/use-store'
 import { readConnections } from '@/lib/connections'
+import { LABELS } from '@/lib/labels'
 import {
     connectionsTile,
     DAY,
@@ -115,7 +116,7 @@ function Overview() {
         return registerActions([
             {
                 id: 'admin:reload',
-                title: 'Refresh the overview',
+                title: LABELS.dashboard.refresh_overview,
                 group: ADMIN_GROUP,
                 screen: true,
                 icon: RefreshCw,
@@ -148,7 +149,7 @@ function Overview() {
     return (
         <>
             <PageHeader
-                title="Overview"
+                title={LABELS.screen.overview.name}
                 aside={
                     <>
                         <ApiChip tag="system" />
@@ -174,12 +175,12 @@ function Overview() {
             )}
 
             <section className="mb-6 space-y-2">
-                <h2 className="text-sm font-semibold">Needs a look</h2>
+                <h2 className="text-sm font-semibold">{LABELS.dashboard.needs_a_look}</h2>
                 <PageState
                     loading={!failed.read || !messy.read}
                     problem={failed.problem ?? messy.problem}
                     empty={look.length === 0}
-                    emptyMessage="Nothing has failed or finished with errors."
+                    emptyMessage={LABELS.dashboard.nothing_to_look_at}
                 >
                     <ListTable
                         chrome={{ footer: false }}
@@ -189,19 +190,15 @@ function Overview() {
                         reading={false}
                         next={null}
                         onMore={NOTHING_MORE}
-                        noun="runs"
+                        noun={LABELS.dashboard.noun.runs}
                         onSelect={(entry) => void navigate(`/runs/${entry.run.id}`)}
                     />
                 </PageState>
             </section>
 
             <section className="space-y-2">
-                <h2 className="text-sm font-semibold">Workers</h2>
-                <WorkersTable
-                    state={workers.state}
-                    more={workers.more}
-                    empty="No workers. Start one with dg worker; nothing is claimed until one registers."
-                />
+                <h2 className="text-sm font-semibold">{LABELS.screen.workers.name}</h2>
+                <WorkersTable state={workers.state} more={workers.more} empty={LABELS.dashboard.no_workers} />
             </section>
         </>
     )

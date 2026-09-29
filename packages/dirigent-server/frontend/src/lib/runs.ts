@@ -12,6 +12,7 @@
 
 import { apiJson, type JsonMap, type Page } from '@/lib/api'
 import { shortId } from '@/lib/format'
+import { LABELS } from '@/lib/labels'
 import { PAGE } from '@/lib/paging'
 import { tagsFromQuery } from '@/lib/pipelines'
 import {
@@ -39,8 +40,8 @@ export interface PriorityMark {
  * two answers that are not the default are marked at all.
  */
 export function priorityMark(priority: RunPriority): PriorityMark | null {
-    if (priority === 'high') return { label: 'high priority', className: 'text-warning' }
-    if (priority === 'low') return { label: 'low priority', className: 'text-muted-foreground' }
+    if (priority === 'high') return { label: LABELS.runs.priority_high, className: 'text-warning' }
+    if (priority === 'low') return { label: LABELS.runs.priority_low, className: 'text-muted-foreground' }
     return null
 }
 
@@ -159,8 +160,10 @@ export interface RunDetailOut {
 export function waitingForWorkers(tags: readonly string[] | null | undefined): string | null {
     if (tags === null || tags === undefined || tags.length === 0) return null
     const carried =
-        tags.length === 1 ? tags[0] : `${tags.slice(0, -1).join(', ')} and ${tags[tags.length - 1]}`
-    return `waiting for a worker carrying ${carried}`
+        tags.length === 1
+            ? tags[0]
+            : LABELS.runs.waiting_tags(tags.slice(0, -1).join(', '), tags[tags.length - 1])
+    return LABELS.runs.waiting_for_workers(carried)
 }
 
 /** One product-telemetry entry. `LogEntryOut`. */
@@ -360,7 +363,12 @@ export function triggerSummary(run: RunOut): TriggerSummary {
     const kind = run.triggered_by_kind.replaceAll('_', ' ')
     const said = run.triggered_by_label
     if (run.parent_run_id !== null) {
-        return { kind, who: `a step of run ${shortId(run.parent_run_id)}`, said, parent: run.parent_run_id }
+        return {
+            kind,
+            who: LABELS.runs.started_by_step(shortId(run.parent_run_id)),
+            said,
+            parent: run.parent_run_id,
+        }
     }
     return { kind, who: said, said, parent: null }
 }
@@ -377,6 +385,6 @@ export function narrowed(filters: RunFilters): boolean {
  * a narrowed listing says what would widen it instead.
  */
 export function emptyNote(filters: RunFilters): string {
-    if (narrowed(filters)) return 'No run matches these filters.'
-    return 'No runs. A pipeline is run from its own page, or by a schedule or a webhook.'
+    if (narrowed(filters)) return LABELS.runs.empty_filtered
+    return LABELS.runs.empty
 }

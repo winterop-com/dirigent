@@ -32,6 +32,7 @@ import {
     type Holdings,
 } from '@/lib/examples'
 import { headingOf, oneLine } from '@/lib/identity'
+import { LABELS } from '@/lib/labels'
 import { NEW_PIPELINE_PATH } from '@/lib/nav'
 import { closePanel, fillPanel, openPanelTab } from '@/lib/panels'
 import { LIST_GROUP, registerActions } from '@/lib/palette'
@@ -60,8 +61,8 @@ const exampleCode = (row: ExampleOut) => row.code
 
 /** What the two-value filter over the corpus calls its halves. */
 const WHICH = [
-    { value: 'all' as const, label: 'All' },
-    { value: 'starters' as const, label: 'Starters' },
+    { value: 'all' as const, label: LABELS.examples.which.all },
+    { value: 'starters' as const, label: LABELS.examples.which.starters },
 ]
 
 /**
@@ -132,7 +133,7 @@ export function Examples() {
         return registerActions([
             {
                 id: 'examples:starters',
-                title: 'Show only the starters',
+                title: LABELS.examples.show_starters,
                 group: LIST_GROUP,
                 screen: true,
                 icon: FilePlus2,
@@ -143,7 +144,7 @@ export function Examples() {
             },
             {
                 id: 'examples:clear',
-                title: 'Clear the filters on the examples listing',
+                title: LABELS.examples.clear_filters,
                 group: LIST_GROUP,
                 screen: true,
                 icon: RefreshCw,
@@ -161,7 +162,7 @@ export function Examples() {
             [
                 {
                     id: EXAMPLE_TAB,
-                    label: 'Example',
+                    label: LABELS.word.example,
                     render: () => (
                         <Suspense fallback={<PanelReading />}>
                             <ExamplePanel
@@ -181,13 +182,13 @@ export function Examples() {
     return (
         <>
             <PageHeader
-                title="Examples"
+                title={LABELS.screen.examples.name}
                 aside={
                     <>
                         <ApiChip tag="examples" />
                         {shown.length !== rows.length && (
                             <span className="text-xs text-muted-foreground">
-                                {String(shown.length)} of {String(rows.length)}
+                                {LABELS.examples.counted_of(String(shown.length), String(rows.length))}
                             </span>
                         )}
                     </>
@@ -197,13 +198,13 @@ export function Examples() {
             <div className="mb-4 flex flex-wrap items-center gap-2">
                 <SearchField
                     value={filters.needle}
-                    label="Search examples by code, name, description or tag"
+                    label={LABELS.examples.search}
                     onChange={(needle) => {
                         change({ ...filters, needle })
                     }}
                 />
                 <Segmented
-                    label="Which documents"
+                    label={LABELS.examples.which.label}
                     value={filters.starters ? 'starters' : 'all'}
                     options={WHICH}
                     onChoose={(which) => {
@@ -218,9 +219,9 @@ export function Examples() {
                     }}
                 />
                 <Choice
-                    label="Shelf"
+                    label={LABELS.word.shelf}
                     value={filters.shelf}
-                    anything="Any shelf"
+                    anything={LABELS.examples.any_shelf}
                     options={shelves.map((shelf) => ({ value: shelf, label: shelf }))}
                     onChange={(shelf) => {
                         change({ ...filters, shelf: shelf === ANY ? '' : shelf })
@@ -229,9 +230,9 @@ export function Examples() {
                 {/* A choice of one is not a choice: the control appears when a pack is installed. */}
                 {plugins.length > 1 && (
                     <Choice
-                        label="Plugin"
+                        label={LABELS.word.plugin}
                         value={filters.plugin}
-                        anything="Any plugin"
+                        anything={LABELS.examples.any_plugin}
                         options={plugins.map((plugin) => ({ value: plugin, label: plugin }))}
                         onChange={(plugin) => {
                             change({ ...filters, plugin: plugin === ANY ? '' : plugin })
@@ -243,7 +244,7 @@ export function Examples() {
                 {filters.block !== '' && (
                     <TagChip
                         tag={filters.block}
-                        label={`Stop narrowing to ${filters.block}`}
+                        label={LABELS.examples.stop_narrowing(filters.block)}
                         onSelect={() => {
                             change({ ...filters, block: '' })
                         }}
@@ -257,10 +258,10 @@ export function Examples() {
                 empty={shown.length === 0}
                 emptyMessage={
                     rows.length === 0
-                        ? 'No examples installed — plugins contribute them.'
+                        ? LABELS.examples.none_installed
                         : anythingFiltered(filters)
-                          ? 'Nothing in the corpus matches that.'
-                          : 'No examples.'
+                          ? LABELS.examples.none_match
+                          : LABELS.examples.empty
                 }
             >
                 <ListTable
@@ -270,7 +271,7 @@ export function Examples() {
                     reading={false}
                     next={null}
                     onMore={NO_MORE}
-                    noun="examples"
+                    noun={LABELS.examples.noun}
                     onSelect={(row) => {
                         setChosen(row)
                         openPanelTab(EXAMPLE_TAB)
@@ -319,7 +320,7 @@ function exampleColumns(
     return [
         {
             id: 'example',
-            header: 'Example',
+            header: LABELS.word.example,
             kind: 'title',
             cell: (row) => {
                 const heading = headingOf(row)
@@ -339,13 +340,13 @@ function exampleColumns(
                             </span>
                             {row.starter && (
                                 <Badge variant="outline" className="shrink-0">
-                                    Starter
+                                    {LABELS.examples.starter_badge}
                                 </Badge>
                             )}
                             {carries !== null && (
                                 <span
                                     className="shrink-0 text-xs text-muted-foreground"
-                                    title="An instance refuses a document that carries these, so a copy names them under requires instead."
+                                    title={LABELS.examples.carries_hint}
                                 >
                                     {carries}
                                 </span>
@@ -370,7 +371,7 @@ function exampleColumns(
         },
         {
             id: 'tags',
-            header: 'Tags',
+            header: LABELS.word.tags,
             cell: (row) => {
                 const tags = row.tags.filter((tag) => tag !== STARTER_TAG)
                 return tags.length === 0 ? null : <TagChips tags={tags} onSelect={onTag} />
@@ -378,7 +379,7 @@ function exampleColumns(
         },
         {
             id: 'requires',
-            header: 'Requires',
+            header: LABELS.word.requires,
             className: 'whitespace-nowrap',
             // What a document needs of this instance, counted, with what is not here in
             // critical ink. A document that needs nothing says nothing.
@@ -404,7 +405,7 @@ function exampleColumns(
             ? [
                   {
                       id: 'plugin',
-                      header: 'Plugin',
+                      header: LABELS.word.plugin,
                       className: 'w-32 font-mono text-xs whitespace-nowrap',
                       cell: (row: ExampleOut) => <span className="text-muted-foreground">{row.plugin}</span>,
                   },

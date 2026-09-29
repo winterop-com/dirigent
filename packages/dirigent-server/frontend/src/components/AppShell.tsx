@@ -35,6 +35,7 @@ import { useAppShortcuts } from '@/hooks/use-app-shortcuts'
 import { useStore } from '@/hooks/use-store'
 import { ApiError, onUnauthorized, type Problem } from '@/lib/api'
 import { authStore, refreshIdentity, signOut } from '@/lib/auth'
+import { LABELS } from '@/lib/labels'
 import { loadKindMarks } from '@/lib/marks'
 import { entriesFor, LOGIN_PATH } from '@/lib/nav'
 import {
@@ -49,9 +50,9 @@ import {
 import { railCollapsed, toggleRail, togglePanel } from '@/lib/panels'
 import { modifierLabel, applePlatform } from '@/lib/shortcuts'
 
-export const SIGN_OUT_LABEL = 'Sign out'
-export const TOGGLE_PANEL_LABEL = 'Show or hide the side panel'
-export const OPEN_PALETTE_LABEL = 'Open the command palette'
+export const SIGN_OUT_LABEL = LABELS.action.sign_out
+export const TOGGLE_PANEL_LABEL = LABELS.shell.toggle_panel
+export const OPEN_PALETTE_LABEL = LABELS.shell.open_palette
 
 /**
  * The settings dialog is fetched the first time somebody asks for it.
@@ -174,7 +175,7 @@ export function AppShell() {
             ...pages,
             {
                 id: 'view:rail',
-                title: collapsed ? 'Expand the navigation' : 'Collapse the navigation',
+                title: collapsed ? LABELS.shell.expand_nav : LABELS.shell.collapse_nav,
                 group: VIEW_GROUP,
                 icon: PanelLeft,
                 keywords: ['sidebar', 'rail'],
@@ -182,7 +183,7 @@ export function AppShell() {
             },
             {
                 id: 'view:panel',
-                title: 'Show or hide the side panel',
+                title: TOGGLE_PANEL_LABEL,
                 group: VIEW_GROUP,
                 icon: PanelRight,
                 keywords: ['inspector', 'details'],
@@ -190,7 +191,7 @@ export function AppShell() {
             },
             {
                 id: 'view:settings',
-                title: 'Open settings',
+                title: LABELS.shell.open_settings,
                 group: VIEW_GROUP,
                 icon: Settings,
                 keywords: ['preferences', 'appearance', 'times', 'account', 'password', 'server'],
@@ -198,7 +199,7 @@ export function AppShell() {
             },
             {
                 id: 'view:shortcuts',
-                title: 'Keyboard shortcuts',
+                title: LABELS.shell.shortcuts,
                 group: VIEW_GROUP,
                 icon: Keyboard,
                 keywords: ['keys', 'chords', 'help'],
@@ -280,7 +281,9 @@ export function AppShell() {
                                         {/* There is no keyboard below the breakpoint, so what the
                                             button carries there is the glyph rather than the chord. */}
                                         <Search className="size-4 md:hidden" aria-hidden />
-                                        <span className="hidden md:inline">{modifier}K</span>
+                                        <span className="hidden md:inline">
+                                            {LABELS.shell.palette_chord(modifier)}
+                                        </span>
                                     </Button>
                                 }
                             />

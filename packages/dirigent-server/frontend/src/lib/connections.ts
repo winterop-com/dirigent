@@ -19,6 +19,7 @@
  */
 
 import { apiJson, apiSend, type JsonMap, type Page } from '@/lib/api'
+import { LABELS } from '@/lib/labels'
 import { PAGE } from '@/lib/paging'
 import { fieldsOf, type FieldDescriptor } from '@/lib/schema-form'
 
@@ -204,8 +205,8 @@ export function settingsSummary(row: Pick<ConnectionOut, 'config' | 'secret_fiel
     const held = row.secret_fields.filter((name) => isSet(row.config[name])).map((name) => `${name} ${DOTS}`)
     const shown = settings.slice(0, SUMMARY_FIELDS)
     const rest = settings.length - shown.length
-    const parts = [...shown, ...held, ...(rest > 0 ? [`+${String(rest)} more`] : [])]
-    return parts.length === 0 ? 'no settings' : parts.join(' · ')
+    const parts = [...shown, ...held, ...(rest > 0 ? [LABELS.connections.more_settings(String(rest))] : [])]
+    return parts.length === 0 ? LABELS.connections.no_settings : parts.join(' · ')
 }
 
 /** Whether a field holds anything at all, which for a secret is the whole of what a read says. */
@@ -224,7 +225,11 @@ function short(value: unknown): string {
 export type HealthState = 'healthy' | 'failed' | 'unverified' | 'unchecked'
 
 /** The words a connection's health is said in, wherever one is drawn. */
-export type HealthLabel = 'healthy' | 'failed' | 'not verified' | 'never checked'
+export type HealthLabel =
+    | typeof LABELS.state.health.healthy
+    | typeof LABELS.state.health.failed.word
+    | typeof LABELS.state.health.unverified
+    | typeof LABELS.state.health.unchecked
 
 /** How a connection's health reads in the listing. */
 export interface HealthView {
@@ -250,13 +255,19 @@ export function healthOf(
     row: Pick<ConnectionOut, 'last_check_at' | 'last_check_healthy' | 'last_check_detail'>,
 ): HealthView {
     if (row.last_check_at === null) {
-        return { state: 'unchecked', tone: null, label: 'never checked', detail: null, checkedAt: null }
+        return {
+            state: 'unchecked',
+            tone: null,
+            label: LABELS.state.health.unchecked,
+            detail: null,
+            checkedAt: null,
+        }
     }
     if (row.last_check_healthy === null) {
         return {
             state: 'unverified',
             tone: null,
-            label: 'not verified',
+            label: LABELS.state.health.unverified,
             detail: row.last_check_detail,
             checkedAt: row.last_check_at,
         }
@@ -265,7 +276,7 @@ export function healthOf(
         return {
             state: 'healthy',
             tone: 'good',
-            label: 'healthy',
+            label: LABELS.state.health.healthy,
             detail: row.last_check_detail,
             checkedAt: row.last_check_at,
         }
@@ -273,7 +284,7 @@ export function healthOf(
     return {
         state: 'failed',
         tone: 'critical',
-        label: 'failed',
+        label: LABELS.state.health.failed.word,
         detail: row.last_check_detail,
         checkedAt: row.last_check_at,
     }
@@ -321,10 +332,15 @@ export function connectionsNote(rows: readonly Checked[], noun = ''): string | n
     if (rows.length === 0) return null
     const { total, healthy, unverified, unchecked } = connectionsHealth(rows)
     const named = noun === '' ? '' : ` ${noun}`
-    const said = [`${String(healthy)} of ${String(total)}${named} healthy`]
-    if (unverified > 0) said.push(`${String(unverified)} could not be verified`)
-    if (unchecked > 0)
-        said.push(`${String(unchecked)} ${unchecked === 1 ? 'has' : 'have'} never been checked`)
+    const said = [LABELS.connections.note.healthy(String(healthy), String(total), named)]
+    if (unverified > 0) said.push(LABELS.connections.note.unverified(String(unverified)))
+    if (unchecked > 0) {
+        const clause =
+            unchecked === 1
+                ? LABELS.connections.note.never_checked.one
+                : LABELS.connections.note.never_checked.many
+        said.push(clause(String(unchecked)))
+    }
     return said.join(' · ')
 }
 

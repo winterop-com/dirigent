@@ -13,6 +13,7 @@ import { useMayWrite } from '@/hooks/use-may-write'
 import { usePaged } from '@/hooks/use-paged'
 import { formatInstant, formatRelative } from '@/lib/format'
 import { headingOf, type Addressable } from '@/lib/identity'
+import { LABELS } from '@/lib/labels'
 import { closePanel, fillPanel, openPanel } from '@/lib/panels'
 import { LIST_GROUP, registerActions } from '@/lib/palette'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
@@ -138,7 +139,7 @@ export function Triggers() {
                 ? [
                       {
                           id: 'triggers:schedule',
-                          title: 'New schedule',
+                          title: LABELS.triggers.schedule.new,
                           group: LIST_GROUP,
                           screen: true,
                           icon: CalendarPlus,
@@ -149,7 +150,7 @@ export function Triggers() {
                       },
                       {
                           id: 'triggers:webhook',
-                          title: 'New webhook',
+                          title: LABELS.triggers.webhook.new,
                           group: LIST_GROUP,
                           screen: true,
                           icon: Webhook,
@@ -162,7 +163,7 @@ export function Triggers() {
                 : []),
             {
                 id: 'triggers:reload',
-                title: 'Read the triggers again',
+                title: LABELS.triggers.reload,
                 group: LIST_GROUP,
                 screen: true,
                 icon: RefreshCw,
@@ -186,12 +187,12 @@ export function Triggers() {
     return (
         <>
             <PageHeader
-                title="Triggers"
+                title={LABELS.screen.triggers.name}
                 aside={<ApiChip tag="triggers" />}
                 actions={[
                     {
                         id: 'schedule',
-                        label: 'New schedule',
+                        label: LABELS.triggers.schedule.new,
                         icon: CalendarPlus,
                         disabled: !write.may,
                         why: write.why,
@@ -201,7 +202,7 @@ export function Triggers() {
                     },
                     {
                         id: 'webhook',
-                        label: 'New webhook',
+                        label: LABELS.triggers.webhook.new,
                         icon: Webhook,
                         disabled: !write.may,
                         why: write.why,
@@ -216,15 +217,13 @@ export function Triggers() {
                 loading={!state.read}
                 problem={state.problem}
                 empty={rows.length === 0}
-                emptyMessage="Nothing fires on its own. A document declares them under its triggers key."
+                emptyMessage={LABELS.triggers.empty}
             >
                 <div className="space-y-6">
                     <section className="space-y-2">
-                        <h2 className="text-sm font-semibold">Schedules</h2>
+                        <h2 className="text-sm font-semibold">{LABELS.triggers.schedule.heading}</h2>
                         {schedules.length === 0 ? (
-                            <p className="text-sm text-muted-foreground">
-                                No schedules. A document declares one under its triggers key.
-                            </p>
+                            <p className="text-sm text-muted-foreground">{LABELS.triggers.schedule.empty}</p>
                         ) : (
                             <ListTable
                                 columns={scheduleCols}
@@ -233,7 +232,7 @@ export function Triggers() {
                                 reading={state.reading}
                                 next={state.next}
                                 onMore={more}
-                                noun="schedules"
+                                noun={LABELS.triggers.schedule.noun}
                                 onSelect={select}
                                 selected={(row) => triggerId(row) === chosen}
                                 onClose={unchoose}
@@ -242,9 +241,9 @@ export function Triggers() {
                     </section>
 
                     <section className="space-y-2">
-                        <h2 className="text-sm font-semibold">Webhooks</h2>
+                        <h2 className="text-sm font-semibold">{LABELS.triggers.webhook.heading}</h2>
                         {webhooks.length === 0 ? (
-                            <p className="text-sm text-muted-foreground">No webhooks.</p>
+                            <p className="text-sm text-muted-foreground">{LABELS.triggers.webhook.empty}</p>
                         ) : (
                             <ListTable
                                 columns={WEBHOOK_COLUMNS}
@@ -253,7 +252,7 @@ export function Triggers() {
                                 reading={state.reading}
                                 next={state.next}
                                 onMore={more}
-                                noun="webhooks"
+                                noun={LABELS.triggers.webhook.noun}
                                 onSelect={select}
                                 selected={(row) => triggerId(row) === chosen}
                                 onClose={unchoose}
@@ -262,11 +261,9 @@ export function Triggers() {
                     </section>
 
                     <section className="space-y-2">
-                        <h2 className="text-sm font-semibold">Watches</h2>
+                        <h2 className="text-sm font-semibold">{LABELS.triggers.watch.heading}</h2>
                         {watches.length === 0 ? (
-                            <p className="text-sm text-muted-foreground">
-                                No watches. A document declares one under its triggers key.
-                            </p>
+                            <p className="text-sm text-muted-foreground">{LABELS.triggers.watch.empty}</p>
                         ) : (
                             <ListTable
                                 columns={watchCols}
@@ -275,7 +272,7 @@ export function Triggers() {
                                 reading={state.reading}
                                 next={state.next}
                                 onMore={more}
-                                noun="watches"
+                                noun={LABELS.triggers.watch.noun}
                                 onSelect={select}
                                 selected={(row) => triggerId(row) === chosen}
                                 onClose={unchoose}
@@ -320,43 +317,43 @@ const isWatch = (row: TriggerRow): row is WatchRow => row.kind === 'watch'
 
 /** What the panel's strip calls the trigger it holds. */
 const PANEL_LABEL: Record<TriggerRow['kind'], string> = {
-    schedule: 'Schedule',
-    webhook: 'Webhook',
-    watch: 'Watch',
+    schedule: LABELS.word.schedule,
+    webhook: LABELS.word.webhook,
+    watch: LABELS.word.watch,
 }
 
 const SCHEDULE_COLUMNS: Column<ScheduleRow>[] = [
     {
         id: 'schedule',
-        header: 'Schedule',
+        header: LABELS.word.schedule,
         kind: 'title',
         cell: (row) => (
             <Titled thing={row.schedule}>
                 <OwnerChip managed={row.schedule.managed} document={row.schedule.trigger_document} />
-                {row.schedule.paused && <Chip>paused</Chip>}
+                {row.schedule.paused && <Chip>{LABELS.state.armed.paused}</Chip>}
             </Titled>
         ),
     },
     {
         id: 'pipeline',
-        header: 'Pipeline',
+        header: LABELS.word.pipeline,
         kind: 'prose',
         cell: (row) => <PipelineRef code={row.pipeline} name={row.pipelineName} />,
     },
     {
         id: 'clock',
-        header: 'Clock',
+        header: LABELS.word.clock,
         cell: (row) => <Clock schedule={row.schedule} />,
     },
     {
         id: 'timezone',
-        header: 'Timezone',
+        header: LABELS.word.timezone,
         className: 'text-xs',
         cell: (row) => <span className="text-muted-foreground">{row.schedule.timezone}</span>,
     },
     {
         id: 'next',
-        header: 'Next',
+        header: LABELS.word.next,
         className: 'text-xs',
         // The paused chip in the title cell already says why there is no instant.
         cell: (row) =>
@@ -364,7 +361,7 @@ const SCHEDULE_COLUMNS: Column<ScheduleRow>[] = [
     },
     {
         id: 'last',
-        header: 'Last firing',
+        header: LABELS.triggers.schedule.last_firing,
         cell: (row) => <LastFiring row={row} />,
     },
 ]
@@ -372,49 +369,51 @@ const SCHEDULE_COLUMNS: Column<ScheduleRow>[] = [
 const WEBHOOK_COLUMNS: Column<WebhookRow>[] = [
     {
         id: 'webhook',
-        header: 'Webhook',
+        header: LABELS.word.webhook,
         kind: 'title',
         cell: (row) => (
             <Titled thing={row.webhook}>
                 <OwnerChip managed={row.webhook.managed} document={row.webhook.trigger_document} />
-                {!row.webhook.active && <Chip>disabled</Chip>}
+                {!row.webhook.active && <Chip>{LABELS.state.armed.disabled}</Chip>}
             </Titled>
         ),
     },
     {
         id: 'pipeline',
-        header: 'Pipeline',
+        header: LABELS.word.pipeline,
         kind: 'prose',
         cell: (row) => <PipelineRef code={row.pipeline} name={row.pipelineName} />,
     },
     {
         id: 'endpoint',
-        header: 'Endpoint',
+        header: LABELS.word.endpoint,
         kind: 'prose',
         className: 'font-mono text-xs',
         cell: (row) => (
-            <span className="block truncate" title={'POST ' + hookPath(row.webhook)}>
-                POST {hookPath(row.webhook)}
+            <span className="block truncate" title={LABELS.triggers.webhook.post(hookPath(row.webhook))}>
+                {LABELS.triggers.webhook.post(hookPath(row.webhook))}
             </span>
         ),
     },
     {
         id: 'signed',
-        header: 'Signature',
+        header: LABELS.word.signature,
         className: 'text-xs',
         cell: (row) => <span className="text-muted-foreground">{signing(row.webhook)}</span>,
     },
     {
         id: 'rate',
-        header: 'Rate',
+        header: LABELS.triggers.webhook.rate,
         className: 'text-right font-mono text-xs',
         cell: (row) => (
-            <span className="text-muted-foreground">{String(row.webhook.rate_limit_per_minute)}/min</span>
+            <span className="text-muted-foreground">
+                {LABELS.triggers.webhook.rate_per_minute(String(row.webhook.rate_limit_per_minute))}
+            </span>
         ),
     },
     {
         id: 'last',
-        header: 'Last delivery',
+        header: LABELS.triggers.webhook.last_delivery,
         cell: (row) => <LastDelivery row={row} />,
     },
 ]
@@ -422,36 +421,36 @@ const WEBHOOK_COLUMNS: Column<WebhookRow>[] = [
 const WATCH_COLUMNS: Column<WatchRow>[] = [
     {
         id: 'watch',
-        header: 'Watch',
+        header: LABELS.word.watch,
         kind: 'title',
         cell: (row) => (
             <Titled thing={row.watch}>
                 <OwnerChip managed={row.watch.managed} document={row.watch.trigger_document} />
-                {row.watch.paused && <Chip>paused</Chip>}
+                {row.watch.paused && <Chip>{LABELS.state.armed.paused}</Chip>}
             </Titled>
         ),
     },
     {
         id: 'pipeline',
-        header: 'Pipeline',
+        header: LABELS.word.pipeline,
         kind: 'prose',
         cell: (row) => <PipelineRef code={row.pipeline} name={row.pipelineName} />,
     },
     {
         id: 'step',
-        header: 'Step',
+        header: LABELS.word.step,
         className: 'font-mono text-xs',
         cell: (row) => <span className="font-mono text-muted-foreground">{row.watch.step}</span>,
     },
     {
         id: 'waiting',
-        header: 'Waiting',
+        header: LABELS.triggers.watch.waiting,
         // The paused chip in the title cell already says why nothing is waiting.
         cell: (row) => (watchView(row.watch).kind === 'paused' ? null : <WatchState watch={row.watch} />),
     },
     {
         id: 'error',
-        header: 'Last error',
+        header: LABELS.triggers.watch.last_error,
         kind: 'prose',
         cell: (row) =>
             row.watch.last_error === null ? null : (
@@ -509,7 +508,8 @@ function Titled({ thing, children }: { thing: Addressable; children: ReactNode }
 
 /** When a schedule last fired, and what came of that firing. */
 function LastFiring({ row }: { row: ScheduleRow }) {
-    if (row.schedule.last_fired_at === null) return <span className="text-xs text-faint">never fired</span>
+    if (row.schedule.last_fired_at === null)
+        return <span className="text-xs text-faint">{LABELS.triggers.schedule.never_fired}</span>
     const view = row.latest === null ? null : firingView(row.latest)
     return (
         <span className="flex items-center gap-2 text-xs">
@@ -526,7 +526,7 @@ function LastFiring({ row }: { row: ScheduleRow }) {
                         event.stopPropagation()
                     }}
                 >
-                    run
+                    {LABELS.triggers.run}
                 </Link>
             )}
             {view !== null && view.detail !== null && (
@@ -540,7 +540,8 @@ function LastFiring({ row }: { row: ScheduleRow }) {
 
 /** When something last arrived, and what came of it. */
 function LastDelivery({ row }: { row: WebhookRow }) {
-    if (row.webhook.last_delivery_at === null) return <span className="text-xs text-faint">never</span>
+    if (row.webhook.last_delivery_at === null)
+        return <span className="text-xs text-faint">{LABELS.word.never}</span>
     const view = row.latest === null ? null : deliveryView(row.latest)
     return (
         <span className="flex items-center gap-2 text-xs">
@@ -556,7 +557,7 @@ function LastDelivery({ row }: { row: WebhookRow }) {
                         event.stopPropagation()
                     }}
                 >
-                    run
+                    {LABELS.triggers.run}
                 </Link>
             )}
             {view !== null && view.reason !== null && (

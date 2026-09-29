@@ -13,14 +13,8 @@ import { Label } from '@/components/ui/label'
 import { useStore } from '@/hooks/use-store'
 import { appConfig } from '@/lib/api'
 import { authStore, refreshIdentity, signIn } from '@/lib/auth'
+import { LABELS } from '@/lib/labels'
 import { DASHBOARD_PATH } from '@/lib/nav'
-
-export const SIGN_IN_LABEL = 'Sign in'
-export const USERNAME_LABEL = 'Username'
-export const PASSWORD_LABEL = 'Password'
-
-/** What the button's tooltip says while it will not take a second submit. */
-export const WORKING_TITLE = 'Signing in'
 
 /** The field treatment this screen alone wears: taller than a control, and edged in every palette. */
 const FIELD = 'border-border-strong h-12 rounded-lg pl-11'
@@ -178,13 +172,13 @@ export function Login() {
                 >
                     <div className="grid gap-2">
                         <p className="text-sm tracking-[0.18em] text-primary-ink uppercase">
-                            Welcome to dirigent
+                            {LABELS.login.eyebrow}
                         </p>
-                        <h2 className="text-display font-semibold tracking-tight">{SIGN_IN_LABEL}</h2>
-                        <p className="text-sm text-muted-foreground">Enter your credentials to continue.</p>
+                        <h2 className="text-display font-semibold tracking-tight">{LABELS.login.sign_in}</h2>
+                        <p className="text-sm text-muted-foreground">{LABELS.login.subtitle}</p>
                     </div>
                     <div className="grid gap-1.5">
-                        <Label htmlFor="username">{USERNAME_LABEL}</Label>
+                        <Label htmlFor="username">{LABELS.word.username}</Label>
                         <div className="relative">
                             <User
                                 className="pointer-events-none absolute top-1/2 left-4 size-4.5 -translate-y-1/2 text-muted-foreground"
@@ -196,7 +190,7 @@ export function Login() {
                                 autoComplete="username"
                                 autoFocus
                                 required
-                                placeholder="Your username"
+                                placeholder={LABELS.login.username_placeholder}
                                 className={FIELD}
                                 value={username}
                                 onChange={(event) => {
@@ -206,7 +200,7 @@ export function Login() {
                         </div>
                     </div>
                     <div className="grid gap-1.5">
-                        <Label htmlFor="password">{PASSWORD_LABEL}</Label>
+                        <Label htmlFor="password">{LABELS.word.password}</Label>
                         <div className="relative">
                             <Lock
                                 className="pointer-events-none absolute top-1/2 left-4 size-4.5 -translate-y-1/2 text-muted-foreground"
@@ -218,7 +212,7 @@ export function Login() {
                                 type={reveal.inputType}
                                 autoComplete="current-password"
                                 required
-                                placeholder="Your password"
+                                placeholder={LABELS.login.password_placeholder}
                                 className={`${FIELD} pr-12`}
                                 value={password}
                                 onChange={(event) => {
@@ -246,9 +240,9 @@ export function Login() {
                         type="submit"
                         className="h-13 w-full rounded-lg"
                         disabled={auth.working}
-                        title={auth.working ? WORKING_TITLE : undefined}
+                        title={auth.working ? LABELS.login.working : undefined}
                     >
-                        {SIGN_IN_LABEL}
+                        {LABELS.login.sign_in}
                         <ArrowRight className="size-4.5" aria-hidden />
                     </Button>
                     {auth.problem !== null && (

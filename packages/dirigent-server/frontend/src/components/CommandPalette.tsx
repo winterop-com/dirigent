@@ -14,12 +14,13 @@ import {
 import { Kbd, KbdGroup } from '@/components/ui/kbd'
 import { useStore } from '@/hooks/use-store'
 import { NEUTRAL_GLYPH } from '@/lib/glyphs'
+import { LABELS } from '@/lib/labels'
 import { filterActions, paletteActions, paletteOpen, shelve, type PaletteAction } from '@/lib/palette'
 
-export const PALETTE_TITLE = 'Command palette'
-export const PALETTE_DESCRIPTION = 'Every place this app can go, and everything it can do from here'
-export const PALETTE_PLACEHOLDER = 'Go to a screen, or run something'
-export const PALETTE_EMPTY = 'Nothing here answers to that'
+export const PALETTE_TITLE = LABELS.palette.title
+export const PALETTE_DESCRIPTION = LABELS.palette.description
+export const PALETTE_PLACEHOLDER = LABELS.palette.placeholder
+export const PALETTE_EMPTY = LABELS.palette.empty
 
 /**
  * The palette: a renderer over the registered actions, and nothing more.
@@ -91,9 +92,9 @@ export function CommandPalette() {
                 >
                     <KbdGroup>
                         <Kbd>↑↓</Kbd>
-                        <span className="text-xs">choose</span>
+                        <span className="text-xs">{LABELS.palette.foot.choose}</span>
                         <Kbd className="ml-2">↵</Kbd>
-                        <span className="text-xs">run it</span>
+                        <span className="text-xs">{LABELS.palette.foot.run}</span>
                     </KbdGroup>
                 </div>
             </Command>

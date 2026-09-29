@@ -22,6 +22,7 @@
 import { apiJson, type Page } from '@/lib/api'
 import { readCatalog } from '@/lib/blocks'
 import { readConnections } from '@/lib/connections'
+import { LABELS } from '@/lib/labels'
 import { readSchemas } from '@/lib/schemas'
 
 /** What a shared document needs of an instance. `Requirements`. */
@@ -167,14 +168,16 @@ export interface Requirement {
     met: boolean | null
 }
 
+const COUNT = LABELS.examples.requirement.count
+
 /** How each kind of requirement is counted, singular and plural. `_COUNTED` in the CLI. */
 const COUNTED: readonly (readonly [Need, string, string])[] = [
-    ['connection', 'connection', 'connections'],
-    ['schema', 'schema', 'schemas'],
-    ['pipeline', 'pipeline', 'pipelines'],
-    ['storage', 'storage scheme', 'storage schemes'],
-    ['block', 'block', 'blocks'],
-    ['worker', 'worker tag', 'worker tags'],
+    ['connection', COUNT.connection.one, COUNT.connection.many],
+    ['schema', COUNT.schema.one, COUNT.schema.many],
+    ['pipeline', COUNT.pipeline.one, COUNT.pipeline.many],
+    ['storage', COUNT.storage.one, COUNT.storage.many],
+    ['block', COUNT.block.one, COUNT.block.many],
+    ['worker', COUNT.worker.one, COUNT.worker.many],
 ]
 
 /**
@@ -225,10 +228,12 @@ export function requirementsSummary(items: readonly Requirement[]): string | nul
     if (items.length === 0) return null
     const counted = COUNTED.flatMap(([kind, one, many]) => {
         const held = items.filter((item) => item.kind === kind).length
-        return held === 0 ? [] : [`${String(held)} ${held === 1 ? one : many}`]
+        return held === 0 ? [] : [LABELS.examples.requirement.counted(String(held), held === 1 ? one : many)]
     })
     const missing = missingCount(items)
-    return missing === 0 ? counted.join(', ') : `${counted.join(', ')}, ${String(missing)} missing`
+    return missing === 0
+        ? counted.join(', ')
+        : LABELS.examples.requirement.missing(counted.join(', '), String(missing))
 }
 
 /**
@@ -240,7 +245,7 @@ export function requirementsSummary(items: readonly Requirement[]): string | nul
  */
 export function carriesNote(example: ExampleOut): string | null {
     if (example.carries.length === 0) return null
-    return `carries ${example.carries.join(' and ')}; a copy names them`
+    return LABELS.examples.carries(example.carries.join(' and '))
 }
 
 /** What a listing is narrowed to, which is the whole of this screen's address. */

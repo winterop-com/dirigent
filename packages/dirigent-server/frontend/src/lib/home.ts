@@ -20,6 +20,7 @@ import {
     type HealthView,
 } from '@/lib/connections'
 import { kindGlyph, NO_MARKS, type Glyph, type KindMarks } from '@/lib/glyphs'
+import { LABELS } from '@/lib/labels'
 import { concernTone, DAY, type Tile, type TileTone } from '@/lib/overview'
 import { readPipelines, type PipelineOut } from '@/lib/pipelines'
 import { EVERY_RUN, runsLink, type RunOut } from '@/lib/runs'
@@ -111,26 +112,45 @@ export function statTiles(
             to: runsLink({ ...EVERY_RUN, status }),
         }
     }
-    return [
-        {
+    const allRuns = (): Tile | null => {
+        if (day === null) return null
+        return {
             id: 'runs',
-            tile:
-                day === null
-                    ? null
-                    : {
-                          id: 'runs',
-                          label: 'Runs',
-                          value: partOf(day.items.length, day),
-                          note: 'Last 24 hours.',
-                          tone: 'neutral',
-                          to: runsLink({ ...EVERY_RUN, since: DAY }),
-                      },
+            label: LABELS.screen.runs.name,
+            value: partOf(day.items.length, day),
+            note: LABELS.dashboard.tile.runs_window,
+            tone: 'neutral',
+            to: runsLink({ ...EVERY_RUN, since: DAY }),
+        }
+    }
+    return [
+        { id: 'runs', tile: allRuns() },
+        { id: 'succeeded', tile: windowed('succeeded', LABELS.state.run.succeeded.tile, 'good') },
+        { id: 'failed', tile: windowed('failed', LABELS.state.run.failed.tile, 'critical') },
+        {
+            id: 'completed_with_errors',
+            tile: windowed('completed_with_errors', LABELS.state.run.completed_with_errors.tile, 'warning'),
         },
-        { id: 'succeeded', tile: windowed('succeeded', 'Succeeded', 'good') },
-        { id: 'failed', tile: windowed('failed', 'Failed', 'critical') },
-        { id: 'completed_with_errors', tile: windowed('completed_with_errors', 'With errors', 'warning') },
-        { id: 'running', tile: live('running', 'Running', 'info', 'Being worked on now.', running) },
-        { id: 'queued', tile: live('queued', 'Queued', 'neutral', 'Waiting for a worker.', queued) },
+        {
+            id: 'running',
+            tile: live(
+                'running',
+                LABELS.state.run.running.tile,
+                'info',
+                LABELS.state.run.running.sentence,
+                running,
+            ),
+        },
+        {
+            id: 'queued',
+            tile: live(
+                'queued',
+                LABELS.state.run.queued.tile,
+                'neutral',
+                LABELS.state.run.queued.sentence,
+                queued,
+            ),
+        },
     ]
 }
 
@@ -217,13 +237,17 @@ export function chartSummary(buckets: readonly HourBucket[]): string {
     const settled = (pick: (bucket: HourBucket) => number) =>
         buckets.reduce((sum, bucket) => sum + pick(bucket), 0)
     const total = settled((bucket) => bucket.total)
-    if (total === 0) return 'No run was started in the last 24 hours.'
+    if (total === 0) return LABELS.dashboard.chart.summary_empty
+    const counted = LABELS.dashboard.counted
     const parts = [
-        `${String(settled((bucket) => bucket.succeeded))} succeeded`,
-        `${String(settled((bucket) => bucket.withErrors))} finished with errors`,
-        `${String(settled((bucket) => bucket.failed))} failed`,
+        counted(String(settled((bucket) => bucket.succeeded)), LABELS.state.run.succeeded.chip),
+        counted(
+            String(settled((bucket) => bucket.withErrors)),
+            LABELS.state.run.completed_with_errors.sentence,
+        ),
+        counted(String(settled((bucket) => bucket.failed)), LABELS.state.run.failed.chip),
     ]
-    return `${String(total)} runs started in the last 24 hours, by the hour: ${parts.join(', ')}.`
+    return LABELS.dashboard.chart.summary(String(total), parts.join(', '))
 }
 
 /** Whether a row of the health panel is a worker or a connection. */
@@ -274,7 +298,12 @@ export function healthRows(
             tone: concern === null ? 'good' : concernTone(concern),
             detail:
                 concern === null
-                    ? `worker · ${String(worker.concurrency)} ${worker.concurrency === 1 ? 'slot' : 'slots'}`
+                    ? LABELS.dashboard.health.worker(
+                          String(worker.concurrency),
+                          worker.concurrency === 1
+                              ? LABELS.dashboard.health.slot
+                              : LABELS.dashboard.health.slots,
+                      )
                     : concernSaid(concern),
             at: concern === null ? null : worker.last_seen_at,
         }
@@ -298,13 +327,13 @@ export function healthRows(
 function detailOf(view: HealthView): string {
     switch (view.state) {
         case 'unchecked':
-            return 'never checked'
+            return LABELS.state.health.unchecked
         case 'unverified':
-            return 'not verified'
+            return LABELS.state.health.unverified
         case 'healthy':
-            return view.detail ?? 'healthy'
+            return view.detail ?? LABELS.state.health.healthy
         case 'failed':
-            return view.detail ?? 'did not answer'
+            return view.detail ?? LABELS.state.health.failed.sentence
     }
 }
 
@@ -322,18 +351,19 @@ export function healthNote(workers: readonly WorkerOut[], connections: readonly 
     const well = workers.filter((worker) => concernOf(worker) === null).length
     const { healthy, total } = connectionsHealth(connections)
     const said: string[] = []
-    if (workers.length === 0) said.push('no worker has registered')
-    else if (well < workers.length) said.push(`${String(well)} of ${String(workers.length)} workers healthy`)
+    if (workers.length === 0) said.push(LABELS.dashboard.health.no_worker)
+    else if (well < workers.length)
+        said.push(LABELS.dashboard.health.workers_healthy(String(well), String(workers.length)))
     if (healthy < total) {
-        const note = connectionsNote(connections, 'connections')
+        const note = connectionsNote(connections, LABELS.dashboard.health.connections)
         if (note !== null) said.push(note)
     }
     if (said.length > 0) {
         const line = said.join(' · ')
         return `${line.charAt(0).toUpperCase()}${line.slice(1)}.`
     }
-    if (connections.length === 0) return 'Every worker is healthy, and this instance holds no connections.'
-    return 'Every worker and every connection is healthy.'
+    if (connections.length === 0) return LABELS.dashboard.health.every_worker_well
+    return LABELS.dashboard.health.all_well
 }
 
 /** How many upcoming firings the screen lists. */

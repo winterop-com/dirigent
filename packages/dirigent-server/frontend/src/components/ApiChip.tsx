@@ -1,6 +1,7 @@
 import { ExternalLink } from 'lucide-react'
 
 import { API_LABEL, docsHref, type DocsTag } from '@/lib/docs'
+import { LABELS } from '@/lib/labels'
 
 /**
  * The way out of a screen and into the requests behind it.
@@ -19,7 +20,7 @@ export function ApiChip({ tag }: { tag: DocsTag }) {
             href={docsHref(tag)}
             target="_blank"
             rel="noreferrer"
-            title={`The ${tag} section of this instance's API documentation`}
+            title={LABELS.shell.api_docs(tag)}
         >
             {API_LABEL}
             <ExternalLink className="size-3" aria-hidden />

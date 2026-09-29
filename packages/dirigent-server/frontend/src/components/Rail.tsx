@@ -8,6 +8,7 @@ import { useEffect, useRef, type PointerEvent as ReactPointerEvent } from 'react
 import { useDragSize } from '@/hooks/use-drag-size'
 import { useStore } from '@/hooks/use-store'
 import { authStore } from '@/lib/auth'
+import { LABELS } from '@/lib/labels'
 import { DASHBOARD_PATH, marksOnlyItself, sectionsFor, type NavEntry } from '@/lib/nav'
 import {
     RAIL_COLLAPSED_WIDTH,
@@ -22,12 +23,12 @@ import {
 } from '@/lib/panels'
 import { cn } from '@/lib/utils'
 
-export const COLLAPSE_LABEL = 'Collapse the navigation'
-export const RESIZE_RAIL_LABEL = 'Resize the navigation'
+export const COLLAPSE_LABEL = LABELS.shell.collapse_nav
+export const RESIZE_RAIL_LABEL = LABELS.shell.resize_nav
 
 /** How far one arrow press moves an edge. */
 const KEYBOARD_STEP = 16
-export const EXPAND_LABEL = 'Expand the navigation'
+export const EXPAND_LABEL = LABELS.shell.expand_nav
 
 /**
  * The navigation rail: every screen this account is offered, in one column.
@@ -142,13 +143,15 @@ export function Rail() {
                         <>
                             <NavLink
                                 to={DASHBOARD_PATH}
-                                aria-label="dirigent"
+                                aria-label={LABELS.shell.wordmark}
                                 className="flex items-center gap-2 rounded-md focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
                             >
                                 <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
                                     <Waypoints className="size-4" aria-hidden />
                                 </span>
-                                <span className="text-base font-semibold tracking-tight">dirigent</span>
+                                <span className="text-base font-semibold tracking-tight">
+                                    {LABELS.shell.wordmark}
+                                </span>
                             </NavLink>
                             <Tooltip>
                                 <TooltipTrigger

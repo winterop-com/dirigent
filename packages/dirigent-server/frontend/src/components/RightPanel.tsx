@@ -4,6 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useDragSize } from '@/hooks/use-drag-size'
 import { useSmallScreen } from '@/hooks/use-small-screen'
 import { useStore } from '@/hooks/use-store'
+import { LABELS } from '@/lib/labels'
 import {
     clampPanelWidth,
     PANEL_MAX_WIDTH,
@@ -16,16 +17,16 @@ import {
 } from '@/lib/panels'
 import { cn } from '@/lib/utils'
 
-export const RESIZE_PANEL_LABEL = 'Resize the side panel'
+export const RESIZE_PANEL_LABEL = LABELS.shell.resize_panel
 
 /** What the strip says when there are no tabs, which is a label rather than a tab. */
-export const EMPTY_HEADING = 'Panel'
+export const EMPTY_HEADING = LABELS.shell.panel
 
 /** How far one arrow key moves the edge. A keyboard has to be able to do what the pointer does. */
 const KEYBOARD_STEP = 16
 
 /** What the panel says when the screen in front of it has filled none of it. */
-const NOTHING_HERE = 'Nothing selected.'
+const NOTHING_HERE = LABELS.shell.panel_empty
 
 /**
  * The right panel: tabs over whatever the screen in front of it wants beside itself.

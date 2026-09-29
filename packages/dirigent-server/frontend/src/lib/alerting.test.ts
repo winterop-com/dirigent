@@ -7,7 +7,6 @@ import {
     channelsOf,
     channelView,
     deliverySettled,
-    EVENT_LABELS,
     importanceNote,
     matchNote,
     notificationsPath,
@@ -21,6 +20,7 @@ import {
     type Channel,
 } from '@/lib/alerting'
 import { healthOf, type ConnectionOut } from '@/lib/connections'
+import { LABELS } from '@/lib/labels'
 
 function aRule(over: Partial<AlertRuleOut> = {}): AlertRuleOut {
     return {
@@ -76,7 +76,7 @@ describe('what the throttle column says', () => {
 
 describe('what an event is called', () => {
     test('every event the wire has is named, in the words a reader is shown', () => {
-        expect(ALERT_EVENTS.map((event) => EVENT_LABELS[event])).toEqual([
+        expect(ALERT_EVENTS.map((event) => LABELS.alerting.event[event])).toEqual([
             'Failed',
             'Completed with errors',
             'Succeeded',

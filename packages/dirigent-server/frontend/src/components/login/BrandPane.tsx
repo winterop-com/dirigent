@@ -2,6 +2,7 @@ import { Waypoints } from 'lucide-react'
 import type { Ref } from 'react'
 
 import { BrandGraph } from '@/components/login/BrandGraph'
+import { LABELS } from '@/lib/labels'
 
 /**
  * The half of the door that says what is behind it.
@@ -52,12 +53,14 @@ export function BrandPane({
                 <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-terminal-accent text-terminal lg:size-18 lg:rounded-[1rem]">
                     <Waypoints className="size-5 lg:size-10" aria-hidden />
                 </span>
-                <h1 className="text-base font-semibold tracking-tight xl:text-wordmark">dirigent</h1>
+                <h1 className="text-base font-semibold tracking-tight xl:text-wordmark">
+                    {LABELS.login.wordmark}
+                </h1>
             </div>
             <dl className="relative flex items-baseline gap-x-3 text-xs lg:absolute lg:right-12 lg:bottom-12 lg:left-12 lg:grid lg:grid-cols-[4.5rem_1fr] lg:gap-y-1.5 xl:right-18 xl:left-18">
-                <dt className="sr-only text-terminal-faint lg:not-sr-only">instance</dt>
+                <dt className="sr-only text-terminal-faint lg:not-sr-only">{LABELS.login.instance}</dt>
                 <dd className="font-mono text-terminal-muted">{window.location.host}</dd>
-                <dt className="sr-only text-terminal-faint lg:not-sr-only">version</dt>
+                <dt className="sr-only text-terminal-faint lg:not-sr-only">{LABELS.login.version}</dt>
                 <dd className="font-mono text-terminal-muted">{version ?? ''}</dd>
             </dl>
         </aside>

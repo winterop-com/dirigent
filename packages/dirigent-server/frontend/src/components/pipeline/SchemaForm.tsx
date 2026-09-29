@@ -13,6 +13,7 @@ import { ProgramReference } from '@/components/pipeline/ProgramReference'
 import { ReferenceRow } from '@/components/pipeline/ReferenceRow'
 import type { JsonMap } from '@/lib/api'
 import type { ConnectionOut } from '@/lib/connections'
+import { LABELS } from '@/lib/labels'
 import type { SchemaOut } from '@/lib/schemas'
 import {
     drawnAsText,
@@ -142,7 +143,7 @@ export function SchemaForm({
     const [expanded, setExpanded] = useState(false)
 
     if (fields.length === 0) {
-        return <p className="text-sm text-muted-foreground">This takes no configuration.</p>
+        return <p className="text-sm text-muted-foreground">{LABELS.form.no_configuration}</p>
     }
 
     const draw = (field: FieldDescriptor) => (
@@ -247,14 +248,16 @@ function Field({
                 >
                     {field.name}
                 </Label>
-                {field.required && <span className="text-xs text-primary-ink">required</span>}
+                {field.required && <span className="text-xs text-primary-ink">{LABELS.form.required}</span>}
                 {/* A field written as a reference is not the control the hint describes, so what
                     that control would take is not what this field is about. */}
                 {field.hint !== null && note === null && (
                     <span className="text-xs text-faint">{field.hint}</span>
                 )}
                 {note !== null && <span className="text-xs text-faint">{note}</span>}
-                {fallback !== null && <span className="text-xs text-faint">default {fallback}</span>}
+                {fallback !== null && (
+                    <span className="text-xs text-faint">{LABELS.form.default_is(fallback)}</span>
+                )}
             </div>
             <Control
                 id={id}
@@ -286,7 +289,7 @@ function Field({
                 </p>
             )}
             {field.kind === 'json' && fallback !== null && (
-                <p className="text-xs text-faint">An empty box submits the default.</p>
+                <p className="text-xs text-faint">{LABELS.form.empty_submits_default}</p>
             )}
             {shown !== null && (
                 <p className="text-xs text-critical" role="alert">
@@ -369,7 +372,7 @@ function Control({
                         {() =>
                             chosen === undefined
                                 ? field.fallback === undefined
-                                    ? 'unset'
+                                    ? LABELS.form.unset
                                     : optionLabel(field.fallback)
                                 : chosen.label
                         }
@@ -501,13 +504,13 @@ function PairsTable({
                         scope="col"
                         className="w-2/5 pr-1.5 text-left text-xs font-normal text-muted-foreground"
                     >
-                        key
+                        {LABELS.form.pairs.key}
                     </th>
                     <th scope="col" className="pr-1.5 text-left text-xs font-normal text-muted-foreground">
-                        value
+                        {LABELS.form.pairs.value}
                     </th>
                     <th scope="col" className="w-6">
-                        <span className="sr-only">remove</span>
+                        <span className="sr-only">{LABELS.form.pairs.remove}</span>
                     </th>
                 </tr>
             </thead>
@@ -523,8 +526,8 @@ function PairsTable({
                                 spellCheck={false}
                                 disabled={disabled}
                                 aria-invalid={marked(index, 'key')}
-                                aria-label={`${field.name} key ${String(index + 1)}`}
-                                placeholder="key"
+                                aria-label={LABELS.form.pairs.key_cell(field.name, String(index + 1))}
+                                placeholder={LABELS.form.pairs.key}
                                 value={row.key}
                                 onBlur={onTouch}
                                 onChange={(event) => {
@@ -536,7 +539,7 @@ function PairsTable({
                             {switchCell(field) ? (
                                 <Switch
                                     disabled={disabled}
-                                    aria-label={`${field.name} value ${String(index + 1)}`}
+                                    aria-label={LABELS.form.pairs.value_cell(field.name, String(index + 1))}
                                     checked={row.text === 'true'}
                                     onBlur={onTouch}
                                     onCheckedChange={(checked) => {
@@ -549,8 +552,8 @@ function PairsTable({
                                     spellCheck={false}
                                     disabled={disabled}
                                     aria-invalid={marked(index, 'value')}
-                                    aria-label={`${field.name} value ${String(index + 1)}`}
-                                    placeholder="value"
+                                    aria-label={LABELS.form.pairs.value_cell(field.name, String(index + 1))}
+                                    placeholder={LABELS.form.pairs.value}
                                     value={row.text}
                                     onBlur={onTouch}
                                     onChange={(event) => {
@@ -584,7 +587,9 @@ function PairsTable({
 /** What the remove control on one row is called, which is the pair it takes away. */
 function removeLabel(name: string, row: Pair, index: number): string {
     const key = row.key.trim()
-    return key === '' ? `Remove row ${String(index + 1)} from ${name}` : `Remove ${key} from ${name}`
+    return key === ''
+        ? LABELS.form.pairs.remove_row(String(index + 1), name)
+        : LABELS.form.pairs.remove_key(key, name)
 }
 
 /** A box holding its own text, which reaches the document only once what is in it is a value. */
@@ -652,7 +657,7 @@ function TextControl({
                         value={text}
                         mediaType={mediaType}
                         path={path}
-                        label={`${field.name}, in a window`}
+                        label={LABELS.form.in_window(field.name)}
                         className="min-h-0 flex-1"
                         readOnly={disabled}
                         onChange={write}

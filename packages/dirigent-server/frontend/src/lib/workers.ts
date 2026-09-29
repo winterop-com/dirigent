@@ -13,6 +13,7 @@
  */
 
 import { apiJson, type Page } from '@/lib/api'
+import { LABELS } from '@/lib/labels'
 import { PAGE } from '@/lib/paging'
 
 /** Where a worker is in its own life. `WorkerStatus` in dirigent_client.enums. */
@@ -87,23 +88,12 @@ export function concernOf(worker: WorkerOut): Concern | null {
 
 /** One worker's concern as a sentence naming it. */
 export function concernNote(worker: WorkerOut, concern: Concern): string {
-    return `${worker.name} ${concernSaid(concern)}`
+    return LABELS.workers.concern_note(worker.name, concernSaid(concern))
 }
 
 /** What is wrong, for a row already headed by the worker it is wrong with. */
 export function concernSaid(concern: Concern): string {
-    switch (concern) {
-        case 'silent':
-            return 'has gone quiet'
-        case 'mismatched':
-            return 'is running a different catalog from this server'
-        case 'draining':
-            return 'is draining'
-        case 'stopped':
-            return 'has stopped'
-        case 'starting':
-            return 'is still starting'
-    }
+    return LABELS.state.worker[concern]
 }
 
 /** The one worker whose fact is worst, and which fact it is. Nothing when every worker is well. */

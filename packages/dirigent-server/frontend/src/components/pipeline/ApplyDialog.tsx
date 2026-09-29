@@ -14,14 +14,11 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog'
 import { type JsonMap, type Problem } from '@/lib/api'
+import { LABELS } from '@/lib/labels'
 import { refusalOf } from '@/lib/refusal'
 import { planView, type PlanView } from '@/lib/pipeline-plan'
 import { applyPipeline, type ApplyResult, type PipelinePlan } from '@/lib/pipelines'
 import { firstShut } from '@/lib/roles'
-
-export const APPLY_TITLE = 'Apply document'
-export const VALIDATE_TITLE = 'Validate document'
-export const CONFIRM_LABEL = 'Apply'
 
 /**
  * What applying would do, before anything is written.
@@ -97,21 +94,25 @@ export function ApplyDialog({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
-                    <DialogTitle>{mode === 'apply' ? APPLY_TITLE : VALIDATE_TITLE}</DialogTitle>
+                    <DialogTitle>
+                        {mode === 'apply' ? LABELS.editor.apply.title : LABELS.editor.apply.validate_title}
+                    </DialogTitle>
                     {/* What is on screen is a dry run either way. Saying so above the button that
                         writes would be untrue of what pressing it does, so only Validate says it. */}
-                    {mode === 'validate' && <DialogDescription>Nothing was written.</DialogDescription>}
+                    {mode === 'validate' && (
+                        <DialogDescription>{LABELS.editor.apply.nothing_written}</DialogDescription>
+                    )}
                 </DialogHeader>
 
                 {problem !== null && <Refusal problem={problem} />}
                 {problem === null && view === null && (
-                    <p className="text-sm text-muted-foreground">Checking the document.</p>
+                    <p className="text-sm text-muted-foreground">{LABELS.editor.apply.checking}</p>
                 )}
                 {view !== null && <PlanReading view={view} />}
 
                 <DialogFooter>
                     <Button variant="outline" onClick={() => onOpenChange(false)}>
-                        {mode === 'apply' ? 'Cancel' : 'Close'}
+                        {mode === 'apply' ? LABELS.action.cancel : LABELS.action.close}
                     </Button>
                     {mode === 'apply' && (
                         <Confirm
@@ -128,8 +129,8 @@ export function ApplyDialog({
 
 /** Why the plan on screen cannot be applied, or nothing when it can. */
 function unapplicable(view: PlanView | null): string | undefined {
-    if (view === null) return 'The document has not been checked yet.'
-    return view.applicable ? undefined : 'This document is not one the instance would accept.'
+    if (view === null) return LABELS.editor.apply.unchecked
+    return view.applicable ? undefined : LABELS.editor.apply.unacceptable
 }
 
 /** The button that writes, shut with the sentence saying why when it would not. */
@@ -137,7 +138,7 @@ function Confirm({ why, busy, onApply }: { why: string | undefined; busy: boolea
     return (
         <Refusable why={why}>
             <Button disabled={busy || why !== undefined} title={why} onClick={onApply}>
-                {CONFIRM_LABEL}
+                {LABELS.action.apply}
             </Button>
         </Refusable>
     )

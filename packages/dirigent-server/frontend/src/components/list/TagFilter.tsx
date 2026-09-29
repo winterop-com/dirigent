@@ -8,6 +8,7 @@ import {
     DropdownMenuContent,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { LABELS } from '@/lib/labels'
 
 /**
  * The one tag filter, which both listings that have one wear.
@@ -41,8 +42,10 @@ export function TagFilter({
             <DropdownMenu>
                 <DropdownMenuTrigger
                     render={
-                        <Button variant="outline" size="sm" aria-label="Filter by tag">
-                            {chosen.length === 0 ? 'Any tag' : 'Tag'}
+                        <Button variant="outline" size="sm" aria-label={LABELS.shell.tag_filter.label}>
+                            {chosen.length === 0
+                                ? LABELS.shell.tag_filter.any
+                                : LABELS.shell.tag_filter.chosen}
                             <ChevronDown aria-hidden />
                         </Button>
                     }
@@ -67,7 +70,7 @@ export function TagFilter({
                     key={tag}
                     type="button"
                     className="flex cursor-pointer items-center gap-1 rounded-sm border border-border px-1.5 py-0.5 font-mono text-xs text-muted-foreground hover:border-foreground/40 hover:text-foreground"
-                    aria-label={`Stop filtering by ${tag}`}
+                    aria-label={LABELS.shell.stop_filtering_by_tag(tag)}
                     onClick={() => {
                         onChange(chosen.filter((one) => one !== tag))
                     }}

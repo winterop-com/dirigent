@@ -15,6 +15,7 @@
 import { apiJson, apiSend, type Page } from '@/lib/api'
 import type { UserRole } from '@/lib/auth'
 import { headingOf, type Heading } from '@/lib/identity'
+import { LABELS } from '@/lib/labels'
 import { PAGE } from '@/lib/paging'
 
 /** One local account. `UserOut`. */
@@ -82,11 +83,7 @@ export const MIN_PASSWORD_LENGTH = 8
 export const USER_ROLES: readonly UserRole[] = ['admin', 'operator', 'viewer']
 
 /** What each role may do, in one line, which is what a menu row says under its name. */
-export const ROLE_HINTS: Record<UserRole, string> = {
-    admin: 'Everything, including accounts, tokens and connections.',
-    operator: 'Define, run and observe pipelines.',
-    viewer: 'Read what this instance holds, and change nothing.',
-}
+export const ROLE_HINTS: Record<UserRole, string> = LABELS.users.role_hint
 
 /** Where one page of the users listing is read from. */
 export function usersPath(after: string | null, limit: number = PAGE): string {

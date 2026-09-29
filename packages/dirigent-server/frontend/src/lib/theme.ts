@@ -19,6 +19,7 @@
  * module writes, so the store below starts on the palette the document is already painted in.
  */
 
+import { LABELS } from '@/lib/labels'
 import { createStore } from '@/lib/store'
 
 /** The name a palette is stored and written under: its `data-theme` value. */
@@ -32,9 +33,9 @@ export interface Palette {
 
 /** The palettes this build has, ordered quiet to loud. */
 export const PALETTES: Palette[] = [
-    { name: 'dirigent', label: 'Dirigent' },
-    { name: 'paper', label: 'Paper' },
-    { name: 'contrast', label: 'Contrast' },
+    { name: 'dirigent', label: LABELS.shell.colours.dirigent },
+    { name: 'paper', label: LABELS.shell.colours.paper },
+    { name: 'contrast', label: LABELS.shell.colours.contrast },
 ]
 
 export const DEFAULT_PALETTE: PaletteName = 'dirigent'

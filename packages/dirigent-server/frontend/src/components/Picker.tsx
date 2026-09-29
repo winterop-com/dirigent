@@ -13,6 +13,7 @@ import {
 import { Mark } from '@/components/Mark'
 import { InputGroupAddon, InputGroupButton } from '@/components/ui/input-group'
 import { matchesOption, type PickerOption } from '@/lib/picker'
+import { LABELS } from '@/lib/labels'
 
 type RootProps = ComponentProps<typeof Combobox>
 type ChangeDetails = Parameters<NonNullable<RootProps['onInputValueChange']>>[1]
@@ -112,7 +113,7 @@ export function Picker({
                 </ComboboxInput>
             </div>
             <ComboboxContent anchor={field}>
-                <ComboboxEmpty>No match.</ComboboxEmpty>
+                <ComboboxEmpty>{LABELS.shell.no_match}</ComboboxEmpty>
                 <ComboboxList>
                     {(option: PickerOption) => (
                         <ComboboxItem key={option.value} value={option}>

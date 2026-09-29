@@ -46,15 +46,16 @@ lint: ## Format and auto-fix (mutating)
 	$(UV) run ruff format .
 	$(UV) run ruff check --fix .
 
-static: ## Read-only gate without the tests: ruff, mypy, pyright, the UI type scale
+static: ## Read-only gate without the tests: ruff, mypy, pyright, the UI type scale and labels
 	$(UV) run ruff format --check .
 	$(UV) run ruff check .
 	$(UV) run mypy packages
 	$(UV) run pyright
-	# Reads .ts/.tsx as text and needs no node, so it holds the type scale in every lane,
-	# including the ones with no bun on them. `ui-lint` runs it too, for a UI contributor
-	# whose one command should cover everything.
+	# Both read .ts/.tsx as text and need no node, so they hold the type scale and the label
+	# catalogue in every lane, including the ones with no bun on them. `ui-lint` runs them too,
+	# for a UI contributor whose one command should cover everything.
 	$(UV) run python scripts/check_ui_classes.py
+	$(UV) run python scripts/check_ui_labels.py
 
 check: static ui-gate ## Read-only gate: the static one, the UI's, then the tests
 	$(UV) run pytest -n $(WORKERS)
@@ -129,13 +130,14 @@ ui-dev: ## Serve the UI with hot reload, proxying the API to a running `dg dev`
 ui-fmt: ## Format the UI sources (mutating)
 	$(FRONTEND_INSTALL) && bun run fmt
 
-ui-lint: ## Read-only UI gate: the formatter, oxlint, the type checker, and the type scale
+ui-lint: ## Read-only UI gate: the formatter, oxlint, the type checker, the type scale, the labels
 	$(FRONTEND_INSTALL) && bun run fmt:check
 	cd $(FRONTEND) && bun run lint
 	# tsc is the only thing that catches a type error: vite strips types without checking
 	# them, and oxlint cannot see them either.
 	cd $(FRONTEND) && bunx tsc -b
 	$(UV) run python scripts/check_ui_classes.py
+	$(UV) run python scripts/check_ui_labels.py
 
 ui-test: ## Run the UI unit lane (vitest, node environment, no DOM)
 	$(FRONTEND_INSTALL) && bun run test

@@ -12,6 +12,7 @@ import { useMayWrite } from '@/hooks/use-may-write'
 import { usePaged } from '@/hooks/use-paged'
 import { asJson, formatInstant, formatRelative, shortId } from '@/lib/format'
 import { headingOf, type Addressable } from '@/lib/identity'
+import { LABELS } from '@/lib/labels'
 import {
     deliveryView,
     firingView,
@@ -86,31 +87,31 @@ export function SchedulePanel({
                 description={schedule.description}
             >
                 <OwnerChip managed={schedule.managed} document={schedule.trigger_document} />
-                {schedule.paused && <Chip>paused</Chip>}
+                {schedule.paused && <Chip>{LABELS.state.armed.paused}</Chip>}
             </Head>
 
             <dl className="space-y-1.5">
-                <Fact label="Clock">
+                <Fact label={LABELS.word.clock}>
                     <Clock schedule={schedule} />
                 </Fact>
-                <Fact label="Timezone">{schedule.timezone}</Fact>
+                <Fact label={LABELS.word.timezone}>{schedule.timezone}</Fact>
                 {nextFireView(schedule).kind !== 'paused' && (
-                    <Fact label="Next">
+                    <Fact label={LABELS.word.next}>
                         <NextFire schedule={schedule} />
                     </Fact>
                 )}
                 {schedule.last_fired_at !== null && (
-                    <Fact label="Last fired">
+                    <Fact label={LABELS.triggers.schedule.last_fired}>
                         <span title={formatInstant(schedule.last_fired_at)}>
                             {formatRelative(schedule.last_fired_at)}
                         </span>
                     </Fact>
                 )}
                 {Object.keys(schedule.params).length > 0 && (
-                    <Fact label="Pinned parameters">
+                    <Fact label={LABELS.word.pinned_parameters}>
                         <div className="mt-1">
                             <JsonBlock
-                                title={`${schedule.code} · pinned parameters`}
+                                title={LABELS.triggers.pinned_title(schedule.code)}
                                 text={asJson(schedule.params)}
                                 className="max-h-64"
                             />
@@ -127,13 +128,13 @@ export function SchedulePanel({
                     title={write.why}
                     onClick={toggle}
                 >
-                    {schedule.paused ? 'Resume' : 'Pause'}
+                    {schedule.paused ? LABELS.triggers.resume : LABELS.triggers.pause}
                 </Button>
             </Refusable>
 
             <History
-                title="Firings"
-                empty="Not fired."
+                title={LABELS.triggers.schedule.firings}
+                empty={LABELS.triggers.schedule.not_fired}
                 loading={!state.read}
                 rows={state.rows}
                 keyOf={firingId}
@@ -187,18 +188,20 @@ export function WebhookPanel({
                 description={webhook.description}
             >
                 <OwnerChip managed={webhook.managed} document={webhook.trigger_document} />
-                {!webhook.active && <Chip>disabled</Chip>}
+                {!webhook.active && <Chip>{LABELS.state.armed.disabled}</Chip>}
             </Head>
 
             <dl className="space-y-1.5">
-                <Fact label="Endpoint">
-                    <span className="font-mono">POST {hookPath(webhook)}</span>
+                <Fact label={LABELS.word.endpoint}>
+                    <span className="font-mono">{LABELS.triggers.webhook.post(hookPath(webhook))}</span>
                 </Fact>
-                <Fact label="Signature">{signing(webhook)}</Fact>
-                <Fact label="Rate limit">{String(webhook.rate_limit_per_minute)} a minute</Fact>
-                <Fact label="Last delivery">
+                <Fact label={LABELS.word.signature}>{signing(webhook)}</Fact>
+                <Fact label={LABELS.word.rate_limit}>
+                    {LABELS.triggers.webhook.rate_a_minute(String(webhook.rate_limit_per_minute))}
+                </Fact>
+                <Fact label={LABELS.triggers.webhook.last_delivery}>
                     {webhook.last_delivery_at === null ? (
-                        <span className="text-faint">never</span>
+                        <span className="text-faint">{LABELS.word.never}</span>
                     ) : (
                         <span title={formatInstant(webhook.last_delivery_at)}>
                             {formatRelative(webhook.last_delivery_at)}
@@ -206,10 +209,10 @@ export function WebhookPanel({
                     )}
                 </Fact>
                 {Object.keys(webhook.params_from_payload).length > 0 && (
-                    <Fact label="Payload mapping">
+                    <Fact label={LABELS.word.payload_mapping}>
                         <div className="mt-1">
                             <JsonBlock
-                                title={`${webhook.code} · payload mapping`}
+                                title={LABELS.triggers.webhook.mapping_title(webhook.code)}
                                 text={asJson(webhook.params_from_payload)}
                                 className="max-h-64"
                             />
@@ -229,7 +232,7 @@ export function WebhookPanel({
                             act(setWebhookActive(pipeline, webhook.code, !webhook.active), onChanged)
                         }}
                     >
-                        {webhook.active ? 'Disable' : 'Enable'}
+                        {webhook.active ? LABELS.triggers.webhook.disable : LABELS.triggers.webhook.enable}
                     </Button>
                 </Refusable>
                 <Refusable why={write.why}>
@@ -242,18 +245,15 @@ export function WebhookPanel({
                             act(rotateWebhookToken(pipeline, webhook.code), onMinted)
                         }}
                     >
-                        Rotate token
+                        {LABELS.triggers.webhook.rotate}
                     </Button>
                 </Refusable>
             </div>
-            <p className="text-xs text-faint">
-                Rotating creates a new token and forgets the old one immediately. Every caller has to be
-                updated.
-            </p>
+            <p className="text-xs text-faint">{LABELS.triggers.webhook.rotate_warning}</p>
 
             <History
-                title="Deliveries"
-                empty="Nothing delivered."
+                title={LABELS.triggers.webhook.deliveries}
+                empty={LABELS.triggers.webhook.nothing_delivered}
                 loading={!state.read}
                 rows={state.rows}
                 keyOf={deliveryId}
@@ -299,21 +299,23 @@ export function WatchPanel({
                 description={watch.description}
             >
                 <OwnerChip managed={watch.managed} document={watch.trigger_document} />
-                {watch.paused && <Chip>paused</Chip>}
+                {watch.paused && <Chip>{LABELS.state.armed.paused}</Chip>}
             </Head>
 
             <dl className="space-y-1.5">
-                <Fact label="Step">
+                <Fact label={LABELS.word.step}>
                     <span className="font-mono">{watch.step}</span>
                 </Fact>
                 {watchView(watch).kind !== 'paused' && (
-                    <Fact label="Waiting">
+                    <Fact label={LABELS.triggers.watch.waiting}>
                         <WatchState watch={watch} />
                     </Fact>
                 )}
-                {watch.failures > 0 && <Fact label="Failures in a row">{String(watch.failures)}</Fact>}
+                {watch.failures > 0 && (
+                    <Fact label={LABELS.triggers.watch.failures}>{String(watch.failures)}</Fact>
+                )}
                 {watch.last_error !== null && (
-                    <Fact label="Last error">
+                    <Fact label={LABELS.triggers.watch.last_error}>
                         <span className="break-words text-critical">{watch.last_error}</span>
                         {watch.last_error_at !== null && (
                             <span
@@ -326,10 +328,10 @@ export function WatchPanel({
                     </Fact>
                 )}
                 {watch.cursor !== null && (
-                    <Fact label="Cursor">
+                    <Fact label={LABELS.word.cursor}>
                         <div className="mt-1">
                             <JsonBlock
-                                title={`${watch.code} · cursor`}
+                                title={LABELS.triggers.watch.cursor_title(watch.code)}
                                 text={asJson(watch.cursor)}
                                 className="max-h-64"
                             />
@@ -337,10 +339,10 @@ export function WatchPanel({
                     </Fact>
                 )}
                 {Object.keys(watch.params).length > 0 && (
-                    <Fact label="Pinned parameters">
+                    <Fact label={LABELS.word.pinned_parameters}>
                         <div className="mt-1">
                             <JsonBlock
-                                title={`${watch.code} · pinned parameters`}
+                                title={LABELS.triggers.pinned_title(watch.code)}
                                 text={asJson(watch.params)}
                                 className="max-h-64"
                             />
@@ -357,7 +359,7 @@ export function WatchPanel({
                     title={write.why}
                     onClick={toggle}
                 >
-                    {watch.paused ? 'Resume' : 'Pause'}
+                    {watch.paused ? LABELS.triggers.resume : LABELS.triggers.pause}
                 </Button>
             </Refusable>
         </div>
@@ -434,7 +436,7 @@ function History<T>({
     return (
         <div className="space-y-2">
             <p className="text-xs text-muted-foreground">{title}</p>
-            {loading && <p className="text-xs text-faint">Reading from the server</p>}
+            {loading && <p className="text-xs text-faint">{LABELS.triggers.history.loading}</p>}
             {!loading && rows.length === 0 && <p className="text-xs text-faint">{empty}</p>}
             <ul className="divide-y divide-border">
                 {rows.map((row) => (
@@ -451,7 +453,7 @@ function History<T>({
                     disabled={reading}
                     onClick={onMore}
                 >
-                    {reading ? 'Reading' : 'Load more'}
+                    {reading ? LABELS.triggers.history.more_busy : LABELS.triggers.history.more}
                 </Button>
             )}
         </div>
@@ -467,7 +469,7 @@ function Firing({ firing }: { firing: FiringOut }) {
                 <Dot tone={view.tone} />
                 <span>{view.label}</span>
                 <span className="text-faint" title={formatInstant(firing.scheduled_for)}>
-                    due {formatRelative(firing.scheduled_for)}
+                    {LABELS.triggers.schedule.due(formatRelative(firing.scheduled_for))}
                 </span>
                 {view.runId !== null && (
                     <Link className="font-mono text-primary-ink hover:underline" to={`/runs/${view.runId}`}>
@@ -499,7 +501,9 @@ function Delivery({ delivery }: { delivery: DeliveryOut }) {
                     </Link>
                 )}
                 {delivery.source !== null && (
-                    <span className="truncate text-faint">from {delivery.source}</span>
+                    <span className="truncate text-faint">
+                        {LABELS.triggers.webhook.from(delivery.source)}
+                    </span>
                 )}
             </span>
             {view.reason !== null && (

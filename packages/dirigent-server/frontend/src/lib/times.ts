@@ -10,6 +10,7 @@
  * the machine wrote in, and every instant on this API is UTC.
  */
 
+import { LABELS } from '@/lib/labels'
 import { createStore } from '@/lib/store'
 
 /** Which clock instants are read against. */
@@ -20,8 +21,8 @@ export const TIMES_MODES: readonly TimesMode[] = ['local', 'utc']
 
 /** What each setting is called on screen. */
 export const TIMES_LABELS: Record<TimesMode, string> = {
-    local: 'Local',
-    utc: 'UTC',
+    local: LABELS.settings.times_local,
+    utc: LABELS.measure.utc,
 }
 
 export const DEFAULT_TIMES: TimesMode = 'local'
@@ -80,7 +81,7 @@ export function currentZone(): string | undefined {
 
 /** What a rendered instant is marked with, so a UTC reading is never mistaken for a local one. */
 export function zoneSuffix(mode: TimesMode): string {
-    return mode === 'utc' ? ' UTC' : ''
+    return mode === 'utc' ? ` ${LABELS.measure.utc}` : ''
 }
 
 /**
@@ -90,11 +91,11 @@ export function zoneSuffix(mode: TimesMode): string {
  * stated beside it; a rendered instant says it in its own suffix and needs none of this.
  */
 export function zoneLabel(mode: TimesMode): string {
-    if (mode === 'utc') return 'UTC'
+    if (mode === 'utc') return LABELS.measure.utc
     try {
-        return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+        return Intl.DateTimeFormat().resolvedOptions().timeZone || LABELS.measure.utc
     } catch {
-        return 'UTC'
+        return LABELS.measure.utc
     }
 }
 

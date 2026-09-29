@@ -2,6 +2,7 @@ import { Suspense, lazy, type ComponentProps } from 'react'
 
 import type { CodeEditor as Editor } from '@/components/pipeline/CodeEditor'
 import { whenIdle } from '@/lib/idle'
+import { LABELS } from '@/lib/labels'
 import { cn } from '@/lib/utils'
 
 /**
@@ -39,7 +40,7 @@ export function CodePane({ className, ...rest }: ComponentProps<typeof Editor>) 
         <Suspense
             fallback={
                 <p className={cn('h-full min-h-64 w-full p-4 text-sm text-muted-foreground', className)}>
-                    Loading the editor.
+                    {LABELS.editor.source.loading_editor}
                 </p>
             }
         >

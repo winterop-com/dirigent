@@ -18,6 +18,7 @@
 import type { Page } from '@/lib/api'
 import { connectionsHealth, healthOf, type ConnectionOut } from '@/lib/connections'
 import { titleOf } from '@/lib/identity'
+import { LABELS } from '@/lib/labels'
 import type { PipelineOut } from '@/lib/pipelines'
 import type { RunOut } from '@/lib/runs'
 import type { RunStatus } from '@/lib/status'
@@ -78,7 +79,9 @@ export function bucketByStatus(runs: readonly RunOut[]): Record<string, number> 
  * Nothing at all in any of them is not a sentence, so the caller says what an empty set means.
  */
 export function summarise(counts: readonly (readonly [number, string])[]): string | null {
-    const said = counts.filter(([count]) => count > 0).map(([count, noun]) => `${String(count)} ${noun}`)
+    const said = counts
+        .filter(([count]) => count > 0)
+        .map(([count, noun]) => LABELS.dashboard.counted(String(count), noun))
     return said.length === 0 ? null : `${said.join(', ')}.`
 }
 
@@ -89,10 +92,10 @@ export function summarise(counts: readonly (readonly [number, string])[]): strin
  * looking for is the one nearest the full stop.
  */
 const SETTLED: readonly (readonly [RunStatus, string])[] = [
-    ['succeeded', 'succeeded'],
-    ['cancelled', 'cancelled'],
-    ['completed_with_errors', 'finished with errors'],
-    ['failed', 'failed'],
+    ['succeeded', LABELS.state.run.succeeded.chip],
+    ['cancelled', LABELS.state.run.cancelled.chip],
+    ['completed_with_errors', LABELS.state.run.completed_with_errors.sentence],
+    ['failed', LABELS.state.run.failed.chip],
 ]
 
 /**
@@ -107,7 +110,9 @@ export function dayTile(runs: Page<RunOut>): Tile {
     const count = (status: RunStatus) => buckets[status] ?? 0
     const settled = summarise(SETTLED.map(([status, noun]) => [count(status), noun] as const))
     const note =
-        runs.items.length === 0 ? 'Nothing has run in the last day.' : (settled ?? 'Nothing has finished.')
+        runs.items.length === 0
+            ? LABELS.dashboard.tile.day_empty
+            : (settled ?? LABELS.dashboard.tile.day_none_settled)
     const tone: TileTone =
         runs.items.length === 0
             ? 'neutral'
@@ -118,7 +123,7 @@ export function dayTile(runs: Page<RunOut>): Tile {
                 : count('succeeded') > 0
                   ? 'good'
                   : 'neutral'
-    return { id: 'day', label: 'Last 24 hours', value: counted(runs), note, tone, to: '/runs' }
+    return { id: 'day', label: LABELS.dashboard.tile.day, value: counted(runs), note, tone, to: '/runs' }
 }
 
 /** What this instance is doing at this moment, out of the same page. */
@@ -128,12 +133,12 @@ export function nowTile(runs: Page<RunOut>): Tile {
     const queued = buckets.queued ?? 0
     const note =
         summarise([
-            [running, 'running'],
-            [queued, 'waiting to be claimed'],
-        ]) ?? 'Nothing is running and nothing is waiting.'
+            [running, LABELS.state.run.running.chip],
+            [queued, LABELS.dashboard.tile.waiting],
+        ]) ?? LABELS.dashboard.nothing_live
     return {
         id: 'now',
-        label: 'Right now',
+        label: LABELS.dashboard.right_now,
         value: String(running + queued),
         note,
         tone: running + queued === 0 ? 'neutral' : 'info',
@@ -160,18 +165,21 @@ export function workersTile(workers: Page<WorkerOut>): Tile {
     if (workers.items.length === 0) {
         return {
             id: 'workers',
-            label: 'Workers',
+            label: LABELS.screen.workers.name,
             value: '0',
-            note: 'No worker has registered with this instance.',
+            note: LABELS.dashboard.tile.workers_empty,
             tone: 'warning',
             to: '/admin/workers',
         }
     }
     return {
         id: 'workers',
-        label: 'Workers',
-        value: `${String(alive)} of ${counted(workers)}`,
-        note: worst === null ? 'Every worker is answering.' : `${concernNote(worst.worker, worst.concern)}.`,
+        label: LABELS.screen.workers.name,
+        value: LABELS.dashboard.of(String(alive), counted(workers)),
+        note:
+            worst === null
+                ? LABELS.dashboard.tile.workers_well
+                : `${concernNote(worst.worker, worst.concern)}.`,
         tone: worst === null ? 'good' : concernTone(worst.concern),
         to: '/admin/workers',
     }
@@ -191,9 +199,9 @@ export function connectionsTile(connections: Page<ConnectionOut>): Tile {
     if (rows.length === 0) {
         return {
             id: 'connections',
-            label: 'Connections',
+            label: LABELS.screen.connections.name,
             value: '0',
-            note: 'This instance holds no connections.',
+            note: LABELS.dashboard.tile.connections_empty,
             tone: 'neutral',
             to: '/connections',
         }
@@ -201,16 +209,25 @@ export function connectionsTile(connections: Page<ConnectionOut>): Tile {
     const undecided = unverified + unchecked
     const note =
         failing !== null
-            ? `${titleOf(failing)} did not answer${failing.last_check_detail === null ? '' : `: ${failing.last_check_detail}`}`
+            ? LABELS.dashboard.tile.connection_failed(
+                  titleOf(failing),
+                  LABELS.state.health.failed.sentence,
+                  failing.last_check_detail === null
+                      ? ''
+                      : LABELS.dashboard.tile.said(failing.last_check_detail),
+              )
             : unverified > 0
-              ? `${String(unverified)} could not be verified.`
+              ? LABELS.dashboard.tile.unverified(String(unverified))
               : unchecked > 0
-                ? `${String(unchecked)} ${unchecked === 1 ? 'has' : 'have'} never been checked.`
-                : 'Every connection answered when it was last checked.'
+                ? LABELS.dashboard.tile.never_checked(
+                      String(unchecked),
+                      unchecked === 1 ? LABELS.dashboard.tile.has : LABELS.dashboard.tile.have,
+                  )
+                : LABELS.dashboard.tile.connections_well
     return {
         id: 'connections',
-        label: 'Connections',
-        value: `${String(healthy)} of ${counted(connections)}`,
+        label: LABELS.screen.connections.name,
+        value: LABELS.dashboard.of(String(healthy), counted(connections)),
         note,
         tone: failing !== null ? 'critical' : undecided > 0 ? 'neutral' : 'good',
         to: '/connections',
@@ -234,12 +251,15 @@ export function schedulesTile(pipelines: Page<PipelineOut>): Tile {
     const schedules = scheduled.reduce((sum, row) => sum + row.schedules, 0)
     return {
         id: 'schedules',
-        label: 'Schedules',
+        label: LABELS.dashboard.tile.schedules,
         value: atLeast(schedules, truncated),
         note:
             schedules === 0
-                ? 'Nothing on this instance fires on its own.'
-                : `Across ${atLeast(scheduled.length, truncated)} of ${counted(pipelines)} pipelines.`,
+                ? LABELS.dashboard.tile.schedules_empty
+                : LABELS.dashboard.tile.schedules_across(
+                      atLeast(scheduled.length, truncated),
+                      counted(pipelines),
+                  ),
         tone: 'neutral',
         to: '/triggers',
     }

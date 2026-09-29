@@ -15,6 +15,7 @@ import { StepNode, type DocumentNode } from '@/components/pipeline/StepNode'
 import { useStore } from '@/hooks/use-store'
 import type { JsonMap } from '@/lib/api'
 import type { BlockEntry } from '@/lib/blocks'
+import { LABELS } from '@/lib/labels'
 import {
     forgetPlacements,
     heldLayout,
@@ -67,11 +68,6 @@ import { stepMissing, type Unmet } from '@/lib/requirements'
 
 /** The one node kind this graph draws. Built once: React Flow re-mounts every node on a new object. */
 const NODE_TYPES = { step: StepNode }
-
-export const RELAYOUT_LABEL = 'Re-layout'
-
-export const ADD_AFTER_LABEL = 'Add step after'
-export const DELETE_STEP_LABEL = 'Delete step'
 
 /** What another pipeline's arrangement amounts to here: nothing, and the same nothing each time. */
 const NO_PLACEMENTS: Placements = {}
@@ -200,7 +196,7 @@ function EditableGraph({
                 selected: node.id === selected,
                 data: {
                     ...stepHeading(document, node.id),
-                    block: blockOf(document, node.id) ?? 'no block',
+                    block: blockOf(document, node.id) ?? LABELS.editor.no_block,
                     edited: stepEdited(edits, node.id),
                     missing: stepMissing(unmet, node.id),
                     fanOut: fan.fanOut,
@@ -364,9 +360,9 @@ function StepMenuAt({
             />
             <DropdownMenuContent align="start" className="w-56">
                 <p className="truncate px-2 py-1.5 font-mono text-xs text-faint">{step}</p>
-                <DropdownMenuItem onClick={onAddAfter}>{ADD_AFTER_LABEL}</DropdownMenuItem>
+                <DropdownMenuItem onClick={onAddAfter}>{LABELS.editor.canvas.add_after}</DropdownMenuItem>
                 <DropdownMenuItem className="destructive-action" onClick={onRemove}>
-                    {DELETE_STEP_LABEL}
+                    {LABELS.editor.canvas.delete_step}
                 </DropdownMenuItem>
             </DropdownMenuContent>
         </DropdownMenu>

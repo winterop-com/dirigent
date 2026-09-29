@@ -1,3 +1,4 @@
+import { LABELS } from '@/lib/labels'
 import type { PlanView } from '@/lib/pipeline-plan'
 
 /**
@@ -25,7 +26,7 @@ export function PlanReading({ view }: { view: PlanView }) {
             {view.issues.length > 0 && (
                 <div className="space-y-1 rounded-md border border-critical/40 p-2" role="alert">
                     <p className="text-xs font-medium text-critical">
-                        {view.issues.length} issue{view.issues.length === 1 ? '' : 's'} — apply will refuse
+                        {LABELS.editor.plan.issues_refuse(view.issues.length)}
                     </p>
                     <ul className="space-y-0.5 text-xs">
                         {view.issues.map((issue) => (
@@ -38,7 +39,7 @@ export function PlanReading({ view }: { view: PlanView }) {
                 </div>
             )}
             {view.issues.length === 0 && view.changes.length === 0 && view.tone !== 'critical' && (
-                <p className="text-xs text-muted-foreground">No changes from the stored version.</p>
+                <p className="text-xs text-muted-foreground">{LABELS.editor.plan.no_changes}</p>
             )}
         </div>
     )

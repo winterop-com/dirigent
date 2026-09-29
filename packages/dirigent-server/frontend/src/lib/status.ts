@@ -11,6 +11,8 @@
  * backwards. It is stated once here and read everywhere else.
  */
 
+import { LABELS } from '@/lib/labels'
+
 /** Where a run is. `RunStatus` in dirigent_client.enums. */
 export type RunStatus = 'queued' | 'running' | 'succeeded' | 'completed_with_errors' | 'failed' | 'cancelled'
 
@@ -121,7 +123,19 @@ export function statusTokens(status: string): { '--chip': string; '--chip-ink': 
     return { '--chip': `var(--status-${name})`, '--chip-ink': `var(--status-${name}-ink)` }
 }
 
-/** A status as a person reads it: the wire's underscores are the wire's, not a reader's. */
+/** What each state of the two machines is called, keyed by the wire's own value. */
+const WORDS: Readonly<Record<string, string>> = {
+    ...Object.fromEntries(Object.entries(LABELS.state.run).map(([status, forms]) => [status, forms.chip])),
+    ...LABELS.state.attempt,
+}
+
+/**
+ * A status as a person reads it.
+ *
+ * A state with no entry is spelled from the wire, underscores and all. That is the one place in
+ * the app where a word a person reads was not written in the catalogue, and it cannot be
+ * otherwise: a plugin's state, and a notification's `sending` and `sent`, are not this table's.
+ */
 export function statusLabel(status: string): string {
-    return status.replaceAll('_', ' ')
+    return WORDS[status] ?? status.replaceAll('_', ' ')
 }

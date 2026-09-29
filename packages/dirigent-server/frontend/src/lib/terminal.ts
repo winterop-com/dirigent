@@ -17,6 +17,7 @@
  */
 
 import { formatClock } from '@/lib/format'
+import { LABELS } from '@/lib/labels'
 import type { RunDetailState } from '@/lib/run-detail'
 import type { LogEntryOut } from '@/lib/runs'
 import { runSettled, statusLabel, type LogLevel } from '@/lib/status'
@@ -90,14 +91,6 @@ export function setTerminalHeight(height: number): void {
  * array is what "at least this level" compares.
  */
 export const LEVELS: readonly LogLevel[] = ['debug', 'info', 'warning', 'error']
-
-/** What each threshold is called on the control, said as what it lets through. */
-export const LEVEL_LABELS: Record<LogLevel, string> = {
-    debug: 'All levels',
-    info: 'Info and up',
-    warning: 'Warnings and up',
-    error: 'Errors only',
-}
 
 /** Whether a line's own level is at or above the threshold in front of the reader. */
 export function atLeast(level: string, threshold: LogLevel): boolean {
@@ -207,8 +200,8 @@ export function countLines(entries: readonly LogEntryOut[]): number {
  */
 export function lineCount(shown: number, total: number): string | null {
     if (total === 0) return null
-    const lines = total === 1 ? 'line' : 'lines'
-    return `${String(shown)} of ${String(total)} ${lines}`
+    const say = total === 1 ? LABELS.terminal.count_one : LABELS.terminal.count_many
+    return say(String(shown), String(total))
 }
 
 /**
@@ -224,14 +217,14 @@ export function lineCount(shown: number, total: number): string | null {
  * own state word. A console opened on a run this screen has not read states the end alone.
  */
 export function endNote(status: string | null): string {
-    if (status === null || !runSettled(status)) return 'end of log'
-    return `run ${statusLabel(status)}`
+    if (status === null || !runSettled(status)) return LABELS.terminal.end_of_log
+    return LABELS.terminal.ended(statusLabel(status))
 }
 
 export function emptyNote(filters: LineFilters, total: number, settled = false): string {
-    if (total > 0 || narrowed(filters)) return 'No line matches these filters.'
-    if (settled) return 'This run logged nothing.'
-    return 'Nothing logged.'
+    if (total > 0 || narrowed(filters)) return LABELS.terminal.empty_filtered
+    if (settled) return LABELS.terminal.empty_settled
+    return LABELS.terminal.empty
 }
 
 /**

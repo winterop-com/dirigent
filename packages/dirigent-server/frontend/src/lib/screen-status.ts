@@ -9,6 +9,7 @@
  * pure function testable in Node, and the bar stays one row whatever it holds.
  */
 
+import { LABELS } from '@/lib/labels'
 import type { StreamState } from '@/lib/run-detail'
 import { createStore } from '@/lib/store'
 
@@ -52,11 +53,11 @@ export function clearScreenStatus(): void {
 export function streamNote(stream: StreamState): { note: string | null; tone: StatusTone } {
     switch (stream) {
         case 'connecting':
-            return { note: 'connecting', tone: 'quiet' }
+            return { note: LABELS.state.stream.connecting, tone: 'quiet' }
         case 'live':
-            return { note: 'live', tone: 'live' }
+            return { note: LABELS.state.stream.live, tone: 'live' }
         case 'reconnecting':
-            return { note: 'reconnecting', tone: 'warn' }
+            return { note: LABELS.state.stream.reconnecting, tone: 'warn' }
         case 'ended':
             return { note: null, tone: 'quiet' }
     }

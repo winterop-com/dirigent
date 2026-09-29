@@ -16,6 +16,7 @@ import { refreshSeconds } from '@/lib/refresh'
 import { usePaged } from '@/hooks/use-paged'
 import { useRead } from '@/hooks/use-read'
 import { elapsedBetween, formatDuration, formatInstant, formatRelative } from '@/lib/format'
+import { LABELS } from '@/lib/labels'
 import { LIST_GROUP, registerActions } from '@/lib/palette'
 import { readPipelineNames, readTagsOffered } from '@/lib/pipelines'
 import {
@@ -90,7 +91,7 @@ export function Runs() {
         return registerActions([
             {
                 id: 'runs:failed',
-                title: 'Show only the runs that failed',
+                title: LABELS.runs.filter_failed,
                 group: LIST_GROUP,
                 screen: true,
                 icon: CircleX,
@@ -101,7 +102,7 @@ export function Runs() {
             },
             {
                 id: 'runs:day',
-                title: 'Show only the last 24 hours of runs',
+                title: LABELS.runs.filter_day,
                 group: LIST_GROUP,
                 screen: true,
                 icon: Clock,
@@ -112,7 +113,7 @@ export function Runs() {
             },
             {
                 id: 'runs:clear',
-                title: 'Clear every run filter',
+                title: LABELS.runs.filter_clear,
                 group: LIST_GROUP,
                 screen: true,
                 icon: FilterX,
@@ -124,7 +125,7 @@ export function Runs() {
             },
             {
                 id: 'runs:reload',
-                title: 'Read the runs listing again',
+                title: LABELS.runs.reload,
                 group: LIST_GROUP,
                 screen: true,
                 icon: RefreshCw,
@@ -137,14 +138,16 @@ export function Runs() {
     return (
         <>
             <PageHeader
-                title="Runs"
+                title={LABELS.screen.runs.name}
                 aside={
                     <>
                         <ApiChip tag="runs" />
                         {state.fresh > 0 && (
                             <Button variant="outline" size="sm" onClick={note}>
                                 <ArrowUp aria-hidden />
-                                {state.fresh === 1 ? '1 new run' : `${String(state.fresh)} new runs`}
+                                {state.fresh === 1
+                                    ? LABELS.runs.fresh_one
+                                    : LABELS.runs.fresh_many(String(state.fresh))}
                             </Button>
                         )}
                     </>
@@ -152,25 +155,28 @@ export function Runs() {
             />
 
             <div className="mb-4 flex flex-wrap items-center gap-2">
-                <SearchField value={typed} label="Filter runs by pipeline" onChange={setTyped} />
+                <SearchField value={typed} label={LABELS.runs.filter_pipeline} onChange={setTyped} />
                 <Choice
-                    label="Status"
+                    label={LABELS.word.status}
                     value={filters.status}
                     options={RUN_STATUSES.map((status) => ({
                         value: status,
                         label: statusLabel(status),
                         mark: <StatusChip status={status} />,
                     }))}
-                    anything="Any status"
+                    anything={LABELS.runs.any_status}
                     onChange={(status) => {
                         setFilters((current) => ({ ...current, status }))
                     }}
                 />
                 <Choice
-                    label="Window"
+                    label={LABELS.word.window}
                     value={filters.since}
-                    options={WINDOWS.map((window) => ({ value: window, label: `Last ${window}` }))}
-                    anything="All of history"
+                    options={WINDOWS.map((window) => ({
+                        value: window,
+                        label: LABELS.runs.window_option(window),
+                    }))}
+                    anything={LABELS.runs.any_window}
                     onChange={(since) => {
                         setFilters((current) => ({ ...current, since }))
                     }}
@@ -198,7 +204,7 @@ export function Runs() {
                     reading={state.reading}
                     next={state.next}
                     onMore={more}
-                    noun="runs"
+                    noun={LABELS.runs.row_noun}
                 />
             </PageState>
         </>
@@ -215,7 +221,7 @@ function runColumns(names: ReadonlyMap<string, string | null> | null): Column<Ru
     return [
         {
             id: 'pipeline',
-            header: 'Pipeline',
+            header: LABELS.word.pipeline,
             kind: 'title',
             cell: (run) => <PipelineRef code={run.pipeline} name={names?.get(run.pipeline) ?? null} />,
         },
@@ -226,7 +232,7 @@ function runColumns(names: ReadonlyMap<string, string | null> | null): Column<Ru
             // Unbounded, that sentence is the widest thing on the screen and the table it is in
             // stops fitting anywhere.
             id: 'status',
-            header: 'Status',
+            header: LABELS.word.status,
             kind: 'prose',
             className: 'min-w-64',
             cell: (run) => {
@@ -246,7 +252,7 @@ function runColumns(names: ReadonlyMap<string, string | null> | null): Column<Ru
         },
         {
             id: 'trigger',
-            header: 'Trigger',
+            header: LABELS.word.trigger,
             kind: 'prose',
             cell: (run) => {
                 const started = triggerSummary(run)
@@ -261,7 +267,7 @@ function runColumns(names: ReadonlyMap<string, string | null> | null): Column<Ru
         },
         {
             id: 'started',
-            header: 'Started',
+            header: LABELS.runs.column_started,
             className: 'text-xs',
             cell: (run) => (
                 <span
@@ -274,7 +280,7 @@ function runColumns(names: ReadonlyMap<string, string | null> | null): Column<Ru
         },
         {
             id: 'duration',
-            header: 'Duration',
+            header: LABELS.word.duration,
             className: 'text-right font-mono text-xs',
             // A run still going has no duration to state.
             cell: (run) => {
@@ -287,7 +293,7 @@ function runColumns(names: ReadonlyMap<string, string | null> | null): Column<Ru
 
 /** What a run has to say about how it went: the step it died in, and the refusal itself. */
 function detailOf(run: RunOut): string | null {
-    const said = [run.failed_step === null ? null : 'at ' + run.failed_step, run.error]
+    const said = [run.failed_step === null ? null : LABELS.runs.failed_at(run.failed_step), run.error]
         .filter((part) => part !== null)
         .join(' ')
     return said === '' ? null : said

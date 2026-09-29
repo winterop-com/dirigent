@@ -13,6 +13,7 @@
  */
 
 import { ApiError, apiSend, type Problem } from '@/lib/api'
+import { LABELS } from '@/lib/labels'
 import { MIN_PASSWORD_LENGTH } from '@/lib/users'
 
 /** What the form holds. */
@@ -34,7 +35,7 @@ export const NO_PASSWORD: PasswordForm = { current: '', next: '' }
 function refused(detail: string): Problem {
     return {
         status: 0,
-        title: 'Not accepted',
+        title: LABELS.refusal.password.title,
         detail,
         code: 'auth.weak_password',
         params: {},
@@ -45,11 +46,11 @@ function refused(detail: string): Problem {
 
 /** What the form itself refuses, or nothing when there is a request to make. */
 export function formProblem(form: PasswordForm): Problem | null {
-    if (form.current === '') return refused('Type the password this account signs in with now.')
+    if (form.current === '') return refused(LABELS.refusal.password.current_missing)
     if (form.next.length < MIN_PASSWORD_LENGTH) {
-        return refused(`A password must be at least ${String(MIN_PASSWORD_LENGTH)} characters.`)
+        return refused(LABELS.refusal.password.too_short(String(MIN_PASSWORD_LENGTH)))
     }
-    if (form.next === form.current) return refused('The new password is the one already in use.')
+    if (form.next === form.current) return refused(LABELS.refusal.password.unchanged)
     return null
 }
 
@@ -61,7 +62,7 @@ export function passwordBody(form: PasswordForm): PasswordChangeRequest {
 /** What a failed change leaves on screen: the server's problem document, or what arrived instead. */
 export function refusalOf(error: unknown): Problem {
     if (error instanceof ApiError) return error.problem
-    return refused('The server did not answer. The password has not been changed.')
+    return refused(LABELS.refusal.password.no_answer)
 }
 
 /**

@@ -18,24 +18,18 @@ import {
     type Requirement,
 } from '@/lib/examples'
 import { headingOf } from '@/lib/identity'
+import { LABELS } from '@/lib/labels'
 import { STARTER_TAG } from '@/lib/starters'
 import { cn } from '@/lib/utils'
 
 /** What the source pane is called, which is the window's title and what a test asks for. */
-const SOURCE_LABEL = 'The document'
+const SOURCE_LABEL = LABELS.examples.source_pane
 
 /** What the button that copies a starter into the editor says, here and in the picker. */
-export const USE_AS_STARTER = 'Use as starter'
+export const USE_AS_STARTER = LABELS.examples.use_as_starter
 
-/** What a requirement is called on its own line, in the reader's word rather than the wire's. */
-const NOUNS: Readonly<Record<Requirement['kind'], string>> = {
-    connection: 'connection',
-    schema: 'schema',
-    block: 'block',
-    pipeline: 'pipeline',
-    storage: 'storage',
-    worker: 'worker tag',
-}
+/** Named here so a kind the catalogue has no word for is a compile error rather than a blank. */
+const NOUNS: Readonly<Record<Requirement['kind'], string>> = LABELS.examples.requirement.line
 
 /**
  * One example read beside the listing: what it is, what it needs, and the text a copy copies.
@@ -83,7 +77,7 @@ export function ExamplePanel({
                 )}
                 {(example.starter || carries !== null) && (
                     <p className="flex flex-wrap items-center gap-2 pt-0.5">
-                        {example.starter && <Badge variant="outline">Starter</Badge>}
+                        {example.starter && <Badge variant="outline">{LABELS.examples.starter_badge}</Badge>}
                         {carries !== null && <span className="text-xs text-muted-foreground">{carries}</span>}
                     </p>
                 )}
@@ -100,24 +94,25 @@ export function ExamplePanel({
                 </p>
             )}
 
-            <Section title="Facts">
+            <Section title={LABELS.examples.facts}>
                 <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
-                    <Fact term="plugin" detail={example.plugin} />
-                    <Fact term="shelf" detail={example.shelf === '' ? 'the root' : example.shelf} />
+                    <Fact term={LABELS.examples.fact.plugin} detail={example.plugin} />
+                    <Fact
+                        term={LABELS.examples.fact.shelf}
+                        detail={example.shelf === '' ? LABELS.examples.root_shelf : example.shelf}
+                    />
                     {detail.value !== null && (
                         <Fact
-                            term="path"
+                            term={LABELS.examples.fact.path}
                             detail={<span className="font-mono break-all">{detail.value.path}</span>}
                         />
                     )}
                 </dl>
             </Section>
 
-            <Section title="Requires">
+            <Section title={LABELS.word.requires}>
                 {items.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">
-                        This document requires nothing in particular of an instance.
-                    </p>
+                    <p className="text-xs text-muted-foreground">{LABELS.examples.requires_nothing}</p>
                 ) : (
                     <ul className="space-y-1 text-xs">
                         {items.map((item) => (
@@ -131,7 +126,7 @@ export function ExamplePanel({
                 )}
             </Section>
 
-            <Section title="Source">
+            <Section title={LABELS.word.source}>
                 {!detail.read || detail.problem !== null ? (
                     <PageState loading={!detail.read} problem={detail.problem} empty={false}>
                         {null}
@@ -144,7 +139,7 @@ export function ExamplePanel({
                             <CodePane
                                 value={source}
                                 path={`example-${code}-window`}
-                                label={`${SOURCE_LABEL}, in a window`}
+                                label={LABELS.examples.source_pane_windowed(SOURCE_LABEL)}
                                 className="min-h-0 flex-1"
                                 readOnly
                             />
@@ -179,8 +174,8 @@ export function ExamplePanel({
 
 /** What one requirement's state is called: held, not here, or nothing here can say. */
 function wordOf(item: Requirement): string {
-    if (item.met === null) return 'not checked'
-    return item.met ? 'here' : 'missing'
+    if (item.met === null) return LABELS.examples.requirement.unchecked
+    return item.met ? LABELS.examples.requirement.here : LABELS.examples.requirement.missing_word
 }
 
 /** The ink that state is read in, which is the one the connections column already uses. */

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { useStore } from '@/hooks/use-store'
 import { formatClock } from '@/lib/format'
+import { LABELS } from '@/lib/labels'
 import { itemOfEntry } from '@/lib/run-detail'
 import { fieldsText } from '@/lib/terminal'
 import { followTails } from '@/lib/preferences'
@@ -83,7 +84,7 @@ export function LogPane({
         >
             {entries.length === 0 ? (
                 <p className="text-xs text-faint">
-                    {settled === true ? 'This step wrote nothing.' : 'This step has written nothing.'}
+                    {settled === true ? LABELS.terminal.step_empty_settled : LABELS.terminal.step_empty}
                 </p>
             ) : (
                 entries.map((entry) => {

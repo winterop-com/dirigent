@@ -4,6 +4,7 @@ import { PageState } from '@/components/PageState'
 import { useStore } from '@/hooks/use-store'
 import type { Problem } from '@/lib/api'
 import { authStore, isAdmin } from '@/lib/auth'
+import { LABELS } from '@/lib/labels'
 
 /**
  * What a reader who is not an admin is told, in the shape every refusal in this app takes.
@@ -14,12 +15,10 @@ import { authStore, isAdmin } from '@/lib/auth'
  */
 export const ADMIN_REFUSAL: Problem = {
     status: 403,
-    title: 'Forbidden',
+    title: LABELS.refusal.admin_only.title,
     code: 'server.forbidden',
     params: {},
-    detail:
-        "This screen is an admin's. Operators may define, run and observe pipelines; managing " +
-        "accounts, tokens and connections is an admin's.",
+    detail: LABELS.refusal.admin_only.detail,
     problems: [],
     instance: null,
 }

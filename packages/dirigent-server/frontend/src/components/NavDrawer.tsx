@@ -6,14 +6,15 @@ import { RailEntry } from '@/components/Rail'
 import { Button } from '@/components/ui/button'
 import { useStore } from '@/hooks/use-store'
 import { authStore } from '@/lib/auth'
+import { LABELS } from '@/lib/labels'
 import { DASHBOARD_PATH, sectionsFor } from '@/lib/nav'
 import { cn } from '@/lib/utils'
 
-export const OPEN_NAV_LABEL = 'Open navigation'
-export const CLOSE_NAV_LABEL = 'Close navigation'
+export const OPEN_NAV_LABEL = LABELS.shell.open_nav
+export const CLOSE_NAV_LABEL = LABELS.shell.close_nav
 
 /** What the drawer's foot offers, which is the cell the status bar carries above the breakpoint. */
-const SETTINGS_LABEL = 'Settings'
+const SETTINGS_LABEL = LABELS.shell.settings
 
 /** How many frames the drawer asks for focus before it gives up, about a second at 60Hz. */
 const FOCUS_FRAMES = 60
@@ -105,7 +106,7 @@ export function NavDrawer({
             />
             <aside
                 data-nav-drawer
-                aria-label="Navigation"
+                aria-label={LABELS.shell.nav_region}
                 className={cn(
                     'fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col border-r border-border-strong bg-sidebar text-sidebar-foreground transition-[translate] duration-200',
                     open ? 'translate-x-0' : 'invisible -translate-x-full',
@@ -114,13 +115,15 @@ export function NavDrawer({
                 <div className="flex h-shell-top shrink-0 items-center gap-2 px-3">
                     <NavLink
                         to={DASHBOARD_PATH}
-                        aria-label="dirigent"
+                        aria-label={LABELS.shell.wordmark}
                         className="control-link flex items-center gap-2 rounded-md focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
                     >
                         <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
                             <Waypoints className="size-4" aria-hidden />
                         </span>
-                        <span className="text-base font-semibold tracking-tight">dirigent</span>
+                        <span className="text-base font-semibold tracking-tight">
+                            {LABELS.shell.wordmark}
+                        </span>
                     </NavLink>
                     <Button
                         ref={close}

@@ -16,6 +16,7 @@ import { SEARCH_PLACEHOLDER } from '@/components/SearchField'
 import { Input } from '@/components/ui/input'
 import { blockShelves, searchBlocks, type BlockCrumb } from '@/lib/add-step'
 import type { BlockEntry } from '@/lib/blocks'
+import { LABELS } from '@/lib/labels'
 import { cn } from '@/lib/utils'
 
 /**
@@ -36,11 +37,6 @@ import { cn } from '@/lib/utils'
  * component moves through the results and the menu is told nothing. An empty box hands the
  * arrows back, and the rows are a menu again.
  */
-
-export const ADD_STEP_LABEL = 'Add step'
-
-/** What the search box narrows, in the words of what it searches. */
-const SEARCH_LABEL = 'Search blocks by id, summary or kind'
 
 /**
  * The menu, hung off the button in the canvas's corner.
@@ -65,7 +61,10 @@ export function AddStepButton({
         <DropdownMenu open={open} onOpenChange={setOpen}>
             <DropdownMenuTrigger
                 render={
-                    <ControlButton title={ADD_STEP_LABEL} aria-label={ADD_STEP_LABEL}>
+                    <ControlButton
+                        title={LABELS.editor.canvas.add_step}
+                        aria-label={LABELS.editor.canvas.add_step}
+                    >
                         <Plus />
                     </ControlButton>
                 }
@@ -114,7 +113,7 @@ export function AddStepMenuAt({
             }}
         >
             <DropdownMenuTrigger
-                aria-label={ADD_STEP_LABEL}
+                aria-label={LABELS.editor.canvas.add_step}
                 tabIndex={-1}
                 data-menu-anchor
                 className="pointer-events-none fixed size-0"
@@ -193,7 +192,9 @@ function AddStepMenuContent({
         <DropdownMenuContent className="w-80 p-0" align="start">
             <div className="sticky top-0 z-10 flex flex-col gap-1.5 bg-popover p-2">
                 <p className="text-xs font-semibold tracking-wide text-faint uppercase">
-                    {after === null ? ADD_STEP_LABEL : `${ADD_STEP_LABEL} after ${after}`}
+                    {after === null
+                        ? LABELS.editor.canvas.add_step
+                        : LABELS.editor.canvas.add_step_after(after)}
                 </p>
                 <Input
                     ref={box}
@@ -201,7 +202,7 @@ function AddStepMenuContent({
                     autoFocus
                     spellCheck={false}
                     placeholder={SEARCH_PLACEHOLDER}
-                    aria-label={SEARCH_LABEL}
+                    aria-label={LABELS.editor.canvas.search_blocks}
                     onKeyDown={onKeyDown}
                     onChange={(event) => {
                         setNeedle(event.target.value)
@@ -251,7 +252,11 @@ function Results({
     onChoose: (block: string) => void
 }) {
     if (found.length === 0) {
-        return <p className="px-1.5 py-2 text-sm text-muted-foreground">No block matches that.</p>
+        return (
+            <p className="px-1.5 py-2 text-sm text-muted-foreground">
+                {LABELS.editor.canvas.no_block_matches}
+            </p>
+        )
     }
     return (
         <>

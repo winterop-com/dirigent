@@ -20,6 +20,7 @@ import { LOG_TARGET, targetChosen, targetOptions } from '@/lib/alert-form'
 import { deliverySettled, readNotification, sendTest, type NotificationOut } from '@/lib/alerting'
 import type { Problem } from '@/lib/api'
 import type { ConnectionOut } from '@/lib/connections'
+import { LABELS } from '@/lib/labels'
 import { refusalOf } from '@/lib/refusal'
 
 /** How often the queued row is read back while it is still moving. */
@@ -122,10 +123,8 @@ export function SendTest({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-lg" showCloseButton={false}>
                 <DialogHeader>
-                    <DialogTitle>Send a test</DialogTitle>
-                    <DialogDescription>
-                        The message goes through the same queue a real alert does, and a worker delivers it.
-                    </DialogDescription>
+                    <DialogTitle>{LABELS.action.send_test}</DialogTitle>
+                    <DialogDescription>{LABELS.alerting.test_explained}</DialogDescription>
                 </DialogHeader>
 
                 <TargetPicker
@@ -137,7 +136,7 @@ export function SendTest({
 
                 <Field
                     id="test-subject"
-                    label="Subject"
+                    label={LABELS.word.subject}
                     value={subject}
                     onChange={setSubject}
                     placeholder={DEFAULT_SUBJECT}
@@ -147,7 +146,7 @@ export function SendTest({
                 {delivery !== null && <Delivery row={delivery} />}
 
                 <DialogFooter>
-                    <DialogClose render={<Button variant="ghost" />}>Close</DialogClose>
+                    <DialogClose render={<Button variant="ghost" />}>{LABELS.action.close}</DialogClose>
                     {watching !== null && (
                         <Button
                             variant="outline"
@@ -155,12 +154,12 @@ export function SendTest({
                                 onOpenQueue(watching)
                             }}
                         >
-                            Open in the queue
+                            {LABELS.alerting.open_in_queue}
                         </Button>
                     )}
                     <Refusable why={shut}>
                         <Button disabled={busy || shut !== undefined} title={shut} onClick={send}>
-                            {watching === null ? 'Send' : 'Send again'}
+                            {watching === null ? LABELS.alerting.send : LABELS.alerting.send_again}
                         </Button>
                     </Refusable>
                 </DialogFooter>
@@ -184,17 +183,15 @@ function Delivery({ row }: { row: NotificationOut }) {
             <p className="text-xs text-muted-foreground">
                 {row.status === 'sent' ? (
                     <>
-                        Delivered <Instant at={row.sent_at} />.
+                        {LABELS.alerting.delivered} <Instant at={row.sent_at} />.
                     </>
                 ) : row.status === 'failed' ? (
-                    <>
-                        Given up after {row.attempt} of {row.max_attempts} attempts.
-                    </>
+                    LABELS.alerting.given_up(row.attempt, row.max_attempts)
                 ) : row.attempt === 0 ? (
-                    'Queued for the next worker pass.'
+                    LABELS.alerting.queued_for_worker
                 ) : (
                     <>
-                        Attempt {row.attempt} of {row.max_attempts}, next try{' '}
+                        {LABELS.alerting.attempt_of(row.attempt, row.max_attempts)}{' '}
                         <Instant at={row.available_at} />.
                     </>
                 )}

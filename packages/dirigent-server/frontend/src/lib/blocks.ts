@@ -16,6 +16,7 @@
  */
 
 import { apiJson, type JsonMap } from '@/lib/api'
+import { LABELS } from '@/lib/labels'
 import type { FieldDescriptor } from '@/lib/schema-form'
 
 /** Which surface a catalog entry describes. `BlockKind`. */
@@ -115,15 +116,11 @@ export function narrowBlocks(blocks: readonly BlockEntry[], needle: string): Blo
     return blocks.filter((entry) => `${entry.id} ${entry.summary}`.toLowerCase().includes(wanted))
 }
 
-/** A count and the thing counted, in the singular where there is one of it. */
-function count(many: number, thing: string): string {
-    return `${String(many)} ${thing}${many === 1 ? '' : 's'}`
-}
-
 /** How much config a block takes, for the column that says so at a glance. */
 export function configSummary(fields: readonly FieldDescriptor[]): string {
-    if (fields.length === 0) return 'none'
-    return count(fields.length, 'field')
+    if (fields.length === 0) return LABELS.word.none
+    const said = fields.length === 1 ? LABELS.blocks.config_fields.one : LABELS.blocks.config_fields.many
+    return said(String(fields.length))
 }
 
 /**
@@ -135,20 +132,14 @@ export function configSummary(fields: readonly FieldDescriptor[]): string {
  * the language it is written in, which is the one thing its shape does not say.
  */
 export function typeLabel(field: FieldDescriptor): string {
-    const base = field.mediaType === null ? TYPES[field.kind] : `${TYPES[field.kind]} (${field.mediaType})`
-    return field.nullable ? `${base} or null` : base
+    const base =
+        field.mediaType === null
+            ? TYPES[field.kind]
+            : LABELS.blocks.field_type_media(TYPES[field.kind], field.mediaType)
+    return field.nullable ? LABELS.blocks.field_type_nullable(base) : base
 }
 
-const TYPES: Readonly<Record<FieldDescriptor['kind'], string>> = {
-    text: 'string',
-    code: 'string',
-    number: 'number',
-    integer: 'integer',
-    switch: 'boolean',
-    select: 'enum',
-    pairs: 'map',
-    json: 'json',
-}
+const TYPES: Readonly<Record<FieldDescriptor['kind'], string>> = LABELS.blocks.field_type
 
 /**
  * What a field falls back to when a document does not carry the key, or null when it has none.
@@ -183,18 +174,29 @@ export interface BlockFact {
  */
 export function factsOf(entry: BlockEntry): BlockFact[] {
     const facts: BlockFact[] = [
-        { term: 'plugin', detail: entry.plugin },
-        { term: 'idempotent', detail: entry.idempotent ? 'yes' : 'no' },
+        { term: LABELS.blocks.fact.term.plugin, detail: entry.plugin },
         {
-            term: 'local_execution',
-            detail: entry.local_execution ? 'requires allowlisting' : 'no allowlist entry',
+            term: LABELS.blocks.fact.term.idempotent,
+            detail: entry.idempotent ? LABELS.blocks.fact.idempotent.yes : LABELS.blocks.fact.idempotent.no,
+        },
+        {
+            term: LABELS.blocks.fact.term.local_execution,
+            detail: entry.local_execution
+                ? LABELS.blocks.fact.local_execution.required
+                : LABELS.blocks.fact.local_execution.absent,
         },
     ]
     if (entry.default_poll_seconds !== null) {
-        facts.push({ term: 'default_poll_seconds', detail: `${String(entry.default_poll_seconds)}s` })
+        facts.push({
+            term: LABELS.blocks.fact.term.default_poll_seconds,
+            detail: LABELS.measure.seconds(String(entry.default_poll_seconds)),
+        })
     }
     if (entry.default_deadline_seconds !== null) {
-        facts.push({ term: 'default_deadline_seconds', detail: `${String(entry.default_deadline_seconds)}s` })
+        facts.push({
+            term: LABELS.blocks.fact.term.default_deadline_seconds,
+            detail: LABELS.measure.seconds(String(entry.default_deadline_seconds)),
+        })
     }
     return facts
 }
