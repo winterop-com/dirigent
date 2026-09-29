@@ -112,6 +112,8 @@ describe('the foot of a listing', () => {
 
     it('counts one row in the singular', () => {
         expect(rowsRead(1, 'runs', false)).toBe('1 run')
+        expect(rowsRead(1, 'watches', false)).toBe('1 watch')
+        expect(rowsRead(1, 'schedules', false)).toBe('1 schedule')
         expect(rowsRead(0, 'runs', false)).toBe('0 runs')
     })
 })
