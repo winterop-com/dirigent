@@ -855,6 +855,50 @@ references it, and asking for it first was asking the least of the step first.
 differs from the version the instance holds, and where there is no version at all; where applying
 would write nothing it stands in outline beside Validate, which is what it would do.
 
+**A refusal the dialog can answer is answered in the dialog.** A top-level `connections:` or
+`schemas:` section is what lets a document run alone under `dg run --local`, and an apply refuses
+one that carries either -- a refusal that stays, because a reference by code is the single
+contract and a stored document that carried a credential would carry it into every version and
+every export. What stood beside that refusal was a Cancel and an Apply that could never work, and
+the remedy the sentence named was a command line, so the way forward is under it now.
+`lib/carried` is the decision and `components/pipeline/CarriedOffer` lays it out: one line saying
+what an instance stores and what applying does, then every carried entry with its kind, its code
+and what becomes of it. **The server's own refusal is not drawn beside it.** A message is
+rendered by the CLI, by this screen and by every other client, so it states the fact and names no
+tool; printing it over a list and the controls that answer it would put one fact on screen three
+times with the least actionable copy loudest. `lib/starters.uncarry` is what lifts the sections
+into `requires:` -- the same text rewrite `dg pipeline new` makes, so the teaching comments
+around everything that stays survive it -- and the button says `Apply`, because a button says
+what somebody wants and not the steps behind it.
+
+**Four cases, and the row says which.** A carried entry meets an instance that has nothing under
+that code (`create`), one holding the same thing (`already here`), or one holding something else
+under the same name (`differs`); the fourth is a document that only names a code under
+`requires:`, which carries nothing to create from and is what the plan's own issues and the
+Requires chips say. **`differs` is never acted on**: a stored schema is what every other pipeline
+naming that code validates against, so replacing it from a document being applied would change
+what those pipelines mean, and applying over it would bind this document's gate to a shape its
+author did not write. The row names the collision and the confirm is not drawn.
+
+**A carried schema is stored and a carried connection is not.** A schema is a shape: it holds no
+credential, and storing it under the code the document already names puts the same resource where
+an instance keeps one -- under that code and no other, because it is what every `validate.schema`
+step in the document references and nothing here invents or renames it. A connection's config can
+hold a credential in a field the kind declares secret and in one it does not, since a `sql` or a
+`git` connection's `url` carries a password or a token inline, so nothing can read a carried
+connection and say no credential is in it; nor can it be compared with a stored one, because a
+read redacts every secret field. It is named under `requires:` and the way forward is a door to
+the Connections screen with the kind and the code already in the address -- never a sentence
+telling somebody where to go while a button goes there.
+
+**What a copy of a starter still needs is said where the copy lands.** A copy rewrites the two
+lines that make it somebody's own and leaves what the document carries in it, because the apply
+is what refuses a carried section and the dialog it raises is where the shapes in it can still be
+stored; a copy that lifted them first would name schemas nothing holds, and an apply refuses that
+too. The editor draws what is still missing as chips under Requires -- `lib/requirements` checks
+connections and schemas alike against listings the screen has already read, and claims nothing of
+a listing that has not landed.
+
 **The source pane may hold text that is not a document**, and while it does, the local document is
 the last one that parsed and nothing else may write to it. A form quietly replacing text somebody
 is halfway through fixing is worse than a form that says it cannot.
@@ -1300,6 +1344,46 @@ shut it, and the refusal is `Refusal` inside the section, where the fields it is
 
 The step panel's engine groups are the same gesture at rest: the row is the group's own summary,
 and its fields open under it rather than in a pane of their own.
+
+## A control only ever claims what the situation supports
+
+Three faults are one fault: a button labelled with its mechanism rather than its outcome, a
+heading that enumerates a column the rows already carry, and a confirm that cannot confirm. Each
+is a control asserting something that is not there. **What a control says and offers is what the
+situation can actually give**, and everything below is that rule applied.
+
+**A dialog that asks is a decision, and a decision needs both paths.** A way back, and a way
+forward that does something. Where the forward path does not exist, the control that would open
+the dialog is shut and says why, and no dialog opens: the pipeline editor's Apply is shut on a
+document that is already the version the instance holds, because a dialog whose own answer is
+that its button would write nothing is friction with a question mark on it. Where there is
+nothing to decide -- the outcome is certain and harmless -- the action happens and reports
+itself in one line, the way every other action that completed without incident does. **A dialog
+that only tells carries one control, and the word on it says dismissal**: `Close`, not `Cancel`
+beside a confirm that cannot act. `Cancel` appears only where something is being cancelled.
+
+**One dismissal, one control.** A dialog whose footer carries the way out does not also draw the
+corner's own -- `showCloseButton={false}` -- because two controls named Close in one dialog are
+two answers to one question, and a reader counting controls is counting wrong.
+
+**A confirm is drawn only where pressing it would do something.** A plan the instance would
+refuse, a carried code that collides with what the instance holds, a connection nobody has
+created: in each the apply cannot proceed, so the button is absent and the sentence beside the
+rows is what says why. **The exception is a control shut by who somebody is**, which stays drawn
+and shut with its reason, because that is a courtesy about the account rather than a claim about
+the document -- and it is how somebody learns the verb exists and is not theirs.
+
+**A form that is not filled in yet is not this rule.** A confirm shut because a required box is
+empty, because a write is in flight, or because the reader has not typed what the kind asks for,
+is a forward path that exists and is not ready -- it stays drawn and shut, and filling the form
+opens it. What is not drawn is a confirm whose outcome the situation cannot produce however long
+somebody sits in front of it.
+
+**A shut control stays reachable.** `disabled` takes a control out of the tab order and stops it
+taking a pointer, so the sentence saying why is readable by nobody on a keyboard and by nobody
+hovering the control itself. A verb on a screen's strip is shut with `aria-disabled` instead:
+assistive technology hears the same thing, the control keeps its place in the tab order, the
+`title` is reachable both ways, and `components/ToolbarActions` swallows the click.
 
 ## A write that can be refused says so, and a shut control says why
 

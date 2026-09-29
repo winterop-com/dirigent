@@ -388,6 +388,34 @@ test('validating an intact document reports no issues', async ({ page }) => {
     // and, either way, the instance refuses nothing about it.
     await expect(dialog.getByText(/Apply writes nothing/)).toBeVisible()
     await expect(dialog.getByText(/apply will refuse/)).toHaveCount(0)
+    // Validate asks nothing, so the one control dismisses it and says so.
+    await expect(dialog.getByRole('button', { name: 'Close' })).toBeVisible()
+    await expect(dialog.getByRole('button', { name: 'Apply', exact: true })).toHaveCount(0)
+})
+
+/**
+ * A DIALOG IS A DECISION, AND THIS ONE WOULD HAVE NONE. The document on screen is the version
+ * the instance holds, so applying writes nothing: the verb is shut where it is offered, says
+ * why to a pointer and to a reader, and no dialog opens.
+ */
+test('apply is shut on a document the instance already holds, and says why', async ({ page }) => {
+    await signIn(page)
+    await applyExample(page.request, DOCUMENT_EXAMPLE)
+
+    await page.goto(`/pipelines/${DOCUMENT_PIPELINE}`)
+    const apply = page.getByRole('button', { name: 'Apply', exact: true })
+    await expect(apply).toBeDisabled()
+    await expect(apply).toHaveAttribute('title', /version the instance holds/)
+    // A shut verb stays reachable, so the sentence can be read without a pointer.
+    await apply.focus()
+    await expect(apply).toBeFocused()
+
+    // The two verbs beside it act on a document that has not changed, so both stay live.
+    await expect(page.getByRole('button', { name: 'Validate' })).toBeEnabled()
+    await expect(page.getByRole('button', { name: 'Run', exact: true })).toBeEnabled()
+
+    await apply.click({ force: true })
+    await expect(page.getByRole('dialog')).toHaveCount(0)
 })
 
 test('the run dialog is built from the pipeline own parameter schema', async ({ page }) => {

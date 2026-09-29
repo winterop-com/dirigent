@@ -17,6 +17,8 @@ import {
     connectionsNamed,
     requiredBlocks,
     requiredPipelines,
+    requiredSchemas,
+    schemaMissing,
     type Unmet,
 } from '@/lib/requirements'
 import type { RunOut } from '@/lib/runs'
@@ -321,8 +323,10 @@ interface RequiredChip {
  * The chips under "requires", each said as the kind of thing it is.
  *
  * A block the catalog does not publish is drawn critical, because that is the one this instance
- * can answer for and the one an apply will refuse. A connection is checked against the listing
- * the screen already read; a required pipeline is nobody's to check here, so it is drawn plain.
+ * can answer for and the one an apply will refuse. A connection and a schema are checked against
+ * the listings the screen already read -- a copy of a starter names the schemas the original
+ * carried, and nothing else on this screen would say they are not here; a required pipeline is
+ * nobody's to check here, so it is drawn plain.
  */
 function requiredChips(document: JsonMap | null, unmet: Unmet): RequiredChip[] {
     return [
@@ -338,6 +342,11 @@ function requiredChips(document: JsonMap | null, unmet: Unmet): RequiredChip[] {
                 label: LABELS.editor.pipeline_pane.connection_chip(name),
                 met: !connectionMissing(unmet, name),
             })),
+        ...requiredSchemas(document).map((name) => ({
+            name,
+            label: LABELS.editor.pipeline_pane.schema_chip(name),
+            met: !schemaMissing(unmet, name),
+        })),
         ...requiredPipelines(document).map((name) => ({
             name,
             label: LABELS.editor.pipeline_pane.pipeline_chip(name),

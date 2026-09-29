@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { nextForm, TABLE, type Form } from '@/lib/card-form'
 import { LABELS } from '@/lib/labels'
+import { cn } from '@/lib/utils'
 
 export const MORE_ACTIONS_LABEL = LABELS.shell.more_actions
 
@@ -129,18 +130,31 @@ export function ToolbarActions({
     )
 }
 
+/**
+ * One verb, shut by `aria-disabled` rather than by the attribute that takes it off the page.
+ *
+ * A SHUT VERB IS STILL REACHABLE. `disabled` takes a control out of the tab order and stops it
+ * taking a pointer, so the sentence saying why it is shut can be read by nobody using a
+ * keyboard and by nobody hovering the control itself. `aria-disabled` says the same thing to
+ * assistive technology, keeps the control focusable and hoverable so its reason is readable
+ * either way, and the click is swallowed here instead.
+ */
 function ActionButton({ action }: { action: ToolbarAction }) {
     const Icon = action.icon
+    const shut = action.disabled === true
     return (
         <Refusable why={action.why}>
             <Button
                 variant={action.variant ?? 'outline'}
                 size="sm"
                 aria-label={action.ariaLabel}
-                disabled={action.disabled}
+                aria-disabled={shut || undefined}
                 title={action.why}
-                className={action.destructive === true ? 'destructive-action' : undefined}
-                onClick={action.onClick}
+                className={cn(
+                    action.destructive === true && 'destructive-action',
+                    shut && 'opacity-50 hover:bg-transparent',
+                )}
+                onClick={shut ? undefined : action.onClick}
             >
                 {Icon !== undefined && <Icon aria-hidden />}
                 {action.label}

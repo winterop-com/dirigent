@@ -61,6 +61,7 @@ export function NewConnection({
     open,
     kinds,
     startKind = '',
+    startCode = '',
     onOpenChange,
     onCreated,
 }: {
@@ -69,11 +70,13 @@ export function NewConnection({
     kinds: SurfaceEntry[]
     /** The kind the dialog opens on, for a link that already knows which one is wanted. */
     startKind?: string
+    /** The code the box opens filled in with, for a link that knows what it has to be called. */
+    startCode?: string
     onOpenChange: (open: boolean) => void
     /** Called with what was minted, so the listing behind reads itself again. */
     onCreated: (row: ConnectionOut) => void
 }) {
-    const [code, setCode] = useState('')
+    const [code, setCode] = useState(startCode)
     const [named, setNamed] = useState('')
     const [kind, setKind] = useState(startKind)
     const [description, setDescription] = useState('')
@@ -107,7 +110,7 @@ export function NewConnection({
             .then(
                 (row) => {
                     onCreated(row)
-                    setCode('')
+                    setCode(startCode)
                     setNamed('')
                     setDescription('')
                     setKind(startKind)

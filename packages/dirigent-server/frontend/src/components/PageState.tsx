@@ -64,7 +64,7 @@ export function PageState({
                         {lines.problems.length > 0 && (
                             <ul className="list-disc space-y-0.5 pl-4 text-xs text-muted-foreground">
                                 {lines.problems.map((one) => (
-                                    <li key={one} className="font-mono break-all">
+                                    <li key={one} className="break-words">
                                         {one}
                                     </li>
                                 ))}

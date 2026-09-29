@@ -37,7 +37,7 @@ import { NEW_PIPELINE_PATH } from '@/lib/nav'
 import { closePanel, fillPanel, openPanelTab } from '@/lib/panels'
 import { LIST_GROUP, registerActions } from '@/lib/palette'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
-import { STARTER_TAG, instantiate } from '@/lib/starters'
+import { STARTER_TAG, copyStarter } from '@/lib/starters'
 import { cn } from '@/lib/utils'
 
 /**
@@ -117,9 +117,12 @@ export function Examples() {
 
     const columns = useMemo(() => exampleColumns(holdings, plugins, addTag), [addTag, holdings, plugins])
 
+    // THE COPY KEEPS WHAT THE DOCUMENT CARRIES. `copyStarter` rewrites the two lines that make
+    // the copy somebody's own; the carried sections stay, because the apply is what refuses them
+    // and the dialog it raises is where the shapes in them can still be stored.
     const use = useCallback(
         (source: string, code: string) => {
-            void navigate(NEW_PIPELINE_PATH, { state: { document: instantiate(source, code) } })
+            void navigate(NEW_PIPELINE_PATH, { state: { document: copyStarter(source, code) } })
         },
         [navigate],
     )

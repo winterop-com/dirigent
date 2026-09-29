@@ -14,6 +14,10 @@ import { refusalLine, refusalLines, refusalOf } from '@/lib/refusal'
  * What the server wrote for a person to act on leads instead, and `lib/refusal` is what decides
  * whether the failures under it add anything to that sentence or repeat it.
  *
+ * A FAILURE IS A SENTENCE, NOT AN IDENTIFIER. The server writes each one for a person to act
+ * on, so the list is set in the prose face and wraps on spaces; a mono line broken mid-word
+ * reads as something that went wrong with the page rather than with the request.
+ *
  * It is an `alert`, because a refusal that appears where somebody is typing is not read unless
  * it is announced.
  */
@@ -25,7 +29,7 @@ export function Refusal({ problem }: { problem: Problem }) {
             {lines.problems.length > 0 && (
                 <ul className="list-disc space-y-0.5 pl-4 text-xs text-critical">
                     {lines.problems.map((one) => (
-                        <li key={one} className="font-mono break-all">
+                        <li key={one} className="break-words">
                             {one}
                         </li>
                     ))}

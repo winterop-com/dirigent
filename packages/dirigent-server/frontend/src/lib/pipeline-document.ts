@@ -23,6 +23,7 @@ import { parse, stringify } from 'yaml'
 import type { JsonMap } from '@/lib/api'
 import { headingOf, type Heading } from '@/lib/identity'
 import { LABELS } from '@/lib/labels'
+import { uncarry } from '@/lib/starters'
 import { createStore } from '@/lib/store'
 
 /** What this screen holds for one pipeline. */
@@ -162,6 +163,27 @@ export function revertDocument(): void {
         draft: null,
         parseError: null,
     })
+}
+
+/**
+ * The document being edited with its carried sections named under `requires:`, or null.
+ *
+ * IT IS THE COPY RULE'S OTHER HALF, MADE AT THE APPLY. `lib/starters` is the rewrite
+ * `dg pipeline new` makes, and `uncarry` is the part of it about what an instance stores;
+ * running it over the source pane's own text is what keeps the teaching comments around
+ * everything that stays. The CLI makes it at copy time because a file is all it has; here it
+ * happens where the instance refuses, while the shapes the document carries are still in hand
+ * to be stored. A document a form has edited has no text any more, so it is rendered the way
+ * the pane renders it and lifted from that.
+ *
+ * NOTHING HERE IS WRITTEN BACK. The caller applies what this answers with and the instance's
+ * own document is what the editor reloads; a lift nobody applied must not reach the pane.
+ */
+export function liftedDocument(): JsonMap | null {
+    const state = documentStore.get()
+    if (state.local === null || state.parseError !== null) return null
+    const read = fromYaml(uncarry(state.source ?? toYaml(state.local)))
+    return read.ok ? read.document : null
 }
 
 /** The step definitions in a document, or none when it has no steps. */

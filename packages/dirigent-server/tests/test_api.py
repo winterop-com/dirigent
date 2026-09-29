@@ -572,7 +572,7 @@ def test_a_document_carrying_its_own_connections_is_refused_and_writes_nothing(c
     response = client.post(f"{PREFIX}/pipelines/$apply", json={"document": carried})
     assert response.status_code == 422, response.text
     detail = str(response.json()["detail"])
-    assert "demo" in detail and "dg connection create" in detail
+    assert "demo" in detail and "requires.connections" in detail
 
     assert client.get(f"{PREFIX}/pipelines").json()["items"] == [], "nothing was written"
     assert client.get(f"{PREFIX}/connections").json()["items"] == [], "and no connection was created"
@@ -585,7 +585,7 @@ def test_a_document_carrying_its_own_schemas_is_refused_and_writes_nothing(clien
     response = client.post(f"{PREFIX}/pipelines/$apply", json={"document": carried})
     assert response.status_code == 422, response.text
     detail = str(response.json()["detail"])
-    assert "ou-shape" in detail and "dg schema create" in detail
+    assert "ou-shape" in detail and "requires.schemas" in detail
 
     assert client.get(f"{PREFIX}/pipelines").json()["items"] == [], "nothing was written"
 

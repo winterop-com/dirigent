@@ -390,8 +390,8 @@ uv run dg apply
 ```
 
 ```text
-2026-09-26T14:42:14.458+02:00 [error   ] this document carries its own schemas (basics-reading), which an instance will not store: create them with `dg schema create` and let the document name them in requires.schemas [error] status=422 title="Unprocessable Content" code=server.document_refused params={"detail":"this document carries its own schemas (basics-reading), which an instance will not store: create them with `dg schema create` and let the document name them in requires.schemas"} instance=/api/v1/pipelines/$apply
-  - this document carries its own schemas (basics-reading), which an instance will not store: create them with `dg schema create` and let the document name them in requires.schemas
+2026-09-26T14:42:14.458+02:00 [error   ] this document carries its own schemas (basics-reading), which an instance will not store: create them on the instance and let the document name them under requires.schemas [error] status=422 title="Unprocessable Content" code=server.document_refused params={"detail":"this document carries its own schemas (basics-reading), which an instance will not store: create them on the instance and let the document name them under requires.schemas"} instance=/api/v1/pipelines/$apply
+  - this document carries its own schemas (basics-reading), which an instance will not store: create them on the instance and let the document name them under requires.schemas
 ```
 
 Every refusal reads that way: the sentence, then `code`, the stable dotted name of the refusal,

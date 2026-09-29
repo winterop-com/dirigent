@@ -29,6 +29,16 @@ export interface PlanView {
     applicable: boolean
 }
 
+/**
+ * What an apply that wrote nothing is reported as, which is a line and not a dialog.
+ *
+ * A confirmation exists to weigh a consequence; there is none here, so the answer is said the
+ * way every other action that completed without incident says itself.
+ */
+export function unchangedNote(plan: PipelinePlan): string {
+    return `${plan.code} is already at this document. Nothing was written.`
+}
+
 /** What one plan says, as the dialog lays it out. */
 export function planView(plan: PipelinePlan): PlanView {
     const issues = plan.issues

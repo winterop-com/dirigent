@@ -164,16 +164,20 @@ WRONG_FORMAT = DOCUMENT.define(
 
 UNKNOWN_DOCUMENT_KIND = DOCUMENT.define("unknown_kind", "{format} defines {known}, and this document declares {kind}")
 
+# A message is rendered by the CLI, by the web UI and by any other client, so it states the
+# fact and names no tool: the surface a person is on is what offers the way forward, and one
+# that told them to leave it and type a command elsewhere would be a dead end in every surface
+# but the one the command belongs to.
 CARRIED_CONNECTIONS = DOCUMENT.define(
     "carried_connections",
     "this document carries its own connections ({named}), which an instance will not store: "
-    "create them with `dg connection create` and let the document name them",
+    "create them on the instance and let the document name them under requires.connections",
 )
 
 CARRIED_SCHEMAS = DOCUMENT.define(
     "carried_schemas",
     "this document carries its own schemas ({named}), which an instance will not store: "
-    "create them with `dg schema create` and let the document name them in requires.schemas",
+    "create them on the instance and let the document name them under requires.schemas",
 )
 
 SCHEDULE_ONE_CLOCK = DOCUMENT.define(

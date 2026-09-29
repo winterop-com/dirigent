@@ -51,7 +51,9 @@ export function PipelinePreview({ pipeline }: { pipeline: PipelineOut }) {
         return blocks.length === 0 ? null : blocks.map((block) => block.id)
     }, [catalog.value])
     const held = useMemo(() => connections.value?.items.map((one) => one.code) ?? null, [connections.value])
-    const unmet = useMemo(() => unmetIn(document, installed, held), [document, held, installed])
+    // No schemas listing is read here: this pane is a row's preview and the editor is where a
+    // document's shapes are checked, so nothing on it is called missing on an unread listing.
+    const unmet = useMemo(() => unmetIn(document, installed, held, null), [document, held, installed])
 
     const reading = !detail.read || !versions.read || !runs.read
 

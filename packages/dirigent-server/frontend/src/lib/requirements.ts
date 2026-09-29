@@ -35,25 +35,29 @@ export interface Unmet {
     blocks: string[]
     /** Connections the document names that this instance does not hold. */
     connections: string[]
+    /** Schemas named under `requires.schemas` that this instance does not hold. */
+    schemas: string[]
 }
 
-const NOTHING: Unmet = { steps: [], blocks: [], connections: [] }
+const NOTHING: Unmet = { steps: [], blocks: [], connections: [], schemas: [] }
 
 /**
  * What one document needs that this instance has not got.
  *
- * `catalog` is every block id this instance publishes and `held` is every connection code it
- * holds; either being null is a read that has not landed, and nothing is claimed missing on
- * the strength of a read nobody has made.
+ * `catalog` is every block id this instance publishes, `held` is every connection code it holds
+ * and `stored` is every schema code; any of them being null is a read that has not landed, and
+ * nothing is claimed missing on the strength of a read nobody has made.
  */
 export function unmetIn(
     document: JsonMap | null,
     catalog: readonly string[] | null,
     held: readonly string[] | null,
+    stored: readonly string[] | null,
 ): Unmet {
     if (document === null) return NOTHING
     const installed = catalog === null ? null : new Set(catalog)
     const configured = held === null ? null : new Set(held)
+    const authored = stored === null ? null : new Set(stored)
 
     const steps =
         installed === null
@@ -69,12 +73,19 @@ export function unmetIn(
     const connections =
         configured === null ? [] : connectionsNamed(document).filter((name) => !configured.has(name))
 
-    return { steps, blocks, connections }
+    const schemas = authored === null ? [] : requiredSchemas(document).filter((name) => !authored.has(name))
+
+    return { steps, blocks, connections, schemas }
 }
 
 /** Whether anything at all is unmet, which is what decides whether a warning is drawn. */
 export function anythingUnmet(unmet: Unmet): boolean {
-    return unmet.steps.length > 0 || unmet.blocks.length > 0 || unmet.connections.length > 0
+    return (
+        unmet.steps.length > 0 ||
+        unmet.blocks.length > 0 ||
+        unmet.connections.length > 0 ||
+        unmet.schemas.length > 0
+    )
 }
 
 /**
@@ -90,6 +101,7 @@ export function unmetLines(unmet: Unmet): string[] {
             .filter((block) => !unmet.steps.some((one) => one.block === block))
             .map((block) => LABELS.editor.unmet.block(block)),
         ...unmet.connections.map((name) => LABELS.editor.unmet.connection(name)),
+        ...unmet.schemas.map((name) => LABELS.editor.unmet.schema(name)),
     ]
 }
 
@@ -106,6 +118,23 @@ export function blockMissing(unmet: Unmet, block: string): boolean {
 /** Whether one named connection is among the missing, which is what the connections row says. */
 export function connectionMissing(unmet: Unmet, name: string): boolean {
     return unmet.connections.includes(name)
+}
+
+/** Whether one required schema is among the missing, which is what makes its chip critical. */
+export function schemaMissing(unmet: Unmet, name: string): boolean {
+    return unmet.schemas.includes(name)
+}
+
+/**
+ * The schemas a document states it needs of an instance, under `requires.schemas`.
+ *
+ * A step naming a schema is not read the way a step naming a connection is: `validate.schema`
+ * takes a code that may be the instance's or one the document carries, and a document that
+ * carries one is refused at apply -- so `requires` is the whole of what a stored document says
+ * about the shapes it reaches.
+ */
+export function requiredSchemas(document: JsonMap | null): string[] {
+    return stringsAt(mapAt(document, 'requires'), 'schemas')
 }
 
 /** The blocks a document states it needs of an instance, under `requires.blocks`. */
