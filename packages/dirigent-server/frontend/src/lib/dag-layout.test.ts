@@ -22,10 +22,12 @@ import {
     layoutOptionsFor,
     placedByRank,
     rankDepth,
+    revealPoint,
     signatureOf,
     steppedZoom,
     toElkGraph,
     unwrappedWidth,
+    viewMoved,
     type ElkEngine,
     type ElkGraph,
     type LayoutShape,
@@ -391,5 +393,34 @@ describe('one press of a zoom control', () => {
     test('stops where the canvas stops', () => {
         expect(steppedZoom(MAX_ZOOM, 'in')).toBe(MAX_ZOOM)
         expect(steppedZoom(MIN_ZOOM, 'out')).toBe(MIN_ZOOM)
+    })
+})
+
+describe('viewMoved', () => {
+    test('a press that went nowhere leaves the view the canvas chose', () => {
+        expect(viewMoved({ x: 10, y: 20, zoom: 1 }, { x: 10, y: 20, zoom: 1 })).toBe(false)
+    })
+
+    test('a pan or a zoom is a view the reader took over', () => {
+        expect(viewMoved({ x: 10, y: 20, zoom: 1 }, { x: 11, y: 20, zoom: 1 })).toBe(true)
+        expect(viewMoved({ x: 10, y: 20, zoom: 1 }, { x: 10, y: 20, zoom: 1.5 })).toBe(true)
+    })
+})
+
+describe('revealPoint', () => {
+    const canvas = { width: 600, height: 400 }
+    const box = { x: 100, y: 50, width: 200, height: 76 }
+
+    test('a box already on the canvas is left where it is', () => {
+        expect(revealPoint(box, { x: 0, y: 0, zoom: 1 }, canvas)).toBeNull()
+    })
+
+    test('a box past the right edge is centred on, at the zoom the reader chose', () => {
+        expect(revealPoint(box, { x: 350, y: 0, zoom: 1 }, canvas)).toEqual({ x: 200, y: 88 })
+        expect(revealPoint(box, { x: 0, y: 0, zoom: 3 }, canvas)).toEqual({ x: 200, y: 88 })
+    })
+
+    test('a box cut by the top edge is brought in too', () => {
+        expect(revealPoint(box, { x: 0, y: -60, zoom: 1 }, canvas)).toEqual({ x: 200, y: 88 })
     })
 })
