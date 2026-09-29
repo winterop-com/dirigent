@@ -459,8 +459,8 @@ Released 2026-09-17. Every package in the workspace moves to 0.16.2 together.
 - **A watched run's queued step carries its own moment.** `dg run --watch` against a server
   stamped every `queued` record with a year-1 sentinel that rendered as `0001-01-01` with a
   local-mean-time offset; the record now carries the attempt's `created_at`. The run listing
-  and the dashboard's Needs a look also answer a failed run's `error` with what its failed
-  step said, where the column was empty before.
+  and the dashboard's feed of failed runs also answer a failed run's `error` with what its
+  failed step said, where the column was empty before.
 
 ## 0.16.1
 

@@ -174,12 +174,7 @@ function Overview() {
             )}
 
             <section className="mb-6 space-y-2">
-                <div className="space-y-1">
-                    <h2 className="text-sm font-semibold">Needs a look</h2>
-                    <p className="text-sm text-muted-foreground">
-                        Every run that failed or finished with errors, newest first.
-                    </p>
-                </div>
+                <h2 className="text-sm font-semibold">Needs a look</h2>
                 <PageState
                     loading={!failed.read || !messy.read}
                     problem={failed.problem ?? messy.problem}
