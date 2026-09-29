@@ -1490,6 +1490,15 @@ writes on its own tag headings, so the requests behind a screen are one click aw
 states its own two facts along the foot through `lib/screen-status`, the address nothing answers
 for included.
 
+**A heading names the category, in one noun where a noun exists, and never lists the values of
+a column beneath it.** The Status column is already telling every row which state it is in,
+and a heading that enumerates two of them breaks the moment a third qualifies. **Nor does a
+heading name the reader's situation**: that states an obligation the screen cannot know
+anybody has. Where a noun for the category already exists anywhere in this product -- in the
+wire, in the engine, in the CLI -- that is the noun, because a screen may not coin a second
+name for something already named. **A chart is titled with what it plots**, and the window,
+the bucketing and the axis stay in the line beneath it.
+
 ## The palette's anatomy
 
 A 768px card at 15% from the top: a search row, shelved rows, a footer of key chips. **The
