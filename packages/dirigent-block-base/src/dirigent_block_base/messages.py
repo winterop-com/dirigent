@@ -160,8 +160,7 @@ PLAYGROUND = Catalogue("playground")
 
 UNKNOWN_PROVIDER = PLAYGROUND.define(
     "unknown_provider",
-    "{provider!r} is not a provider the installed Faker offers for locale {locale!r}; "
-    "run 'uv run faker -l {locale}' to print every name it does offer, with a sample of each",
+    "{provider!r} is not a provider the installed Faker offers for locale {locale!r}",
 )
 
 UNKNOWN_LOCALE = PLAYGROUND.define(

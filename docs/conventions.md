@@ -167,6 +167,22 @@ do next; `invalid connection` does not. The params carry the specifics the templ
 interpolates, and never a secret, a credential, or the value that failed validation -- the
 pydantic mapping names the kind of the input it refused and drops the input itself.
 
+The text names no tool, because more than one surface renders it. The CLI is free to tell a
+CLI user to run a command -- a `cli.*` or `health.*` message knows it is the CLI -- but a
+message the web UI also draws must not send a person somewhere they are not: one that says to
+type `dg secret-key` is a dead end in every surface but the one that command belongs to. A
+shared message says what is wrong and what must become true -- `DIRIGENT_SECRET_KEY must hold
+one` -- and each surface offers its own way there. Where a surface has no way to offer, the
+fact alone is still better than an instruction its reader cannot follow.
+
+A refusal is written for the person reading it, so a Python class name is never the sentence.
+What an exception said about itself is an operator's detail: it rides in the params, in the
+step's log and in the record, behind a sentence somebody wrote. A block that fails in a way
+nobody anticipated is refused with `run.block_raised`, which names the block and points at the
+log, and `dirigent_common.raised_detail` puts the class and the exception's own text where an
+operator reads them. That helper is what a `HealthReport.detail` uses too, so an instance's
+own words come first and the class is the last thing left to say.
+
 A prefix has exactly one owner. A runtime package owns its own name (`common`, `plugin`,
 `client`, `server`, `cli`, `testing`), and one package may own a second where a family of
 refusals is its own thing: `validation` beside `common` for the pydantic mapping, `health`

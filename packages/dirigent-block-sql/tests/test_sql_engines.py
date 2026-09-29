@@ -88,11 +88,12 @@ def test_what_a_plugin_answers_with_that_is_not_an_engine_is_not_registered() ->
     assert registry(group=NO_GROUP, extra={"odd": NotAnEnginePlugin()}) == {}
 
 
-def test_a_url_naming_an_engine_package_that_is_not_installed_names_the_install(
+def test_a_url_naming_an_engine_package_that_is_not_installed_names_the_package(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Without the engine there is no driver to write in the url either, so the refusal is the install."""
+    """Without the engine there is no driver to write in the url either, so the refusal names the package."""
     monkeypatch.setattr(engines, "_installed", lambda: registry(group=NO_GROUP))
     with pytest.raises(ValidationError) as raised:
         SqlConnectionConfig(url="duckdb:///warehouse.duckdb")
-    assert "uv pip install dirigent-block-duckdb" in str(raised.value)
+    assert "dirigent-block-duckdb" in str(raised.value)
+    assert "uv pip install" not in str(raised.value), "a step error reaches a browser, which has no shell"

@@ -425,7 +425,8 @@ def test_dev_refuses_a_state_an_older_dirigent_wrote(tmp_path: Path) -> None:
     assert record["code"] == "database.schema_stale"
     assert record["params"]["differences"] == 1
     assert record["params"]["first"] == "step_attempts.fetched_output missing"
-    assert "start from an empty state" in record["message"]
+    assert "empty state" in record["message"]
+    assert "dg dev --wipe-state" not in record["message"], "the refusal is rendered by more than the CLI"
 
 
 def test_a_state_this_dirigent_wrote_is_not_refused(capsys: pytest.CaptureFixture[str]) -> None:
