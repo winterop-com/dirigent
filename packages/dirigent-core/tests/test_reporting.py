@@ -25,6 +25,7 @@ from dirigent_core.engine.definition import (
 )
 from dirigent_core.engine.executor import Engine
 from dirigent_core.engine.runs import cancel_run, retry_step
+from dirigent_core.messages import CANCELLED_BY
 from dirigent_core.models import ArtifactRef, LogEntry, Notification, Pipeline, PipelineVersion, Run
 from dirigent_core.plugins import PluginHost
 from dirigent_core.reporting import DEFAULT_TEMPLATE, RunFacts, as_context, run_facts
@@ -404,14 +405,14 @@ async def test_a_cancelled_run_has_a_report(engine: Engine, sessions: Any, servi
     async with session_scope(sessions) as session:
         stored = await session.get(Run, run.id)
         assert stored is not None
-        await cancel_run(session, services, stored, reason="an operator asked")
+        await cancel_run(session, services, stored, CANCELLED_BY, principal="an operator")
 
     document = await only_document(sessions, run.id)
     assert document.inline_value is not None
     text = document.inline_value["text"]
     assert isinstance(text, str)
     assert "run cancelled" in text
-    assert "an operator asked" in text
+    assert "cancelled by an operator" in text
 
 
 async def test_a_run_that_settles_a_second_time_rewrites_the_document_it_already_has(

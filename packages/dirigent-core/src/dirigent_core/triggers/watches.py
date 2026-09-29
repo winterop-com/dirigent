@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from dirigent_client.enums import AttemptStatus, RunStatus, TriggerKind
 from dirigent_client.schemas import ValidationIssue
-from dirigent_common import EntityName, Issue, JsonMap, StepName
+from dirigent_common import EntityName, Issue, JsonMap, Message, StepName
 from dirigent_core.config import Settings
 from dirigent_core.database import session_scope
 from dirigent_core.engine.definition import ConcurrencyPolicy, PipelineDefinition, WatchSpec, load_definition
@@ -35,9 +35,13 @@ from dirigent_core.messages import (
     UNKNOWN_WATCH,
     WATCH_ARM_REFUSED,
     WATCH_FANS_OUT,
+    WATCH_MOVED,
     WATCH_NOT_A_ROOT,
     WATCH_NOT_A_SENSOR,
+    WATCH_PAUSED,
+    WATCH_PIPELINE_REAPPLIED,
     WATCH_REPLACE_POLICY,
+    WATCH_RETIRED,
     WATCH_RUN_GONE,
     WATCH_UNARMABLE,
     WATCH_UNKNOWN_STEP,
@@ -221,7 +225,7 @@ async def update_watch(
     await session.flush()
     if moved:
         watch.cursor = None
-        await _withdraw(session, services, watch, reason="its watch moved to another step", now=now)
+        await _withdraw(session, services, watch, reason=WATCH_MOVED, now=now)
         if not watch.paused:
             await arm(session, services, watch, now=now)
     _logger.info("watch updated", watch=watch.code, step=watch.step, moved=moved)
@@ -233,7 +237,7 @@ async def delete_watch(
 ) -> None:
     """Remove a watch, cancelling the run it has waiting."""
     code = watch.code
-    await _withdraw(session, services, watch, reason="its watch was retired", now=now)
+    await _withdraw(session, services, watch, reason=WATCH_RETIRED, now=now)
     await session.delete(watch)
     await session.flush()
     _logger.info("watch deleted", watch=code)
@@ -257,7 +261,7 @@ async def set_paused(
     await session.refresh(watch)
     watch.paused = paused
     if paused:
-        await _withdraw(session, services, watch, reason="its watch was paused", now=now)
+        await _withdraw(session, services, watch, reason=WATCH_PAUSED, now=now)
     else:
         watch.rearm_at = None
         watch.failures = 0
@@ -269,7 +273,7 @@ async def set_paused(
 
 
 async def _withdraw(
-    session: AsyncSession, services: EngineServices, watch: Watch, *, reason: str, now: datetime | None
+    session: AsyncSession, services: EngineServices, watch: Watch, *, reason: Message, now: datetime | None
 ) -> None:
     """Take away the run a watch has waiting, and cancel it if it is still in flight.
 
@@ -287,7 +291,7 @@ async def _withdraw(
         return
     run = await session.get(Run, run_id)
     if run is not None and run.status in ACTIVE_RUN_STATUSES:
-        await cancel_run(session, services, run, reason=reason, now=now)
+        await cancel_run(session, services, run, reason, now=now)
 
 
 class _Skipped(Exception):
@@ -526,7 +530,7 @@ async def follow_version(
         waiting = await session.get(Run, watch.waiting_run_id)
         if waiting is None or current is None or waiting.pipeline_version_id == current.id:
             continue
-        await _withdraw(session, services, watch, reason="a new version of its pipeline was applied", now=now)
+        await _withdraw(session, services, watch, reason=WATCH_PIPELINE_REAPPLIED, now=now)
         run = await arm(session, services, watch, now=now)
         if run is not None:
             armed.append(run)
@@ -534,7 +538,7 @@ async def follow_version(
 
 
 async def withdraw_all(
-    session: AsyncSession, services: EngineServices, pipeline_id: UUID, *, reason: str, now: datetime | None = None
+    session: AsyncSession, services: EngineServices, pipeline_id: UUID, *, reason: Message, now: datetime | None = None
 ) -> None:
     """Cancel the run every watch of a pipeline has waiting, leaving each watch as it is."""
     await lock_pipeline(session, pipeline_id)

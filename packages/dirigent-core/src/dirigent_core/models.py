@@ -215,6 +215,7 @@ class Run(Entity):
     """The trace context the run was created in, which every attempt of it opens under."""
     error: Mapped[str | None] = mapped_column(sa.Text)
     error_code: Mapped[str | None] = mapped_column(sa.String(128))
+    error_params: Mapped[JsonMap | None] = mapped_column(JsonDocument)
     started_at: Mapped[datetime | None] = mapped_column(Timestamp)
     finished_at: Mapped[datetime | None] = mapped_column(Timestamp)
 
@@ -256,6 +257,7 @@ class RunItem(Entity):
     failing_step: Mapped[str | None] = mapped_column(sa.String(200))
     error: Mapped[str | None] = mapped_column(sa.Text)
     error_code: Mapped[str | None] = mapped_column(sa.String(128))
+    error_params: Mapped[JsonMap | None] = mapped_column(JsonDocument)
     started_at: Mapped[datetime | None] = mapped_column(Timestamp)
     finished_at: Mapped[datetime | None] = mapped_column(Timestamp)
 
@@ -618,6 +620,16 @@ class LogEntry(Journal):
     level: Mapped[LogLevel] = mapped_column(string_enum(LogLevel, "log_level"), nullable=False, default=LogLevel.INFO)
     message: Mapped[str] = mapped_column(sa.Text, nullable=False)
     fields: Mapped[JsonMap | None] = mapped_column(JsonDocument)
+
+    error_code: Mapped[str | None] = mapped_column(sa.String(128))
+    """The code of the refusal this line reports, when it reports one.
+
+    A log line is an event and carries no code of its own. A line the engine writes *about* a
+    refusal is the exception: it repeats the failing attempt's code so the reader who cannot
+    read ``message`` can still render the line."""
+
+    error_params: Mapped[JsonMap | None] = mapped_column(JsonDocument)
+    """The params that refusal rendered, so the line can be rendered again elsewhere."""
 
 
 class Worker(Entity):

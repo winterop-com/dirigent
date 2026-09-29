@@ -6,7 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, JsonValue
 
-from dirigent_block_base.messages import CHILD_RUN_GONE, NOT_A_RUN_HANDLE
+from dirigent_block_base.messages import CHILD_RUN_GONE, NOT_A_RUN_HANDLE, WAITER_CANCELLED
 from dirigent_common import BlockModel, EntityName
 from dirigent_plugin import (
     BlockFailure,
@@ -146,7 +146,7 @@ class PipelineRunOperator(Operator[PipelineRunConfig, PipelineRunOutput]):
 
     async def cancel(self, handle: RemoteHandle, config: PipelineRunConfig, ctx: StepContext) -> bool:
         """Cancel the child run; False means it had already settled on its own."""
-        cancelled = await ctx.runs.cancel(_run_id(handle), reason="the run waiting on it was cancelled")
+        cancelled = await ctx.runs.cancel(_run_id(handle), WAITER_CANCELLED)
         ctx.log.info("child run cancelled" if cancelled else "the child run had already settled", run_id=handle.ref)
         return cancelled
 

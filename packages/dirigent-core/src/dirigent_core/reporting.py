@@ -88,6 +88,8 @@ class StepFacts(BaseModel):
     warnings: int = 0
     duration_ms: int | None = None
     error: str | None = None
+    error_code: str | None = None
+    error_params: JsonMap | None = None
     output: JsonMap | None = None
     output_uri: str | None = None
     output_bytes: int | None = None
@@ -103,6 +105,8 @@ class ItemFacts(BaseModel):
     status: RunItemStatus
     failing_step: str | None = None
     error: str | None = None
+    error_code: str | None = None
+    error_params: JsonMap | None = None
 
 
 class RunFacts(BaseModel):
@@ -203,6 +207,9 @@ async def run_facts(
     for name in human_order(definition, [attempt.step_name for attempt in attempts]):
         of_step = [attempt for attempt in attempts if attempt.step_name == name]
         last = of_step[-1] if of_step else None
+        # The refusal the step ended on, taken whole: its sentence, its code and its params
+        # come off one attempt, so a reader re-rendering it is not mixing two failures.
+        failed = next((one for one in of_step if one.status is AttemptStatus.FAILED and one.error), None)
         output = dict(last.output) if last is not None and last.output is not None else None
         uri, size = stored.get(last.id, (None, None)) if last is not None else (None, None)
         steps.append(
@@ -217,10 +224,9 @@ async def run_facts(
                     min((one.started_at for one in of_step if one.started_at), default=None),
                     max((one.finished_at for one in of_step if one.finished_at), default=None),
                 ),
-                error=next(
-                    (one.error for one in of_step if one.status is AttemptStatus.FAILED and one.error),
-                    None,
-                ),
+                error=failed.error if failed else None,
+                error_code=failed.error_code if failed else None,
+                error_params=failed.error_params if failed else None,
                 output=output,
                 output_uri=uri,
                 output_bytes=size if size is not None else _json_bytes(output),
@@ -238,6 +244,8 @@ async def run_facts(
                 status=item.status,
                 failing_step=item.failing_step,
                 error=item.error,
+                error_code=item.error_code,
+                error_params=item.error_params,
             )
             for item in items
         ],

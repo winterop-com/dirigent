@@ -25,6 +25,7 @@ from dirigent_core.engine.definition import (
 from dirigent_core.engine.executor import Engine
 from dirigent_core.engine.runs import RunCreationError, cancel_run, retry_step
 from dirigent_core.engine.services import EngineServices
+from dirigent_core.messages import CANCELLED_BY
 from dirigent_core.models import PipelineVersion, Run, StepAttempt, Watch
 from dirigent_core.pipelines import apply_document, delete_pipeline, set_active
 from dirigent_core.triggers import watches
@@ -358,13 +359,13 @@ async def test_a_cancelled_wait_backs_off_like_a_failure(
     async with session_scope(sessions) as session:
         run = await session.get(Run, armed)
         assert run is not None
-        await cancel_run(session, services, run, reason="somebody stopped it", now=T0)
+        await cancel_run(session, services, run, CANCELLED_BY, principal="somebody", now=T0)
 
     watch = await the_watch(sessions)
     assert watch.waiting_run_id is None
     assert watch.failures == 1
     assert watch.last_error is not None
-    assert "somebody stopped it" in watch.last_error
+    assert "cancelled by somebody" in watch.last_error
 
 
 def test_the_backoff_doubles_up_to_its_cap(settings: Settings) -> None:

@@ -391,6 +391,7 @@ async def _settle_items(
             item.finished_at = attempt.finished_at or moment
             item.error = attempt.error
             item.error_code = attempt.error_code
+            item.error_params = attempt.error_params
             item.failing_step = step_name if outcome is StepOutcome.FAILED else None
 
 

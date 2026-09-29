@@ -3,7 +3,7 @@
 from collections.abc import AsyncGenerator, Mapping, Sequence
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import Final, cast
+from typing import Any, Final, cast
 from uuid import UUID
 
 import sqlalchemy as sa
@@ -20,7 +20,7 @@ from dirigent_client.enums import (
     RunStatus,
     TriggerKind,
 )
-from dirigent_common import JsonMap
+from dirigent_common import JsonMap, Message
 from dirigent_core import telemetry
 from dirigent_core.database import session_scope
 from dirigent_core.engine.context import (
@@ -46,6 +46,7 @@ from dirigent_core.ids import uuid7
 from dirigent_core.logging import get_logger
 from dirigent_core.messages import (
     BACKWARDS_WINDOW,
+    CANCELLED,
     CHAIN_CYCLE,
     CHAIN_TOO_DEEP,
     CHILD_REFUSED,
@@ -56,6 +57,8 @@ from dirigent_core.messages import (
     NO_ATTEMPT_TO_RETRY,
     NOT_RETRYABLE,
     PARENT_GONE,
+    REPLACED_BY_NEWER_RUN,
+    REPLACED_BY_RETRY,
     RETRY_CONCURRENCY,
     RETRY_WATCH_MOVED_ON,
     RUN_PIPELINE_INACTIVE,
@@ -294,7 +297,7 @@ async def create_run(
                     held = True
                 case "replace":
                     for running in await active_runs(session, version.pipeline_id):
-                        await cancel_run(session, services, running, reason="replaced by a newer run", now=moment)
+                        await cancel_run(session, services, running, REPLACED_BY_NEWER_RUN, now=moment)
                 case _:
                     pass
 
@@ -395,14 +398,19 @@ async def cancel_run(
     session: AsyncSession,
     services: EngineServices,
     run: Run,
+    reason: Message = CANCELLED,
+    /,
     *,
-    reason: str = "cancelled",
     now: datetime | None = None,
+    **params: Any,
 ) -> Run:
     """Cancel a run: stop what has not started, and tell the remote about what has.
 
     Cancelling a remote is best effort by contract, so a refusal is logged rather than
     raised and the attempt reaches its terminal state either way.
+
+    The reason is a catalogued message, so the run carries the code it was cancelled under and
+    a reader renders its own sentence rather than the one this process happened to mint.
     """
     moment = now or utcnow()
     # The pipeline lock first, because this frees the concurrency slot at the end and taking
@@ -438,7 +446,9 @@ async def cancel_run(
         attempt.lease_expires_at = None
     await _cancel_items(session, run, moment)
     run.status = RunStatus.CANCELLED
-    run.error = reason
+    run.error = reason.render(**params)
+    run.error_code = reason.code
+    run.error_params = params or None
     run.finished_at = moment
     # Imported here rather than at module scope: reporting reads this module's definitions.
     from dirigent_core.reporting import render_run_report
@@ -452,7 +462,7 @@ async def cancel_run(
     from dirigent_core.triggers.watches import note_settled
 
     await note_settled(session, services, run, now=moment)
-    _logger.info("run cancelled", run_id=str(run.id), reason=reason, attempts=len(attempts))
+    _logger.info("run cancelled", run_id=str(run.id), reason=reason.code, attempts=len(attempts))
     return run
 
 
@@ -681,7 +691,7 @@ async def _admit_retry(
                     raise RunCreationError(RETRY_CONCURRENCY, code=repr(definition.code))
         case "replace":
             for other in others:
-                await cancel_run(session, services, other, reason="replaced by a manual retry", now=moment)
+                await cancel_run(session, services, other, REPLACED_BY_RETRY, now=moment)
         case _:
             pass
 
@@ -835,16 +845,18 @@ class EngineRuns:
                 total_steps=len(units),
                 finished_steps=sum(1 for settled in units.values() if settled),
                 error=run.error,
+                error_code=run.error_code,
+                error_params=dict(run.error_params or {}),
             )
 
-    async def cancel(self, run_id: UUID, *, reason: str) -> bool:
+    async def cancel(self, run_id: UUID, reason: Message = CANCELLED, /, **params: Any) -> bool:
         """Cancel a run; False means it had already settled and there was nothing to stop."""
         async with self._scope() as session:
             run = await session.get(Run, run_id)
             if run is None:
                 return False
             before = run.status
-            await cancel_run(session, self.services, run, reason=reason)
+            await cancel_run(session, self.services, run, reason, **params)
             return before in ACTIVE_RUN_STATUSES
 
     async def _refuse_a_bad_chain(

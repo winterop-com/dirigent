@@ -23,6 +23,7 @@ from dirigent_client.schemas import (
     PlanAction,
     ValidationIssue,
 )
+from dirigent_common import JsonMap
 from dirigent_core.documents import (
     digest_of,
     to_yaml,
@@ -40,6 +41,8 @@ from dirigent_core.messages import (
     PIPELINE_NO_SUCH_VERSION,
     PIPELINE_NO_VERSIONS,
     UNKNOWN_PIPELINE,
+    WATCH_PIPELINE_DEACTIVATED,
+    WATCH_PIPELINE_DELETED,
 )
 from dirigent_core.models import (
     ArtifactRef,
@@ -375,7 +378,7 @@ async def set_active(session: AsyncSession, services: EngineServices, code: str,
     if active:
         await arm_all(session, services, pipeline.id)
     else:
-        await withdraw_all(session, services, pipeline.id, reason="its pipeline was deactivated")
+        await withdraw_all(session, services, pipeline.id, reason=WATCH_PIPELINE_DEACTIVATED)
     _logger.info("pipeline activation changed", pipeline=code, active=active)
     return pipeline
 
@@ -414,7 +417,7 @@ async def delete_pipeline(session: AsyncSession, services: EngineServices, code:
     # Run creation takes the same lock, so a run that commits between the count and the
     # delete is either seen here or created against a pipeline this delete already removed.
     await lock_pipeline(session, pipeline.id)
-    await withdraw_all(session, services, pipeline.id, reason="its pipeline was deleted")
+    await withdraw_all(session, services, pipeline.id, reason=WATCH_PIPELINE_DELETED)
     live = await count_runs(session, pipeline.id, Run.status.in_(IN_FLIGHT))
     if live:
         raise PipelineInUse(code, live)
@@ -512,6 +515,7 @@ class FailedStep(NamedTuple):
     step: str
     error: str | None
     code: str | None
+    params: JsonMap | None
 
 
 async def failing_steps(session: AsyncSession, run_ids: Sequence[UUID]) -> dict[UUID, FailedStep]:
@@ -528,12 +532,15 @@ async def failing_steps(session: AsyncSession, run_ids: Sequence[UUID]) -> dict[
             StepAttempt.step_name,
             StepAttempt.error,
             StepAttempt.error_code,
+            StepAttempt.error_params,
             sa.func.row_number().over(partition_by=StepAttempt.run_id, order_by=StepAttempt.id).label("rank"),
         )
         .where(StepAttempt.run_id.in_(run_ids), StepAttempt.status == AttemptStatus.FAILED)
         .subquery()
     )
     rows = await session.execute(
-        sa.select(ranked.c.run_id, ranked.c.step_name, ranked.c.error, ranked.c.error_code).where(ranked.c.rank == 1)
+        sa.select(
+            ranked.c.run_id, ranked.c.step_name, ranked.c.error, ranked.c.error_code, ranked.c.error_params
+        ).where(ranked.c.rank == 1)
     )
-    return {run_id: FailedStep(step, error, code) for run_id, step, error, code in rows.all()}
+    return {run_id: FailedStep(step, error, code, params) for run_id, step, error, code, params in rows.all()}

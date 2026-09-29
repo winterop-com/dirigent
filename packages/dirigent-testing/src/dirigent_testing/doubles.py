@@ -12,7 +12,7 @@ import httpx2
 from jsonschema import FormatChecker
 from pydantic import BaseModel, JsonValue
 
-from dirigent_common import format_checker_with
+from dirigent_common import Message, format_checker_with
 from dirigent_plugin import (
     ByteSink,
     Capture,
@@ -204,13 +204,20 @@ class FakeRuns:
         """Describe a run this fake instance holds."""
         return self.snapshots.get(run_id)
 
-    async def cancel(self, run_id: UUID, *, reason: str) -> bool:
+    async def cancel(self, run_id: UUID, reason: Message, /, **params: Any) -> bool:
         """Cancel a run, unless it had already settled or was never here."""
         self.cancelled.append(run_id)
         held = self.snapshots.get(run_id)
         if held is None or held.state.settled:
             return False
-        self.snapshots[run_id] = held.model_copy(update={"state": RunState.CANCELLED, "error": reason})
+        self.snapshots[run_id] = held.model_copy(
+            update={
+                "state": RunState.CANCELLED,
+                "error": reason.render(**params),
+                "error_code": reason.code,
+                "error_params": params,
+            }
+        )
         return True
 
 
