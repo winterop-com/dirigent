@@ -105,6 +105,19 @@ export function appliedLine(result: ApplyResult): string {
     return `${result.plan.code} is at version ${String(result.version)}`
 }
 
+/** What an apply that was carried out says once it lands: the line, and what it did to the triggers. */
+export interface AppliedNote {
+    line: string
+    /** The trigger changes joined into one sentence, or undefined when there were none. */
+    detail: string | undefined
+}
+
+/** What an apply that was carried out amounts to, as the note that follows it. */
+export function appliedNote(result: ApplyResult): AppliedNote {
+    const changes = triggerChanges(result.triggers)
+    return { line: appliedLine(result), detail: changes.length === 0 ? undefined : changes.join('; ') }
+}
+
 /** What the status bar says about a validation, or null when it found nothing. */
 export function issuesNote(issues: ValidationIssue[]): string | null {
     if (issues.length === 0) return null
