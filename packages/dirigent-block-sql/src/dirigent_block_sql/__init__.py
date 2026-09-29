@@ -2,6 +2,7 @@
 
 from dirigent_block_sql.engines import SqlAlchemyEngine, SqlEngine, SqlSession
 from dirigent_block_sql.markers import ENGINES_GROUP
+from dirigent_block_sql.messages import SQL
 from dirigent_block_sql.sql import SqlConnectionConfig, SqlConnectionKind, SqlExecuteOperator, SqlQueryOperator
 from dirigent_plugin import Contribution, extension
 
@@ -15,6 +16,7 @@ class SqlBlocks:
         return Contribution(
             operators=[SqlQueryOperator(), SqlExecuteOperator()],
             connection_kinds=[SqlConnectionKind()],
+            labels=[SQL],
         )
 
 

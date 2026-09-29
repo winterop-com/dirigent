@@ -4,6 +4,7 @@ from dirigent_block_execute.build import DockerBuildOperator
 from dirigent_block_execute.compose import DockerComposeDownOperator, DockerComposeUpOperator
 from dirigent_block_execute.docker import DockerConnectionKind, DockerRunOperator
 from dirigent_block_execute.git import GitCheckoutOperator, GitConnectionKind
+from dirigent_block_execute.messages import EXECUTE
 from dirigent_block_execute.shell import ShellRunOperator
 from dirigent_plugin import Contribution, extension
 
@@ -24,6 +25,7 @@ class ExecuteBlocks:
                 GitCheckoutOperator(),
             ],
             connection_kinds=[DockerConnectionKind(), GitConnectionKind()],
+            labels=[EXECUTE],
         )
 
 

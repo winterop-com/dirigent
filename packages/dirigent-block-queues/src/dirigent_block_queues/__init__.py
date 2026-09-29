@@ -1,6 +1,7 @@
 """The queue block family: producing to and consuming from Kafka and RabbitMQ."""
 
 from dirigent_block_queues.kafka import KafkaConnectionKind, KafkaConsumeSensor, KafkaProduceOperator
+from dirigent_block_queues.messages import QUEUES
 from dirigent_block_queues.rabbitmq import RabbitConnectionKind, RabbitConsumeSensor, RabbitPublishOperator
 from dirigent_plugin import Contribution, extension
 
@@ -15,6 +16,7 @@ class QueuesBlocks:
             operators=[KafkaProduceOperator(), RabbitPublishOperator()],
             sensors=[KafkaConsumeSensor(), RabbitConsumeSensor()],
             connection_kinds=[KafkaConnectionKind(), RabbitConnectionKind()],
+            labels=[QUEUES],
         )
 
 

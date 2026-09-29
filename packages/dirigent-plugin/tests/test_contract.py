@@ -15,7 +15,7 @@ from pluginkit import PluginManager
 from pydantic import BaseModel, JsonValue, ValidationError
 
 import dirigent_plugin
-from dirigent_common import API_VERSION, SHELL_MEDIA_TYPE, JsonMap, Message, base_format_checker
+from dirigent_common import API_VERSION, SHELL_MEDIA_TYPE, Catalogue, JsonMap, Message, base_format_checker
 from dirigent_plugin import (
     MARK_LIMIT,
     ByteSink,
@@ -445,6 +445,21 @@ def test_contribution_carries_contributed_formats() -> None:
     assert set(merged.formats) == {"even-digits", "odd-digits"}
     assert merged.formats["even-digits"]("abcd") is True
     assert merged.formats["even-digits"]("abc") is False
+
+
+def test_contribution_carries_the_catalogues_a_pack_refuses_out_of() -> None:
+    """A pack's refusal reaches a browser under the pack's own code, so the table travels too."""
+    acme = Catalogue("test_acme")
+    acme.define("too_many", "{count} is more than {limit}")
+    merged = merge_contributions([Contribution(labels=[acme]), Contribution()])
+    assert [catalogue.prefix for catalogue in merged.labels] == ["test_acme"]
+    assert merged.labels[0].messages["too_many"].code == "test_acme.too_many"
+
+
+def test_a_contribution_refuses_two_catalogues_under_one_prefix() -> None:
+    """One prefix has one owner, which is what makes a code identify a refusal on its own."""
+    with pytest.raises(ValidationError, match="duplicate label prefix"):
+        Contribution(labels=[Catalogue("test_twice"), Catalogue("test_twice")])
 
 
 def test_merge_contributions_refuses_two_plugins_claiming_one_format() -> None:

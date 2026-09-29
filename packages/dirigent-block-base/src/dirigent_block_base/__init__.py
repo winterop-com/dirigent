@@ -4,6 +4,7 @@ from dirigent_block_base.clock import TimeSleepSensor, TimeWindowSensor
 from dirigent_block_base.convert_std import StdConverter
 from dirigent_block_base.log_notifier import LogNotifier
 from dirigent_block_base.logging import LogWriteOperator
+from dirigent_block_base.messages import BASE, PLAYGROUND
 from dirigent_block_base.pipelines import PipelineRunOperator
 from dirigent_block_base.playground import (
     ArriveConfig,
@@ -37,6 +38,7 @@ class BaseBlocks:
             ],
             sensors=[PlaygroundArriveSensor(), TimeSleepSensor(), TimeWindowSensor()],
             notifiers=[LogNotifier()],
+            labels=[BASE, PLAYGROUND],
         )
 
 

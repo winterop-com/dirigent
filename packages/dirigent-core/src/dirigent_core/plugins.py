@@ -12,7 +12,7 @@ from pluginkit import PluginManager
 from pydantic import BaseModel
 
 from dirigent_client.schemas import BlockEntry, BlockKind, Catalog, SurfaceEntry
-from dirigent_common import API_VERSION, HumaneJsonSchema, JsonMap, as_markdown
+from dirigent_common import API_VERSION, HumaneJsonSchema, JsonMap, Message, as_markdown
 from dirigent_core.errors import DomainError
 from dirigent_core.messages import (
     AMBIGUOUS_EXAMPLE,
@@ -142,6 +142,7 @@ class PluginHost:
         self.notifiers: dict[str, Notifier] = {}
         self.connection_kinds: dict[str, ConnectionKind] = {}
         self.formats: dict[str, FormatCheck] = {}
+        self.labels: dict[str, Message] = {}
         self.origins: dict[str, str] = {}
         for plugin, contribution in self.contributions.items():
             self._index(plugin, contribution)
@@ -168,6 +169,9 @@ class PluginHost:
         for format_name, check in contribution.formats.items():
             self._claim("format", format_name, plugin)
             self.formats[format_name] = check
+        for catalogue in contribution.labels:
+            self._claim("label prefix", catalogue.prefix, plugin)
+            self.labels.update({message.code: message for message in catalogue.messages.values()})
 
     def _claim(self, surface: str, identifier: str, plugin: str) -> None:
         """Record who owns an identifier, refusing a second claimant."""

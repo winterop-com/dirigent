@@ -1,5 +1,6 @@
 """The built-in pack: every block family at once, and the outbound alert channels."""
 
+from dirigent_blocks.messages import NOTIFY
 from dirigent_blocks.notifiers import (
     EmailConnectionKind,
     EmailNotifier,
@@ -20,6 +21,7 @@ class BuiltinBlocks:
         return Contribution(
             notifiers=[WebhookNotifier(), SlackNotifier(), EmailNotifier()],
             connection_kinds=[WebhookConnectionKind(), SlackConnectionKind(), EmailConnectionKind()],
+            labels=[NOTIFY],
         )
 
 

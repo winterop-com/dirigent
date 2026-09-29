@@ -2,6 +2,7 @@
 
 from dirigent_block_http.connections import HttpConnectionKind
 from dirigent_block_http.http import HttpReadySensor, HttpRequestOperator
+from dirigent_block_http.messages import HTTP
 from dirigent_block_http.webhooks import WebhookPostOperator
 from dirigent_plugin import Contribution, extension
 
@@ -16,6 +17,7 @@ class HttpBlocks:
             operators=[HttpRequestOperator(), WebhookPostOperator()],
             sensors=[HttpReadySensor()],
             connection_kinds=[HttpConnectionKind()],
+            labels=[HTTP],
         )
 
 

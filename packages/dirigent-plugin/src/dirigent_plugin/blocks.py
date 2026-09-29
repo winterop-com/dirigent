@@ -16,7 +16,16 @@ from pydantic import BaseModel, ConfigDict, Field, GetJsonSchemaHandler, JsonVal
 from pydantic.json_schema import JsonSchemaValue, SkipJsonSchema
 from pydantic_core import CoreSchema
 
-from dirigent_common import API_VERSION, SHELL_MEDIA_TYPE, BlockModel, HealthReport, Issue, JsonMap, Message
+from dirigent_common import (
+    API_VERSION,
+    SHELL_MEDIA_TYPE,
+    BlockModel,
+    Catalogue,
+    HealthReport,
+    Issue,
+    JsonMap,
+    Message,
+)
 from dirigent_plugin.messages import (
     DUPLICATE_ID,
     INVALID_MARK,
@@ -855,7 +864,7 @@ type AnySensor = Sensor[Any, Any]
 
 
 class Contribution(BaseModel):
-    """Everything one plugin adds, across all six surfaces, gathered by the host at startup."""
+    """Everything one plugin adds, across all seven surfaces, gathered by the host at startup."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
 
@@ -869,6 +878,14 @@ class Contribution(BaseModel):
     """JSON Schema format checkers this plugin adds, by format name. A schema that writes
     ``format: <name>`` then asserts wherever the contributing pack is installed, and stays a
     passing annotation on an instance without it."""
+
+    labels: list[Catalogue] = Field(default_factory=list[Catalogue])
+    """The message catalogues this plugin refuses out of, so a surface can render its codes.
+
+    A pack's refusal reaches a browser under the pack's own code, and the browser holds no table
+    for it. Contributing the catalogue is what puts one there: the host serves every code and its
+    template, and a renderer that knows the code says its own sentence rather than repeating the
+    English this process happened to mint."""
 
     @field_validator("api_version")
     @classmethod
@@ -886,6 +903,7 @@ class Contribution(BaseModel):
         _require_unique("notifier id", [notifier.id for notifier in self.notifiers])
         _require_unique("connection kind id", [connection.id for connection in self.connection_kinds])
         _require_unique("format", list(self.formats))
+        _require_unique("label prefix", [catalogue.prefix for catalogue in self.labels])
         return self
 
     @model_validator(mode="after")
@@ -919,6 +937,7 @@ def merge_contributions(contributions: list[Contribution]) -> Contribution:
         "storage_backends": [],
         "notifiers": [],
         "connection_kinds": [],
+        "labels": [],
     }
     for contribution in contributions:
         for surface, collected in merged.items():

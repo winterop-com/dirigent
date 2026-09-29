@@ -7,7 +7,7 @@ import pytest
 from cryptography.fernet import Fernet
 from pydantic import BaseModel, Field, SecretStr
 
-from dirigent_common import API_VERSION, BlockModel, Duration, HealthReport, base_format_checker
+from dirigent_common import API_VERSION, BlockModel, Catalogue, Duration, HealthReport, base_format_checker
 from dirigent_core.config import Settings
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.plugins import (
@@ -248,6 +248,26 @@ def test_a_duplicate_format_names_both_plugins() -> None:
             {
                 "one": Contribution(formats={"even-digits": _even_digits}),
                 "two": Contribution(formats={"even-digits": _even_digits}),
+            }
+        )
+
+
+def test_the_host_gathers_every_contributed_catalogue_by_code() -> None:
+    """The browser holds no table for a pack's codes, so the host is where one is assembled."""
+    acme = Catalogue("test_gathered")
+    acme.define("refused", "{where} refused it")
+    host = PluginHost({"acme": Contribution(labels=[acme])})
+    assert host.labels["test_gathered.refused"].text == "{where} refused it"
+    assert host.origins["label prefix:test_gathered"] == "acme"
+
+
+def test_two_plugins_claiming_one_label_prefix_names_both() -> None:
+    """A code identifies a refusal, so two packs minting one prefix is a collision, not a merge."""
+    with pytest.raises(DuplicateContribution, match="label prefix 'test_contested'"):
+        PluginHost(
+            {
+                "one": Contribution(labels=[Catalogue("test_contested")]),
+                "two": Contribution(labels=[Catalogue("test_contested")]),
             }
         )
 
