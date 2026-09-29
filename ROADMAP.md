@@ -127,6 +127,9 @@ stays clean, and every example stays executable.
      needs a routes contribution surface, the open question "A server in the mix" below.
    Converting a QuestionnaireResponse into DHIS2 uses `dhis2w-fhir` and belongs in
    `dirigent-dhis2`. The plan sets the milestones.
+   dhis2w's FHIR packages are moving out of the dhis2w monorepo into their own
+   `dhis2w-fhir` repository, as `dhis2w-security` did; the pack depends on them by package
+   name, not by repository.
 4. **Adapter packs.** Every further pack takes the shape `dirigent-dhis2` set: its own
    repository, its own examples and tests, self-testing against `dirigent-plugin`'s main,
    wired through a connection kind, with a client written fresh or wrapping a stable one, and
