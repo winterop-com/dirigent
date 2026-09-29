@@ -270,15 +270,23 @@ describe('what a watch is doing', () => {
 
 describe('the rows of every kind in one listing', () => {
     test('a watch is never the same row as a schedule or a webhook', () => {
-        expect(triggerId({ kind: 'watch', pipeline: 'p', watch: WATCH })).toBe(`watch:${WATCH.id}`)
+        expect(triggerId({ kind: 'watch', pipeline: 'p', pipelineName: null, watch: WATCH })).toBe(
+            `watch:${WATCH.id}`,
+        )
     })
 
     test('a schedule and a webhook are never the same row', () => {
-        expect(triggerId({ kind: 'schedule', pipeline: 'p', schedule: SCHEDULE, latest: null })).toBe(
-            `schedule:${SCHEDULE.id}`,
-        )
-        expect(triggerId({ kind: 'webhook', pipeline: 'p', webhook: WEBHOOK, latest: null })).toBe(
-            `webhook:${WEBHOOK.id}`,
-        )
+        expect(
+            triggerId({
+                kind: 'schedule',
+                pipeline: 'p',
+                pipelineName: null,
+                schedule: SCHEDULE,
+                latest: null,
+            }),
+        ).toBe(`schedule:${SCHEDULE.id}`)
+        expect(
+            triggerId({ kind: 'webhook', pipeline: 'p', pipelineName: null, webhook: WEBHOOK, latest: null }),
+        ).toBe(`webhook:${WEBHOOK.id}`)
     })
 })

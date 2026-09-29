@@ -144,6 +144,8 @@ export interface WatchOut {
 export interface ScheduleRow {
     kind: 'schedule'
     pipeline: string
+    /** What that pipeline is called, which heads the reference to it. */
+    pipelineName: string | null
     schedule: ScheduleOut
     /** The newest firing, or nothing for a schedule that has never fired. */
     latest: FiringOut | null
@@ -153,6 +155,8 @@ export interface ScheduleRow {
 export interface WebhookRow {
     kind: 'webhook'
     pipeline: string
+    /** What that pipeline is called, which heads the reference to it. */
+    pipelineName: string | null
     webhook: WebhookOut
     /** The newest delivery, or nothing for a webhook nothing has been sent to. */
     latest: DeliveryOut | null
@@ -162,6 +166,8 @@ export interface WebhookRow {
 export interface WatchRow {
     kind: 'watch'
     pipeline: string
+    /** What that pipeline is called, which heads the reference to it. */
+    pipelineName: string | null
     watch: WatchOut
 }
 
@@ -354,7 +360,13 @@ async function triggersOf(pipeline: PipelineOut): Promise<TriggerRow[]> {
                 schedule.last_fired_at === null
                     ? null
                     : await newest(readFirings(pipeline.code, schedule.code, null, 1))
-            return { kind: 'schedule', pipeline: pipeline.code, schedule, latest }
+            return {
+                kind: 'schedule',
+                pipeline: pipeline.code,
+                pipelineName: pipeline.name,
+                schedule,
+                latest,
+            }
         }),
     )
     const webhookRows = await Promise.all(
@@ -363,12 +375,13 @@ async function triggersOf(pipeline: PipelineOut): Promise<TriggerRow[]> {
                 webhook.last_delivery_at === null
                     ? null
                     : await newest(readDeliveries(pipeline.code, webhook.code, null, 1))
-            return { kind: 'webhook', pipeline: pipeline.code, webhook, latest }
+            return { kind: 'webhook', pipeline: pipeline.code, pipelineName: pipeline.name, webhook, latest }
         }),
     )
     const watchRows = watches.items.map((watch): WatchRow => ({
         kind: 'watch',
         pipeline: pipeline.code,
+        pipelineName: pipeline.name,
         watch,
     }))
     return [...scheduleRows, ...webhookRows, ...watchRows]

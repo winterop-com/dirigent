@@ -1,19 +1,22 @@
 import { useCallback, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 
+import { Description } from '@/components/Description'
+import { JsonBlock } from '@/components/JsonBlock'
+import { PipelineRef } from '@/components/PipelineRef'
 import { Refusable } from '@/components/Refusable'
 import { sayRefusal } from '@/components/Refusal'
 import { Chip, Clock, Dot, NextFire, OwnerChip, WatchState } from '@/components/triggers/marks'
 import { Button } from '@/components/ui/button'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { usePaged } from '@/hooks/use-paged'
-import { Description } from '@/components/Description'
 import { asJson, formatInstant, formatRelative, shortId } from '@/lib/format'
 import { headingOf, type Addressable } from '@/lib/identity'
 import {
     deliveryView,
     firingView,
     hookPath,
+    nextFireView,
     readDeliveries,
     readFirings,
     rotateWebhookToken,
@@ -21,6 +24,7 @@ import {
     setWatchPaused,
     setWebhookActive,
     signing,
+    watchView,
     type DeliveryOut,
     type FiringOut,
     type ScheduleOut,
@@ -44,10 +48,12 @@ import {
  */
 export function SchedulePanel({
     pipeline,
+    pipelineName,
     schedule,
     onChanged,
 }: {
     pipeline: string
+    pipelineName: string | null
     schedule: ScheduleOut
     /** Called with what a verb answered, so the row behind updates without a re-read. */
     onChanged: (row: ScheduleOut) => void
@@ -73,7 +79,12 @@ export function SchedulePanel({
 
     return (
         <div className="space-y-4 p-4">
-            <Head thing={schedule} pipeline={pipeline} description={schedule.description}>
+            <Head
+                thing={schedule}
+                pipeline={pipeline}
+                pipelineName={pipelineName}
+                description={schedule.description}
+            >
                 <OwnerChip managed={schedule.managed} document={schedule.trigger_document} />
                 {schedule.paused && <Chip>paused</Chip>}
             </Head>
@@ -83,9 +94,11 @@ export function SchedulePanel({
                     <Clock schedule={schedule} />
                 </Fact>
                 <Fact label="Timezone">{schedule.timezone}</Fact>
-                <Fact label="Next">
-                    <NextFire schedule={schedule} />
-                </Fact>
+                {nextFireView(schedule).kind !== 'paused' && (
+                    <Fact label="Next">
+                        <NextFire schedule={schedule} />
+                    </Fact>
+                )}
                 {schedule.last_fired_at !== null && (
                     <Fact label="Last fired">
                         <span title={formatInstant(schedule.last_fired_at)}>
@@ -95,9 +108,11 @@ export function SchedulePanel({
                 )}
                 {Object.keys(schedule.params).length > 0 && (
                     <Fact label="Pinned parameters">
-                        <pre className="mt-1 overflow-x-auto rounded-md bg-secondary/50 p-2 font-mono text-xs">
-                            {asJson(schedule.params)}
-                        </pre>
+                        <JsonBlock
+                            title={`${schedule.code} · pinned parameters`}
+                            text={asJson(schedule.params)}
+                            className="mt-1 max-h-64"
+                        />
                     </Fact>
                 )}
             </dl>
@@ -131,11 +146,13 @@ export function SchedulePanel({
 
 export function WebhookPanel({
     pipeline,
+    pipelineName,
     webhook,
     onChanged,
     onMinted,
 }: {
     pipeline: string
+    pipelineName: string | null
     webhook: WebhookOut
     onChanged: (row: WebhookOut) => void
     /** Called with a token that is readable exactly once, which the screen shows and forgets. */
@@ -161,7 +178,12 @@ export function WebhookPanel({
 
     return (
         <div className="space-y-4 p-4">
-            <Head thing={webhook} pipeline={pipeline} description={webhook.description}>
+            <Head
+                thing={webhook}
+                pipeline={pipeline}
+                pipelineName={pipelineName}
+                description={webhook.description}
+            >
                 <OwnerChip managed={webhook.managed} document={webhook.trigger_document} />
                 {!webhook.active && <Chip>disabled</Chip>}
             </Head>
@@ -183,9 +205,11 @@ export function WebhookPanel({
                 </Fact>
                 {Object.keys(webhook.params_from_payload).length > 0 && (
                     <Fact label="Payload mapping">
-                        <pre className="mt-1 overflow-x-auto rounded-md bg-secondary/50 p-2 font-mono text-xs">
-                            {asJson(webhook.params_from_payload)}
-                        </pre>
+                        <JsonBlock
+                            title={`${webhook.code} · payload mapping`}
+                            text={asJson(webhook.params_from_payload)}
+                            className="mt-1 max-h-64"
+                        />
                     </Fact>
                 )}
             </dl>
@@ -240,10 +264,12 @@ export function WebhookPanel({
 
 export function WatchPanel({
     pipeline,
+    pipelineName,
     watch,
     onChanged,
 }: {
     pipeline: string
+    pipelineName: string | null
     watch: WatchOut
     /** Called with what a verb answered, so the row behind updates without a re-read. */
     onChanged: (row: WatchOut) => void
@@ -262,7 +288,12 @@ export function WatchPanel({
 
     return (
         <div className="space-y-4 p-4">
-            <Head thing={watch} pipeline={pipeline} description={watch.description}>
+            <Head
+                thing={watch}
+                pipeline={pipeline}
+                pipelineName={pipelineName}
+                description={watch.description}
+            >
                 <OwnerChip managed={watch.managed} document={watch.trigger_document} />
                 {watch.paused && <Chip>paused</Chip>}
             </Head>
@@ -271,9 +302,11 @@ export function WatchPanel({
                 <Fact label="Step">
                     <span className="font-mono">{watch.step}</span>
                 </Fact>
-                <Fact label="Waiting">
-                    <WatchState watch={watch} />
-                </Fact>
+                {watchView(watch).kind !== 'paused' && (
+                    <Fact label="Waiting">
+                        <WatchState watch={watch} />
+                    </Fact>
+                )}
                 {watch.failures > 0 && <Fact label="Failures in a row">{String(watch.failures)}</Fact>}
                 {watch.last_error !== null && (
                     <Fact label="Last error">
@@ -290,16 +323,20 @@ export function WatchPanel({
                 )}
                 {watch.cursor !== null && (
                     <Fact label="Cursor">
-                        <pre className="mt-1 overflow-x-auto rounded-md bg-secondary/50 p-2 font-mono text-xs">
-                            {asJson(watch.cursor)}
-                        </pre>
+                        <JsonBlock
+                            title={`${watch.code} · cursor`}
+                            text={asJson(watch.cursor)}
+                            className="mt-1 max-h-64"
+                        />
                     </Fact>
                 )}
                 {Object.keys(watch.params).length > 0 && (
                     <Fact label="Pinned parameters">
-                        <pre className="mt-1 overflow-x-auto rounded-md bg-secondary/50 p-2 font-mono text-xs">
-                            {asJson(watch.params)}
-                        </pre>
+                        <JsonBlock
+                            title={`${watch.code} · pinned parameters`}
+                            text={asJson(watch.params)}
+                            className="mt-1 max-h-64"
+                        />
                     </Fact>
                 )}
             </dl>
@@ -326,11 +363,13 @@ const deliveryId = (row: DeliveryOut) => String(row.id)
 function Head({
     thing,
     pipeline,
+    pipelineName,
     description,
     children,
 }: {
     thing: Addressable
     pipeline: string
+    pipelineName: string | null
     description: string | null
     children: ReactNode
 }) {
@@ -346,12 +385,7 @@ function Head({
                     <span className="font-mono text-xs text-muted-foreground">{heading.code}</span>
                 )}
             </p>
-            <Link
-                className="text-xs text-muted-foreground hover:text-foreground"
-                to={`/pipelines/${encodeURIComponent(pipeline)}`}
-            >
-                {pipeline}
-            </Link>
+            <PipelineRef code={pipeline} name={pipelineName} inline />
             <Description text={description} />
         </div>
     )
