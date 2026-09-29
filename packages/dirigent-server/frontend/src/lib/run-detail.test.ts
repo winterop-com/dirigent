@@ -25,6 +25,7 @@ import {
     logsForStep,
     outcomeOf,
     outputReading,
+    progressOf,
     reduce,
     resumeCursor,
     retryStory,
@@ -151,6 +152,7 @@ function drawn(over: Partial<StepView> = {}): StepView {
         duration_ms: null,
         queued_ms: null,
         waiting_ms: null,
+        progress: null,
         strip: { kind: 'empty' },
         ...over,
     }
@@ -626,6 +628,37 @@ describe('the nodes the graph draws', () => {
             initialState(detail({ dag })),
         )
         expect(stepViews(state, NOW)[0]?.detail).toBe('connection refused')
+    })
+})
+
+describe('how far a live wait has come', () => {
+    test('is nothing without an attempt, or without a reported fraction', () => {
+        expect(progressOf(null)).toBeNull()
+        expect(progressOf(attempt({ status: 'waiting', waiting_progress: null }))).toBeNull()
+    })
+
+    test('is the fraction a waiting or running attempt reported', () => {
+        expect(progressOf(attempt({ status: 'waiting', waiting_progress: 0.29 }))).toBe(0.29)
+        expect(progressOf(attempt({ status: 'running', waiting_progress: 0.5 }))).toBe(0.5)
+    })
+
+    test('is held between 0 and 1', () => {
+        expect(progressOf(attempt({ status: 'waiting', waiting_progress: -0.2 }))).toBe(0)
+        expect(progressOf(attempt({ status: 'waiting', waiting_progress: 1.4 }))).toBe(1)
+    })
+
+    test('is nothing once the attempt has settled, whatever fraction it last carried', () => {
+        for (const status of ['failed', 'cancelled', 'succeeded', 'skipped'] as const) {
+            expect(progressOf(attempt({ status, waiting_progress: 0.6 }))).toBeNull()
+        }
+    })
+
+    test("is the latest attempt's, on the node", () => {
+        const state = fed([
+            attempt({ id: 'a-1', attempt: 1, status: 'failed', waiting_progress: 0.8 }),
+            attempt({ id: 'a-2', attempt: 2, status: 'waiting', waiting_progress: 0.1 }),
+        ])
+        expect(stepViews(state, NOW)[0]?.progress).toBe(0.1)
     })
 })
 

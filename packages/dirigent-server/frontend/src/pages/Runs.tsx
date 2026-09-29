@@ -1,12 +1,13 @@
 import { ArrowUp, CircleX, Clock, FilterX, RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router'
+import { useNavigate, useSearchParams } from 'react-router'
 
 import { ApiChip } from '@/components/ApiChip'
 import { Choice } from '@/components/list/Choice'
 import { ListTable, type Column } from '@/components/list/ListTable'
 import { TagFilter } from '@/components/list/TagFilter'
 import { PageHeader, PageState } from '@/components/PageState'
+import { PipelineRef } from '@/components/PipelineRef'
 import { StatusChip } from '@/components/run/StatusChip'
 import { SearchField } from '@/components/SearchField'
 import { Button } from '@/components/ui/button'
@@ -15,7 +16,6 @@ import { refreshSeconds } from '@/lib/refresh'
 import { usePaged } from '@/hooks/use-paged'
 import { useRead } from '@/hooks/use-read'
 import { elapsedBetween, formatDuration, formatInstant, formatRelative } from '@/lib/format'
-import { headingOf } from '@/lib/identity'
 import { LIST_GROUP, registerActions } from '@/lib/palette'
 import { readPipelineNames, readTagsOffered } from '@/lib/pipelines'
 import {
@@ -217,7 +217,7 @@ function runColumns(names: ReadonlyMap<string, string | null> | null): Column<Ru
             id: 'pipeline',
             header: 'Pipeline',
             kind: 'title',
-            cell: (run) => <PipelineCell run={run} name={names?.get(run.pipeline) ?? null} />,
+            cell: (run) => <PipelineRef code={run.pipeline} name={names?.get(run.pipeline) ?? null} />,
         },
         {
             // THE STATE IS A VALUE AND WHAT WENT WRONG IS A SENTENCE. The chip holds its width --
@@ -302,31 +302,4 @@ function PriorityMark({ run }: { run: RunOut }) {
     const mark = priorityMark(run.priority)
     if (mark === null) return null
     return <span className={cn('truncate text-xs', mark.className)}>{mark.label}</span>
-}
-
-/**
- * Which pipeline a run is of, headed the way every other screen heads one.
- *
- * TITLE ELSE CODE, AND THE CODE ALWAYS ON SCREEN. The name where the pipeline has one, with the
- * code under it in mono; where it has none the code is the title and wears the mono face itself,
- * so it is never drawn twice.
- */
-function PipelineCell({ run, name }: { run: RunOut; name: string | null }) {
-    const heading = headingOf({ code: run.pipeline, name })
-    return (
-        <span className="flex min-w-0 flex-col">
-            <Link
-                className={cn('truncate hover:text-primary', !heading.named && 'font-mono')}
-                to={`/pipelines/${encodeURIComponent(run.pipeline)}`}
-                title={heading.title}
-            >
-                {heading.title}
-            </Link>
-            {heading.code !== null && (
-                <span className="truncate font-mono text-xs text-muted-foreground" title={heading.code}>
-                    {heading.code}
-                </span>
-            )}
-        </span>
-    )
 }

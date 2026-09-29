@@ -288,10 +288,15 @@ test('a schedule opens its own facts and its firing history beside the listing',
     await expect(panel).toContainText('Not fired.')
 
     // A paused schedule fires at no instant. The row keeps the one the scheduler computed, so
-    // that it has somewhere to resume from, and the screen says what is true of it instead.
+    // that it has somewhere to resume from, and the screen says it is paused once: the chip.
     await expect(panel.getByTestId('next-fire')).toHaveText(/^in \d+[mhd]$/)
     await panel.getByRole('button', { name: 'Pause' }).click()
-    await expect(panel.getByTestId('next-fire')).toHaveText('paused')
+    await expect(panel.getByRole('button', { name: 'Resume' })).toBeVisible()
+    await expect(panel.getByTestId('next-fire')).toHaveCount(0)
+    await expect(panel.getByText('paused', { exact: true })).toHaveCount(1)
+    // The listing behind says it the same way: its chip, and no Next beside it.
+    await expect(page.getByTestId('next-fire')).toHaveCount(0)
+    await expect(page.getByText('paused', { exact: true })).toHaveCount(2)
 
     await panel.getByRole('button', { name: 'Resume' }).click()
     await expect(panel.getByTestId('next-fire')).toHaveText(/^in \d+[mhd]$/)
@@ -321,7 +326,11 @@ test('a watch shows the run it has waiting, and pausing it leaves none', async (
     const panel = page.getByRole('tabpanel')
     await expect(panel).toContainText('arrive')
     await panel.getByRole('button', { name: 'Pause' }).click()
-    await expect(panel.getByText('paused').first()).toBeVisible()
+    await expect(panel.getByRole('button', { name: 'Resume' })).toBeVisible()
+    // Paused is said once, by the chip, and not again where the waiting run would be.
+    await expect(panel.getByText('paused', { exact: true })).toHaveCount(1)
+    await expect(row.getByText('paused', { exact: true })).toHaveCount(1)
+    await expect(panel.getByText('Waiting', { exact: true })).toHaveCount(0)
 
     await panel.getByRole('button', { name: 'Resume' }).click()
     await expect(panel.getByRole('button', { name: 'Pause' })).toBeVisible()
@@ -330,6 +339,112 @@ test('a watch shows the run it has waiting, and pausing it leaves none', async (
     // Left paused, so no run waits on the instance the rest of the suite counts runs on.
     await panel.getByRole('button', { name: 'Pause' }).click()
     await expect(panel.getByRole('button', { name: 'Resume' })).toBeVisible()
+})
+
+test('a trigger names the pipeline it fires the way every listing heads one', async ({ page }) => {
+    await signIn(page)
+    await applyExample(page.request, CRON.file)
+    await applyExample(page.request, HOOK.file)
+    await applyDocument(page.request, WATCHED)
+
+    await page.goto('/triggers')
+    // A pipeline with a name is headed by it, with its code under it in mono.
+    for (const [row, title, code] of [
+        [rowOf(page, CRON.title), CRON.pipelineTitle, CRON.pipeline],
+        [rowOf(page, HOOK.webhook), HOOK.pipelineTitle, HOOK.pipeline],
+    ] as const) {
+        const ref = row.getByTestId('pipeline-ref')
+        await expect(ref.getByRole('link')).toHaveText(title)
+        await expect(ref.getByText(code, { exact: true })).toHaveCSS('font-family', /Mono/)
+    }
+    // One without a name is headed by its code, in mono, and the code is not drawn twice.
+    const bare = rowOf(page, 'Follow the arrivals').getByTestId('pipeline-ref')
+    await expect(bare.getByRole('link')).toHaveText(WATCHED.code)
+    await expect(bare.getByRole('link')).toHaveCSS('font-family', /Mono/)
+    await expect(bare.getByText(WATCHED.code, { exact: true })).toHaveCount(1)
+
+    // The panel names it the same way.
+    await rowOf(page, CRON.title).getByText(CRON.title, { exact: true }).click()
+    const panel = page.getByRole('tabpanel').getByTestId('pipeline-ref')
+    await expect(panel.getByRole('link')).toHaveText(CRON.pipelineTitle)
+    await expect(panel.getByText(CRON.pipeline, { exact: true })).toHaveCSS('font-family', /Mono/)
+})
+
+test('the heading keeps its width at 1024 beside an open panel, and the verbs fold', async ({ page }) => {
+    await signIn(page)
+    await applyExample(page.request, CRON.file)
+    await page.setViewportSize({ width: 1024, height: 768 })
+
+    await page.goto('/triggers')
+    await rowOf(page, CRON.title).getByText(CRON.title, { exact: true }).click()
+    await expect(page.getByRole('tabpanel')).toContainText('Europe/Oslo')
+
+    const heading = page.getByRole('heading', { name: 'Triggers', level: 1 })
+    const measured = await heading.evaluate((element) => {
+        const range = document.createRange()
+        range.selectNodeContents(element)
+        return { box: element.getBoundingClientRect().width, natural: range.getBoundingClientRect().width }
+    })
+    expect(measured.box).toBeGreaterThanOrEqual(measured.natural)
+    // The create verbs that no longer fit beside it are behind the one menu.
+    await expect(page.getByRole('button', { name: 'More actions' })).toBeVisible()
+    expect(
+        await page.evaluate(
+            () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        ),
+    ).toBeLessThanOrEqual(0)
+})
+
+test('a pinned parameters block stands off the light panel it is drawn on', async ({ page }) => {
+    await signIn(page)
+    await applyExample(page.request, CRON.file)
+    await page.evaluate(() => {
+        localStorage.setItem('theme', 'light')
+    })
+
+    await page.goto('/triggers')
+    await rowOf(page, CRON.title).getByText(CRON.title, { exact: true }).click()
+    const panel = page.getByRole('tabpanel')
+    const block = panel.locator('pre').filter({ hasText: 'production' })
+    await expect(block).toBeVisible()
+
+    // The ground and the block's edge, each painted to one pixel and read back as RGB.
+    const apart = await block.evaluate((element) => {
+        const paint = (colours: string[]): number[] => {
+            const canvas = document.createElement('canvas')
+            canvas.width = 1
+            canvas.height = 1
+            const context = canvas.getContext('2d')
+            if (context === null) return [0, 0, 0]
+            for (const colour of colours) {
+                context.fillStyle = colour
+                context.fillRect(0, 0, 1, 1)
+            }
+            return Array.from(context.getImageData(0, 0, 1, 1).data.slice(0, 3))
+        }
+        // The block's box is the nearest element inside the panel that draws an edge.
+        const panel = element.closest('[role="tabpanel"]')
+        let box: Element = element
+        while (
+            box !== panel &&
+            box.parentElement !== null &&
+            Number.parseFloat(getComputedStyle(box).borderTopWidth) < 1
+        ) {
+            box = box.parentElement
+        }
+        let ground = box.parentElement
+        while (ground !== null && getComputedStyle(ground).backgroundColor === 'rgba(0, 0, 0, 0)') {
+            ground = ground.parentElement
+        }
+        const under = ground === null ? 'white' : getComputedStyle(ground).backgroundColor
+        const style = getComputedStyle(box)
+        const base = paint([under])
+        const edge = paint([under, style.backgroundColor, style.borderTopColor])
+        const width = Number.parseFloat(style.borderTopWidth)
+        return { width, distance: base.reduce((sum, part, at) => sum + Math.abs(part - (edge[at] ?? 0)), 0) }
+    })
+    expect(apart.width).toBeGreaterThanOrEqual(1)
+    expect(apart.distance).toBeGreaterThanOrEqual(24)
 })
 
 test('a webhook minted in the browser shows its token once and never again', async ({ page }) => {
