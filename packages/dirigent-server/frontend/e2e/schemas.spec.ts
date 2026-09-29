@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
-import { apiPrefix, signIn, writeInEditor } from './support.ts'
+import { apiPrefix, applyExample, signIn, writeInEditor } from './support.ts'
 
 /**
  * The Schemas screen, against a real instance.
@@ -58,6 +58,23 @@ test('a link straight to a schema opens that schema', async ({ page }) => {
     const panel = page.locator('aside')
     await expect(panel.getByText('properties', { exact: false })).toBeVisible()
     await expect(page.getByRole('row').filter({ hasText: 'Organisation unit' })).toBeVisible()
+})
+
+test('a link that opened a schema leaves the next screen starting closed', async ({ page }) => {
+    await signIn(page)
+    await seedSchema(page.request)
+    await applyExample(page.request, 'examples/transform/std-convert-fan-out.yaml')
+
+    await page.goto('/schemas/e2e-org-unit')
+    await expect(page.locator('aside').getByText('properties', { exact: false })).toBeVisible()
+
+    // The link opened the panel for that visit; the reader never toggled it, so the editor
+    // draws the way a first visit does.
+    await page.goto('/pipelines/std-convert-fan-out')
+    await expect(page.locator('.react-flow__node').first()).toBeVisible()
+    const panel = page.locator('aside').filter({ has: page.getByRole('tab', { name: 'Step' }) })
+    await expect(panel).toBeAttached()
+    await expect(panel).toHaveAttribute('inert')
 })
 
 test('choosing a row writes its code into the address', async ({ page }) => {
