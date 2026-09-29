@@ -8,6 +8,17 @@ from dirigent_common import Catalogue, Message
 
 DATABASE = Catalogue("database")
 
+# What the settings refuse at validation. Pydantic owns the code a validator's refusal
+# reaches the wire under, so this is rendered into the ``ValueError`` it wraps.
+
+POOL_TOO_SMALL = DATABASE.define(
+    "pool_too_small",
+    "database_pool_size ({size}) plus database_max_overflow ({overflow}) is {ceiling} connections, "
+    "and a worker at worker_concurrency={concurrency} needs at least {needed} (one per in-flight "
+    "call, plus {headroom} for the heartbeat, the sweeper and the alert loop). Raise the pool or "
+    "lower the concurrency.",
+)
+
 SCHEMA_STALE = DATABASE.define(
     "schema_stale",
     "the database at {where} was written by a different dirigent: {differences} difference(s), "

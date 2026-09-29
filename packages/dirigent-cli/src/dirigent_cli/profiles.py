@@ -16,6 +16,7 @@ import yaml
 from dotenv import dotenv_values
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, model_validator
 
+from dirigent_cli.messages import PROFILE_NAMES_A_DATABASE
 from dirigent_client import API_PREFIX, DEFAULT_CONNECT_TIMEOUT, DEFAULT_RETRIES, DEFAULT_TIMEOUT
 from dirigent_common import Duration, EntityName
 
@@ -71,10 +72,7 @@ class Profile(BaseModel):
         """Refuse a profile pointing at a database rather than at an API."""
         scheme = self.url.split("://", 1)[0].split("+", 1)[0].lower()
         if scheme in DATABASE_SCHEMES:
-            raise ValueError(
-                f"profile {self.name!r} names a database URL. Profiles address a server over HTTP; "
-                f"a database URL belongs in DIRIGENT_DATABASE_URL on the host that runs it"
-            )
+            raise ValueError(PROFILE_NAMES_A_DATABASE.render(name=repr(self.name)))
         return self
 
     def resolve_token(self, environ: Mapping[str, str] | None = None) -> str | None:

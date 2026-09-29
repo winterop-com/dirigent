@@ -17,6 +17,7 @@ from pydantic_settings import (
 )
 
 from dirigent_common import Duration, EntityName, Size
+from dirigent_core.messages import POOL_TOO_SMALL
 
 CONFIG_FILE_ENV = "DIRIGENT_CONFIG_FILE"
 
@@ -405,11 +406,14 @@ class Settings(BaseSettings):
         needed = self.worker_concurrency + POOL_HEADROOM
         if ceiling < needed:
             raise ValueError(
-                f"database_pool_size ({self.database_pool_size}) plus database_max_overflow "
-                f"({self.database_max_overflow}) is {ceiling} connections, and a worker at "
-                f"worker_concurrency={self.worker_concurrency} needs at least {needed} "
-                f"(one per in-flight call, plus {POOL_HEADROOM} for the heartbeat, the sweeper "
-                "and the alert loop). Raise the pool or lower the concurrency."
+                POOL_TOO_SMALL.render(
+                    size=self.database_pool_size,
+                    overflow=self.database_max_overflow,
+                    ceiling=ceiling,
+                    concurrency=self.worker_concurrency,
+                    needed=needed,
+                    headroom=POOL_HEADROOM,
+                )
             )
         return self
 

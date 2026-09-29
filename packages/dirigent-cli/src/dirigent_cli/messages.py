@@ -189,6 +189,15 @@ SCHEMA_NOT_AN_OBJECT = CLI.define(
     "{label} is not a JSON Schema: a schema is an object, and this is {kind}",
 )
 
+# What a profile refuses at validation. Pydantic owns the code a validator's refusal reaches
+# the wire under, so this is rendered into the ``ValueError`` it wraps.
+
+PROFILE_NAMES_A_DATABASE = CLI.define(
+    "profile_names_a_database",
+    "profile {name} names a database URL. Profiles address a server over HTTP; "
+    "a database URL belongs in DIRIGENT_DATABASE_URL on the host that runs it",
+)
+
 NOT_AUTHENTICATED = CLI.define("not_authenticated", "no token for {url}")
 
 SET_DG_TOKEN = CLI.define("set_dg_token", "set DG_TOKEN")
