@@ -2,6 +2,7 @@ import { type Node, type NodeProps } from '@xyflow/react'
 import type { CSSProperties } from 'react'
 
 import { StepPorts } from '@/components/graph/StepPorts'
+import { ProgressLine } from '@/components/run/ProgressLine'
 import { StatusDot } from '@/components/run/StatusChip'
 import { formatDuration } from '@/lib/format'
 import { headingOf } from '@/lib/identity'
@@ -40,6 +41,9 @@ export type StepNode = Node<StepNodeData, 'step'>
  * WHAT IT IS DRAWN IN IS `nodeTone`, NOT THE FOLDED OUTCOME. A fan-out whose failures the run
  * tolerated is amber rather than red, because that is what the run's own chip says about it.
  *
+ * A LIVE WAIT THAT SAYS HOW FAR IT HAS COME draws that as a line along the box's foot, and the
+ * box's tooltip gives the percentage after the detail.
+ *
  * THIS GRAPH OFFERS NO PORTS. It is a view: nothing is connected, disconnected or dragged here,
  * so `StepPorts` is drawn in its view mode -- the anchors an edge has to end at, and nothing
  * visible or connectable. A pipeline is edited on its own screen.
@@ -49,9 +53,19 @@ export function StepNode({ data, selected }: NodeProps<StepNode>) {
     const tone = nodeTone(view)
     const tokens = statusTokens(tone) as CSSProperties
     const heading = headingOf(view.node)
+    const hint =
+        view.detail !== null && view.progress !== null
+            ? `${view.detail} (${String(Math.round(view.progress * 100))}%)`
+            : view.detail
 
     return (
-        <div className="step-node" style={tokens} data-selected={selected === true} data-outcome={tone}>
+        <div
+            className="step-node"
+            style={tokens}
+            data-selected={selected === true}
+            data-outcome={tone}
+            title={hint ?? undefined}
+        >
             <StepPorts editable={false} />
             <div className="flex items-center gap-2">
                 <StatusDot status={tone} />
@@ -71,9 +85,7 @@ export function StepNode({ data, selected }: NodeProps<StepNode>) {
                 {heading.code === null ? view.node.block : `${heading.code} · ${view.node.block}`}
             </span>
             <div className="flex items-baseline gap-2">
-                <span className="min-w-0 truncate text-xs text-faint" title={view.detail ?? undefined}>
-                    {view.detail ?? ' '}
-                </span>
+                <span className="min-w-0 truncate text-xs text-faint">{view.detail ?? ' '}</span>
                 {view.duration_ms !== null && (
                     <span className="ml-auto shrink-0 font-mono text-xs text-faint">
                         {formatDuration(view.duration_ms)}
@@ -81,6 +93,7 @@ export function StepNode({ data, selected }: NodeProps<StepNode>) {
                 )}
             </div>
             {view.node.fan_out && <ItemStrip view={view} />}
+            <ProgressLine progress={view.progress} placement="foot" />
         </div>
     )
 }
