@@ -1,5 +1,6 @@
 """The jq engine for the transform verbs: reshaping a value, and the element-wise pair."""
 
+from dirigent_block_jq.messages import JQ
 from dirigent_block_jq.transform_jq import JqFilterer, JqMapper, JqTransformer
 from dirigent_plugin import Contribution, extension
 
@@ -10,7 +11,7 @@ class JqBlocks:
     @extension
     def contribute(self) -> Contribution:
         """Contribute the jq engines behind the transform, map and filter verbs."""
-        return Contribution(operators=[JqTransformer(), JqMapper(), JqFilterer()])
+        return Contribution(operators=[JqTransformer(), JqMapper(), JqFilterer()], labels=[JQ])
 
 
 plugin = JqBlocks()

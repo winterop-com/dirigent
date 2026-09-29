@@ -27,6 +27,9 @@ import {
  * because no shipped example is both slow enough to watch and cheap enough to run.
  */
 
+/** A uuid this instance holds no run for, so the refusal is what the screen draws. */
+const RUN_ID = '00000000-0000-4000-8000-000000000000'
+
 const EXAMPLE = 'examples/transform/std-convert-fan-out.yaml'
 const PIPELINE = 'std-convert-fan-out'
 
@@ -95,10 +98,12 @@ test('choosing a step on the graph opens it in the panel', async ({ page }) => {
     await expect(panel.getByRole('link', { name: PIPELINE })).toBeVisible()
 })
 
-test('a run this instance does not have is refused in the server own words', async ({ page }) => {
+test("a run this instance does not have is refused in this interface's own words", async ({ page }) => {
     await signIn(page)
-    await page.goto('/runs/00000000-0000-4000-8000-000000000000')
-    await expect(page.getByText(/no run 00000000/)).toBeVisible()
+    await page.goto(`/runs/${RUN_ID}`)
+    // The server sends `server.no_run` with the id in its params and the lower-case fragment
+    // `no run <id>` in `detail`. What is drawn is the catalogue's sentence for that code.
+    await expect(page.getByText(LABELS.refused.server.no_run.replace('{run_id}', RUN_ID))).toBeVisible()
 })
 
 test("a run's graph opens with every step in view, at a zoom that does not blow it up", async ({ page }) => {

@@ -133,6 +133,15 @@ def test_a_role_gate_refuses_in_one_wording() -> None:
     assert as_fragment(said("refusal.shut")) == as_fragment(FORBIDDEN.text)
 
 
+def test_the_web_ui_says_one_thing_whether_it_shut_a_control_or_the_server_refused_it() -> None:
+    """`refusal.shut` is the control this bundle closed; `refused.server.forbidden` is the answer.
+
+    Two labels, because one is drawn with no request behind it and the other renders a code off the
+    wire. They are the same fact, so they are the same sentence, and this is what holds them to it.
+    """
+    assert said("refused.server.forbidden") == said("refusal.shut")
+
+
 def test_a_fleet_nothing_has_registered_with_opens_with_the_same_words() -> None:
     """The CLI's check names where it looked; the UI's line is the same fact without the place."""
     assert WORKER_NEVER_REGISTERED.text.startswith(said("dashboard.health.no_worker"))

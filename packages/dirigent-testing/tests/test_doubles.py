@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from dirigent_plugin import RunState
 from dirigent_testing import FakeContext, FakeRuns, FakeStorage, RecordingLogger
+from dirigent_testing.messages import TEST_REFUSAL
 
 
 async def write(storage: FakeStorage, uri: str, payload: bytes) -> None:
@@ -103,9 +104,11 @@ async def test_cancelling_a_run_settles_it_and_cancelling_a_settled_one_reports_
     runs = FakeRuns()
     run_id = runs.hold("daily", RunState.RUNNING, total_steps=2, finished_steps=1)
 
-    assert await runs.cancel(run_id, reason="operator asked") is True
-    assert await runs.cancel(run_id, reason="again") is False
-    assert runs.snapshots[run_id].error == "operator asked"
+    assert await runs.cancel(run_id, TEST_REFUSAL, detail="an operator asked") is True
+    assert await runs.cancel(run_id, TEST_REFUSAL, detail="again") is False
+    assert runs.snapshots[run_id].error == "an operator asked"
+    assert runs.snapshots[run_id].error_code == TEST_REFUSAL.code
+    assert runs.snapshots[run_id].error_params == {"detail": "an operator asked"}
 
 
 class Credential(BaseModel):

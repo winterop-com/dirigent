@@ -1113,6 +1113,8 @@ def _trace_settlement(
     otherwise leave thirty-six hundred lines saying it is still waiting.
     """
     fields: JsonMap = {}
+    code: str | None = None
+    params: JsonMap | None = None
     if seconds is not None:
         fields["duration_ms"] = round(seconds * 1000)
     match attempt.status:
@@ -1123,7 +1125,7 @@ def _trace_settlement(
         case AttemptStatus.FAILED:
             level, message = LogLevel.ERROR, "failed"
             fields["error_class"] = attempt.error_class
-            fields["error_code"] = attempt.error_code
+            code, params = attempt.error_code, attempt.error_params
             if attempt.error:
                 # The line has to say what failed on its own: the attempt row is not always
                 # beside it, and a log read tomorrow has only what was written today.
@@ -1139,6 +1141,8 @@ def _trace_settlement(
             level=level,
             message=message,
             fields=fields,
+            error_code=code,
+            error_params=params,
         )
     )
 

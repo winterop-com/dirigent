@@ -18,6 +18,7 @@ from dirigent_core.engine.runs import (
     create_run,
     save_pipeline,
 )
+from dirigent_core.messages import CANCELLED_BY
 from dirigent_core.models import Pipeline, Run
 from dirigent_plugin import RunRefused, RunState
 
@@ -263,14 +264,16 @@ async def test_cancelling_a_child_settles_it_and_says_it_did(
     started = await runs.start("child", {}, max_depth=5)
     assert started.run_id is not None
 
-    assert await runs.cancel(started.run_id, reason="the parent was cancelled") is True
-    assert await runs.cancel(started.run_id, reason="again") is False
-    assert await runs.cancel(uuid4(), reason="nothing there") is False
+    assert await runs.cancel(started.run_id, CANCELLED_BY, principal="the parent") is True
+    assert await runs.cancel(started.run_id, CANCELLED_BY, principal="the parent") is False
+    assert await runs.cancel(uuid4(), CANCELLED_BY, principal="nobody") is False
 
     snapshot = await runs.snapshot(started.run_id)
     assert snapshot is not None
     assert snapshot.state is RunState.CANCELLED
-    assert snapshot.error == "the parent was cancelled"
+    assert snapshot.error == "cancelled by the parent"
+    assert snapshot.error_code == CANCELLED_BY.code
+    assert snapshot.error_params == {"principal": "the parent"}
 
 
 # -- the two transaction shapes ---------------------------------------------------

@@ -558,10 +558,18 @@ def entries() -> list[tuple[str, str]]:
             stack.append((indent, opened.group(1)))
             continue
         named = re.match(r"^([a-z][a-z0-9_]*): (.+)$", bare)
-        if named is None:
+        if named is not None:
+            code = ".".join([*(name for _, name in stack), named.group(1)])
+            found.append((code, value_of(named.group(2), lines, at + 1)))
             continue
-        code = ".".join([*(name for _, name in stack), named.group(1)])
-        found.append((code, value_of(named.group(2), lines, at + 1)))
+        # A sentence long enough that the formatter put it on its own line under the name. Reading
+        # only the declaration line would make every long label invisible here -- to the dead-code
+        # pass, to `scripts/ui_copy.py`, and to whatever else asks this what the product says.
+        wrapped = re.match(r"^([a-z][a-z0-9_]*):$", bare)
+        if wrapped is None or at + 1 >= len(lines) or lines[at + 1].strip().startswith("{"):
+            continue
+        code = ".".join([*(name for _, name in stack), wrapped.group(1)])
+        found.append((code, value_of(lines[at + 1].strip(), lines, at + 2)))
     return found
 
 
@@ -581,10 +589,13 @@ def value_of(head: str, lines: list[str], next_line: int) -> str:
         text = f"{text.rstrip()} {lines[next_line].strip()}"
         next_line += 1
     text = text.rstrip().removesuffix(",").strip()
-    plain = re.fullmatch(r"'(.*)'|`(.*)`", text, re.DOTALL)
+    # Double quotes as well as single: the formatter reaches for them whenever the sentence itself
+    # holds an apostrophe, and a label read with its quotes still on is not the label.
+    plain = re.fullmatch(r"'(.*)'|\"(.*)\"|`(.*)`", text, re.DOTALL)
     if plain is None:
         return text
-    return (plain.group(1) if plain.group(1) is not None else plain.group(2)).replace("\\'", "'")
+    held = next(group for group in plain.groups() if group is not None)
+    return held.replace("\\'", "'").replace('\\"', '"')
 
 
 def dead(every: list[str], sources: list[Path]) -> list[str]:

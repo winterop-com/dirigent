@@ -1,6 +1,7 @@
 """The parquet block family: the ``convert.arrow`` codec, on pyarrow."""
 
 from dirigent_block_parquet.arrow import TEXT_FORMATS, UNIT, ArrowConverter
+from dirigent_block_parquet.messages import PARQUET
 from dirigent_plugin import Contribution, extension
 
 
@@ -10,7 +11,7 @@ class ParquetBlocks:
     @extension
     def contribute(self) -> Contribution:
         """Contribute the ``convert.arrow`` codec."""
-        return Contribution(operators=[ArrowConverter()])
+        return Contribution(operators=[ArrowConverter()], labels=[PARQUET])
 
 
 plugin = ParquetBlocks()

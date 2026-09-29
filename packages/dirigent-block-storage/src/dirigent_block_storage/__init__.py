@@ -1,5 +1,6 @@
 """The storage block family: moving objects between URIs, and waiting for one to appear."""
 
+from dirigent_block_storage.messages import STORAGE
 from dirigent_block_storage.storage import (
     StorageCopyOperator,
     StorageExistsSensor,
@@ -18,6 +19,7 @@ class StorageBlocks:
         return Contribution(
             operators=[StorageCopyOperator(), StorageReadOperator(), StorageWriteOperator()],
             sensors=[StorageExistsSensor()],
+            labels=[STORAGE],
         )
 
 

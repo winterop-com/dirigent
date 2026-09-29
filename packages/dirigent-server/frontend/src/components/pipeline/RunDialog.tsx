@@ -18,7 +18,7 @@ import { useMayWrite } from '@/hooks/use-may-write'
 import { useStore } from '@/hooks/use-store'
 import { type JsonMap, type Problem } from '@/lib/api'
 import { LABELS } from '@/lib/labels'
-import { refusalOf } from '@/lib/refusal'
+import { refusalOf, said } from '@/lib/refusal'
 import { headingOf, type Addressable } from '@/lib/identity'
 import { paramsOf, startRun, type RunAccepted } from '@/lib/pipelines'
 import { readWindow, referencesWindow } from '@/lib/run-window'
@@ -217,7 +217,7 @@ export function RunDialog({
 
                 {problem !== null && (
                     <p className="text-xs text-critical" role="alert">
-                        {problem.detail}
+                        {said(problem)}
                     </p>
                 )}
 

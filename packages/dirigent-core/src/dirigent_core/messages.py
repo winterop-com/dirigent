@@ -500,6 +500,18 @@ WATCH_WAIT_CANCELLED = WATCH.define("wait_cancelled", "run {run} was cancelled w
 
 WATCH_RUN_GONE = WATCH.define("run_gone", "run {run}, which the watch had waiting, no longer exists")
 
+WATCH_MOVED = WATCH.define("moved", "its watch moved to another step")
+
+WATCH_RETIRED = WATCH.define("retired", "its watch was retired")
+
+WATCH_PAUSED = WATCH.define("paused", "its watch was paused")
+
+WATCH_PIPELINE_REAPPLIED = WATCH.define("pipeline_reapplied", "a new version of its pipeline was applied")
+
+WATCH_PIPELINE_DEACTIVATED = WATCH.define("pipeline_deactivated", "its pipeline was deactivated")
+
+WATCH_PIPELINE_DELETED = WATCH.define("pipeline_deleted", "its pipeline was deleted")
+
 
 WEBHOOK = Catalogue("webhook")
 
@@ -793,3 +805,11 @@ BACKWARDS_WINDOW = RUN.define(
     "backwards_window",
     "a window runs forwards and covers something: {start} is not before {end}",
 )
+
+CANCELLED = RUN.define("cancelled", "this run was cancelled")
+
+CANCELLED_BY = RUN.define("cancelled_by", "cancelled by {principal}")
+
+REPLACED_BY_NEWER_RUN = RUN.define("replaced_by_newer_run", "replaced by a newer run")
+
+REPLACED_BY_RETRY = RUN.define("replaced_by_retry", "replaced by a manual retry")

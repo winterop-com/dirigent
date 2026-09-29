@@ -24,6 +24,7 @@ import {
     stepNames,
 } from '@/lib/pipeline-document'
 import { fieldsOf, validateFields } from '@/lib/schema-form'
+import { said } from '@/lib/refusal'
 import {
     groupProblems,
     stepGroups,
@@ -156,7 +157,7 @@ export function StepTab({
 
             <Section title={LABELS.word.config}>
                 {blockProblem !== null ? (
-                    <p className="text-xs text-critical">{blockProblem.detail}</p>
+                    <p className="text-xs text-critical">{said(blockProblem)}</p>
                 ) : block === null ? (
                     <p className="text-xs text-muted-foreground">{LABELS.shell.reading}</p>
                 ) : (

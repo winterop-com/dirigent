@@ -11,6 +11,7 @@ import { formatDuration } from '@/lib/format'
 import { LABELS } from '@/lib/labels'
 import { itemsNote, type RunReport } from '@/lib/runs'
 import { cn } from '@/lib/utils'
+import { said } from '@/lib/refusal'
 
 /** What the window is titled and what a saved file is called. */
 const DOCUMENT_NAME = 'report.md'
@@ -96,7 +97,7 @@ export function ReportTab({
     }
 
     if (found !== null && found.refusal !== null) {
-        return <p className="p-4 text-sm text-muted-foreground">{found.refusal.detail}</p>
+        return <p className="p-4 text-sm text-muted-foreground">{said(found.refusal)}</p>
     }
 
     if (found === null) {
@@ -146,7 +147,7 @@ function Summary({ report, problem }: { report: RunReport | null; problem: Probl
             <p className="text-sm text-muted-foreground">{LABELS.runs.report_missing}</p>
             <Section title={LABELS.word.summary}>
                 {problem !== null ? (
-                    <p className="text-xs text-muted-foreground">{problem.detail}</p>
+                    <p className="text-xs text-muted-foreground">{said(problem)}</p>
                 ) : report === null ? (
                     <p className="text-xs text-muted-foreground">{LABELS.shell.reading}</p>
                 ) : (

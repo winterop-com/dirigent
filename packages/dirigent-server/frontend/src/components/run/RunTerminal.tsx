@@ -39,6 +39,7 @@ import {
 import { runSettled } from '@/lib/status'
 import type { LogLevel } from '@/lib/status'
 import { cn } from '@/lib/utils'
+import { said } from '@/lib/refusal'
 
 export const HIDE_TERMINAL_LABEL = LABELS.terminal.hide
 export const RESIZE_TERMINAL_LABEL = LABELS.terminal.resize
@@ -190,7 +191,7 @@ export function RunTerminal({
             },
             (error: unknown) => {
                 setSaving(false)
-                toast.error(error instanceof ApiError ? error.problem.detail : LABELS.refusal.no_answer.term)
+                toast.error(error instanceof ApiError ? said(error.problem) : LABELS.refusal.no_answer.term)
             },
         )
     }

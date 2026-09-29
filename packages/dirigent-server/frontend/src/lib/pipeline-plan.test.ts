@@ -84,7 +84,14 @@ describe('what a plan says', () => {
     })
 
     test('an invalid document is a refusal, and the issues are what it shows instead', () => {
-        const issues = [{ location: 'steps.push.config.method', message: 'unknown key' }]
+        const issues = [
+            {
+                location: 'steps.push.config.method',
+                message: 'unknown key',
+                code: 'validation.extra_forbidden',
+                params: {},
+            },
+        ]
         const view = planView(plan({ action: 'invalid', next_version: null, diff: null, issues }))
         expect(view.headline).toBe('Apply will refuse convert-one')
         expect(view.tone).toBe('critical')
@@ -170,13 +177,30 @@ describe('what an apply did', () => {
 
 describe('what the status bar says about a validation', () => {
     test('counts the issues and says what they mean for an apply', () => {
-        expect(issuesNote([{ location: 'steps.push', message: 'no such block' }])).toBe(
-            '1 issue — apply will refuse',
-        )
         expect(
             issuesNote([
-                { location: 'steps.push', message: 'no such block' },
-                { location: 'steps.pull', message: 'no such block' },
+                {
+                    location: 'steps.push',
+                    message: 'no such block',
+                    code: 'document.unknown_block',
+                    params: {},
+                },
+            ]),
+        ).toBe('1 issue — apply will refuse')
+        expect(
+            issuesNote([
+                {
+                    location: 'steps.push',
+                    message: 'no such block',
+                    code: 'document.unknown_block',
+                    params: {},
+                },
+                {
+                    location: 'steps.pull',
+                    message: 'no such block',
+                    code: 'document.unknown_block',
+                    params: {},
+                },
             ]),
         ).toBe('2 issues — apply will refuse')
     })

@@ -16,7 +16,16 @@ from pydantic import BaseModel, ConfigDict, Field, GetJsonSchemaHandler, JsonVal
 from pydantic.json_schema import JsonSchemaValue, SkipJsonSchema
 from pydantic_core import CoreSchema
 
-from dirigent_common import API_VERSION, SHELL_MEDIA_TYPE, BlockModel, HealthReport, Issue, JsonMap, Message
+from dirigent_common import (
+    API_VERSION,
+    SHELL_MEDIA_TYPE,
+    BlockModel,
+    Catalogue,
+    HealthReport,
+    Issue,
+    JsonMap,
+    Message,
+)
 from dirigent_plugin.messages import (
     DUPLICATE_ID,
     INVALID_MARK,
@@ -364,7 +373,13 @@ class ContainerResult(BaseModel):
 
 
 class AlertMessage(BaseModel):
-    """What an alert rule hands a notifier: the event, a rendered summary, and links back."""
+    """What an alert rule hands a notifier: the event, a rendered summary, and links back.
+
+    The subject and the body are the rule author's own template rendered over the run, so they
+    are that author's words in that author's language and carry no code. What dirigent itself
+    said is ``error_code`` and ``error_params``: the refusal the run ended with, which a
+    notifier with a catalogue can render in the language of wherever it delivers.
+    """
 
     event: str = Field(min_length=1)
     subject: str = Field(min_length=1)
@@ -372,6 +387,10 @@ class AlertMessage(BaseModel):
     run_id: RunId | None = None
     pipeline: str | None = None
     url: str | None = None
+    error_code: str | None = None
+    """The dotted code of the refusal the alerted run ended with, when it ended with one."""
+    error_params: dict[str, JsonValue] = Field(default_factory=dict)
+    """The specifics that refusal rendered, for a re-render in another language."""
     context: dict[str, JsonValue] = Field(default_factory=dict)
 
 
@@ -493,6 +512,10 @@ class RunSnapshot(BaseModel):
     total_steps: int = Field(default=0, ge=0)
     finished_steps: int = Field(default=0, ge=0)
     error: str | None = None
+    error_code: str | None = None
+    """The dotted code of the refusal this run ended with, when it ended with one."""
+    error_params: JsonMap = Field(default_factory=dict)
+    """The specifics that refusal rendered, for a re-render in another language."""
 
     @property
     def progress(self) -> float | None:
@@ -524,8 +547,12 @@ class Runs(Protocol):
         """Describe a run this instance holds, or return None when it holds no such run."""
         ...
 
-    async def cancel(self, run_id: RunId, *, reason: str) -> bool:
-        """Cancel a run; False means it had already settled and there was nothing to stop."""
+    async def cancel(self, run_id: RunId, reason: Message, /, **params: Any) -> bool:
+        """Cancel a run; False means it had already settled and there was nothing to stop.
+
+        The reason is a catalogued message, so the cancelled run carries a code and whoever
+        reads it renders their own sentence rather than this block's English.
+        """
         ...
 
 
@@ -837,7 +864,7 @@ type AnySensor = Sensor[Any, Any]
 
 
 class Contribution(BaseModel):
-    """Everything one plugin adds, across all six surfaces, gathered by the host at startup."""
+    """Everything one plugin adds, across all seven surfaces, gathered by the host at startup."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
 
@@ -851,6 +878,14 @@ class Contribution(BaseModel):
     """JSON Schema format checkers this plugin adds, by format name. A schema that writes
     ``format: <name>`` then asserts wherever the contributing pack is installed, and stays a
     passing annotation on an instance without it."""
+
+    labels: list[Catalogue] = Field(default_factory=list[Catalogue])
+    """The message catalogues this plugin refuses out of, so a surface can render its codes.
+
+    A pack's refusal reaches a browser under the pack's own code, and the browser holds no table
+    for it. Contributing the catalogue is what puts one there: the host serves every code and its
+    template, and a renderer that knows the code says its own sentence rather than repeating the
+    English this process happened to mint."""
 
     @field_validator("api_version")
     @classmethod
@@ -868,6 +903,7 @@ class Contribution(BaseModel):
         _require_unique("notifier id", [notifier.id for notifier in self.notifiers])
         _require_unique("connection kind id", [connection.id for connection in self.connection_kinds])
         _require_unique("format", list(self.formats))
+        _require_unique("label prefix", [catalogue.prefix for catalogue in self.labels])
         return self
 
     @model_validator(mode="after")
@@ -901,6 +937,7 @@ def merge_contributions(contributions: list[Contribution]) -> Contribution:
         "storage_backends": [],
         "notifiers": [],
         "connection_kinds": [],
+        "labels": [],
     }
     for contribution in contributions:
         for surface, collected in merged.items():

@@ -56,6 +56,7 @@ def test_every_business_route_refuses_an_anonymous_request(anonymous: TestClient
         ("get", "/connections"),
         ("get", "/schemas"),
         ("get", "/blocks"),
+        ("get", "/labels"),
         ("get", "/workers"),
         ("get", "/users"),
         ("get", "/system/info"),
@@ -124,6 +125,15 @@ def test_the_catalog_is_served_and_filterable(client: TestClient) -> None:
         "time.sleep",
         "time.window",
     }
+
+
+def test_the_contributed_wording_is_served_for_the_codes_a_pack_refuses_under(client: TestClient) -> None:
+    """A pack's code reaches a browser, so the browser is given the template to render it from."""
+    served = client.get(f"{PREFIX}/labels").json()
+    assert served["templates"]["http.no_target"]
+    assert "{status}" in served["templates"]["http.status_refused"]
+    # The instance's own codes are the surface's to translate, so they are deliberately absent.
+    assert not [code for code in served["templates"] if code.startswith(("server.", "document.", "run."))]
 
 
 def test_the_catalog_names_the_secret_fields_of_a_connection_kind(client: TestClient) -> None:
@@ -2537,6 +2547,7 @@ OPERATOR_ALLOWED = [
     ("get", "/runs"),
     ("get", "/connections"),
     ("get", "/blocks"),
+    ("get", "/labels"),
     ("get", "/workers"),
     ("get", "/system/info"),
     ("get", "/auth/me"),

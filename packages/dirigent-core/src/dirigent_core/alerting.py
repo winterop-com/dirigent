@@ -142,6 +142,8 @@ def build_context(
             "status": run.status.value,
             "pipeline": pipeline.code,
             "error": run.error,
+            "error_code": run.error_code,
+            "error_params": dict(run.error_params or {}),
             "params": dict(run.params),
             "trigger": run.triggered_by_label or run.triggered_by_kind.value,
             "started_at": run.started_at.isoformat() if run.started_at else None,
@@ -882,6 +884,8 @@ def _message(notification: Notification) -> AlertMessage:
         run_id=notification.run_id,
         pipeline=cast("str | None", run.get("pipeline")),
         url=cast("str | None", run.get("url")),
+        error_code=cast("str | None", run.get("error_code")),
+        error_params=cast("dict[str, JsonValue]", run.get("error_params") or {}),
         context=cast("dict[str, JsonValue]", context),
     )
 

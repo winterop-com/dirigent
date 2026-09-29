@@ -50,6 +50,7 @@ from dirigent_core.engine.runs import (
     retry_step,
     save_pipeline,
 )
+from dirigent_core.messages import CANCELLED_BY
 from dirigent_core.models import (
     AlertRule,
     ArtifactRef,
@@ -851,7 +852,7 @@ async def test_cancelling_the_active_run_releases_the_run_held_behind_queue(
     async with session_scope(sessions) as session:
         stored = await session.get(Run, first.id)
         assert stored is not None
-        await cancel_run(session, services, stored, reason="an operator asked")
+        await cancel_run(session, services, stored, CANCELLED_BY, principal="an operator")
 
     assert (await statuses(sessions, second.id))["a"] == [AttemptStatus.QUEUED]
     await drain(engine)
@@ -880,7 +881,7 @@ async def test_cancelling_a_held_run_leaves_the_slot_to_the_run_that_holds_it(
     async with session_scope(sessions) as session:
         stored = await session.get(Run, second.id)
         assert stored is not None
-        await cancel_run(session, services, stored, reason="an operator asked")
+        await cancel_run(session, services, stored, CANCELLED_BY, principal="an operator")
 
     assert (await statuses(sessions, third.id))["a"] == [AttemptStatus.PENDING]
     assert await engine.claim() is None, "two runs of a queue pipeline were released at once"
@@ -901,7 +902,7 @@ async def test_cancelling_a_run_that_already_finished_leaves_its_status_alone(
     async with session_scope(sessions) as session:
         stored = await session.get(Run, run.id)
         assert stored is not None
-        await cancel_run(session, services, stored, reason="too late")
+        await cancel_run(session, services, stored, CANCELLED_BY, principal="an operator")
 
     reloaded = await reload(sessions, run.id)
     assert reloaded.status is RunStatus.SUCCEEDED
@@ -1620,7 +1621,7 @@ async def test_a_cancel_takes_the_pipeline_lock_before_the_run_lock(
     async with session_scope(sessions) as session:
         stored = await session.get(Run, first.id)
         assert stored is not None
-        await cancel_run(session, services, stored, reason="an operator asked")
+        await cancel_run(session, services, stored, CANCELLED_BY, principal="an operator")
 
     assert order == ["pipeline", "run", "pipeline"], "the cancel reached the pipeline holding the run"
     assert (await statuses(sessions, second.id))["a"] == [AttemptStatus.QUEUED]
@@ -1643,11 +1644,13 @@ async def test_cancelling_a_run_settles_everything_that_had_not_started(
     async with session_scope(sessions) as session:
         stored = await session.get(Run, run.id)
         assert stored is not None
-        await cancel_run(session, services, stored, reason="an operator asked")
+        await cancel_run(session, services, stored, CANCELLED_BY, principal="an operator")
 
     reloaded = await reload(sessions, run.id)
     assert reloaded.status is RunStatus.CANCELLED
-    assert reloaded.error == "an operator asked"
+    assert reloaded.error == "cancelled by an operator"
+    assert reloaded.error_code == CANCELLED_BY.code
+    assert reloaded.error_params == {"principal": "an operator"}
     assert await statuses(sessions, run.id) == {
         "first": [AttemptStatus.CANCELLED],
         "second": [AttemptStatus.CANCELLED],
@@ -2986,8 +2989,12 @@ async def test_a_failed_attempt_lands_the_code_and_the_params_the_block_refused_
     entries = await logs_of(sessions, run.id)
     assert settled.error_code == TEST_REFUSAL.code
     assert settled.error_params == {"detail": "the file was not there"}
+    # The line carries the code in a column of its own, not as text inside ``fields``: a log
+    # pane renders the refusal rather than printing ``error_code=...`` at the reader.
+    assert entries[0].error_code == TEST_REFUSAL.code
+    assert entries[0].error_params == {"detail": "the file was not there"}
     assert entries[0].fields is not None
-    assert entries[0].fields["error_code"] == TEST_REFUSAL.code
+    assert "error_code" not in entries[0].fields
 
 
 async def test_a_block_that_kept_its_own_account_is_not_told_it_finished_twice(

@@ -15,7 +15,7 @@ from pluginkit import PluginManager
 from pydantic import BaseModel, JsonValue, ValidationError
 
 import dirigent_plugin
-from dirigent_common import API_VERSION, SHELL_MEDIA_TYPE, JsonMap, base_format_checker
+from dirigent_common import API_VERSION, SHELL_MEDIA_TYPE, Catalogue, JsonMap, Message, base_format_checker
 from dirigent_plugin import (
     MARK_LIMIT,
     ByteSink,
@@ -111,7 +111,7 @@ class NullRuns:
         """Report that no such run exists."""
         return None
 
-    async def cancel(self, run_id: RunId, *, reason: str) -> bool:
+    async def cancel(self, run_id: RunId, reason: Message, /, **params: Any) -> bool:
         """Report that there was nothing to cancel."""
         return False
 
@@ -447,6 +447,21 @@ def test_contribution_carries_contributed_formats() -> None:
     assert merged.formats["even-digits"]("abc") is False
 
 
+def test_contribution_carries_the_catalogues_a_pack_refuses_out_of() -> None:
+    """A pack's refusal reaches a browser under the pack's own code, so the table travels too."""
+    acme = Catalogue("test_acme")
+    acme.define("too_many", "{count} is more than {limit}")
+    merged = merge_contributions([Contribution(labels=[acme]), Contribution()])
+    assert [catalogue.prefix for catalogue in merged.labels] == ["test_acme"]
+    assert merged.labels[0].messages["too_many"].code == "test_acme.too_many"
+
+
+def test_a_contribution_refuses_two_catalogues_under_one_prefix() -> None:
+    """One prefix has one owner, which is what makes a code identify a refusal on its own."""
+    with pytest.raises(ValidationError, match="duplicate label prefix"):
+        Contribution(labels=[Catalogue("test_twice"), Catalogue("test_twice")])
+
+
 def test_merge_contributions_refuses_two_plugins_claiming_one_format() -> None:
     with pytest.raises(ValueError, match="duplicate format"):
         merge_contributions(
@@ -539,7 +554,7 @@ def test_a_refused_run_is_never_retried() -> None:
 async def test_the_null_runs_facade_satisfies_the_protocol(ctx: StepContext) -> None:
     runs: Runs = ctx.runs
     assert await runs.snapshot(uuid4()) is None
-    assert await runs.cancel(uuid4(), reason="because") is False
+    assert await runs.cancel(uuid4(), TEST_REFUSAL, detail="because") is False
     with pytest.raises(RunRefused, match="no pipeline coded 'child'"):
         await runs.start("child", {}, max_depth=5)
 

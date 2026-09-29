@@ -162,6 +162,30 @@ A code is stable API, exactly as a block id is: adding one is compatible, renami
 not. The text is not -- it may be reworded whenever a better sentence is found, because what
 a reader holds on to is the code and what a translation replaces is the template.
 
+### The surface that draws a refusal decides its words
+
+A refusal is minted once and read in several places, so the sentence it was minted with is not
+the sentence a person reads. The code and the params cross the wire; each surface renders its
+own prose from them. `dg` renders from the Python catalogue. The web UI renders from
+`LABELS.refused` in `src/lib/labels.ts`, keyed by the same dotted code, and translated with
+every other word it says -- so a translated interface does not draw translated chrome around an
+English refusal. `detail` still crosses the wire, for a log, a `curl` and any consumer with no
+catalogue of its own, but the browser reads it only as the fallback for a code it has no
+sentence for.
+
+That fallback is why `scripts/check_refusal_labels.py` exists: a code with no label still
+works, in English, silently, which is the fault put back. It sorts every code the workspace
+mints into the ones a pack serves through its `labels` contribution, the ones only a terminal
+reads (`cli`, `health`), the ones whose whole template is one param and so have no words to
+translate, the ones the UI says, and the ones recorded in `scripts/unlabelled_refusals.txt` as
+having no words yet. That record is a ratchet: a new code may not join it, and a code given a
+sentence must leave it.
+
+A carrier a refusal reaches a person through carries the pair, not only the sentence:
+`error_code` and `error_params` on the run, the fan-out item, the attempt, the step report, the
+run report and the log line, and on the `AlertMessage` a notifier receives. A cancellation is a
+refusal too, so `cancel_run` takes a `Message` rather than a reason in prose.
+
 The text names the remedy. `no connection coded 'dhis2' (none are configured)` says what to
 do next; `invalid connection` does not. The params carry the specifics the template
 interpolates, and never a secret, a credential, or the value that failed validation -- the

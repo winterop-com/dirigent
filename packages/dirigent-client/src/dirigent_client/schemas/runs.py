@@ -48,6 +48,8 @@ class RunOut(WireModel):
     """What went wrong: the reason a cancel gave, else what the first failed attempt said."""
     error_code: str | None = None
     """The dotted code of the refusal the error was rendered from."""
+    error_params: JsonMap | None = None
+    """The specifics the refusal rendered, for a re-render in another language."""
     failed_step: str | None = None
     """The step whose first failed attempt this run holds, when it did not end well."""
     started_at: datetime | None = None
@@ -128,6 +130,8 @@ class ItemOut(WireModel):
     error: str | None = None
     error_code: str | None = None
     """The dotted code of the refusal the error was rendered from."""
+    error_params: JsonMap | None = None
+    """The specifics the refusal rendered, for a re-render in another language."""
 
 
 class ArtifactOut(WireModel):
@@ -195,6 +199,13 @@ class LogEntryOut(WireModel):
     level: LogLevel
     message: str
     fields: JsonMap | None = None
+    error_code: str | None = None
+    """The dotted code of the refusal this line reports, when it reports one.
+
+    A log line is an event and carries no code of its own; a line the engine writes about a
+    refusal repeats that refusal's code, so a reader can render the line rather than print it."""
+    error_params: JsonMap | None = None
+    """The specifics that refusal rendered, for a re-render in another language."""
     created_at: datetime
 
 
@@ -213,6 +224,10 @@ class StepReport(WireModel):
 
     duration_ms: int | None = None
     error: str | None = None
+    error_code: str | None = None
+    """The dotted code of the refusal this step failed with."""
+    error_params: JsonMap | None = None
+    """The specifics that refusal rendered, for a re-render in another language."""
 
 
 class RunReport(WireModel):
@@ -230,3 +245,7 @@ class RunReport(WireModel):
     items_total: int = 0
     items_failed: int = 0
     error: str | None = None
+    error_code: str | None = None
+    """The dotted code of the refusal this run ended with."""
+    error_params: JsonMap | None = None
+    """The specifics that refusal rendered, for a re-render in another language."""

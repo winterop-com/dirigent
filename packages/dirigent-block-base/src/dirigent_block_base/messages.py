@@ -12,6 +12,8 @@ CHILD_RUN_GONE = BASE.define("child_run_gone", "run {run} disappeared before its
 
 NOT_A_RUN_HANDLE = BASE.define("not_a_run_handle", "the handle {handle} does not name a run")
 
+WAITER_CANCELLED = BASE.define("waiter_cancelled", "the run waiting on it was cancelled")
+
 VALUE_REFUSED = BASE.define("value_refused", "at {location}: {detail}")
 
 

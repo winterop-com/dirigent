@@ -56,6 +56,7 @@ static: ## Read-only gate without the tests: ruff, mypy, pyright, the UI type sc
 	# for a UI contributor whose one command should cover everything.
 	$(UV) run python scripts/check_ui_classes.py
 	$(UV) run python scripts/check_ui_labels.py
+	$(UV) run python scripts/check_refusal_labels.py
 
 check: static ui-gate ## Read-only gate: the static one, the UI's, then the tests
 	$(UV) run pytest -n $(WORKERS)
@@ -138,6 +139,7 @@ ui-lint: ## Read-only UI gate: the formatter, oxlint, the type checker, the type
 	cd $(FRONTEND) && bunx tsc -b
 	$(UV) run python scripts/check_ui_classes.py
 	$(UV) run python scripts/check_ui_labels.py
+	$(UV) run python scripts/check_refusal_labels.py
 
 ui-test: ## Run the UI unit lane (vitest, node environment, no DOM)
 	$(FRONTEND_INSTALL) && bun run test

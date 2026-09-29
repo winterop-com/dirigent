@@ -36,6 +36,7 @@ from dirigent_core.database import session_scope
 from dirigent_core.engine.definition import PipelineDefinition, load_definition
 from dirigent_core.engine.runs import cancel_run, retry_step
 from dirigent_core.engine.state import StepCounts, attempt_counts, item_counts, step_states
+from dirigent_core.messages import CANCELLED_BY
 from dirigent_core.models import (
     ArtifactRef,
     LogEntry,
@@ -125,6 +126,7 @@ def _render_run(run: Run, pipeline: Pipeline, version: PipelineVersion, failed: 
         trace_id=telemetry.trace_id_of(run.traceparent),
         error=run.error or (failed.error if failed is not None else None),
         error_code=run.error_code or (failed.code if failed is not None else None),
+        error_params=run.error_params or (failed.params if failed is not None else None),
         failed_step=failed.step if failed is not None else None,
         started_at=run.started_at,
         finished_at=run.finished_at,
@@ -390,7 +392,7 @@ async def cancel(run_id: UUID, session: SessionDep, services: ServicesDep, princ
     async def cancel_once() -> RunOut:
         run = await _run_row(session, run_id)
         pipeline, version, _ = await _context(session, run)
-        await cancel_run(session, services, run, reason=f"cancelled by {principal.label}")
+        await cancel_run(session, services, run, CANCELLED_BY, principal=principal.label)
         return _render_run(run, pipeline, version)
 
     return await retried_on_deadlock(session, cancel_once)
@@ -832,10 +834,14 @@ async def report(run_id: UUID, session: SessionDep, principal: PrincipalDep) -> 
                 warnings=step.warnings,
                 duration_ms=step.duration_ms,
                 error=step.error,
+                error_code=step.error_code,
+                error_params=step.error_params,
             )
             for step in facts.steps
         ],
         items_total=facts.items_total,
         items_failed=facts.items_failed,
         error=run.error,
+        error_code=run.error_code,
+        error_params=run.error_params,
     )
