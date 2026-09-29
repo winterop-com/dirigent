@@ -1,3 +1,5 @@
+import { useState, type ComponentProps } from 'react'
+
 import {
     Combobox,
     ComboboxContent,
@@ -11,6 +13,17 @@ import {
 import { Mark } from '@/components/Mark'
 import { InputGroupAddon, InputGroupButton } from '@/components/ui/input-group'
 import { matchesOption, type PickerOption } from '@/lib/picker'
+
+type RootProps = ComponentProps<typeof Combobox>
+type ChangeDetails = Parameters<NonNullable<RootProps['onInputValueChange']>>[1]
+type OpenDetails = Parameters<NonNullable<RootProps['onOpenChange']>>[1]
+
+/** Refuse the clear an Escape on the closed box asks for: a choice changes only by choosing. */
+function keepOnEscape(details: ChangeDetails): boolean {
+    if (details.reason !== 'escape-key') return false
+    details.cancel()
+    return true
+}
 
 /**
  * One value out of a set too long to read: typed into, walked with the arrows, chosen with Enter.
@@ -47,6 +60,9 @@ export function Picker({
     // The list hangs off the whole box rather than off the bare input inside it, which is a
     // control's worth of marks and asides narrower.
     const field = useComboboxAnchor()
+    // The box's text is held here so an Escape that abandons a filter puts the chosen row's
+    // label back at once rather than after the popup has finished closing.
+    const [text, setText] = useState(chosen?.label ?? '')
 
     return (
         <Combobox
@@ -54,7 +70,15 @@ export function Picker({
             value={chosen}
             itemToStringLabel={(option: PickerOption) => option.label}
             filter={(option: PickerOption, query: string) => matchesOption(option, query)}
-            onValueChange={(picked: PickerOption | null) => {
+            inputValue={text}
+            onInputValueChange={(next: string, details: ChangeDetails) => {
+                if (!keepOnEscape(details)) setText(next)
+            }}
+            onOpenChange={(open: boolean, details: OpenDetails) => {
+                if (!open && details.reason === 'escape-key') setText(chosen?.label ?? '')
+            }}
+            onValueChange={(picked: PickerOption | null, details: ChangeDetails) => {
+                if (keepOnEscape(details)) return
                 onChange(picked === null ? '' : picked.value)
             }}
         >
