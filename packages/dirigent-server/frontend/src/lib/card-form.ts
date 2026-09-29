@@ -103,3 +103,19 @@ export function factsOf<T>(columns: readonly CardColumn<T>[], row: T): Fact[] {
         .map((column) => ({ id: column.id, label: labelOf(column), said: column.cell(row) }))
         .filter((fact) => said(fact.said))
 }
+
+/** A card's facts, parted into the labelled lines and the unlabelled controls under them. */
+export interface CardFacts {
+    labelled: Fact[]
+    /** Facts from columns headed by nothing, drawn without a label row. */
+    controls: Fact[]
+}
+
+/** What one card draws under its head, in column order within each part. */
+export function cardFacts<T>(columns: readonly CardColumn<T>[], row: T): CardFacts {
+    const facts = factsOf(columns, row)
+    return {
+        labelled: facts.filter((fact) => fact.label !== null),
+        controls: facts.filter((fact) => fact.label === null),
+    }
+}

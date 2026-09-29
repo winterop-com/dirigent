@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-import { applyExample, signIn } from './support.ts'
+import { apiPrefix, applyExample, signIn } from './support.ts'
 
 /**
  * Every screen at the size of a phone.
@@ -193,4 +193,32 @@ test('the channels are folded behind their own heading, and open as a table', as
     await expect(fold).toHaveAttribute('aria-expanded', 'true')
     await expect(page.getByRole('table')).toBeVisible()
     await expect(door).toBeVisible()
+})
+
+test('a card control has no label row, and stands at the card content edge', async ({ page, baseURL }) => {
+    const code = 'e2e-card-control'
+    const prefix = await apiPrefix(page.request)
+    await page.request.delete(`${prefix}/connections/${code}`)
+    const created = await page.request.post(`${prefix}/connections`, {
+        data: { code, kind: 'http', config: { base_url: baseURL, health_path: '/health' } },
+    })
+    expect(created.ok(), await created.text()).toBe(true)
+
+    await page.goto('/connections')
+    const card = page.getByRole('listitem').filter({ hasText: code })
+    const check = card.getByRole('button', { name: `Check ${code}` })
+    await expect(check).toBeVisible()
+
+    // Every label on the card says something.
+    const labels = await card.locator('dt').allTextContents()
+    expect(labels.length).toBeGreaterThan(0)
+    for (const label of labels) expect(label.trim()).not.toBe('')
+
+    // The button's left edge is the card's content edge, where the head starts.
+    const edge = await card.evaluate((item) => {
+        const style = getComputedStyle(item)
+        return item.getBoundingClientRect().left + parseFloat(style.paddingLeft)
+    })
+    const left = (await check.boundingBox())?.x ?? -1
+    expect(Math.abs(left - edge)).toBeLessThanOrEqual(1)
 })

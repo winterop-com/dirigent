@@ -11,6 +11,7 @@
  */
 
 import { apiJson, type JsonMap, type Page } from '@/lib/api'
+import { shortId } from '@/lib/format'
 import { PAGE } from '@/lib/paging'
 import { tagsFromQuery } from '@/lib/pipelines'
 import {
@@ -53,6 +54,8 @@ export interface RunOut {
     priority: RunPriority
     params: JsonMap
     triggered_by_kind: TriggerKind
+    /** The run whose step started this one, when a step of another run did. */
+    parent_run_id: string | null
     triggered_by_label: string | null
     trace_id: string | null
     error: string | null
@@ -339,9 +342,25 @@ export function readRuns(
     return apiJson<Page<RunOut>>(runsPath(filters, after, limit))
 }
 
-/** What started a run, in the two parts a listing shows it in: the kind, and who or what it was. */
-export function triggerSummary(run: RunOut): { kind: string; who: string | null } {
-    return { kind: run.triggered_by_kind.replaceAll('_', ' '), who: run.triggered_by_label }
+/** What started a run: the kind, who or what it was, and the run that started it where one did. */
+export interface TriggerSummary {
+    kind: string
+    /** Who or what it was, with a parent run named by its short id. */
+    who: string | null
+    /** The whole of what the server recorded, for a title where `who` shortened it. */
+    said: string | null
+    /** The run whose step started this one. */
+    parent: string | null
+}
+
+/** What started a run, the one way every screen names it. */
+export function triggerSummary(run: RunOut): TriggerSummary {
+    const kind = run.triggered_by_kind.replaceAll('_', ' ')
+    const said = run.triggered_by_label
+    if (run.parent_run_id !== null) {
+        return { kind, who: `a step of run ${shortId(run.parent_run_id)}`, said, parent: run.parent_run_id }
+    }
+    return { kind, who: said, said, parent: null }
 }
 
 /** Whether anything has been asked of the listing at all. */

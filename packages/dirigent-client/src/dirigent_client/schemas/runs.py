@@ -40,6 +40,8 @@ class RunOut(WireModel):
     log_levels: dict[str, LogLevel] | None = None
     """Which log levels this run keeps, by block-id pattern; None keeps info and up."""
     triggered_by_kind: TriggerKind
+    parent_run_id: UUID | None = None
+    """The run whose step started this one, when a step of another run did."""
     triggered_by_label: str | None = None
     trace_id: str | None = None
     error: str | None = None

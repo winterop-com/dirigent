@@ -12,7 +12,7 @@ from fastapi import APIRouter, Header, Query, Request, Response, status
 from fastapi.responses import PlainTextResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from dirigent_client.enums import AttemptStatus, LogLevel, RunItemStatus, RunStatus
+from dirigent_client.enums import AttemptStatus, LogLevel, RunItemStatus, RunStatus, TriggerKind
 from dirigent_client.schemas import (
     TERMINAL_RUN_STATUSES,
     ArtifactOut,
@@ -119,6 +119,7 @@ def _render_run(run: Run, pipeline: Pipeline, version: PipelineVersion, failed: 
         priority=run.priority,
         params=dict(run.params),
         triggered_by_kind=run.triggered_by_kind,
+        parent_run_id=run.triggered_by_id if run.triggered_by_kind is TriggerKind.PIPELINE else None,
         triggered_by_label=run.triggered_by_label,
         trace_id=telemetry.trace_id_of(run.traceparent),
         error=run.error or (failed.error if failed is not None else None),

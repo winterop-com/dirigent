@@ -50,6 +50,7 @@ function run(over: Partial<RunOut> = {}): RunOut {
         status: 'running',
         params: {},
         triggered_by_kind: 'user',
+        parent_run_id: null,
         triggered_by_label: 'dev',
         trace_id: 'trace-1',
         error: null,
