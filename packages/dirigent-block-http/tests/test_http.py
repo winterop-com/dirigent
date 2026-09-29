@@ -365,7 +365,7 @@ async def test_the_connection_check_reports_a_failure(monkeypatch: pytest.Monkey
     monkeypatch.setattr("dirigent_block_http.connections.build_client", fake_client)
     report = await HttpConnectionKind().check(HttpConnectionConfig(base_url="http://x"))
     assert report.healthy is False
-    assert "ConnectError" in (report.detail or "")
+    assert "refused" in (report.detail or ""), "the remote's own words, not the exception class"
 
 
 async def test_a_response_too_large_to_hold_is_refused_rather_than_truncated(ctx: FakeContext) -> None:
