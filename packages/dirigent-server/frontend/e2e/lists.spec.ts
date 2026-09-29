@@ -524,6 +524,9 @@ test.describe('a run started by a step of another run', () => {
         await page.goto('/runs')
         const row = runRowOf(page, CHILD.code)
         await expect(row).toBeVisible()
+        // At a desk width the listing is still a table: the trigger cell yields rather than
+        // pushing the columns past the box.
+        await expect(page.getByRole('table')).toBeVisible()
 
         // The parent is named by the tail of its id, and the whole of what was recorded is on
         // hover.
