@@ -522,10 +522,13 @@ async function runFacts(page: Page): Promise<Locator> {
     return panel
 }
 
-test('a pipeline this instance does not have is refused in the server own words', async ({ page }) => {
+test("a pipeline this instance does not have is refused in this interface's own words", async ({ page }) => {
     await signIn(page)
     await page.goto('/pipelines/no-such-pipeline')
-    await expect(page.getByText(/no pipeline/)).toBeVisible()
+    // `pipeline.unknown` off the wire, drawn from the catalogue rather than from its `detail`.
+    await expect(
+        page.getByText(LABELS.refused.pipeline.unknown.replace('{code}', "'no-such-pipeline'")),
+    ).toBeVisible()
 })
 
 test('the editor opens with the whole graph in view, at a zoom that does not blow it up', async ({

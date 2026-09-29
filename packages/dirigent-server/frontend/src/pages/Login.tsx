@@ -15,6 +15,7 @@ import { appConfig } from '@/lib/api'
 import { authStore, refreshIdentity, signIn } from '@/lib/auth'
 import { LABELS } from '@/lib/labels'
 import { DASHBOARD_PATH } from '@/lib/nav'
+import { said } from '@/lib/refusal'
 
 /** The field treatment this screen alone wears: taller than a control, and edged in every palette. */
 const FIELD = 'border-border-strong h-12 rounded-lg pl-11'
@@ -253,7 +254,7 @@ export function Login() {
                             className="absolute inset-x-0 top-[calc(100%+1.5rem)] flex h-12 items-center gap-3 rounded-lg border border-critical/40 bg-critical/10 px-4 text-sm text-critical"
                         >
                             <CircleAlert className="size-4 shrink-0" aria-hidden />
-                            <span className="truncate">{auth.problem.detail}</span>
+                            <span className="truncate">{said(auth.problem)}</span>
                         </p>
                     )}
                 </form>

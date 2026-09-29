@@ -35,6 +35,7 @@ class AcmePlugin:
             sensors=[AcmeOrderShippedSensor()],
             connection_kinds=[AcmeConnectionKind()],
             formats={"acme-site-id": is_site_id},
+            labels=[ACME],
         )
 
 
@@ -72,6 +73,12 @@ with no change to dirigent, no config file, and no registry to edit. Uninstall a
 - `notifiers` -- where an alert is sent
 - `formats` -- a JSON Schema format checker by name, so a schema that writes `format: <name>`
   asserts wherever the pack is installed and stays a passing annotation where it is not
+- `labels` -- the pack's own `Catalogue`s, so a surface can render the pack's refusals in its
+  own language. A pack's refusal reaches a browser under the pack's own code, and the browser
+  holds no table for it; contributing the catalogue is what puts one there. The instance serves
+  every contributed code and its template from `GET /labels`, and the web UI renders a refusal
+  from its code rather than repeating the English the worker happened to mint. One prefix has
+  one owner, so two packs contributing the same prefix is a startup error like a block id
 
 A `Contribution` carries an `api_version`: a pack written against a different revision of the
 contract is refused at load, cleanly, rather than half-working. The host merges every pack's

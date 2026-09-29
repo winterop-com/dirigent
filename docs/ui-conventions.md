@@ -1396,9 +1396,21 @@ panel that emptied would both have said the request went through.
 
 **The refusal is read from the problem document, not from the status.** `Problem.title` is the
 status phrase this server sets it to, so a dialog headed by it says "Unprocessable Content" on
-every refusal it can make; what a person acts on is `detail`, and `problems` is the list behind
-it. `lib/refusal` is where that is decided once -- including that a `detail` which is only its
-own `problems` joined is drawn as the list alone rather than as the same sentence twice.
+every refusal it can make; `problems` is the list behind the sentence. `lib/refusal` is where
+that is decided once -- including that a `detail` which is only its own `problems` joined is
+drawn as the list alone rather than as the same sentence twice.
+
+**A refusal is drawn in this interface's words, not in the ones the server sent.** A refusal
+arrives with a dotted code, the params its sentence was written out of, and that sentence
+already rendered into `detail` by whichever Python process minted it. The code and the params
+are the translatable pair, so what is drawn is `LABELS.refused[code]` written out of the params;
+`detail` is drawn only where neither this table nor the instance's contributed one holds a
+sentence. Drawing `detail` by preference is how a translated interface ends up saying translated
+chrome around an English refusal. A pack's codes are not in `labels.ts` -- this bundle cannot
+know which packs are installed -- so `lib/wording` reads those once from `GET /labels`, and a
+read that fails leaves every refusal on the fallback, which is what was drawn before it landed.
+`scripts/check_refusal_labels.py` is what keeps the fallback from quietly becoming the rule
+again.
 
 **A control an account's role would have refused is shut, with the sentence saying why.** The
 API has two role gates and so does `lib/roles`: an operator applies, runs and schedules, and
@@ -1668,6 +1680,15 @@ one `Catalogue` per area, mints a dotted code per message, and offers a walk ove
 once, so that a refusal can be rendered in another language by code. This is that in TypeScript's
 idiom -- a section per area, the path through `LABELS` as the code, a duplicate name refused by
 the compiler, `everyLabel()` as the walk.
+
+**A sentence the wire drives is a template, not a function.** Everywhere else a value in a
+sentence makes that label a function, because a caller in this bundle passes the value and the
+compiler checks the call. A refusal's values arrive as a map off the wire, so there is no call to
+check and nothing for a signature to buy: the `refused` section names its holes instead --
+`No run {run_id}.` -- and the name has to be one the server's own template writes. That is the
+one place in the catalogue where a value is not a parameter, and
+`scripts/check_refusal_labels.py` holds both halves to each other so a renamed param fails the
+gate rather than sending the renderer quietly back to English.
 
 **The code says what the string is for, never what it says.** `connections.check_row` is still
 right when its words become `Ask again`; `connections.check_now_button_text` is wrong the moment
