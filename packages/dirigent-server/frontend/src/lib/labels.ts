@@ -6,8 +6,8 @@
  * test can walk every string in the process at once. This is that, in TypeScript's idiom: a
  * section per area, the path through `LABELS` as the code, a duplicate name refused by the
  * compiler rather than at import, and `everyLabel` as the walk. A refusal the server sends
- * arrives with its own code already on it and is rendered through `lib/refusal`; nothing here
- * duplicates one.
+ * arrives with its own code on it, and `refused` is this interface's sentence for that code:
+ * the server's English is the fallback for a code with no entry, not what a person reads.
  *
  * THE CODE SAYS WHAT THE STRING IS FOR, NEVER WHAT IT SAYS. `connections.check_row` stays
  * right when the words become `Ask again`; `connections.check_now_button_text` would not. A
@@ -865,6 +865,140 @@ const refusal = {
         detail: 'This app does not answer for the address in the browser bar.',
         /** The one fact the status bar states while that screen is open. */
         note: 'no screen at this address',
+    },
+} as const
+
+/**
+ * Every refusal the instance can send, said in this interface's own words.
+ *
+ * KEYED BY THE SERVER'S CODE, NOT BY WHAT IT SAYS. The path through this table is the dotted code
+ * the refusal arrives under -- `server.no_run` is `refused.server.no_run` -- so `lib/refusal`
+ * renders a refusal by looking its code up here and never by reading the English the server minted.
+ * A code with no entry falls back to the server's `detail`, which is the old behaviour kept for
+ * exactly that case.
+ *
+ * A SENTENCE HERE IS A TEMPLATE, NOT A FUNCTION. Everywhere else in this file a value in a
+ * sentence makes it a function, because a caller in this bundle passes the value and the compiler
+ * checks it. A refusal's values arrive as a map off the wire, so there is no call to check: the
+ * hole is named instead, `{run_id}`, and the name has to be one the server's own template writes.
+ * `scripts/check_refusal_labels.py` holds both halves to that.
+ *
+ * WHAT IS NOT HERE. A code whose whole text is one param -- the server's `{detail}` -- has no
+ * words of its own to translate, so the fallback is already the right rendering. A pack's codes
+ * are not here either: the instance serves those from `GET /labels`, because this bundle cannot
+ * know which packs are installed.
+ */
+const refused = {
+    alert: {
+        bad_template: 'The template in {field} is not valid Jinja: {detail}',
+        target_has_no_notifier:
+            'Connection {code} is of kind {kind}, which no installed notifier delivers through. Installed: {installed}.',
+        unknown_connection: 'No connection coded {code}.',
+    },
+    artifacts: {
+        object_missing:
+            'Nothing is stored at {uri}. Run {run} (attempt {attempt}) has an artifact row but storage has no object: restore the artifact root from the backup that matches this database, or prune the run.',
+    },
+    auth: {
+        duplicate_email: 'A user with the email {email} already exists.',
+        duplicate_user: 'A user named {username} already exists.',
+        last_admin: '{username} is the only active admin. Promote another account before changing this one.',
+        weak_password: 'A password must be at least {minimum} characters.',
+        wrong_password: 'The current password is not correct.',
+    },
+    document: {
+        carried_connections:
+            'This document carries its own connections ({named}), which an instance will not store. Create them on the instance and let the document name them under requires.connections.',
+        carried_schemas:
+            'This document carries its own schemas ({named}), which an instance will not store. Create them on the instance and let the document name them under requires.schemas.',
+        no_format: 'The document declares no format. Add format: {format}.',
+        unsatisfied: 'The document does not satisfy {format}.',
+    },
+    host: {
+        ambiguous_example:
+            'Example {code} is carried by {plugins}, so the code alone does not name one of them.',
+        unknown_example: 'No example {code} is installed.',
+    },
+    parameter: {
+        invalid: 'Parameter {location} is invalid: {detail}',
+        schema_invalid:
+            "The pipeline's parameter schema is not itself valid JSON Schema ({problem}). Apply a corrected document to fix it.",
+    },
+    pipeline: {
+        deactivated: 'Pipeline {code} is deactivated.',
+        in_use: 'Pipeline {code} has {runs} runs still in flight and cannot be deleted. Finish or cancel them first.',
+        no_such_version: 'Pipeline {code} has no version {version}.',
+        unknown: 'No pipeline coded {code}.',
+    },
+    run: {
+        not_retryable: 'Step {step} is {status}, and only a settled failure can be retried.',
+    },
+    schedule: {
+        backfill_one_time:
+            'Schedule {code} fires once at one instant, so it has no cadence to enumerate. A backfill needs a cron or an interval schedule.',
+        backfill_too_many:
+            'A backfill creates at most {cap} runs, and {code} over {start} to {end} enumerates {counted}. Narrow the interval.',
+        bad_cron: '{expression} is not a cron expression: {detail}',
+        bad_moment: '{text} is not a moment. Write one as 2026-06-01T09:00:00Z.',
+        duplicate: 'Pipeline {pipeline} already has a schedule coded {code}.',
+        exactly_one_clock:
+            'A schedule declares exactly one of cron, interval, or at. This one declares {named}.',
+        unknown: 'Pipeline {pipeline} has no schedule coded {code}.',
+        unknown_timezone: '{name} is not an IANA timezone this host knows. Try UTC or Europe/Oslo.',
+    },
+    schema: {
+        invalid: 'This is not a valid JSON Schema{at}: {detail}',
+        no_code:
+            'This schema names no code. Give one, set $id, or store it from a file whose name is a code.',
+    },
+    server: {
+        bad_credentials: 'Invalid username or password.',
+        bad_cursor: '{name}={after} is not a cursor this listing gave out.',
+        connection_exists: 'A connection coded {code} exists.',
+        connection_referenced: 'Connection {code} is still referenced. Delete what uses it first.',
+        /** The same sentence `refusal.shut` says, held to it by `test_shared_words.py`. */
+        forbidden: 'Not permitted for your role.',
+        idempotency_key_required:
+            'An Idempotency-Key header is required, so a retried request creates one attempt.',
+        internal: 'The server failed to handle this request. The server log has the detail.',
+        no_alert_rule: 'No alert rule coded {code}.',
+        no_artifact: 'No artifact {artifact_id}.',
+        no_attempt: 'No attempt {attempt_id}.',
+        no_block: 'No block {block_id} is installed.',
+        no_connection: 'No connection coded {code}.',
+        no_icon: 'This bundle carries no icon.',
+        no_run: 'No run {run_id}.',
+        no_schema: 'No schema coded {code}.',
+        no_token: 'No live token named {name}.',
+        no_trigger_document: 'No triggers document coded {code}.',
+        no_user: 'No user named {username}.',
+        no_user_token: 'No live token named {name} for {username}.',
+        playground_header_refused:
+            'The playground will not set {header} on itself. A header that plants a cookie, opens this origin to another site, or weakens what a browser enforces here teaches nothing.',
+        playground_off_instance:
+            "{to} is not a path on this instance, and the playground redirects nowhere else: an open redirect is a phishing tool wearing this instance's own domain.",
+        playground_unauthenticated:
+            'This route wants a credential: the basic pair {username}/{username}, or the documented bearer token. Both are public constants and guard nothing.',
+        prune_names_nothing:
+            'Keep names no codes, and pruning against an empty set would deactivate every directory pipeline.',
+        redacted_secret:
+            '{fields} came back as {redacted}, which is what a read shows for a secret that is set, not a secret. Send the real value, or leave the field out to keep what is stored.',
+        too_many_logins: 'Too many login attempts. This instance accepts {per_minute} a minute.',
+        too_many_tails: 'You already have {maximum} streams open on this server.',
+        unauthenticated: 'Authentication required. Present a bearer token or log in.',
+        unknown_connection_kind: 'No connection kind {kind} is installed. Known: {known}.',
+    },
+    validation: {
+        extra_forbidden: 'Unknown key{suggestion}.',
+    },
+    watch: {
+        unknown: 'Pipeline {pipeline} has no watch coded {code}.',
+    },
+    webhook: {
+        duplicate: 'Pipeline {pipeline} already has a webhook coded {code}.',
+        name_undeclared: '{name} is not a parameter this pipeline declares. Declared: {declared}.',
+        path_empty_segment: '{path} is not a payload path: it has an empty segment.',
+        unknown: 'Pipeline {pipeline} has no webhook coded {code}.',
     },
 } as const
 
@@ -2719,6 +2853,7 @@ export const LABELS = {
     shell,
     palette,
     refusal,
+    refused,
     login,
     dashboard,
     pipelines,

@@ -28,7 +28,7 @@ import { headingOf } from '@/lib/identity'
 import { LABELS } from '@/lib/labels'
 import type { PickerOption } from '@/lib/picker'
 import { byTitle, paramsOf, priorityOf, readAllPipelines, readPipeline } from '@/lib/pipelines'
-import { refusalOf } from '@/lib/refusal'
+import { refusalOf, said } from '@/lib/refusal'
 import { firstShut } from '@/lib/roles'
 import type { RunPriority } from '@/lib/runs'
 import { fieldsOf, maySubmit, validateFields, withUnreadable, type FieldDescriptor } from '@/lib/schema-form'
@@ -597,7 +597,7 @@ function useFirings(open: boolean, clock: Clock, expression: string, timezone: s
                     if (live) setAnswered({ asked, reading: { kind: 'firings', firings: answer.firings } })
                 },
                 (error: unknown) => {
-                    const detail = refusalOf(error).detail ?? LABELS.triggers.schedule.dialog.unreadable_clock
+                    const detail = said(refusalOf(error)) || LABELS.triggers.schedule.dialog.unreadable_clock
                     if (live) setAnswered({ asked, reading: { kind: 'refused', detail } })
                 },
             )

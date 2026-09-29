@@ -1,5 +1,7 @@
 import { counted, LABELS } from '@/lib/labels'
 import type { PlanView } from '@/lib/pipeline-plan'
+import type { ValidationIssue } from '@/lib/pipelines'
+import { sentenceFor } from '@/lib/wording'
 
 /**
  * One dry run, drawn the one way this app draws one.
@@ -12,6 +14,11 @@ import type { PlanView } from '@/lib/pipeline-plan'
  * WHAT IT SAYS IS `lib/pipeline-plan`'s. The headline, whether applying is offered and which
  * changes are worth a line are decided there, in plain Node; this lays them out.
  */
+/** What one document problem says here: this interface's sentence for its code, else the server's. */
+function issueSaid(issue: ValidationIssue): string {
+    return sentenceFor(issue.code, issue.params) ?? issue.message
+}
+
 export function PlanReading({ view }: { view: PlanView }) {
     return (
         <div className="space-y-3">
@@ -35,7 +42,7 @@ export function PlanReading({ view }: { view: PlanView }) {
                         {view.issues.map((issue) => (
                             <li key={`${issue.location}:${issue.message}`}>
                                 <span className="font-mono">{issue.location}</span>{' '}
-                                <span className="text-muted-foreground">{issue.message}</span>
+                                <span className="text-muted-foreground">{issueSaid(issue)}</span>
                             </li>
                         ))}
                     </ul>

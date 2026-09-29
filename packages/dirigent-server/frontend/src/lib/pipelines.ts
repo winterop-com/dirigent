@@ -114,7 +114,12 @@ export interface RunAccepted {
 export interface ValidationIssue {
     /** A dotted document path such as `steps.push.config.method`. */
     location: string
+    /** The sentence the server rendered, which is the fallback for a code with no label here. */
     message: string
+    /** The dotted code the message was rendered from, which is what this interface draws. */
+    code: string
+    /** The specifics the message rendered, written into this interface's own sentence. */
+    params: JsonMap
 }
 
 /** What applying a document would do to the instance. `PlanAction`. */
