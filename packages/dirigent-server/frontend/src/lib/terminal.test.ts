@@ -60,6 +60,7 @@ function node(code: string): DagNode {
         depends_on: [],
         rule: 'all_success',
         fan_out: false,
+        grid_source: null,
         items_total: 0,
         items_failed: 0,
         attempts: 0,

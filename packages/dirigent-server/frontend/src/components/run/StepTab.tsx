@@ -65,7 +65,7 @@ export function StepTab({
     const heading = headingOf(view.node)
     const stale = configVersion.shown !== null && configVersion.shown !== configVersion.pinned
     const done = stepSettled(view.outcome) || runSettled(state.run.status)
-    const items = itemsNote(view.node.items_total, view.node.items_failed)
+    const items = itemsNote(view.items, view.node.items_failed)
     const queued = spanFact(view.queued_ms, view.duration_ms)
     const waiting = spanFact(view.waiting_ms, view.duration_ms)
 

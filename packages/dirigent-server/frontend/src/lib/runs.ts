@@ -126,6 +126,8 @@ export interface DagNode {
     depends_on: string[]
     rule: string
     fan_out: boolean
+    /** The step a late grid waits for before it expands, or null for a grid fixed at creation. */
+    grid_source: string | null
     items_total: number
     items_failed: number
     attempts: number

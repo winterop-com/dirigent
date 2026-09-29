@@ -457,11 +457,52 @@ export function itemStrip(
     }
 }
 
+/**
+ * A step's attempts, with a late grid's gate left out once its items exist.
+ *
+ * A FAN-OUT OVER A STEP'S OUTPUT STARTS AS ONE ATTEMPT WITH NO ITEM, its gate, and the engine
+ * deletes that attempt in the transaction that writes the items. The stream reports the items
+ * and never the deletion, so the screen still holds the gate as pending: an item seen is what
+ * says the gate is gone. Until then the gate is the step -- pending, or the reason the grid
+ * could not be expanded -- and it is never an element of the step.
+ */
+export function stepAttempts(node: DagNode, attempts: readonly AttemptEvent[]): AttemptEvent[] {
+    if (!node.fan_out) return [...attempts]
+    const items = attempts.filter((attempt) => attempt.run_item_id !== null)
+    return items.length > 0 ? items : [...attempts]
+}
+
+/** The elements of a fan-out step, which a gate standing in for them is not. */
+function elementsOf(attempts: readonly AttemptEvent[]): AttemptEvent[] {
+    return attempts.filter((attempt) => attempt.run_item_id !== null)
+}
+
+/** How many elements a fan-out step has: what the read counted, or what the stream has shown since. */
+export function itemsTotal(node: DagNode, attempts: readonly AttemptEvent[]): number {
+    const seen = new Set(elementsOf(attempts).map((attempt) => attempt.run_item_id))
+    return Math.max(node.items_total, seen.size)
+}
+
+/**
+ * What a fan-out node says where its elements would be, while it has none to draw.
+ *
+ * A LATE GRID NAMES WHAT IT WAITS FOR. Its width is whatever that step lists, so until the grid
+ * expands the useful thing to say is which step that is; a grid fixed at creation, or one that
+ * settled without expanding, only says that it fans out.
+ */
+export function emptyStripLabel(view: Pick<StepView, 'node' | 'outcome'>): string {
+    const source = view.node.grid_source
+    return source !== null && view.outcome === 'pending' ? `waits for ${source}` : 'fans out'
+}
+
 /** One node of the graph, folded from the pinned definition and everything the stream said. */
 export interface StepView {
     node: DagNode
     outcome: StepOutcome
+    /** The step's attempts, with a late grid's gate left out once its items exist. */
     attempts: AttemptEvent[]
+    /** How many elements a fan-out step has, counted live as a late grid expands. */
+    items: number
     latest: AttemptEvent | null
     /** The third line: what the step is waiting on, or what its last try had to say. */
     detail: string | null
@@ -766,19 +807,20 @@ export function handovers(before: ReadonlyMap<string, AnyStatus>, views: readonl
 /** Every node of the graph as the screen draws it, in the order the API laid them out. */
 export function stepViews(state: RunDetailState, now: number): StepView[] {
     return state.dag.nodes.map((node) => {
-        const attempts = attemptsForStep(state, node.code)
+        const attempts = stepAttempts(node, attemptsForStep(state, node.code))
         const outcome = outcomeOf(attempts, node.outcome)
         return {
             node,
             outcome,
             attempts,
+            items: node.fan_out ? itemsTotal(node, attempts) : 0,
             latest: latestOf(attempts),
             detail: detailOf(latestOf(attempts), node),
             duration_ms: durationOf(attempts, outcome, now),
             queued_ms: queuedOf(attempts),
             waiting_ms: waitingOf(attempts, now),
             progress: progressOf(latestOf(attempts)),
-            strip: node.fan_out ? itemStrip(attempts, now) : { kind: 'empty' },
+            strip: node.fan_out ? itemStrip(elementsOf(attempts), now) : { kind: 'empty' },
         }
     })
 }
