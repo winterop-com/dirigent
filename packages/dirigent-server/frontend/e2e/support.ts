@@ -118,10 +118,14 @@ export async function applyDocument(
     expect(applied.ok(), await applied.text()).toBe(true)
 }
 
-/** Start an ad hoc run of a pipeline, answering with the run's id. */
-export async function startRun(request: APIRequestContext, pipeline: string): Promise<string> {
+/** Start an ad hoc run of a pipeline with the given params, answering with the run's id. */
+export async function startRun(
+    request: APIRequestContext,
+    pipeline: string,
+    params: Record<string, unknown> = {},
+): Promise<string> {
     const prefix = await apiPrefix(request)
-    const started = await request.post(`${prefix}/pipelines/${pipeline}/$run`, { data: { params: {} } })
+    const started = await request.post(`${prefix}/pipelines/${pipeline}/$run`, { data: { params } })
     expect(started.ok(), await started.text()).toBe(true)
     const accepted = (await started.json()) as { run_id: string | null }
     expect(accepted.run_id).not.toBeNull()

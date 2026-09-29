@@ -471,6 +471,8 @@ export interface StepView {
     queued_ms: number | null
     /** How long it sat parked between probes, which is a sensor's or a remote job's wait. */
     waiting_ms: number | null
+    /** How far a live wait has come, from 0 to 1, or nothing when no live attempt reports it. */
+    progress: number | null
     strip: ItemStrip
 }
 
@@ -481,6 +483,22 @@ function detailOf(latest: AttemptEvent | null, node: DagNode): string | null {
     if (latest.status === 'failed' && latest.error !== null) return latest.error
     if (latest.output_uri !== null) return `saves to ${latest.output_uri}`
     return null
+}
+
+/** The states in which an attempt's reported progress is still the news. */
+const PROGRESSING: ReadonlySet<AttemptStatus> = new Set<AttemptStatus>(['running', 'waiting'])
+
+/**
+ * How far an attempt's wait has come, from 0 to 1, while the attempt is live.
+ *
+ * A SETTLED ATTEMPT HAS NO PROGRESS. The engine clears the fraction only on success, so a try that
+ * failed, timed out or was cancelled still carries the last one it reported.
+ */
+export function progressOf(attempt: AttemptEvent | null): number | null {
+    if (attempt === null || !PROGRESSING.has(attempt.status)) return null
+    const fraction = attempt.waiting_progress
+    if (fraction === null || !Number.isFinite(fraction)) return null
+    return Math.min(1, Math.max(0, fraction))
 }
 
 /**
@@ -759,6 +777,7 @@ export function stepViews(state: RunDetailState, now: number): StepView[] {
             duration_ms: durationOf(attempts, outcome, now),
             queued_ms: queuedOf(attempts),
             waiting_ms: waitingOf(attempts, now),
+            progress: progressOf(latestOf(attempts)),
             strip: node.fan_out ? itemStrip(attempts, now) : { kind: 'empty' },
         }
     })

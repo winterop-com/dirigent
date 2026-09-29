@@ -1,6 +1,13 @@
 import { describe, expect, test } from 'vitest'
 
-import { appliedLine, changesIn, issuesNote, planView, triggerChanges } from '@/lib/pipeline-plan'
+import {
+    appliedLine,
+    appliedNote,
+    changesIn,
+    issuesNote,
+    planView,
+    triggerChanges,
+} from '@/lib/pipeline-plan'
 import type { ApplyResult, DiffSummary, Materialized, PipelinePlan } from '@/lib/pipelines'
 
 function diff(over: Partial<DiffSummary> = {}): DiffSummary {
@@ -131,6 +138,21 @@ describe('what an apply did', () => {
             'watches removed: follow',
         ])
         expect(triggerChanges(materialized())).toEqual([])
+    })
+
+    test('carries what it did to the triggers under the line, and nothing when it left them alone', () => {
+        const result: ApplyResult = {
+            plan: plan(),
+            pipeline_id: 'an-id',
+            version: 2,
+            dry_run: false,
+            triggers: materialized({ schedules_created: ['nightly'], watches_updated: ['follow'] }),
+        }
+        expect(appliedNote(result)).toEqual({
+            line: 'convert-one is at version 2',
+            detail: 'schedules created: nightly; watches updated: follow',
+        })
+        expect(appliedNote({ ...result, triggers: materialized() }).detail).toBeUndefined()
     })
 })
 

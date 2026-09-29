@@ -27,6 +27,7 @@ export const COPY_RUN_LABEL = 'Copy the run id'
  */
 export function RunTab({ run }: { run: RunOut }) {
     const params = Object.entries(run.params)
+    const started = triggerSummary(run)
     return (
         <div className="flex flex-col gap-4 p-4">
             <div className="flex items-center gap-2">
@@ -40,8 +41,23 @@ export function RunTab({ run }: { run: RunOut }) {
 
             <Section title="Trigger">
                 <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
-                    <Fact term="kind" detail={triggerSummary(run).kind} />
-                    <Fact term="by" detail={run.triggered_by_label ?? 'not recorded'} />
+                    <Fact term="kind" detail={started.kind} />
+                    <Fact
+                        term="by"
+                        detail={
+                            started.parent === null ? (
+                                (started.who ?? 'not recorded')
+                            ) : (
+                                <Link
+                                    className="text-primary-ink hover:underline"
+                                    to={`/runs/${started.parent}`}
+                                    title={started.said ?? undefined}
+                                >
+                                    {started.who}
+                                </Link>
+                            )
+                        }
+                    />
                 </dl>
             </Section>
 
@@ -84,7 +100,10 @@ export function RunTab({ run }: { run: RunOut }) {
                     <Fact
                         term="pipeline"
                         detail={
-                            <Link className="text-primary hover:underline" to={`/pipelines/${run.pipeline}`}>
+                            <Link
+                                className="text-primary-ink hover:underline"
+                                to={`/pipelines/${run.pipeline}`}
+                            >
                                 {run.pipeline}
                             </Link>
                         }

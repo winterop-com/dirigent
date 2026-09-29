@@ -98,7 +98,9 @@ export function noted<T>(state: Paged<T>): Paged<T> {
  * there is more, and the foot says so beside the count.
  */
 export function rowsRead(count: number, noun: string, more: boolean): string {
-    const said = `${String(count)} ${count === 1 ? noun.replace(/s$/, '') : noun}`
+    // A noun whose plural took -es drops both letters: watches is a watch, not a watche.
+    const one = /(?:ch|sh|x|ss)es$/.test(noun) ? noun.slice(0, -2) : noun.replace(/s$/, '')
+    const said = `${String(count)} ${count === 1 ? one : noun}`
     return more ? `${said}, more to load` : said
 }
 

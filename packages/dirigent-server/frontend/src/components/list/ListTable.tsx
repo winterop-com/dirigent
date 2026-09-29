@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useCardForm } from '@/hooks/use-card-form'
 import { useSmallWindow } from '@/hooks/use-small-screen'
-import { factsOf, type CardColumn } from '@/lib/card-form'
+import { cardFacts, type CardColumn } from '@/lib/card-form'
 import { sizingOf, TITLE_CELL, type ColumnKind, type Shares, type Sizing } from '@/lib/column-width'
 import { PAGE, rowsRead } from '@/lib/paging'
 import { cn } from '@/lib/utils'
@@ -294,18 +294,29 @@ export function ListTable<T>({
  *
  * A COLUMN THE ROW SAID NOTHING IN IS NOT DRAWN, label and all -- a schema with no description
  * carries no `Description` line. The cell is what says so, by answering `null`.
+ *
+ * A COLUMN HEADED BY NOTHING HAS NO LABEL ROW. A control column -- a check, a revoke -- stands
+ * under the facts at the card's content edge rather than in the value column beside a blank.
  */
 function Facts<T>({ columns, row }: { columns: readonly Column<T>[]; row: T }) {
-    const facts = factsOf(columns, row)
-    if (facts.length === 0) return null
+    const { labelled, controls } = cardFacts(columns, row)
     return (
-        <dl className="grid grid-cols-[7rem_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs">
-            {facts.map((fact) => (
-                <Fragment key={fact.id}>
-                    <dt className="text-faint">{fact.label}</dt>
-                    <dd className="min-w-0">{fact.said}</dd>
-                </Fragment>
+        <>
+            {labelled.length > 0 && (
+                <dl className="grid grid-cols-[7rem_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs">
+                    {labelled.map((fact) => (
+                        <Fragment key={fact.id}>
+                            <dt className="text-faint">{fact.label}</dt>
+                            <dd className="min-w-0">{fact.said}</dd>
+                        </Fragment>
+                    ))}
+                </dl>
+            )}
+            {controls.map((fact) => (
+                <div key={fact.id} data-card-control="" className="flex min-w-0 items-center gap-2 text-xs">
+                    {fact.said}
+                </div>
             ))}
-        </dl>
+        </>
     )
 }

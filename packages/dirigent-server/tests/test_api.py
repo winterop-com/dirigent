@@ -19,7 +19,7 @@ from fastapi.testclient import TestClient
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from pydantic import BaseModel, SecretStr
 
-from dirigent_client.enums import AttemptStatus, LogLevel, RunItemStatus, RunStatus, WorkerStatus
+from dirigent_client.enums import AttemptStatus, LogLevel, RunItemStatus, RunStatus, TriggerKind, WorkerStatus
 from dirigent_client.schemas import LogEntryOut, Page, RunOut
 from dirigent_core.config import Settings
 from dirigent_core.database import create_engine, create_session_factory, session_scope
@@ -1129,6 +1129,36 @@ def test_a_backwards_window_is_refused_before_any_run_is_created(client: TestCli
     assert client.get(f"{PREFIX}/runs").json()["items"] == []
 
 
+def test_a_child_run_names_the_run_whose_step_started_it(client: TestClient) -> None:
+    apply_document(client, DOCUMENT)
+    parent = client.post(f"{PREFIX}/pipelines/api-demo/$run", json={"params": {}}).json()["run_id"]
+    child = client.post(f"{PREFIX}/pipelines/api-demo/$run", json={"params": {}}).json()["run_id"]
+    settings = cast("FastAPI", client.app).state.settings
+
+    async def attribute() -> None:
+        engine = create_engine(settings)
+        try:
+            async with session_scope(create_session_factory(engine)) as session:
+                await session.execute(
+                    sa.update(Run)
+                    .where(Run.id == UUID(child))
+                    .values(
+                        triggered_by_kind=TriggerKind.PIPELINE,
+                        triggered_by_id=UUID(parent),
+                        triggered_by_label=f"a step of run {parent}",
+                    )
+                )
+        finally:
+            await engine.dispose()
+
+    asyncio.run(attribute())
+
+    assert client.get(f"{PREFIX}/runs/{child}").json()["run"]["parent_run_id"] == parent
+    listed = {row["id"]: row for row in client.get(f"{PREFIX}/runs").json()["items"]}
+    assert listed[child]["parent_run_id"] == parent
+    assert listed[parent]["parent_run_id"] is None
+
+
 def test_a_run_is_started_and_its_parameters_are_validated(client: TestClient) -> None:
     apply_document(client, DOCUMENT)
     refused = client.post(f"{PREFIX}/pipelines/api-demo/$run", json={"params": {"greeting": 7}})
@@ -1142,6 +1172,7 @@ def test_a_run_is_started_and_its_parameters_are_validated(client: TestClient) -
     assert detail["run"]["pipeline"] == "api-demo"
     assert detail["run"]["triggered_by_kind"] == "api_token"
     assert detail["run"]["triggered_by_label"] == "tester (token tests)"
+    assert detail["run"]["parent_run_id"] is None, "a token's id is not a parent run"
     assert [node["code"] for node in detail["dag"]["nodes"]] == ["greet", "farewell"]
     assert detail["dag"]["edges"] == [["greet", "farewell"]]
     assert (detail["attempts_total"], detail["items_total"]) == (2, 0)

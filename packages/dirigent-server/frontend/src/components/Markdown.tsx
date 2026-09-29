@@ -67,7 +67,7 @@ function draw(block: Block, index: number): ReactNode {
             return (
                 <pre
                     key={index}
-                    className="overflow-x-auto rounded-md bg-secondary/50 p-2 font-mono text-xs"
+                    className="overflow-x-auto rounded-md border border-border bg-background p-2 font-mono text-xs"
                     data-language={block.language ?? undefined}
                 >
                     {block.text}
@@ -176,7 +176,7 @@ function run(inline: Inline, index: number): ReactNode {
             return (
                 <a
                     key={index}
-                    className="text-primary hover:underline"
+                    className="text-primary-ink hover:underline"
                     href={inline.href}
                     target="_blank"
                     rel="noopener noreferrer"
