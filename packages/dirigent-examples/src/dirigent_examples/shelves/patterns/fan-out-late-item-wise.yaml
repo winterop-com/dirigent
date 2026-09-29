@@ -1,0 +1,94 @@
+# Two fan-outs over one listed grid: item three of the second reads item three of the first.
+#
+# fan-out-item-wise.yaml pairs two fan-outs over a grid that was fixed when the run was
+# created. This is the same pairing over a grid nobody knew the width of until a step had
+# listed it. `measure` fans out over what `stations` listed, and `label` adopts that grid with
+# for_each: ${steps.measure.items}, so each of its items reads its own match with
+# ${steps.measure.item.output} rather than the whole batch.
+#
+# An adopter of a late grid is late too. The run is created with both `measure` and `label`
+# waiting as one pending attempt each. `measure` expands when `stations` succeeds; `label`
+# expands when `measure` has settled, into the same number of items at the same indices, so
+# the pairing holds by position exactly as it does over a fixed grid.
+#
+# Hop by hop:
+#
+#   stations  the listing: three seeded stations.
+#   measure   one item per listed station, each adding a generated reading to its record.
+#   label     adopts measure's grid. ${item} is the same station measure had at that index,
+#             and ${steps.measure.item.output.records} is that item's own output -- one
+#             record, the station with its reading -- not the list of all three.
+#   board     the join: one line per station, in listing order.
+#
+# EXPECT THIS RUN TO SUCCEED at once, with three items under `measure`, three under `label`
+# at the same indices, and a board of three lines.
+#
+# To change it: -p stations=6 widens both grids together; they always match.
+#
+#   dg run --local examples/patterns/fan-out-late-item-wise.yaml
+#   dg run --local examples/patterns/fan-out-late-item-wise.yaml -p stations=6
+
+format: dirigent/v1
+kind: pipeline
+code: fan-out-late-item-wise
+name: One listed item to one item
+description: |
+  A step adopting a grid that was expanded from an output, `for_each: ${steps.<name>.items}`,
+  expands with the same indices once that grid has settled.
+
+  Each of its items reads its match with `${steps.<name>.item.output}`.
+
+tags: [patterns, transform, fan-out, references]
+
+requires:
+  blocks:
+    - playground.generate
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    stations:
+      type: integer
+      default: 3
+      minimum: 1
+      maximum: 50
+      description: How many stations the listing finds, which is how wide both grids become.
+
+steps:
+  stations:
+    block: playground.generate
+    config:
+      rows: ${params.stations}
+      seed: 7
+      fields:
+        station: city
+
+  measure:
+    block: playground.generate
+    depends_on: [stations]
+    for_each: ${steps.stations.output.records}
+    config:
+      input: ${item}
+      fields:
+        celsius:
+          provider: pyint
+          args: {min_value: -20, max_value: 30}
+
+  label:
+    block: transform.jq
+    # The adopted step goes in depends_on: this grid is measure's, and it exists once measure
+    # has settled.
+    depends_on: [measure]
+    for_each: ${steps.measure.items}
+    config:
+      # The matching item's own output: one station, with its reading.
+      input: ${steps.measure.item.output.records}
+      program: '.[0] | "\(.station): \(.celsius) C"'
+
+  board:
+    block: transform.jq
+    depends_on: [label]
+    config:
+      input: ${steps.label.output}
+      program: '[.[].value]'

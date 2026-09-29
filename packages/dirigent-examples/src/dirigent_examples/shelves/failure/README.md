@@ -18,3 +18,4 @@ dg run --local examples/failure/retries.yaml
 | [step-timeout.yaml](step-timeout.yaml) | A timeout ends the attempt, and the policy decides whether another one starts. |
 | [optional-step.yaml](optional-step.yaml) | `completed_with_errors`: a step that may fail without failing the run, and the third status that says so. |
 | [error-handler.yaml](error-handler.yaml) | The cleanup edge: alert on failure, and always release the lock, however the load went. |
+| [fan-out-too-wide.yaml](fan-out-too-wide.yaml) | `fan_out_max_items`: a listing wider than one grid may be fails the fan-out as rejected, before any item is written. |

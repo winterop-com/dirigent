@@ -1,0 +1,94 @@
+# A listing wider than the instance lets one grid be, refused before any item runs.
+#
+# Every fan-out grid is bounded by the instance setting fan_out_max_items, 10000 unless an
+# operator says otherwise. A grid fixed when the run is created is checked then, and a run
+# over the bound is refused outright. A grid read from a step's output can only be checked
+# when that output exists, so it is checked there: the step that would have fanned out fails
+# as rejected with run.fan_out_too_wide, naming how many items it would have been and the
+# bound, and nothing is written for any of them. rejected is never retried, because the same
+# list would be refused the same way.
+#
+# The bound is there because a grid is rows: every item is a run item and an attempt, written
+# in one transaction, and a listing that answers with a million entries by mistake should cost
+# one refused step rather than a million rows.
+#
+# Hop by hop:
+#
+#   pages     eleven pages of a listing, one item per page, each a thousand generated rows.
+#   flatten   the join: one list of every row, 11000 of them.
+#   each_row  a fan-out over that list. 11000 is over the 10000 the instance allows, so the
+#             step fails as rejected and nothing runs.
+#   notify    rule: one_failed, the error branch, which reads what went wrong.
+#
+# EXPECT THIS RUN TO END failed, in a few seconds, with `each_row` failed as
+# run.fan_out_too_wide and `notify` run.
+#
+# To change it: -p pages='[1,2,3,4,5]' lists 5000 rows, under the bound, and the fan-out
+# runs all 5000 of them, which takes a while.
+# DIRIGENT_FAN_OUT_MAX_ITEMS=100 lowers the bound for one instance instead, and even one page
+# is refused.
+#
+#   dg run --local examples/failure/fan-out-too-wide.yaml
+#   DIRIGENT_FAN_OUT_MAX_ITEMS=100 dg run --local examples/failure/fan-out-too-wide.yaml -p pages='[1]'
+
+format: dirigent/v1
+kind: pipeline
+code: fan-out-too-wide
+name: A fan-out too wide to write
+description: |
+  A `for_each` over a step's output that lists more than `fan_out_max_items` fails as
+  rejected with `run.fan_out_too_wide`, before a single item is written.
+
+  The error branch behind it still runs, and the run ends failed.
+
+tags: [failure, transform, fan-out, rules]
+
+requires:
+  blocks:
+    - playground.generate
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    pages:
+      type: array
+      default: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+      minItems: 1
+      maxItems: 20
+      items:
+        type: integer
+      description: The thousand-row pages the listing has; eleven is over the default bound.
+
+steps:
+  pages:
+    block: playground.generate
+    for_each: ${params.pages}
+    config:
+      rows: 1000
+      seed: 1
+      fields:
+        code: uuid4
+
+  flatten:
+    block: transform.jq
+    depends_on: [pages]
+    config:
+      input: ${steps.pages.output}
+      program: '[.[].records[]]'
+
+  each_row:
+    block: transform.jq
+    depends_on: [flatten]
+    for_each: ${steps.flatten.output.value}
+    config:
+      input: ${item}
+      program: '.code'
+
+  notify:
+    block: transform.jq
+    depends_on: [each_row]
+    rule: one_failed
+    config:
+      input: {failed: each_row}
+      program: '"\(.failed) was refused: the listing was wider than the instance allows"'

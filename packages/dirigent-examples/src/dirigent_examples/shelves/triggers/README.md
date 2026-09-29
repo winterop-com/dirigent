@@ -35,6 +35,7 @@ dg run --local examples/triggers/cron-windowed.yaml --window 2026-06-01..2026-06
 | [document-nightly.yaml](document-nightly.yaml) | A `kind: triggers` document: clocks for a pipeline defined elsewhere, owning its own rows and refusing a pipeline no instance holds. |
 | [webhook-trigger.yaml](webhook-trigger.yaml) | The inbound trigger: a token minted at apply, a strict payload-to-parameter mapping, and everything else in the POST ignored. |
 | [watch-a-sensor.yaml](watch-a-sensor.yaml) | A watch: one run always waiting on `playground.arrive`, the next armed the moment a batch arrives, the runs overlapping and the offsets carrying on from batch to batch. |
+| [watch-fan-out-per-message.yaml](watch-fan-out-per-message.yaml) | A watched batch handled one message at a time: a `for_each` over the batch's messages, written when the batch arrives. |
 
 A pipeline carries as many schedules as it needs, each with its own zone and its own
 parameters: nightly against production and hourly against staging is two schedules on one

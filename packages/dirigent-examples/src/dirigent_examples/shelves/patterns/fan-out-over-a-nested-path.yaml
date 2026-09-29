@@ -1,0 +1,83 @@
+# A fan-out over a list that sits deep inside another step's output.
+#
+# A real answer is rarely a bare list. It is an envelope -- a catalogue, a page of results, a
+# network with regions inside it -- and the list worth fanning out over is a few fields down.
+# `for_each` walks there with the same dotted path every reference uses: the output, then
+# each field in turn, until it reaches the list. Nothing has to reshape the envelope first.
+#
+# The path is read when `stations` has succeeded, so it is checked then too. A field the
+# output does not have fails `per_station` as rejected with reference.no_field, naming what
+# was there instead; a field that holds something other than a list fails it with
+# run.fan_out_not_a_list. Either way nothing is written and nothing runs.
+#
+# Hop by hop:
+#
+#   catalogue    a fixed envelope standing in for an API's answer: a network, its regions,
+#                and the stations of each region.
+#   per_station  one item per station of the northern region, read from four fields down.
+#                ${item} is one station object, so ${item.code} is its code.
+#   collected    the join: every station code, in the order the catalogue listed them.
+#
+# EXPECT THIS RUN TO SUCCEED at once, with three items under `per_station` and a join naming
+# st-101, st-102 and st-103.
+#
+# To change it: write `south` for `north` in the path and the fan-out is the southern
+# region's two stations; write `east`, which the catalogue does not have, and `per_station`
+# fails as rejected. A reference cannot hold another reference, so the path is written out.
+#
+#   dg run --local examples/patterns/fan-out-over-a-nested-path.yaml
+
+format: dirigent/v1
+kind: pipeline
+code: fan-out-over-a-nested-path
+name: Fan out over a nested path
+description: |
+  `for_each: ${steps.<name>.output.<field>.<field>...}` reaches a list several fields inside
+  an upstream step's output, so an envelope needs no reshaping before it is fanned out over.
+
+  A missing field fails the fan-out as rejected, with nothing run.
+
+tags: [patterns, transform, fan-out, references]
+
+requires:
+  blocks:
+    - value.const
+    - playground.generate
+    - transform.jq
+
+steps:
+  catalogue:
+    block: value.const
+    config:
+      value:
+        network:
+          name: Coastal network
+          regions:
+            north:
+              stations:
+                - {code: st-101, name: Harbour}
+                - {code: st-102, name: Lighthouse}
+                - {code: st-103, name: Pier}
+            south:
+              stations:
+                - {code: st-201, name: Dunes}
+                - {code: st-202, name: Estuary}
+
+  per_station:
+    block: playground.generate
+    depends_on: [catalogue]
+    # value.const answers under `value`, and the list is four fields inside that.
+    for_each: ${steps.catalogue.output.value.network.regions.north.stations}
+    config:
+      input: ${item}
+      fields:
+        celsius:
+          provider: pyint
+          args: {min_value: -5, max_value: 25}
+
+  collected:
+    block: transform.jq
+    depends_on: [per_station]
+    config:
+      input: ${steps.per_station.output}
+      program: '[.[].records[0].code]'
