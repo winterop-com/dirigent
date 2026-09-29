@@ -159,6 +159,9 @@ class DagNode(WireModel):
     depends_on: list[str] = Field(default_factory=list[str])
     rule: str
     fan_out: bool = False
+    grid_source: str | None = None
+    """The step a late grid waits for before it expands, or null for a grid fixed at creation."""
+
     items_total: int = 0
     items_failed: int = 0
     attempts: int = 0
