@@ -11,9 +11,9 @@
 @import 'shadcn/tailwind.css';
 @import '@xyflow/react/dist/style.css';
 @import '@fontsource-variable/ibm-plex-sans';
-@import '@fontsource/ibm-plex-mono/400.css';
-@import '@fontsource/ibm-plex-mono/500.css';
-@import '@fontsource/ibm-plex-mono/600.css';
+@import '@fontsource/jetbrains-mono/400.css';
+@import '@fontsource/jetbrains-mono/500.css';
+@import '@fontsource/jetbrains-mono/600.css';
 
 /* next-themes is mounted with attribute="class", so the dark palette hangs off a `.dark`
    ancestor rather than a media query. That is what lets the toggle win over the system
@@ -22,10 +22,11 @@
 
 @theme inline {
     --font-heading: var(--font-sans);
-    /* IBM Plex: mono carries ids, cursors, block ids, cron expressions and durations -- the
-       strings read character by character rather than skimmed. */
+    /* Mono carries ids, cursors, block ids, cron expressions and durations -- the strings
+       read character by character rather than skimmed. Its advance is 0.6em, the same as the
+       sans face's mono counterpart, so a width measured in characters holds. */
     --font-sans: 'IBM Plex Sans Variable', 'IBM Plex Sans', system-ui, sans-serif;
-    --font-mono: 'IBM Plex Mono', 'SF Mono', Menlo, Consolas, monospace;
+    --font-mono: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
 
     /* THREE TYPE SIZES, AND ONLY THREE. 12px for chips, badges, counts and metadata; 14px
        for any sentence; 16px for a page heading. `scripts/check_ui_classes.py` fails the

@@ -14,7 +14,7 @@
  * a table at `WRAPS_AT` or wider is allowed a second.
  */
 
-/** The advance of one character of the chip's face: IBM Plex Mono at 12px. */
+/** The advance of one character of the chip's face: JetBrains Mono at 12px, 0.6em. */
 export const CHIP_ADVANCE = 7.2
 
 /** A chip's border and padding, either side of its word. */

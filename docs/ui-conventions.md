@@ -31,7 +31,7 @@ wrong is changed on this page first and in the code second.
 | Palette | cmdk | |
 | Toasts | sonner | |
 | Mode | next-themes, `class` strategy | |
-| Fonts | IBM Plex Sans and IBM Plex Mono, self-hosted through `@fontsource` | No CDN: a UI served from a private network has to work on one |
+| Fonts | IBM Plex Sans and JetBrains Mono, self-hosted through `@fontsource` | No CDN: a UI served from a private network has to work on one |
 | Lint | oxlint, plus `scripts/check_ui_classes.py` | A JS linter cannot see inside a `className`, so the type scale gets a check of its own |
 | Format | oxfmt, pinned exactly, configured in `.oxfmtrc.json` | Prettier's output from the linter's own project, and it sorts Tailwind classes against `src/index.css` rather than guessing at the theme |
 | Tests | vitest in `environment: node`, playwright for the browser | |
