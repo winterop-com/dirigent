@@ -1366,9 +1366,39 @@ html.dark[data-theme='contrast'],
     padding-left: 0.625rem;
 }
 
+/* How far a live wait has come, in the `--chip` of the element it sits in. `foot` lies along the
+   bottom edge of a positioned box inside its border and takes no room, so the box keeps the height
+   elk was given; `under` is a line in the flow beneath the text it belongs to. */
+.progress-line {
+    height: 3px;
+    background-color: color-mix(in oklab, var(--chip) 18%, transparent);
+}
+.progress-line-fill {
+    height: 100%;
+    background-color: var(--chip);
+    transition: width 400ms ease-out;
+}
+.progress-line-foot {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+}
+.progress-line-under {
+    border-radius: 2px;
+    overflow: hidden;
+    margin: 0.25rem 0 0.125rem;
+}
+.progress-line-under .progress-line-fill {
+    border-radius: 2px;
+}
+
 @media (prefers-reduced-motion: reduce) {
     .status-chip[data-live='true'] .status-dot {
         animation: none;
+    }
+    .progress-line-fill {
+        transition: none;
     }
     .step-node,
     .react-flow.dg-graph .react-flow__handle.dg-port {

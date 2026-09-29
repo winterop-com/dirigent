@@ -5,6 +5,7 @@ import { Instant } from '@/components/Instant'
 import { JsonBlock } from '@/components/JsonBlock'
 import { KindChip } from '@/components/KindChip'
 import { LogPane } from '@/components/run/LogPane'
+import { ProgressLine } from '@/components/run/ProgressLine'
 import { Fact, Section } from '@/components/run/Panel'
 import { StatusChip } from '@/components/run/StatusChip'
 import { asJson, countedHeading, elapsedBetween, formatBytes, formatDuration, shortenUri } from '@/lib/format'
@@ -15,6 +16,7 @@ import {
     logsForStep,
     nodeTone,
     outputReading,
+    progressOf,
     readsAsTheWholeStep,
     type ItemOutput,
     type RunDetailState,
@@ -287,6 +289,7 @@ function AttemptRow({ attempt }: { attempt: AttemptEvent }) {
             {attempt.waiting_message !== null && (
                 <p className="text-xs text-muted-foreground">{attempt.waiting_message}</p>
             )}
+            <ProgressLine progress={progressOf(attempt)} placement="under" />
             {attempt.error !== null && (
                 /* The failure is the sentence this row exists for, so it gets a block of its
                    own rather than a red aside squeezed against the chips. */

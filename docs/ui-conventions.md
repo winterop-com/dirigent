@@ -1413,6 +1413,14 @@ written, and what a step actually runs is never a click away. The third line is 
 doing -- what it is waiting on, what it saved to, what went wrong -- and the panel says the same
 things as facts rather than as a second sentence.
 
+**A live wait's fraction is a foot line, never a number.** A step whose attempt reports how far
+its wait has come draws that as a 3px line in the hue of the box it sits in: along the node's
+bottom edge, inside its border and taking no height, and directly under the attempt row's waiting
+message. It is a `progressbar` with `aria-valuenow`, the node's tooltip gives the percentage, and
+no figure is drawn beside it, because the message already says how far. It is drawn only while the
+attempt is waiting or running: a settled attempt still carries the last fraction it reported, and
+`progressOf` in `lib/run-detail` is the one reading that drops it. No progress draws nothing.
+
 ## The terminal drawer
 
 A run's screen stacks: the canvas above, and a console across the foot of the content area at

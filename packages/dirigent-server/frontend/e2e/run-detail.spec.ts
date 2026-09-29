@@ -7,6 +7,7 @@ import {
     dragBy,
     everyNodeIsInView,
     graphZoom,
+    ranToCompletion,
     signIn,
     startRun,
 } from './support.ts'
@@ -466,4 +467,45 @@ test("a step output's window button covers none of its text, however long its li
         // oxlint-disable-next-line no-await-in-loop
         expect(await textUnderTheButton(page, step), `${step}: text under the button`).toBe(0)
     }
+})
+
+test('a live wait draws how far it has come as a line on its node and under its attempt', async ({
+    page,
+}) => {
+    // REVERT-PROOF: `playground.arrive` reports a fraction on every poke. Without the foot line
+    // there is no progressbar on the node or in the attempt row; a line that took room in the
+    // box would make it taller than the height elk was given and than its sibling.
+    await signIn(page)
+    await applyExample(page.request, 'examples/playground/waiting-for-a-batch.yaml')
+    // Twelve pokes at the example's one-second poll: long enough to read the line twice.
+    const runId = await startRun(page.request, 'waiting-for-a-batch', { after_pokes: 12 })
+
+    await page.goto(`/runs/${runId}`)
+    const waiting = page.locator('.react-flow__node[data-id="wait_for_batch"]')
+    const line = waiting.getByRole('progressbar')
+    await expect(line).toBeVisible({ timeout: 15_000 })
+    await expect(line).toHaveAttribute('aria-valuemin', '0')
+    await expect(line).toHaveAttribute('aria-valuemax', '100')
+    await expect(waiting.locator('.step-node')).toHaveAttribute('title', /\(\d+%\)$/)
+
+    // The line lies inside the box, so the waiting node is the height its sibling is.
+    const heights = await page.evaluate(() =>
+        [...document.querySelectorAll<HTMLElement>('.react-flow__node .step-node')].map(
+            (node) => node.offsetHeight,
+        ),
+    )
+    expect(heights).toHaveLength(2)
+    expect(heights[0]).toBe(heights[1])
+
+    const first = Number(await line.getAttribute('aria-valuenow'))
+    await expect
+        .poll(async () => Number(await line.getAttribute('aria-valuenow')), { timeout: 10_000 })
+        .toBeGreaterThan(first)
+
+    await waiting.click()
+    await expect(page.locator('aside').getByRole('progressbar')).toBeVisible()
+
+    // A settled wait draws no line, on the node or in its row.
+    await ranToCompletion(page.request, runId)
+    await expect(page.getByRole('progressbar')).toHaveCount(0)
 })
