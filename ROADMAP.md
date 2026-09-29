@@ -89,7 +89,33 @@ stays clean, and every example stays executable.
    After that, stage 3 starts with item-by-item scheduling: item i of B ready when item i of
    A succeeds rather than when all of A has. Streaming a single step comes last, and only if
    it is still wanted.
-2. **Adapter packs.** Every further pack takes the shape `dirigent-dhis2` set: its own
+2. **An `endpoint` trigger: a pipeline behind a path of its own.** A webhook is a token URL that
+   takes a delivery and starts a run. An endpoint is the Camel REST shape: the pipeline declares
+   a path and its methods, and the server serves it under a prefix of its own:
+   ```yaml
+   triggers:
+     endpoints:
+       hello:
+         path: /hello
+         methods: [GET]
+         params: {name: "${request.query.name}"}
+         reply: {step: greet, timeout: 10s}
+   ```
+   The request's query, path parameters, headers and body map onto params and are validated
+   like a webhook's. With `reply`, the caller waits for the named step's output as its response.
+   Without it, the caller gets 202 and the run's id. Apply refuses two pipelines claiming one
+   path. An endpoint is public or asks for a token. `dg endpoint` lists and manages endpoints,
+   and they appear on the Triggers screen. It is inbound to dirigent's own server, like a
+   webhook, so the outbound-only rule stands. The limit to state plainly: a reply goes through
+   the queue, a worker and every step, so it takes a few hundred milliseconds at best. That is
+   a pipeline behind an API, not an API server.
+   To decide in its design round:
+   - the prefix;
+   - what the reply is when the run fails or the timeout passes;
+   - whether a reply can set its status and headers;
+   - how a burst of requests is bounded;
+   - the delivery history, which webhooks already keep.
+3. **Adapter packs.** Every further pack takes the shape `dirigent-dhis2` set: its own
    repository, its own examples and tests, self-testing against `dirigent-plugin`'s main,
    wired through a connection kind, with a client written fresh or wrapping a stable one, and
    assembled by `dirigent-integration`.
@@ -137,7 +163,8 @@ stays clean, and every example stays executable.
   and a screen to the dirigent server itself through pluginkit -- a seventh surface beside
   blocks and connection kinds, the server mounting a pack's router under `/api/v1/<pack>` --
   which raises who authenticates those routes, how they appear in the OpenAPI document, and
-  whether the outbound-only decision admits a pack that listens. The other is a pipeline whose
+  whether the outbound-only decision admits a pack that listens. The `endpoint` trigger above answers the narrower case: a
+  pipeline, rather than a pack, answering a path. The other is a pipeline whose
   step is a long-lived service: an app a run starts, health-checks with `http.ready`, uses for
   the rest of the run, and tears down, the shape `docker.compose.up` and `.down` already give a
   compose stack, but for a process the worker owns. To decide first: which of the two is
