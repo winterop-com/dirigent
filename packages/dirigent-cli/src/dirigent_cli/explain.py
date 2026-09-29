@@ -7,9 +7,10 @@ under a deadline. What only the run can decide -- a parameter supplied at the co
 a window's bounds -- is reported as unknown rather than guessed at, and a total that counted
 one of those says so.
 
-The cardinality rules are :func:`dirigent_core.engine.runs.resolve_fan_out`'s: a literal list
-is its own length, ``${steps.<name>.items}`` adopts another fan-out's grid, a reference that
-resolves to a list is that list, and anything else is only the run's to answer.
+The cardinality rules are the engine's: a literal list is its own length,
+``${steps.<name>.items}`` adopts another fan-out's grid, a reference that resolves to a list is
+that list, one that reads a step's output is as wide as that step makes it while the run
+executes, and anything else is only the run's to answer.
 """
 
 from collections.abc import Mapping, Sequence
@@ -30,6 +31,9 @@ UNKNOWN: Final = "unknown"
 
 #: How a cardinality names the fan-out whose grid a step maps over instead of its own.
 ADOPTS: Final = "adopts {step}"
+
+#: How a cardinality names the step whose output a late grid is expanded from.
+LATE: Final = "from {step}"
 
 
 class DocumentShape(BaseModel):
@@ -61,7 +65,7 @@ def explain(definition: PipelineDefinition, catalog: Catalog | None = None) -> D
     order = definition.topological_order()
     shapes: dict[str, StepShape] = {}
     for name in order:
-        shapes[name] = _step_shape(name, definition.steps[name], params, shapes, catalog)
+        shapes[name] = _step_shape(name, definition.steps[name], params, shapes, catalog, definition.grid_source(name))
     rows = [shapes[name] for name in order]
     return DocumentShape(
         attempts_max=sum(row.max_attempts * (1 if row.elements is None else row.elements) for row in rows),
@@ -90,9 +94,13 @@ def _step_shape(
     params: JsonMap,
     done: Mapping[str, StepShape],
     catalog: Catalog | None,
+    source: str | None,
 ) -> StepShape:
-    """Read one step as the work it will become, against the steps already read."""
-    cardinality, elements = _cardinality(step, params, done)
+    """Read one step as the work it will become, against the steps already read.
+
+    ``source`` is the step a late grid waits for, which the row names.
+    """
+    cardinality, elements = _cardinality(step, params, done, source)
     poll, deadline, from_block = _waits(step, _entry(step, catalog))
     return StepShape(
         name=name,
@@ -100,6 +108,7 @@ def _step_shape(
         depends_on=list(step.depends_on),
         cardinality=cardinality,
         elements=elements,
+        grid_source=source,
         reference=step.for_each if isinstance(step.for_each, str) else None,
         items=step.items.value,
         max_attempts=step.retry.max_attempts,
@@ -112,7 +121,9 @@ def _step_shape(
     )
 
 
-def _cardinality(step: StepDefinition, params: JsonMap, done: Mapping[str, StepShape]) -> tuple[int | str, int | None]:
+def _cardinality(
+    step: StepDefinition, params: JsonMap, done: Mapping[str, StepShape], source: str | None
+) -> tuple[int | str, int | None]:
     """Say how many run items a step becomes, and the count behind that where there is one."""
     expression = step.for_each
     if expression is None:
@@ -123,10 +134,8 @@ def _cardinality(step: StepDefinition, params: JsonMap, done: Mapping[str, StepS
     if adopted is not None:
         upstream = done[adopted].elements if adopted in done else None
         return ADOPTS.format(step=adopted), upstream
-    if "steps." in expression:
-        # resolve_fan_out refuses a step's output here, because cardinality is fixed when the
-        # run is created and no step has run by then.
-        return UNKNOWN, None
+    if source is not None:
+        return LATE.format(step=source), None
     try:
         resolved = resolve(expression, ReferenceScope(params=params))
     except UnknownReference:
@@ -199,6 +208,17 @@ def _warnings(rows: Sequence[StepShape], catalog: Catalog | None) -> list[ShapeW
                     message=(
                         f"{row.name} fans out over {row.reference}, which only the run can resolve, "
                         f"so it is counted as one item here."
+                    ),
+                )
+            )
+        if row.grid_source is not None and row.cardinality == LATE.format(step=row.grid_source):
+            found.append(
+                ShapeWarning(
+                    step=row.name,
+                    cause="late-cardinality",
+                    message=(
+                        f"{row.name} fans out over {row.reference}, which {row.grid_source} produces while "
+                        f"the run executes, so it is counted as one item here."
                     ),
                 )
             )
