@@ -6,6 +6,7 @@ import { WindowedPane } from '@/components/WindowedPane'
 import { ProgramReference } from '@/components/pipeline/ProgramReference'
 import type { JsonMap } from '@/lib/api'
 import { REPORTS_DOCS_URL } from '@/lib/docs'
+import { LABELS } from '@/lib/labels'
 import { reportIn } from '@/lib/pipeline-document'
 
 /** The media type a report template carries. `TEMPLATE_MEDIA_TYPE` in dirigent_common. */
@@ -19,9 +20,9 @@ const TEMPLATE_LABEL = 'report.template'
 type Choice = 'none' | 'builtin' | 'own'
 
 const CHOICES = [
-    { value: 'none' as const, label: 'No report' },
-    { value: 'builtin' as const, label: 'Built-in template' },
-    { value: 'own' as const, label: 'Own template' },
+    { value: 'none' as const, label: LABELS.editor.report.none },
+    { value: 'builtin' as const, label: LABELS.editor.report.builtin },
+    { value: 'own' as const, label: LABELS.editor.report.own },
 ]
 
 /**
@@ -58,18 +59,14 @@ export function ReportPane({
     const held = useRef('')
 
     if (document === null) {
-        return (
-            <p className="p-4 text-sm text-muted-foreground">
-                This pipeline has no version, so there is no document to read.
-            </p>
-        )
+        return <p className="p-4 text-sm text-muted-foreground">{LABELS.editor.no_document}</p>
     }
 
     return (
         <div className="flex flex-col gap-4 p-4">
             <div className="space-y-2">
                 <Segmented
-                    label="What a run of this pipeline reports"
+                    label={LABELS.editor.report.choice}
                     size="md"
                     value={choice}
                     options={CHOICES}
@@ -81,19 +78,19 @@ export function ReportPane({
                 />
                 <p className="text-xs text-muted-foreground">
                     {choice === 'none' ? (
-                        'A run of this pipeline writes no report document.'
+                        LABELS.editor.report.writes_none
                     ) : (
                         <>
                             {choice === 'builtin'
-                                ? "The built-in document is the run's facts, a table of its steps, and its error. It is not part of this document."
-                                : "This template is rendered against the run's facts when the run settles."}{' '}
+                                ? LABELS.editor.report.builtin_says
+                                : LABELS.editor.report.own_says}{' '}
                             <a
                                 className="text-primary-ink hover:underline"
                                 href={REPORTS_DOCS_URL}
                                 target="_blank"
                                 rel="noreferrer"
                             >
-                                What a template may read
+                                {LABELS.editor.report.reference}
                             </a>
                         </>
                     )}
@@ -114,7 +111,7 @@ export function ReportPane({
                             value={section.template ?? ''}
                             mediaType={TEMPLATE_MEDIA_TYPE}
                             path={TEMPLATE_PATH}
-                            label={`${TEMPLATE_LABEL}, in a window`}
+                            label={LABELS.editor.in_window(TEMPLATE_LABEL)}
                             className="min-h-0 flex-1"
                             readOnly={disabled !== undefined}
                             onChange={(text) => {
@@ -128,7 +125,7 @@ export function ReportPane({
                         mediaType={TEMPLATE_MEDIA_TYPE}
                         path={TEMPLATE_PATH}
                         label={TEMPLATE_LABEL}
-                        placeholder="# {{ pipeline.code }} {{ run.status }}"
+                        placeholder={LABELS.editor.report.placeholder}
                         className="h-64 min-h-40"
                         readOnly={disabled !== undefined}
                         onChange={(text) => {

@@ -6,8 +6,10 @@
  * rather than three, so it is made here and asserted in Node.
  */
 
-export const SHOW_PASSWORD_LABEL = 'Show password'
-export const HIDE_PASSWORD_LABEL = 'Hide password'
+import { LABELS } from '@/lib/labels'
+
+export const SHOW_PASSWORD_LABEL = LABELS.login.show_password
+export const HIDE_PASSWORD_LABEL = LABELS.login.hide_password
 
 export type Reveal = {
     /** What the password input's `type` is while the toggle stands this way. */

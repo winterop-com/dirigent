@@ -12,6 +12,7 @@
  */
 
 import type { UserRole } from '@/lib/auth'
+import { LABELS } from '@/lib/labels'
 
 /** Which of the API's two role gates a request is behind. */
 export type Gate = 'operator' | 'admin'
@@ -30,7 +31,9 @@ export function passes(role: UserRole | null, gate: Gate): boolean {
  */
 export function whyShut(role: UserRole | null, gate: Gate): string | undefined {
     if (passes(role, gate)) return undefined
-    return `Not available to ${role === 'operator' ? 'an operator' : 'a viewer'}.`
+    return LABELS.refusal.shut(
+        role === 'operator' ? LABELS.refusal.role.operator : LABELS.refusal.role.viewer,
+    )
 }
 
 /** The first sentence that shuts a control, so a role and a form's own state read as one. */

@@ -9,6 +9,7 @@ import {
     DropdownMenuRadioItem,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { LABELS } from '@/lib/labels'
 
 /** What every filter menu calls its own "no filter" row. */
 export const ANY = ''
@@ -52,7 +53,11 @@ export function Choice({
         <DropdownMenu>
             <DropdownMenuTrigger
                 render={
-                    <Button variant="outline" size="sm" aria-label={`${label}: ${chosen?.label ?? anything}`}>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        aria-label={LABELS.shell.filter(label, chosen?.label ?? anything)}
+                    >
                         {chosen === undefined ? anything : (chosen.mark ?? chosen.label)}
                         <ChevronDown aria-hidden />
                     </Button>

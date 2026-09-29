@@ -6,9 +6,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useSmallScreen } from '@/hooks/use-small-screen'
 import { useStore } from '@/hooks/use-store'
 import { closeSheet, openPanelTab, panelSheet, panelTab, panelTabs } from '@/lib/panels'
+import { LABELS } from '@/lib/labels'
 import { cn } from '@/lib/utils'
 
-export const CLOSE_PANEL_LABEL = 'Close the panel'
+export const CLOSE_PANEL_LABEL = LABELS.shell.close_panel
 
 /**
  * The right panel, below the breakpoint the right panel is not drawn at.

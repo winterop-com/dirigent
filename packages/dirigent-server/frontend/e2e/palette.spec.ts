@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 
+import { LABELS } from '../src/lib/labels.ts'
 import { signIn } from './support.ts'
 
 /**
@@ -15,15 +16,15 @@ test.beforeEach(async ({ page }) => {
     // The chord is a keydown the shell has to be listening for: on a slow runner a press
     // fired before the shell mounts is simply lost, so the chip standing in the topbar is
     // the precondition every chord below relies on.
-    await expect(page.getByLabel('Instance')).toBeVisible()
+    await expect(page.getByLabel(LABELS.shell.instance.label)).toBeVisible()
 })
 
 test('a chord opens it, and escape closes it again', async ({ page }) => {
     await page.keyboard.press('ControlOrMeta+k')
-    await expect(page.getByPlaceholder('Go to a screen, or run something')).toBeVisible()
+    await expect(page.getByPlaceholder(LABELS.palette.placeholder)).toBeVisible()
 
     await page.keyboard.press('Escape')
-    await expect(page.getByPlaceholder('Go to a screen, or run something')).toBeHidden()
+    await expect(page.getByPlaceholder(LABELS.palette.placeholder)).toBeHidden()
 })
 
 test('typing narrows it to the rows that answer, and drops the rest', async ({ page }) => {
@@ -31,7 +32,7 @@ test('typing narrows it to the rows that answer, and drops the rest', async ({ p
     const dialog = page.getByRole('dialog')
     await expect(dialog.getByRole('option').filter({ hasText: /^Connections/ })).toHaveCount(1)
 
-    await page.getByPlaceholder('Go to a screen, or run something').fill('connection')
+    await page.getByPlaceholder(LABELS.palette.placeholder).fill('connection')
     await expect(dialog.getByRole('option').filter({ hasText: /^Connections/ })).toHaveCount(1)
     await expect(dialog.getByRole('option').filter({ hasText: /^Runs/ })).toHaveCount(0)
     await expect(dialog.getByRole('option').filter({ hasText: /^Workers/ })).toHaveCount(0)
@@ -46,19 +47,19 @@ test('the shelf the screen registered is laid out first', async ({ page }) => {
     // The screen registers its rows from an effect, so the first shelf is asserted with a
     // retrying expectation rather than read once out of the markup.
     const headings = page.getByRole('dialog').locator('[cmdk-group-heading]')
-    await expect(headings.first()).toHaveText('This listing')
+    await expect(headings.first()).toHaveText(LABELS.palette.shelf.list)
     expect(await headings.count()).toBeGreaterThan(1)
 })
 
 test('choosing a row runs it, and the palette is gone before the screen changes', async ({ page }) => {
     await page.keyboard.press('ControlOrMeta+k')
-    await page.getByPlaceholder('Go to a screen, or run something').fill('runs')
+    await page.getByPlaceholder(LABELS.palette.placeholder).fill('runs')
     // A row's accessible name is its title and the muted line beside it, so it is filtered on
     // rather than matched exactly.
     await page.getByRole('option').filter({ hasText: /^Runs/ }).first().click()
 
     await expect(page).toHaveURL(/\/runs$/)
-    await expect(page.getByPlaceholder('Go to a screen, or run something')).toBeHidden()
+    await expect(page.getByPlaceholder(LABELS.palette.placeholder)).toBeHidden()
 })
 
 /**
@@ -101,7 +102,7 @@ test('the search glyph, a heading, a row and the footer stand on one left edge',
 test('the search text stands the inset below the top of the dialog', async ({ page }) => {
     await page.keyboard.press('ControlOrMeta+k')
     const dialog = page.getByRole('dialog')
-    await expect(dialog.getByPlaceholder('Go to a screen, or run something')).toBeVisible()
+    await expect(dialog.getByPlaceholder(LABELS.palette.placeholder)).toBeVisible()
 
     const gap = await dialog.evaluate((box) => {
         const field = box.querySelector('[data-slot="command-input"]')
@@ -113,6 +114,6 @@ test('the search text stands the inset below the top of the dialog', async ({ pa
 
 test('a query nothing answers says so rather than showing everything', async ({ page }) => {
     await page.keyboard.press('ControlOrMeta+k')
-    await page.getByPlaceholder('Go to a screen, or run something').fill('stroopwafel')
-    await expect(page.getByText('Nothing here answers to that')).toBeVisible()
+    await page.getByPlaceholder(LABELS.palette.placeholder).fill('stroopwafel')
+    await expect(page.getByText(LABELS.palette.empty)).toBeVisible()
 })

@@ -7,6 +7,7 @@ import { useCardForm } from '@/hooks/use-card-form'
 import { useSmallScreen, useSmallWindow } from '@/hooks/use-small-screen'
 import { cardFacts, type CardColumn } from '@/lib/card-form'
 import { sizingOf, TITLE_CELL, type ColumnKind, type Shares, type Sizing } from '@/lib/column-width'
+import { LABELS } from '@/lib/labels'
 import { PAGE, rowsRead } from '@/lib/paging'
 import { panelStanding } from '@/lib/panels'
 import { cn } from '@/lib/utils'
@@ -298,7 +299,7 @@ export function ListTable<T>({
                                 onClick={onMore}
                                 disabled={reading}
                             >
-                                {reading ? 'Reading' : `Load ${String(PAGE)} more`}
+                                {reading ? LABELS.shell.loading_more : LABELS.shell.load_more(String(PAGE))}
                             </Button>
                         </div>
                     )}

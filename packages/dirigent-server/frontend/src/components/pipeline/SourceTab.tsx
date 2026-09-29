@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { WindowedPane } from '@/components/WindowedPane'
 import { CodePane } from '@/components/pipeline/CodePane'
 import type { JsonMap } from '@/lib/api'
+import { LABELS } from '@/lib/labels'
 import { toYaml } from '@/lib/pipeline-document'
 
 /**
@@ -26,9 +27,8 @@ import { toYaml } from '@/lib/pipeline-document'
  * held in, so what is edited and what is read back are the same thing. An apply canonicalises it.
  */
 
-/** Which buffer this pane edits, and what a screen reader and a test call it. */
+/** Which buffer this pane edits. */
 const DOCUMENT_PATH = 'document'
-const DOCUMENT_LABEL = 'The document'
 
 /** How long after the last keystroke the text is read as a document. */
 const SETTLE_MS = 250
@@ -72,22 +72,18 @@ export function SourceTab({
     }, [])
 
     if (document === null) {
-        return (
-            <p className="p-4 text-sm text-muted-foreground">
-                This pipeline has no version, so there is no document to read.
-            </p>
-        )
+        return <p className="p-4 text-sm text-muted-foreground">{LABELS.editor.no_document}</p>
     }
 
     // The pane in place and the pane in the window name one path, so monaco hands them a single
     // model: what is typed in either is what the other shows, and closing the window loses
     // nothing.
-    const pane = (where: string | null) => (
+    const pane = (windowed: boolean) => (
         <CodePane
             value={text}
             schema={schema}
             path={DOCUMENT_PATH}
-            label={where === null ? DOCUMENT_LABEL : `${DOCUMENT_LABEL}, ${where}`}
+            label={windowed ? LABELS.editor.in_window(LABELS.editor.source.pane) : LABELS.editor.source.pane}
             className="min-h-0 flex-1"
             readOnly={readOnly}
             onChange={(next) => {
@@ -107,15 +103,15 @@ export function SourceTab({
             {parseError !== null && (
                 <div className="border-b border-border p-2 text-xs text-critical" role="alert">
                     <pre className="overflow-x-auto font-mono whitespace-pre-wrap">{parseError}</pre>
-                    <p className="mt-1">The other tabs are showing the last document that parsed.</p>
+                    <p className="mt-1">{LABELS.editor.source.stale}</p>
                 </div>
             )}
             <WindowedPane
-                name={DOCUMENT_LABEL}
+                name={LABELS.editor.source.pane}
                 className="min-h-0 flex-1 bg-background"
-                windowed={pane('in a window')}
+                windowed={pane(true)}
             >
-                {pane(null)}
+                {pane(false)}
             </WindowedPane>
         </div>
     )

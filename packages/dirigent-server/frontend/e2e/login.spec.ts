@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { LABELS } from '../src/lib/labels.ts'
 
 /**
  * The seam between the login's two panes, which is also the handle that moves it.
@@ -13,7 +14,7 @@ const MIN = 560
 const FORM_COLUMN = 526
 
 /** The seam is a separator, and it is the only one on this screen. */
-const seamOf = (page: Page) => page.getByRole('separator', { name: 'Resize the brand pane' })
+const seamOf = (page: Page) => page.getByRole('separator', { name: LABELS.login.seam })
 
 const paneWidth = async (page: Page) =>
     (await page
@@ -24,7 +25,7 @@ const paneWidth = async (page: Page) =>
 async function openLogin(page: Page, width: number, height: number): Promise<void> {
     await page.setViewportSize({ width, height })
     await page.goto('/login')
-    await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: LABELS.login.sign_in })).toBeVisible()
 }
 
 /** Drag the seam by `by` pixels, from wherever it is standing. */
@@ -52,7 +53,7 @@ test('the seam drags, and what it was dragged to comes back with the browser', a
     expect(narrowed).toBeCloseTo(1440 - FORM_COLUMN - 100, 0)
 
     await page.reload()
-    await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: LABELS.login.sign_in })).toBeVisible()
     expect(await paneWidth(page)).toBeCloseTo(narrowed, 0)
     expect(before).toBeLessThan(narrowed)
 })
@@ -96,7 +97,7 @@ test('a double-click gives the pane its own clamp back, and so does Delete', asy
 
     // The clamp is what a fresh browser gets, so nothing was left behind in storage.
     await page.reload()
-    await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: LABELS.login.sign_in })).toBeVisible()
     expect(await paneWidth(page)).toBeCloseTo(clamped, 0)
 })
 
@@ -110,7 +111,7 @@ test('there is no seam to drag below lg', async ({ page }) => {
 test('the stacked form stands under the brand strip', async ({ page }) => {
     await openLogin(page, 390, 844)
     const strip = await page.locator('aside').boundingBox()
-    const eyebrow = await page.getByText('Welcome to dirigent').boundingBox()
+    const eyebrow = await page.getByText(LABELS.login.eyebrow).boundingBox()
     if (strip === null || eyebrow === null) throw new Error('no stacked login')
 
     // The section's top padding and nothing else: a form centred in what is left under the

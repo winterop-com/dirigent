@@ -20,6 +20,7 @@ import { refusalOf } from '@/lib/refusal'
 import { firstShut } from '@/lib/roles'
 import { healthOf, patchBody, settingFields, updateConnection, type ConnectionOut } from '@/lib/connections'
 import { separatelyUpdated } from '@/lib/format'
+import { LABELS } from '@/lib/labels'
 import { kindGlyph } from '@/lib/glyphs'
 import { kindMarks } from '@/lib/marks'
 import { headingOf } from '@/lib/identity'
@@ -86,7 +87,7 @@ export function ConnectionForm({
     const write = useMayWrite('admin')
     const shut = firstShut(
         write.why,
-        maySubmit(problems, unreadable) ? undefined : 'A setting above is not what this kind accepts.',
+        maySubmit(problems, unreadable) ? undefined : LABELS.connections.settings_refused,
     )
 
     const send = () => {
@@ -138,10 +139,10 @@ export function ConnectionForm({
                     <KindChip kind={connection.kind} />
                 </p>
                 <p className="text-xs text-faint">
-                    Created <Instant at={connection.created_at} />
+                    {LABELS.word.created} <Instant at={connection.created_at} />
                     {separatelyUpdated(connection.created_at, connection.updated_at) && (
                         <>
-                            {' · updated '}
+                            {LABELS.connections.also_updated}
                             <Instant at={connection.updated_at} />
                         </>
                     )}
@@ -151,7 +152,7 @@ export function ConnectionForm({
             </div>
 
             <div className="space-y-1.5">
-                <Label htmlFor="connection-name">Name</Label>
+                <Label htmlFor="connection-name">{LABELS.word.name}</Label>
                 <Input
                     id="connection-name"
                     value={named}
@@ -159,15 +160,13 @@ export function ConnectionForm({
                         setNamed(event.target.value)
                         setSaved(false)
                     }}
-                    placeholder="What to call this on screen"
+                    placeholder={LABELS.connections.name_placeholder}
                 />
-                <p className="text-xs text-faint">
-                    Display only. Every reference to this credential is by its code, {connection.code}.
-                </p>
+                <p className="text-xs text-faint">{LABELS.connections.name_hint(connection.code)}</p>
             </div>
 
             <div className="space-y-1.5">
-                <Label htmlFor="connection-description">Description</Label>
+                <Label htmlFor="connection-description">{LABELS.word.description}</Label>
                 <Textarea
                     id="connection-description"
                     className="h-24"
@@ -176,12 +175,14 @@ export function ConnectionForm({
                         setDescription(event.target.value)
                         setSaved(false)
                     }}
-                    placeholder="What this credential is for. Markdown is rendered."
+                    placeholder={LABELS.connections.description_placeholder}
                 />
             </div>
 
             <div className="space-y-3">
-                <p className="text-xs font-semibold tracking-wide text-faint uppercase">Settings</p>
+                <p className="text-xs font-semibold tracking-wide text-faint uppercase">
+                    {LABELS.connections.settings_heading}
+                </p>
                 <SchemaForm
                     fields={fields}
                     values={values}
@@ -214,10 +215,10 @@ export function ConnectionForm({
             <div className="flex items-center gap-2">
                 <Refusable why={shut}>
                     <Button size="sm" onClick={send} disabled={busy || shut !== undefined} title={shut}>
-                        {busy ? 'Saving' : 'Save'}
+                        {busy ? LABELS.connections.saving : LABELS.action.save}
                     </Button>
                 </Refusable>
-                {saved && <span className="text-xs text-muted-foreground">Saved.</span>}
+                {saved && <span className="text-xs text-muted-foreground">{LABELS.connections.saved}</span>}
             </div>
         </div>
     )
@@ -237,7 +238,7 @@ function LastCheck({ connection }: { connection: ConnectionOut }) {
                 <HealthSaid view={view} />
                 {view.checkedAt !== null && (
                     <span className="text-xs text-faint">
-                        checked <Instant at={view.checkedAt} />
+                        {LABELS.connections.checked_at} <Instant at={view.checkedAt} />
                     </span>
                 )}
             </p>

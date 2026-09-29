@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import { ToolbarActions, type ToolbarAction } from '@/components/ToolbarActions'
 import { Card, CardContent } from '@/components/ui/card'
 import type { Problem } from '@/lib/api'
+import { LABELS } from '@/lib/labels'
 import { refusalLines } from '@/lib/refusal'
 
 /**
@@ -44,7 +45,7 @@ export function PageState({
             <Card>
                 <CardContent className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Loader2 className="size-4 animate-spin" aria-hidden />
-                    Reading from the server
+                    {LABELS.shell.reading}
                 </CardContent>
             </Card>
         )

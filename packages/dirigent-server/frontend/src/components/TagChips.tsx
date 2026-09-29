@@ -7,6 +7,7 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { foldTags, linesFor, roomFor } from '@/lib/tag-fold'
+import { LABELS } from '@/lib/labels'
 import { cn } from '@/lib/utils'
 
 /**
@@ -57,7 +58,7 @@ export function TagChips({
 
 /** What the rest of the tags say for themselves, and the menu that filters by one of them. */
 function FoldedTags({ tags, onSelect }: { tags: readonly string[]; onSelect?: (tag: string) => void }) {
-    const label = `${String(tags.length)} more tags: ${tags.join(', ')}`
+    const label = LABELS.shell.folded_tags(String(tags.length), tags.join(', '))
     const chip = `+${String(tags.length)}`
     const face = 'border-border text-muted-foreground rounded-sm border px-1.5 font-mono text-xs'
     if (onSelect === undefined)

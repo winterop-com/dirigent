@@ -22,6 +22,7 @@ import { parse, stringify } from 'yaml'
 
 import type { JsonMap } from '@/lib/api'
 import { headingOf, type Heading } from '@/lib/identity'
+import { LABELS } from '@/lib/labels'
 import { createStore } from '@/lib/store'
 
 /** What this screen holds for one pipeline. */
@@ -85,7 +86,7 @@ export function newDocument(): JsonMap {
         format: 'dirigent/v1',
         kind: 'pipeline',
         code: NEW_CODE,
-        name: 'My pipeline',
+        name: LABELS.editor.new_document_name,
         steps: {},
     }
 }
@@ -355,7 +356,7 @@ export function stepEdited(edits: DocumentEdits, step: string): boolean {
 
 /** How the topbar chip and the status bar say how much is unapplied. */
 export function editsLabel(edits: DocumentEdits): string {
-    return `${String(edits.count)} unapplied edit${edits.count === 1 ? '' : 's'}`
+    return LABELS.editor.topbar.unapplied_edits(edits.count)
 }
 
 /** How much of a step's key the panel's tab has room for before the strip starts moving. */
@@ -368,9 +369,9 @@ const STEP_TAB_BUDGET = 14
  * key past the budget is cut rather than allowed to widen the strip under somebody's pointer.
  */
 export function stepTabLabel(step: string | null): string {
-    if (step === null) return 'Step'
+    if (step === null) return LABELS.word.step
     const shown = step.length > STEP_TAB_BUDGET ? `${step.slice(0, STEP_TAB_BUDGET - 1)}…` : step
-    return `Step · ${shown}`
+    return LABELS.editor.step.tab(shown)
 }
 
 /**
@@ -422,11 +423,14 @@ export function fromYaml(text: string): { ok: true; document: JsonMap } | { ok: 
     try {
         parsed = parse(text) as unknown
     } catch (error) {
-        return { ok: false, message: error instanceof Error ? error.message : 'that is not YAML' }
+        return {
+            ok: false,
+            message: error instanceof Error ? error.message : LABELS.editor.source.not_yaml,
+        }
     }
-    if (parsed === null || parsed === undefined) return { ok: false, message: 'the document is empty' }
+    if (parsed === null || parsed === undefined) return { ok: false, message: LABELS.editor.source.empty }
     if (typeof parsed !== 'object' || Array.isArray(parsed)) {
-        return { ok: false, message: 'a document is a mapping of keys, not a single value' }
+        return { ok: false, message: LABELS.editor.source.not_a_mapping }
     }
     return { ok: true, document: parsed as JsonMap }
 }

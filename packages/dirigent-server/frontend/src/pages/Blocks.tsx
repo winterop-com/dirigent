@@ -21,6 +21,7 @@ import {
     type CatalogEntry,
 } from '@/lib/blocks'
 import { examplesPerBlock, readAllExamples } from '@/lib/examples'
+import { LABELS } from '@/lib/labels'
 import { closePanel, fillPanel, openPanel } from '@/lib/panels'
 import { fieldsOf, type FieldDescriptor } from '@/lib/schema-form'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
@@ -35,9 +36,21 @@ interface Registry {
 }
 
 const REGISTRIES: Registry[] = [
-    { key: 'scheme', title: 'Storage schemes', noun: 'schemes' },
-    { key: 'notifier', title: 'Notifiers', noun: 'notifiers' },
-    { key: 'connection', title: 'Connection kinds', noun: 'connection kinds' },
+    {
+        key: 'scheme',
+        title: LABELS.blocks.registry.scheme.title,
+        noun: LABELS.blocks.registry.scheme.noun,
+    },
+    {
+        key: 'notifier',
+        title: LABELS.blocks.registry.notifier.title,
+        noun: LABELS.blocks.registry.notifier.noun,
+    },
+    {
+        key: 'connection',
+        title: LABELS.blocks.registry.connection.title,
+        noun: LABELS.blocks.registry.connection.noun,
+    },
 ]
 
 const entryKeyOf = (registry: Registry['key']) => (entry: CatalogEntry) => `${registry}:${entry.id}`
@@ -103,9 +116,10 @@ export function Blocks() {
 
     useEffect(() => {
         if (open !== null) {
-            return fillPanel([{ id: 'block', label: 'Block', render: () => <BlockPanel entry={open} /> }], {
-                screen: 'blocks',
-            })
+            return fillPanel(
+                [{ id: 'block', label: LABELS.word.block, render: () => <BlockPanel entry={open} /> }],
+                { screen: 'blocks' },
+            )
         }
         if (openEntry !== null) {
             const { registry, entry } = openEntry
@@ -130,10 +144,10 @@ export function Blocks() {
 
     return (
         <>
-            <PageHeader title="Blocks" aside={<ApiChip tag="blocks" />} />
+            <PageHeader title={LABELS.screen.blocks.name} aside={<ApiChip tag="blocks" />} />
 
             <div className="mb-4 flex flex-wrap items-center gap-2">
-                <SearchField value={needle} label="Search blocks by id or summary" onChange={setNeedle} />
+                <SearchField value={needle} label={LABELS.blocks.search} onChange={setNeedle} />
             </div>
 
             <PageState
@@ -145,11 +159,7 @@ export function Blocks() {
                     notifiers.length === 0 &&
                     connectionKinds.length === 0
                 }
-                emptyMessage={
-                    blocks.length === 0
-                        ? 'No blocks installed — plugins contribute them.'
-                        : 'Nothing in the catalog matches that.'
-                }
+                emptyMessage={blocks.length === 0 ? LABELS.blocks.empty : LABELS.blocks.empty_filtered}
             >
                 <div className="flex flex-col gap-6">
                     {groups.map(([group, members]) => (
@@ -165,7 +175,7 @@ export function Blocks() {
                                 reading={false}
                                 next={null}
                                 onMore={NO_MORE}
-                                noun="blocks"
+                                noun={LABELS.blocks.noun}
                                 onSelect={select}
                                 selected={(entry) => `block:${entry.id}` === chosen}
                                 onClose={unchoose}
@@ -219,7 +229,7 @@ function blockColumns(uses: ReadonlyMap<string, number>): Column<BlockEntry>[] {
     return [
         {
             id: 'block',
-            header: 'Block',
+            header: LABELS.word.block,
             kind: 'title',
             cell: (entry) => (
                 <div className="min-w-0">
@@ -233,19 +243,19 @@ function blockColumns(uses: ReadonlyMap<string, number>): Column<BlockEntry>[] {
         },
         {
             id: 'kind',
-            header: 'Kind',
+            header: LABELS.word.kind,
             className: 'min-w-32 whitespace-nowrap',
             cell: (entry) => <KindChip kind={entry.kind} />,
         },
         {
             id: 'examples',
-            header: 'Examples',
+            header: LABELS.blocks.examples_header,
             className: 'min-w-28 whitespace-nowrap',
             cell: (entry) => <ExampleCount id={entry.id} many={uses.get(entry.id) ?? 0} />,
         },
         {
             id: 'plugin',
-            header: 'Plugin',
+            header: LABELS.word.plugin,
             className: 'min-w-36 font-mono text-xs whitespace-nowrap',
             cell: (entry) => <span className="text-muted-foreground">{entry.plugin}</span>,
         },
@@ -254,13 +264,14 @@ function blockColumns(uses: ReadonlyMap<string, number>): Column<BlockEntry>[] {
 
 /** How many shipped documents require one block, as the link that shows them. */
 function ExampleCount({ id, many }: { id: string; many: number }) {
-    if (many === 0) return <span className="text-xs text-faint">none</span>
-    const said = `${String(many)} ${many === 1 ? 'example' : 'examples'}`
+    if (many === 0) return <span className="text-xs text-faint">{LABELS.word.none}</span>
+    const counted = many === 1 ? LABELS.blocks.example_count.one : LABELS.blocks.example_count.many
+    const said = counted(String(many))
     return (
         <Link
             className="text-xs text-primary-ink hover:underline"
             to={`/examples?block=${encodeURIComponent(id)}`}
-            title={`The shipped documents that require ${id}`}
+            title={LABELS.blocks.example_link(id)}
             onClick={(event) => {
                 event.stopPropagation()
             }}
@@ -282,7 +293,7 @@ function entryColumns(kind: Registry['key']): Column<CatalogEntry>[] {
     return [
         {
             id: 'entry',
-            header: 'Entry',
+            header: LABELS.blocks.entry_header,
             kind: 'title',
             cell: (entry) => {
                 const summary =
@@ -299,13 +310,13 @@ function entryColumns(kind: Registry['key']): Column<CatalogEntry>[] {
         },
         {
             id: 'kind',
-            header: 'Kind',
+            header: LABELS.word.kind,
             className: 'min-w-32 whitespace-nowrap',
             cell: () => <KindChip kind={worn} />,
         },
         {
             id: 'plugin',
-            header: 'Plugin',
+            header: LABELS.word.plugin,
             className: 'min-w-36 font-mono text-xs whitespace-nowrap',
             cell: (entry) => <span className="text-muted-foreground">{entry.plugin}</span>,
         },
@@ -324,13 +335,13 @@ function EntryPanel({ entry }: { entry: CatalogEntry }) {
                 <h2 className="font-mono text-sm font-semibold">{entry.id}</h2>
                 {summary !== null && <p className="text-sm text-muted-foreground">{summary}</p>}
                 <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
-                    <Fact term="plugin" detail={entry.plugin} />
+                    <Fact term={LABELS.blocks.fact.term.plugin} detail={entry.plugin} />
                 </dl>
             </div>
 
-            <Section title="Config">
+            <Section title={LABELS.word.config}>
                 {fields.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">This takes no configuration.</p>
+                    <p className="text-sm text-muted-foreground">{LABELS.blocks.entry_no_config}</p>
                 ) : (
                     <div className="flex flex-col gap-4">
                         {fields.map((field) => (
@@ -364,7 +375,7 @@ function BlockPanel({ entry }: { entry: BlockEntry }) {
                 <p className="text-sm text-muted-foreground">{entry.summary}</p>
             </div>
 
-            <Section title="Facts">
+            <Section title={LABELS.blocks.facts_section}>
                 <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
                     {facts.map((fact) => (
                         <Fact key={fact.term} term={fact.term} detail={fact.detail} />
@@ -372,9 +383,9 @@ function BlockPanel({ entry }: { entry: BlockEntry }) {
                 </dl>
             </Section>
 
-            <Section title="Config">
+            <Section title={LABELS.word.config}>
                 {fields.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">This block takes no configuration.</p>
+                    <p className="text-sm text-muted-foreground">{LABELS.blocks.block_no_config}</p>
                 ) : (
                     <div className="flex flex-col gap-4">
                         {fields.map((field) => (
@@ -401,9 +412,15 @@ function FieldReference({ field }: { field: FieldDescriptor }) {
             <div className="flex flex-wrap items-baseline gap-x-2">
                 <span className="font-mono text-sm font-medium">{field.name}</span>
                 <span className="text-xs text-muted-foreground">{typeLabel(field)}</span>
-                {field.required && <span className="text-xs text-primary-ink">required</span>}
+                {field.required && (
+                    <span className="text-xs text-primary-ink">{LABELS.blocks.field_required}</span>
+                )}
                 {field.hint !== null && <span className="text-xs text-faint">{field.hint}</span>}
-                {fallback !== null && <span className="text-xs text-faint">default {fallback}</span>}
+                {fallback !== null && (
+                    <span className="text-xs text-faint">
+                        {LABELS.blocks.field_default} {fallback}
+                    </span>
+                )}
             </div>
             {field.options.length > 0 && (
                 <p className="font-mono text-xs text-muted-foreground">

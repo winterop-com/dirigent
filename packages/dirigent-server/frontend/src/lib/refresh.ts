@@ -1,3 +1,4 @@
+import { LABELS } from '@/lib/labels'
 import { createStore } from '@/lib/store'
 
 /**
@@ -13,9 +14,9 @@ export const REFRESH_CHOICES: readonly (number | null)[] = [null, 5, 10, 30, 60,
 
 /** What a cadence is called on the control. */
 export function refreshLabel(seconds: number | null): string {
-    if (seconds === null) return 'Off'
-    if (seconds < 60) return `${String(seconds)}s`
-    return `${String(seconds / 60)}m`
+    if (seconds === null) return LABELS.shell.cadence_off
+    if (seconds < 60) return LABELS.shell.cadence_seconds(String(seconds))
+    return LABELS.shell.cadence_minutes(String(seconds / 60))
 }
 
 const KEY = 'dirigent.refreshSeconds'

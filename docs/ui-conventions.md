@@ -965,11 +965,14 @@ each drawing half a border is a line that comes apart at a column edge, and the 
 app then reads as a step. `e2e/shell.spec.ts` measures every strip with
 `getBoundingClientRect`, in both palettes, with the rail collapsed and the panel open.
 
-**A fact appears once in the shell.** The instance's name, environment and version belong to
-the corner identity and the health popover behind it; the status bar carries the screen's own
-two facts and the account, and never repeats them. What a screen states there is what nothing
-else on it already says -- how many rows were read is the foot of the table's line, not the
-bar's -- and an instant is the house's relative form rather than a locale string.
+**A fact appears once in the shell.** What this instance is and who is signed in belong to the
+corner identity and the health popover behind it -- the name, the environment, the version,
+every check and the username, with Sign out under them. **The foot carries only what the
+current screen is doing**: its note and its identifier, and nothing that is true of the session
+rather than of the screen. What a screen states there is what nothing else on it already says
+-- how many rows were read is the foot of the table's line, not the bar's; a standing fact is
+which version the instance holds, not who applied it and when -- and an instant is the house's
+relative form rather than a locale string.
 
 **Settings lives at the bottom of the rail's column**, in that bar; the instance's identity --
 a dot, its name and environment from `/system/info`, its version -- lives at the right of the
@@ -1565,6 +1568,48 @@ A test asserts on a lib function, never on rendered markup. What is worth testin
 layer and the pure decisions -- the fetch choke point, the SSE parser, the palette's filter, the
 shortcut rules -- and all of it runs in Node with no DOM. Rendering is the browser suite's job,
 and that suite drives a real `dg dev` rather than a mock.
+
+## Every word has a code, and they all live in one file
+
+**`src/lib/labels.ts` is the only place a user-visible string may be written.** Every heading,
+button, field label, placeholder, empty state, tooltip, `aria-label`, column header, confirmation,
+palette row and settings row is a label in that catalogue, and a component reads one rather than
+holding one. It is the same shape the server has had all along: `dirigent_common.messages` keeps
+one `Catalogue` per area, mints a dotted code per message, and offers a walk over all of them at
+once, so that a refusal can be rendered in another language by code. This is that in TypeScript's
+idiom -- a section per area, the path through `LABELS` as the code, a duplicate name refused by
+the compiler, `everyLabel()` as the walk.
+
+**The code says what the string is for, never what it says.** `connections.check_row` is still
+right when its words become `Ask again`; `connections.check_now_button_text` is wrong the moment
+anybody edits it. Concretely: name a label after the outcome it is on the way to, not after the
+mechanism that gets there or the phrase currently in it. Codes are lowercase words joined by
+underscores, nested one level further where a single concept has more than one surface form.
+
+**A concept holds its surface forms together.** A run that ended with failed items is a chip on a
+row, a number on a tile and a clause in a sentence, and those were three phrases in three files
+until they became `state.run.completed_with_errors.{chip,tile,sentence}`. Putting them under one
+code is what makes a fourth spelling visible while it is being written. The same goes for the
+health words, the worker words and the run states: one concept, one code, its forms beneath it.
+
+**A string with a value in it is a function taking named parameters**, so a language that puts
+the value somewhere else can. Nothing here reads a locale and nothing chooses a table; a second
+language is `const nb: typeof LABELS = {...}`, which the compiler checks for a missing code, a
+stray code, and a sentence that takes different parameters. That is the whole reason the
+catalogue exists, and the reason it is not worth arguing with.
+
+**What is not a label**: a wire value (`completed_with_errors`, `cron`), an element id, a
+`data-testid`, a class name, a URL or a path, a media type, an icon name, the key cap in a
+`<Kbd>`, and the `keywords` a palette action is filtered on but never draws. One word a person
+reads is spelled outside the catalogue and it is named there: a state a plugin contributed, which
+this bundle was built before and cannot hold a table of, is spelled from the wire by
+`statusLabel`.
+
+`scripts/check_ui_labels.py` holds the rule, in `make static` and `make ui-lint`: it refuses a
+literal between JSX tags, at an attribute or property a person reads, in a toast, or anywhere at
+all if it is sentence-shaped, and it refuses a label in the catalogue that no source reads.
+It cannot see a bare lower-case word returned from a lib function, because nothing reading the
+text can tell one from a wire value -- review and `scripts/ui_copy.py` cover that.
 
 ## Interface copy is plain, and most of it is absent
 

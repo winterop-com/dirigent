@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
+import { LABELS } from '../src/lib/labels.ts'
 import { signIn } from './support.ts'
 
 /**
@@ -68,8 +69,10 @@ test('the corpus is listed, and the Starters filter narrows it to what may be co
     await expect(rowOf(page, NOT_A_STARTER)).toBeVisible()
 
     // THE STARTER MARK IS A BADGE AND NOT A CHIP: the row says it once, beside the title.
-    await expect(rowOf(page, STARTER).getByText('Starter', { exact: true })).toBeVisible()
-    await expect(rowOf(page, NOT_A_STARTER).getByText('Starter', { exact: true })).toHaveCount(0)
+    await expect(rowOf(page, STARTER).getByText(LABELS.examples.starter_badge, { exact: true })).toBeVisible()
+    await expect(
+        rowOf(page, NOT_A_STARTER).getByText(LABELS.examples.starter_badge, { exact: true }),
+    ).toHaveCount(0)
 
     // What the document needs of this instance, counted, from the row's own `requires`.
     await expect(rowOf(page, STARTER)).toContainText('6 blocks')
@@ -78,7 +81,7 @@ test('the corpus is listed, and the Starters filter narrows it to what may be co
     // the same word twice on one row is one fact too many.
     await expect(rowOf(page, STARTER).getByRole('button', { name: 'Filter by recipes' })).toBeVisible()
 
-    await page.getByRole('button', { name: 'Starters', exact: true }).click()
+    await page.getByRole('button', { name: LABELS.examples.which.starters, exact: true }).click()
 
     await expect(rowOf(page, STARTER)).toBeVisible()
     await expect(rowOf(page, NOT_A_STARTER)).toHaveCount(0)
@@ -86,8 +89,8 @@ test('the corpus is listed, and the Starters filter narrows it to what may be co
     await expect(page).toHaveURL(/starter=true/)
 
     // The search box narrows all of it, because all of it was read.
-    await page.getByLabel('Search examples by code, name, description or tag').fill('kubernetes')
-    await expect(page.getByText('Nothing in the corpus matches that.')).toBeVisible()
+    await page.getByLabel(LABELS.examples.search).fill('kubernetes')
+    await expect(page.getByText(LABELS.examples.none_match)).toBeVisible()
 })
 
 test('a row opens the shipped document and what it needs of this instance', async ({ page }) => {
@@ -103,13 +106,13 @@ test('a row opens the shipped document and what it needs of this instance', asyn
 
     // The facts are the wire's own words, and the path is the file inside the distribution.
     await expect(panel).toContainText('plugin')
-    await expect(panel).toContainText('shelf')
+    await expect(panel).toContainText(LABELS.examples.fact.shelf)
     await expect(panel).toContainText(`recipes/${STARTER}.yaml`)
 
     // THE REQUIREMENTS ARE CHECKED AGAINST THIS INSTANCE, item by item. Every block this
     // document names is in the shipped catalog, so every line reads as held.
     await expect(panel).toContainText('report.render')
-    await expect(panel.getByText('here').first()).toBeVisible()
+    await expect(panel.getByText(LABELS.examples.requirement.here).first()).toBeVisible()
 
     // THE SOURCE IS THE SHIPPED FILE'S OWN TEXT, comments and all.
     const editor = panel.getByTestId('code-editor').first()
@@ -117,7 +120,7 @@ test('a row opens the shipped document and what it needs of this instance', asyn
     await expect(editor.locator('.view-lines')).toContainText(STARTER_COMMENT)
 
     // The verb is offered, because this document opted into being copied.
-    await expect(panel.getByRole('button', { name: 'Use as starter' })).toBeVisible()
+    await expect(panel.getByRole('button', { name: LABELS.examples.use_as_starter })).toBeVisible()
 })
 
 test('a document that is not a starter is offered no way to copy it', async ({ page }) => {
@@ -128,18 +131,18 @@ test('a document that is not a starter is offered no way to copy it', async ({ p
 
     const panel = page.getByRole('tabpanel')
     await expect(panel.getByText(NOT_A_STARTER, { exact: true }).first()).toBeVisible()
-    await expect(panel.getByRole('button', { name: 'Use as starter' })).toHaveCount(0)
+    await expect(panel.getByRole('button', { name: LABELS.examples.use_as_starter })).toHaveCount(0)
 })
 
 test('From a starter opens the editor on a copy with the starter tag gone', async ({ page }) => {
     await signIn(page)
     await page.goto('/pipelines')
 
-    await page.getByRole('button', { name: 'More ways to start a pipeline' }).click()
+    await page.getByRole('button', { name: LABELS.pipelines.more_ways }).click()
     await page.getByRole('menuitem', { name: 'From a starter' }).click()
 
     // The picker is the palette's own card: a search row over shelved rows.
-    await page.getByPlaceholder('Search the starters').fill(STARTER)
+    await page.getByPlaceholder(LABELS.pipelines.starters.placeholder).fill(STARTER)
     await page.getByRole('option').filter({ hasText: STARTER }).first().click()
 
     await expect(page).toHaveURL(/\/pipelines\/\$new$/)

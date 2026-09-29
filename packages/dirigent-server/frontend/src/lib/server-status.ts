@@ -20,6 +20,7 @@
  */
 
 import { rootFetch } from '@/lib/api'
+import { LABELS } from '@/lib/labels'
 import { createStore } from '@/lib/store'
 import { readSystemInfo, type SystemInfo } from '@/lib/system'
 
@@ -62,9 +63,9 @@ export const serverStatus = createStore<ServerStatus>({
  * honest to say but the app's own name.
  */
 export function identityLine(status: Pick<ServerStatus, 'name' | 'environment'>): string {
-    const name = status.name ?? 'dirigent'
+    const name = status.name ?? LABELS.shell.wordmark
     if (status.environment === null || status.environment === 'production') return name
-    return `${name} · ${status.environment}`
+    return LABELS.shell.instance.line(name, status.environment)
 }
 
 /** What one readiness body means, independent of who fetched it. */

@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import type { JsonMap, Problem } from '@/lib/api'
 import type { BlockEntry } from '@/lib/blocks'
 import type { ConnectionOut } from '@/lib/connections'
+import { LABELS } from '@/lib/labels'
 import type { SchemaOut } from '@/lib/schemas'
 import {
     blockOf,
@@ -38,8 +39,6 @@ import {
     withRetryKey,
     withStepKey,
 } from '@/lib/step-keys'
-
-export const ADD_DEPENDENCY_LABEL = 'Add a prerequisite'
 
 /**
  * The step in front of somebody: what it runs, what it waits for, and the config it takes.
@@ -143,7 +142,9 @@ export function StepTab({
                     {heading.code !== null && (
                         <span className="font-mono text-xs text-muted-foreground">{heading.code}</span>
                     )}
-                    <span className="font-mono text-xs">{blockOf(document, step) ?? 'no block'}</span>
+                    <span className="font-mono text-xs">
+                        {blockOf(document, step) ?? LABELS.editor.no_block}
+                    </span>
                     {block !== null && <KindChip kind={block.kind} />}
                 </p>
                 {block !== null && <p className="text-xs text-muted-foreground">{block.summary}</p>}
@@ -153,11 +154,11 @@ export function StepTab({
                 <p className="rounded-md border border-warning/40 p-2 text-xs text-warning">{disabled}</p>
             )}
 
-            <Section title="Config">
+            <Section title={LABELS.word.config}>
                 {blockProblem !== null ? (
                     <p className="text-xs text-critical">{blockProblem.detail}</p>
                 ) : block === null ? (
-                    <p className="text-xs text-muted-foreground">Reading this block's schema.</p>
+                    <p className="text-xs text-muted-foreground">{LABELS.editor.step.reading_schema}</p>
                 ) : (
                     <SchemaForm
                         // Choosing another step is another form, not the same one with new
@@ -233,7 +234,7 @@ export function StepTab({
             </div>
 
             <div className="space-y-1.5">
-                <Label htmlFor="step-display-name">Name</Label>
+                <Label htmlFor="step-display-name">{LABELS.word.name}</Label>
                 <Input
                     id="step-display-name"
                     value={named}
@@ -242,16 +243,14 @@ export function StepTab({
                         setNamed(event.target.value)
                         onName(event.target.value)
                     }}
-                    placeholder="What to call this step on screen"
+                    placeholder={LABELS.editor.step.name_placeholder}
                 />
-                <p className="text-xs text-faint">
-                    Display only. Every reference to this step is by its key, {step}.
-                </p>
+                <p className="text-xs text-faint">{LABELS.editor.step.name_note(step)}</p>
             </div>
 
             {refusals.length > 0 && (
                 <div className="space-y-1 rounded-md border border-critical/40 p-2" role="alert">
-                    <p className="text-xs font-medium text-critical">This step will be refused at apply.</p>
+                    <p className="text-xs font-medium text-critical">{LABELS.editor.step.refused_at_apply}</p>
                     <ul className="list-disc space-y-0.5 pl-4 text-xs text-muted-foreground">
                         {refusals.map(([name, message]) => (
                             <li key={name}>{message}</li>
@@ -348,7 +347,7 @@ function Prerequisites({
         <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-1.5">
                 {prerequisites.length === 0 && (
-                    <span className="text-xs text-muted-foreground">nothing; this step is a root</span>
+                    <span className="text-xs text-muted-foreground">{LABELS.editor.no_prerequisites}</span>
                 )}
                 {prerequisites.map((name) => (
                     <span
@@ -359,7 +358,7 @@ function Prerequisites({
                         <Button
                             variant="ghost"
                             size="icon-xs"
-                            aria-label={`Stop waiting for ${name}`}
+                            aria-label={LABELS.editor.step.stop_waiting(name)}
                             disabled={disabled !== undefined}
                             onClick={() => {
                                 onDependsOn(prerequisites.filter((one) => one !== name))
@@ -379,8 +378,12 @@ function Prerequisites({
                         if (name !== '') onDependsOn([...prerequisites, name])
                     }}
                 >
-                    <SelectTrigger size="sm" className="w-full" aria-label={ADD_DEPENDENCY_LABEL}>
-                        <SelectValue placeholder={ADD_DEPENDENCY_LABEL} />
+                    <SelectTrigger
+                        size="sm"
+                        className="w-full"
+                        aria-label={LABELS.editor.step.add_prerequisite}
+                    >
+                        <SelectValue placeholder={LABELS.editor.step.add_prerequisite} />
                     </SelectTrigger>
                     <SelectContent>
                         {offered.map((name) => (

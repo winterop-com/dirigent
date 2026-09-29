@@ -14,19 +14,22 @@
  * in the app at once instead of each screen deciding for itself.
  */
 
+import { LABELS } from '@/lib/labels'
 import { currentZone, timesMode, zoneSuffix } from '@/lib/times'
 
 /** How long something took, from the milliseconds the engine measured. */
 export function formatDuration(durationMs: number | null | undefined): string {
     if (durationMs === null || durationMs === undefined) return '--'
-    if (durationMs < 1000) return `${String(Math.max(0, Math.round(durationMs)))}ms`
+    if (durationMs < 1000) {
+        return LABELS.measure.milliseconds(String(Math.max(0, Math.round(durationMs))))
+    }
     const seconds = durationMs / 1000
-    if (seconds < 60) return `${seconds.toFixed(seconds < 10 ? 1 : 0)}s`
+    if (seconds < 60) return LABELS.measure.seconds(seconds.toFixed(seconds < 10 ? 1 : 0))
     const minutes = Math.floor(seconds / 60)
     const rest = Math.round(seconds - minutes * 60)
-    if (minutes < 60) return `${String(minutes)}m ${String(rest)}s`
+    if (minutes < 60) return LABELS.measure.minutes(String(minutes), String(rest))
     const hours = Math.floor(minutes / 60)
-    return `${String(hours)}h ${String(minutes - hours * 60)}m`
+    return LABELS.measure.hours(String(hours), String(minutes - hours * 60))
 }
 
 /** How long between two instants, or nothing when it has not finished. */
@@ -46,14 +49,14 @@ const UNITS = ['B', 'KB', 'MB', 'GB', 'TB']
 /** A size, from the bytes the record counted. */
 export function formatBytes(bytes: number | null | undefined): string {
     if (bytes === null || bytes === undefined) return '--'
-    if (bytes < 1024) return `${String(Math.max(0, Math.round(bytes)))} B`
+    if (bytes < 1024) return LABELS.measure.bytes(String(Math.max(0, Math.round(bytes))))
     let value = bytes
     let unit = 0
     while (value >= 1024 && unit < UNITS.length - 1) {
         value /= 1024
         unit += 1
     }
-    return `${value.toFixed(value < 10 ? 1 : 0)} ${UNITS[unit]}`
+    return LABELS.settings.sized(value.toFixed(value < 10 ? 1 : 0), UNITS[unit])
 }
 
 /** How much of a uuid names it on screen. Enough to tell two rows of one listing apart. */
@@ -194,20 +197,20 @@ export function formatRelative(when: string | null | undefined, now: number = Da
     if (Number.isNaN(at)) return when
     const signed = Math.round((now - at) / 1000)
     const seconds = Math.abs(signed)
-    if (seconds < 45) return 'just now'
+    if (seconds < 45) return LABELS.measure.just_now
     const ahead = signed < 0
     const minutes = Math.round(seconds / 60)
-    if (minutes < 60) return said(`${String(minutes)}m`, ahead)
+    if (minutes < 60) return said(LABELS.measure.span.minutes(String(minutes)), ahead)
     const hours = Math.round(minutes / 60)
-    if (hours < 24) return said(`${String(hours)}h`, ahead)
+    if (hours < 24) return said(LABELS.measure.span.hours(String(hours)), ahead)
     const days = Math.round(hours / 24)
-    if (days <= RELATIVE_DAYS) return said(`${String(days)}d`, ahead)
+    if (days <= RELATIVE_DAYS) return said(LABELS.measure.span.days(String(days)), ahead)
     return exactDate(new Date(at))
 }
 
 /** How a span reads on the side of now it falls: `3m ago` behind it, `in 3m` ahead of it. */
 function said(span: string, ahead: boolean): string {
-    return ahead ? `in ${span}` : `${span} ago`
+    return ahead ? LABELS.measure.ahead(span) : LABELS.measure.ago(span)
 }
 
 /** The fields a firing is read by: the weekday, the day, the month, and the clock. */
@@ -253,7 +256,8 @@ export function formatMoment(when: string, zone: string | undefined): string {
  */
 export function formatWindow(start: string, end: string): string {
     const zone = currentZone()
-    return `${formatMoment(start, zone)} to ${formatMoment(end, zone)}${zoneSuffix(timesMode.get())}`
+    const range = LABELS.measure.range(formatMoment(start, zone), formatMoment(end, zone))
+    return `${range}${zoneSuffix(timesMode.get())}`
 }
 
 /** A clock time alone, which is what a log line carries beside its message. */

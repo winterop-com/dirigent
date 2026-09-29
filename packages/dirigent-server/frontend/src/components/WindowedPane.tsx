@@ -4,6 +4,7 @@ import { useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
+import { LABELS } from '@/lib/labels'
 
 /**
  * A pane in its box, and the same content in a window as large as the screen allows.
@@ -58,7 +59,7 @@ export function WindowedPane({
                 <Button
                     variant="ghost"
                     size="icon"
-                    aria-label={`Open ${name} in a window`}
+                    aria-label={LABELS.shell.open_in_window(name)}
                     className="size-6 rounded-md border border-border bg-background text-faint"
                     onClick={() => {
                         setWide(true)

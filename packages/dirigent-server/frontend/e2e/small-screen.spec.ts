@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 
+import { LABELS } from '../src/lib/labels.ts'
 import { apiPrefix, applyExample, signIn } from './support.ts'
 
 /**
@@ -24,12 +25,12 @@ test.beforeEach(async ({ page }) => {
 
 test('the navigation is a drawer that opens, and closes on arriving somewhere', async ({ page }) => {
     const drawer = page.locator('[data-nav-drawer]')
-    const runs = drawer.getByRole('link', { name: 'Runs' })
+    const runs = drawer.getByRole('link', { name: LABELS.screen.runs.name })
     await expect(runs).toBeHidden()
 
-    await page.getByRole('button', { name: 'Open navigation' }).click()
+    await page.getByRole('button', { name: LABELS.shell.open_nav }).click()
     await expect(runs).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Close navigation' })).toBeFocused()
+    await expect(page.getByRole('button', { name: LABELS.shell.close_nav })).toBeFocused()
 
     await runs.click()
     await expect(page).toHaveURL(/\/runs$/)
@@ -38,16 +39,16 @@ test('the navigation is a drawer that opens, and closes on arriving somewhere', 
 
 test('the drawer closes on Escape and on the scrim', async ({ page }) => {
     const drawer = page.locator('[data-nav-drawer]')
-    const open = page.getByRole('button', { name: 'Open navigation' })
+    const open = page.getByRole('button', { name: LABELS.shell.open_nav })
 
     await open.click()
-    await expect(drawer.getByRole('link', { name: 'Runs' })).toBeVisible()
+    await expect(drawer.getByRole('link', { name: LABELS.screen.runs.name })).toBeVisible()
     await page.keyboard.press('Escape')
-    await expect(drawer.getByRole('link', { name: 'Runs' })).toBeHidden()
+    await expect(drawer.getByRole('link', { name: LABELS.screen.runs.name })).toBeHidden()
 
     await open.click()
     await page.locator('[data-nav-scrim]').click({ position: { x: 380, y: 700 } })
-    await expect(drawer.getByRole('link', { name: 'Runs' })).toBeHidden()
+    await expect(drawer.getByRole('link', { name: LABELS.screen.runs.name })).toBeHidden()
 })
 
 test('the pipelines listing is cards, and the page does not scroll sideways', async ({ page }) => {
@@ -69,8 +70,8 @@ test.describe('a tablet', () => {
 
     test('a listing is still cards while the shell is not small', async ({ page }) => {
         await page.goto('/pipelines')
-        await expect(page.getByRole('link', { name: 'Pipelines' })).toBeVisible()
-        await expect(page.getByRole('button', { name: 'Open navigation' })).toHaveCount(0)
+        await expect(page.getByRole('link', { name: LABELS.screen.pipelines.name })).toBeVisible()
+        await expect(page.getByRole('button', { name: LABELS.shell.open_nav })).toHaveCount(0)
         await expect(page.getByRole('table')).toHaveCount(0)
         await expect(
             page.getByRole('listitem').filter({ hasText: PIPELINE }).getByRole('link', { name: TITLE }),
@@ -80,13 +81,15 @@ test.describe('a tablet', () => {
 
 test('the editor reads the document and offers nothing that would write one', async ({ page }) => {
     await page.goto(`/pipelines/${PIPELINE}`)
-    await expect(page.getByText('Read only on a small screen')).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Apply' })).toHaveCount(0)
+    await expect(page.getByText(LABELS.editor.topbar.read_only)).toBeVisible()
+    await expect(page.getByRole('button', { name: LABELS.action.apply })).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Run', exact: true })).toHaveCount(0)
-    await expect(page.getByRole('button', { name: 'Validate' })).toHaveCount(0)
-    await expect(page.getByRole('button', { name: 'Add step' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: LABELS.action.validate })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: LABELS.editor.canvas.add_step })).toHaveCount(0)
     // The panel is under the screen rather than beside it, and its tabs are along the foot.
-    await expect(page.locator('[data-panel-bar]').getByRole('button', { name: 'Source' })).toBeVisible()
+    await expect(
+        page.locator('[data-panel-bar]').getByRole('button', { name: LABELS.word.source }),
+    ).toBeVisible()
 })
 
 test('the panel is a sheet raised from the tab bar', async ({ page }) => {
@@ -94,9 +97,9 @@ test('the panel is a sheet raised from the tab bar', async ({ page }) => {
     const sheet = page.locator('[data-panel-sheet]')
     await expect(sheet).toBeHidden()
 
-    await page.locator('[data-panel-bar]').getByRole('button', { name: 'Source' }).click()
+    await page.locator('[data-panel-bar]').getByRole('button', { name: LABELS.word.source }).click()
     await expect(sheet).toBeVisible()
-    await sheet.getByRole('button', { name: 'Close the panel' }).click()
+    await sheet.getByRole('button', { name: LABELS.shell.close_panel }).click()
     await expect(sheet).toBeHidden()
 })
 
@@ -105,9 +108,9 @@ test('what a finger lands on is at least 42px tall', async ({ page }) => {
     const FINGER = 42
 
     await page.goto('/schemas')
-    await page.getByRole('button', { name: 'New schema' }).click()
+    await page.getByRole('button', { name: LABELS.schemas.new }).click()
     const footer = page.getByRole('dialog').locator('[data-slot="dialog-footer"]')
-    await expect(footer.getByRole('button', { name: 'Store' })).toBeVisible()
+    await expect(footer.getByRole('button', { name: LABELS.schemas.store })).toBeVisible()
 
     // The dialog scales in, so the boxes are read once every animation on it has finished.
     await expect
@@ -132,9 +135,9 @@ test('what a finger lands on is at least 42px tall', async ({ page }) => {
     // A LINK DRAWN AS A CONTROL IS A CONTROL. The drawer's entries are anchors and the `API`
     // chip is one, so neither carries a primitive's slot to take the minimum from.
     await page.goto('/pipelines')
-    await page.getByRole('button', { name: 'Open navigation' }).click()
+    await page.getByRole('button', { name: LABELS.shell.open_nav }).click()
     const drawer = page.locator('[data-nav-drawer]')
-    await expect(drawer.getByRole('link', { name: 'Runs' })).toBeVisible()
+    await expect(drawer.getByRole('link', { name: LABELS.screen.runs.name })).toBeVisible()
     for (const entry of await drawer.getByRole('link').all()) {
         expect((await entry.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(FINGER)
     }
@@ -142,7 +145,7 @@ test('what a finger lands on is at least 42px tall', async ({ page }) => {
 
     // A TRIGGER CARRIES THE TRIGGER'S SLOT IN PLACE OF THE BUTTON'S, which is how a listing's
     // filters stayed 28px while every other control grew.
-    const filter = page.getByRole('button', { name: 'Filter by tag' })
+    const filter = page.getByRole('button', { name: LABELS.shell.tag_filter.label })
     await expect(filter).toBeVisible()
     expect((await filter.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(FINGER)
 
@@ -152,7 +155,7 @@ test('what a finger lands on is at least 42px tall', async ({ page }) => {
 })
 
 test('the palette button is a glyph, and the chord it would have drawn is not', async ({ page }) => {
-    const palette = page.getByRole('button', { name: 'Open the command palette' })
+    const palette = page.getByRole('button', { name: LABELS.shell.open_palette })
     await expect(palette.locator('svg')).toBeVisible()
     await expect(palette.locator('span')).toBeHidden()
     // A square target, the width the finger rule gives an icon button.
@@ -163,7 +166,7 @@ test('the palette button is a glyph, and the chord it would have drawn is not', 
 })
 
 test('a dialog fills the screen, with its verbs at the foot', async ({ page }) => {
-    await page.getByRole('button', { name: 'Open navigation' }).click()
+    await page.getByRole('button', { name: LABELS.shell.open_nav }).click()
     await page.getByRole('button', { name: 'Settings' }).click()
 
     const dialog = page.getByRole('dialog')
@@ -182,7 +185,7 @@ test('a dialog fills the screen, with its verbs at the foot', async ({ page }) =
 
 test('the channels are folded behind their own heading, and open as a table', async ({ page }) => {
     await page.goto('/admin/alerting')
-    const fold = page.getByRole('button', { name: 'Channels' })
+    const fold = page.getByRole('button', { name: LABELS.alerting.channels_heading })
     await expect(fold).toHaveAttribute('aria-expanded', 'false')
     expect((await fold.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(42)
     // Folded, the dots are the whole of what the strip says; the way in is not drawn at all.

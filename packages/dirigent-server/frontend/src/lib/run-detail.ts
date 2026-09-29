@@ -19,6 +19,7 @@
  */
 
 import { elapsedBetween, formatDuration } from '@/lib/format'
+import { LABELS } from '@/lib/labels'
 import type { SseFrame } from '@/lib/sse'
 import {
     attemptSettled,
@@ -418,8 +419,8 @@ export type ItemStrip =
 export function retryStory(attempt: AttemptEvent, now: number): string | null {
     if (attempt.attempt <= 1) return null
     const due = attempt.next_poll_at === null ? Number.NaN : Date.parse(attempt.next_poll_at)
-    if (Number.isNaN(due) || due <= now) return `try ${String(attempt.attempt)}`
-    return `try ${String(attempt.attempt)} in ${String(Math.round((due - now) / 1000))}s`
+    if (Number.isNaN(due) || due <= now) return LABELS.runs.retry_try(String(attempt.attempt))
+    return LABELS.runs.retry_try_in(String(attempt.attempt), String(Math.round((due - now) / 1000)))
 }
 
 /**
@@ -492,7 +493,9 @@ export function itemsTotal(node: DagNode, attempts: readonly AttemptEvent[]): nu
  */
 export function emptyStripLabel(view: Pick<StepView, 'node' | 'outcome'>): string {
     const source = view.node.grid_source
-    return source !== null && view.outcome === 'pending' ? `waits for ${source}` : 'fans out'
+    return source !== null && view.outcome === 'pending'
+        ? LABELS.runs.waits_for(source)
+        : LABELS.runs.fans_out
 }
 
 /** One node of the graph, folded from the pinned definition and everything the stream said. */
@@ -519,10 +522,11 @@ export interface StepView {
 
 /** What a step's third line says, which is the news rather than the state. */
 function detailOf(latest: AttemptEvent | null, node: DagNode): string | null {
-    if (latest === null) return node.depends_on.length === 0 ? null : `after ${node.depends_on.join(', ')}`
+    if (latest === null)
+        return node.depends_on.length === 0 ? null : LABELS.runs.depends_on_note(node.depends_on.join(', '))
     if (latest.waiting_message !== null && latest.waiting_message !== '') return latest.waiting_message
     if (latest.status === 'failed' && latest.error !== null) return latest.error
-    if (latest.output_uri !== null) return `saves to ${latest.output_uri}`
+    if (latest.output_uri !== null) return LABELS.runs.saves_to(latest.output_uri)
     return null
 }
 

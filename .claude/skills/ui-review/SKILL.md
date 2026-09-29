@@ -31,9 +31,13 @@ by the owner.
   static status-bar notes, no gloss under a heading whose table has headers — a sentence
   survives only by adding a fact.
 - **A copy defect is a pattern, not an instance**: on finding ONE bad line, run
-  `uv run python scripts/ui_copy.py` — the inventory of every sentence the UI renders —
-  and read it END TO END, fixing every occurrence in the same change. A grep for the
-  patterns you remember is not a sweep; the login screen proved it.
+  `uv run python scripts/ui_copy.py` — every label the UI says, printed out of the one
+  catalogue it says them from, under its code — and read it END TO END, fixing every
+  occurrence in the same change. Its last two sections name what is said twice and what is
+  nearly said twice, which is where drift shows. A grep for the patterns you remember is not
+  a sweep; the login screen proved it.
+- **A new string goes in the catalogue**: `src/lib/labels.ts`, under a code that says what the
+  string is for. `uv run python scripts/check_ui_labels.py` refuses one left in a component.
 - **Controls**: nothing wears interactive chrome unless it does something; a visible primary
   action is not narrated elsewhere; buttons disable with a title saying why; `New` alone
   where the screen names the noun (full name on aria-label and palette).

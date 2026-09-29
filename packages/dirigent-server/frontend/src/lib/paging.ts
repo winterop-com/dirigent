@@ -16,6 +16,7 @@
  */
 
 import type { Page, Problem } from '@/lib/api'
+import { LABELS } from '@/lib/labels'
 
 /** How many rows a page of any listing in this app asks for. */
 export const PAGE = 50
@@ -100,8 +101,10 @@ export function noted<T>(state: Paged<T>): Paged<T> {
 export function rowsRead(count: number, noun: string, more: boolean): string {
     // A noun whose plural took -es drops both letters: watches is a watch, not a watche.
     const one = /(?:ch|sh|x|ss)es$/.test(noun) ? noun.slice(0, -2) : noun.replace(/s$/, '')
-    const said = `${String(count)} ${count === 1 ? one : noun}`
-    return more ? `${said}, more to load` : said
+    const spelled = count === 1 ? one : noun
+    return more
+        ? LABELS.shell.rows_read_more(String(count), spelled)
+        : LABELS.shell.rows_read(String(count), spelled)
 }
 
 /** Whether every row this listing holds has been read. */

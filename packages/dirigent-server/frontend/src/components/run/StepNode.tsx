@@ -6,6 +6,7 @@ import { ProgressLine } from '@/components/run/ProgressLine'
 import { StatusDot } from '@/components/run/StatusChip'
 import { formatDuration } from '@/lib/format'
 import { headingOf } from '@/lib/identity'
+import { LABELS } from '@/lib/labels'
 import { emptyStripLabel, nodeTone, type StepView } from '@/lib/run-detail'
 import { statusTokens } from '@/lib/status'
 import { cn } from '@/lib/utils'
@@ -58,7 +59,7 @@ export function StepNode({ data, selected }: NodeProps<StepNode>) {
     const heading = headingOf(view.node)
     const hint =
         view.detail !== null && view.progress !== null
-            ? `${view.detail} (${String(Math.round(view.progress * 100))}%)`
+            ? LABELS.runs.node_hint(view.detail, String(Math.round(view.progress * 100)))
             : view.detail
 
     return (
@@ -79,7 +80,9 @@ export function StepNode({ data, selected }: NodeProps<StepNode>) {
                     {heading.title}
                 </span>
                 {view.node.fan_out && view.items > 0 && (
-                    <span className="ml-auto shrink-0 font-mono text-xs text-faint">{view.items} items</span>
+                    <span className="ml-auto shrink-0 font-mono text-xs text-faint">
+                        {LABELS.runs.node_items(String(view.items))}
+                    </span>
                 )}
             </div>
             <span data-testid="step-line" className="truncate font-mono text-xs text-muted-foreground">
@@ -107,7 +110,9 @@ function ItemStrip({ view }: { view: StepView }) {
     if (view.strip.kind === 'counts') {
         return (
             <span className="truncate text-xs text-muted-foreground">
-                {view.strip.counts.map((count) => `${String(count.count)} ${count.status}`).join(' · ')}
+                {view.strip.counts
+                    .map((count) => LABELS.runs.node_item_count(String(count.count), count.status))
+                    .join(' · ')}
             </span>
         )
     }

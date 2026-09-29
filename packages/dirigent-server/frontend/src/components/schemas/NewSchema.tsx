@@ -15,6 +15,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { type JsonMap, type Problem } from '@/lib/api'
+import { LABELS } from '@/lib/labels'
 import { local, refusalOf } from '@/lib/refusal'
 import { createSchema } from '@/lib/schemas'
 
@@ -28,6 +29,12 @@ const PLACEHOLDER = `{
     "displayName": { "type": "string" }
   }
 }`
+
+/**
+ * The JSON Schema keywords a stored schema takes its code, name and description from. They are
+ * the standard's words, drawn in the code face wherever this dialog names one.
+ */
+const KEYWORDS = { code: '$id', name: 'title', about: 'description' } as const
 
 /**
  * Write a JSON Schema and store it.
@@ -61,7 +68,7 @@ export function NewSchema({
         try {
             body = JSON.parse(text || '{}') as JsonMap
         } catch (error) {
-            setProblem(local(`The schema is not readable JSON: ${String(error)}`))
+            setProblem(local(LABELS.schemas.unreadable(String(error))))
             return
         }
         setSaving(true)
@@ -84,10 +91,12 @@ export function NewSchema({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="flex h-[80vh] w-[min(56rem,90vw)] max-w-[min(56rem,90vw)] flex-col gap-3 sm:max-w-[min(56rem,90vw)]">
                 <DialogHeader>
-                    <DialogTitle>New schema</DialogTitle>
+                    <DialogTitle>{LABELS.schemas.new}</DialogTitle>
                     <DialogDescription>
-                        Its code, title and description come from the schema's own <code>$id</code>,{' '}
-                        <code>title</code> and <code>description</code>.
+                        {LABELS.schemas.identity.lead} <code>{KEYWORDS.code}</code>,{' '}
+                        <code>{KEYWORDS.name}</code>
+                        {LABELS.schemas.identity.and}
+                        <code>{KEYWORDS.about}</code>.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="min-h-0 flex-1 overflow-hidden rounded-md border border-border">
@@ -95,18 +104,18 @@ export function NewSchema({
                         value={text}
                         mediaType="application/schema+json"
                         path="new-schema"
-                        label="the schema"
+                        label={LABELS.schemas.editor_label}
                         placeholder={PLACEHOLDER}
                         className="h-full min-h-0"
                         onChange={setText}
                     />
                 </div>
                 <div className="grid gap-1.5">
-                    <Label htmlFor="schema-code">Code</Label>
+                    <Label htmlFor="schema-code">{LABELS.word.code}</Label>
                     <Input
                         id="schema-code"
                         className="font-mono"
-                        placeholder="taken from $id when left blank"
+                        placeholder={LABELS.schemas.code_placeholder}
                         value={code}
                         onChange={(event) => {
                             setCode(event.target.value)
@@ -118,12 +127,12 @@ export function NewSchema({
                     <DialogClose
                         render={
                             <Button variant="ghost" size="sm">
-                                Cancel
+                                {LABELS.action.cancel}
                             </Button>
                         }
                     />
                     <Button size="sm" disabled={saving} onClick={store}>
-                        {saving ? 'Storing' : 'Store'}
+                        {saving ? LABELS.schemas.storing : LABELS.schemas.store}
                     </Button>
                 </DialogFooter>
             </DialogContent>

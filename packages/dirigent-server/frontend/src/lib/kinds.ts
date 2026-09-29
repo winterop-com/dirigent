@@ -57,7 +57,12 @@ export function kindTokens(kind: string): { '--chip': string; '--chip-ink': stri
     return { '--chip': `var(--kind-${family})`, '--chip-ink': `var(--kind-${family}-ink)` }
 }
 
-/** A kind as a person reads it: the wire spells with underscores, a reader does not. */
+/**
+ * A kind as a person reads it: the wire spells with underscores, a reader does not.
+ *
+ * Derived rather than looked up, and so not in the catalogue: a kind arrives from whichever
+ * plugins an instance has installed, and this bundle cannot hold a table of them.
+ */
 export function kindLabel(kind: string): string {
     return kind.replaceAll('_', ' ')
 }

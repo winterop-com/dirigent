@@ -2,6 +2,7 @@ import { Instant } from '@/components/Instant'
 import { type Column } from '@/components/list/ListTable'
 import { StatusChip } from '@/components/run/StatusChip'
 import { headingOf } from '@/lib/identity'
+import { LABELS } from '@/lib/labels'
 import type { LookEntry } from '@/lib/overview'
 import { cn } from '@/lib/utils'
 
@@ -20,12 +21,12 @@ import { cn } from '@/lib/utils'
 export const LOOK_COLUMNS: Column<LookEntry>[] = [
     {
         id: 'status',
-        header: 'Status',
+        header: LABELS.word.status,
         cell: (entry) => <StatusChip status={entry.run.status} />,
     },
     {
         id: 'pipeline',
-        header: 'Pipeline',
+        header: LABELS.word.pipeline,
         kind: 'title',
         cell: (entry) => {
             const heading = headingOf({ code: entry.run.pipeline, name: entry.name })
@@ -48,13 +49,13 @@ export const LOOK_COLUMNS: Column<LookEntry>[] = [
     },
     {
         id: 'step',
-        header: 'Failed at',
+        header: LABELS.dashboard.column.failed_at,
         cell: (entry) =>
             entry.failedStep === null ? null : <span className="font-mono text-xs">{entry.failedStep}</span>,
     },
     {
         id: 'error',
-        header: 'Error',
+        header: LABELS.dashboard.column.error,
         kind: 'prose',
         className: 'hidden lg:table-cell',
         cell: (entry) =>
@@ -66,7 +67,7 @@ export const LOOK_COLUMNS: Column<LookEntry>[] = [
     },
     {
         id: 'when',
-        header: 'When',
+        header: LABELS.dashboard.column.when,
         className: 'text-right',
         cell: (entry) => (
             <Instant className="text-xs text-faint" at={entry.run.started_at ?? entry.run.created_at} />

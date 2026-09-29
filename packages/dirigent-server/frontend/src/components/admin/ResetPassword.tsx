@@ -14,6 +14,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { type Problem } from '@/lib/api'
+import { LABELS } from '@/lib/labels'
 import { local, refusalOf } from '@/lib/refusal'
 import { MIN_PASSWORD_LENGTH, resetPassword } from '@/lib/users'
 
@@ -51,7 +52,7 @@ export function ResetPassword({
 
     const send = () => {
         if (password.length < MIN_PASSWORD_LENGTH) {
-            setProblem(local(`A password must be at least ${String(MIN_PASSWORD_LENGTH)} characters.`))
+            setProblem(local(LABELS.users.password_too_short(String(MIN_PASSWORD_LENGTH))))
             return
         }
         setBusy(true)
@@ -76,14 +77,12 @@ export function ResetPassword({
         <Dialog open={open} onOpenChange={close}>
             <DialogContent className="sm:max-w-md" showCloseButton={false}>
                 <DialogHeader>
-                    <DialogTitle>Reset password</DialogTitle>
-                    <DialogDescription>
-                        {username} is signed out everywhere and its tokens keep working.
-                    </DialogDescription>
+                    <DialogTitle>{LABELS.users.reset_password}</DialogTitle>
+                    <DialogDescription>{LABELS.users.reset_password_hint(username)}</DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-2">
-                    <Label htmlFor="reset-password">New password</Label>
+                    <Label htmlFor="reset-password">{LABELS.users.new_password}</Label>
                     <Input
                         id="reset-password"
                         type="password"
@@ -98,9 +97,9 @@ export function ResetPassword({
                 {problem !== null && <Refusal problem={problem} />}
 
                 <DialogFooter>
-                    <DialogClose render={<Button variant="ghost" />}>Cancel</DialogClose>
+                    <DialogClose render={<Button variant="ghost" />}>{LABELS.action.cancel}</DialogClose>
                     <Button disabled={busy || password === ''} onClick={send}>
-                        Reset
+                        {LABELS.action.reset}
                     </Button>
                 </DialogFooter>
             </DialogContent>

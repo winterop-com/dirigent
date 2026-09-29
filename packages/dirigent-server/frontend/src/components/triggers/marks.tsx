@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 
 import { Instant } from '@/components/Instant'
 import { shortId } from '@/lib/format'
+import { LABELS } from '@/lib/labels'
 import {
     clockOf,
     nextFireView,
@@ -58,7 +59,7 @@ export function OwnerChip({ managed, document }: { managed: boolean; document: s
             </Chip>
         )
     }
-    return managed ? <Chip>managed</Chip> : null
+    return managed ? <Chip>{LABELS.triggers.managed}</Chip> : null
 }
 
 /** The one clock a schedule fires on, with a one-time moment read like any other instant. */
@@ -68,7 +69,9 @@ export function Clock({ schedule }: { schedule: ScheduleOut }) {
     if (once !== null) {
         return (
             <span className="flex flex-wrap items-baseline gap-1.5 text-sm">
-                {once.fired && <span className="text-xs text-muted-foreground">fired</span>}
+                {once.fired && (
+                    <span className="text-xs text-muted-foreground">{LABELS.triggers.schedule.fired}</span>
+                )}
                 <Instant at={once.at} />
             </span>
         )
@@ -81,7 +84,9 @@ export function NextFire({ schedule }: { schedule: ScheduleOut }) {
     const next = nextFireView(schedule)
     return (
         <span data-testid="next-fire">
-            {next.kind === 'none' && <span className="text-faint">nothing scheduled</span>}
+            {next.kind === 'none' && (
+                <span className="text-faint">{LABELS.triggers.schedule.nothing_scheduled}</span>
+            )}
             {next.kind === 'due' && <Instant className="text-muted-foreground" at={next.at} />}
         </span>
     )
@@ -106,10 +111,10 @@ export function WatchState({ watch }: { watch: WatchOut }) {
             )}
             {view.kind === 'backing-off' && (
                 <span className="flex items-baseline gap-1.5 text-muted-foreground">
-                    backing off until <Instant at={view.until} />
+                    {LABELS.triggers.watch.backing_off_until} <Instant at={view.until} />
                 </span>
             )}
-            {view.kind === 'arming' && <span className="text-faint">arming</span>}
+            {view.kind === 'arming' && <span className="text-faint">{LABELS.triggers.watch.arming}</span>}
         </span>
     )
 }

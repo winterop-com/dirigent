@@ -3,6 +3,7 @@ import { PageState } from '@/components/PageState'
 import { StatusChip } from '@/components/run/StatusChip'
 import { Badge } from '@/components/ui/badge'
 import { formatInstant, formatRelative } from '@/lib/format'
+import { LABELS } from '@/lib/labels'
 import type { Paged } from '@/lib/paging'
 import { anyTagged, type WorkerOut } from '@/lib/workers'
 
@@ -47,7 +48,7 @@ export function WorkersTable({
                 reading={state.reading}
                 next={state.next}
                 onMore={more}
-                noun="workers"
+                noun={LABELS.workers.noun}
             />
         </PageState>
     )
@@ -65,38 +66,35 @@ function columnsFor(workers: readonly WorkerOut[]): Column<WorkerOut>[] {
 const COLUMNS: Column<WorkerOut>[] = [
     {
         id: 'name',
-        header: 'Worker',
+        header: LABELS.word.worker,
         cell: (worker) => <span className="text-sm font-medium">{worker.name}</span>,
     },
     {
         id: 'hostname',
-        header: 'Host',
+        header: LABELS.word.host,
         className: 'font-mono text-xs',
         cell: (worker) => <span className="text-muted-foreground">{worker.hostname}</span>,
     },
     {
         id: 'version',
-        header: 'Version',
+        header: LABELS.word.version,
         className: 'font-mono text-xs',
         cell: (worker) => <span className="text-muted-foreground">{worker.version}</span>,
     },
     {
         id: 'status',
-        header: 'Status',
+        header: LABELS.word.status,
         cell: (worker) => (
             <span className="flex flex-wrap items-center gap-2">
                 <StatusChip status={worker.status} />
                 {worker.stale && (
                     <span className="text-xs text-warning" title={formatInstant(worker.last_seen_at)}>
-                        last seen {formatRelative(worker.last_seen_at)}
+                        {LABELS.workers.last_seen_ago(formatRelative(worker.last_seen_at))}
                     </span>
                 )}
                 {!worker.code_matches_server && (
-                    <Badge
-                        variant="destructive"
-                        title={worker.catalog_digest ?? 'no catalog digest reported'}
-                    >
-                        different catalog
+                    <Badge variant="destructive" title={worker.catalog_digest ?? LABELS.workers.no_digest}>
+                        {LABELS.workers.mismatch_badge}
                     </Badge>
                 )}
             </span>
@@ -104,13 +102,13 @@ const COLUMNS: Column<WorkerOut>[] = [
     },
     {
         id: 'concurrency',
-        header: 'Concurrency',
+        header: LABELS.word.concurrency,
         className: 'text-right font-mono text-xs',
         cell: (worker) => <span>{worker.concurrency}</span>,
     },
     {
         id: 'tags',
-        header: 'Tags',
+        header: LABELS.word.tags,
         cell: (worker) =>
             worker.tags.length === 0 ? null : (
                 <span className="flex flex-wrap gap-1">
@@ -124,7 +122,7 @@ const COLUMNS: Column<WorkerOut>[] = [
     },
     {
         id: 'seen',
-        header: 'Last seen',
+        header: LABELS.word.last_seen,
         className: 'text-xs',
         cell: (worker) => (
             <span className="text-muted-foreground" title={formatInstant(worker.last_seen_at)}>

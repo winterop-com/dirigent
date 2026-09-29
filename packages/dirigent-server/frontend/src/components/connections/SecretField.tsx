@@ -1,5 +1,6 @@
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { LABELS } from '@/lib/labels'
 
 /**
  * One field a connection kind declares secret, written and never read.
@@ -37,9 +38,7 @@ export function SecretField({
                 onChange={(event) => {
                     onChange(event.target.value)
                 }}
-                placeholder={
-                    stored ? 'stored — typing replaces it, blank keeps it' : 'not set — type to set one'
-                }
+                placeholder={stored ? LABELS.connections.secret_stored : LABELS.connections.secret_unset}
             />
         </div>
     )

@@ -23,6 +23,7 @@
  */
 
 import type { JsonMap } from '@/lib/api'
+import { LABELS } from '@/lib/labels'
 import type { FieldDescriptor } from '@/lib/schema-form'
 import { forEachText, retryFields, stepFields, STEP_KEYS } from '@/lib/step-keys'
 
@@ -80,13 +81,13 @@ function carries(values: JsonMap, name: string): boolean {
 
 /** What a step waits for: the keys it names, or that it is a root. */
 export function dependsOnSummary(prerequisites: readonly string[]): SummaryPart[] {
-    if (prerequisites.length === 0) return [{ text: 'nothing; this step is a root', set: false }]
+    if (prerequisites.length === 0) return [{ text: LABELS.editor.no_prerequisites, set: false }]
     return prerequisites.map((name) => ({ text: name, set: true }))
 }
 
 /** What a step is mapped over, and what one failed element does to the rest. */
 export function fanOutSummary(keys: JsonMap): SummaryPart[] {
-    if (!carries(keys, 'for_each')) return [{ text: 'off', set: false }]
+    if (!carries(keys, 'for_each')) return [{ text: LABELS.editor.step_groups.off, set: false }]
     const items = carries(keys, 'items')
     return [
         { text: forEachText(keys.for_each), set: true },
@@ -96,12 +97,13 @@ export function fanOutSummary(keys: JsonMap): SummaryPart[] {
 
 /** How long a step may take, how often a sensor checks, and what an expired deadline does. */
 export function timingSummary(keys: JsonMap, sensor: boolean): SummaryPart[] {
-    const parts = [duration(keys, 'timeout', 'no timeout')]
-    if (sensor || carries(keys, 'poll')) parts.push(duration(keys, 'poll', 'poll its own cadence'))
-    parts.push(duration(keys, 'deadline', 'no deadline'))
+    const parts = [duration(keys, 'timeout', LABELS.editor.step_groups.no_timeout)]
+    if (sensor || carries(keys, 'poll'))
+        parts.push(duration(keys, 'poll', LABELS.editor.step_groups.poll_own_cadence))
+    parts.push(duration(keys, 'deadline', LABELS.editor.step_groups.no_deadline))
     const expired = carries(keys, 'on_timeout')
     const chosen = expired ? String(keys.on_timeout) : fallbackOf(stepFields, 'on_timeout')
-    parts.push({ text: `on_timeout ${chosen}`, set: expired })
+    parts.push({ text: LABELS.editor.step_groups.on_timeout(chosen), set: expired })
     return parts
 }
 
@@ -115,7 +117,7 @@ function duration(keys: JsonMap, name: string, absent: string): SummaryPart {
 export function retrySummary(retry: JsonMap): SummaryPart[] {
     const attempts = retry.max_attempts
     if (attempts === undefined || String(attempts) === fallbackOf(retryFields, 'max_attempts')) {
-        return [{ text: 'off', set: false }]
+        return [{ text: LABELS.editor.step_groups.off, set: false }]
     }
     const backoff = carries(retry, 'backoff')
     const growth = carries(retry, 'multiplier') || carries(retry, 'max_backoff')
@@ -126,16 +128,19 @@ export function retrySummary(retry: JsonMap): SummaryPart[] {
         ? String(retry.max_backoff)
         : fallbackOf(retryFields, 'max_backoff')
     const parts: SummaryPart[] = [
-        { text: `${String(attempts)} attempts`, set: true },
+        { text: LABELS.editor.step_groups.attempts(String(attempts)), set: true },
         {
-            text: `${backoff ? String(retry.backoff) : fallbackOf(retryFields, 'backoff')} backoff`,
+            text: LABELS.editor.step_groups.backoff(
+                backoff ? String(retry.backoff) : fallbackOf(retryFields, 'backoff'),
+            ),
             set: backoff,
         },
-        { text: `×${multiplier} up to ${ceiling}`, set: growth },
+        { text: LABELS.editor.step_groups.growth(multiplier, ceiling), set: growth },
     ]
     // Jitter is a spread nobody asked for until they did, so a policy at the default says nothing
     // about it rather than spending a third of the line on it.
-    if (carries(retry, 'jitter')) parts.push({ text: `jitter ${String(retry.jitter)}`, set: true })
+    if (carries(retry, 'jitter'))
+        parts.push({ text: LABELS.editor.step_groups.jitter(String(retry.jitter)), set: true })
     return parts
 }
 
@@ -145,7 +150,8 @@ export function ruleSummary(keys: JsonMap): SummaryPart[] {
     const parts: SummaryPart[] = [
         { text: chosen ? String(keys.rule) : fallbackOf(stepFields, 'rule'), set: chosen },
     ]
-    if (keys.continue_on_failure === true) parts.push({ text: 'continues on failure', set: true })
+    if (keys.continue_on_failure === true)
+        parts.push({ text: LABELS.editor.step_groups.continues_on_failure, set: true })
     return parts
 }
 
@@ -167,29 +173,41 @@ export function stepGroups({
     return [
         {
             id: 'depends_on',
-            title: 'Waits for',
+            title: LABELS.editor.step_groups.waits_for,
             fields: [],
             summary: dependsOnSummary(prerequisites),
             chips: prerequisites.length > 0,
         },
         {
             id: 'fan_out',
-            title: 'Fan-out',
+            title: LABELS.editor.step_groups.fan_out,
             fields: fieldsIn('fan_out'),
             summary: fanOutSummary(keys),
             chips: false,
         },
         {
             id: 'timing',
-            title: 'Timing',
+            title: LABELS.editor.step_groups.timing,
             fields: fieldsIn('timing').filter(
                 (field) => field.name !== 'poll' || sensor || carries(keys, 'poll'),
             ),
             summary: timingSummary(keys, sensor),
             chips: false,
         },
-        { id: 'retry', title: 'Retry', fields: retryFields, summary: retrySummary(retry), chips: false },
-        { id: 'rule', title: 'Rule', fields: fieldsIn('rule'), summary: ruleSummary(keys), chips: false },
+        {
+            id: 'retry',
+            title: LABELS.editor.step_groups.retry,
+            fields: retryFields,
+            summary: retrySummary(retry),
+            chips: false,
+        },
+        {
+            id: 'rule',
+            title: LABELS.editor.step_groups.rule,
+            fields: fieldsIn('rule'),
+            summary: ruleSummary(keys),
+            chips: false,
+        },
     ]
 }
 

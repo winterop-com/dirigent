@@ -46,6 +46,7 @@
  */
 
 import type { JsonMap } from '@/lib/api'
+import { LABELS } from '@/lib/labels'
 import { hasReference } from '@/lib/references'
 
 /** Which control a field is edited with. */
@@ -284,41 +285,38 @@ export function switchCell(field: FieldDescriptor): boolean {
  * format this app has no words for is shown as the schema spelled it, which at least says
  * something rather than nothing.
  */
-const FORMAT_WORDS: Readonly<Record<string, string>> = {
-    size: 'bytes, or a size such as 1mb',
-    duration: 'a duration such as 30s',
-    'storage-uri': 'a storage URI such as s3://bucket/key',
-    'date-time': 'a date and time such as 2026-03-01T12:00:00Z',
-    time: 'a time of day such as 06:30',
-    password: 'a secret',
-}
+const FORMAT_WORDS: Readonly<Record<string, string>> = LABELS.form.format
+
+/** A schema's `format` as the catalogue keys it: `date-time` is minted as `date_time`. */
+const formatWords = (format: string) => FORMAT_WORDS[format.replaceAll('-', '_')]
 
 /** The one line beside the label: the format, an example, and what a union also accepts. */
 function hintOf(schema: JsonMap, branches: JsonMap[]): string | null {
     const parts: string[] = []
     const format = stringAt(schema, 'format')
-    const worded = format !== null ? (FORMAT_WORDS[format] ?? format) : null
+    const worded = format !== null ? (formatWords(format) ?? format) : null
     if (worded !== null) parts.push(worded)
-    if (branches.length > 1 && (format === null || FORMAT_WORDS[format] === undefined)) {
+    if (branches.length > 1 && (format === null || formatWords(format) === undefined)) {
         // A format with words of its own already says what the union takes.
         const shapes = branches.map((one) => wordFor(kindOf(one)))
-        parts.push(`${[...new Set(shapes)].join(' or ')}`)
+        parts.push(`${[...new Set(shapes)].join(LABELS.form.or)}`)
     }
     const examples = arrayAt(schema, 'examples')
-    if (examples.length > 0) parts.push(`e.g. ${examples.map((one) => String(one)).join(', ')}`)
+    if (examples.length > 0)
+        parts.push(LABELS.form.hint.examples(examples.map((one) => String(one)).join(', ')))
     return parts.length === 0 ? null : parts.join(' · ')
 }
 
 /** What a `pairs` field says beside its label, when a cell holds anything other than text. */
 function pairsHint(holds: FieldKind[]): string | null {
     if (holds.length === 1 && holds[0] === 'text') return null
-    return `values are ${wordsOf(holds)}`
+    return LABELS.form.hint.pairs(wordsOf(holds))
 }
 
 /** The shapes a cell takes, in reader words, each said once; a number covers the whole ones. */
 function wordsOf(kinds: readonly FieldKind[]): string {
     const said = kinds.includes('number') ? kinds.filter((one) => one !== 'integer') : kinds
-    return [...new Set(said.map((one) => wordFor(one)))].join(' or ')
+    return [...new Set(said.map((one) => wordFor(one)))].join(LABELS.form.or)
 }
 
 /**
@@ -333,8 +331,8 @@ function placeholderOf(schema: JsonMap, kind: FieldKind, fallback: unknown): str
         return jsonWritten(kind) ? (JSON.stringify(fallback) ?? '') : String(fallback)
     }
     if (kind !== 'json') return ''
-    if (schema.type === 'array') return '["one", "two"]'
-    if (schema.type === 'object') return '{"key": "value"}'
+    if (schema.type === 'array') return LABELS.form.placeholder.list
+    if (schema.type === 'object') return LABELS.form.placeholder.map
     return ''
 }
 
@@ -438,7 +436,7 @@ export function partition(fields: FieldDescriptor[], values: JsonMap): Partition
 
 /** What the link over the folded fields reads. */
 export function foldLabel(count: number): string {
-    return `${String(count)} more field${count === 1 ? '' : 's'}`
+    return LABELS.form.more_fields(count)
 }
 
 /**
@@ -454,9 +452,9 @@ export function foldLabel(count: number): string {
  * Validate is what asks it.
  */
 export function validateField(field: FieldDescriptor, value: unknown, deferred = false): string | null {
-    if (value === undefined) return field.required ? `${field.name} is required` : null
+    if (value === undefined) return field.required ? LABELS.form.refusal.required(field.name) : null
     if (deferred && hasReference(value)) return null
-    if (value === null) return field.nullable ? null : `${field.name} may not be null`
+    if (value === null) return field.nullable ? null : LABELS.form.refusal.not_null(field.name)
 
     if (field.accepts.length === 0) {
         return shapeProblem(field, { kind: field.kind, bounds: field.bounds }, value, deferred)
@@ -468,7 +466,10 @@ export function validateField(field: FieldDescriptor, value: unknown, deferred =
     if (problems.includes(null)) return null
     const typed = field.accepts.findIndex((branch) => typeMatches(branch.kind, value))
     if (typed !== -1) return problems[typed] ?? null
-    return `${field.name} is ${field.accepts.map((branch) => wordFor(branch.kind)).join(' or ')}`
+    return LABELS.form.refusal.shapes(
+        field.name,
+        field.accepts.map((branch) => wordFor(branch.kind)).join(LABELS.form.or),
+    )
 }
 
 /** What is wrong with a value under one shape, or null. */
@@ -481,21 +482,24 @@ function shapeProblem(
     switch (shape.kind) {
         case 'select':
             if (!field.options.some((option) => sameJson(option.value, value))) {
-                return `${field.name} is one of ${field.options.map((option) => option.label).join(', ')}`
+                return LABELS.form.refusal.one_of(
+                    field.name,
+                    field.options.map((option) => option.label).join(', '),
+                )
             }
             return null
         case 'switch':
-            return typeof value === 'boolean' ? null : `${field.name} is true or false`
+            return typeof value === 'boolean' ? null : LABELS.form.refusal.boolean(field.name)
         case 'text':
         case 'code':
             return typeof value === 'string'
                 ? textProblem(field, shape.bounds, value)
-                : `${field.name} is text`
+                : LABELS.form.refusal.text(field.name)
         case 'number':
         case 'integer':
             return typeof value === 'number' && Number.isFinite(value)
                 ? numberProblem(field, shape, value)
-                : `${field.name} is a number`
+                : LABELS.form.refusal.number(field.name)
         case 'pairs':
             return mapProblem(field, value, deferred)
         case 'json':
@@ -512,11 +516,11 @@ function shapeProblem(
  */
 function mapProblem(field: FieldDescriptor, value: unknown, deferred: boolean): string | null {
     if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-        return `${field.name} is a map, or a reference to one`
+        return LABELS.form.refusal.map(field.name)
     }
     for (const [key, held] of Object.entries(value as JsonMap)) {
         if (deferred && hasReference(held)) continue
-        if (!fits(field.holds, held)) return `${field.name}.${key} is ${wordsOf(field.holds)}`
+        if (!fits(field.holds, held)) return LABELS.form.refusal.entry(field.name, key, wordsOf(field.holds))
     }
     return null
 }
@@ -550,31 +554,33 @@ function wordFor(kind: FieldKind): string {
     switch (kind) {
         case 'text':
         case 'code':
-            return 'text'
+            return LABELS.form.shape.text
         case 'integer':
-            return 'a whole number'
+            return LABELS.form.shape.integer
         case 'number':
-            return 'a number'
+            return LABELS.form.shape.number
         case 'switch':
-            return 'true or false'
+            return LABELS.form.shape.switch
         case 'select':
-            return 'one of its options'
+            return LABELS.form.shape.select
         case 'pairs':
-            return 'a map'
+            return LABELS.form.shape.pairs
         case 'json':
-            return 'JSON'
+            return LABELS.form.shape.json
     }
 }
 
 function textProblem(field: FieldDescriptor, bounds: Bounds, value: string): string | null {
     const { minLength, maxLength, pattern } = bounds
     if (minLength !== undefined && value.length < minLength) {
-        return `${field.name} is at least ${String(minLength)} character${minLength === 1 ? '' : 's'}`
+        return LABELS.form.refusal.min_length(field.name, minLength)
     }
     if (maxLength !== undefined && value.length > maxLength) {
-        return `${field.name} is at most ${String(maxLength)} characters`
+        return LABELS.form.refusal.max_length(field.name, String(maxLength))
     }
-    if (pattern !== undefined && !matches(pattern, value)) return `${field.name} does not match ${pattern}`
+    if (pattern !== undefined && !matches(pattern, value)) {
+        return LABELS.form.refusal.pattern(field.name, pattern)
+    }
     return null
 }
 
@@ -588,15 +594,18 @@ function matches(pattern: string, value: string): boolean {
 }
 
 function numberProblem(field: FieldDescriptor, shape: BranchShape, value: number): string | null {
-    if (shape.kind === 'integer' && !Number.isInteger(value)) return `${field.name} is a whole number`
+    if (shape.kind === 'integer' && !Number.isInteger(value))
+        return LABELS.form.refusal.whole_number(field.name)
     const { minimum, maximum, exclusiveMinimum, exclusiveMaximum } = shape.bounds
-    if (minimum !== undefined && value < minimum) return `${field.name} is at least ${String(minimum)}`
-    if (maximum !== undefined && value > maximum) return `${field.name} is at most ${String(maximum)}`
+    if (minimum !== undefined && value < minimum)
+        return LABELS.form.refusal.minimum(field.name, String(minimum))
+    if (maximum !== undefined && value > maximum)
+        return LABELS.form.refusal.maximum(field.name, String(maximum))
     if (exclusiveMinimum !== undefined && value <= exclusiveMinimum) {
-        return `${field.name} is greater than ${String(exclusiveMinimum)}`
+        return LABELS.form.refusal.greater_than(field.name, String(exclusiveMinimum))
     }
     if (exclusiveMaximum !== undefined && value >= exclusiveMaximum) {
-        return `${field.name} is less than ${String(exclusiveMaximum)}`
+        return LABELS.form.refusal.less_than(field.name, String(exclusiveMaximum))
     }
     return null
 }
@@ -635,14 +644,17 @@ export function parseInput(field: FieldDescriptor, text: string, deferred = fals
         case 'number':
         case 'integer': {
             const value = Number(text)
-            if (!Number.isFinite(value)) return { ok: false, message: `${field.name} is a number` }
+            if (!Number.isFinite(value)) return { ok: false, message: LABELS.form.refusal.number(field.name) }
             return { ok: true, value }
         }
         case 'json':
             try {
                 return { ok: true, value: JSON.parse(text) }
             } catch (error) {
-                return { ok: false, message: error instanceof Error ? error.message : 'that is not JSON' }
+                return {
+                    ok: false,
+                    message: error instanceof Error ? error.message : LABELS.form.refusal.not_json,
+                }
             }
         default:
             return { ok: true, value: text }
@@ -716,11 +728,11 @@ export function referenceNote(field: FieldDescriptor, value: unknown): string | 
     if (!hasReference(value)) return null
     switch (field.kind) {
         case 'pairs':
-            return 'a reference, not a table'
+            return LABELS.form.written_as_reference.pairs
         case 'select':
-            return 'a reference, not a choice'
+            return LABELS.form.written_as_reference.select
         case 'switch':
-            return 'a reference, not a switch'
+            return LABELS.form.written_as_reference.switch
         default:
             return null
     }
@@ -756,7 +768,11 @@ export function pairProblems(field: FieldDescriptor, rows: readonly Pair[], defe
         const key = row.key.trim()
         if (key !== '') {
             if (seen.has(key)) {
-                problems.push({ row: index, where: 'key', message: `${field.name} carries ${key} twice` })
+                problems.push({
+                    row: index,
+                    where: 'key',
+                    message: LABELS.form.refusal.duplicate_key(field.name, key),
+                })
             }
             seen.add(key)
         }
@@ -786,7 +802,7 @@ export function parseCell(field: FieldDescriptor, text: string, deferred = false
         return { ok: true, value: text === 'true' }
     }
     if (field.holds.includes('text')) return { ok: true, value: text }
-    return { ok: false, message: `${field.name} values are ${wordsOf(field.holds)}` }
+    return { ok: false, message: LABELS.form.refusal.map_values(field.name, wordsOf(field.holds)) }
 }
 
 /** The default this field falls back to, as one line, or null when it declares none. */

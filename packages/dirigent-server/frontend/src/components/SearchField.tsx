@@ -1,8 +1,9 @@
 import { Input } from '@/components/ui/input'
+import { LABELS } from '@/lib/labels'
 import { cn } from '@/lib/utils'
 
 /** What a search box says while it is empty, wherever one is drawn. */
-export const SEARCH_PLACEHOLDER = 'Search'
+export const SEARCH_PLACEHOLDER = LABELS.shell.search
 
 /**
  * The box that narrows what is on the screen.

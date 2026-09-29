@@ -1,5 +1,6 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 
+import { LABELS } from '../src/lib/labels.ts'
 import { apiPrefix, applyExample, seedUser, signIn, signInAs, signOut } from './support.ts'
 
 /**
@@ -68,7 +69,7 @@ test('a viewer is offered no write control, and each shut one says why', async (
     // Connections are an admin's: minting one, and opening a credential to ask an external
     // system about it. What each shut control says is that this account cannot, and no more.
     await page.goto('/connections')
-    const create = page.getByRole('button', { name: 'New connection' })
+    const create = page.getByRole('button', { name: LABELS.connections.new })
     await expect(create).toBeDisabled()
     await expect(create).toHaveAttribute('title', SHUT)
     const check = rowOf(page, CONNECTION).getByRole('button', { name: 'Check' })
@@ -77,10 +78,10 @@ test('a viewer is offered no write control, and each shut one says why', async (
 
     // Triggers are an operator's, on the listing and in the panel both.
     await page.goto('/triggers')
-    const schedule = page.getByRole('button', { name: 'New schedule' })
+    const schedule = page.getByRole('button', { name: LABELS.triggers.schedule.new })
     await expect(schedule).toBeDisabled()
     await expect(schedule).toHaveAttribute('title', SHUT)
-    await expect(page.getByRole('button', { name: 'New webhook' })).toBeDisabled()
+    await expect(page.getByRole('button', { name: LABELS.triggers.webhook.new })).toBeDisabled()
 
     await rowOf(page, CRON.title).getByText(CRON.title, { exact: true }).click()
     const pause = page.getByRole('tabpanel').getByRole('button', { name: /Pause|Resume/ })
@@ -89,7 +90,7 @@ test('a viewer is offered no write control, and each shut one says why', async (
 
     // Writing a pipeline is an operator's, and so are the two verbs the editor sends.
     await page.goto('/pipelines')
-    const newPipeline = page.getByRole('button', { name: 'New pipeline' })
+    const newPipeline = page.getByRole('button', { name: LABELS.pipelines.new })
     await expect(newPipeline).toBeDisabled()
     await expect(newPipeline).toHaveAttribute('title', SHUT)
 })
@@ -104,7 +105,7 @@ test('a check the server refuses says so, and the row keeps what it had', async 
     await row.getByRole('button', { name: 'Check' }).click()
 
     await expect(page.getByText('not permitted for your role')).toBeVisible()
-    await expect(row).toContainText('never checked')
+    await expect(row).toContainText(LABELS.state.health.unchecked)
 })
 
 test('a pause the server refuses says so, and the panel stays open', async ({ page }) => {

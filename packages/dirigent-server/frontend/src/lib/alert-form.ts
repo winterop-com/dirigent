@@ -10,6 +10,7 @@ import { LOG_NOTIFIER, type AlertScope } from '@/lib/alerting'
 import type { ConnectionOut } from '@/lib/connections'
 import { kindGlyph } from '@/lib/glyphs'
 import { headingOf } from '@/lib/identity'
+import { LABELS } from '@/lib/labels'
 import type { PickerOption } from '@/lib/picker'
 import { IMPORTANCES, type Importance } from '@/lib/pipelines'
 
@@ -20,14 +21,13 @@ const CODE = /^[a-z0-9]+(?:[-_][a-z0-9]+)*$/u
 const DURATION = /^(?:\d+(?:ms|s|m|h|d|w))+$/u
 
 /** What the subject field may read, said once so the hint and the docs cannot disagree. */
-export const SUBJECT_REFERENCES = 'pipeline, status, id, error, trigger, duration_ms and url'
+export const SUBJECT_REFERENCES = LABELS.alerting.subject_references
 
 /** The hint under the subject box: what a template may reach for, and nothing else. */
-export const SUBJECT_HINT = `A Jinja template: {{ run.* }} reads the run's ${SUBJECT_REFERENCES}.`
+export const SUBJECT_HINT = LABELS.alerting.subject_hint(SUBJECT_REFERENCES)
 
 /** The help under the body's label: the same facts, and the report document beside them. */
-export const BODY_HINT =
-    "A Jinja template over the run's facts; report is the run's report document when it has one."
+export const BODY_HINT = LABELS.alerting.body_hint
 
 /** What a subject and a body are written in. `TEMPLATE_MEDIA_TYPE` in dirigent_common. */
 export const TEMPLATE_MEDIA_TYPE = 'text/x-jinja'
@@ -40,8 +40,8 @@ export function given(typed: string): string | null {
 
 /** The two scopes, in the order the control offers them. */
 export const SCOPES: readonly { value: AlertScope; label: string }[] = [
-    { value: 'global', label: 'Every pipeline' },
-    { value: 'pipeline', label: 'One pipeline' },
+    { value: 'global', label: LABELS.alerting.scope.global },
+    { value: 'pipeline', label: LABELS.alerting.scope.pipeline },
 ]
 
 /** What the control answers with when a rule fires whatever the pipeline is worth. */
@@ -49,7 +49,7 @@ export const ANY_IMPORTANCE = ''
 
 /** The floors a rule may fire at, in the order the control offers them. */
 export const IMPORTANCE_FLOORS: readonly { value: Importance | typeof ANY_IMPORTANCE; label: string }[] = [
-    { value: ANY_IMPORTANCE, label: 'Any' },
+    { value: ANY_IMPORTANCE, label: LABELS.alerting.importance_any },
     ...IMPORTANCES.map((one) => ({ value: one, label: one[0].toUpperCase() + one.slice(1) })),
 ]
 
@@ -67,7 +67,7 @@ export function targetChosen(value: string): string | null {
 }
 
 /** What the log's row is titled, the log being the one channel with no credential behind it. */
-export const LOG_TARGET_LABEL = 'The process log'
+export const LOG_TARGET_LABEL = LABELS.alerting.log_target
 
 /**
  * The channels a rule may deliver through: the log first, then one row per notifier connection.
@@ -126,10 +126,9 @@ export interface RuleDraft {
  * rather than naming the last box first.
  */
 export function unreadyRule(draft: RuleDraft): string | undefined {
-    if (draft.code.trim() === '') return 'A rule is addressed by its code, and this one has none.'
-    if (!CODE.test(draft.code.trim())) return 'A code is lowercase words joined by - or _.'
-    if (draft.scope === 'pipeline' && draft.pipeline === '')
-        return 'A rule watching one pipeline names that pipeline, and this one names none.'
-    if (!DURATION.test(draft.throttle.trim())) return 'A throttle is a duration, such as 15m.'
+    if (draft.code.trim() === '') return LABELS.alerting.unready.code_missing
+    if (!CODE.test(draft.code.trim())) return LABELS.alerting.unready.code_shape
+    if (draft.scope === 'pipeline' && draft.pipeline === '') return LABELS.alerting.unready.pipeline_missing
+    if (!DURATION.test(draft.throttle.trim())) return LABELS.alerting.unready.throttle_shape
     return undefined
 }

@@ -13,6 +13,7 @@
  */
 
 import type { JsonMap } from '@/lib/api'
+import { LABELS } from '@/lib/labels'
 import type { RunPriority } from '@/lib/runs'
 
 /** Which priority a trigger's runs carry, with the row that takes the pipeline's own. */
@@ -42,10 +43,13 @@ export function readValues(text: string): ReadValues {
     try {
         value = JSON.parse(written)
     } catch (error) {
-        return { ok: false, message: error instanceof Error ? error.message : 'this is not JSON' }
+        return {
+            ok: false,
+            message: error instanceof Error ? error.message : LABELS.triggers.dialog.params_unreadable,
+        }
     }
     if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-        return { ok: false, message: 'The parameters are a JSON object.' }
+        return { ok: false, message: LABELS.triggers.dialog.params_not_object }
     }
     return { ok: true, values: value as JsonMap }
 }
@@ -95,7 +99,7 @@ export function zoneOffset(zone: string, at: Date = new Date()): string {
     }).formatToParts(at)
     const named = parts.find((part) => part.type === 'timeZoneName')?.value ?? 'GMT'
     const offset = named.replace('GMT', 'UTC')
-    return offset === 'UTC' ? 'UTC+0' : offset
+    return offset === 'UTC' ? LABELS.measure.utc_offset : offset
 }
 
 /** How many bytes a generated signing secret is, which is what an HMAC key wants. */
@@ -109,16 +113,16 @@ export function generatedSecret(): string {
 
 /** Why Create is shut on a schedule, which is what the button carries as its title. */
 export function unreadySchedule(pipeline: string, code: string, expression: string): string | undefined {
-    if (pipeline === '') return 'A schedule fires one pipeline, and this one names none.'
-    if (code.trim() === '') return 'A schedule is addressed by its code, and this one has none.'
-    if (expression.trim() === '') return 'Nothing says when this fires.'
+    if (pipeline === '') return LABELS.triggers.schedule.dialog.no_pipeline
+    if (code.trim() === '') return LABELS.triggers.schedule.dialog.no_code
+    if (expression.trim() === '') return LABELS.triggers.schedule.dialog.no_clock
     return undefined
 }
 
 /** Why Create is shut on a webhook, which is what the button carries as its title. */
 export function unreadyWebhook(pipeline: string, code: string): string | undefined {
-    if (pipeline === '') return 'A webhook fires one pipeline, and this one names none.'
-    if (code.trim() === '') return 'A webhook is addressed by its code, and this one has none.'
+    if (pipeline === '') return LABELS.triggers.webhook.dialog.no_pipeline
+    if (code.trim() === '') return LABELS.triggers.webhook.dialog.no_code
     return undefined
 }
 

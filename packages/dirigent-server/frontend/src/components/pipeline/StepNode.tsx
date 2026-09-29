@@ -3,6 +3,7 @@ import { Layers2 } from 'lucide-react'
 import type { CSSProperties } from 'react'
 
 import { StepPorts } from '@/components/graph/StepPorts'
+import { LABELS } from '@/lib/labels'
 import { statusTokens } from '@/lib/status'
 import { cn } from '@/lib/utils'
 
@@ -91,14 +92,14 @@ export function StepNode({ data, selected }: NodeProps<DocumentNode>) {
                 {data.missing && (
                     <span
                         className="ml-auto shrink-0 rounded-sm border border-critical px-1 text-xs text-critical"
-                        title={`${data.block} is not installed on this instance, so this step will fail`}
+                        title={LABELS.editor.canvas.not_installed_title(data.block)}
                     >
-                        not installed
+                        {LABELS.editor.canvas.not_installed}
                     </span>
                 )}
                 {data.edited && !data.missing && (
                     <span className="ml-auto shrink-0 rounded-sm border border-primary px-1 text-xs text-primary-ink">
-                        edited
+                        {LABELS.editor.canvas.edited}
                     </span>
                 )}
             </div>
@@ -112,12 +113,14 @@ export function StepNode({ data, selected }: NodeProps<DocumentNode>) {
                         className="ml-auto flex shrink-0 items-center gap-1 font-mono text-xs text-faint"
                         title={
                             data.fanOutItems === null
-                                ? 'for_each: runs once per item of the list it is given'
-                                : `for_each: runs once per item, ${String(data.fanOutItems)} of them`
+                                ? LABELS.editor.canvas.fan_out_each_title
+                                : LABELS.editor.canvas.fan_out_count_title(String(data.fanOutItems))
                         }
                     >
                         <Layers2 className="size-3" aria-hidden />
-                        {data.fanOutItems === null ? 'each' : `×${String(data.fanOutItems)}`}
+                        {data.fanOutItems === null
+                            ? LABELS.editor.canvas.fan_out_each
+                            : LABELS.editor.canvas.fan_out_count(String(data.fanOutItems))}
                     </span>
                 )}
             </span>

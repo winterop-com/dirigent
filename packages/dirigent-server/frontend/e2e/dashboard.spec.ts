@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 
+import { LABELS } from '../src/lib/labels.ts'
 import { applyDocument, ranToFailure, refusedDocument, signIn, startRun } from './support.ts'
 
 /**
@@ -35,23 +36,25 @@ test('the root is the home screen rather than a redirect to a listing', async ({
     await page.goto('/')
 
     await expect(page).toHaveURL(/^https?:\/\/[^/]+\/$/)
-    await expect(page.getByRole('heading', { name: 'Dashboard', level: 1 })).toBeVisible()
+    await expect(page.getByRole('heading', { name: LABELS.screen.dashboard.name, level: 1 })).toBeVisible()
 
     // Each section is here whatever the instance holds, and each is the way out to the screen
     // that owns what it lists.
     const main = page.getByRole('main')
-    await expect(main.getByRole('link', { name: 'Right now', exact: true })).toHaveAttribute('href', '/runs')
-    await expect(main.getByRole('link', { name: 'Needs a look', exact: true })).toHaveAttribute(
+    await expect(main.getByRole('link', { name: LABELS.dashboard.right_now, exact: true })).toHaveAttribute(
         'href',
         '/runs',
     )
-    await expect(main.getByRole('link', { name: 'Next fires', exact: true })).toHaveAttribute(
+    await expect(
+        main.getByRole('link', { name: LABELS.dashboard.needs_a_look, exact: true }),
+    ).toHaveAttribute('href', '/runs')
+    await expect(main.getByRole('link', { name: LABELS.dashboard.next_fires, exact: true })).toHaveAttribute(
         'href',
         '/triggers',
     )
 
     // The rail leads with it, and the corner mark goes to it.
-    await expect(page.getByRole('link', { name: 'Dashboard', exact: true })).toBeVisible()
+    await expect(page.getByRole('link', { name: LABELS.screen.dashboard.name, exact: true })).toBeVisible()
     await expect(page.getByRole('link', { name: 'dirigent', exact: true })).toHaveAttribute('href', '/')
 })
 
@@ -67,7 +70,7 @@ test('a run that failed is under needs a look, and the row opens it', async ({ p
     const row = page.getByRole('main').getByRole('row').filter({ hasText: REFUSED }).first()
     await expect(row).toBeVisible()
     await expect(row).toContainText('failed')
-    await expect(page.getByRole('columnheader', { name: 'Failed at' })).toBeVisible()
+    await expect(page.getByRole('columnheader', { name: LABELS.dashboard.column.failed_at })).toBeVisible()
 
     // And it goes where it says it goes.
     await row.click()
@@ -91,7 +94,7 @@ test('the last day is counted by what settled, and a state at zero is not writte
 
     // The day has a failure in it, and the tile counting them says so.
     await expect(tile(page, 'Failed')).not.toContainText(/\b0\b/)
-    await expect(tile(page, 'Runs')).toContainText('Last 24 hours.')
+    await expect(tile(page, 'Runs')).toContainText(LABELS.dashboard.tile.runs_window)
 
     // REVERT-PROOF. Count a state at zero in a sentence anywhere on this screen and one of these
     // fails. A tile is a fixed slot and states its own zero; a clause in prose is the thing that
@@ -105,7 +108,7 @@ test('the last day is counted by what settled, and a state at zero is not writte
 
     // Nothing is going once it has settled, and that is one sentence rather than a pair of
     // zeroes above an empty list.
-    await expect(main).toContainText('Nothing is running and nothing is waiting.')
+    await expect(main).toContainText(LABELS.dashboard.nothing_live)
 })
 
 test('a tile opens the listing narrowed the way the tile counted it', async ({ page, baseURL }) => {
@@ -138,11 +141,11 @@ test('the day is drawn by the hour, and what this instance depends on is beside 
     // see the bars is told the same thing the bars say.
     const chart = page.getByRole('img', { name: /last 24 hours/i })
     await expect(chart).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Runs over time' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: LABELS.dashboard.chart.title })).toBeVisible()
 
     // The panel beside it lists the workers and the connections, and says in one line what is
     // not perfect. `dg dev` runs a worker of its own, so this instance has one to list.
-    await expect(page.getByRole('heading', { name: 'Health' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: LABELS.word.health })).toBeVisible()
     await expect(page.getByRole('main')).toContainText(
         /worker · \d+ slots?|has gone quiet|No worker has registered/i,
     )

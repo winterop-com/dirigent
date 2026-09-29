@@ -12,6 +12,7 @@
  */
 
 import { apiJson, apiSend, type JsonMap, type Page } from '@/lib/api'
+import { LABELS } from '@/lib/labels'
 import { PAGE } from '@/lib/paging'
 
 /** A schema as every response shows it: the identity quartet and the schema body. `SchemaOut`. */
@@ -61,5 +62,6 @@ export function deleteSchema(code: string): Promise<void> {
  */
 export function schemasNote(rows: readonly SchemaOut[]): string | null {
     if (rows.length === 0) return null
-    return `${String(rows.length)} ${rows.length === 1 ? 'schema' : 'schemas'}`
+    const said = rows.length === 1 ? LABELS.schemas.count.one : LABELS.schemas.count.many
+    return said(String(rows.length))
 }

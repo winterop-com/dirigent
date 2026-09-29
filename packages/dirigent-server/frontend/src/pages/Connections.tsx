@@ -33,6 +33,7 @@ import {
     type SurfaceEntry,
 } from '@/lib/connections'
 import { formatInstant, formatRelative } from '@/lib/format'
+import { LABELS } from '@/lib/labels'
 import { kindGlyph } from '@/lib/glyphs'
 import { kindMarks } from '@/lib/marks'
 import { headingOf } from '@/lib/identity'
@@ -161,7 +162,7 @@ export function Connections() {
             [
                 {
                     id: 'connection',
-                    label: 'Connection',
+                    label: LABELS.word.connection,
                     render: () => (
                         <ConnectionForm key={open.code} connection={open} schema={schema} onSaved={held} />
                     ),
@@ -181,7 +182,7 @@ export function Connections() {
                 ? [
                       {
                           id: 'connections:new',
-                          title: 'New connection',
+                          title: LABELS.connections.new,
                           group: LIST_GROUP,
                           screen: true,
                           icon: PlugZap,
@@ -194,7 +195,7 @@ export function Connections() {
                 : []),
             {
                 id: 'connections:reload',
-                title: 'Read the connections listing again',
+                title: LABELS.connections.reload,
                 group: LIST_GROUP,
                 screen: true,
                 icon: RefreshCw,
@@ -209,14 +210,14 @@ export function Connections() {
     return (
         <>
             <PageHeader
-                title="Connections"
+                title={LABELS.screen.connections.name}
                 aside={
                     <>
                         <ApiChip tag="connections" />
                         <Refusable why={write.why}>
                             <Button
                                 size="sm"
-                                aria-label="New connection"
+                                aria-label={LABELS.connections.new}
                                 disabled={!write.may}
                                 title={write.why}
                                 onClick={() => {
@@ -224,7 +225,7 @@ export function Connections() {
                                 }}
                             >
                                 <PlugZap aria-hidden />
-                                New
+                                {LABELS.action.new}
                             </Button>
                         </Refusable>
                     </>
@@ -235,7 +236,7 @@ export function Connections() {
                 loading={!state.read}
                 problem={state.problem}
                 empty={rows.length === 0}
-                emptyMessage="No connections."
+                emptyMessage={LABELS.connections.empty}
             >
                 <ListTable
                     columns={columns}
@@ -244,7 +245,7 @@ export function Connections() {
                     reading={state.reading}
                     next={state.next}
                     onMore={more}
-                    noun="connections"
+                    noun={LABELS.connections.noun}
                     onSelect={(row) => {
                         // The row is not another page of history: it is which one is being read.
                         void navigate(connectionPath(row.code), { replace: true })
@@ -289,18 +290,18 @@ function buildColumns(
     return [
         {
             id: 'connection',
-            header: 'Connection',
+            header: LABELS.word.connection,
             kind: 'title',
             cell: (row) => <Named row={row} />,
         },
         {
             id: 'health',
-            header: 'Health',
+            header: LABELS.word.health,
             cell: (row) => <Health row={row} />,
         },
         {
             id: 'checked',
-            header: 'Checked',
+            header: LABELS.word.checked,
             className: 'text-xs',
             // Nothing rather than an element that draws nothing: a card leaves out the fact a
             // row has none of, and an empty element is a label with a blank beside it.
@@ -317,9 +318,9 @@ function buildColumns(
                     <Button
                         variant="outline"
                         size="icon-lg"
-                        aria-label={`Check ${row.code}`}
+                        aria-label={LABELS.connections.check_row(row.code)}
                         disabled={checking === row.code || shut !== undefined}
-                        title={shut ?? 'Check now'}
+                        title={shut ?? LABELS.action.check}
                         onClick={(event) => {
                             // The row opens the panel; this button does one thing and not both.
                             event.stopPropagation()

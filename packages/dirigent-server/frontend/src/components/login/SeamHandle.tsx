@@ -1,9 +1,7 @@
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 
 import { PANE_BIG_STEP, PANE_STEP, clampPaneWidth, paneBounds } from '@/components/login/pane-width'
-
-/** What the separator says it is, for a reader who reaches it by key rather than by pointer. */
-export const SEAM_LABEL = 'Resize the brand pane'
+import { LABELS } from '@/lib/labels'
 
 /**
  * The seam between the two panes, which is also the handle that moves it.
@@ -96,7 +94,7 @@ export function SeamHandle({
             ref={handle}
             role="separator"
             aria-orientation="vertical"
-            aria-label={SEAM_LABEL}
+            aria-label={LABELS.login.seam}
             aria-valuemin={bounds.min}
             aria-valuemax={bounds.max}
             aria-valuenow={Math.round(width)}

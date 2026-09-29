@@ -3,6 +3,7 @@ import { type ReactNode } from 'react'
 import { Picker } from '@/components/Picker'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { LABELS } from '@/lib/labels'
 import type { PickerOption } from '@/lib/picker'
 
 /** One labelled box, which is what every field on these dialogs is. */
@@ -63,13 +64,13 @@ export function TargetPicker({
 }) {
     return (
         <div className="space-y-2">
-            <Label htmlFor={id}>Deliver through</Label>
+            <Label htmlFor={id}>{LABELS.alerting.deliver_through}</Label>
             <Picker
                 id={id}
-                label="Deliver through"
+                label={LABELS.alerting.deliver_through}
                 value={value}
                 options={options}
-                placeholder="Search by name, kind or code"
+                placeholder={LABELS.alerting.target_search}
                 onChange={onChange}
             />
         </div>

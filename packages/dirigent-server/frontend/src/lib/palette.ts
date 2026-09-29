@@ -17,6 +17,7 @@
 
 import type { LucideIcon } from 'lucide-react'
 
+import { LABELS } from '@/lib/labels'
 import { createStore } from '@/lib/store'
 
 /** One thing the palette offers. */
@@ -53,17 +54,17 @@ export interface PaletteShelf {
 }
 
 /** The shelves, in the order the palette lays them out. */
-export const GO_GROUP = 'Go to'
-export const ADMIN_GROUP = 'Admin'
-export const VIEW_GROUP = 'View'
+export const GO_GROUP = LABELS.palette.shelf.go
+export const ADMIN_GROUP = LABELS.palette.shelf.admin
+export const VIEW_GROUP = LABELS.palette.shelf.view
 /** What the screen in front of somebody can do, which only that screen registers. */
-export const RUN_GROUP = 'Run'
+export const RUN_GROUP = LABELS.palette.shelf.run
 /** What a listing screen offers over its own rows: a filter, a refresh, the verb it owns. */
-export const LIST_GROUP = 'This listing'
+export const LIST_GROUP = LABELS.palette.shelf.list
 /** What the front door offers over the instance it is describing, which is not a listing. */
-export const DASHBOARD_GROUP = 'This screen'
-export const APPEARANCE_GROUP = 'Appearance'
-export const SESSION_GROUP = 'Session'
+export const DASHBOARD_GROUP = LABELS.palette.shelf.dashboard
+export const APPEARANCE_GROUP = LABELS.palette.shelf.appearance
+export const SESSION_GROUP = LABELS.palette.shelf.session
 
 /** Registered rows, oldest registration first. */
 const registered = createStore<readonly PaletteAction[]>([])

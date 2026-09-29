@@ -3,6 +3,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { expect, type APIRequestContext, type Locator, type Page } from '@playwright/test'
+import { LABELS } from '../src/lib/labels.ts'
 
 /**
  * What every spec in this suite needs before it can say anything: a session, this instance's
@@ -48,9 +49,9 @@ export async function signIn(page: Page): Promise<void> {
 /** Sign in as an account this run made, which is how a spec reads the app as another role. */
 export async function signInAs(page: Page, username: string, password: string): Promise<void> {
     await page.goto('/login')
-    await page.getByLabel('Username').fill(username)
-    await page.getByLabel('Password', { exact: true }).fill(password)
-    await page.getByRole('button', { name: 'Sign in' }).click()
+    await page.getByLabel(LABELS.word.username).fill(username)
+    await page.getByLabel(LABELS.word.password, { exact: true }).fill(password)
+    await page.getByRole('button', { name: LABELS.login.sign_in }).click()
     // The front door is the root, so a session that has just begun is at the root.
     await expect(page).toHaveURL(/^https?:\/\/[^/]+\/$/)
 }

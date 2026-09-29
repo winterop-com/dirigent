@@ -23,8 +23,8 @@ import { ApiError, type JsonMap, type Problem } from '@/lib/api'
 import { authStore } from '@/lib/auth'
 import { readBlock, readCatalog, type BlockEntry } from '@/lib/blocks'
 import { placeStep, type Placement } from '@/lib/canvas-layout'
-import { formatRelative } from '@/lib/format'
 import { headingOf, titleOf } from '@/lib/identity'
+import { LABELS } from '@/lib/labels'
 import { cycleRefusal, cycleThrough, withEdge, withoutEdge, withoutStep } from '@/lib/graph-edits'
 import { fillPanel, openPanelTab, type PanelTab } from '@/lib/panels'
 import { askAddStep, askRelayout } from '@/lib/canvas-actions'
@@ -102,27 +102,11 @@ const StarterPicker = lazy(() =>
     import('@/components/examples/StarterPicker').then((module) => ({ default: module.StarterPicker })),
 )
 
-/** What the empty canvas calls the other way in, which is the listing's own word for it. */
-const FROM_STARTER_LABEL = 'From a starter'
-
-export const VALIDATE_LABEL = 'Validate document'
-export const RUN_LABEL = 'Run pipeline'
-export const APPLY_LABEL = 'Apply document'
-
 /** How many recent runs the pipeline pane carries. */
 const RECENT_RUNS = 3
 
 /** How many versions the pipeline pane carries. */
 const RECENT_VERSIONS = 5
-
-/** What the breadcrumb and the palette's shelf call a document nothing has applied yet. */
-const NEW_TITLE = 'new pipeline'
-
-/** Why Run is shut on a document the instance holds no version of. */
-const NOT_APPLIED = 'Apply this document before running it.'
-
-/** What the strip says below the breakpoint, where the verbs that write are not drawn. */
-const READ_ONLY = 'Read only on a small screen'
 
 export function PipelineEditor() {
     // No `:code` at all is the new-document route: this screen with no pipeline behind it.
@@ -292,16 +276,17 @@ export function PipelineEditor() {
 
     // THE NOTE IS STATEFUL OR IT IS NOT THERE. What the graph already draws is not restated
     // along the foot; what the bar carries is what is wrong with the document and nothing else.
+    //
+    // THE IDENTIFIER IS A STANDING FACT: which version the instance holds, and nothing about the
+    // apply that wrote it. An apply is an event and is announced once, as it happens, and who
+    // made it is in the Versions section of the pipeline's own pane.
     useEffect(() => {
-        const missing = anythingUnmet(unmet) ? `${String(warnings.length)} unmet here` : null
+        const missing = anythingUnmet(unmet) ? LABELS.editor.topbar.unmet_here(warnings.length) : null
         const said = [missing, issues].filter((part) => part !== null)
         setScreenStatus({
             note: said.length === 0 ? null : said.join(' · '),
             tone: said.length === 0 ? 'quiet' : 'warn',
-            identifier:
-                applied === null
-                    ? null
-                    : `v${String(applied.version)} · applied ${formatRelative(applied.created_at)}${applied.applied_by === null ? '' : ` by ${applied.applied_by}`}`,
+            identifier: applied === null ? null : LABELS.editor.version.short(String(applied.version)),
         })
         return clearScreenStatus
     }, [applied, issues, unmet, warnings.length])
@@ -356,20 +341,23 @@ export function PipelineEditor() {
     // not one, the local document is the last that parsed -- so the step form, and the three
     // verbs along the top that would send that stale document, are all shut with one sentence.
     const disabled = small
-        ? READ_ONLY
+        ? LABELS.editor.topbar.read_only
         : state.parseError === null
           ? undefined
-          : 'The source pane holds text that is not a document.'
+          : LABELS.editor.topbar.unparsed
 
     // Editing the local document writes nothing, so what a role shuts is only what would reach
     // the server: the three verbs along the top, and not the form below them.
     const sent = firstShut(write.why, disabled)
 
     // `$run` runs the version the instance holds, and there is not one yet.
-    const runRefusal = creating ? firstShut(write.why, NOT_APPLIED) : sent
+    const runRefusal = creating ? firstShut(write.why, LABELS.editor.topbar.not_applied) : sent
 
     // The palette's own shelf, named for the pipeline the way every other reading of it is.
-    const shelf = `${RUN_GROUP} — ${creating ? NEW_TITLE : pipeline === null ? code : titleOf(pipeline)}`
+    const shelf = LABELS.editor.topbar.shelf(
+        RUN_GROUP,
+        creating ? LABELS.editor.topbar.new_pipeline : pipeline === null ? code : titleOf(pipeline),
+    )
 
     useEffect(() => {
         return registerActions([
@@ -379,7 +367,7 @@ export function PipelineEditor() {
                 ? [
                       {
                           id: 'pipeline:validate',
-                          title: VALIDATE_LABEL,
+                          title: LABELS.editor.apply.validate_title,
                           group: shelf,
                           screen: true,
                           icon: ShieldCheck,
@@ -390,7 +378,7 @@ export function PipelineEditor() {
                       },
                       {
                           id: 'pipeline:apply',
-                          title: APPLY_LABEL,
+                          title: LABELS.editor.apply.title,
                           group: shelf,
                           screen: true,
                           icon: CheckCircle2,
@@ -406,7 +394,7 @@ export function PipelineEditor() {
                 : [
                       {
                           id: 'pipeline:run',
-                          title: RUN_LABEL,
+                          title: LABELS.editor.topbar.run_pipeline,
                           group: shelf,
                           screen: true,
                           icon: Play,
@@ -421,7 +409,7 @@ export function PipelineEditor() {
                 : [
                       {
                           id: 'pipeline:add-step',
-                          title: 'Add step',
+                          title: LABELS.editor.canvas.add_step,
                           group: shelf,
                           screen: true,
                           icon: Plus,
@@ -431,7 +419,7 @@ export function PipelineEditor() {
                   ]),
             {
                 id: 'pipeline:relayout',
-                title: 'Re-layout the graph',
+                title: LABELS.editor.topbar.relayout,
                 group: shelf,
                 screen: true,
                 icon: LayoutGrid,
@@ -451,7 +439,7 @@ export function PipelineEditor() {
                 label: stepTabLabel(selected),
                 render: () =>
                     selected === null || local === null ? (
-                        <p className="p-4 text-sm text-muted-foreground">No step chosen.</p>
+                        <p className="p-4 text-sm text-muted-foreground">{LABELS.editor.step.none_chosen}</p>
                     ) : (
                         <StepTab
                             key={selected}
@@ -480,7 +468,7 @@ export function PipelineEditor() {
                 : [
                       {
                           id: 'pipeline',
-                          label: 'Pipeline',
+                          label: LABELS.word.pipeline,
                           render: () => (
                               <PipelineTab
                                   pipeline={pipeline}
@@ -495,7 +483,7 @@ export function PipelineEditor() {
                   ]),
             {
                 id: 'report',
-                label: 'Report',
+                label: LABELS.word.report,
                 render: () => (
                     <ReportPane
                         document={local}
@@ -512,7 +500,7 @@ export function PipelineEditor() {
             },
             {
                 id: 'source',
-                label: 'Source',
+                label: LABELS.word.source,
                 render: () => (
                     <SourceTab
                         document={local}
@@ -568,9 +556,9 @@ export function PipelineEditor() {
             <div className="flex items-center gap-x-2 md:gap-x-3">
                 <Breadcrumb
                     trail={[
-                        { label: 'Pipelines', to: '/pipelines' },
+                        { label: LABELS.screen.pipelines.name, to: '/pipelines' },
                         heading === null
-                            ? { label: NEW_TITLE }
+                            ? { label: LABELS.editor.topbar.new_pipeline }
                             : { label: heading.title, mono: !heading.named },
                     ]}
                     code={heading?.code}
@@ -594,18 +582,22 @@ export function PipelineEditor() {
                     className="hidden shrink-0 rounded-sm border border-border px-1.5 py-0.5 font-mono text-xs md:inline-block"
                     title={
                         pipeline === null || pipeline.current_version === null
-                            ? 'No version of this pipeline has been applied.'
-                            : `Version ${String(pipeline.current_version)} of this pipeline, counting the applies that changed it.`
+                            ? LABELS.editor.version.unapplied
+                            : LABELS.editor.version.counted(String(pipeline.current_version))
                     }
                 >
                     {pipeline === null || pipeline.current_version === null
-                        ? 'no version'
-                        : `v${String(pipeline.current_version)}`}
+                        ? LABELS.editor.version.none
+                        : LABELS.editor.version.short(String(pipeline.current_version))}
                 </span>
                 <div className="flex-1" />
                 {/* THE VERBS THAT WRITE ARE NOT DRAWN BELOW THE BREAKPOINT, and the strip says
                     so where the first of them would have been. */}
-                {small && <span className="shrink-0 text-xs text-muted-foreground">{READ_ONLY}</span>}
+                {small && (
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                        {LABELS.editor.topbar.read_only}
+                    </span>
+                )}
                 <ToolbarActions
                     actions={
                         // NOTHING THAT WRITES, AND NOTHING THAT ASKS THE SERVER ABOUT WHAT
@@ -616,7 +608,7 @@ export function PipelineEditor() {
                             : [
                                   {
                                       id: 'validate',
-                                      label: 'Validate',
+                                      label: LABELS.action.validate,
                                       icon: ShieldCheck,
                                       disabled: sent !== undefined,
                                       why: sent,
@@ -626,7 +618,7 @@ export function PipelineEditor() {
                                   },
                                   {
                                       id: 'run',
-                                      label: 'Run',
+                                      label: LABELS.action.run,
                                       icon: Play,
                                       disabled: runRefusal !== undefined,
                                       why: runRefusal,
@@ -636,7 +628,7 @@ export function PipelineEditor() {
                                   },
                                   {
                                       id: 'apply',
-                                      label: 'Apply',
+                                      label: LABELS.action.apply,
                                       icon: CheckCircle2,
                                       variant: applyVariant(edits, creating),
                                       disabled: sent !== undefined,
@@ -653,7 +645,9 @@ export function PipelineEditor() {
             <div className="relative min-h-96 flex-1 overflow-hidden rounded-md border border-border-strong bg-background">
                 {steps.length === 0 && local !== null && (
                     <div className="absolute top-4 left-4 z-10 flex items-center gap-3">
-                        <p className="pointer-events-none text-sm text-muted-foreground">No steps.</p>
+                        <p className="pointer-events-none text-sm text-muted-foreground">
+                            {LABELS.editor.canvas.no_steps}
+                        </p>
                         {/* THE OTHER WAY IN IS NOT ON THE SCREEN. Add step is a control on this
                             canvas and needs no narrating; copying a shipped document is a door
                             nothing here would otherwise show, so the empty state offers it. */}
@@ -666,14 +660,16 @@ export function PipelineEditor() {
                                 }}
                             >
                                 <BookOpen aria-hidden />
-                                {FROM_STARTER_LABEL}
+                                {LABELS.editor.canvas.from_starter}
                             </Button>
                         )}
                     </div>
                 )}
                 {local === null ? (
                     <div className="flex flex-col items-start gap-3 p-4">
-                        <p className="text-sm text-muted-foreground">No version to draw.</p>
+                        <p className="text-sm text-muted-foreground">
+                            {LABELS.editor.canvas.nothing_to_draw}
+                        </p>
                     </div>
                 ) : (
                     <Suspense
@@ -778,7 +774,9 @@ export function PipelineEditor() {
                     }}
                     onStarted={(accepted) => {
                         if (accepted.run_id === null) {
-                            toast.warning(accepted.detail ?? `nothing started: ${accepted.status}`)
+                            toast.warning(
+                                accepted.detail ?? LABELS.editor.topbar.nothing_started(accepted.status),
+                            )
                             return
                         }
                         void navigate(`/runs/${accepted.run_id}`)

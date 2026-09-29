@@ -4,10 +4,11 @@ import { Instant } from '@/components/Instant'
 import { Copyable, Fact, Section } from '@/components/run/Panel'
 import { StatusChip } from '@/components/run/StatusChip'
 import { asJson, elapsedBetween, formatDuration, formatWindow } from '@/lib/format'
+import { LABELS } from '@/lib/labels'
 import { triggerSummary, type RunOut } from '@/lib/runs'
 
-export const COPY_TRACE_LABEL = 'Copy the trace id'
-export const COPY_RUN_LABEL = 'Copy the run id'
+export const COPY_TRACE_LABEL = LABELS.runs.copy_trace
+export const COPY_RUN_LABEL = LABELS.runs.copy_run_id
 
 /**
  * The run itself: what it was given, who asked for it, when it happened, and what it is on.
@@ -39,14 +40,14 @@ export function RunTab({ run }: { run: RunOut }) {
 
             {run.error !== null && <p className="text-xs break-words text-critical">{run.error}</p>}
 
-            <Section title="Trigger">
+            <Section title={LABELS.word.trigger}>
                 <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
-                    <Fact term="kind" detail={started.kind} />
+                    <Fact term={LABELS.runs.fact.kind} detail={started.kind} />
                     <Fact
-                        term="by"
+                        term={LABELS.runs.fact.by}
                         detail={
                             started.parent === null ? (
-                                (started.who ?? 'not recorded')
+                                (started.who ?? LABELS.runs.trigger_not_recorded)
                             ) : (
                                 <Link
                                     className="text-primary-ink hover:underline"
@@ -61,16 +62,16 @@ export function RunTab({ run }: { run: RunOut }) {
                 </dl>
             </Section>
 
-            <Section title="Timing">
+            <Section title={LABELS.runs.timing}>
                 <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
-                    <Fact term="created" detail={<Instant at={run.created_at} />} />
-                    <Fact term="started" detail={<Instant at={run.started_at} />} />
-                    <Fact term="finished" detail={<Instant at={run.finished_at} />} />
+                    <Fact term={LABELS.runs.fact.created} detail={<Instant at={run.created_at} />} />
+                    <Fact term={LABELS.runs.fact.started} detail={<Instant at={run.started_at} />} />
+                    <Fact term={LABELS.runs.fact.finished} detail={<Instant at={run.finished_at} />} />
                     {run.window_start !== null && run.window_end !== null && (
                         <Fact
-                            term="window"
+                            term={LABELS.runs.fact.window}
                             detail={
-                                <span title={`${run.window_start} to ${run.window_end}`}>
+                                <span title={LABELS.measure.range(run.window_start, run.window_end)}>
                                     {formatWindow(run.window_start, run.window_end)}
                                 </span>
                             }
@@ -79,9 +80,9 @@ export function RunTab({ run }: { run: RunOut }) {
                 </dl>
             </Section>
 
-            <Section title="Parameters">
+            <Section title={LABELS.word.parameters}>
                 {params.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">This run was started with no parameters.</p>
+                    <p className="text-xs text-muted-foreground">{LABELS.runs.no_parameters}</p>
                 ) : (
                     <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
                         {params.map(([name, value]) => (
@@ -95,10 +96,10 @@ export function RunTab({ run }: { run: RunOut }) {
                 )}
             </Section>
 
-            <Section title="Definition">
+            <Section title={LABELS.word.definition}>
                 <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
                     <Fact
-                        term="pipeline"
+                        term={LABELS.runs.fact.pipeline}
                         detail={
                             <Link
                                 className="text-primary-ink hover:underline"
@@ -108,11 +109,14 @@ export function RunTab({ run }: { run: RunOut }) {
                             </Link>
                         }
                     />
-                    <Fact term="version" detail={run.pipeline_version} />
-                    <Fact term="run" detail={<Copyable value={run.id} label={COPY_RUN_LABEL} />} />
+                    <Fact term={LABELS.runs.fact.version} detail={run.pipeline_version} />
+                    <Fact
+                        term={LABELS.runs.fact.run}
+                        detail={<Copyable value={run.id} label={COPY_RUN_LABEL} />}
+                    />
                     {run.trace_id !== null && (
                         <Fact
-                            term="trace"
+                            term={LABELS.runs.fact.trace}
                             detail={<Copyable value={run.trace_id} label={COPY_TRACE_LABEL} />}
                         />
                     )}

@@ -8,6 +8,7 @@ import { useSmallScreen } from '@/hooks/use-small-screen'
 import { channelCode, channelLink, channelView, type Channel, type ChannelView } from '@/lib/alerting'
 import { formatRelative } from '@/lib/format'
 import { kindGlyph } from '@/lib/glyphs'
+import { LABELS } from '@/lib/labels'
 import { cn } from '@/lib/utils'
 
 /** What each dot is painted in, named through the semantic aliases rather than a colour. */
@@ -44,7 +45,7 @@ export function ChannelStrip({ channels, read }: { channels: readonly Channel[];
     if (small) return <ChannelFold channels={channels} note={note} />
     return (
         <>
-            <h2 className="text-sm font-semibold">Channels</h2>
+            <h2 className="text-sm font-semibold">{LABELS.alerting.channels_heading}</h2>
             {note === null ? (
                 <ul className="flex flex-wrap gap-2">
                     {channels.map((channel) => (
@@ -62,8 +63,8 @@ export function ChannelStrip({ channels, read }: { channels: readonly Channel[];
 
 /** What the section says instead of channels, and nothing where it has some to draw. */
 function channelNote(count: number, read: boolean): { text: string; tone: string } | null {
-    if (!read) return { text: 'Reading from the server', tone: 'text-sm text-faint' }
-    if (count === 0) return { text: 'No channel is installed.', tone: 'text-sm text-muted-foreground' }
+    if (!read) return { text: LABELS.alerting.reading, tone: 'text-sm text-faint' }
+    if (count === 0) return { text: LABELS.alerting.channels_none, tone: 'text-sm text-muted-foreground' }
     return null
 }
 
@@ -159,7 +160,7 @@ function ChannelFold({
                     className={cn('size-4 shrink-0 text-muted-foreground', open && 'rotate-90')}
                     aria-hidden
                 />
-                <span className="text-sm font-semibold">Channels</span>
+                <span className="text-sm font-semibold">{LABELS.alerting.channels_heading}</span>
                 <span className="ml-auto flex items-center gap-1.5" aria-hidden>
                     {channels.map((channel) => (
                         <Dot key={channel.id} tone={channelView(channel).tone} />
@@ -207,7 +208,7 @@ function ChannelRow({ channel }: { channel: Channel }) {
                 )}
             </td>
             <td className="w-0 py-2 pl-2 text-right align-middle whitespace-nowrap">
-                {view.label === 'not set up' && to !== null ? (
+                {view.label === LABELS.alerting.channel.not_set_up && to !== null ? (
                     <Link
                         to={to}
                         className={cn(
@@ -215,7 +216,7 @@ function ChannelRow({ channel }: { channel: Channel }) {
                             REACHED,
                         )}
                     >
-                        Set up {channel.notifier}
+                        {LABELS.alerting.set_up_channel(channel.notifier)}
                     </Link>
                 ) : (
                     channel.last_check_at !== null && (

@@ -17,6 +17,7 @@
 import { apiJson, apiSend, type JsonMap, type Page } from '@/lib/api'
 import { formatRelative } from '@/lib/format'
 import { titleOf } from '@/lib/identity'
+import { LABELS } from '@/lib/labels'
 import { PAGE } from '@/lib/paging'
 import type { RunWindow } from '@/lib/run-window'
 import type { RunPriority } from '@/lib/runs'
@@ -47,8 +48,8 @@ export interface ImportanceMark {
 }
 
 const CRITICAL_MARK: ImportanceMark = {
-    label: 'critical',
-    title: 'critical: an alert rule may fire for this pipeline and for no lesser one',
+    label: LABELS.pipelines.critical.chip,
+    title: LABELS.pipelines.critical.explained,
     className: 'text-critical',
 }
 
@@ -359,13 +360,13 @@ export function applyPipeline(document: JsonMap, dryRun: boolean): Promise<Apply
 /** What fires a pipeline on its own, in words, which is what the glyphs are titled with. */
 export function triggerSummary(row: Pick<PipelineOut, 'schedules' | 'webhooks' | 'watches'>): string {
     const parts = [
-        count(row.schedules, 'schedule'),
-        count(row.webhooks, 'webhook'),
-        count(row.watches, 'watch', 'watches'),
+        count(row.schedules, LABELS.pipelines.trigger_summary.schedule),
+        count(row.webhooks, LABELS.pipelines.trigger_summary.webhook),
+        count(row.watches, LABELS.pipelines.trigger_summary.watch, LABELS.pipelines.trigger_summary.watches),
     ].filter((part) => part !== null)
-    if (parts.length === 0) return 'nothing fires this on its own'
+    if (parts.length === 0) return LABELS.pipelines.trigger_summary.none
     if (parts.length === 1) return parts[0]
-    return `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`
+    return LABELS.pipelines.trigger_summary.and(parts.slice(0, -1).join(', '), parts[parts.length - 1])
 }
 
 /**
@@ -376,10 +377,10 @@ export function triggerSummary(row: Pick<PipelineOut, 'schedules' | 'webhooks' |
  * would be a lie about the instance. Two tags narrow, so the note says both.
  */
 export function emptyNote(loaded: number, tags: readonly string[]): string {
-    if (loaded > 0) return 'No loaded pipeline matches that.'
-    if (tags.length === 1) return `No pipeline is tagged ${tags[0]}.`
-    if (tags.length > 1) return `No pipeline wears all of ${tags.join(', ')}.`
-    return 'No pipelines.'
+    if (loaded > 0) return LABELS.pipelines.empty.filtered
+    if (tags.length === 1) return LABELS.pipelines.empty.tagged(tags[0])
+    if (tags.length > 1) return LABELS.pipelines.empty.all_tags(tags.join(', '))
+    return LABELS.pipelines.empty.none
 }
 
 /** A count and the thing counted, or nothing at all when there are none. */
@@ -405,7 +406,7 @@ export function lastRunView(last: LastRun | null, now: number = Date.now()): Las
     const instant = last.finished_at ?? last.started_at
     return {
         status: last.status,
-        when: instant === null ? 'not started' : formatRelative(instant, now),
+        when: instant === null ? LABELS.pipelines.last_run.not_started : formatRelative(instant, now),
         instant,
         failedStep: last.failed_step,
     }
@@ -413,5 +414,5 @@ export function lastRunView(last: LastRun | null, now: number = Date.now()): Las
 
 /** Whether a pipeline is one the instance no longer runs, and what to call that. */
 export function retirement(row: PipelineOut): string | null {
-    return row.active ? null : 'deactivated'
+    return row.active ? null : LABELS.pipelines.deactivated.chip
 }

@@ -1,5 +1,6 @@
 import { expect, test, type APIRequestContext } from '@playwright/test'
 
+import { LABELS } from '../src/lib/labels.ts'
 import {
     applyDocument,
     applyExample,
@@ -69,16 +70,16 @@ test('choosing a step on the graph opens it in the panel', async ({ page }) => {
     await page.locator('.react-flow__node').getByText('parse', { exact: true }).click()
 
     const panel = page.locator('aside')
-    await expect(panel.getByRole('tab', { name: 'Step' })).toBeVisible()
+    await expect(panel.getByRole('tab', { name: LABELS.word.step })).toBeVisible()
     await expect(panel.getByRole('tab', { name: 'Run' })).toBeVisible()
-    await expect(panel.getByRole('tab', { name: 'Output' })).toBeVisible()
+    await expect(panel.getByRole('tab', { name: LABELS.word.output })).toBeVisible()
     // The step's own facts, which only the selected step has.
     await expect(panel.getByText('convert.std', { exact: true })).toBeVisible()
     await expect(panel.getByText('Attempts (1)')).toBeVisible()
 
     // What the step produced is on its tab, which is where somebody inspecting the data
     // flowing between nodes finds it.
-    await expect(panel.getByRole('heading', { name: 'Output', exact: true })).toBeVisible()
+    await expect(panel.getByRole('heading', { name: LABELS.word.output, exact: true })).toBeVisible()
     await expect(panel.locator('pre').filter({ hasText: '"target"' }).first()).toBeVisible()
 
     // An output opens in a window: the read-only editor, which is a chunk of its own and is
@@ -279,7 +280,7 @@ test('the header says the run is running while it still is, without a reload', a
     // THE STREAM'S STATE, said in one word where somebody can read it off the screen. Here
     // rather than on the settled example above, because only a run that lasts has a live
     // moment to be read: that one is over before the graph it drew has finished drawing.
-    await expect(page.getByText('live', { exact: true })).toBeVisible()
+    await expect(page.getByText(LABELS.state.stream.live, { exact: true })).toBeVisible()
 
     const chip = page.locator('nav[aria-label="Breadcrumb"] + .status-chip')
     await expect(chip).toHaveAttribute('data-status', 'running', { timeout: 15_000 })

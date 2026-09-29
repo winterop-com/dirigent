@@ -19,6 +19,8 @@
  * `fetch`.
  */
 
+import { LABELS } from '@/lib/labels'
+
 /** Where the server states what this instance is. Outside the versioned API, always at the root. */
 export const CONFIG_PATH = '/config.json'
 
@@ -109,11 +111,9 @@ export class ApiError extends Error {
 export function problemOf(status: number, body: unknown, path: string): Problem {
     const fallback: Problem = {
         status,
-        title: status === 0 ? 'No answer' : `HTTP ${String(status)}`,
+        title: status === 0 ? LABELS.refusal.no_answer : LABELS.refusal.http_status(String(status)),
         detail:
-            status === 0
-                ? 'This server did not answer. It may be starting, or the connection was lost.'
-                : `The server answered ${String(status)} with no problem document.`,
+            status === 0 ? LABELS.refusal.unreachable : LABELS.refusal.no_problem_document(String(status)),
         code: status === 0 ? 'client.no_answer' : 'client.no_problem_document',
         params: {},
         problems: [],

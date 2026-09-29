@@ -29,6 +29,7 @@ import {
     type NextFire,
 } from '@/lib/home'
 import { headingOf } from '@/lib/identity'
+import { LABELS } from '@/lib/labels'
 import { kindMarks } from '@/lib/marks'
 import { DAY, needsALook, TILE_PAGE, withPipelines } from '@/lib/overview'
 import { DASHBOARD_GROUP, registerActions } from '@/lib/palette'
@@ -104,7 +105,7 @@ export function Dashboard() {
         return registerActions([
             {
                 id: 'dashboard:refresh',
-                title: 'Refresh the dashboard',
+                title: LABELS.dashboard.refresh,
                 group: DASHBOARD_GROUP,
                 screen: true,
                 icon: RefreshCw,
@@ -138,7 +139,7 @@ export function Dashboard() {
     return (
         <>
             <PageHeader
-                title="Dashboard"
+                title={LABELS.screen.dashboard.name}
                 aside={
                     <>
                         <ApiChip tag="runs" />
@@ -178,12 +179,12 @@ export function Dashboard() {
                 )}
             </div>
 
-            <Section title="Right now" to="/runs">
+            <Section title={LABELS.dashboard.right_now} to="/runs">
                 <PageState
                     loading={!running.read || !queued.read}
                     problem={running.problem ?? queued.problem}
                     empty={live.length === 0}
-                    emptyMessage="Nothing is running and nothing is waiting."
+                    emptyMessage={LABELS.dashboard.nothing_live}
                 >
                     <ListTable
                         chrome={{ footer: false }}
@@ -193,18 +194,18 @@ export function Dashboard() {
                         reading={false}
                         next={null}
                         onMore={NOTHING_MORE}
-                        noun="runs"
+                        noun={LABELS.dashboard.noun.runs}
                         onSelect={(run) => void navigate(`/runs/${run.id}`)}
                     />
                 </PageState>
             </Section>
 
-            <Section title="Needs a look" to="/runs">
+            <Section title={LABELS.dashboard.needs_a_look} to="/runs">
                 <PageState
                     loading={!failed.read || !messy.read}
                     problem={failed.problem ?? messy.problem}
                     empty={look.length === 0}
-                    emptyMessage="Nothing has failed or finished with errors."
+                    emptyMessage={LABELS.dashboard.nothing_to_look_at}
                 >
                     <ListTable
                         chrome={{ footer: false }}
@@ -214,18 +215,18 @@ export function Dashboard() {
                         reading={false}
                         next={null}
                         onMore={NOTHING_MORE}
-                        noun="runs"
+                        noun={LABELS.dashboard.noun.runs}
                         onSelect={(entry) => void navigate(`/runs/${entry.run.id}`)}
                     />
                 </PageState>
             </Section>
 
-            <Section title="Next fires" to="/triggers">
+            <Section title={LABELS.dashboard.next_fires} to="/triggers">
                 <PageState
                     loading={!ahead.read}
                     problem={ahead.problem}
                     empty={fires.length === 0}
-                    emptyMessage="No schedule is due to fire."
+                    emptyMessage={LABELS.dashboard.no_fire_due}
                 >
                     <ListTable
                         chrome={{ footer: false }}
@@ -235,7 +236,7 @@ export function Dashboard() {
                         reading={false}
                         next={null}
                         onMore={NOTHING_MORE}
-                        noun="firings"
+                        noun={LABELS.dashboard.noun.firings}
                         onSelect={(fire) => void navigate(`/pipelines/${encodeURIComponent(fire.pipeline)}`)}
                     />
                 </PageState>
@@ -274,17 +275,17 @@ const NOTHING_MORE = () => {
 const LIVE_COLUMNS: Column<RunOut>[] = [
     {
         id: 'status',
-        header: 'Status',
+        header: LABELS.word.status,
         cell: (run) => <StatusChip status={run.status} />,
     },
     {
         id: 'pipeline',
-        header: 'Pipeline',
+        header: LABELS.word.pipeline,
         cell: (run) => <span className="font-mono text-sm">{headingOf({ code: run.pipeline }).title}</span>,
     },
     {
         id: 'since',
-        header: 'Since',
+        header: LABELS.dashboard.column.since,
         className: 'text-right',
         cell: (run) => <Instant className="text-xs text-faint" at={run.started_at ?? run.created_at} />,
     },
@@ -294,12 +295,12 @@ const LIVE_COLUMNS: Column<RunOut>[] = [
 const FIRE_COLUMNS: Column<NextFire>[] = [
     {
         id: 'pipeline',
-        header: 'Pipeline',
+        header: LABELS.word.pipeline,
         cell: (fire) => <span className="font-mono text-sm">{headingOf({ code: fire.pipeline }).title}</span>,
     },
     {
         id: 'schedule',
-        header: 'Schedule',
+        header: LABELS.word.schedule,
         cell: (fire) => {
             const schedule = headingOf(fire.schedule)
             return (
@@ -320,7 +321,7 @@ const FIRE_COLUMNS: Column<NextFire>[] = [
     },
     {
         id: 'fires',
-        header: 'Fires',
+        header: LABELS.dashboard.column.fires,
         className: 'text-right',
         cell: (fire) => <Instant className="text-xs text-faint" at={fire.at} />,
     },

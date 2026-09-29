@@ -17,17 +17,13 @@ import {
 import { useMayWrite } from '@/hooks/use-may-write'
 import { useStore } from '@/hooks/use-store'
 import { type JsonMap, type Problem } from '@/lib/api'
+import { LABELS } from '@/lib/labels'
 import { refusalOf } from '@/lib/refusal'
 import { headingOf, type Addressable } from '@/lib/identity'
 import { paramsOf, startRun, type RunAccepted } from '@/lib/pipelines'
 import { readWindow, referencesWindow } from '@/lib/run-window'
 import { fieldsOf, maySubmit, validateFields, withUnreadable } from '@/lib/schema-form'
 import { offsetMinutes, timesMode, zoneLabel } from '@/lib/times'
-
-/** The dialog's title: the verb alone, since the pipeline is named beneath it. */
-export const RUN_TITLE = 'Run'
-
-export const RUN_NOW_LABEL = 'Run now'
 
 /**
  * Starting one ad hoc run of the version this instance holds.
@@ -134,7 +130,8 @@ export function RunDialog({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-lg" initialFocus={fields.length === 0 ? runNow : undefined}>
                 <DialogHeader>
-                    <DialogTitle>{RUN_TITLE}</DialogTitle>
+                    {/* The title is the verb alone, since the pipeline is named beneath it. */}
+                    <DialogTitle>{LABELS.action.run}</DialogTitle>
                     {/* The pipeline is the description, drawn as the quartet is drawn everywhere:
                         the name, then the code in mono, never the two glued into one sentence. */}
                     <DialogDescription>
@@ -173,19 +170,19 @@ export function RunDialog({
                 {needsWindow || windowAsked ? (
                     <div className="space-y-2">
                         <div className="flex flex-wrap items-baseline gap-x-2">
-                            <Label>Window</Label>
+                            <Label>{LABELS.word.window}</Label>
                             <span className="font-mono text-xs text-faint">{zoneLabel(mode)}</span>
                         </div>
                         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                             <WindowField
                                 id="run-window-start"
-                                label="Start"
+                                label={LABELS.word.start}
                                 value={windowStart}
                                 onChange={setWindowStart}
                             />
                             <WindowField
                                 id="run-window-end"
-                                label="End"
+                                label={LABELS.word.end}
                                 value={windowEnd}
                                 onChange={setWindowEnd}
                             />
@@ -199,7 +196,7 @@ export function RunDialog({
                             setWindowAsked(true)
                         }}
                     >
-                        Add a window
+                        {LABELS.editor.run.add_window}
                     </Button>
                 )}
 
@@ -220,28 +217,30 @@ export function RunDialog({
                 )}
 
                 <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">log</span>
+                    <span className="text-xs text-muted-foreground">{LABELS.editor.run.log}</span>
                     <Select
                         value={level}
                         onValueChange={(chosen) => {
                             setLevel(chosen === 'debug' ? 'debug' : 'info')
                         }}
                     >
-                        <SelectTrigger size="sm" className="w-40" aria-label="log level">
+                        <SelectTrigger size="sm" className="w-40" aria-label={LABELS.editor.run.log_level}>
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="info">info and up</SelectItem>
-                            <SelectItem value="debug">debug too</SelectItem>
+                            <SelectItem value="info">{LABELS.editor.run.info_and_up}</SelectItem>
+                            <SelectItem value="debug">{LABELS.editor.run.debug_too}</SelectItem>
                         </SelectContent>
                     </Select>
                 </div>
 
-                <p className="text-xs text-faint">runs as {username ?? 'this session'} · adhoc</p>
+                <p className="text-xs text-faint">
+                    {LABELS.editor.run.runs_as(username ?? LABELS.editor.run.this_session)}
+                </p>
 
                 <DialogFooter>
                     <Button variant="outline" onClick={() => onOpenChange(false)}>
-                        Cancel
+                        {LABELS.action.cancel}
                     </Button>
                     <Refusable why={shut}>
                         <Button
@@ -255,7 +254,7 @@ export function RunDialog({
                             title={shut}
                             onClick={start}
                         >
-                            {RUN_NOW_LABEL}
+                            {LABELS.editor.run.confirm}
                         </Button>
                     </Refusable>
                 </DialogFooter>

@@ -10,9 +10,10 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useStore } from '@/hooks/use-store'
 import { REFRESH_CHOICES, refreshLabel, refreshSeconds, setRefreshSeconds } from '@/lib/refresh'
+import { LABELS } from '@/lib/labels'
 
-export const REFRESH_LABEL = 'Refresh'
-export const CADENCE_LABEL = 'How often this refreshes on its own'
+export const REFRESH_LABEL = LABELS.shell.refresh
+export const CADENCE_LABEL = LABELS.shell.cadence
 
 /**
  * The refresh control: the verb, and how often it happens by itself.

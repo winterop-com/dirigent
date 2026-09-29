@@ -17,7 +17,6 @@ import { usePaged } from '@/hooks/use-paged'
 import { LOG_TARGET } from '@/lib/alert-form'
 import {
     channelsOf,
-    EVENT_LABELS,
     importanceNote,
     NOTIFICATION_STATUSES,
     readAlertRules,
@@ -33,6 +32,7 @@ import {
 } from '@/lib/alerting'
 import { readConnections, type ConnectionOut } from '@/lib/connections'
 import { headingOf } from '@/lib/identity'
+import { LABELS } from '@/lib/labels'
 import { ADMIN_GROUP, registerActions } from '@/lib/palette'
 import { closePanel, fillPanel, openPanel } from '@/lib/panels'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
@@ -120,7 +120,7 @@ function Alerting() {
                 [
                     {
                         id: 'rule',
-                        label: 'Rule',
+                        label: LABELS.word.rule,
                         render: () => (
                             <RulePanel
                                 rule={rule}
@@ -147,7 +147,7 @@ function Alerting() {
                 [
                     {
                         id: 'notification',
-                        label: 'Notification',
+                        label: LABELS.word.notification,
                         render: () => (
                             <NotificationPanel
                                 notification={row}
@@ -174,7 +174,7 @@ function Alerting() {
                 ? [
                       {
                           id: 'alerting:rule',
-                          title: 'New alert rule',
+                          title: LABELS.alerting.palette.new_rule,
                           group: ADMIN_GROUP,
                           screen: true,
                           icon: BellPlus,
@@ -185,7 +185,7 @@ function Alerting() {
                       },
                       {
                           id: 'alerting:test',
-                          title: 'Send a test through a channel',
+                          title: LABELS.alerting.palette.send_test,
                           group: ADMIN_GROUP,
                           screen: true,
                           icon: Send,
@@ -198,7 +198,7 @@ function Alerting() {
                 : []),
             {
                 id: 'alerting:reload',
-                title: 'Read the alert rules again',
+                title: LABELS.alerting.palette.reload,
                 group: ADMIN_GROUP,
                 screen: true,
                 icon: RefreshCw,
@@ -233,12 +233,12 @@ function Alerting() {
     return (
         <>
             <PageHeader
-                title="Alerting"
+                title={LABELS.screen.alerting.name}
                 aside={<ApiChip tag="alerts" />}
                 actions={[
                     {
                         id: 'test',
-                        label: 'Send a test',
+                        label: LABELS.action.send_test,
                         icon: Send,
                         variant: 'outline',
                         disabled: !write.may,
@@ -249,7 +249,7 @@ function Alerting() {
                     },
                     {
                         id: 'rule',
-                        label: 'New rule',
+                        label: LABELS.alerting.new_rule,
                         icon: BellPlus,
                         disabled: !write.may,
                         why: write.why,
@@ -265,12 +265,12 @@ function Alerting() {
             </section>
 
             <section className="space-y-2">
-                <h2 className="text-sm font-semibold">Rules</h2>
+                <h2 className="text-sm font-semibold">{LABELS.alerting.rules_heading}</h2>
                 <PageState
                     loading={!rules.state.read}
                     problem={rules.state.problem}
                     empty={ruleRows.length === 0}
-                    emptyMessage="No rules."
+                    emptyMessage={LABELS.alerting.rules_empty}
                 >
                     <ListTable
                         columns={RULE_COLUMNS}
@@ -280,7 +280,7 @@ function Alerting() {
                         reading={rules.state.reading}
                         next={rules.state.next}
                         onMore={rules.more}
-                        noun="rules"
+                        noun={LABELS.alerting.rules_noun}
                         onSelect={chooseRule}
                         selected={(rule) => rule.id === chosenRule}
                         onClose={unchoose}
@@ -290,12 +290,12 @@ function Alerting() {
 
             <section className="mt-8 space-y-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h2 className="text-sm font-semibold">Notifications</h2>
+                    <h2 className="text-sm font-semibold">{LABELS.alerting.notifications_heading}</h2>
                     <div className="flex flex-wrap gap-2">
                         <Choice
-                            label="Status"
+                            label={LABELS.word.status}
                             value={filters.status}
-                            anything="Any status"
+                            anything={LABELS.alerting.any_status}
                             options={NOTIFICATION_STATUSES.map((one) => ({
                                 value: one,
                                 label: one,
@@ -306,9 +306,9 @@ function Alerting() {
                             }}
                         />
                         <Choice
-                            label="Notifier"
+                            label={LABELS.alerting.notifier}
                             value={filters.notifier}
-                            anything="Any notifier"
+                            anything={LABELS.alerting.any_notifier}
                             options={notifierOptions(channels.rows)}
                             onChange={(notifier) => {
                                 setFilters((held) => ({ ...held, notifier }))
@@ -320,7 +320,7 @@ function Alerting() {
                     loading={!notifications.state.read}
                     problem={notifications.state.problem}
                     empty={notificationRows.length === 0}
-                    emptyMessage="Nothing queued."
+                    emptyMessage={LABELS.alerting.notifications_empty}
                 >
                     <ListTable
                         columns={NOTIFICATION_COLUMNS}
@@ -329,7 +329,7 @@ function Alerting() {
                         reading={notifications.state.reading}
                         next={notifications.state.next}
                         onMore={notifications.more}
-                        noun="notifications"
+                        noun={LABELS.alerting.notifications_noun}
                         onSelect={chooseNotification}
                         selected={(row) => row.id === chosenNotification}
                         onClose={unchoose}
@@ -440,7 +440,7 @@ function Scope({ rule }: { rule: AlertRuleOut }) {
 const RULE_COLUMNS: Column<AlertRuleOut>[] = [
     {
         id: 'rule',
-        header: 'Rule',
+        header: LABELS.word.rule,
         kind: 'title',
         cell: (rule) => {
             const heading = headingOf(rule)
@@ -469,46 +469,46 @@ const RULE_COLUMNS: Column<AlertRuleOut>[] = [
     },
     {
         id: 'event',
-        header: 'Event',
-        cell: (rule) => <span className="text-sm">{EVENT_LABELS[rule.event]}</span>,
+        header: LABELS.word.event,
+        cell: (rule) => <span className="text-sm">{LABELS.alerting.event[rule.event]}</span>,
     },
     {
         id: 'scope',
-        header: 'Scope',
+        header: LABELS.word.scope,
         cell: (rule) => <Scope rule={rule} />,
     },
     {
         id: 'delivers',
-        header: 'Delivers through',
+        header: LABELS.word.delivers_through,
         cell: (rule) => <Target notifier={rule.notifier} connection={rule.connection} />,
     },
     {
         id: 'throttle',
-        header: 'Throttle',
+        header: LABELS.word.throttle,
         className: 'font-mono text-xs',
         cell: (rule) => <span className="text-muted-foreground">{throttleNote(rule.throttle)}</span>,
     },
     {
         id: 'sent',
-        header: 'Last sent',
+        header: LABELS.alerting.last_sent,
         className: 'text-xs',
         cell: (rule) =>
             rule.last_sent_at === null ? (
-                <span className="text-muted-foreground">never</span>
+                <span className="text-muted-foreground">{LABELS.word.never}</span>
             ) : (
                 <Instant className="text-muted-foreground" at={rule.last_sent_at} />
             ),
     },
     {
         id: 'live',
-        header: 'State',
+        header: LABELS.word.state,
         cell: (rule) =>
             rule.paused ? (
-                <span className="text-xs text-muted-foreground">paused</span>
+                <span className="text-xs text-muted-foreground">{LABELS.state.armed.paused}</span>
             ) : rule.active ? (
-                <span className="text-xs text-good">active</span>
+                <span className="text-xs text-good">{LABELS.state.armed.active}</span>
             ) : (
-                <span className="text-xs text-muted-foreground">off</span>
+                <span className="text-xs text-muted-foreground">{LABELS.state.armed.off}</span>
             ),
     },
 ]
@@ -516,12 +516,12 @@ const RULE_COLUMNS: Column<AlertRuleOut>[] = [
 const NOTIFICATION_COLUMNS: Column<NotificationOut>[] = [
     {
         id: 'status',
-        header: 'Status',
+        header: LABELS.word.status,
         cell: (notification) => <StatusChip status={notification.status} />,
     },
     {
         id: 'subject',
-        header: 'Subject',
+        header: LABELS.word.subject,
         kind: 'prose',
         cell: (notification) => (
             <span className="flex min-w-0 flex-col">
@@ -538,32 +538,32 @@ const NOTIFICATION_COLUMNS: Column<NotificationOut>[] = [
     },
     {
         id: 'delivers',
-        header: 'Delivers through',
+        header: LABELS.word.delivers_through,
         cell: (notification) => (
             <Channel notifier={notification.notifier} connection={notification.connection} />
         ),
     },
     {
         id: 'run',
-        header: 'Run',
+        header: LABELS.word.run,
         cell: (notification) => <Run notification={notification} />,
     },
     {
         id: 'queued',
-        header: 'Queued',
+        header: LABELS.alerting.queued_at,
         className: 'text-xs',
         cell: (notification) => <Instant className="text-muted-foreground" at={notification.created_at} />,
     },
     {
         id: 'sent',
-        header: 'Sent',
+        header: LABELS.alerting.sent_at,
         className: 'text-xs',
         cell: (notification) =>
             notification.status === 'sent' ? (
                 <Instant className="text-muted-foreground" at={notification.sent_at} />
             ) : notification.attempt > 0 ? (
                 <span className="text-faint">
-                    {notification.attempt} of {notification.max_attempts} attempts
+                    {LABELS.alerting.attempts_counted(notification.attempt, notification.max_attempts)}
                 </span>
             ) : null,
     },

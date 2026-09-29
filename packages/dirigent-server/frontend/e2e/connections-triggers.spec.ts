@@ -1,5 +1,6 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 
+import { LABELS } from '../src/lib/labels.ts'
 import { apiPrefix, applyDocument, applyExample, signIn } from './support.ts'
 
 /**
@@ -108,7 +109,7 @@ test('a connection row is its code, its kind and its health, and nothing else', 
     await expect(page.locator('body')).not.toContainText('a credential nothing may ever show')
 
     // It has never been checked until something checks it.
-    await expect(row).toContainText('never checked')
+    await expect(row).toContainText(LABELS.state.health.unchecked)
 
     // And the page behind the row is where all of that is.
     await row.click()
@@ -132,7 +133,7 @@ test('checking a connection moves its own row, and the sentence is on the toolti
     await row.getByRole('button', { name: `Check ${CONNECTION}` }).click()
 
     await expect(row).toContainText('healthy')
-    await expect(row).not.toContainText('never checked')
+    await expect(row).not.toContainText(LABELS.state.health.unchecked)
 
     // What the check said is not on the row: reaching the health cell is what says it. The
     // tooltip primitive describes its trigger rather than carrying a role, so it is found by
@@ -211,13 +212,13 @@ test('a connection is minted through the form its own kind publishes', async ({ 
     await page.goto('/connections')
 
     const code = `minted-${String(Date.now())}`
-    await page.getByRole('button', { name: 'New connection' }).click()
+    await page.getByRole('button', { name: LABELS.connections.new }).click()
     const dialog = page.getByRole('dialog')
-    await dialog.getByLabel('Code', { exact: true }).fill(code)
+    await dialog.getByLabel(LABELS.word.code, { exact: true }).fill(code)
 
     // The kind is a choice over what this instance has installed, and choosing one is what
     // draws the config: every box below is the kind's own schema, its secrets excepted.
-    await dialog.getByLabel('Kind').click()
+    await dialog.getByLabel(LABELS.word.kind).click()
     // Every kind the dialog offers is marked as well as named.
     const kindRow = page.getByRole('option', { name: 'http', exact: true })
     await expect(kindRow.locator('[data-slot="mark"]')).toHaveCount(1)
@@ -228,7 +229,7 @@ test('a connection is minted through the form its own kind publishes', async ({ 
     // A secret is written and never read, here as much as in the panel.
     await expect(dialog.getByLabel('basic_password')).toHaveAttribute('type', 'password')
 
-    await dialog.getByRole('button', { name: 'Create' }).click()
+    await dialog.getByRole('button', { name: LABELS.action.create }).click()
     await expect(page.getByRole('dialog')).toHaveCount(0)
 
     // The row is on the listing, saying which kind it is and never a word of the credential.
@@ -254,17 +255,17 @@ test('a schedule shows its clock and its zone, and a webhook shows its prefix', 
 
     const schedule = rowOf(page, CRON.title)
     await expect(schedule).toContainText(CRON.schedule)
-    await expect(schedule).toContainText('0 5 * * *')
+    await expect(schedule).toContainText(LABELS.triggers.schedule.dialog.clock.cron.hint)
     await expect(schedule).toContainText('Europe/Oslo')
     await expect(schedule).toContainText(CRON.pipeline)
-    await expect(schedule).toContainText('managed')
+    await expect(schedule).toContainText(LABELS.triggers.managed)
 
     // The next firing is an instant like any other: read relatively, and ahead of now.
     await expect(schedule.getByTestId('next-fire')).toHaveText(/^in \d+[mhd]$/)
 
     const webhook = rowOf(page, HOOK.webhook)
     await expect(webhook).toContainText('POST /hooks/')
-    await expect(webhook).toContainText('unsigned')
+    await expect(webhook).toContainText(LABELS.triggers.webhook.unsigned)
     await expect(webhook).toContainText('60/min')
 
     // The foot counts what has been read, and there is no page number anywhere on the screen.
@@ -284,8 +285,8 @@ test('a schedule opens its own facts and its firing history beside the listing',
     // The panel's own tab, rather than the aside: the navigation rail is an aside too.
     const panel = page.getByRole('tabpanel')
     await expect(panel).toContainText('Europe/Oslo')
-    await expect(panel).toContainText('Firings')
-    await expect(panel).toContainText('Not fired.')
+    await expect(panel).toContainText(LABELS.triggers.schedule.firings)
+    await expect(panel).toContainText(LABELS.triggers.schedule.not_fired)
 
     // A paused schedule fires at no instant. The row keeps the one the scheduler computed, so
     // that it has somewhere to resume from, and the screen says it is paused once: the chip.
@@ -293,10 +294,10 @@ test('a schedule opens its own facts and its firing history beside the listing',
     await panel.getByRole('button', { name: 'Pause' }).click()
     await expect(panel.getByRole('button', { name: 'Resume' })).toBeVisible()
     await expect(panel.getByTestId('next-fire')).toHaveCount(0)
-    await expect(panel.getByText('paused', { exact: true })).toHaveCount(1)
+    await expect(panel.getByText(LABELS.state.armed.paused, { exact: true })).toHaveCount(1)
     // The listing behind says it the same way: its chip, and no Next beside it.
     await expect(page.getByTestId('next-fire')).toHaveCount(0)
-    await expect(page.getByText('paused', { exact: true })).toHaveCount(2)
+    await expect(page.getByText(LABELS.state.armed.paused, { exact: true })).toHaveCount(2)
 
     await panel.getByRole('button', { name: 'Resume' }).click()
     await expect(panel.getByTestId('next-fire')).toHaveText(/^in \d+[mhd]$/)
@@ -328,9 +329,9 @@ test('a watch shows the run it has waiting, and pausing it leaves none', async (
     await panel.getByRole('button', { name: 'Pause' }).click()
     await expect(panel.getByRole('button', { name: 'Resume' })).toBeVisible()
     // Paused is said once, by the chip, and not again where the waiting run would be.
-    await expect(panel.getByText('paused', { exact: true })).toHaveCount(1)
-    await expect(row.getByText('paused', { exact: true })).toHaveCount(1)
-    await expect(panel.getByText('Waiting', { exact: true })).toHaveCount(0)
+    await expect(panel.getByText(LABELS.state.armed.paused, { exact: true })).toHaveCount(1)
+    await expect(row.getByText(LABELS.state.armed.paused, { exact: true })).toHaveCount(1)
+    await expect(panel.getByText(LABELS.triggers.watch.waiting, { exact: true })).toHaveCount(0)
 
     await panel.getByRole('button', { name: 'Resume' }).click()
     await expect(panel.getByRole('button', { name: 'Pause' })).toBeVisible()
@@ -387,7 +388,7 @@ test('the heading keeps its width at 1024 beside an open panel, and the verbs fo
     })
     expect(measured.box).toBeGreaterThanOrEqual(measured.natural)
     // The create verbs that no longer fit beside it are behind the one menu.
-    await expect(page.getByRole('button', { name: 'More actions' })).toBeVisible()
+    await expect(page.getByRole('button', { name: LABELS.shell.more_actions })).toBeVisible()
     expect(
         await page.evaluate(
             () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
@@ -452,19 +453,19 @@ test('a webhook minted in the browser shows its token once and never again', asy
     await applyExample(page.request, HOOK.file)
 
     await page.goto('/triggers')
-    await page.getByRole('button', { name: 'New webhook', exact: true }).click()
+    await page.getByRole('button', { name: LABELS.triggers.webhook.new, exact: true }).click()
 
     const code = `minted-${String(Date.now())}`
     const dialog = page.getByRole('dialog')
     await pick(page, 'Pipeline', HOOK.pipeline, HOOK.pipelineTitle)
-    await dialog.getByLabel('Code', { exact: true }).fill(code)
+    await dialog.getByLabel(LABELS.word.code, { exact: true }).fill(code)
 
     // The mapping is the pipeline's own parameters, one row each, and a path is written
     // against the one the payload carries.
-    await expect(dialog.getByLabel('environment', { exact: true })).toBeVisible()
+    await expect(dialog.getByLabel(LABELS.shell.instance.environment, { exact: true })).toBeVisible()
     await dialog.getByLabel('day', { exact: true }).fill('$.published.date')
 
-    await dialog.getByRole('button', { name: 'Create' }).click()
+    await dialog.getByRole('button', { name: LABELS.action.create }).click()
 
     // The token is readable exactly here: the instance keeps only its hash.
     const token = page.getByTestId('webhook-token')
@@ -473,7 +474,7 @@ test('a webhook minted in the browser shows its token once and never again', asy
     expect(minted.length).toBeGreaterThan(8)
     await expect(page.getByRole('dialog')).toContainText('/hooks/')
 
-    await page.getByRole('button', { name: 'Done' }).click()
+    await page.getByRole('button', { name: LABELS.action.done }).click()
     await expect(page.getByTestId('webhook-token')).toHaveCount(0)
 
     // The listing has the webhook, with only the prefix of the token that was minted.
@@ -492,14 +493,16 @@ test('a schedule is created by picking its pipeline and reading its clock back',
     await applyExample(page.request, CRON.file)
 
     await page.goto('/triggers')
-    await page.getByRole('button', { name: 'New schedule', exact: true }).click()
+    await page.getByRole('button', { name: LABELS.triggers.schedule.new, exact: true }).click()
 
     const code = `picked-${String(Date.now())}`
     const dialog = page.getByRole('dialog')
     await pick(page, 'Pipeline', CRON.pipeline, CRON.pipelineTitle)
-    await dialog.getByLabel('Code', { exact: true }).fill(code)
+    await dialog.getByLabel(LABELS.word.code, { exact: true }).fill(code)
     await pick(page, 'Timezone', 'Europe/Oslo', 'Europe/Oslo')
-    await dialog.getByLabel('Cron', { exact: true }).fill('0 5 * * *')
+    await dialog
+        .getByLabel(LABELS.triggers.schedule.dialog.clock.cron.name, { exact: true })
+        .fill('0 5 * * *')
 
     // The clock is read back by the instance: three firings, in the zone that was chosen.
     const reading = dialog.getByTestId('clock-reading')
@@ -509,11 +512,11 @@ test('a schedule is created by picking its pipeline and reading its clock back',
     // Choosing the pipeline drew its own parameter form, and a pinned value is sent with it.
     await dialog.getByLabel('day', { exact: true }).fill('2026-02-02')
 
-    await dialog.getByRole('button', { name: 'Create' }).click()
+    await dialog.getByRole('button', { name: LABELS.action.create }).click()
     await expect(page.getByRole('dialog')).toHaveCount(0)
 
     const row = rowOf(page, code)
-    await expect(row).toContainText('0 5 * * *')
+    await expect(row).toContainText(LABELS.triggers.schedule.dialog.clock.cron.hint)
     await expect(row).toContainText('Europe/Oslo')
 
     const prefix = await apiPrefix(page.request)
@@ -526,13 +529,15 @@ test('a clock nothing can read says so where its firings would be, and shuts Cre
     await applyExample(page.request, CRON.file)
 
     await page.goto('/triggers')
-    await page.getByRole('button', { name: 'New schedule', exact: true }).click()
+    await page.getByRole('button', { name: LABELS.triggers.schedule.new, exact: true }).click()
 
     const dialog = page.getByRole('dialog')
     await pick(page, 'Pipeline', CRON.pipeline, CRON.pipelineTitle)
-    await dialog.getByLabel('Code', { exact: true }).fill('never')
-    await dialog.getByLabel('Cron', { exact: true }).fill('not a cron expression')
+    await dialog.getByLabel(LABELS.word.code, { exact: true }).fill('never')
+    await dialog
+        .getByLabel(LABELS.triggers.schedule.dialog.clock.cron.name, { exact: true })
+        .fill('not a cron expression')
 
     await expect(dialog.getByTestId('clock-reading')).toContainText('is not a cron expression')
-    await expect(dialog.getByRole('button', { name: 'Create' })).toBeDisabled()
+    await expect(dialog.getByRole('button', { name: LABELS.action.create })).toBeDisabled()
 })

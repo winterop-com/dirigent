@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { useStore } from '@/hooks/use-store'
 import { authStore } from '@/lib/auth'
 import type { HealthRow } from '@/lib/home'
+import { LABELS } from '@/lib/labels'
 import type { TileTone } from '@/lib/overview'
 import { cn } from '@/lib/utils'
 
@@ -45,11 +46,9 @@ export function HealthPanel({ rows, note, reading }: { rows: HealthRow[]; note: 
         <Card className="gap-0 p-0">
             <CardContent className="flex h-full flex-col p-0">
                 <div className="space-y-1 px-3 py-3">
-                    <h2 className="text-sm font-semibold">Health</h2>
+                    <h2 className="text-sm font-semibold">{LABELS.word.health}</h2>
                     <p className="text-xs text-muted-foreground">
-                        {reading
-                            ? 'Reading from the server'
-                            : 'The workers claiming work, and every connection.'}
+                        {reading ? LABELS.dashboard.reading_from_server : LABELS.dashboard.health.hint}
                     </p>
                 </div>
 

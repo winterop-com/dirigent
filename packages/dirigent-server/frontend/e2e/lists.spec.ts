@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
+import { LABELS } from '../src/lib/labels.ts'
 import { applyDocument, applyExample, ranToCompletion, signIn, startRun } from './support.ts'
 
 /**
@@ -114,7 +115,7 @@ test('the pipelines listing carries the identity, the triggers and the last run'
     await expect(rowOf(page, RAN.title).locator('.status-dot')).toBeVisible()
 
     // The one that has not run says so rather than showing an empty cell.
-    await expect(rowOf(page, IDLE.title)).toContainText('never run')
+    await expect(rowOf(page, IDLE.title)).toContainText(LABELS.pipelines.last_run.never)
 
     // The foot counts what has been read, and there is no page number anywhere on the screen.
     await expect(page.getByText(/\d+ pipelines/)).toBeVisible()
@@ -165,7 +166,7 @@ test('two tags narrow the pipelines listing, and the address carries what they n
     await expect(page.getByRole('button', { name: 'Stop filtering by transform' })).toBeVisible()
 
     // The option wears what its value wears: the menu rows are the chips the listing draws.
-    await page.getByRole('button', { name: 'Filter by tag' }).click()
+    await page.getByRole('button', { name: LABELS.shell.tag_filter.label }).click()
     await page.getByRole('menuitemcheckbox', { name: 'graph', exact: true }).click()
 
     await expect(page).toHaveURL(/\?tag=transform&tag=graph$/)
@@ -192,7 +193,7 @@ test('the runs listing narrows by the tags the runs pipeline wears, and no row r
     await expect(runRowOf(page, RAN.code)).toBeVisible()
     await expect(runRowOf(page, NAMELESS.code)).toBeVisible()
 
-    await page.getByRole('button', { name: 'Filter by tag' }).click()
+    await page.getByRole('button', { name: LABELS.shell.tag_filter.label }).click()
     await page.getByRole('menuitemcheckbox', { name: 'graph', exact: true }).click()
     await page.keyboard.press('Escape')
 
@@ -234,24 +235,24 @@ test('a file picked on the listing lands in the new-document editor, and applyin
     await page.goto('/pipelines')
 
     // From file… lives behind the split button's chevron and opens the OS picker directly.
-    await page.getByRole('button', { name: 'More ways to start a pipeline' }).click()
+    await page.getByRole('button', { name: LABELS.pipelines.more_ways }).click()
     const picking = page.waitForEvent('filechooser')
-    await page.getByRole('menuitem', { name: 'From file…' }).click()
+    await page.getByRole('menuitem', { name: LABELS.pipelines.from_file }).click()
     const chooser = await picking
     await chooser.setFiles({ name: 'typed.yaml', mimeType: 'text/yaml', buffer: Buffer.from(TYPED) })
 
     // The document arrives in the editor, and the source pane holds the file's own text --
     // comments and all, because nothing has re-rendered it from the document yet.
     await expect(page).toHaveURL(/\/pipelines\/\$new$/)
-    await page.locator('aside').getByRole('tab', { name: 'Source' }).click()
+    await page.locator('aside').getByRole('tab', { name: LABELS.word.source }).click()
     const lines = page.getByTestId('code-editor').locator('.view-lines')
     await expect(lines).toContainText('typed-in-the-browser')
     await expect(lines).toContainText(TYPED_COMMENT)
 
-    await page.getByRole('button', { name: 'Apply', exact: true }).click()
+    await page.getByRole('button', { name: LABELS.action.apply, exact: true }).click()
     const dialog = page.getByRole('dialog')
     await expect(dialog.getByText(/Apply (creates|writes version)/)).toBeVisible()
-    await dialog.getByRole('button', { name: 'Apply' }).click()
+    await dialog.getByRole('button', { name: LABELS.action.apply }).click()
     await expect(page).toHaveURL(/\/pipelines\/typed-in-the-browser$/)
 
     // TITLE ELSE CODE: this document gave itself a name, so the row's link wears the name and
@@ -284,9 +285,9 @@ test('choosing a pipeline row reads it beside the listing, and its title opens t
     await row.getByText(RAN.code, { exact: true }).click()
 
     const panel = page.locator('aside')
-    await expect(panel.getByText('Parameters', { exact: true })).toBeVisible()
-    await expect(panel.getByText('Recent runs', { exact: true })).toBeVisible()
-    await expect(panel.getByText('Versions', { exact: true })).toBeVisible()
+    await expect(panel.getByText(LABELS.word.parameters, { exact: true })).toBeVisible()
+    await expect(panel.getByText(LABELS.editor.pipeline_pane.recent_runs, { exact: true })).toBeVisible()
+    await expect(panel.getByText(LABELS.editor.pipeline_pane.versions, { exact: true })).toBeVisible()
     await expect(panel.getByText(DESCRIPTION, { exact: false })).toBeVisible()
     // Reading a row did not leave the listing.
     await expect(page).toHaveURL(/\/pipelines$/)
@@ -313,13 +314,13 @@ test('pressing the open pipeline row again takes the panel back', async ({ page 
     const code = row.getByText(RAN.code, { exact: true })
 
     await code.click()
-    await expect(page.locator('aside').getByText('Parameters', { exact: true })).toBeVisible()
+    await expect(page.locator('aside').getByText(LABELS.word.parameters, { exact: true })).toBeVisible()
     await expect(row).toHaveAttribute('aria-selected', 'true')
 
     await code.click()
     await expect(row).toHaveAttribute('aria-selected', 'false')
     // An unfilled panel is not a panel, so the pane it was reading is gone with the selection.
-    await expect(page.getByText('Parameters', { exact: true })).toHaveCount(0)
+    await expect(page.getByText(LABELS.word.parameters, { exact: true })).toHaveCount(0)
     await expect(page).toHaveURL(/\/pipelines$/)
 })
 
@@ -574,7 +575,7 @@ test.describe('a run started by a step of another run', () => {
         await row.click()
         await expect(page).toHaveURL(/\/runs\/[0-9a-f-]+$/)
         await expect(page.locator('.react-flow__node').first()).toBeVisible()
-        await page.getByRole('button', { name: 'Show or hide the side panel' }).click()
+        await page.getByRole('button', { name: LABELS.shell.toggle_panel }).click()
         const panel = page.locator('aside')
         await panel.getByRole('tab', { name: 'Run' }).click()
         const toParent = panel.getByRole('link', { name: `a step of run ${parent.slice(-8)}` })

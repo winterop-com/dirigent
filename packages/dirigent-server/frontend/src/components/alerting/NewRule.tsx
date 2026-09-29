@@ -33,10 +33,11 @@ import {
     TEMPLATE_MEDIA_TYPE,
     unreadyRule,
 } from '@/lib/alert-form'
-import { ALERT_EVENTS, createRule, EVENT_LABELS, type AlertEvent, type AlertScope } from '@/lib/alerting'
+import { ALERT_EVENTS, createRule, type AlertEvent, type AlertScope } from '@/lib/alerting'
 import type { Problem } from '@/lib/api'
 import type { ConnectionOut } from '@/lib/connections'
 import { headingOf } from '@/lib/identity'
+import { LABELS } from '@/lib/labels'
 import type { PickerOption } from '@/lib/picker'
 import { byTitle, readAllPipelines, type Importance } from '@/lib/pipelines'
 import { refusalOf } from '@/lib/refusal'
@@ -47,7 +48,7 @@ const NO_THROTTLE = '0s'
 
 /** Which buffer the body pane edits, and what a screen reader and a test call it. */
 const BODY_PATH = 'alert-rule/new/body'
-const BODY_LABEL = 'body'
+const BODY_LABEL = LABELS.alerting.body_pane
 
 /**
  * Declare one rule: an event, at a scope, through one channel.
@@ -132,7 +133,7 @@ export function NewRule({
                 showCloseButton={false}
             >
                 <DialogHeader>
-                    <DialogTitle>New rule</DialogTitle>
+                    <DialogTitle>{LABELS.alerting.new_rule}</DialogTitle>
                 </DialogHeader>
 
                 {/* The form scrolls and the footer does not: a dialog with a pane in it is
@@ -141,45 +142,48 @@ export function NewRule({
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                         <Field
                             id="rule-code"
-                            label="Code"
+                            label={LABELS.word.code}
                             value={code}
                             onChange={setCode}
-                            placeholder="ops-slack-failed"
+                            placeholder={LABELS.alerting.code_placeholder}
                             mono
                         />
                         <Field
                             id="rule-name"
-                            label="Name"
+                            label={LABELS.word.name}
                             value={named}
                             onChange={setNamed}
-                            placeholder="Tell the ops channel"
+                            placeholder={LABELS.alerting.name_placeholder}
                         />
                     </div>
 
                     <Field
                         id="rule-description"
-                        label="Description"
+                        label={LABELS.word.description}
                         value={description}
                         onChange={setDescription}
-                        placeholder="What this rule is for"
+                        placeholder={LABELS.alerting.description_placeholder}
                     />
 
                     <div className="space-y-2">
-                        <Label>Event</Label>
+                        <Label>{LABELS.word.event}</Label>
                         <Segmented
-                            label="Event"
+                            label={LABELS.word.event}
                             size="md"
                             value={event}
-                            options={ALERT_EVENTS.map((one) => ({ value: one, label: EVENT_LABELS[one] }))}
+                            options={ALERT_EVENTS.map((one) => ({
+                                value: one,
+                                label: LABELS.alerting.event[one],
+                            }))}
                             onChoose={setEvent}
                         />
                     </div>
 
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                         <div className="space-y-2">
-                            <Label>Scope</Label>
+                            <Label>{LABELS.word.scope}</Label>
                             <Segmented
-                                label="Scope"
+                                label={LABELS.word.scope}
                                 size="md"
                                 value={scope}
                                 options={SCOPES}
@@ -188,13 +192,13 @@ export function NewRule({
                         </div>
                         {scope === 'pipeline' && (
                             <div className="space-y-2">
-                                <Label htmlFor="rule-pipeline">Pipeline</Label>
+                                <Label htmlFor="rule-pipeline">{LABELS.word.pipeline}</Label>
                                 <Picker
                                     id="rule-pipeline"
-                                    label="Pipeline"
+                                    label={LABELS.word.pipeline}
                                     value={pipeline}
                                     options={pipelines}
-                                    placeholder="Search by name or code"
+                                    placeholder={LABELS.alerting.pipeline_search}
                                     onChange={setPipeline}
                                 />
                             </div>
@@ -202,10 +206,10 @@ export function NewRule({
                     </div>
 
                     <div className="space-y-2">
-                        <Label>Importance</Label>
-                        <p className="text-xs text-faint">Only pipelines that matter at least this much.</p>
+                        <Label>{LABELS.word.importance}</Label>
+                        <p className="text-xs text-faint">{LABELS.alerting.importance_hint}</p>
                         <Segmented
-                            label="Importance"
+                            label={LABELS.word.importance}
                             size="md"
                             value={floor}
                             options={IMPORTANCE_FLOORS}
@@ -224,16 +228,16 @@ export function NewRule({
 
                     <Field
                         id="rule-subject"
-                        label="Subject"
+                        label={LABELS.word.subject}
                         value={template}
                         onChange={setTemplate}
-                        placeholder="{{ run.pipeline }} run {{ run.status }}"
+                        placeholder={LABELS.alerting.subject_placeholder}
                         mono
                         hint={SUBJECT_HINT}
                     />
 
                     <div className="space-y-2">
-                        <Label>Body</Label>
+                        <Label>{LABELS.word.body}</Label>
                         <p className="text-xs text-faint">{BODY_HINT}</p>
                         <WindowedPane
                             name={BODY_LABEL}
@@ -244,7 +248,7 @@ export function NewRule({
                                     value={body}
                                     mediaType={TEMPLATE_MEDIA_TYPE}
                                     path={BODY_PATH}
-                                    label={`${BODY_LABEL}, in a window`}
+                                    label={LABELS.alerting.body_pane_windowed(BODY_LABEL)}
                                     className="min-h-0 flex-1"
                                     onChange={setBody}
                                 />
@@ -255,7 +259,7 @@ export function NewRule({
                                 mediaType={TEMPLATE_MEDIA_TYPE}
                                 path={BODY_PATH}
                                 label={BODY_LABEL}
-                                placeholder="{{ run.pipeline }} ended {{ run.status }}: {{ run.url }}"
+                                placeholder={LABELS.alerting.body_placeholder}
                                 className="h-40 min-h-32"
                                 onChange={setBody}
                             />
@@ -265,10 +269,10 @@ export function NewRule({
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                         <Field
                             id="rule-throttle"
-                            label="Throttle"
+                            label={LABELS.word.throttle}
                             value={throttle}
                             onChange={setThrottle}
-                            placeholder="15m"
+                            placeholder={LABELS.alerting.throttle_placeholder}
                             mono
                         />
                     </div>
@@ -278,12 +282,12 @@ export function NewRule({
 
                 <DialogFooter>
                     <p className="mr-auto self-center text-xs text-muted-foreground">
-                        A rule fires when a run settles. Nothing is sent now.
+                        {LABELS.alerting.declare_only}
                     </p>
-                    <DialogClose render={<Button variant="ghost" />}>Close</DialogClose>
+                    <DialogClose render={<Button variant="ghost" />}>{LABELS.action.close}</DialogClose>
                     <Refusable why={shut}>
                         <Button disabled={busy || shut !== undefined} title={shut} onClick={send}>
-                            {busy ? 'Creating' : 'Create'}
+                            {busy ? LABELS.alerting.creating : LABELS.action.create}
                         </Button>
                     </Refusable>
                 </DialogFooter>

@@ -24,6 +24,7 @@ import {
 } from '@/lib/run-detail'
 import type { JsonMap } from '@/lib/api'
 import { headingOf } from '@/lib/identity'
+import { LABELS } from '@/lib/labels'
 import { itemsNote, type AttemptEvent } from '@/lib/runs'
 import { runSettled, statusTokens, stepSettled, type AttemptStatus } from '@/lib/status'
 import { cn } from '@/lib/utils'
@@ -80,27 +81,35 @@ export function StepTab({
                 </div>
                 <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
                     {heading.code !== null && (
-                        <Fact term="step" detail={<span className="font-mono">{heading.code}</span>} />
+                        <Fact
+                            term={LABELS.runs.fact.step}
+                            detail={<span className="font-mono">{heading.code}</span>}
+                        />
                     )}
-                    <Fact term="block" detail={<span className="font-mono">{view.node.block}</span>} />
-                    <Fact term="rule" detail={view.node.rule} />
+                    <Fact
+                        term={LABELS.runs.fact.block}
+                        detail={<span className="font-mono">{view.node.block}</span>}
+                    />
+                    <Fact term={LABELS.runs.fact.rule} detail={view.node.rule} />
                     {view.node.depends_on.length > 0 && (
-                        <Fact term="after" detail={view.node.depends_on.join(', ')} />
+                        <Fact term={LABELS.runs.fact.after} detail={view.node.depends_on.join(', ')} />
                     )}
-                    <Fact term="started" detail={<Instant at={started} />} />
+                    <Fact term={LABELS.runs.fact.started} detail={<Instant at={started} />} />
                     {/* A step that never queued or never parked says so by saying nothing: a
                         fact reading zero is a row spent on an answer of "no", and one reading
                         the whole of the step is the row above it said again. */}
-                    {queued !== null && <Fact term="queued" detail={queued} />}
-                    <Fact term="took" detail={formatDuration(view.duration_ms)} />
-                    {waiting !== null && <Fact term="waiting" detail={waiting} />}
-                    {view.node.fan_out && items !== null && <Fact term="items" detail={items} />}
+                    {queued !== null && <Fact term={LABELS.runs.fact.queued} detail={queued} />}
+                    <Fact term={LABELS.runs.fact.took} detail={formatDuration(view.duration_ms)} />
+                    {waiting !== null && <Fact term={LABELS.runs.fact.waiting} detail={waiting} />}
+                    {view.node.fan_out && items !== null && (
+                        <Fact term={LABELS.runs.fact.items} detail={items} />
+                    )}
                 </dl>
             </div>
 
-            <Section title={countedHeading('Attempts', view.attempts.length)}>
+            <Section title={countedHeading(LABELS.runs.attempts, view.attempts.length)}>
                 {view.attempts.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">No attempts.</p>
+                    <p className="text-xs text-muted-foreground">{LABELS.runs.no_attempts}</p>
                 ) : (
                     <ul className="space-y-2">
                         {tries.map((attempt) => (
@@ -110,7 +119,7 @@ export function StepTab({
                 )}
             </Section>
 
-            <Section title="Output">
+            <Section title={LABELS.word.output}>
                 {view.node.fan_out ? (
                     <FanOutOutput step={view.node.code} attempts={view.attempts} />
                 ) : (
@@ -118,23 +127,20 @@ export function StepTab({
                 )}
             </Section>
 
-            <Section title="Config">
+            <Section title={LABELS.word.config}>
                 {stale && (
                     <p className="text-xs text-muted-foreground">
-                        This run pinned version {configVersion.pinned}; the config below is version{' '}
-                        {String(configVersion.shown)}, which is what the pipeline holds now.
+                        {LABELS.runs.config_stale(String(configVersion.pinned), String(configVersion.shown))}
                     </p>
                 )}
                 {config === null ? (
-                    <p className="text-xs text-muted-foreground">
-                        The pipeline document names no config for this step.
-                    </p>
+                    <p className="text-xs text-muted-foreground">{LABELS.runs.no_config}</p>
                 ) : (
-                    <JsonBlock title={`${view.node.code} · config`} text={asJson(config)} />
+                    <JsonBlock title={LABELS.runs.config_title(view.node.code)} text={asJson(config)} />
                 )}
             </Section>
 
-            <Section title="Log">
+            <Section title={LABELS.word.log}>
                 <LogPane entries={entries} items={labels} settled={done} className="max-h-72 min-h-24" />
             </Section>
         </div>
@@ -159,13 +165,15 @@ function StepOutput({ step, attempts }: { step: string; attempts: readonly Attem
         .toReversed()
         .find((attempt) => attempt.output !== null || attempt.output_uri !== null)
     if (produced === undefined) {
-        return <p className="text-xs text-muted-foreground">No output.</p>
+        return <p className="text-xs text-muted-foreground">{LABELS.runs.no_output}</p>
     }
     const reading = outputReading(produced)
     if (reading.uri !== null) {
         return <StoredOutput uri={reading.uri} bytes={reading.bytes} />
     }
-    return <JsonBlock title={`${step} · output`} text={asJson(reading.value)} className="max-h-72" />
+    return (
+        <JsonBlock title={LABELS.runs.output_title(step)} text={asJson(reading.value)} className="max-h-72" />
+    )
 }
 
 /** An output that went to storage, said as where it went and how large it is there. */
@@ -191,14 +199,11 @@ function StoredOutput({ uri, bytes, className }: { uri: string; bytes: number | 
 function FanOutOutput({ step, attempts }: { step: string; attempts: readonly AttemptEvent[] }) {
     const items = itemOutputs(attempts)
     if (items.length === 0) {
-        return <p className="text-xs text-muted-foreground">No items.</p>
+        return <p className="text-xs text-muted-foreground">{LABELS.runs.no_items}</p>
     }
     return (
         <>
-            <p className="text-xs text-muted-foreground">
-                The step after this one reads these as one list, in item order. An item that did not succeed
-                is not in the list.
-            </p>
+            <p className="text-xs text-muted-foreground">{LABELS.runs.fan_out_note}</p>
             <ul>
                 {items.map((item) => (
                     <ItemOutputRow key={item.id} step={step} item={item} />
@@ -210,10 +215,10 @@ function FanOutOutput({ step, attempts }: { step: string; attempts: readonly Att
 
 /** Why an element is not in the step's list, said as the state that kept it out. */
 function absenceNote(status: AttemptStatus): string {
-    if (status === 'failed') return 'failed, so it is not in the list'
-    if (status === 'cancelled') return 'cancelled, so it is not in the list'
-    if (status === 'skipped') return 'skipped, so it is not in the list'
-    return 'no output'
+    if (status === 'failed') return LABELS.runs.absent.failed
+    if (status === 'cancelled') return LABELS.runs.absent.cancelled
+    if (status === 'skipped') return LABELS.runs.absent.skipped
+    return LABELS.runs.absent.nothing
 }
 
 /** One element's output, keyed by the label the element is known by and folded until asked for. */
@@ -250,7 +255,7 @@ function ItemOutputRow({ step, item }: { step: string; item: ItemOutput }) {
                     <StoredOutput uri={reading.uri} bytes={reading.bytes} className="pl-5" />
                 ) : (
                     <JsonBlock
-                        title={`${step} · ${item.key} · output`}
+                        title={LABELS.runs.item_output_title(step, item.key)}
                         text={asJson(reading.value)}
                         className="max-h-72"
                     />
@@ -276,15 +281,17 @@ function AttemptRow({ attempt }: { attempt: AttemptEvent }) {
             <div className="flex items-center gap-2">
                 <StatusChip status={attempt.status} />
                 <span className="text-xs text-muted-foreground">
-                    attempt {attempt.attempt}
-                    {attempt.kind === 'manual' && ', asked for'}
+                    {LABELS.runs.attempt_number(String(attempt.attempt))}
+                    {attempt.kind === 'manual' && LABELS.runs.attempt_asked_for}
                 </span>
                 <span className="ml-auto text-xs text-faint">
                     {formatDuration(elapsedBetween(attempt.started_at, attempt.finished_at))}
                 </span>
             </div>
             {attempt.item !== null && (
-                <p className="font-mono text-xs text-muted-foreground">item {attempt.item}</p>
+                <p className="font-mono text-xs text-muted-foreground">
+                    {LABELS.runs.item_label(attempt.item)}
+                </p>
             )}
             {attempt.waiting_message !== null && (
                 <p className="text-xs text-muted-foreground">{attempt.waiting_message}</p>

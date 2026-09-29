@@ -8,6 +8,7 @@ import type { JsonMap } from '@/lib/api'
 import { healthOf, settingsSummary, type ConnectionOut } from '@/lib/connections'
 import { useStore } from '@/hooks/use-store'
 import { kindGlyph, type Glyph, type KindMarks } from '@/lib/glyphs'
+import { LABELS } from '@/lib/labels'
 import { kindMarks } from '@/lib/marks'
 import { codeNamed, resolveConnection, resolveSchema } from '@/lib/references'
 import type { ReferenceKind } from '@/lib/schema-form'
@@ -108,9 +109,9 @@ function schemaRow(resolution: ReturnType<typeof resolveSchema>, code: string): 
         case 'unread':
             return null
         case 'missing':
-            return { mark: null, named: null, words: 'not stored', body: null }
+            return { mark: null, named: null, words: LABELS.editor.reference_row.not_stored, body: null }
         case 'carried': {
-            const words = 'carried by this document'
+            const words = LABELS.editor.reference_row.carried
             return { mark: null, named: null, words, body: <Body title={words} value={resolution.body} /> }
         }
         case 'instance': {
@@ -118,11 +119,16 @@ function schemaRow(resolution: ReturnType<typeof resolveSchema>, code: string): 
             return {
                 mark: null,
                 named,
-                words: 'instance',
+                words: LABELS.editor.reference_row.instance,
                 body: (
                     <div className="space-y-2">
-                        <Body title={named ?? 'instance'} value={resolution.schema.body} />
-                        <Opens to={`/schemas/${encodeURIComponent(code)}`}>Open in Schemas</Opens>
+                        <Body
+                            title={named ?? LABELS.editor.reference_row.instance}
+                            value={resolution.schema.body}
+                        />
+                        <Opens to={`/schemas/${encodeURIComponent(code)}`}>
+                            {LABELS.editor.reference_row.open_schema}
+                        </Opens>
                     </div>
                 ),
             }
@@ -133,7 +139,7 @@ function schemaRow(resolution: ReturnType<typeof resolveSchema>, code: string): 
 function connectionRow(resolution: ReturnType<typeof resolveConnection>, marks: KindMarks): Found | null {
     if (resolution.source === 'unread') return null
     if (resolution.source === 'missing')
-        return { mark: null, named: null, words: 'not configured', body: null }
+        return { mark: null, named: null, words: LABELS.editor.not_configured, body: null }
     const held = resolution.connection
     return {
         // The kind is spelled in the words as well as marked: the code is in the box above, so
@@ -144,7 +150,9 @@ function connectionRow(resolution: ReturnType<typeof resolveConnection>, marks: 
         body: (
             <div className="space-y-2">
                 <p className="font-mono text-xs text-muted-foreground">{settingsSummary(held)}</p>
-                <Opens to={`/connections/${encodeURIComponent(held.code)}`}>Open in Connections</Opens>
+                <Opens to={`/connections/${encodeURIComponent(held.code)}`}>
+                    {LABELS.editor.reference_row.open_connection}
+                </Opens>
             </div>
         ),
     }

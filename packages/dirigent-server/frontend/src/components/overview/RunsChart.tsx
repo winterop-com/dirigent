@@ -1,5 +1,6 @@
 import { Card, CardContent } from '@/components/ui/card'
 import { chartSummary, stackOf, tallest, type HourBucket } from '@/lib/home'
+import { LABELS } from '@/lib/labels'
 import { cn } from '@/lib/utils'
 
 /** How often the foot of the chart names an hour. Every sixth, so the day reads 00, 06, 12, 18. */
@@ -10,20 +11,24 @@ type Band = 'succeeded' | 'withErrors' | 'failed'
 
 /** The three outcomes a bar is stacked out of, worst at the top, and the token each is drawn in. */
 const BANDS: readonly { id: Band; label: string; fill: string }[] = [
-    { id: 'failed', label: 'Failed', fill: 'bg-status-failed/80' },
-    { id: 'withErrors', label: 'With errors', fill: 'bg-status-completed-with-errors/80' },
-    { id: 'succeeded', label: 'Succeeded', fill: 'bg-status-succeeded/75' },
+    { id: 'failed', label: LABELS.state.run.failed.tile, fill: 'bg-status-failed/80' },
+    {
+        id: 'withErrors',
+        label: LABELS.state.run.completed_with_errors.tile,
+        fill: 'bg-status-completed-with-errors/80',
+    },
+    { id: 'succeeded', label: LABELS.state.run.succeeded.tile, fill: 'bg-status-succeeded/75' },
 ]
 
 /** One hour, said the way the panel's own legend says it. */
 function bucketNote(bucket: HourBucket): string {
     const hour = `${String(bucket.hour).padStart(2, '0')}:00`
-    if (bucket.total === 0) return `${hour} — nothing ran`
-    const said = BANDS.filter((band) => bucket[band.id] > 0).map(
-        (band) => `${String(bucket[band.id])} ${band.label.toLowerCase()}`,
+    if (bucket.total === 0) return LABELS.dashboard.chart.hour_empty(hour)
+    const said = BANDS.filter((band) => bucket[band.id] > 0).map((band) =>
+        LABELS.dashboard.counted(String(bucket[band.id]), band.label.toLowerCase()),
     )
-    const settled = said.length === 0 ? 'none finished' : said.join(', ')
-    return `${hour} — ${String(bucket.total)} started, ${settled}`
+    const settled = said.length === 0 ? LABELS.dashboard.chart.none_settled : said.join(', ')
+    return LABELS.dashboard.chart.hour(hour, String(bucket.total), settled)
 }
 
 /**
@@ -53,11 +58,9 @@ export function RunsChart({
             <CardContent className="space-y-3 p-3">
                 <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                     <div className="space-y-1">
-                        <h2 className="text-sm font-semibold">Runs over time</h2>
+                        <h2 className="text-sm font-semibold">{LABELS.dashboard.chart.title}</h2>
                         <p className="text-xs text-muted-foreground">
-                            {reading
-                                ? 'Reading from the server'
-                                : 'Every run started in the last 24 hours, by the hour it started in.'}
+                            {reading ? LABELS.dashboard.reading_from_server : LABELS.dashboard.chart.hint}
                         </p>
                     </div>
                     <ul className="flex items-center gap-3">
