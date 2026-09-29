@@ -69,7 +69,7 @@ export function CommandPalette() {
                     autoFocus
                     className="text-base"
                 />
-                <CommandList className="max-h-[26rem] p-2">
+                <CommandList className="max-h-[26rem]">
                     <CommandEmpty>{PALETTE_EMPTY}</CommandEmpty>
                     {shelves.map((shelf) => (
                         <CommandGroup key={shelf.label} heading={shelf.label} className="p-0 pb-1">
@@ -85,7 +85,10 @@ export function CommandPalette() {
                         </CommandGroup>
                     ))}
                 </CommandList>
-                <div className="flex h-11 shrink-0 items-center justify-between gap-3 border-t border-border px-3 text-faint">
+                <div
+                    data-slot="palette-footer"
+                    className="flex shrink-0 items-center justify-between gap-3 border-t border-border text-faint"
+                >
                     <KbdGroup>
                         <Kbd>↑↓</Kbd>
                         <span className="text-xs">choose</span>
@@ -111,7 +114,7 @@ export function CommandPalette() {
 function Row({ action, onChoose }: { action: PaletteAction; onChoose: () => void }) {
     const Icon = action.icon ?? NEUTRAL_GLYPH
     return (
-        <CommandItem value={action.id} onSelect={onChoose} className="h-11 gap-3 rounded-md px-2">
+        <CommandItem value={action.id} onSelect={onChoose} className="h-11 gap-3 rounded-md">
             <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
                 <Icon className="size-4" aria-hidden />
             </span>

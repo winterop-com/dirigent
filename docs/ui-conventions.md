@@ -468,6 +468,18 @@ can open is a row some people cannot. **The column header is sticky**: rows scro
 inside the listing's own scroll container, and the header keeps the card's ground so no row ever
 shows through it.
 
+**A row that fills the panel is a disclosure, so pressing it again takes it back.** What a press
+opened a press closes: the row loses its tint, the screen stops filling the panel, and an
+unfilled panel is not drawn -- so the thing opened from the listing can be shut from the listing,
+rather than only from the panel's own control. A row whose selection is the URL navigates back to
+the bare listing instead, which is the same gesture said in the address bar. `ListTable` decides
+this for every listing, from `selected` and `panelStanding`, and a screen says only what taking
+its own selection back means: `onClose`. **Pressing the open row while the panel is down opens it
+again** rather than clearing a tint nothing is showing, because a control that does nothing is
+the fault this rule exists to fix. **A row that navigates is not a selection** and does not
+toggle: the runs listing and the admin overview go to a screen, and a press there has already
+left.
+
 **Every listing is a keyset walk**, answering rows and an opaque cursor and no total, so there
 are no page numbers and what the foot can honestly say is how many rows have been read and
 whether there are more. `lib/paging` is what an answer does to the rows already held, as pure
@@ -1249,6 +1261,30 @@ arrows moving and choosing in one gesture, Space and Enter choosing what has foc
 pixel accent ring on the chosen card and on the focused one. The chosen card also carries a check
 in the accent, because a ring alone is a colour doing a mark's job. A swatch is drawn from the
 tokens it stands for and never from a colour written down beside it.
+
+## A surface is inset once, and 16px is the inset
+
+**Every surface this app draws -- a dialog, a card, a panel pane -- holds its content 16px in
+from its own edge, and the generated primitives already say so**: `DialogContent` is `p-4` and
+`Card` is `py-4` with `px-4` on its content. So a surface writes no padding of its own. A `py-2`
+or a `py-8` laid over a card is a second answer to a question the card has already answered, and
+the three states of `PageState` proved it: the same card carried 24px of vertical padding while
+reading, 24px when empty and 48px when refused, for no reason anybody could state.
+
+**A surface that lays out its own body zeroes the primitive's padding and spends the same 16px
+itself.** The command palette is the one: a search row, a scrolling list and a footer rather than
+a form, so `index.css` states the inset once as `--palette-inset` and every part of the dialog
+stands on it -- the search glyph, a shelf heading, a row's icon tile, the footer's key chips.
+A strip that crosses the whole width (the generated footer's `-mx-4 p-4`, the palette's search
+row and footer) takes the inset back inside itself, so the seam runs edge to edge and the words
+still land on the edge. A strip's height is the inset above and below what it holds, which is
+what makes a 24px line of search text a 56px row.
+
+**Half the inset is the only other number, and it is the gutter a floating box gets.** A list of
+rounded rows needs room or the highlight touches the surface's sides, so the list is padded 8px
+and each row is padded 8px again: the wash is inset 8, its content lands on the 16 like
+everything else. A box nested inside a surface that is already inset takes the same 8 --
+`Refusal` inside a form or a dialog is `p-2`, not a second 16.
 
 ## A row expands under itself rather than opening a second dialog
 
