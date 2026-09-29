@@ -212,16 +212,12 @@ stays clean, and every example stays executable.
   lives in object storage anyway, where a URI and a bucket policy may be all the tracking
   anyone needs.
 
-- **The cross-boundary shelves on PyPI.** `dirigent-integration` is already a plugin whose
-  `examples()` hook contributes its shelves. Run from its checkout, an instance lists all 258
-  examples: 178 core, 56 dhis2, 24 cross-boundary. Nothing published carries the 24, so a
-  `dg init` project never sees them. Publishing it gives one install for every pack plus
-  every shelf, and could build the full image. A release then pins its dependencies at
-  `==X.Y.Z`, the wheel carries only the plugin and its shelves, and the repo gains a release
-  workflow with its own PyPI publisher. Not everyone wants every pack, so a shelves-only
-  package beside it may be the better default; its documents already name what they need
-  under `requires`. The Examples screen then wants a "runnable here" filter (every
-  requirement installed) and a filter by contributing plugin.
+- **The Examples screen for a slim install.** `dirigent-integration` is published from 0.22.0
+  as the cross-boundary shelves alone: its only runtime dependency is `dirigent-plugin`, and
+  the assembly the control center tests is a dependency group that never reaches PyPI. So
+  `uv add dirigent-integration` adds 24 documents that each name the packs they need under
+  `requires`, and no packs. The screen then wants a "runnable here" filter (every requirement
+  installed), a filter by contributing plugin, and `dg init` offering the shelves as a choice.
 
 - **A TUI for watching a run.** A scrolling stream is the wrong shape for a DAG: it cannot
   show a step updating in place, a fan-out's item grid, or logs beside structure. Wanted: a
