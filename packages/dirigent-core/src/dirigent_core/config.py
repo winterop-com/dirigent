@@ -234,7 +234,10 @@ class Settings(BaseSettings):
     """How often a worker refreshes the leases it holds and its registry row."""
 
     claim_idle: Duration = Field(default=timedelta(milliseconds=500), gt=timedelta(0))
-    """How long a worker waits before asking for work again when the queue is empty."""
+    """How long an idle worker waits before asking for work again when nothing wakes it.
+
+    A commit that queues work wakes an idle worker at once, so this is what a lost wake-up
+    costs rather than the latency a run sees."""
 
     log_flush_interval: Duration = Field(default=timedelta(seconds=1), gt=timedelta(0))
     """How often a running attempt's buffered log entries are written to the run.

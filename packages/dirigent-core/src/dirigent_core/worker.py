@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from dirigent_client.enums import AttemptStatus, WorkerStatus
 from dirigent_client.schemas import Catalog
-from dirigent_core import retention, telemetry
+from dirigent_core import retention, telemetry, wakeups
 from dirigent_core.alerting import NotificationDispatcher, raise_for_stuck, recover_notifications
 from dirigent_core.config import Settings
 from dirigent_core.database import session_scope
@@ -111,7 +111,8 @@ class Worker:
             background.append(asyncio.create_task(self._work_loop()))
         background.extend(asyncio.create_task(self._chore_loop(chore)) for chore in self.chores)
         try:
-            await self._claim_loop(semaphore)
+            async with wakeups.listening(self.settings.database_url):
+                await self._claim_loop(semaphore)
         finally:
             self._stopping.set()
             # Draining happens while the heartbeat is still running: an attempt whose lease
@@ -130,16 +131,17 @@ class Worker:
             _logger.info("worker stopped", worker=self.name)
 
     async def _claim_loop(self, semaphore: asyncio.Semaphore) -> None:
-        """Claim units while there is capacity, and idle briefly when the queue is empty."""
+        """Claim units while there is capacity, and idle when the queue is empty until work is published."""
         while not self.draining:
             await semaphore.acquire()
             if self.draining:
                 semaphore.release()
                 break
+            published = wakeups.hub.mark(wakeups.WORK)
             unit = await self._claim_safely()
             if unit is None:
                 semaphore.release()
-                await self._idle()
+                await self._idle(published)
                 continue
             self.in_flight[unit.attempt_id] = unit
             telemetry.gauges.in_flight = len(self.in_flight)
@@ -169,10 +171,15 @@ class Worker:
             telemetry.gauges.in_flight = len(self.in_flight)
             semaphore.release()
 
-    async def _idle(self) -> None:
-        """Wait a moment for work to appear, returning early when asked to stop."""
-        with contextlib.suppress(TimeoutError):
-            await asyncio.wait_for(self._stopping.wait(), timeout=self.settings.claim_idle.total_seconds())
+    async def _idle(self, published: wakeups.Mark) -> None:
+        """Wait up to ``claim_idle`` for work, returning early when work is published or the worker stops."""
+        woken = asyncio.ensure_future(wakeups.hub.wait(published, timeout=self.settings.claim_idle.total_seconds()))
+        stopped = asyncio.ensure_future(self._stopping.wait())
+        try:
+            await asyncio.wait((woken, stopped), return_when=asyncio.FIRST_COMPLETED)
+        finally:
+            woken.cancel()
+            stopped.cancel()
 
     async def _pause(self, seconds: float) -> None:
         """Sleep one cadence out, waking at once when the background loops are told to halt."""

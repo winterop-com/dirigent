@@ -357,6 +357,60 @@ def test_the_same_document_runs_with_no_server_at_all(project: Path, service: st
     assert any("fetched 200, archived" in event["message"] for event in of_kind(stream, "log"))
 
 
+#: A worker poll no run in the test below could finish inside, so the run finishing proves the wake.
+SLOW_POLL = "30s"
+
+#: Well under the two polls a three-step chain would wait through without a wake.
+WOKEN_WITHIN = 20.0
+
+CHAIN = """\
+format: dirigent/v1
+kind: pipeline
+code: woken-chain
+steps:
+  first:
+    block: value.const
+    config:
+      value: a
+  second:
+    block: value.const
+    depends_on: [first]
+    config:
+      value: b
+  third:
+    block: value.const
+    depends_on: [second]
+    config:
+      value: c
+"""
+
+
+@pytest.fixture
+def slow_poll(project: Path) -> Path:
+    """The project, with its worker told to poll only every thirty seconds."""
+    with (project / "settings.yaml").open("a") as settings:
+        settings.write(f'claim_idle: "{SLOW_POLL}"\n')
+    return project
+
+
+def test_dg_dev_wakes_its_own_worker_for_every_step_of_a_chain(slow_poll: Path, dev: tuple[str, str]) -> None:
+    """On SQLite the in-process hub hands each commit to the embedded worker and the watch."""
+    url, token = dev
+    env = environment(slow_poll, url=url, token=token)
+    (slow_poll / "woken-chain.yaml").write_text(CHAIN)
+    applied = run(["apply", str(slow_poll / "woken-chain.yaml")], cwd=slow_poll, env=env)
+    assert applied.returncode == 0, applied.stdout + applied.stderr
+    time.sleep(1.0)
+
+    began = time.monotonic()
+    watched = run(["run", "woken-chain", "--watch", "--json"], cwd=slow_poll, env=env, timeout=RUN_TIMEOUT)
+    took = time.monotonic() - began
+
+    assert watched.returncode == 0, watched.stdout + watched.stderr
+    assert closing(watched.stdout)["message"] == "succeeded"
+    assert took < WOKEN_WITHIN, f"a woken chain took {took:.1f}s against a {SLOW_POLL} poll"
+
+
 def test_an_unauthenticated_call_is_refused_by_the_running_server(project: Path, dev: tuple[str, str]) -> None:
     """Nothing under /api/v1 is reachable without a credential, on a real server."""
     url, _ = dev

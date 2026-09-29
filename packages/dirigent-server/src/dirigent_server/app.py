@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from dirigent_core import __version__
+from dirigent_core import __version__, wakeups
 from dirigent_core.auth import BOOTSTRAP_PASSWORD_ENV, bootstrap_admin
 from dirigent_core.config import Settings, get_settings
 from dirigent_core.database import create_engine, create_session_factory, session_scope
@@ -73,16 +73,17 @@ def create_app(
         app.state.scheduler = None
         clock: asyncio.Task[None] | None = None
         try:
-            await _bootstrap(app)
-            await _apply_startup_directory(app)
-            clock = await _start_scheduler(app, embed=embed)
-            _logger.info(
-                "server starting",
-                database="sqlite" if resolved.is_sqlite else "postgresql",
-                blocks=len(app.state.services.host.block_ids),
-                scheduler=embed,
-            )
-            yield
+            async with wakeups.listening(resolved.database_url):
+                await _bootstrap(app)
+                await _apply_startup_directory(app)
+                clock = await _start_scheduler(app, embed=embed)
+                _logger.info(
+                    "server starting",
+                    database="sqlite" if resolved.is_sqlite else "postgresql",
+                    blocks=len(app.state.services.host.block_ids),
+                    scheduler=embed,
+                )
+                yield
         finally:
             await _stop_scheduler(app, clock)
             await engine.dispose()

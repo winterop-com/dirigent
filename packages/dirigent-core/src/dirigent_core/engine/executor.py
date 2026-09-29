@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from dirigent_client.enums import AttemptKind, AttemptStatus, LogLevel, RunStatus, TriggerKind
 from dirigent_common import Issue, JsonMap, format_duration
-from dirigent_core import telemetry
+from dirigent_core import telemetry, wakeups
 from dirigent_core.artifacts import persist_output
 from dirigent_core.database import session_scope, with_deadlock_retry
 from dirigent_core.engine.claim import (
@@ -750,6 +750,7 @@ class Engine:
             from dirigent_core.triggers.watches import note_settled
 
             await note_settled(session, self.services, run, now=now)
+            await wakeups.hasten_parent(session, run, now)
             telemetry.record_run(status.value, definition.code)
         return status
 
