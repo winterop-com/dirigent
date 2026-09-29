@@ -16,7 +16,7 @@ import { usePaged } from '@/hooks/use-paged'
 import { useRead } from '@/hooks/use-read'
 import { headingOf, oneLine } from '@/lib/identity'
 import { LIST_GROUP, registerActions } from '@/lib/palette'
-import { fillPanel, openPanel } from '@/lib/panels'
+import { closePanel, fillPanel, openPanel } from '@/lib/panels'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
 import { deleteSchema, readSchema, readSchemas, schemasNote, type SchemaOut } from '@/lib/schemas'
 import { cn } from '@/lib/utils'
@@ -162,6 +162,10 @@ export function Schemas() {
                         void navigate(`/schemas/${encodeURIComponent(row.code)}`, { replace: true })
                     }}
                     selected={(row) => row.code === chosen}
+                    onClose={() => {
+                        void navigate('/schemas', { replace: true })
+                        closePanel()
+                    }}
                 />
             </PageState>
             <NewSchema open={creating} onOpenChange={setCreating} onCreated={reload} />

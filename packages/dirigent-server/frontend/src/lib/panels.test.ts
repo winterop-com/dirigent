@@ -7,10 +7,13 @@ import {
     RAIL_MIN_WIDTH,
     clampPanelWidth,
     clampRailWidth,
+    closePanel,
     fillPanel,
     openPanel,
     openPanelTab,
     panelOpen,
+    panelSheet,
+    panelStanding,
     panelTab,
     panelTabs,
     railWidth,
@@ -137,6 +140,22 @@ describe('whether the panel is open', () => {
         expect(panelOpen.get()).toBe(true)
     })
 
+    test('keeps the sheet that screen raised up, which is the same open said for a phone', () => {
+        preferClosed()
+        fillPanel(tabs, { screen: 'panel-test:sheet-before' })
+        openPanel()
+        fillPanel(tabs, { screen: 'panel-test:sheet' })
+        expect(panelSheet.get()).toBe(true)
+    })
+
+    test('takes down a sheet the last screen raised, because it was over that screen', () => {
+        preferClosed()
+        openPanel()
+        fillPanel(tabs, { screen: 'panel-test:sheet-a' })
+        fillPanel(tabs, { screen: 'panel-test:sheet-b' })
+        expect(panelSheet.get()).toBe(false)
+    })
+
     test("goes back to the reader's preference on the next screen", () => {
         preferClosed()
         fillPanel(tabs, { screen: 'panel-test:linked' })
@@ -152,6 +171,31 @@ describe('whether the panel is open', () => {
         fillPanel(tabs, { screen: 'panel-test:a' })
         fillPanel(tabs, { screen: 'panel-test:b' })
         expect(panelOpen.get()).toBe(true)
+    })
+})
+
+describe('whether the panel is standing', () => {
+    test('is the sheet below the breakpoint, because that is what is on screen there', () => {
+        panelSheet.set(true)
+        expect(panelStanding(true)).toBe(true)
+        panelSheet.set(false)
+        expect(panelStanding(true)).toBe(false)
+    })
+
+    test("is the panel's own flag above it, where the sheet is not what is drawn", () => {
+        // `openPanel` raises both, so the sheet alone would say a wide window is showing one.
+        openPanel()
+        expect(panelStanding(false)).toBe(true)
+        closePanel()
+        expect(panelStanding(false)).toBe(true)
+        expect(panelStanding(true)).toBe(false)
+    })
+
+    test('is nothing again once the sheet a row raised is taken back', () => {
+        openPanel()
+        expect(panelStanding(true)).toBe(true)
+        closePanel()
+        expect(panelSheet.get()).toBe(false)
     })
 })
 

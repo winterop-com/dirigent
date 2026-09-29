@@ -13,7 +13,7 @@ import { useMayWrite } from '@/hooks/use-may-write'
 import { usePaged } from '@/hooks/use-paged'
 import { formatInstant, formatRelative } from '@/lib/format'
 import { headingOf, type Addressable } from '@/lib/identity'
-import { fillPanel, openPanel } from '@/lib/panels'
+import { closePanel, fillPanel, openPanel } from '@/lib/panels'
 import { LIST_GROUP, registerActions } from '@/lib/palette'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
 import { cn } from '@/lib/utils'
@@ -177,6 +177,12 @@ export function Triggers() {
         openPanel()
     }
 
+    /** What taking the open row back means here, whichever of the three listings it is in. */
+    const unchoose = () => {
+        setChosen(null)
+        closePanel()
+    }
+
     return (
         <>
             <PageHeader
@@ -230,6 +236,7 @@ export function Triggers() {
                                 noun="schedules"
                                 onSelect={select}
                                 selected={(row) => triggerId(row) === chosen}
+                                onClose={unchoose}
                             />
                         )}
                     </section>
@@ -249,6 +256,7 @@ export function Triggers() {
                                 noun="webhooks"
                                 onSelect={select}
                                 selected={(row) => triggerId(row) === chosen}
+                                onClose={unchoose}
                             />
                         )}
                     </section>
@@ -270,6 +278,7 @@ export function Triggers() {
                                 noun="watches"
                                 onSelect={select}
                                 selected={(row) => triggerId(row) === chosen}
+                                onClose={unchoose}
                             />
                         )}
                     </section>

@@ -61,6 +61,56 @@ test('choosing a row runs it, and the palette is gone before the screen changes'
     await expect(page.getByPlaceholder('Go to a screen, or run something')).toBeHidden()
 })
 
+/**
+ * ONE INSET, AND EVERY PART OF THE DIALOG ON IT.
+ *
+ * The palette lays out its own body rather than taking the generated dialog's padding, so the
+ * only thing holding its search glyph, its shelf headings, its rows and its footer on one edge
+ * is that they are all spending the same number. Read off the rendered boxes, because that is
+ * where the three different insets this replaced were visible and nowhere else.
+ */
+test('the search glyph, a heading, a row and the footer stand on one left edge', async ({ page }) => {
+    await page.goto('/pipelines')
+    await page.keyboard.press('ControlOrMeta+k')
+    const dialog = page.getByRole('dialog')
+    await expect(dialog.locator('[cmdk-group-heading]').first()).toBeVisible()
+
+    const lefts = await dialog.evaluate((box) => {
+        const at = (element: Element | null) =>
+            element === null
+                ? null
+                : Math.round(element.getBoundingClientRect().left - box.getBoundingClientRect().left)
+        const heading = box.querySelector('[cmdk-group-heading]')
+        const headingText =
+            heading === null ? null : Number(getComputedStyle(heading).paddingInlineStart.replace('px', ''))
+        return {
+            glyph: at(box.querySelector('[data-slot="input-group-addon"] svg')),
+            heading: (at(heading) ?? 0) + (headingText ?? 0),
+            rowTile: at(box.querySelector('[data-slot="command-item"] span')),
+            footer: at(box.querySelector('[data-slot="palette-footer"] > *')),
+        }
+    })
+
+    expect(lefts.glyph).toBe(16)
+    expect(lefts.heading).toBe(16)
+    expect(lefts.rowTile).toBe(16)
+    expect(lefts.footer).toBe(16)
+})
+
+/** The search row is the inset above and below a line of its text, not a boxed input. */
+test('the search text stands the inset below the top of the dialog', async ({ page }) => {
+    await page.keyboard.press('ControlOrMeta+k')
+    const dialog = page.getByRole('dialog')
+    await expect(dialog.getByPlaceholder('Go to a screen, or run something')).toBeVisible()
+
+    const gap = await dialog.evaluate((box) => {
+        const field = box.querySelector('[data-slot="command-input"]')
+        if (field === null) return null
+        return Math.round(field.getBoundingClientRect().top - box.getBoundingClientRect().top)
+    })
+    expect(gap).toBe(16)
+})
+
 test('a query nothing answers says so rather than showing everything', async ({ page }) => {
     await page.keyboard.press('ControlOrMeta+k')
     await page.getByPlaceholder('Go to a screen, or run something').fill('stroopwafel')

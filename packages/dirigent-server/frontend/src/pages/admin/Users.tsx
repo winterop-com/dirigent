@@ -19,7 +19,7 @@ import { ApiError, type Problem } from '@/lib/api'
 import type { UserRole } from '@/lib/auth'
 import { formatInstant, formatRelative } from '@/lib/format'
 import { ADMIN_GROUP, registerActions } from '@/lib/palette'
-import { fillPanel, openPanel } from '@/lib/panels'
+import { closePanel, fillPanel, openPanel } from '@/lib/panels'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
 import {
     accountHeading,
@@ -95,6 +95,13 @@ function Users() {
         setDraft({ name: user.name ?? '', email: user.email ?? '', role: user.role })
         setRefusal(null)
         openPanel()
+    }, [])
+
+    /** What taking the open row back means here: the form goes, and with it whatever it said. */
+    const unchoose = useCallback(() => {
+        setChosen(null)
+        setRefusal(null)
+        closePanel()
     }, [])
 
     /** Carry out one change to the chosen account, and hold whatever the server said about it. */
@@ -255,6 +262,7 @@ function Users() {
                         rowKey={userId}
                         onSelect={choose}
                         selected={(user) => chosen !== null && user.id === chosen.id}
+                        onClose={unchoose}
                         rowClassName={(user) => (user.active ? undefined : 'opacity-60')}
                         reading={users.state.reading}
                         next={users.state.next}

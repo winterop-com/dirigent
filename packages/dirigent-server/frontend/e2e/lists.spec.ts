@@ -298,6 +298,32 @@ test('choosing a pipeline row reads it beside the listing, and its title opens t
 })
 
 /**
+ * A ROW IS A DISCLOSURE, SO PRESSING IT AGAIN TAKES IT BACK.
+ *
+ * What a press opened a press closes: the panel is shut from the listing that opened it rather
+ * than only from its own control, and the row says it is no longer the open one.
+ */
+test('pressing the open pipeline row again takes the panel back', async ({ page }) => {
+    await signIn(page)
+    await applyExample(page.request, RAN.file)
+
+    await page.goto('/pipelines')
+    const row = rowOf(page, RAN.title)
+    await expect(row).toBeVisible()
+    const code = row.getByText(RAN.code, { exact: true })
+
+    await code.click()
+    await expect(page.locator('aside').getByText('Parameters', { exact: true })).toBeVisible()
+    await expect(row).toHaveAttribute('aria-selected', 'true')
+
+    await code.click()
+    await expect(row).toHaveAttribute('aria-selected', 'false')
+    // An unfilled panel is not a panel, so the pane it was reading is gone with the selection.
+    await expect(page.getByText('Parameters', { exact: true })).toHaveCount(0)
+    await expect(page).toHaveURL(/\/pipelines$/)
+})
+
+/**
  * Two documents that file themselves under more words than a column can hold.
  *
  * THEY ARE FIXTURES, NOT EXAMPLES. Nothing in `examples/` teaches anything by wearing fifteen

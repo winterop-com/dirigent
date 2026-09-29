@@ -36,7 +36,7 @@ import { formatInstant, formatRelative } from '@/lib/format'
 import { kindGlyph } from '@/lib/glyphs'
 import { kindMarks } from '@/lib/marks'
 import { headingOf } from '@/lib/identity'
-import { fillPanel, openPanel } from '@/lib/panels'
+import { closePanel, fillPanel, openPanel } from '@/lib/panels'
 import { LIST_GROUP, registerActions } from '@/lib/palette'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
 import { cn } from '@/lib/utils'
@@ -250,6 +250,10 @@ export function Connections() {
                         void navigate(connectionPath(row.code), { replace: true })
                     }}
                     selected={(row) => row.code === chosen}
+                    onClose={() => {
+                        void navigate('/connections', { replace: true })
+                        closePanel()
+                    }}
                 />
             </PageState>
 

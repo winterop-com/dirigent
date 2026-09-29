@@ -21,7 +21,7 @@ import {
     type CatalogEntry,
 } from '@/lib/blocks'
 import { examplesPerBlock, readAllExamples } from '@/lib/examples'
-import { fillPanel, openPanel } from '@/lib/panels'
+import { closePanel, fillPanel, openPanel } from '@/lib/panels'
 import { fieldsOf, type FieldDescriptor } from '@/lib/schema-form'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
 
@@ -122,6 +122,12 @@ export function Blocks() {
         openPanel()
     }, [])
 
+    /** What taking the open row back means here, for the catalog and the registries alike. */
+    const unchoose = useCallback(() => {
+        setChosen(null)
+        closePanel()
+    }, [])
+
     return (
         <>
             <PageHeader title="Blocks" aside={<ApiChip tag="blocks" />} />
@@ -162,6 +168,7 @@ export function Blocks() {
                                 noun="blocks"
                                 onSelect={select}
                                 selected={(entry) => `block:${entry.id}` === chosen}
+                                onClose={unchoose}
                             />
                         </section>
                     ))}
@@ -188,6 +195,7 @@ export function Blocks() {
                                         openPanel()
                                     }}
                                     selected={(entry) => entryKeyOf(registry.key)(entry) === chosen}
+                                    onClose={unchoose}
                                 />
                             </section>
                         )

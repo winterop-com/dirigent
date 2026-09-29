@@ -137,6 +137,30 @@ export function openPanel(): void {
     panelOpen.set(true)
 }
 
+/**
+ * Take back the open a row asked for, which is what unchoosing that row does.
+ *
+ * The mirror of `openPanel`, and it leaves the reader's preference alone for the same reason:
+ * the sheet comes down, and on a wide window the screen's own unfilling is what takes the panel
+ * away, because a panel nobody has filled is not drawn.
+ */
+export function closePanel(): void {
+    visitOpenPending = false
+    panelSheet.set(false)
+}
+
+/**
+ * Whether the panel is on screen right now, which is not the same as whether it is open.
+ *
+ * Below the breakpoint what is beside a screen is under it, and `panelSheet` is what says so;
+ * above it the panel's own flag does. `openPanel` sets both, so neither alone answers for both
+ * widths -- and a row pressed while nothing is standing opens the panel rather than closing a
+ * selection nothing is showing.
+ */
+export function panelStanding(small: boolean): boolean {
+    return small ? panelSheet.get() : panelOpen.get()
+}
+
 /** Show or hide the right panel, and keep that as the reader's preference. */
 export function togglePanel(): void {
     const open = !panelOpen.get()
@@ -207,12 +231,13 @@ export function fillPanel(tabs: readonly PanelTab[], owner?: PanelOwner): () => 
     if (owner !== undefined && owner.screen !== lastScreen) {
         lastScreen = owner.screen
         panelTab.set(owner.open ?? tabs[0]?.id ?? null)
-        // A sheet is over the screen it was raised from, so arriving at another one takes it
-        // down rather than carrying it across.
-        panelSheet.set(false)
         // An open this screen asked for before its first fill is its own; any other is the
-        // last screen's, and this one starts from the reader's preference.
-        if (!visitOpenPending) panelOpen.set(preferredOpen)
+        // last screen's, so this one starts from the reader's preference and the sheet the
+        // last screen raised comes down rather than being carried across.
+        if (!visitOpenPending) {
+            panelSheet.set(false)
+            panelOpen.set(preferredOpen)
+        }
     }
     if (owner !== undefined) visitOpenPending = false
     return () => {

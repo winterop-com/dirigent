@@ -1074,22 +1074,50 @@ html.dark[data-theme='contrast'],
    headings that read as headings, and a selected row that wears the identity colour on its
    left edge -- because choosing is an action, and that is the one colour this app spends on
    one.
+
+   THE INSET IS STATED ONCE AND SPENT EVERYWHERE. This dialog lays out its own body rather than
+   taking the generated `DialogContent`'s `p-4`, so `--palette-inset` is that same 16px and every
+   part of it stands on the edge: the search glyph, a shelf heading, a row's icon tile and the
+   footer's key chips. The gutter is half of it, which is the room a rounded row's wash needs
+   inside the sides -- the wash floats in the 8, its content lands on the 16.
    --------------------------------------------------------------------------- */
+.dg-palette {
+    --palette-inset: 1rem;
+    --palette-gutter: calc(var(--palette-inset) / 2);
+}
 .dg-palette [data-slot='command-input-wrapper'] {
     padding: 0;
     border-bottom: 1px solid var(--border);
 }
 .dg-palette [data-slot='command-input-wrapper'] > * {
-    height: 3.5rem;
     border: 0;
     border-radius: 0;
     background-color: transparent;
     box-shadow: none;
-    padding-inline: 0.875rem;
+    padding-inline: var(--palette-inset);
     gap: 0.625rem;
 }
+/* The generated search field carries `h-8!` and puts `pl-2!` on its glyph, and a `!` utility
+   is an important declaration in `@layer utilities`. Important declarations sort their layers
+   the other way round, so an unlayered rule cannot override one however specific it is and
+   these two have to stand in an earlier layer. Nothing else here needs it, and a normal
+   declaration must not move: in an earlier layer it would lose to the utilities instead. */
+@layer components {
+    .dg-palette [data-slot='input-group'] {
+        /* A strip's height is the inset above and below what it holds, so a 24px line of
+           search text stands in a 56px row. */
+        height: calc(1.5rem + var(--palette-inset) * 2) !important;
+    }
+    .dg-palette [data-slot='input-group-addon'] {
+        /* The glyph stands on the inset, not 8px further in than everything below it. */
+        padding-inline-start: 0 !important;
+    }
+}
+.dg-palette [data-slot='command-list'] {
+    padding: var(--palette-gutter);
+}
 .dg-palette [cmdk-group-heading] {
-    padding: 0.75rem 0.5rem 0.375rem;
+    padding: 0.75rem var(--palette-gutter) 0.375rem;
     font-size: var(--text-xs);
     font-weight: 600;
     letter-spacing: 0.06em;
@@ -1098,6 +1126,7 @@ html.dark[data-theme='contrast'],
 }
 .dg-palette [data-slot='command-item'] {
     position: relative;
+    padding-inline: var(--palette-gutter);
 }
 .dg-palette [data-slot='command-item'][data-selected='true'] {
     background-color: color-mix(in oklab, var(--accent) 70%, transparent);
@@ -1110,6 +1139,9 @@ html.dark[data-theme='contrast'],
     width: 3px;
     border-radius: 2px;
     background-color: var(--primary);
+}
+.dg-palette [data-slot='palette-footer'] {
+    padding: var(--palette-inset);
 }
 
 /* An identifier is a machine's string -- a run uuid, a block id, a cursor -- read character
@@ -1481,6 +1513,15 @@ html.dark[data-theme='contrast'],
         flex-wrap: wrap;
         justify-content: flex-end;
         align-items: center;
+    }
+    /* The palette is a sheet like every other dialog here, so its list takes the height the
+       sheet has and its footer sits at the foot. The 26rem cap is what holds the card to a
+       card on a wide window, and on a phone it would leave the key chips halfway up an
+       otherwise empty page. */
+    .dg-palette [data-slot='command-list'] {
+        max-height: none;
+        min-height: 0;
+        flex: 1;
     }
 }
 
