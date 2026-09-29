@@ -3,29 +3,15 @@
 What is left to do. The design specification is [docs/design.md](docs/design.md); what
 already works is documented in [docs/](docs/index.md).
 
-## The CLI output work
-
-**Decided, and it supersedes anything below that says otherwise: a command emits NDJSON and
-nothing else unless it is asked for a rendering.** `dg dev`, `dg server`, `dg worker` and `dg scheduler` write structured
-records to stdout at every verbosity, with no banner, no `ready` line, no table, no colour
-and no rendering to choose between. Everything the banner used to say is a field on a
-`process` record. Reading them is `dg dev | dg format`, which is the same answer for
-a container's logs, a file from last week, or a colleague's paste. The process then has one
-encoder and no branching on who might be watching, and the formatter is the only place that
-knows how a line should look.
-
-Commands write it too. `dg run`, `dg runs`, `dg pipeline` and the rest emit records, and
-`-o console` is how one invocation asks for the rendering instead -- which is the same
-rendering `dg format` gives the pipe.
-
-### Settled
+## Settled
 
 Decisions that still constrain the code. What each one replaced is in the commit that made
 it; what it forbids is here, because that is what somebody is liable to undo.
 
-- **Every command writes NDJSON, and `dg init` is the only exception.** A command emits
-  records unless `-o console` or `DIRIGENT_LOG_FORMAT` asks for the rendering. `dg init` is
-  run once by a person setting a machine up and renders unless asked for records.
+- **The terminal decides the output.** At a terminal a command renders; anywhere else it
+  writes NDJSON, one record per line. `--json`, `-o console` and `DIRIGENT_LOG_FORMAT`
+  override, and `dg format` renders a kept stream. `dg --version` and `dg secret-key` answer
+  with one plain line everywhere, because the value is the whole output.
 - **A table is a rendering of a record, keyed by its `kind`.** `dirigent_cli/summaries.py`
   maps a kind to what it draws beneath its line; a kind with no entry renders as its line
   alone, which is what keeps a record from a plugin or a newer dirigent readable. No command
@@ -79,7 +65,31 @@ CLAUDE.md first, commit signed with conventional messages, every change ships wi
 `make test-postgres` stay green, coverage stays at or above 90, `mkdocs build --strict`
 stays clean, and every example stays executable.
 
-1. **Adapter packs.** Every further pack takes the shape `dirigent-dhis2` set: its own
+1. **Streaming through the DAG, stage 2: a fan-out over a step's output.** Stage 1 is the
+   `watch` trigger. Today a grid's size is fixed when the run is created, and
+   `resolve_fan_out` refuses a `steps.` reference with `FAN_OUT_READS_OUTPUT`, so "list, then
+   fan out over what was listed" needs a child pipeline through `pipeline.run`. The
+   recommended design keeps the syntax, `for_each: ${steps.list_files.output.files}`, and
+   expands late. At creation the step gets one pending gate attempt, so it reads pending
+   rather than skipped. When it becomes ready, `advance` resolves the list from the
+   ancestors' outputs and writes the items and their attempts in the same transaction. A
+   gate is never claimed, retrying one is refused, and an adopter of a late grid expands
+   with matching indices. Alongside it comes an instance setting `fan_out_max_items`
+   (default 10000) for every grid, and optionally `DagNode.grid_source` so a node can name
+   what it waits for. The alternatives were to expand when the source succeeds, which needs
+   a `run_grids` table and writes rows that may be skipped, or to make expansion a claimable
+   unit, which is the only one that scales past tens of thousands of items or reads a list
+   from storage.
+   To decide before building:
+   - whether an empty list skips the step, as an empty params grid does, or succeeds with
+     no items so a join still runs;
+   - whether the cap applies to params grids too;
+   - whether retrying an upstream item after expansion leaves the grid frozen or is refused;
+   - whether the source may be any ancestor or only a direct `depends_on`.
+   After that, stage 3 starts with item-by-item scheduling: item i of B ready when item i of
+   A succeeds rather than when all of A has. Streaming a single step comes last, and only if
+   it is still wanted.
+2. **Adapter packs.** Every further pack takes the shape `dirigent-dhis2` set: its own
    repository, its own examples and tests, self-testing against `dirigent-plugin`'s main,
    wired through a connection kind, with a client written fresh or wrapping a stable one, and
    assembled by `dirigent-integration`.
