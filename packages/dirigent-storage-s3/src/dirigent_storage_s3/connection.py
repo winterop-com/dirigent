@@ -4,7 +4,7 @@ from typing import Any, ClassVar
 
 from pydantic import BaseModel
 
-from dirigent_common import HealthReport
+from dirigent_common import HealthReport, raised_detail
 from dirigent_plugin import ConnectionKind
 from dirigent_storage_s3.backend import S3StorageConfig, open_client
 
@@ -23,7 +23,7 @@ class S3ConnectionKind(ConnectionKind):
                 detail = await _probe(client, settings)
         # Broad on purpose: a health check reports a failure, it never raises one at the caller.
         except Exception as error:
-            return HealthReport(healthy=False, detail=f"{type(error).__name__}: {error}")
+            return HealthReport(healthy=False, detail=raised_detail(error))
         return HealthReport(healthy=True, detail=detail)
 
 

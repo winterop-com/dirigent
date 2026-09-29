@@ -50,7 +50,7 @@ from dirigent_cli.messages import (
 )
 from dirigent_cli.output import configure, detail_mode, emit_fact, emit_problem, emit_rendered, refuse
 from dirigent_client.enums import UserRole
-from dirigent_common import Issue
+from dirigent_common import Issue, raised_detail, validation_issues
 from dirigent_core import migrations
 from dirigent_core.config import STATE_DIR, Settings, get_settings, redacted_url, reset_settings_cache
 from dirigent_core.logging import configure_logging, silence_stdout
@@ -402,7 +402,7 @@ async def _ensure_container(settings: Settings) -> "ContainerResult":
     except DomainError as error:
         commands.fail(STORE_UNCONFIGURED, root=settings.artifact_root, detail=str(error))
     except Exception as error:
-        commands.fail(STORE_UNREACHABLE, root=settings.artifact_root, detail=f"{type(error).__name__}: {error}")
+        commands.fail(STORE_UNREACHABLE, root=settings.artifact_root, detail=raised_detail(error))
     finally:
         await engine.dispose()
 
@@ -443,7 +443,12 @@ def connection_ensure(
     except ValidationError as error:
         # include_input=False: the input here is a credential, and pydantic's default error
         # payload echoes the value that failed.
-        commands.fail(CONNECTION_UNUSABLE, code=code, kind=kind_id, detail=str(error.errors(include_input=False)))
+        commands.fail(
+            CONNECTION_UNUSABLE,
+            code=code,
+            kind=kind_id,
+            problems=validation_issues(error.errors(include_input=False)),
+        )
     key = settings.secret_key.get_secret_value() if settings.secret_key else None
     try:
         public, envelope, key_id = SecretBox(key).encrypt_config(model, validated)

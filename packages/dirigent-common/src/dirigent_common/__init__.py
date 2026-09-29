@@ -24,6 +24,7 @@ from dirigent_common.messages import (
     Issue,
     Message,
     MessageError,
+    raised_detail,
     validation_issue,
     validation_issues,
 )
@@ -116,6 +117,7 @@ __all__ = [
     "spelled",
     "step_name_error",
     "to_timedelta",
+    "raised_detail",
     "validation_issue",
     "validation_issues",
 ]

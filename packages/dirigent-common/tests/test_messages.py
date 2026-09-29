@@ -1,12 +1,13 @@
 """The catalogue mechanism, and the workspace-wide walk over every prefix it owns."""
 
 import importlib
+import re
 from typing import Final
 
 import pytest
 
-from dirigent_common import Catalogue, Issue, Message, MessageError, validation_issues
-from dirigent_common.messages import EXTRA_FORBIDDEN
+from dirigent_common import Catalogue, Issue, Message, MessageError, raised_detail, validation_issues
+from dirigent_common.messages import EXTRA_FORBIDDEN, RAISED_DETAIL_CHARS
 
 #: Every messages module the workspace holds, named so importing them all is what the walk
 #: below asserts against. A new package's catalogue is added here.
@@ -29,6 +30,10 @@ MODULES: Final[tuple[str, ...]] = (
     "dirigent_block_sql.messages",
     "dirigent_block_storage.messages",
 )
+
+#: A tool a reader would have to leave their surface to run. A message outside ``cli.*`` and
+#: ``health.*`` is drawn by the web UI too, where naming one of these is a dead end.
+TOOL_WORD: Final = re.compile(r"\b(dg|uv|uvx|pip|npm|bun|pnpm|yarn)\b")
 
 #: Which package owns each prefix. A code is public API, so a prefix has exactly one owner.
 OWNED: Final[dict[str, str]] = {
@@ -173,3 +178,39 @@ def test_every_catalogue_the_workspace_imports_owns_its_prefix_and_its_codes() -
             assert message.code not in seen, f"{message.code} is defined by two catalogues"
             seen[message.code] = message
     assert len(seen) > 200
+
+
+def test_a_message_more_than_one_surface_renders_names_no_tool() -> None:
+    """A refusal the web UI also draws must not tell its reader to go and type a command.
+
+    ``cli.*`` and ``health.*`` are exempt: those are rendered by the CLI alone, which knows it
+    is the CLI and may name its own commands.
+    """
+    for module in MODULES:
+        importlib.import_module(module)
+
+    named: list[str] = []
+    for catalogue in Catalogue.all:
+        if catalogue.prefix.startswith("test_") or catalogue.prefix.split(".")[0] in {"cli", "health"}:
+            continue
+        named += [
+            f"{message.code}: {message.text}"
+            for message in catalogue.messages.values()
+            if TOOL_WORD.search(message.text)
+        ]
+    assert named == [], f"a shared refusal names a tool its reader may have no way to run: {named}"
+
+
+def test_an_exception_that_said_nothing_falls_back_to_its_class() -> None:
+    assert raised_detail(ConnectionResetError()) == "ConnectionResetError"
+
+
+def test_an_exception_that_said_something_is_quoted_and_not_classified() -> None:
+    assert raised_detail(ValueError("the host refused the connection")) == "the host refused the connection"
+
+
+def test_an_exception_that_said_far_too_much_is_truncated() -> None:
+    detail = raised_detail(ValueError("x" * (RAISED_DETAIL_CHARS + 50)))
+
+    assert detail.startswith("x" * RAISED_DETAIL_CHARS)
+    assert detail.endswith(f"[truncated, {RAISED_DETAIL_CHARS + 50} characters]")

@@ -109,8 +109,25 @@ def test_a_failure_carries_the_message_a_block_meant_to_send() -> None:
     assert deliberate.error_class is ErrorClass.REJECTED
 
     accidental = Failure.of(HonestOperator(), ValueError("nonsense"))
-    assert accidental.message == "ValueError: nonsense"
     assert accidental.error_class is ErrorClass.UNKNOWN
+
+
+def test_an_unanticipated_exception_is_not_read_to_a_person_as_a_python_class() -> None:
+    """The sentence names the block and sends the reader to the log; the class is a param."""
+    failure = Failure.of(HonestOperator(), ValueError("nonsense"))
+
+    assert failure.code == "run.block_raised"
+    assert "ValueError" not in failure.message
+    assert "nonsense" not in failure.message
+    assert "test.honest" in failure.message
+    assert failure.params["raised_kind"] == "ValueError"
+    assert failure.params["raised_detail"] == "nonsense"
+
+
+def test_an_exception_that_said_nothing_still_leaves_an_operator_something() -> None:
+    failure = Failure.of(HonestOperator(), ConnectionResetError())
+
+    assert failure.params["raised_detail"] == "ConnectionResetError"
 
 
 def test_the_engine_can_raise_its_own_classified_failures() -> None:

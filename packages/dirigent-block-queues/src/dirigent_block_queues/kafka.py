@@ -45,7 +45,7 @@ from dirigent_block_queues.messages import (
     KAFKA_READ_FAILED,
     SASL_NEEDS_A_CREDENTIAL,
 )
-from dirigent_common import BlockModel, Duration, HealthReport, JsonMap
+from dirigent_common import BlockModel, Duration, HealthReport, JsonMap, raised_detail
 from dirigent_plugin import (
     BlockFailure,
     ConnectionKind,
@@ -240,7 +240,7 @@ class KafkaConnectionKind(ConnectionKind):
             await consumer.start()
             topics = await consumer.topics()
         except Exception as error:  # every client error is a health answer, never a raise
-            return HealthReport(healthy=False, detail=f"{type(error).__name__}: {error}")
+            return HealthReport(healthy=False, detail=raised_detail(error))
         finally:
             # A consumer whose start failed is still open, and the library reports one that
             # is dropped that way as an error on the event loop.

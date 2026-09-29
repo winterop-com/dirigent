@@ -20,7 +20,7 @@ from pydantic import BaseModel, ConfigDict, JsonValue, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from dirigent_client.enums import AttemptKind, AttemptStatus, LogLevel, RunStatus, TriggerKind
-from dirigent_common import Issue, JsonMap, format_duration
+from dirigent_common import Issue, JsonMap, format_duration, raised_detail
 from dirigent_core import telemetry, wakeups
 from dirigent_core.artifacts import persist_output
 from dirigent_core.database import session_scope, with_deadlock_retry
@@ -76,7 +76,15 @@ from dirigent_core.messages import (
 )
 from dirigent_core.models import LogEntry, PipelineVersion, Run, RunItem, StepAttempt, utcnow
 from dirigent_core.storage import AttemptStorage, scratch_prefix
-from dirigent_plugin import AnyOperator, AnySensor, NotYet, ProbeStatus, RemoteHandle, shell_string_fields
+from dirigent_plugin import (
+    AnyOperator,
+    AnySensor,
+    BlockFailure,
+    NotYet,
+    ProbeStatus,
+    RemoteHandle,
+    shell_string_fields,
+)
 
 DEFAULT_PROBE_INTERVAL = timedelta(seconds=30)
 
@@ -292,12 +300,25 @@ class Engine:
             )
             return None
         except Exception as error:
+            # The step has no log of its own before its config resolves, so what was raised is
+            # said in the engine's log and carried in the refusal's params.
+            _logger.warning(
+                "a step's config could not be prepared",
+                step=attempt.step_name,
+                raised_kind=type(error).__name__,
+                raised_detail=raised_detail(error),
+            )
             await self._settle_and_advance(
                 session,
                 run,
                 definition,
                 attempt,
-                Failure.rejected(CONFIG_FAILED, kind=type(error).__name__, detail=str(error)),
+                Failure.rejected(
+                    CONFIG_FAILED,
+                    step=repr(attempt.step_name),
+                    raised_kind=type(error).__name__,
+                    raised_detail=raised_detail(error),
+                ),
                 now,
             )
             return None
@@ -452,6 +473,14 @@ class Engine:
         except TimeoutError:
             return Errored(failure=timeout_failure(unit.step.timeout))
         except Exception as error:
+            if not isinstance(error, BlockFailure):
+                # The refusal says only that the block did not explain itself, so what it
+                # raised is written here, which is where the person reading that is sent.
+                context.log.error(
+                    "the block raised an error it does not account for",
+                    raised_kind=type(error).__name__,
+                    raised_detail=raised_detail(error),
+                )
             return Errored(failure=Failure.of(block, error))
 
     async def _call_operator(

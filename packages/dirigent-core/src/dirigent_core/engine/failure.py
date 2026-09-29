@@ -11,7 +11,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from dirigent_common import JsonMap, Message
+from dirigent_common import JsonMap, Message, raised_detail
 from dirigent_core.engine.definition import RetryPolicy
 from dirigent_core.messages import BLOCK_RAISED
 from dirigent_plugin import AnyOperator, AnySensor, BlockFailure, ErrorClass, classify_default
@@ -49,6 +49,15 @@ def backoff_delay(policy: RetryPolicy, attempt: int, rng: random.Random | None =
     return timedelta(seconds=max(seconds, 0.0))
 
 
+def raised_params(block_id: str, error: Exception) -> JsonMap:
+    """Name an unanticipated exception for an operator, beside the sentence a person reads.
+
+    ``block`` is what the template renders; the class and the exception's own text are an
+    operator's, so they ride here and in the step's log instead of in that sentence.
+    """
+    return {"block": repr(block_id), "raised_kind": type(error).__name__, "raised_detail": raised_detail(error)}
+
+
 class Failure(BaseModel):
     """One classified failure, ready for the retry decision and for the attempt row."""
 
@@ -65,11 +74,10 @@ class Failure(BaseModel):
         error_class = classify(block, error)
         if isinstance(error, BlockFailure):
             return cls(code=error.code, message=error.message, params=error.params, error_class=error_class)
-        params: JsonMap = {"kind": type(error).__name__, "detail": str(error)}
         return cls(
             code=BLOCK_RAISED.code,
-            message=BLOCK_RAISED.render(**params),
-            params=params,
+            message=BLOCK_RAISED.render(block=repr(block.spec.id)),
+            params=raised_params(block.spec.id, error),
             error_class=error_class,
         )
 

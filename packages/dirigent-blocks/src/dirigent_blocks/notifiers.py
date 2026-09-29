@@ -23,7 +23,7 @@ from dirigent_blocks.messages import (
     SLACK_WEBHOOK_HAS_A_CHANNEL,
     WEBHOOK_HAS_NO_URL,
 )
-from dirigent_common import BlockModel, Duration, HealthReport
+from dirigent_common import BlockModel, Duration, HealthReport, raised_detail
 from dirigent_plugin import AlertMessage, ConnectionKind, Notifier
 
 DEFAULT_TIMEOUT = timedelta(seconds=15)
@@ -122,7 +122,7 @@ class WebhookConnectionKind(ConnectionKind):
                 response = await client.head(settings.url)
         # Broad on purpose: a health check reports a failure, it never raises one at the caller.
         except Exception as error:
-            return HealthReport(healthy=False, detail=f"{type(error).__name__}: {error}")
+            return HealthReport(healthy=False, detail=raised_detail(error))
         if response.status_code >= SERVER_ERROR_STATUS:
             return HealthReport(healthy=False, detail=f"the endpoint answered HTTP {response.status_code}")
         return HealthReport(healthy=True, detail=f"reachable: HEAD answered HTTP {response.status_code}")
@@ -235,7 +235,7 @@ class SlackConnectionKind(ConnectionKind):
                 answer = _slack_answer(response)
         # Broad on purpose: a health check reports a failure, it never raises one at the caller.
         except Exception as error:
-            return HealthReport(healthy=False, detail=f"{type(error).__name__}: {error}")
+            return HealthReport(healthy=False, detail=raised_detail(error))
         if not answer.ok:
             return HealthReport(healthy=False, detail=f"slack refused the token: {answer.error}")
         return HealthReport(healthy=True, detail=f"authenticated to {answer.team}" if answer.team else "token accepted")
@@ -410,7 +410,7 @@ class EmailConnectionKind(ConnectionKind):
                     await client.login(settings.username, _password(settings))
         # Broad on purpose: a health check reports a failure, it never raises one at the caller.
         except Exception as error:
-            return HealthReport(healthy=False, detail=f"{type(error).__name__}: {error}")
+            return HealthReport(healthy=False, detail=raised_detail(error))
         first = greeting.message.splitlines()[0] if greeting.message else ""
         stage = "authenticated" if settings.username is not None else "greeted"
         return HealthReport(healthy=True, detail=f"{stage}: {first}" if first else stage)
