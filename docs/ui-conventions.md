@@ -965,11 +965,14 @@ each drawing half a border is a line that comes apart at a column edge, and the 
 app then reads as a step. `e2e/shell.spec.ts` measures every strip with
 `getBoundingClientRect`, in both palettes, with the rail collapsed and the panel open.
 
-**A fact appears once in the shell.** The instance's name, environment and version belong to
-the corner identity and the health popover behind it; the status bar carries the screen's own
-two facts and the account, and never repeats them. What a screen states there is what nothing
-else on it already says -- how many rows were read is the foot of the table's line, not the
-bar's -- and an instant is the house's relative form rather than a locale string.
+**A fact appears once in the shell.** What this instance is and who is signed in belong to the
+corner identity and the health popover behind it -- the name, the environment, the version,
+every check and the username, with Sign out under them. **The foot carries only what the
+current screen is doing**: its note and its identifier, and nothing that is true of the session
+rather than of the screen. What a screen states there is what nothing else on it already says
+-- how many rows were read is the foot of the table's line, not the bar's; a standing fact is
+which version the instance holds, not who applied it and when -- and an instant is the house's
+relative form rather than a locale string.
 
 **Settings lives at the bottom of the rail's column**, in that bar; the instance's identity --
 a dot, its name and environment from `/system/info`, its version -- lives at the right of the

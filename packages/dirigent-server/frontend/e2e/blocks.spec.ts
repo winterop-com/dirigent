@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 
+import { LABELS } from '../src/lib/labels.ts'
 import { signIn } from './support.ts'
 
 /**
@@ -52,12 +53,16 @@ test('the catalog lists every installed block in its family, with its kind and p
     // with the other two blocks that run something, and there is no `shell` shelf at all.
     await expect(page.getByRole('heading', { name: 'execute', exact: true })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'transform', exact: true })).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'shell', exact: true })).toHaveCount(0)
-    await expect(page.getByRole('heading', { name: 'map', exact: true })).toHaveCount(0)
+    await expect(page.getByRole('heading', { name: LABELS.reference.shell.title, exact: true })).toHaveCount(
+        0,
+    )
+    await expect(
+        page.getByRole('heading', { name: LABELS.blocks.field_type.pairs, exact: true }),
+    ).toHaveCount(0)
 
     // The supporting registries are on the catalog screen too, so s3 or a notifier is findable.
-    await expect(page.getByRole('heading', { name: 'Notifiers' })).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Connection kinds' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: LABELS.blocks.registry.notifier.title })).toBeVisible()
+    await expect(page.getByRole('heading', { name: LABELS.blocks.registry.connection.title })).toBeVisible()
 })
 
 test('choosing a block opens its config reference in the panel', async ({ page }) => {
@@ -73,8 +78,8 @@ test('choosing a block opens its config reference in the panel', async ({ page }
     // The facts are named with the words the catalog answers with, and the allowlist gate is
     // stated because it decides whether a pipeline naming this block runs at all.
     await expect(panel).toContainText('plugin')
-    await expect(panel).toContainText('local_execution')
-    await expect(panel).toContainText('requires allowlisting')
+    await expect(panel).toContainText(LABELS.blocks.fact.term.local_execution)
+    await expect(panel).toContainText(LABELS.blocks.fact.local_execution.required)
 
     // THE CONFIG REFERENCE IS THE BLOCK AUTHOR'S OWN WORDS. Each key is published with the
     // docstring written beside it in Python, and that sentence is what the panel states.
@@ -102,9 +107,9 @@ test('a required config key is marked as one, and a sensor states its timing def
 
     // A sensor is polled and deadlined, and the catalog answers both; an operator answers
     // neither, so these rows are absent there rather than empty.
-    await expect(panel).toContainText('default_poll_seconds')
-    await expect(panel).toContainText('default_deadline_seconds')
-    await expect(panel).toContainText('no allowlist entry')
+    await expect(panel).toContainText(LABELS.blocks.fact.term.default_poll_seconds)
+    await expect(panel).toContainText(LABELS.blocks.fact.term.default_deadline_seconds)
+    await expect(panel).toContainText(LABELS.blocks.fact.local_execution.absent)
 })
 
 test('the search box narrows the catalog to what was typed', async ({ page }) => {
@@ -113,17 +118,17 @@ test('the search box narrows the catalog to what was typed', async ({ page }) =>
 
     await expect(rowOf(page, SLEEP)).toBeVisible()
 
-    await page.getByLabel('Search blocks by id or summary').fill('shell')
+    await page.getByLabel(LABELS.blocks.search).fill('shell')
 
     await expect(rowOf(page, SHELL)).toBeVisible()
     await expect(rowOf(page, SLEEP)).toHaveCount(0)
 
     // A search that finds nothing says so, rather than falling back to the whole catalog.
-    await page.getByLabel('Search blocks by id or summary').fill('kubernetes')
-    await expect(page.getByText('Nothing in the catalog matches that.', { exact: false })).toBeVisible()
+    await page.getByLabel(LABELS.blocks.search).fill('kubernetes')
+    await expect(page.getByText(LABELS.blocks.empty_filtered, { exact: false })).toBeVisible()
 
     // Clearing the box brings the catalog back.
-    await page.getByLabel('Search blocks by id or summary').fill('')
+    await page.getByLabel(LABELS.blocks.search).fill('')
     await expect(rowOf(page, SLEEP)).toBeVisible()
 })
 

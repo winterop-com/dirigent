@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 
+import { LABELS } from '../src/lib/labels.ts'
 import { apiPrefix, signIn, writeInEditor } from './support.ts'
 
 /**
@@ -25,7 +26,7 @@ const WIDE = { code: 'e2e-wide-row', name: 'Page the on-call when the nightly lo
 test.beforeEach(async ({ page }) => {
     await signIn(page)
     await page.goto('/admin/alerting')
-    await expect(page.getByRole('heading', { name: 'Alerting' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: LABELS.screen.alerting.name })).toBeVisible()
 })
 
 test.afterEach(async ({ page }) => {
@@ -46,58 +47,58 @@ function ruleRow(page: Page) {
 }
 
 test('the channel strip is one chip per channel, and the words are on the tooltip', async ({ page }) => {
-    const strip = page.getByRole('heading', { name: 'Channels' }).locator('..')
+    const strip = page.getByRole('heading', { name: LABELS.alerting.channels_heading }).locator('..')
     // A chip carries the code and nothing else: the log channel has no credential to name, and
     // a kind nothing is set up for names itself.
-    await expect(strip.getByText('log', { exact: true })).toBeVisible()
+    await expect(strip.getByText(LABELS.editor.run.log, { exact: true })).toBeVisible()
     await expect(strip.getByText('webhook', { exact: true })).toBeVisible()
-    await expect(strip.getByText('not set up')).toBeHidden()
+    await expect(strip.getByText(LABELS.alerting.channel.not_set_up)).toBeHidden()
 
     // The tooltip primitive describes its trigger rather than carrying a role, so it is found
     // by the slot the design system gives it.
-    await strip.getByText('log', { exact: true }).hover()
+    await strip.getByText(LABELS.editor.run.log, { exact: true }).hover()
     await expect(page.locator('[data-slot="tooltip-content"]')).toContainText('log · ready')
 })
 
 test('a chip of a kind nothing is set up for opens the dialog on that kind', async ({ page }) => {
-    const strip = page.getByRole('heading', { name: 'Channels' }).locator('..')
+    const strip = page.getByRole('heading', { name: LABELS.alerting.channels_heading }).locator('..')
     await strip.getByRole('link', { name: 'webhook' }).click()
     await expect(page).toHaveURL(/\/connections\?new=webhook$/)
     const dialog = page.getByRole('dialog')
-    await expect(dialog.getByRole('heading', { name: 'New connection' })).toBeVisible()
-    await expect(dialog.getByLabel('Kind')).toContainText('webhook')
+    await expect(dialog.getByRole('heading', { name: LABELS.connections.new })).toBeVisible()
+    await expect(dialog.getByLabel(LABELS.word.kind)).toContainText('webhook')
 })
 
 test('a rule is declared from the screen, and appears in the listing it was declared on', async ({
     page,
 }) => {
-    await page.getByRole('button', { name: 'New rule' }).click()
+    await page.getByRole('button', { name: LABELS.alerting.new_rule }).click()
 
     const dialog = page.getByRole('dialog')
-    await expect(dialog.getByRole('heading', { name: 'New rule' })).toBeVisible()
+    await expect(dialog.getByRole('heading', { name: LABELS.alerting.new_rule })).toBeVisible()
 
     // Create is shut until the rule says enough to be one, and says why.
-    const create = dialog.getByRole('button', { name: 'Create' })
+    const create = dialog.getByRole('button', { name: LABELS.action.create })
     await expect(create).toBeDisabled()
     await expect(create).toHaveAttribute('title', 'A rule is addressed by its code, and this one has none.')
 
-    await dialog.getByLabel('Code').fill(RULE.code)
-    await dialog.getByLabel('Name').fill(RULE.name)
+    await dialog.getByLabel(LABELS.word.code).fill(RULE.code)
+    await dialog.getByLabel(LABELS.word.name).fill(RULE.name)
     await dialog.getByRole('button', { name: 'Failed' }).click()
-    await dialog.getByRole('button', { name: 'Every pipeline' }).click()
+    await dialog.getByRole('button', { name: LABELS.alerting.scope.global }).click()
 
     // A rule names one target and the sender follows from it: one picker, opened on the log.
-    await expect(dialog.getByLabel('Deliver through')).toHaveValue('The process log')
-    await expect(dialog.getByLabel('Notifier')).toHaveCount(0)
+    await expect(dialog.getByLabel(LABELS.alerting.deliver_through)).toHaveValue('The process log')
+    await expect(dialog.getByLabel(LABELS.alerting.notifier)).toHaveCount(0)
 
     // A target is a channel, so every row of the picker wears its kind's mark.
-    await dialog.getByLabel('Deliver through').click()
-    const logRow = page.getByRole('option', { name: 'The process log' })
+    await dialog.getByLabel(LABELS.alerting.deliver_through).click()
+    const logRow = page.getByRole('option', { name: LABELS.alerting.log_target })
     await expect(logRow.locator('[data-slot="mark"]')).toHaveCount(1)
     await logRow.click()
-    await expect(dialog.getByLabel('Deliver through')).toHaveValue('The process log')
+    await expect(dialog.getByLabel(LABELS.alerting.deliver_through)).toHaveValue('The process log')
 
-    await dialog.getByLabel('Throttle').fill('15m')
+    await dialog.getByLabel(LABELS.word.throttle).fill('15m')
     await expect(create).toBeEnabled()
     await create.click()
 
@@ -106,18 +107,20 @@ test('a rule is declared from the screen, and appears in the listing it was decl
     await expect(row).toContainText(RULE.name)
     await expect(row).toContainText(RULE.code)
     await expect(row).toContainText('Failed')
-    await expect(row).toContainText('every pipeline')
-    await expect(row).toContainText('log')
+    await expect(row).toContainText(LABELS.alerting.every_pipeline)
+    await expect(row).toContainText(LABELS.editor.run.log)
     await expect(row).toContainText('15m')
-    await expect(row).toContainText('active')
+    await expect(row).toContainText(LABELS.state.armed.active)
     // The target cell wears the same mark the picker offered it under.
-    await expect(row.locator('td').filter({ hasText: 'log' }).locator('[data-slot="mark"]')).toHaveCount(1)
+    await expect(
+        row.locator('td').filter({ hasText: LABELS.editor.run.log }).locator('[data-slot="mark"]'),
+    ).toHaveCount(1)
 })
 
 test('escape on the target picker leaves the text saying what is chosen', async ({ page }) => {
-    await page.getByRole('button', { name: 'New rule' }).click()
+    await page.getByRole('button', { name: LABELS.alerting.new_rule }).click()
     const dialog = page.getByRole('dialog')
-    const field = dialog.getByLabel('Deliver through')
+    const field = dialog.getByLabel(LABELS.alerting.deliver_through)
     await expect(field).toHaveValue('The process log')
 
     // A filter typed and abandoned: the popup closes and the box reads the chosen row again.
@@ -129,34 +132,34 @@ test('escape on the target picker leaves the text saying what is chosen', async 
     await expect(page.getByRole('listbox')).toHaveCount(0)
 
     // What the box reads is what is created.
-    await dialog.getByLabel('Code').fill(RULE.code)
+    await dialog.getByLabel(LABELS.word.code).fill(RULE.code)
     await dialog.getByRole('button', { name: 'Failed' }).click()
-    await dialog.getByRole('button', { name: 'Every pipeline' }).click()
-    await dialog.getByRole('button', { name: 'Create' }).click()
+    await dialog.getByRole('button', { name: LABELS.alerting.scope.global }).click()
+    await dialog.getByRole('button', { name: LABELS.action.create }).click()
     await expect(page.getByRole('dialog')).toHaveCount(0)
-    await expect(ruleRow(page)).toContainText('log')
+    await expect(ruleRow(page)).toContainText(LABELS.editor.run.log)
 
     // A press on the closed box clears nothing, and the choice is still the one created with.
-    await page.getByRole('button', { name: 'New rule' }).click()
+    await page.getByRole('button', { name: LABELS.alerting.new_rule }).click()
     await expect(field).toHaveValue('The process log')
     await field.press('Escape')
     await expect(field).toHaveValue('The process log')
-    await dialog.getByLabel('Code').fill(WIDE.code)
+    await dialog.getByLabel(LABELS.word.code).fill(WIDE.code)
     await dialog.getByRole('button', { name: 'Failed' }).click()
-    await dialog.getByRole('button', { name: 'Every pipeline' }).click()
-    await dialog.getByRole('button', { name: 'Create' }).click()
+    await dialog.getByRole('button', { name: LABELS.alerting.scope.global }).click()
+    await dialog.getByRole('button', { name: LABELS.action.create }).click()
     await expect(page.getByRole('dialog')).toHaveCount(0)
     await expect(
         page.getByRole('row').or(page.getByRole('listitem')).filter({ hasText: WIDE.code }),
-    ).toContainText('log')
+    ).toContainText(LABELS.editor.run.log)
 })
 
 test.describe('on a phone', () => {
     test.use({ viewport: { width: 390, height: 844 } })
 
     test('the four events wrap to two rows, and nothing scrolls sideways', async ({ page }) => {
-        await page.getByRole('button', { name: 'New rule' }).click()
-        const events = page.getByRole('group', { name: 'Event' }).getByRole('button')
+        await page.getByRole('button', { name: LABELS.alerting.new_rule }).click()
+        const events = page.getByRole('group', { name: LABELS.word.event }).getByRole('button')
         await expect(events).toHaveCount(4)
 
         const boxes = await events.evaluateAll((found) =>
@@ -178,9 +181,9 @@ test.describe('on a phone', () => {
         await declareChannel(page)
         await page.reload()
 
-        await page.getByRole('button', { name: 'New rule' }).click()
+        await page.getByRole('button', { name: LABELS.alerting.new_rule }).click()
         const dialog = page.getByRole('dialog')
-        const field = dialog.getByLabel('Deliver through')
+        const field = dialog.getByLabel(LABELS.alerting.deliver_through)
         await field.click()
 
         const row = page.getByRole('option', { name: CHANNEL.name })
@@ -231,7 +234,7 @@ test.describe('in the 712px column a 1024 window leaves', () => {
 
         const rules = page
             .locator('section')
-            .filter({ has: page.getByRole('heading', { name: 'Rules', exact: true }) })
+            .filter({ has: page.getByRole('heading', { name: LABELS.alerting.rules_heading, exact: true }) })
         await expect(rules.getByText(WIDE.code)).toBeVisible()
 
         // The rule's name is text: it takes what the value columns left and is cut in it, so
@@ -260,12 +263,12 @@ test.describe('in the 712px column a 1024 window leaves', () => {
 })
 
 test("a rule's body is written in the dialog and edited in its panel", async ({ page }) => {
-    await page.getByRole('button', { name: 'New rule' }).click()
+    await page.getByRole('button', { name: LABELS.alerting.new_rule }).click()
     const dialog = page.getByRole('dialog')
 
-    await dialog.getByLabel('Code').fill(RULE.code)
-    await dialog.getByLabel('Name').fill(RULE.name)
-    await dialog.getByLabel('Subject').fill('{{ run.pipeline }} failed')
+    await dialog.getByLabel(LABELS.word.code).fill(RULE.code)
+    await dialog.getByLabel(LABELS.word.name).fill(RULE.name)
+    await dialog.getByLabel(LABELS.word.subject).fill('{{ run.pipeline }} failed')
 
     // The body is a Jinja pane rather than a box: it is written on the lines it was written on,
     // and the window beside it carries the reference for what a template may read.
@@ -276,7 +279,7 @@ test("a rule's body is written in the dialog and edited in its panel", async ({ 
     await expect(window).toBeVisible()
     await page.keyboard.press('Escape')
 
-    await dialog.getByRole('button', { name: 'Create' }).click()
+    await dialog.getByRole('button', { name: LABELS.action.create }).click()
     await expect(page.getByRole('dialog')).toHaveCount(0)
 
     // The panel says what the rule sends, subject and body both.
@@ -286,13 +289,13 @@ test("a rule's body is written in the dialog and edited in its panel", async ({ 
     await expect(panel).toContainText('The run of {{ run.pipeline }} ended {{ run.status }}.')
 
     // Editing happens under the facts it is about rather than in a second dialog.
-    await panel.getByRole('button', { name: 'Edit' }).click()
+    await panel.getByRole('button', { name: LABELS.action.edit }).click()
     await expect(page.getByRole('dialog')).toHaveCount(0)
     await writeInEditor(page, panel.getByTestId('code-editor').first(), 'Rewritten for {{ run.status }}.')
-    await panel.getByRole('button', { name: 'Save' }).click()
+    await panel.getByRole('button', { name: LABELS.action.save }).click()
 
     await expect(panel).toContainText('Rewritten for {{ run.status }}.')
-    await expect(panel.getByRole('button', { name: 'Edit' })).toBeVisible()
+    await expect(panel.getByRole('button', { name: LABELS.action.edit })).toBeVisible()
 
     // It is the rule that changed, not the screen: a re-read finds the body as it was saved.
     await page.reload()
@@ -309,46 +312,48 @@ test('a rule is paused from its panel, and the row says so', async ({ page }) =>
     await expect(panel.getByText(RULE.code)).toBeVisible()
     // The panel says the target the same way the listing does: the log, for a rule naming nothing,
     // wearing the channel's own mark.
-    await expect(panel.getByText('Delivers through')).toBeVisible()
-    const target = panel.locator('dt', { hasText: 'Delivers through' }).locator('xpath=following-sibling::dd')
-    await expect(target).toContainText('log')
+    await expect(panel.getByText(LABELS.word.delivers_through)).toBeVisible()
+    const target = panel
+        .locator('dt', { hasText: LABELS.word.delivers_through })
+        .locator('xpath=following-sibling::dd')
+    await expect(target).toContainText(LABELS.editor.run.log)
     await expect(target.locator('[data-slot="mark"]')).toHaveCount(1)
 
     await panel.getByRole('button', { name: 'Pause' }).click()
     await expect(panel.getByRole('button', { name: 'Resume' })).toBeVisible()
-    await expect(ruleRow(page)).toContainText('paused')
+    await expect(ruleRow(page)).toContainText(LABELS.state.armed.paused)
 
     // Pausing is instance state on the row, so a re-read finds it still held.
     await page.reload()
-    await expect(ruleRow(page)).toContainText('paused')
+    await expect(ruleRow(page)).toContainText(LABELS.state.armed.paused)
 
     await ruleRow(page).getByText(RULE.name, { exact: true }).click()
     await page.getByRole('tabpanel').getByRole('button', { name: 'Resume' }).click()
-    await expect(ruleRow(page)).toContainText('active')
+    await expect(ruleRow(page)).toContainText(LABELS.state.armed.active)
 })
 
 test('a test stays open until the row settles, and reaches sent through the log channel', async ({
     page,
 }) => {
-    await page.getByRole('button', { name: 'Send a test' }).click()
+    await page.getByRole('button', { name: LABELS.action.send_test }).click()
 
     const dialog = page.getByRole('dialog')
-    const send = dialog.getByRole('button', { name: 'Send', exact: true })
+    const send = dialog.getByRole('button', { name: LABELS.alerting.send, exact: true })
 
     // A test names one target the way a rule does: one picker, opened on the log, and nothing
     // to fill in before it can be sent.
-    await expect(dialog.getByLabel('Deliver through')).toHaveValue('The process log')
-    await expect(dialog.getByLabel('Notifier')).toHaveCount(0)
-    await expect(dialog.getByLabel('Connection')).toHaveCount(0)
+    await expect(dialog.getByLabel(LABELS.alerting.deliver_through)).toHaveValue('The process log')
+    await expect(dialog.getByLabel(LABELS.alerting.notifier)).toHaveCount(0)
+    await expect(dialog.getByLabel(LABELS.word.connection)).toHaveCount(0)
     await expect(send).toBeEnabled()
 
     // A target is a channel, so every row of the picker wears its kind's mark.
-    await dialog.getByLabel('Deliver through').click()
-    const logRow = page.getByRole('option', { name: 'The process log' })
+    await dialog.getByLabel(LABELS.alerting.deliver_through).click()
+    const logRow = page.getByRole('option', { name: LABELS.alerting.log_target })
     await expect(logRow.locator('[data-slot="mark"]')).toHaveCount(1)
     await logRow.click()
 
-    await dialog.getByLabel('Subject').fill('e2e test alert')
+    await dialog.getByLabel(LABELS.word.subject).fill('e2e test alert')
     await send.click()
 
     // The dialog does not close on "queued": it reads the row back until a worker has tried it.
@@ -356,15 +361,15 @@ test('a test stays open until the row settles, and reaches sent through the log 
     await expect(outcome).toBeVisible()
     await expect(outcome).toContainText('e2e test alert')
     await expect(outcome.locator('.status-chip')).toContainText('sent', { timeout: 30_000 })
-    await expect(outcome).toContainText('Delivered')
+    await expect(outcome).toContainText(LABELS.alerting.delivered)
 
     // And having sent one, the verb is to send another rather than to send.
-    await expect(dialog.getByRole('button', { name: 'Send again' })).toBeVisible()
+    await expect(dialog.getByRole('button', { name: LABELS.alerting.send_again })).toBeVisible()
 
-    await dialog.getByRole('button', { name: 'Open in the queue' }).click()
+    await dialog.getByRole('button', { name: LABELS.alerting.open_in_queue }).click()
     const panel = page.getByRole('tabpanel')
     await expect(panel.getByText('e2e test alert')).toBeVisible()
-    await expect(panel.getByText('a test, not a rule')).toBeVisible()
+    await expect(panel.getByText(LABELS.alerting.raised_by_test)).toBeVisible()
 })
 
 test('a delivered notification is put back on the queue, and its attempts start over', async ({ page }) => {
@@ -380,8 +385,8 @@ test('a delivered notification is put back on the queue, and its attempts start 
 
     // A retry starts the delivery over rather than adding one try to a spent budget: the row
     // goes back to pending, due now, with its counter at nothing and its last refusal gone.
-    await panel.getByRole('button', { name: 'Retry now' }).click()
-    await expect(panel.locator('.status-chip')).toContainText('pending')
+    await panel.getByRole('button', { name: LABELS.action.retry_now }).click()
+    await expect(panel.locator('.status-chip')).toContainText(LABELS.state.attempt.pending)
     await expect(panel).toContainText('0 of')
 })
 
@@ -429,15 +434,15 @@ async function declareChannel(page: Page): Promise<void> {
 
 /** Queue one message through the log channel, which the dialog opens on, and close it behind. */
 async function sendTest(page: Page, subject: string): Promise<void> {
-    await page.getByRole('button', { name: 'Send a test' }).click()
+    await page.getByRole('button', { name: LABELS.action.send_test }).click()
     const dialog = page.getByRole('dialog')
-    await expect(dialog.getByLabel('Deliver through')).toHaveValue('The process log')
-    await dialog.getByLabel('Subject').fill(subject)
-    await dialog.getByRole('button', { name: 'Send', exact: true }).click()
+    await expect(dialog.getByLabel(LABELS.alerting.deliver_through)).toHaveValue('The process log')
+    await dialog.getByLabel(LABELS.word.subject).fill(subject)
+    await dialog.getByRole('button', { name: LABELS.alerting.send, exact: true }).click()
     // Closed only once the row has settled, so the listing behind has been read again with it.
     await expect(dialog.getByTestId('test-delivery').locator('.status-chip')).toContainText('sent', {
         timeout: 30_000,
     })
-    await dialog.getByRole('button', { name: 'Close' }).click()
+    await dialog.getByRole('button', { name: LABELS.action.close }).click()
     await expect(page.getByRole('dialog')).toHaveCount(0)
 }

@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 
+import { LABELS } from '../src/lib/labels.ts'
 import { applyExample, signIn } from './support.ts'
 
 /**
@@ -93,8 +94,8 @@ test('the bar along the foot is one element, and its cells fill it exactly', asy
 })
 
 test('the seams hold with the rail collapsed', async ({ page }) => {
-    await page.getByRole('button', { name: 'Collapse the navigation' }).click()
-    await expect(page.getByRole('button', { name: 'Expand the navigation' })).toBeVisible()
+    await page.getByRole('button', { name: LABELS.shell.collapse_nav }).click()
+    await expect(page.getByRole('button', { name: LABELS.shell.expand_nav })).toBeVisible()
 
     const strips = await topStrips(page)
     for (const strip of strips) {
@@ -116,7 +117,7 @@ test('the seams hold with the right panel open', async ({ page }) => {
         .first()
         .getByText('jq-reshape', { exact: true })
         .click()
-    await expect(page.getByRole('tab', { name: 'Pipeline' })).toBeVisible()
+    await expect(page.getByRole('tab', { name: LABELS.word.pipeline })).toBeVisible()
 
     const strips = await topStrips(page)
     expect(strips.length).toBe(3)
@@ -132,7 +133,7 @@ test('the seams hold in the light palette as they do in the dark one', async ({ 
         localStorage.setItem('theme', 'light')
     })
     await page.reload()
-    await expect(page.getByRole('heading', { name: 'Pipelines' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: LABELS.screen.pipelines.name })).toBeVisible()
 
     const strips = await topStrips(page)
     for (const strip of strips) {
@@ -142,7 +143,7 @@ test('the seams hold in the light palette as they do in the dark one', async ({ 
 })
 
 test('the corner names the instance rather than only colouring it', async ({ page }) => {
-    const corner = page.getByRole('button', { name: 'Instance' })
+    const corner = page.getByRole('button', { name: LABELS.shell.instance.label })
     // The name and the environment come from `/system/info`; this suite runs `dg dev`.
     await expect(corner).toContainText('dirigent')
     await expect(corner).toContainText('local')
@@ -151,7 +152,7 @@ test('the corner names the instance rather than only colouring it', async ({ pag
 test('a panel nothing has filled is not there at all, toggle included', async ({ page }) => {
     // An unfilled panel would only ever say "nothing selected", so it does not render, and
     // neither does the control that would reveal it.
-    await expect(page.getByRole('button', { name: 'Show or hide the side panel' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: LABELS.shell.toggle_panel })).toHaveCount(0)
     await expect(page.getByText('Nothing selected', { exact: false })).toHaveCount(0)
 })
 
@@ -159,21 +160,23 @@ test('an empty listing states the fact and stops', async ({ page }) => {
     // The way a rule is made is a button on this screen, so the empty state names no way in:
     // what New rule does is what New rule says.
     await page.goto('/admin/alerting')
-    await expect(page.getByRole('heading', { name: 'Alerting' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: LABELS.screen.alerting.name })).toBeVisible()
     await expect(page.getByText(/No rules\./)).toBeVisible()
-    await expect(page.getByRole('button', { name: 'New rule' })).toBeVisible()
+    await expect(page.getByRole('button', { name: LABELS.alerting.new_rule })).toBeVisible()
 })
 
 test('a collapsed rail wakes when its edge is dragged outward', async ({ page }) => {
-    await page.getByRole('button', { name: 'Collapse the navigation' }).click()
-    await expect(page.getByRole('link', { name: 'Pipelines' })).not.toContainText('Pipelines')
+    await page.getByRole('button', { name: LABELS.shell.collapse_nav }).click()
+    await expect(page.getByRole('link', { name: LABELS.screen.pipelines.name })).not.toContainText(
+        LABELS.screen.pipelines.name,
+    )
 
     // The collapse animates; the edge is only draggable once the rail has settled.
     await page.waitForFunction(() => {
         const aside = document.querySelector('aside')
         return aside !== null && aside.getBoundingClientRect().width < 60
     })
-    const edge = page.getByRole('separator', { name: 'Expand the navigation' })
+    const edge = page.getByRole('separator', { name: LABELS.shell.expand_nav })
     const box = await edge.boundingBox()
     if (box === null) throw new Error('no edge to drag')
     await page.mouse.move(box.x + box.width / 2, 400)
@@ -182,5 +185,7 @@ test('a collapsed rail wakes when its edge is dragged outward', async ({ page })
     await page.mouse.up()
 
     // The rail expanded under the drag and the labels are back.
-    await expect(page.getByRole('link', { name: 'Pipelines' })).toContainText('Pipelines')
+    await expect(page.getByRole('link', { name: LABELS.screen.pipelines.name })).toContainText(
+        LABELS.screen.pipelines.name,
+    )
 })

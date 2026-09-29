@@ -1,5 +1,6 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
+import { LABELS } from '../src/lib/labels.ts'
 import {
     DEV_USERNAME,
     apiPrefix,
@@ -186,9 +187,9 @@ test('the stored document reads as its graph, and a step reads as its own config
     await page.locator('.react-flow__node').getByText('parse', { exact: true }).click()
 
     const panel = page.locator('aside')
-    await expect(panel.getByRole('tab', { name: 'Step' })).toBeVisible()
-    await expect(panel.getByRole('tab', { name: 'Pipeline' })).toBeVisible()
-    await expect(panel.getByRole('tab', { name: 'Source' })).toBeVisible()
+    await expect(panel.getByRole('tab', { name: LABELS.word.step })).toBeVisible()
+    await expect(panel.getByRole('tab', { name: LABELS.word.pipeline })).toBeVisible()
+    await expect(panel.getByRole('tab', { name: LABELS.word.source })).toBeVisible()
     await expect(panel.getByText('convert.std', { exact: true })).toBeVisible()
 
     // convert.std's four fields: the pair of formats, and the two uris it reads and writes.
@@ -246,9 +247,9 @@ test('the engine half of a step is groups that say their state, and one opens in
     await page.locator('.react-flow__node').getByText('per_region', { exact: true }).click()
 
     const panel = page.locator('aside')
-    const config = panel.getByRole('heading', { name: 'Config' })
+    const config = panel.getByRole('heading', { name: LABELS.word.config })
     const waits = panel.getByRole('button', { name: /Waits for/ })
-    const displayName = panel.getByLabel('Name', { exact: true })
+    const displayName = panel.getByLabel(LABELS.word.name, { exact: true })
     await expect(config).toBeVisible()
     await expect(waits).toBeVisible()
 
@@ -258,7 +259,7 @@ test('the engine half of a step is groups that say their state, and one opens in
 
     // EVERY GROUP SAYS WHERE IT STANDS WITH NOTHING OPENED: what the step sets, and what it
     // would fall back to.
-    await expect(waits).toContainText('active')
+    await expect(waits).toContainText(LABELS.state.armed.active)
     const fanOut = panel.getByRole('button', { name: /Fan-out/ })
     await expect(fanOut).toContainText('${params.regions}')
     await expect(fanOut).toContainText('fail_fast')
@@ -350,8 +351,12 @@ test('editing a config field is unapplied until it is applied, and the topbar co
     await panel.getByLabel('to', { exact: true }).fill('yaml')
 
     // One step differs from the stored version, and the node on the canvas says which.
-    await expect(page.getByRole('button', { name: 'Apply', exact: true })).toHaveClass(/bg-primary/)
-    await expect(page.locator('.react-flow__node').getByText('edited', { exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: LABELS.action.apply, exact: true })).toHaveClass(
+        /bg-primary/,
+    )
+    await expect(
+        page.locator('.react-flow__node').getByText(LABELS.editor.canvas.edited, { exact: true }),
+    ).toBeVisible()
 })
 
 test('the source tab holds the same document, in the editor the schema is checked in', async ({ page }) => {
@@ -362,7 +367,7 @@ test('the source tab holds the same document, in the editor the schema is checke
     await page.locator('.react-flow__node').getByText('parse', { exact: true }).click()
 
     const panel = page.locator('aside')
-    await panel.getByRole('tab', { name: 'Source' }).click()
+    await panel.getByRole('tab', { name: LABELS.word.source }).click()
 
     // Monaco is a chunk of its own and is fetched when this tab is opened, so the assertion is
     // that it arrived and is holding this document rather than an empty buffer.
@@ -375,10 +380,10 @@ test('validating an intact document reports no issues', async ({ page }) => {
     await applyExample(page.request, DOCUMENT_EXAMPLE)
 
     await page.goto(`/pipelines/${DOCUMENT_PIPELINE}`)
-    await page.getByRole('button', { name: 'Validate' }).click()
+    await page.getByRole('button', { name: LABELS.action.validate }).click()
 
     const dialog = page.getByRole('dialog')
-    await expect(dialog.getByText('Validate document')).toBeVisible()
+    await expect(dialog.getByText(LABELS.editor.apply.validate_title)).toBeVisible()
     // The digest matches what was applied a moment ago, so applying would write nothing --
     // and, either way, the instance refuses nothing about it.
     await expect(dialog.getByText(/Apply writes nothing/)).toBeVisible()
@@ -403,7 +408,7 @@ test('the run dialog is built from the pipeline own parameter schema', async ({ 
     await expect(dialog.getByText(`runs as ${DEV_USERNAME} · adhoc`)).toBeVisible()
 
     // The run decides what its log keeps: info and up unless this control asks for debug.
-    await expect(dialog.getByLabel('log level')).toBeVisible()
+    await expect(dialog.getByLabel(LABELS.editor.run.log_level)).toBeVisible()
 })
 
 test('a document that reads a window is not run until it is given one', async ({ page }) => {
@@ -414,15 +419,15 @@ test('a document that reads a window is not run until it is given one', async ({
     await page.getByRole('button', { name: 'Run', exact: true }).click()
 
     const dialog = page.getByRole('dialog')
-    const start = dialog.getByLabel('Start', { exact: true })
-    const end = dialog.getByLabel('End', { exact: true })
+    const start = dialog.getByLabel(LABELS.word.start, { exact: true })
+    const end = dialog.getByLabel(LABELS.word.end, { exact: true })
     // The section is open on this document rather than behind the link, because its steps
     // read a window and a run carrying none would stop at the first of them.
     await expect(start).toBeVisible()
     await expect(end).toBeVisible()
-    await expect(dialog.getByRole('button', { name: 'Add a window' })).toHaveCount(0)
+    await expect(dialog.getByRole('button', { name: LABELS.editor.run.add_window })).toHaveCount(0)
 
-    const runNow = dialog.getByRole('button', { name: 'Run now' })
+    const runNow = dialog.getByRole('button', { name: LABELS.editor.run.confirm })
     await expect(runNow).toBeDisabled()
     await expect(runNow).toHaveAttribute('title', WINDOW_NEEDED)
 
@@ -441,7 +446,7 @@ test('a document that reads a window is not run until it is given one', async ({
     await expect(page.locator('.status-chip[data-status="succeeded"]').first()).toBeVisible({
         timeout: 30_000,
     })
-    await expect((await runFacts(page)).getByText('window', { exact: true })).toBeVisible()
+    await expect((await runFacts(page)).getByText(LABELS.runs.fact.window, { exact: true })).toBeVisible()
 })
 
 test('a document that reads no window keeps its window behind a link and runs without one', async ({
@@ -454,16 +459,16 @@ test('a document that reads no window keeps its window behind a link and runs wi
     await page.getByRole('button', { name: 'Run', exact: true }).click()
 
     const dialog = page.getByRole('dialog')
-    const add = dialog.getByRole('button', { name: 'Add a window' })
+    const add = dialog.getByRole('button', { name: LABELS.editor.run.add_window })
     await expect(add).toBeVisible()
-    await expect(dialog.getByLabel('Start', { exact: true })).toHaveCount(0)
+    await expect(dialog.getByLabel(LABELS.word.start, { exact: true })).toHaveCount(0)
 
-    const runNow = dialog.getByRole('button', { name: 'Run now' })
+    const runNow = dialog.getByRole('button', { name: LABELS.editor.run.confirm })
     await expect(runNow).toBeEnabled()
 
     // The link opens the same two boxes, and leaving them empty leaves the run without a window.
     await add.click()
-    await expect(dialog.getByLabel('Start', { exact: true })).toBeVisible()
+    await expect(dialog.getByLabel(LABELS.word.start, { exact: true })).toBeVisible()
     await expect(runNow).toBeEnabled()
     await runNow.click()
 
@@ -472,8 +477,8 @@ test('a document that reads no window keeps its window behind a link and runs wi
         timeout: 30_000,
     })
     const panel = await runFacts(page)
-    await expect(panel.getByText('created', { exact: true })).toBeVisible()
-    await expect(panel.getByText('window', { exact: true })).toHaveCount(0)
+    await expect(panel.getByText(LABELS.runs.fact.created, { exact: true })).toBeVisible()
+    await expect(panel.getByText(LABELS.runs.fact.window, { exact: true })).toHaveCount(0)
 })
 
 /**
@@ -549,7 +554,9 @@ test('an edge dragged between two ports is the dependency, and Delete takes it a
     // The document has the edge, the topbar counts it like any other edit, and the step's own
     // pane says the same thing: one document, read three ways.
     await expect(page.locator('.react-flow__edge')).toHaveCount(1)
-    await expect(page.getByRole('button', { name: 'Apply', exact: true })).toHaveClass(/bg-primary/)
+    await expect(page.getByRole('button', { name: LABELS.action.apply, exact: true })).toHaveClass(
+        /bg-primary/,
+    )
     await page.locator('.react-flow__node').getByText('report', { exact: true }).click()
     // The panel says it in the shut Waits for row, and opening the row is where it is taken back.
     const waits = page.locator('aside').getByRole('button', { name: /Waits for/ })
@@ -586,7 +593,9 @@ test('an edge that would close a loop is refused, and the refusal names the loop
 
     await expect(page.getByText('fetch → report → fetch', { exact: false })).toBeVisible()
     await expect(page.locator('.react-flow__edge')).toHaveCount(1)
-    await expect(page.getByRole('button', { name: 'Apply', exact: true })).toHaveClass(/bg-primary/)
+    await expect(page.getByRole('button', { name: LABELS.action.apply, exact: true })).toHaveClass(
+        /bg-primary/,
+    )
 })
 
 test('a box stays where it was dragged, across a reload, until Re-layout gives it back', async ({ page }) => {
@@ -612,7 +621,7 @@ test('a box stays where it was dragged, across a reload, until Re-layout gives i
 
     // Re-layout is how it is given back: elk decides again, and storage holds nothing.
     await page.keyboard.press('ControlOrMeta+k')
-    await page.getByPlaceholder('Go to a screen, or run something').fill('re-layout')
+    await page.getByPlaceholder(LABELS.palette.placeholder).fill('re-layout')
     await page
         .getByRole('option')
         .filter({ hasText: /^Re-layout/ })
@@ -646,7 +655,9 @@ test('a connection dropped on empty ground adds a step already waiting for the o
     await expect(page.locator('.react-flow__node')).toHaveCount(3)
     await expect(page.locator('.react-flow__edge')).toHaveCount(1)
     // The key is the block's own name, made unique against the two the document already has.
-    await expect(page.locator('.react-flow__node').getByText('jq', { exact: true })).toBeVisible()
+    await expect(
+        page.locator('.react-flow__node').getByText(LABELS.reference.jq.title, { exact: true }),
+    ).toBeVisible()
 })
 
 /**
@@ -662,7 +673,7 @@ test('right-clicking the canvas adds a step from the menu, and the panel opens o
     // is where an add-step gesture matters most.
     await signIn(page)
     await page.goto('/pipelines/$new')
-    await expect(page.getByText('No steps.', { exact: false })).toBeVisible()
+    await expect(page.getByText(LABELS.editor.canvas.no_steps, { exact: false })).toBeVisible()
 
     await page.locator('.react-flow__pane').click({ button: 'right', position: { x: 80, y: 80 } })
 
@@ -701,15 +712,17 @@ test("right-clicking a step opens the step's own menu, and Delete step takes it 
 
     await page.locator('.react-flow__node[data-id="fetch"]').click({ button: 'right' })
     const menu = page.getByRole('menu')
-    await expect(menu.getByRole('menuitem', { name: 'Add step after' })).toBeVisible()
+    await expect(menu.getByRole('menuitem', { name: LABELS.editor.canvas.add_after })).toBeVisible()
 
     // The step goes, and the edge that named it goes with it: a `depends_on` naming a step
     // the document no longer declares is what an apply refuses.
-    await menu.getByRole('menuitem', { name: 'Delete step' }).click()
+    await menu.getByRole('menuitem', { name: LABELS.editor.canvas.delete_step }).click()
     await expect(page.locator('.react-flow__node')).toHaveCount(1)
     await expect(page.locator('.react-flow__edge')).toHaveCount(0)
     // The topbar counts it with every other unapplied edit, and nothing has been written.
-    await expect(page.getByRole('button', { name: 'Apply', exact: true })).toHaveClass(/bg-primary/)
+    await expect(page.getByRole('button', { name: LABELS.action.apply, exact: true })).toHaveClass(
+        /bg-primary/,
+    )
 
     // Nothing was written: the document the instance holds still has both steps.
     await page.reload()
@@ -727,7 +740,7 @@ test('a chosen step is deleted by the key, and never while a text box has the fo
 
     // The step's own pane opens on the choice, and typing a name into it is not a deletion.
     await page.locator('.react-flow__node[data-id="report"]').click()
-    const name = page.locator('aside').getByLabel('Name', { exact: true })
+    const name = page.locator('aside').getByLabel(LABELS.word.name, { exact: true })
     await name.click()
     await name.press('Backspace')
     await expect(page.locator('.react-flow__node')).toHaveCount(2)
@@ -753,7 +766,7 @@ test('the search box narrows the menu to breadcrumbed results, and the return ke
     // is where an add-step gesture matters most.
     await signIn(page)
     await page.goto('/pipelines/$new')
-    await expect(page.getByText('No steps.', { exact: false })).toBeVisible()
+    await expect(page.getByText(LABELS.editor.canvas.no_steps, { exact: false })).toBeVisible()
 
     await page.locator('.react-flow__pane').click({ button: 'right', position: { x: 120, y: 120 } })
     await page.getByLabel(SEARCH_LABEL).fill('ru')
@@ -815,7 +828,7 @@ test('escape clears the search before it closes the menu', async ({ page }) => {
 test('the menu opens inside the window wherever the pointer is', async ({ page }) => {
     await signIn(page)
     await page.goto('/pipelines/$new')
-    await expect(page.getByText('No steps.', { exact: false })).toBeVisible()
+    await expect(page.getByText(LABELS.editor.canvas.no_steps, { exact: false })).toBeVisible()
 
     const pane = page.locator('.react-flow__pane')
     const canvas = await pane.boundingBox()
@@ -846,7 +859,7 @@ test('only a sensor wears a kind chip in its group shelf', async ({ page }) => {
     await page.goto('/pipelines/$new')
     // The palette is the keyboard way in, and reaches the same menu.
     await page.keyboard.press('ControlOrMeta+k')
-    await page.getByPlaceholder('Go to a screen, or run something').fill('add step')
+    await page.getByPlaceholder(LABELS.palette.placeholder).fill('add step')
     await page
         .getByRole('option')
         .filter({ hasText: /^Add step/ })
@@ -875,7 +888,7 @@ test('the button in the corner opens the same menu, under itself', async ({ page
     await signIn(page)
     await page.goto('/pipelines/$new')
     // The empty state says what is true and nothing about how to change it: the control is there.
-    await expect(page.getByText('No steps.', { exact: true })).toBeVisible()
+    await expect(page.getByText(LABELS.editor.canvas.no_steps, { exact: true })).toBeVisible()
 
     const button = page.getByRole('button', { name: ADD_STEP_LABEL })
     await expect(button).toBeVisible()
@@ -921,15 +934,15 @@ test('New pipeline opens the editor on a document nothing has applied, and apply
 
     await signIn(page)
     await page.goto('/pipelines')
-    await page.getByRole('button', { name: 'New pipeline' }).click()
+    await page.getByRole('button', { name: LABELS.pipelines.new }).click()
 
     await expect(page).toHaveURL(/\/pipelines\/\$new$/)
     // The breadcrumb says what this is until it is something the instance holds.
-    await expect(page.getByText('new pipeline', { exact: true })).toBeVisible()
-    await expect(page.getByText('no version', { exact: true })).toBeVisible()
+    await expect(page.getByText(LABELS.editor.topbar.new_pipeline, { exact: true })).toBeVisible()
+    await expect(page.getByText(LABELS.editor.version.none, { exact: true })).toBeVisible()
 
     // Validate works on the draft; Run does not, and says why rather than failing at the server.
-    await expect(page.getByRole('button', { name: 'Validate' })).toBeEnabled()
+    await expect(page.getByRole('button', { name: LABELS.action.validate })).toBeEnabled()
     const run = page.getByRole('button', { name: 'Run', exact: true })
     await expect(run).toBeDisabled()
     // A shut button takes no pointer events, so the reason is on what the pointer lands on.
@@ -938,10 +951,10 @@ test('New pipeline opens the editor on a document nothing has applied, and apply
     // The panel opens on the step tab like any other document; the source, where the skeleton
     // and its code are written, is a tab away.
     const panel = page.locator('aside')
-    await expect(panel.getByRole('tab', { name: 'Step' })).toHaveAttribute('aria-selected', 'true')
+    await expect(panel.getByRole('tab', { name: LABELS.word.step })).toHaveAttribute('aria-selected', 'true')
     // Nothing is applied, so there is no pipeline to read: that tab is not offered.
-    await expect(panel.getByRole('tab', { name: 'Pipeline' })).toHaveCount(0)
-    await panel.getByRole('tab', { name: 'Source' }).click()
+    await expect(panel.getByRole('tab', { name: LABELS.word.pipeline })).toHaveCount(0)
+    await panel.getByRole('tab', { name: LABELS.word.source }).click()
 
     const editor = panel.getByTestId('code-editor')
     await expect(editor.locator('.view-lines')).toContainText('my-pipeline')
@@ -970,10 +983,10 @@ test('New pipeline opens the editor on a document nothing has applied, and apply
     // The graph is the document, so the step written in the source is a box on the canvas.
     await expect(page.locator('.react-flow__node').getByText('total', { exact: true })).toBeVisible()
 
-    await page.getByRole('button', { name: 'Apply', exact: true }).click()
+    await page.getByRole('button', { name: LABELS.action.apply, exact: true }).click()
     const dialog = page.getByRole('dialog')
     await expect(dialog.getByText(/Apply creates/)).toBeVisible()
-    await dialog.getByRole('button', { name: 'Apply', exact: true }).click()
+    await dialog.getByRole('button', { name: LABELS.action.apply, exact: true }).click()
 
     // The document has an address of its own now, at the version the apply wrote.
     await expect(page).toHaveURL(new RegExp(`/pipelines/${code}$`))
@@ -992,7 +1005,7 @@ test('Apply is quiet until the document differs from the version the instance ho
     await applyExample(page.request, DOCUMENT_EXAMPLE)
 
     await page.goto(`/pipelines/${DOCUMENT_PIPELINE}`)
-    const apply = page.getByRole('button', { name: 'Apply', exact: true })
+    const apply = page.getByRole('button', { name: LABELS.action.apply, exact: true })
     await expect(apply).toBeVisible()
     await expect(apply).not.toHaveClass(/bg-primary/)
 
@@ -1022,8 +1035,11 @@ test('choosing a step switches the panel to its own tab, whatever was open, and 
     await expect(panel.getByRole('tab', { name: 'Step · parse' })).toBeVisible()
 
     // Read something else in the panel, then choose another box: the click is the intent.
-    await panel.getByRole('tab', { name: 'Pipeline' }).click()
-    await expect(panel.getByRole('tab', { name: 'Pipeline' })).toHaveAttribute('aria-selected', 'true')
+    await panel.getByRole('tab', { name: LABELS.word.pipeline }).click()
+    await expect(panel.getByRole('tab', { name: LABELS.word.pipeline })).toHaveAttribute(
+        'aria-selected',
+        'true',
+    )
 
     await canvasSettled(page)
     await page.locator('.react-flow__node').getByText('report', { exact: true }).click()
@@ -1136,7 +1152,7 @@ test('a field naming a schema the instance holds opens it, and links to its scre
     await expect(panel.getByText('properties', { exact: false }).first()).toBeVisible()
 
     // AND THE THING HAS A SCREEN OF ITS OWN, at an address that can be sent.
-    await panel.getByRole('link', { name: 'Open in Schemas' }).click()
+    await panel.getByRole('link', { name: LABELS.editor.reference_row.open_schema }).click()
     await expect(page).toHaveURL(new RegExp(`/schemas/${REFERENCE_SCHEMA}$`))
     await expect(page.locator('aside').getByText('properties', { exact: false })).toBeVisible()
 })
@@ -1162,7 +1178,7 @@ test('a field naming a connection reads its kind and where its last check left i
     // Open, and it says what the credential is pointed at, and where it is edited.
     await row.click()
     await expect(panel.getByText('base_url=', { exact: false })).toBeVisible()
-    await panel.getByRole('link', { name: 'Open in Connections' }).click()
+    await panel.getByRole('link', { name: LABELS.editor.reference_row.open_connection }).click()
     await expect(page).toHaveURL(new RegExp(`/connections/${REFERENCE_CONNECTION}$`))
 })
 
@@ -1178,7 +1194,7 @@ test('a code nothing holds says so, and is not something to press', async ({ pag
     const panel = page.locator('aside')
     await panel.getByLabel('schema', { exact: true }).fill(UNHELD_SCHEMA)
 
-    await expect(panel.getByText('not stored', { exact: true })).toBeVisible()
+    await expect(panel.getByText(LABELS.editor.reference_row.not_stored, { exact: true })).toBeVisible()
     // NOTHING WEARS INTERACTIVE CHROME UNLESS IT DOES SOMETHING: there is nothing to open.
     await expect(panel.getByRole('button', { name: /not stored/ })).toHaveCount(0)
 })
@@ -1191,9 +1207,9 @@ test('a schema the document carries answers the gate before anything the instanc
     await seedNamed(page.request, baseURL ?? '')
 
     await page.goto('/pipelines')
-    await page.getByRole('button', { name: 'New pipeline' }).click()
+    await page.getByRole('button', { name: LABELS.pipelines.new }).click()
     const panel = page.locator('aside')
-    await panel.getByRole('tab', { name: 'Source' }).click()
+    await panel.getByRole('tab', { name: LABELS.word.source }).click()
     const editor = panel.getByTestId('code-editor')
     await expect(editor.locator('.view-lines')).toContainText('my-pipeline')
     await writeInEditor(page, editor, CARRYING)

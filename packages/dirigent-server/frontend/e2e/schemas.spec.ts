@@ -1,5 +1,6 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
+import { LABELS } from '../src/lib/labels.ts'
 import { apiPrefix, applyExample, signIn, writeInEditor } from './support.ts'
 
 /**
@@ -72,7 +73,7 @@ test('a link that opened a schema leaves the next screen starting closed', async
     // draws the way a first visit does.
     await page.goto('/pipelines/std-convert-fan-out')
     await expect(page.locator('.react-flow__node').first()).toBeVisible()
-    const panel = page.locator('aside').filter({ has: page.getByRole('tab', { name: 'Step' }) })
+    const panel = page.locator('aside').filter({ has: page.getByRole('tab', { name: LABELS.word.step }) })
     await expect(panel).toBeAttached()
     await expect(panel).toHaveAttribute('inert')
 })
@@ -91,7 +92,7 @@ test('the schema box completes against the meta-schema', async ({ page }) => {
     await signIn(page)
 
     await page.goto('/schemas')
-    await page.getByRole('button', { name: 'New schema' }).click()
+    await page.getByRole('button', { name: LABELS.schemas.new }).click()
 
     const editor = await theSchemaBox(page)
     await editor.locator('.view-lines').click()
@@ -115,7 +116,7 @@ test('the schema box marks a value the draft does not take', async ({ page }) =>
     await signIn(page)
 
     await page.goto('/schemas')
-    await page.getByRole('button', { name: 'New schema' }).click()
+    await page.getByRole('button', { name: LABELS.schemas.new }).click()
 
     const editor = await theSchemaBox(page)
     // An unknown key is not marked -- 2020-12 says nothing about keys it does not know -- so

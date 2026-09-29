@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises'
 
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 
+import { LABELS } from '../src/lib/labels.ts'
 import { applyExample, ranToCompletion, signIn, startRun } from './support.ts'
 
 /**
@@ -42,7 +43,7 @@ async function settledRun(request: APIRequestContext): Promise<string> {
 /** Open the drawer from the run screen's own strip, and wait for it to be there. */
 async function openTerminal(page: Page): Promise<void> {
     await page.getByRole('button', { name: TOGGLE }).click()
-    await expect(page.getByRole('region', { name: 'Run terminal' })).toBeVisible()
+    await expect(page.getByRole('region', { name: LABELS.terminal.name })).toBeVisible()
 }
 
 /** The step each line on screen is prefixed with, in the order the lines are drawn. */
@@ -60,7 +61,7 @@ test('the terminal draws every step of a run, interleaved in the order it wrote 
     await page.goto(`/runs/${runId}`)
     await openTerminal(page)
 
-    const terminal = page.getByRole('region', { name: 'Run terminal' })
+    const terminal = page.getByRole('region', { name: LABELS.terminal.name })
     await expect(terminal.getByText(WROTE).first()).toBeVisible({ timeout: 30_000 })
     await expect(terminal.locator('[data-log-line]')).toHaveCount(LINES)
 
@@ -79,7 +80,7 @@ test('the three filters narrow the lines, and the count says how far', async ({ 
 
     await page.goto(`/runs/${runId}`)
     await openTerminal(page)
-    const terminal = page.getByRole('region', { name: 'Run terminal' })
+    const terminal = page.getByRole('region', { name: LABELS.terminal.name })
     await expect(terminal.locator('[data-log-line]')).toHaveCount(LINES)
 
     // ONE STEP.
@@ -97,7 +98,7 @@ test('the three filters narrow the lines, and the count says how far', async ({ 
     // AND A THRESHOLD NO LINE MEETS, which says the same thing rather than "nothing logged".
     await page.getByLabel(MATCH_FILTER).fill('')
     await page.getByLabel(LEVEL_FILTER).click()
-    await page.getByRole('option', { name: 'Errors only' }).click()
+    await page.getByRole('option', { name: LABELS.terminal.level.error }).click()
     await expect(terminal.locator('[data-log-line]')).toHaveCount(0)
     await expect(terminal.getByText(/No line matches these filters/)).toBeVisible()
 })
@@ -119,7 +120,7 @@ test("a line's step prefix opens that step in the panel", async ({ page }) => {
 
     await page.locator('[data-log-line] button', { hasText: 'generate' }).click()
 
-    await expect(panel.getByRole('tab', { name: 'Step' })).toHaveAttribute('aria-selected', 'true')
+    await expect(panel.getByRole('tab', { name: LABELS.word.step })).toHaveAttribute('aria-selected', 'true')
     await expect(panel.getByText('generate', { exact: true })).toBeVisible()
 })
 
@@ -130,7 +131,7 @@ test('the drawer keeps the height it was dragged to, across a reload', async ({ 
     await page.goto(`/runs/${runId}`)
     await openTerminal(page)
 
-    const terminal = page.getByRole('region', { name: 'Run terminal' })
+    const terminal = page.getByRole('region', { name: LABELS.terminal.name })
     const before = (await terminal.boundingBox())?.height ?? 0
     expect(before).toBeGreaterThan(0)
 
@@ -149,8 +150,8 @@ test('the drawer keeps the height it was dragged to, across a reload', async ({ 
 
     // PX-INTENT SURVIVES THE RELOAD, and so does the drawer being open at all.
     await page.reload()
-    await expect(page.getByRole('region', { name: 'Run terminal' })).toBeVisible()
-    const held = (await page.getByRole('region', { name: 'Run terminal' }).boundingBox())?.height ?? 0
+    await expect(page.getByRole('region', { name: LABELS.terminal.name })).toBeVisible()
+    const held = (await page.getByRole('region', { name: LABELS.terminal.name }).boundingBox())?.height ?? 0
     expect(Math.abs(held - dragged)).toBeLessThan(4)
 })
 
@@ -166,7 +167,7 @@ test("download raw saves the run's whole log as NDJSON", async ({ page }) => {
     // content-disposition, so the pages are walked and written out here -- which is why this
     // asserts on what arrives rather than on where an anchor points.
     const saving = page.waitForEvent('download')
-    await page.getByRole('button', { name: 'Download every line as NDJSON' }).click()
+    await page.getByRole('button', { name: LABELS.terminal.download }).click()
     await expect(page.getByText(`${String(LINES)} lines saved`)).toBeVisible()
     const saved = await saving
 
@@ -210,7 +211,7 @@ test('the bare `t` shows and hides the drawer, and never out of a box being type
     await page.goto(`/runs/${runId}`)
     await expect(page.locator('.react-flow__node').first()).toBeVisible()
 
-    const terminal = page.getByRole('region', { name: 'Run terminal' })
+    const terminal = page.getByRole('region', { name: LABELS.terminal.name })
     await expect(terminal).toBeHidden()
 
     await page.locator('body').press('t')
