@@ -22,14 +22,14 @@ const HUES: Record<JsonTokenKind, string | undefined> = {
  * size up, in the read-only editor -- folding and search are what a large value needs,
  * and the box's job is only to be legible.
  *
- * THE FOOT OF THE BOX IS THE BUTTON'S. The strip the window button sits in is padding, so a
- * value of a single line is not read from under it.
+ * `className` sizes the scrolling text; the window button's strip is under it, inside the box.
  */
 export function JsonBlock({ title, text, className }: { title: string; text: string; className?: string }) {
     const tokens = useMemo(() => tokenizeJson(text), [text])
     return (
         <WindowedPane
             name={title}
+            className="rounded-lg border border-border bg-background"
             windowed={
                 <CodePane
                     value={text}
@@ -41,12 +41,7 @@ export function JsonBlock({ title, text, className }: { title: string; text: str
                 />
             }
         >
-            <pre
-                className={cn(
-                    'overflow-auto rounded-lg border border-border bg-background p-2 pb-8 font-mono text-xs',
-                    className,
-                )}
-            >
+            <pre className={cn('overflow-auto rounded-t-lg p-2 font-mono text-xs', className)}>
                 {tokens.map((token, at) => (
                     // The list is stable for a given text, so the position is the identity.
                     // oxlint-disable-next-line no-array-index-key

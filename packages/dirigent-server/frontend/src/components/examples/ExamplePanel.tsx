@@ -139,7 +139,7 @@ export function ExamplePanel({
                 ) : (
                     <WindowedPane
                         name={SOURCE_LABEL}
-                        className="overflow-hidden rounded-md border border-border"
+                        className="overflow-hidden rounded-md border border-border bg-background"
                         windowed={
                             <CodePane
                                 value={source}

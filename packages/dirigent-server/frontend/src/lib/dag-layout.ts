@@ -398,3 +398,39 @@ export function viewportSignature(
         .map((node) => `${node.id}@${String(node.position?.x ?? 0)},${String(node.position?.y ?? 0)}`)
         .join('|')
 }
+
+/** Where a canvas is looking, as React Flow states it: a pan in screen pixels and a zoom. */
+export interface CanvasView {
+    x: number
+    y: number
+    zoom: number
+}
+
+/**
+ * Whether a gesture moved the view at all.
+ *
+ * A press on the ground, or on a box that cannot be dragged, starts a pan that goes nowhere,
+ * and only a view that changed is one the reader took over.
+ */
+export function viewMoved(from: CanvasView, to: CanvasView): boolean {
+    return from.x !== to.x || from.y !== to.y || from.zoom !== to.zoom
+}
+
+/**
+ * The flow point to centre a canvas on so a box outside it comes into view, or null when the
+ * whole box is already on the canvas.
+ *
+ * `box` is in flow coordinates and `canvas` in screen pixels; the zoom stays what it is.
+ */
+export function revealPoint(
+    box: { x: number; y: number; width: number; height: number },
+    view: CanvasView,
+    canvas: { width: number; height: number },
+): { x: number; y: number } | null {
+    const left = box.x * view.zoom + view.x
+    const top = box.y * view.zoom + view.y
+    const right = left + box.width * view.zoom
+    const bottom = top + box.height * view.zoom
+    if (left >= 0 && top >= 0 && right <= canvas.width && bottom <= canvas.height) return null
+    return { x: box.x + box.width / 2, y: box.y + box.height / 2 }
+}
