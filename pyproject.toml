@@ -194,4 +194,5 @@ dev = [
     "opentelemetry-sdk>=1.44.0",
     "types-pyyaml>=6.0.12.20260815",
     "aiosmtpd>=1.4.6",
+    "pytest-xdist>=3.8.0",
 ]

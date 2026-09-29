@@ -10,8 +10,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  check:
-    name: check
+  # Whole-repository and cheap, so it runs in full whatever the change was.
+  static:
+    name: static
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -27,11 +28,65 @@ jobs:
       - name: Sync the workspace
         run: uv sync --all-packages --locked
 
-      - name: Gate
-        run: make gate
+      - name: Static gate
+        run: make static
 
       - name: Documentation
         run: make docs-build
+
+  # A pull request runs the suites its diff can reach; main runs every one of them under
+  # coverage, which is where the 90 floor is held.
+  tests:
+    name: tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The affected set is measured from the merge base, which a shallow clone lacks.
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.1.0
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Sync the workspace
+        run: uv sync --all-packages --locked
+
+      # A pull request is checked out as its merge commit, which names no base branch.
+      - name: Fetch the base branch
+        if: github.event_name == 'pull_request'
+        run: git fetch --no-tags origin "+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF"
+        env:
+          BASE_REF: ${{ github.base_ref }}
+
+      - name: The suites this change reaches
+        if: github.event_name == 'pull_request'
+        run: make test-affected BASE="origin/${{ github.base_ref }}"
+
+      - name: Every suite, under coverage
+        if: github.event_name != 'pull_request'
+        run: make coverage
+
+  # Branch protection requires a status named `check`. This job is that status: it runs
+  # nothing itself and holds only when every job it waits on succeeded.
+  check:
+    name: check
+    runs-on: ubuntu-24.04
+    needs: [static, tests]
+    if: always()
+    steps:
+      - name: Every part of the gate held
+        run: |
+          echo "static: $STATIC"
+          echo "tests:  $TESTS"
+          test "$STATIC" = success && test "$TESTS" = success
+        env:
+          STATIC: ${{ needs.static.result }}
+          TESTS: ${{ needs.tests.result }}
 
   postgres:
     name: concurrency lane
