@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { factsOf, nextForm, SLACK, TABLE, type CardColumn, type Form } from '@/lib/card-form'
+import { cardFacts, factsOf, nextForm, SLACK, TABLE, type CardColumn, type Form } from '@/lib/card-form'
 
 /** A listing that turned into cards when the table in it took this much. */
 function cards(natural: number): Form {
@@ -90,5 +90,11 @@ describe('what a card draws under its head', () => {
             { id: 'off', header: 'Off', cell: () => false },
         ]
         expect(factsOf(columns, { code: 'one', description: null, took: null })).toEqual([])
+    })
+
+    test('a column headed by nothing is a control, apart from the labelled facts', () => {
+        const facts = cardFacts(COLUMNS, { code: 'one', description: 'what it is', took: '2s' })
+        expect(facts.labelled.map((fact) => fact.id)).toEqual(['description', 'took'])
+        expect(facts.controls).toEqual([{ id: 'check', label: null, said: 'always' }])
     })
 })
