@@ -4,10 +4,11 @@ import { ListFormProvider } from '@/components/list/ListForm'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useCardForm } from '@/hooks/use-card-form'
-import { useSmallWindow } from '@/hooks/use-small-screen'
+import { useSmallScreen, useSmallWindow } from '@/hooks/use-small-screen'
 import { cardFacts, type CardColumn } from '@/lib/card-form'
 import { sizingOf, TITLE_CELL, type ColumnKind, type Shares, type Sizing } from '@/lib/column-width'
 import { PAGE, rowsRead } from '@/lib/paging'
+import { panelStanding } from '@/lib/panels'
 import { cn } from '@/lib/utils'
 
 /** One column: what its heading says, and what one row puts in it. */
@@ -58,6 +59,12 @@ const REACH = '300px'
  * A ROW THAT OPENS SOMETHING IS REACHABLE FROM A KEYBOARD. Where a screen passes `onSelect`,
  * the row answers a click and answers Enter and Space, and says which row is open through
  * `aria-selected` -- because a row that only a pointer can open is a row some people cannot.
+ *
+ * A ROW THAT FILLS THE PANEL IS A DISCLOSURE, AND THE TOGGLE IS DECIDED HERE. A press on the
+ * row already open, while the panel is standing, is `onClose`; every other press is `onSelect`.
+ * One rule for every listing, so what a press opened a press closes wherever somebody is. A
+ * screen whose rows navigate passes no `onClose` and nothing toggles, because a press there has
+ * already left.
  */
 export function ListTable<T>({
     chrome,
@@ -72,6 +79,7 @@ export function ListTable<T>({
     noun,
     onSelect,
     selected,
+    onClose,
 }: {
     /** Which chrome to draw. A grouped listing turns the header and footer off. */
     chrome?: ListChrome
@@ -98,6 +106,12 @@ export function ListTable<T>({
     onSelect?: (row: T) => void
     /** Which row is open, so the table can say so. */
     selected?: (row: T) => boolean
+    /**
+     * What taking this screen's selection back means: clearing what it holds, or navigating to
+     * the bare listing where the selection is the URL. A listing whose rows fill the panel
+     * passes it; one whose rows navigate does not.
+     */
+    onClose?: () => void
 }) {
     // A callback ref rather than a held one: the row carrying it is only rendered while there is
     // a next page, so its arrival and departure are what start and stop the observer.
@@ -117,6 +131,17 @@ export function ListTable<T>({
         }
     }, [onMore, sentinel])
 
+    // Whether the panel is on screen, read at the press rather than subscribed to: what a press
+    // does is decided when it happens, and no row redraws because a panel moved.
+    const small = useSmallScreen()
+
+    // What pressing a row does: open what it names, or take back the one already open.
+    const press = (row: T) => {
+        if (onSelect === undefined) return
+        if (onClose !== undefined && selected?.(row) === true && panelStanding(small)) onClose()
+        else onSelect(row)
+    }
+
     // What choosing a row does, which a table row and a card both answer to. A row only a
     // pointer can open is a row some people cannot.
     const chooses = (row: T) =>
@@ -126,13 +151,13 @@ export function ListTable<T>({
                   tabIndex: 0,
                   'aria-selected': selected?.(row),
                   onClick: () => {
-                      onSelect(row)
+                      press(row)
                   },
                   onKeyDown: (event: ReactKeyboardEvent<HTMLElement>) => {
                       if (event.key !== 'Enter' && event.key !== ' ') return
                       if (event.target !== event.currentTarget) return
                       event.preventDefault()
-                      onSelect(row)
+                      press(row)
                   },
               }
 

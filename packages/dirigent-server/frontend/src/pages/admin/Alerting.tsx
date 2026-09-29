@@ -34,7 +34,7 @@ import {
 import { readConnections, type ConnectionOut } from '@/lib/connections'
 import { headingOf } from '@/lib/identity'
 import { ADMIN_GROUP, registerActions } from '@/lib/palette'
-import { fillPanel, openPanel } from '@/lib/panels'
+import { closePanel, fillPanel, openPanel } from '@/lib/panels'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
 import { cn } from '@/lib/utils'
 
@@ -223,6 +223,13 @@ function Alerting() {
         openPanel()
     }
 
+    /** What taking the open row back means here: the pane empties, whichever listing filled it. */
+    const unchoose = () => {
+        setChosenRule(null)
+        setChosenNotification(null)
+        closePanel()
+    }
+
     return (
         <>
             <PageHeader
@@ -276,6 +283,7 @@ function Alerting() {
                         noun="rules"
                         onSelect={chooseRule}
                         selected={(rule) => rule.id === chosenRule}
+                        onClose={unchoose}
                     />
                 </PageState>
             </section>
@@ -324,6 +332,7 @@ function Alerting() {
                         noun="notifications"
                         onSelect={chooseNotification}
                         selected={(row) => row.id === chosenNotification}
+                        onClose={unchoose}
                     />
                 </PageState>
             </section>

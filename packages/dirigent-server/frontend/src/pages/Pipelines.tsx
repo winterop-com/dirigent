@@ -24,7 +24,7 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { fillPanel, openPanelTab, type PanelTab } from '@/lib/panels'
+import { closePanel, fillPanel, openPanelTab, type PanelTab } from '@/lib/panels'
 import { LIST_GROUP, registerActions } from '@/lib/palette'
 import {
     byTitle,
@@ -330,6 +330,10 @@ export function Pipelines() {
                         openPanelTab(PREVIEW_TAB)
                     }}
                     selected={(row) => row.id === chosen?.id}
+                    onClose={() => {
+                        setChosen(null)
+                        closePanel()
+                    }}
                     rowClassName={(row) => (retirement(row) === null ? undefined : 'opacity-60')}
                     reading={state.reading}
                     next={state.next}

@@ -33,7 +33,7 @@ import {
 } from '@/lib/examples'
 import { headingOf, oneLine } from '@/lib/identity'
 import { NEW_PIPELINE_PATH } from '@/lib/nav'
-import { fillPanel, openPanelTab } from '@/lib/panels'
+import { closePanel, fillPanel, openPanelTab } from '@/lib/panels'
 import { LIST_GROUP, registerActions } from '@/lib/palette'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
 import { STARTER_TAG, instantiate } from '@/lib/starters'
@@ -276,6 +276,10 @@ export function Examples() {
                         openPanelTab(EXAMPLE_TAB)
                     }}
                     selected={(row) => row.code === chosen?.code}
+                    onClose={() => {
+                        setChosen(null)
+                        closePanel()
+                    }}
                 />
             </PageState>
         </>
