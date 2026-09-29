@@ -130,7 +130,22 @@ stays clean, and every example stays executable.
    dhis2w's FHIR packages are moving out of the dhis2w monorepo into their own
    `dhis2w-fhir` repository, as `dhis2w-security` did; the pack depends on them by package
    name, not by repository.
-4. **Adapter packs.** Every further pack takes the shape `dirigent-dhis2` set: its own
+4. **`dirigent-full-demo`: one instance with everything, for the tutorials on the weekend of
+   2026-10-03.** A `dg init` project at `~/dev/winterop-com/dirigent-full-demo`, beside the
+   `dirigent-examples` folder. It is one instance that has it all:
+   - every package and pack as dependencies, `dirigent-integration`'s shelves included;
+   - every service the corpus teaches with, running in its compose stack: object storage
+     (S3), Kafka and RabbitMQ, PostgreSQL, the warehouse, and the telemetry and alert
+     sinks;
+   - a `dhis2` connection to the play demo, with a gate in its verify that checks the demo
+     is healthy;
+   - every example applied and runnable, the sources shelf included;
+   - a `verify.sh` that brings it up from nothing, applies, runs the corpus and asserts
+     green, the way the example repos do.
+   It is a demo, not a product install; a real instance still installs only what it uses.
+   It is built once the work in flight (0.22.0, input sources slices 1 to 3, and 0.23.0) has
+   landed.
+5. **Adapter packs.** Every further pack takes the shape `dirigent-dhis2` set: its own
    repository, its own examples and tests, self-testing against `dirigent-plugin`'s main,
    wired through a connection kind, with a client written fresh or wrapping a stable one, and
    assembled by `dirigent-integration`.
