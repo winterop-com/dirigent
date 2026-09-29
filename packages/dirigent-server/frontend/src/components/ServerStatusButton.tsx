@@ -106,12 +106,12 @@ export function ServerStatusButton() {
                     <Dot state={status.state} wide />
                     <span className="text-sm font-medium">{TONE[status.state].word}</span>
                     {status.state === 'offline' && (
-                        <span className="text-xs text-muted-foreground">{LABELS.shell.instance.offline}</span>
+                        <span className="text-xs text-muted-foreground">{LABELS.refusal.no_answer.term}</span>
                     )}
                     <span className="flex-1" />
                     {status.checkedAt !== null && (
                         <span className="text-xs text-faint">
-                            {LABELS.shell.instance.checked}{' '}
+                            {LABELS.word.checked.term}{' '}
                             {formatRelative(new Date(status.checkedAt).toISOString())}
                         </span>
                     )}
@@ -121,11 +121,11 @@ export function ServerStatusButton() {
                     twice in one shell. */}
                 <dl className="grid grid-cols-[auto_1fr] gap-x-3 border-t border-border px-0 py-2 text-xs">
                     <Fact
-                        term={LABELS.shell.instance.environment}
+                        term={LABELS.word.environment.term}
                         detail={status.environment ?? LABELS.shell.instance.unknown}
                     />
                     <Fact
-                        term={LABELS.shell.instance.version}
+                        term={LABELS.word.version.term}
                         detail={status.version ?? LABELS.shell.instance.unknown}
                     />
                     {status.checks.map((check) => (

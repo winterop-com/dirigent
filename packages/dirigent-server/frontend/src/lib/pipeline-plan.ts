@@ -10,7 +10,7 @@
  * issues a refusal lists are laid out identically whichever of the two asked for them.
  */
 
-import { LABELS } from '@/lib/labels'
+import { counted, LABELS } from '@/lib/labels'
 import type { ApplyResult, DiffSummary, Materialized, PipelinePlan, ValidationIssue } from '@/lib/pipelines'
 
 /** How loudly a plan reads: a refusal is not the same news as a version being written. */
@@ -135,5 +135,5 @@ export function appliedNote(result: ApplyResult): AppliedNote {
 /** What the status bar says about a validation, or null when it found nothing. */
 export function issuesNote(issues: ValidationIssue[]): string | null {
     if (issues.length === 0) return null
-    return LABELS.editor.plan.issues_refuse(issues.length)
+    return counted(issues.length, LABELS.editor.plan.issues_refuse)(String(issues.length))
 }

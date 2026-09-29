@@ -86,8 +86,10 @@ from dirigent_cli.messages import (
 )
 from dirigent_cli.messages import WINDOW_GRAMMAR as WINDOW_GRAMMAR_MESSAGE
 from dirigent_cli.output import (
+    CONNECTION_HEALTH,
     Detail,
     age,
+    connection_health,
     console,
     elapsed,
     emit_event,
@@ -2435,7 +2437,7 @@ def connection_check(ctx: typer.Context, code: Annotated[str, typer.Argument()])
         report = dg.call(dg.connections.check(code))
     emit_fact(
         "connection.checked",
-        message="not verified" if report.healthy is None else "healthy" if report.healthy else "unhealthy",
+        message=CONNECTION_HEALTH[connection_health(report.healthy)],
         code=code,
         healthy=report.healthy,
         detail=report.detail,

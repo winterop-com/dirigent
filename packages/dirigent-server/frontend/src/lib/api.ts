@@ -111,9 +111,11 @@ export class ApiError extends Error {
 export function problemOf(status: number, body: unknown, path: string): Problem {
     const fallback: Problem = {
         status,
-        title: status === 0 ? LABELS.refusal.no_answer : LABELS.refusal.http_status(String(status)),
+        title: status === 0 ? LABELS.refusal.no_answer.title : LABELS.refusal.http_status(String(status)),
         detail:
-            status === 0 ? LABELS.refusal.unreachable : LABELS.refusal.no_problem_document(String(status)),
+            status === 0
+                ? `${LABELS.refusal.no_answer.sentence} ${LABELS.refusal.no_answer.may_be_starting}`
+                : LABELS.refusal.no_problem_document(String(status)),
         code: status === 0 ? 'client.no_answer' : 'client.no_problem_document',
         params: {},
         problems: [],

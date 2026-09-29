@@ -152,7 +152,7 @@ export function NewConnection({
                         />
                     </div>
                     <div className="space-y-2">
-                        <Label htmlFor="connection-kind">{LABELS.word.kind}</Label>
+                        <Label htmlFor="connection-kind">{LABELS.word.kind.label}</Label>
                         <Select
                             value={kind}
                             onValueChange={(picked) => {
@@ -186,14 +186,14 @@ export function NewConnection({
                 </div>
 
                 <div className="space-y-2">
-                    <Label htmlFor="connection-name-new">{LABELS.word.name}</Label>
+                    <Label htmlFor="connection-name-new">{LABELS.word.name.label}</Label>
                     <Input
                         id="connection-name-new"
                         value={named}
                         onChange={(event) => {
                             setNamed(event.target.value)
                         }}
-                        placeholder={LABELS.connections.new_name_placeholder}
+                        placeholder={LABELS.word.name.placeholder}
                     />
                 </div>
 
@@ -260,7 +260,7 @@ export function NewConnection({
                     <DialogClose render={<Button variant="ghost" />}>{LABELS.action.close}</DialogClose>
                     <Refusable why={shut}>
                         <Button disabled={busy || shut !== undefined} title={shut} onClick={send}>
-                            {busy ? LABELS.connections.creating : LABELS.action.create}
+                            {busy ? LABELS.action.create.busy : LABELS.action.create.verb}
                         </Button>
                     </Refusable>
                 </DialogFooter>
@@ -295,7 +295,7 @@ function unready(
     if (code.trim() === '') return LABELS.connections.needs_code
     if (kind === '') return LABELS.connections.needs_kind
     if (unreadable.size > 0) return LABELS.connections.unreadable_setting
-    if (!maySubmit(problems, unreadable)) return LABELS.connections.new_settings_refused
+    if (!maySubmit(problems, unreadable)) return LABELS.connections.settings_refused
     return undefined
 }
 

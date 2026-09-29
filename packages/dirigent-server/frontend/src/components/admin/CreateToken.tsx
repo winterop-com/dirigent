@@ -94,7 +94,7 @@ export function CreateToken({
 
                 {issued === null ? (
                     <div className="space-y-2">
-                        <Label htmlFor="new-token-name">{LABELS.word.name}</Label>
+                        <Label htmlFor="new-token-name">{LABELS.word.name.label}</Label>
                         <Input
                             id="new-token-name"
                             value={name}
@@ -133,7 +133,7 @@ export function CreateToken({
                                 }}
                             >
                                 {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
-                                {copied ? LABELS.users.copied : LABELS.users.copy}
+                                {copied ? LABELS.action.copy.done : LABELS.action.copy.verb}
                             </Button>
                         </div>
                     </div>
@@ -147,7 +147,7 @@ export function CreateToken({
                     </DialogClose>
                     {issued === null && (
                         <Button disabled={busy || name.trim() === ''} onClick={send}>
-                            {LABELS.action.create}
+                            {LABELS.action.create.verb}
                         </Button>
                     )}
                 </DialogFooter>

@@ -221,7 +221,7 @@ export function Triggers() {
             >
                 <div className="space-y-6">
                     <section className="space-y-2">
-                        <h2 className="text-sm font-semibold">{LABELS.triggers.schedule.heading}</h2>
+                        <h2 className="text-sm font-semibold">{LABELS.word.schedule.heading}</h2>
                         {schedules.length === 0 ? (
                             <p className="text-sm text-muted-foreground">{LABELS.triggers.schedule.empty}</p>
                         ) : (
@@ -232,7 +232,7 @@ export function Triggers() {
                                 reading={state.reading}
                                 next={state.next}
                                 onMore={more}
-                                noun={LABELS.triggers.schedule.noun}
+                                noun={LABELS.word.schedule.count}
                                 onSelect={select}
                                 selected={(row) => triggerId(row) === chosen}
                                 onClose={unchoose}
@@ -241,7 +241,7 @@ export function Triggers() {
                     </section>
 
                     <section className="space-y-2">
-                        <h2 className="text-sm font-semibold">{LABELS.triggers.webhook.heading}</h2>
+                        <h2 className="text-sm font-semibold">{LABELS.word.webhook.heading}</h2>
                         {webhooks.length === 0 ? (
                             <p className="text-sm text-muted-foreground">{LABELS.triggers.webhook.empty}</p>
                         ) : (
@@ -252,7 +252,7 @@ export function Triggers() {
                                 reading={state.reading}
                                 next={state.next}
                                 onMore={more}
-                                noun={LABELS.triggers.webhook.noun}
+                                noun={LABELS.word.webhook.count}
                                 onSelect={select}
                                 selected={(row) => triggerId(row) === chosen}
                                 onClose={unchoose}
@@ -261,7 +261,7 @@ export function Triggers() {
                     </section>
 
                     <section className="space-y-2">
-                        <h2 className="text-sm font-semibold">{LABELS.triggers.watch.heading}</h2>
+                        <h2 className="text-sm font-semibold">{LABELS.word.watch.heading}</h2>
                         {watches.length === 0 ? (
                             <p className="text-sm text-muted-foreground">{LABELS.triggers.watch.empty}</p>
                         ) : (
@@ -272,7 +272,7 @@ export function Triggers() {
                                 reading={state.reading}
                                 next={state.next}
                                 onMore={more}
-                                noun={LABELS.triggers.watch.noun}
+                                noun={LABELS.word.watch.count}
                                 onSelect={select}
                                 selected={(row) => triggerId(row) === chosen}
                                 onClose={unchoose}
@@ -317,15 +317,15 @@ const isWatch = (row: TriggerRow): row is WatchRow => row.kind === 'watch'
 
 /** What the panel's strip calls the trigger it holds. */
 const PANEL_LABEL: Record<TriggerRow['kind'], string> = {
-    schedule: LABELS.word.schedule,
-    webhook: LABELS.word.webhook,
-    watch: LABELS.word.watch,
+    schedule: LABELS.word.schedule.label,
+    webhook: LABELS.word.webhook.label,
+    watch: LABELS.word.watch.label,
 }
 
 const SCHEDULE_COLUMNS: Column<ScheduleRow>[] = [
     {
         id: 'schedule',
-        header: LABELS.word.schedule,
+        header: LABELS.word.schedule.label,
         kind: 'title',
         cell: (row) => (
             <Titled thing={row.schedule}>
@@ -336,7 +336,7 @@ const SCHEDULE_COLUMNS: Column<ScheduleRow>[] = [
     },
     {
         id: 'pipeline',
-        header: LABELS.word.pipeline,
+        header: LABELS.word.pipeline.label,
         kind: 'prose',
         cell: (row) => <PipelineRef code={row.pipeline} name={row.pipelineName} />,
     },
@@ -361,7 +361,7 @@ const SCHEDULE_COLUMNS: Column<ScheduleRow>[] = [
     },
     {
         id: 'last',
-        header: LABELS.triggers.schedule.last_firing,
+        header: LABELS.word.firing.last,
         cell: (row) => <LastFiring row={row} />,
     },
 ]
@@ -369,7 +369,7 @@ const SCHEDULE_COLUMNS: Column<ScheduleRow>[] = [
 const WEBHOOK_COLUMNS: Column<WebhookRow>[] = [
     {
         id: 'webhook',
-        header: LABELS.word.webhook,
+        header: LABELS.word.webhook.label,
         kind: 'title',
         cell: (row) => (
             <Titled thing={row.webhook}>
@@ -380,7 +380,7 @@ const WEBHOOK_COLUMNS: Column<WebhookRow>[] = [
     },
     {
         id: 'pipeline',
-        header: LABELS.word.pipeline,
+        header: LABELS.word.pipeline.label,
         kind: 'prose',
         cell: (row) => <PipelineRef code={row.pipeline} name={row.pipelineName} />,
     },
@@ -403,11 +403,11 @@ const WEBHOOK_COLUMNS: Column<WebhookRow>[] = [
     },
     {
         id: 'rate',
-        header: LABELS.triggers.webhook.rate,
+        header: LABELS.word.rate_limit.label,
         className: 'text-right font-mono text-xs',
         cell: (row) => (
             <span className="text-muted-foreground">
-                {LABELS.triggers.webhook.rate_per_minute(String(row.webhook.rate_limit_per_minute))}
+                {LABELS.word.rate_limit.value(String(row.webhook.rate_limit_per_minute))}
             </span>
         ),
     },
@@ -421,7 +421,7 @@ const WEBHOOK_COLUMNS: Column<WebhookRow>[] = [
 const WATCH_COLUMNS: Column<WatchRow>[] = [
     {
         id: 'watch',
-        header: LABELS.word.watch,
+        header: LABELS.word.watch.label,
         kind: 'title',
         cell: (row) => (
             <Titled thing={row.watch}>
@@ -432,13 +432,13 @@ const WATCH_COLUMNS: Column<WatchRow>[] = [
     },
     {
         id: 'pipeline',
-        header: LABELS.word.pipeline,
+        header: LABELS.word.pipeline.label,
         kind: 'prose',
         cell: (row) => <PipelineRef code={row.pipeline} name={row.pipelineName} />,
     },
     {
         id: 'step',
-        header: LABELS.word.step,
+        header: LABELS.word.step.label,
         className: 'font-mono text-xs',
         cell: (row) => <span className="font-mono text-muted-foreground">{row.watch.step}</span>,
     },
@@ -509,7 +509,7 @@ function Titled({ thing, children }: { thing: Addressable; children: ReactNode }
 /** When a schedule last fired, and what came of that firing. */
 function LastFiring({ row }: { row: ScheduleRow }) {
     if (row.schedule.last_fired_at === null)
-        return <span className="text-xs text-faint">{LABELS.triggers.schedule.never_fired}</span>
+        return <span className="text-xs text-faint">{LABELS.word.never}</span>
     const view = row.latest === null ? null : firingView(row.latest)
     return (
         <span className="flex items-center gap-2 text-xs">
@@ -526,7 +526,7 @@ function LastFiring({ row }: { row: ScheduleRow }) {
                         event.stopPropagation()
                     }}
                 >
-                    {LABELS.triggers.run}
+                    {LABELS.word.run.term}
                 </Link>
             )}
             {view !== null && view.detail !== null && (
@@ -557,7 +557,7 @@ function LastDelivery({ row }: { row: WebhookRow }) {
                         event.stopPropagation()
                     }}
                 >
-                    {LABELS.triggers.run}
+                    {LABELS.word.run.term}
                 </Link>
             )}
             {view !== null && view.reason !== null && (

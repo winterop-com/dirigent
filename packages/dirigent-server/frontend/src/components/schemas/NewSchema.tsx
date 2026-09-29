@@ -136,7 +136,7 @@ export function NewSchema({
                         }
                     />
                     <Button size="sm" disabled={saving} onClick={store}>
-                        {saving ? LABELS.schemas.storing : LABELS.schemas.store}
+                        {saving ? LABELS.action.store.busy : LABELS.action.store.verb}
                     </Button>
                 </DialogFooter>
             </DialogContent>

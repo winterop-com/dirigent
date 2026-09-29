@@ -19,7 +19,7 @@ test('signing in lands on the dashboard', async ({ page }) => {
 
     await page.getByLabel(LABELS.word.username).fill(DEV_USERNAME)
     await page.getByLabel(LABELS.word.password, { exact: true }).fill(DEV_PASSWORD)
-    await page.getByRole('button', { name: LABELS.login.sign_in }).click()
+    await page.getByRole('button', { name: LABELS.action.sign_in.verb }).click()
 
     // The front door, not a listing: the root is a screen of its own and it is where a session
     // with no address behind it begins.
@@ -34,7 +34,7 @@ test('a wrong password is refused in the server own words', async ({ page }) => 
     await page.goto('/login')
     await page.getByLabel(LABELS.word.username).fill(DEV_USERNAME)
     await page.getByLabel(LABELS.word.password, { exact: true }).fill('not the password')
-    await page.getByRole('button', { name: LABELS.login.sign_in }).click()
+    await page.getByRole('button', { name: LABELS.action.sign_in.verb }).click()
 
     await expect(page.getByRole('alert')).toHaveText('invalid username or password')
 })

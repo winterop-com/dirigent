@@ -164,10 +164,10 @@ export function NewSchedule({
                 </DialogHeader>
 
                 <div className="space-y-2">
-                    <Label htmlFor="schedule-pipeline">{LABELS.word.pipeline}</Label>
+                    <Label htmlFor="schedule-pipeline">{LABELS.word.pipeline.label}</Label>
                     <Picker
                         id="schedule-pipeline"
-                        label={LABELS.word.pipeline}
+                        label={LABELS.word.pipeline.label}
                         value={pipeline}
                         options={pipelines}
                         placeholder={LABELS.triggers.dialog.pipeline_hint}
@@ -189,10 +189,10 @@ export function NewSchedule({
                     />
                     <Field
                         id="schedule-name"
-                        label={LABELS.word.name}
+                        label={LABELS.word.name.label}
                         value={named}
                         onChange={setNamed}
-                        placeholder={LABELS.triggers.dialog.name_hint}
+                        placeholder={LABELS.word.name.placeholder}
                     />
                 </div>
 
@@ -256,7 +256,7 @@ export function NewSchedule({
                     <DialogClose render={<Button variant="ghost" />}>{LABELS.action.close}</DialogClose>
                     <Refusable why={shut}>
                         <Button disabled={busy || shut !== undefined} title={shut} onClick={send}>
-                            {busy ? LABELS.triggers.dialog.creating : LABELS.action.create}
+                            {busy ? LABELS.action.create.busy : LABELS.action.create.verb}
                         </Button>
                     </Refusable>
                 </DialogFooter>
@@ -347,10 +347,10 @@ export function NewWebhook({
                 </DialogHeader>
 
                 <div className="space-y-2">
-                    <Label htmlFor="webhook-pipeline">{LABELS.word.pipeline}</Label>
+                    <Label htmlFor="webhook-pipeline">{LABELS.word.pipeline.label}</Label>
                     <Picker
                         id="webhook-pipeline"
-                        label={LABELS.word.pipeline}
+                        label={LABELS.word.pipeline.label}
                         value={pipeline}
                         options={pipelines}
                         placeholder={LABELS.triggers.dialog.pipeline_hint}
@@ -372,10 +372,10 @@ export function NewWebhook({
                     />
                     <Field
                         id="webhook-name"
-                        label={LABELS.word.name}
+                        label={LABELS.word.name.label}
                         value={named}
                         onChange={setNamed}
-                        placeholder={LABELS.triggers.dialog.name_hint}
+                        placeholder={LABELS.word.name.placeholder}
                     />
                 </div>
 
@@ -462,7 +462,7 @@ export function NewWebhook({
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                     <Field
                         id="webhook-rate"
-                        label={LABELS.triggers.webhook.dialog.rate}
+                        label={LABELS.word.rate_limit.label}
                         value={rate}
                         onChange={setRate}
                         placeholder={String(RATE_LIMIT)}
@@ -485,7 +485,7 @@ export function NewWebhook({
                     <DialogClose render={<Button variant="ghost" />}>{LABELS.action.close}</DialogClose>
                     <Refusable why={shut}>
                         <Button disabled={busy || shut !== undefined} title={shut} onClick={send}>
-                            {busy ? LABELS.triggers.dialog.creating : LABELS.action.create}
+                            {busy ? LABELS.action.create.busy : LABELS.action.create.verb}
                         </Button>
                     </Refusable>
                 </DialogFooter>
@@ -535,7 +535,7 @@ export function MintedToken({ token, onClose }: { token: WebhookTokenOut; onClos
                     </p>
                     <Button variant="outline" size="sm" onClick={copy}>
                         {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
-                        {copied ? LABELS.triggers.webhook.token.copied : LABELS.triggers.webhook.token.copy}
+                        {copied ? LABELS.action.copy.done : LABELS.action.copy.verb}
                     </Button>
                 </div>
 

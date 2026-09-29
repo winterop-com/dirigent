@@ -360,9 +360,9 @@ export function applyPipeline(document: JsonMap, dryRun: boolean): Promise<Apply
 /** What fires a pipeline on its own, in words, which is what the glyphs are titled with. */
 export function triggerSummary(row: Pick<PipelineOut, 'schedules' | 'webhooks' | 'watches'>): string {
     const parts = [
-        count(row.schedules, LABELS.pipelines.trigger_summary.schedule),
-        count(row.webhooks, LABELS.pipelines.trigger_summary.webhook),
-        count(row.watches, LABELS.pipelines.trigger_summary.watch, LABELS.pipelines.trigger_summary.watches),
+        count(row.schedules, LABELS.word.schedule.term),
+        count(row.webhooks, LABELS.word.webhook.term),
+        count(row.watches, LABELS.word.watch.term, LABELS.word.watch.count),
     ].filter((part) => part !== null)
     if (parts.length === 0) return LABELS.pipelines.trigger_summary.none
     if (parts.length === 1) return parts[0]

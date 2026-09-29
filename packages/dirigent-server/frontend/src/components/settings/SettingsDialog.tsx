@@ -594,7 +594,7 @@ function ServerPane({ rows }: { rows: SettingsRow[] }) {
                 return (
                     <Row key={row.id} row={row}>
                         {value === null ? (
-                            <span className="text-xs text-faint">{LABELS.settings.reading}</span>
+                            <span className="text-xs text-faint">{LABELS.shell.reading}</span>
                         ) : (
                             <span className="font-mono text-xs">{factOf(row.id, value)}</span>
                         )}

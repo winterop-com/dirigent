@@ -48,7 +48,7 @@ export function WorkersTable({
                 reading={state.reading}
                 next={state.next}
                 onMore={more}
-                noun={LABELS.workers.noun}
+                noun={LABELS.word.worker.count}
             />
         </PageState>
     )
@@ -66,7 +66,7 @@ function columnsFor(workers: readonly WorkerOut[]): Column<WorkerOut>[] {
 const COLUMNS: Column<WorkerOut>[] = [
     {
         id: 'name',
-        header: LABELS.word.worker,
+        header: LABELS.word.worker.label,
         cell: (worker) => <span className="text-sm font-medium">{worker.name}</span>,
     },
     {
@@ -77,7 +77,7 @@ const COLUMNS: Column<WorkerOut>[] = [
     },
     {
         id: 'version',
-        header: LABELS.word.version,
+        header: LABELS.word.version.label,
         className: 'font-mono text-xs',
         cell: (worker) => <span className="text-muted-foreground">{worker.version}</span>,
     },

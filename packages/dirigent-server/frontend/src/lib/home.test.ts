@@ -446,7 +446,7 @@ describe('what this instance depends on', () => {
     test('says the concern instead, and when the worker was last heard from', () => {
         const [row] = healthRows([worker('alpha', { stale: true, last_seen_at: '2026-01-02T00:00:00Z' })], [])
         expect(row).toMatchObject({ tone: 'critical', at: '2026-01-02T00:00:00Z' })
-        expect(row.detail).toBe('has gone quiet')
+        expect(row.detail).toBe('has gone silent')
     })
 
     test('does not name the worker the row is already headed by', () => {
@@ -508,7 +508,7 @@ describe('the line along the foot of the panel', () => {
     })
 
     test('says a fleet that has never registered rather than counting none of none', () => {
-        expect(healthNote([], [connection('acme', true)])).toBe('No worker has registered.')
+        expect(healthNote([], [connection('acme', true)])).toBe('No worker has ever registered.')
     })
 
     test('does not promise connections an instance holding none has', () => {

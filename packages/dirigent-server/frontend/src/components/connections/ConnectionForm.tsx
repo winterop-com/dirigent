@@ -139,7 +139,7 @@ export function ConnectionForm({
                     <KindChip kind={connection.kind} />
                 </p>
                 <p className="text-xs text-faint">
-                    {LABELS.word.created} <Instant at={connection.created_at} />
+                    {LABELS.word.created.label} <Instant at={connection.created_at} />
                     {separatelyUpdated(connection.created_at, connection.updated_at) && (
                         <>
                             {LABELS.connections.also_updated}
@@ -152,7 +152,7 @@ export function ConnectionForm({
             </div>
 
             <div className="space-y-1.5">
-                <Label htmlFor="connection-name">{LABELS.word.name}</Label>
+                <Label htmlFor="connection-name">{LABELS.word.name.label}</Label>
                 <Input
                     id="connection-name"
                     value={named}
@@ -160,7 +160,7 @@ export function ConnectionForm({
                         setNamed(event.target.value)
                         setSaved(false)
                     }}
-                    placeholder={LABELS.connections.name_placeholder}
+                    placeholder={LABELS.word.name.placeholder}
                 />
                 <p className="text-xs text-faint">{LABELS.connections.name_hint(connection.code)}</p>
             </div>
@@ -215,10 +215,10 @@ export function ConnectionForm({
             <div className="flex items-center gap-2">
                 <Refusable why={shut}>
                     <Button size="sm" onClick={send} disabled={busy || shut !== undefined} title={shut}>
-                        {busy ? LABELS.connections.saving : LABELS.action.save}
+                        {busy ? LABELS.action.save.busy : LABELS.action.save.verb}
                     </Button>
                 </Refusable>
-                {saved && <span className="text-xs text-muted-foreground">{LABELS.connections.saved}</span>}
+                {saved && <span className="text-xs text-muted-foreground">{LABELS.action.save.done}</span>}
             </div>
         </div>
     )
@@ -238,7 +238,7 @@ function LastCheck({ connection }: { connection: ConnectionOut }) {
                 <HealthSaid view={view} />
                 {view.checkedAt !== null && (
                     <span className="text-xs text-faint">
-                        {LABELS.connections.checked_at} <Instant at={view.checkedAt} />
+                        {LABELS.word.checked.term} <Instant at={view.checkedAt} />
                     </span>
                 )}
             </p>

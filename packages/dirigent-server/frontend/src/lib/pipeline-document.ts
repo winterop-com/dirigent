@@ -22,7 +22,7 @@ import { parse, stringify } from 'yaml'
 
 import type { JsonMap } from '@/lib/api'
 import { headingOf, type Heading } from '@/lib/identity'
-import { LABELS } from '@/lib/labels'
+import { counted, LABELS } from '@/lib/labels'
 import { uncarry } from '@/lib/starters'
 import { createStore } from '@/lib/store'
 
@@ -378,7 +378,7 @@ export function stepEdited(edits: DocumentEdits, step: string): boolean {
 
 /** How the topbar chip and the status bar say how much is unapplied. */
 export function editsLabel(edits: DocumentEdits): string {
-    return LABELS.editor.topbar.unapplied_edits(edits.count)
+    return counted(edits.count, LABELS.editor.topbar.unapplied_edits)(String(edits.count))
 }
 
 /** How much of a step's key the panel's tab has room for before the strip starts moving. */
@@ -391,7 +391,7 @@ const STEP_TAB_BUDGET = 14
  * key past the budget is cut rather than allowed to widen the strip under somebody's pointer.
  */
 export function stepTabLabel(step: string | null): string {
-    if (step === null) return LABELS.word.step
+    if (step === null) return LABELS.word.step.label
     const shown = step.length > STEP_TAB_BUDGET ? `${step.slice(0, STEP_TAB_BUDGET - 1)}…` : step
     return LABELS.editor.step.tab(shown)
 }

@@ -1608,7 +1608,12 @@ answers the arrow keys.
 A page is a title, and a section heading is a heading. **An empty state states the fact** --
 "No runs." -- and adds a second plain sentence only where the way in is not on the screen, such
 as a document key or a CLI verb. It never narrates a button that is on the screen: what New does
-is what New says. A listing carries an `API` chip linking `/docs#/<tag>`, the fragment Swagger UI
+is what New says. **The second one is a sentence, not a clause hung off a dash**: "No blocks
+installed. Plugins contribute them." is the shape, and every empty state on every screen is that
+shape or the bare fact alone -- one of them punctuated its own way for long enough that the
+catalogue could show it beside the others. **A way in that is off screen is stated wherever it is
+off screen**, so a listing whose rows are declared by a document says so even where a button
+beside it declares one too. A listing carries an `API` chip linking `/docs#/<tag>`, the fragment Swagger UI
 writes on its own tag headings, so the requests behind a screen are one click away. Every screen
 states its own two facts along the foot through `lib/screen-status`, the address nothing answers
 for included.
@@ -1675,6 +1680,36 @@ row, a number on a tile and a clause in a sentence, and those were three phrases
 until they became `state.run.completed_with_errors.{chip,tile,sentence}`. Putting them under one
 code is what makes a fourth spelling visible while it is being written. The same goes for the
 health words, the worker words and the run states: one concept, one code, its forms beneath it.
+
+**A noun is one entry, and the case belongs to the surface rather than to the word.** A field's
+label, a column header, a card's fact and a section heading are Sentence case; a definition-list
+term, a chip and a fragment inside a sentence are lower case. Where the product draws one noun in
+more than one of those, the entry holds each form it actually draws, under the surface it is drawn
+on: `label` for the singular a control or a column wears, `heading` for the plural over a section
+or a table, `term` for the lower-case singular a definition list reads, `count` for the lower-case
+plural a listing's foot counts. A form nothing draws is not written down, and nothing derives one
+form from another -- capitalising in code compiles English's capitalisation rule into the app,
+which is the one thing this catalogue exists to keep out. `Started` beside `started`, and `Blocks`
+beside a per-screen `blocks`, are that rule not yet applied.
+
+**A verb is one entry in `action`, and the states of its own control sit under it.** The word on
+the button, the word while the request is in flight and the word once it has landed are one
+concept, so they are `verb`, `busy` and `done` beneath one code -- never a `Creating` minted
+again on each screen that writes something. A pair of verbs that toggles one thing, Pause and
+Resume or Enable and Disable, is two entries side by side there rather than a pair per screen.
+
+**A counted sentence is a `{one, many}` pair, never a ternary and never two sibling codes.**
+`` `${count} field${count === 1 ? '' : 's'}` `` is English's plural rule compiled into the
+catalogue, and a language with three plural forms, or with none, cannot write itself into that
+string; two codes a stem apart, `stores_one` beside `stores_many`, are the same pair with the
+concept pulled apart. So both forms are spelled whole under one code and the component picks
+between them -- the shape five entries already had while five more were still branching inside
+the string.
+
+**A read in flight says `Reading`, and says nothing else.** Naming what is being read -- the
+artifacts, the report, the corpus -- adds no fact the pane it is drawn in has not already given,
+and "from the server" adds none at all, because every read in this app is from the server. One
+code on every card, button and pane whose answer has not landed.
 
 **A string with a value in it is a function taking named parameters**, so a language that puts
 the value somewhere else can. Nothing here reads a locale and nothing chooses a table; a second

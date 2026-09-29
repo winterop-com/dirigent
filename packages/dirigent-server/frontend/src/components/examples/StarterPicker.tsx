@@ -34,7 +34,7 @@ export const PICKER_PLACEHOLDER = LABELS.pipelines.starters.placeholder
 
 export const PICKER_EMPTY = LABELS.pipelines.starters.empty
 
-export const PICKER_READING = LABELS.pipelines.starters.reading
+export const PICKER_READING = LABELS.shell.reading
 
 export const PICKER_NONE = LABELS.pipelines.starters.none
 

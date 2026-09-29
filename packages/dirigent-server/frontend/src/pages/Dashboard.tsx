@@ -194,7 +194,7 @@ export function Dashboard() {
                         reading={false}
                         next={null}
                         onMore={NOTHING_MORE}
-                        noun={LABELS.dashboard.noun.runs}
+                        noun={LABELS.word.run.count}
                         onSelect={(run) => void navigate(`/runs/${run.id}`)}
                     />
                 </PageState>
@@ -215,7 +215,7 @@ export function Dashboard() {
                         reading={false}
                         next={null}
                         onMore={NOTHING_MORE}
-                        noun={LABELS.dashboard.noun.runs}
+                        noun={LABELS.word.run.count}
                         onSelect={(entry) => void navigate(`/runs/${entry.run.id}`)}
                     />
                 </PageState>
@@ -236,7 +236,7 @@ export function Dashboard() {
                         reading={false}
                         next={null}
                         onMore={NOTHING_MORE}
-                        noun={LABELS.dashboard.noun.firings}
+                        noun={LABELS.word.firing.count}
                         onSelect={(fire) => void navigate(`/pipelines/${encodeURIComponent(fire.pipeline)}`)}
                     />
                 </PageState>
@@ -280,7 +280,7 @@ const LIVE_COLUMNS: Column<RunOut>[] = [
     },
     {
         id: 'pipeline',
-        header: LABELS.word.pipeline,
+        header: LABELS.word.pipeline.label,
         cell: (run) => <span className="font-mono text-sm">{headingOf({ code: run.pipeline }).title}</span>,
     },
     {
@@ -295,12 +295,12 @@ const LIVE_COLUMNS: Column<RunOut>[] = [
 const FIRE_COLUMNS: Column<NextFire>[] = [
     {
         id: 'pipeline',
-        header: LABELS.word.pipeline,
+        header: LABELS.word.pipeline.label,
         cell: (fire) => <span className="font-mono text-sm">{headingOf({ code: fire.pipeline }).title}</span>,
     },
     {
         id: 'schedule',
-        header: LABELS.word.schedule,
+        header: LABELS.word.schedule.label,
         cell: (fire) => {
             const schedule = headingOf(fire.schedule)
             return (
@@ -321,7 +321,7 @@ const FIRE_COLUMNS: Column<NextFire>[] = [
     },
     {
         id: 'fires',
-        header: LABELS.dashboard.column.fires,
+        header: LABELS.word.next,
         className: 'text-right',
         cell: (fire) => <Instant className="text-xs text-faint" at={fire.at} />,
     },

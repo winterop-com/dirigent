@@ -77,7 +77,7 @@ export function Schemas() {
             [
                 {
                     id: 'schema',
-                    label: LABELS.word.schema,
+                    label: LABELS.word.schema.label,
                     render: () => <SchemaPanel key={open.code} schema={open} onDeleted={reload} />,
                 },
             ],
@@ -157,7 +157,7 @@ export function Schemas() {
                     reading={state.reading}
                     next={state.next}
                     onMore={more}
-                    noun={LABELS.schemas.noun}
+                    noun={LABELS.word.schema.count}
                     onSelect={(row) => {
                         // The row is not another page of history: it is which one is being read.
                         void navigate(`/schemas/${encodeURIComponent(row.code)}`, { replace: true })
@@ -176,7 +176,7 @@ export function Schemas() {
 
 function buildColumns(): Column<SchemaOut>[] {
     return [
-        { id: 'schema', header: LABELS.word.schema, kind: 'title', cell: (row) => <Named row={row} /> },
+        { id: 'schema', header: LABELS.word.schema.label, kind: 'title', cell: (row) => <Named row={row} /> },
         {
             id: 'description',
             header: LABELS.word.description,
@@ -244,7 +244,7 @@ function SchemaPanel({ schema, onDeleted }: { schema: SchemaOut; onDeleted: () =
                     title={write.why}
                     onClick={remove}
                 >
-                    {removing ? LABELS.schemas.deleting : LABELS.action.delete}
+                    {removing ? LABELS.action.delete.busy : LABELS.action.delete.verb}
                 </Button>
             </Refusable>
         </div>

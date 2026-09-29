@@ -299,7 +299,7 @@ export function ListTable<T>({
                                 onClick={onMore}
                                 disabled={reading}
                             >
-                                {reading ? LABELS.shell.loading_more : LABELS.shell.load_more(String(PAGE))}
+                                {reading ? LABELS.shell.reading : LABELS.shell.load_more(String(PAGE))}
                             </Button>
                         </div>
                     )}

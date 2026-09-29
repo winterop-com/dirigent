@@ -66,37 +66,37 @@ test('a chip of a kind nothing is set up for opens the dialog on that kind', asy
     await expect(page).toHaveURL(/\/connections\?new=webhook$/)
     const dialog = page.getByRole('dialog')
     await expect(dialog.getByRole('heading', { name: LABELS.connections.new })).toBeVisible()
-    await expect(dialog.getByLabel(LABELS.word.kind)).toContainText('webhook')
+    await expect(dialog.getByLabel(LABELS.word.kind.label)).toContainText('webhook')
 })
 
 test('a rule is declared from the screen, and appears in the listing it was declared on', async ({
     page,
 }) => {
-    await page.getByRole('button', { name: LABELS.alerting.new_rule }).click()
+    await page.getByRole('button', { name: LABELS.alerting.new_rule.button }).click()
 
     const dialog = page.getByRole('dialog')
-    await expect(dialog.getByRole('heading', { name: LABELS.alerting.new_rule })).toBeVisible()
+    await expect(dialog.getByRole('heading', { name: LABELS.alerting.new_rule.button })).toBeVisible()
 
     // Create is shut until the rule says enough to be one, and says why.
-    const create = dialog.getByRole('button', { name: LABELS.action.create })
+    const create = dialog.getByRole('button', { name: LABELS.action.create.verb })
     await expect(create).toBeDisabled()
     await expect(create).toHaveAttribute('title', 'A rule is addressed by its code, and this one has none.')
 
     await dialog.getByLabel(LABELS.word.code).fill(RULE.code)
-    await dialog.getByLabel(LABELS.word.name).fill(RULE.name)
+    await dialog.getByLabel(LABELS.word.name.label).fill(RULE.name)
     await dialog.getByRole('button', { name: 'Failed' }).click()
     await dialog.getByRole('button', { name: LABELS.alerting.scope.global }).click()
 
     // A rule names one target and the sender follows from it: one picker, opened on the log.
-    await expect(dialog.getByLabel(LABELS.alerting.deliver_through)).toHaveValue('The process log')
+    await expect(dialog.getByLabel(LABELS.word.delivers_through)).toHaveValue('The process log')
     await expect(dialog.getByLabel(LABELS.alerting.notifier)).toHaveCount(0)
 
     // A target is a channel, so every row of the picker wears its kind's mark.
-    await dialog.getByLabel(LABELS.alerting.deliver_through).click()
+    await dialog.getByLabel(LABELS.word.delivers_through).click()
     const logRow = page.getByRole('option', { name: LABELS.alerting.log_target })
     await expect(logRow.locator('[data-slot="mark"]')).toHaveCount(1)
     await logRow.click()
-    await expect(dialog.getByLabel(LABELS.alerting.deliver_through)).toHaveValue('The process log')
+    await expect(dialog.getByLabel(LABELS.word.delivers_through)).toHaveValue('The process log')
 
     await dialog.getByLabel(LABELS.word.throttle).fill('15m')
     await expect(create).toBeEnabled()
@@ -118,9 +118,9 @@ test('a rule is declared from the screen, and appears in the listing it was decl
 })
 
 test('escape on the target picker leaves the text saying what is chosen', async ({ page }) => {
-    await page.getByRole('button', { name: LABELS.alerting.new_rule }).click()
+    await page.getByRole('button', { name: LABELS.alerting.new_rule.button }).click()
     const dialog = page.getByRole('dialog')
-    const field = dialog.getByLabel(LABELS.alerting.deliver_through)
+    const field = dialog.getByLabel(LABELS.word.delivers_through)
     await expect(field).toHaveValue('The process log')
 
     // A filter typed and abandoned: the popup closes and the box reads the chosen row again.
@@ -135,19 +135,19 @@ test('escape on the target picker leaves the text saying what is chosen', async 
     await dialog.getByLabel(LABELS.word.code).fill(RULE.code)
     await dialog.getByRole('button', { name: 'Failed' }).click()
     await dialog.getByRole('button', { name: LABELS.alerting.scope.global }).click()
-    await dialog.getByRole('button', { name: LABELS.action.create }).click()
+    await dialog.getByRole('button', { name: LABELS.action.create.verb }).click()
     await expect(page.getByRole('dialog')).toHaveCount(0)
     await expect(ruleRow(page)).toContainText(LABELS.editor.run.log)
 
     // A press on the closed box clears nothing, and the choice is still the one created with.
-    await page.getByRole('button', { name: LABELS.alerting.new_rule }).click()
+    await page.getByRole('button', { name: LABELS.alerting.new_rule.button }).click()
     await expect(field).toHaveValue('The process log')
     await field.press('Escape')
     await expect(field).toHaveValue('The process log')
     await dialog.getByLabel(LABELS.word.code).fill(WIDE.code)
     await dialog.getByRole('button', { name: 'Failed' }).click()
     await dialog.getByRole('button', { name: LABELS.alerting.scope.global }).click()
-    await dialog.getByRole('button', { name: LABELS.action.create }).click()
+    await dialog.getByRole('button', { name: LABELS.action.create.verb }).click()
     await expect(page.getByRole('dialog')).toHaveCount(0)
     await expect(
         page.getByRole('row').or(page.getByRole('listitem')).filter({ hasText: WIDE.code }),
@@ -158,7 +158,7 @@ test.describe('on a phone', () => {
     test.use({ viewport: { width: 390, height: 844 } })
 
     test('the four events wrap to two rows, and nothing scrolls sideways', async ({ page }) => {
-        await page.getByRole('button', { name: LABELS.alerting.new_rule }).click()
+        await page.getByRole('button', { name: LABELS.alerting.new_rule.button }).click()
         const events = page.getByRole('group', { name: LABELS.word.event }).getByRole('button')
         await expect(events).toHaveCount(4)
 
@@ -181,9 +181,9 @@ test.describe('on a phone', () => {
         await declareChannel(page)
         await page.reload()
 
-        await page.getByRole('button', { name: LABELS.alerting.new_rule }).click()
+        await page.getByRole('button', { name: LABELS.alerting.new_rule.button }).click()
         const dialog = page.getByRole('dialog')
-        const field = dialog.getByLabel(LABELS.alerting.deliver_through)
+        const field = dialog.getByLabel(LABELS.word.delivers_through)
         await field.click()
 
         const row = page.getByRole('option', { name: CHANNEL.name })
@@ -234,7 +234,7 @@ test.describe('in the 712px column a 1024 window leaves', () => {
 
         const rules = page
             .locator('section')
-            .filter({ has: page.getByRole('heading', { name: LABELS.alerting.rules_heading, exact: true }) })
+            .filter({ has: page.getByRole('heading', { name: LABELS.word.rule.heading, exact: true }) })
         await expect(rules.getByText(WIDE.code)).toBeVisible()
 
         // The rule's name is text: it takes what the value columns left and is cut in it, so
@@ -263,11 +263,11 @@ test.describe('in the 712px column a 1024 window leaves', () => {
 })
 
 test("a rule's body is written in the dialog and edited in its panel", async ({ page }) => {
-    await page.getByRole('button', { name: LABELS.alerting.new_rule }).click()
+    await page.getByRole('button', { name: LABELS.alerting.new_rule.button }).click()
     const dialog = page.getByRole('dialog')
 
     await dialog.getByLabel(LABELS.word.code).fill(RULE.code)
-    await dialog.getByLabel(LABELS.word.name).fill(RULE.name)
+    await dialog.getByLabel(LABELS.word.name.label).fill(RULE.name)
     await dialog.getByLabel(LABELS.word.subject).fill('{{ run.pipeline }} failed')
 
     // The body is a Jinja pane rather than a box: it is written on the lines it was written on,
@@ -279,7 +279,7 @@ test("a rule's body is written in the dialog and edited in its panel", async ({ 
     await expect(window).toBeVisible()
     await page.keyboard.press('Escape')
 
-    await dialog.getByRole('button', { name: LABELS.action.create }).click()
+    await dialog.getByRole('button', { name: LABELS.action.create.verb }).click()
     await expect(page.getByRole('dialog')).toHaveCount(0)
 
     // The panel says what the rule sends, subject and body both.
@@ -292,7 +292,7 @@ test("a rule's body is written in the dialog and edited in its panel", async ({ 
     await panel.getByRole('button', { name: LABELS.action.edit }).click()
     await expect(page.getByRole('dialog')).toHaveCount(0)
     await writeInEditor(page, panel.getByTestId('code-editor').first(), 'Rewritten for {{ run.status }}.')
-    await panel.getByRole('button', { name: LABELS.action.save }).click()
+    await panel.getByRole('button', { name: LABELS.action.save.verb }).click()
 
     await expect(panel).toContainText('Rewritten for {{ run.status }}.')
     await expect(panel.getByRole('button', { name: LABELS.action.edit })).toBeVisible()
@@ -342,13 +342,13 @@ test('a test stays open until the row settles, and reaches sent through the log 
 
     // A test names one target the way a rule does: one picker, opened on the log, and nothing
     // to fill in before it can be sent.
-    await expect(dialog.getByLabel(LABELS.alerting.deliver_through)).toHaveValue('The process log')
+    await expect(dialog.getByLabel(LABELS.word.delivers_through)).toHaveValue('The process log')
     await expect(dialog.getByLabel(LABELS.alerting.notifier)).toHaveCount(0)
-    await expect(dialog.getByLabel(LABELS.word.connection)).toHaveCount(0)
+    await expect(dialog.getByLabel(LABELS.word.connection.label)).toHaveCount(0)
     await expect(send).toBeEnabled()
 
     // A target is a channel, so every row of the picker wears its kind's mark.
-    await dialog.getByLabel(LABELS.alerting.deliver_through).click()
+    await dialog.getByLabel(LABELS.word.delivers_through).click()
     const logRow = page.getByRole('option', { name: LABELS.alerting.log_target })
     await expect(logRow.locator('[data-slot="mark"]')).toHaveCount(1)
     await logRow.click()
@@ -436,7 +436,7 @@ async function declareChannel(page: Page): Promise<void> {
 async function sendTest(page: Page, subject: string): Promise<void> {
     await page.getByRole('button', { name: LABELS.action.send_test }).click()
     const dialog = page.getByRole('dialog')
-    await expect(dialog.getByLabel(LABELS.alerting.deliver_through)).toHaveValue('The process log')
+    await expect(dialog.getByLabel(LABELS.word.delivers_through)).toHaveValue('The process log')
     await dialog.getByLabel(LABELS.word.subject).fill(subject)
     await dialog.getByRole('button', { name: LABELS.alerting.send, exact: true }).click()
     // Closed only once the row has settled, so the listing behind has been read again with it.

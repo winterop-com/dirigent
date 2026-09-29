@@ -70,7 +70,7 @@ test('choosing a step on the graph opens it in the panel', async ({ page }) => {
     await page.locator('.react-flow__node').getByText('parse', { exact: true }).click()
 
     const panel = page.locator('aside')
-    await expect(panel.getByRole('tab', { name: LABELS.word.step })).toBeVisible()
+    await expect(panel.getByRole('tab', { name: LABELS.word.step.label })).toBeVisible()
     await expect(panel.getByRole('tab', { name: 'Run' })).toBeVisible()
     await expect(panel.getByRole('tab', { name: LABELS.word.output })).toBeVisible()
     // The step's own facts, which only the selected step has.

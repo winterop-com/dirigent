@@ -110,7 +110,7 @@ test('what a finger lands on is at least 42px tall', async ({ page }) => {
     await page.goto('/schemas')
     await page.getByRole('button', { name: LABELS.schemas.new }).click()
     const footer = page.getByRole('dialog').locator('[data-slot="dialog-footer"]')
-    await expect(footer.getByRole('button', { name: LABELS.schemas.store })).toBeVisible()
+    await expect(footer.getByRole('button', { name: LABELS.action.store.verb })).toBeVisible()
 
     // The dialog scales in, so the boxes are read once every animation on it has finished.
     await expect

@@ -46,7 +46,7 @@
  */
 
 import type { JsonMap } from '@/lib/api'
-import { LABELS } from '@/lib/labels'
+import { counted, LABELS } from '@/lib/labels'
 import { hasReference } from '@/lib/references'
 
 /** Which control a field is edited with. */
@@ -436,7 +436,7 @@ export function partition(fields: FieldDescriptor[], values: JsonMap): Partition
 
 /** What the link over the folded fields reads. */
 export function foldLabel(count: number): string {
-    return LABELS.form.more_fields(count)
+    return counted(count, LABELS.form.more_fields)(String(count))
 }
 
 /**
@@ -573,7 +573,7 @@ function wordFor(kind: FieldKind): string {
 function textProblem(field: FieldDescriptor, bounds: Bounds, value: string): string | null {
     const { minLength, maxLength, pattern } = bounds
     if (minLength !== undefined && value.length < minLength) {
-        return LABELS.form.refusal.min_length(field.name, minLength)
+        return counted(minLength, LABELS.form.refusal.min_length)(field.name, String(minLength))
     }
     if (maxLength !== undefined && value.length > maxLength) {
         return LABELS.form.refusal.max_length(field.name, String(maxLength))

@@ -134,7 +134,7 @@ export function nowTile(runs: Page<RunOut>): Tile {
     const note =
         summarise([
             [running, LABELS.state.run.running.chip],
-            [queued, LABELS.dashboard.tile.waiting],
+            [queued, LABELS.state.run.queued.chip],
         ]) ?? LABELS.dashboard.nothing_live
     return {
         id: 'now',
@@ -251,7 +251,7 @@ export function schedulesTile(pipelines: Page<PipelineOut>): Tile {
     const schedules = scheduled.reduce((sum, row) => sum + row.schedules, 0)
     return {
         id: 'schedules',
-        label: LABELS.dashboard.tile.schedules,
+        label: LABELS.word.schedule.heading,
         value: atLeast(schedules, truncated),
         note:
             schedules === 0

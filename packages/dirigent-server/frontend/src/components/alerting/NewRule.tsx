@@ -133,7 +133,7 @@ export function NewRule({
                 showCloseButton={false}
             >
                 <DialogHeader>
-                    <DialogTitle>{LABELS.alerting.new_rule}</DialogTitle>
+                    <DialogTitle>{LABELS.alerting.new_rule.button}</DialogTitle>
                 </DialogHeader>
 
                 {/* The form scrolls and the footer does not: a dialog with a pane in it is
@@ -150,7 +150,7 @@ export function NewRule({
                         />
                         <Field
                             id="rule-name"
-                            label={LABELS.word.name}
+                            label={LABELS.word.name.label}
                             value={named}
                             onChange={setNamed}
                             placeholder={LABELS.alerting.name_placeholder}
@@ -192,10 +192,10 @@ export function NewRule({
                         </div>
                         {scope === 'pipeline' && (
                             <div className="space-y-2">
-                                <Label htmlFor="rule-pipeline">{LABELS.word.pipeline}</Label>
+                                <Label htmlFor="rule-pipeline">{LABELS.word.pipeline.label}</Label>
                                 <Picker
                                     id="rule-pipeline"
-                                    label={LABELS.word.pipeline}
+                                    label={LABELS.word.pipeline.label}
                                     value={pipeline}
                                     options={pipelines}
                                     placeholder={LABELS.alerting.pipeline_search}
@@ -287,7 +287,7 @@ export function NewRule({
                     <DialogClose render={<Button variant="ghost" />}>{LABELS.action.close}</DialogClose>
                     <Refusable why={shut}>
                         <Button disabled={busy || shut !== undefined} title={shut} onClick={send}>
-                            {busy ? LABELS.alerting.creating : LABELS.action.create}
+                            {busy ? LABELS.action.create.busy : LABELS.action.create.verb}
                         </Button>
                     </Refusable>
                 </DialogFooter>

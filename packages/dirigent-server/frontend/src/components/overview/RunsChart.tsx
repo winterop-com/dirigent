@@ -60,7 +60,7 @@ export function RunsChart({
                     <div className="space-y-1">
                         <h2 className="text-sm font-semibold">{LABELS.dashboard.chart.title}</h2>
                         <p className="text-xs text-muted-foreground">
-                            {reading ? LABELS.dashboard.reading_from_server : LABELS.dashboard.chart.hint}
+                            {reading ? LABELS.shell.reading : LABELS.dashboard.chart.hint}
                         </p>
                     </div>
                     <ul className="flex items-center gap-3">

@@ -147,6 +147,6 @@ test('the day is drawn by the hour, and what this instance depends on is beside 
     // not perfect. `dg dev` runs a worker of its own, so this instance has one to list.
     await expect(page.getByRole('heading', { name: LABELS.word.health })).toBeVisible()
     await expect(page.getByRole('main')).toContainText(
-        /worker · \d+ slots?|has gone quiet|No worker has registered/i,
+        /worker · \d+ slots?|has gone silent|No worker has ever registered/i,
     )
 })

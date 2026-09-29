@@ -165,7 +165,7 @@ export function Connections() {
             [
                 {
                     id: 'connection',
-                    label: LABELS.word.connection,
+                    label: LABELS.word.connection.label,
                     render: () => (
                         <ConnectionForm key={open.code} connection={open} schema={schema} onSaved={held} />
                     ),
@@ -248,7 +248,7 @@ export function Connections() {
                     reading={state.reading}
                     next={state.next}
                     onMore={more}
-                    noun={LABELS.connections.noun}
+                    noun={LABELS.word.connection.count}
                     onSelect={(row) => {
                         // The row is not another page of history: it is which one is being read.
                         void navigate(connectionPath(row.code), { replace: true })
@@ -295,7 +295,7 @@ function buildColumns(
     return [
         {
             id: 'connection',
-            header: LABELS.word.connection,
+            header: LABELS.word.connection.label,
             kind: 'title',
             cell: (row) => <Named row={row} />,
         },
@@ -306,7 +306,7 @@ function buildColumns(
         },
         {
             id: 'checked',
-            header: LABELS.word.checked,
+            header: LABELS.word.checked.label,
             className: 'text-xs',
             // Nothing rather than an element that draws nothing: a card leaves out the fact a
             // row has none of, and an empty element is a label with a blank beside it.

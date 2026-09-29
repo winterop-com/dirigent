@@ -17,7 +17,7 @@
  */
 
 import { formatClock } from '@/lib/format'
-import { LABELS } from '@/lib/labels'
+import { counted, LABELS } from '@/lib/labels'
 import type { RunDetailState } from '@/lib/run-detail'
 import type { LogEntryOut } from '@/lib/runs'
 import { runSettled, statusLabel, type LogLevel } from '@/lib/status'
@@ -200,7 +200,7 @@ export function countLines(entries: readonly LogEntryOut[]): number {
  */
 export function lineCount(shown: number, total: number): string | null {
     if (total === 0) return null
-    const say = total === 1 ? LABELS.terminal.count_one : LABELS.terminal.count_many
+    const say = counted(total, LABELS.terminal.count)
     return say(String(shown), String(total))
 }
 

@@ -30,10 +30,13 @@ describe('why a control is shut', () => {
         expect(whyShut('admin', 'admin')).toBeUndefined()
     })
 
-    test('the sentence says the account cannot, and never what another role could', () => {
-        expect(whyShut('viewer', 'operator')).toBe('Not available to a viewer.')
-        expect(whyShut('viewer', 'admin')).toBe('Not available to a viewer.')
-        expect(whyShut('operator', 'admin')).toBe('Not available to an operator.')
+    // REVERT-PROOF. Go back to naming the role in the sentence and this fails on both counts:
+    // the three refusals stop being one string, and the word for a role appears in it.
+    test('the sentence says the account cannot, and never which role it is', () => {
+        const said = [whyShut('viewer', 'operator'), whyShut('viewer', 'admin'), whyShut('operator', 'admin')]
+        expect(new Set(said).size).toBe(1)
+        expect(said[0]).toBe('Not permitted for your role.')
+        for (const role of ['viewer', 'operator', 'admin']) expect(said[0]).not.toContain(role)
     })
 })
 

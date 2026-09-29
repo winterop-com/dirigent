@@ -26,7 +26,7 @@ export function local(detail: string, code = 'client.no_answer'): Problem {
 /** Whatever went wrong, as the one shape a refusal is read in. */
 export function refusalOf(error: unknown): Problem {
     if (error instanceof ApiError) return error.problem
-    return local(LABELS.refusal.no_reply)
+    return local(LABELS.refusal.no_answer.sentence)
 }
 
 /** One issue as a line: its message, prefixed by where it is when it names a place. */

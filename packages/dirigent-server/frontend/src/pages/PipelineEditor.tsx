@@ -480,7 +480,7 @@ export function PipelineEditor() {
                 : [
                       {
                           id: 'pipeline',
-                          label: LABELS.word.pipeline,
+                          label: LABELS.word.pipeline.label,
                           render: () => (
                               <PipelineTab
                                   pipeline={pipeline}

@@ -9,16 +9,17 @@ import { LABELS } from '@/lib/labels'
 /**
  * What a reader who is not an admin is told, in the shape every refusal in this app takes.
  *
- * The sentence is this app's rather than the server's, because no request was made: the reader
- * typed an address the rail does not offer them, and the honest answer is what the screen is
- * for and who it is for, not a 403 nobody asked for.
+ * No request was made -- the reader typed an address the rail does not offer them -- so this
+ * app states the refusal the server would have made, in the words the server states it in and
+ * under its code. A screen that invented its own sentence had the product refusing one thing
+ * two ways, depending only on whether anybody had pressed anything yet.
  */
 export const ADMIN_REFUSAL: Problem = {
     status: 403,
-    title: LABELS.refusal.admin_only.title,
+    title: LABELS.refusal.admin_only,
     code: 'server.forbidden',
     params: {},
-    detail: LABELS.refusal.admin_only.detail,
+    detail: LABELS.refusal.shut,
     problems: [],
     instance: null,
 }

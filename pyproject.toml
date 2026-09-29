@@ -102,6 +102,9 @@ mypy_path = [
     "packages/dirigent-cli/src",
     "packages/dirigent-storage-s3/src",
     "packages/dirigent-testing/src",
+    # `test_shared_words.py` reads the web UI's catalogue through the same parser the
+    # label gate uses, so there is one reader of `labels.ts` rather than two.
+    "scripts",
 ]
 
 [[tool.mypy.overrides]]
@@ -140,6 +143,9 @@ extraPaths = [
     "packages/dirigent-cli/src",
     "packages/dirigent-storage-s3/src",
     "packages/dirigent-testing/src",
+    # `test_shared_words.py` reads the web UI's catalogue through the same parser the
+    # label gate uses, so there is one reader of `labels.ts` rather than two.
+    "scripts",
 ]
 reportMissingTypeStubs = false
 

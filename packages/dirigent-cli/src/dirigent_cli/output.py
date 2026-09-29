@@ -474,16 +474,24 @@ def prioritised(priority: object) -> str:
             return ""
 
 
+#: The floor an alert rule fires at, said beside its scope. The web UI writes this half in the
+#: same words out of its own catalogue, and `tests/test_shared_words.py` holds the two together.
+IMPORTANCE_FLOOR = "{importance} and above"
+
+
 def watching(scope: object, importance: object) -> str:
     """What an alert rule watches, in one cell: its scope, and the floor it fires at.
 
     Almost every rule names no importance, so a column of its own would mostly be empty.
     """
-    return f"{scope}, {importance} and above" if importance else str(scope)
+    if not importance:
+        return str(scope)
+    return f"{scope}, {IMPORTANCE_FLOOR.format(importance=importance)}"
 
 
 #: What each alert event is called in a rendering. The wire's word is what a rule is declared
-#: with; these are the words a reader is shown, here and on the web UI's own listing.
+#: with; these are the words a reader is shown. The web UI draws the same four out of its own
+#: catalogue, and `tests/test_shared_words.py` fails when the two tables stop agreeing.
 ALERT_EVENTS: Mapping[str, str] = {
     "run_failed": "Failed",
     "run_completed_with_errors": "Completed with errors",
@@ -529,17 +537,39 @@ def render_bool(value: object) -> str:
     return "[green]yes[/]" if value else "[dim]no[/]"
 
 
+#: What a connection's last check is called, keyed by the state the web UI keys it by. A
+#: credential's health is one vocabulary across the product, so these are the bundle's own four
+#: words and `tests/test_shared_words.py` fails when the two tables stop agreeing.
+CONNECTION_HEALTH: Mapping[str, str] = {
+    "unchecked": "never checked",
+    "unverified": "not verified",
+    "healthy": "healthy",
+    "failed": "failed",
+}
+
+
+def connection_health(healthy: object) -> str:
+    """Say which state a check that ran left a connection in.
+
+    Args:
+        healthy: What the check decided, or None where the kind publishes no check.
+
+    Returns:
+        The key into `CONNECTION_HEALTH`.
+    """
+    if healthy is None:
+        return "unverified"
+    return "healthy" if healthy else "failed"
+
+
 def render_check(last_check_at: object, healthy: object) -> str:
     """Render what a connection's last check said, across the four states a row can be in.
 
-    A check answers yes, no, or that it could not decide; a row nothing has checked answers
-    none of the three.
+    A check answers that the system is there, that it is not, or that the kind publishes no
+    check at all; a row nothing has ever asked is in none of the three.
     """
-    if not last_check_at:
-        return "-"
-    if healthy is None:
-        return "[dim]not verified[/]"
-    return "[green]yes[/]" if healthy else "[dim]no[/]"
+    state = connection_health(healthy) if last_check_at else "unchecked"
+    return f"[{STATUS_STYLES.get(state, 'dim')}]{CONNECTION_HEALTH[state]}[/]"
 
 
 def moment(value: object) -> str:

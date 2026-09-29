@@ -174,7 +174,9 @@ export function Login() {
                         <p className="text-sm tracking-[0.18em] text-primary-ink uppercase">
                             {LABELS.login.eyebrow}
                         </p>
-                        <h2 className="text-display font-semibold tracking-tight">{LABELS.login.sign_in}</h2>
+                        <h2 className="text-display font-semibold tracking-tight">
+                            {LABELS.action.sign_in.verb}
+                        </h2>
                         <p className="text-sm text-muted-foreground">{LABELS.login.subtitle}</p>
                     </div>
                     <div className="grid gap-1.5">
@@ -240,9 +242,9 @@ export function Login() {
                         type="submit"
                         className="h-13 w-full rounded-lg"
                         disabled={auth.working}
-                        title={auth.working ? LABELS.login.working : undefined}
+                        title={auth.working ? LABELS.action.sign_in.busy : undefined}
                     >
-                        {LABELS.login.sign_in}
+                        {LABELS.action.sign_in.verb}
                         <ArrowRight className="size-4.5" aria-hidden />
                     </Button>
                     {auth.problem !== null && (

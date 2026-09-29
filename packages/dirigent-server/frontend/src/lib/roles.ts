@@ -28,12 +28,11 @@ export function passes(role: UserRole | null, gate: Gate): boolean {
  *
  * It says that the account cannot, and not what any other role could: a shut button is not
  * where somebody is taught the permission model, and the server's own refusal says as little.
+ * It says it in the server's own words, so a control this bundle shut and a request the server
+ * refused read alike; naming the role here said the same fact a third way.
  */
 export function whyShut(role: UserRole | null, gate: Gate): string | undefined {
-    if (passes(role, gate)) return undefined
-    return LABELS.refusal.shut(
-        role === 'operator' ? LABELS.refusal.role.operator : LABELS.refusal.role.viewer,
-    )
+    return passes(role, gate) ? undefined : LABELS.refusal.shut
 }
 
 /** The first sentence that shuts a control, so a role and a form's own state read as one. */

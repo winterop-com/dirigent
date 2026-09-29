@@ -12,7 +12,7 @@ import { useStore } from '@/hooks/use-store'
 import { REFRESH_CHOICES, refreshLabel, refreshSeconds, setRefreshSeconds } from '@/lib/refresh'
 import { LABELS } from '@/lib/labels'
 
-export const REFRESH_LABEL = LABELS.shell.refresh
+export const REFRESH_LABEL = LABELS.action.refresh
 export const CADENCE_LABEL = LABELS.shell.cadence
 
 /**

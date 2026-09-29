@@ -139,7 +139,7 @@ function Users() {
             [
                 {
                     id: 'account',
-                    label: LABELS.word.account,
+                    label: LABELS.word.account.label,
                     render: () => (
                         <AccountPanel
                             user={chosen}
@@ -250,7 +250,7 @@ function Users() {
             />
 
             <section className="space-y-2">
-                <h2 className="text-sm font-semibold">{LABELS.users.accounts_heading}</h2>
+                <h2 className="text-sm font-semibold">{LABELS.word.account.heading}</h2>
                 <PageState
                     loading={!users.state.read}
                     problem={users.state.problem}
@@ -268,7 +268,7 @@ function Users() {
                         reading={users.state.reading}
                         next={users.state.next}
                         onMore={users.more}
-                        noun={LABELS.users.accounts_noun}
+                        noun={LABELS.word.account.count}
                     />
                 </PageState>
             </section>
@@ -276,7 +276,7 @@ function Users() {
             <section className="mt-8 space-y-2">
                 <div className="flex items-center justify-between gap-4">
                     <div className="space-y-1">
-                        <h2 className="text-sm font-semibold">{LABELS.users.tokens_heading}</h2>
+                        <h2 className="text-sm font-semibold">{LABELS.word.token.heading}</h2>
                         <p className="text-sm text-muted-foreground">{LABELS.users.tokens_hint}</p>
                     </div>
                     <Button
@@ -307,7 +307,7 @@ function Users() {
                         reading={tokens.state.reading}
                         next={tokens.state.next}
                         onMore={tokens.more}
-                        noun={LABELS.users.tokens_noun}
+                        noun={LABELS.word.token.count}
                     />
                 </PageState>
             </section>
@@ -358,7 +358,7 @@ function userColumns(choose: (user: UserOut) => void): Column<UserOut>[] {
         },
         {
             id: 'name',
-            header: LABELS.word.name,
+            header: LABELS.word.name.label,
             cell: (user) => (user.name === null ? null : <span className="text-sm">{user.name}</span>),
         },
         {
@@ -368,7 +368,7 @@ function userColumns(choose: (user: UserOut) => void): Column<UserOut>[] {
         },
         {
             id: 'active',
-            header: LABELS.users.active_column,
+            header: LABELS.word.state,
             cell: (user) =>
                 user.active ? (
                     <span className="text-xs text-good">{LABELS.state.armed.active}</span>
@@ -378,7 +378,7 @@ function userColumns(choose: (user: UserOut) => void): Column<UserOut>[] {
         },
         {
             id: 'seen',
-            header: LABELS.users.last_signed_in_column,
+            header: LABELS.word.last_signed_in.label,
             className: 'text-xs',
             cell: (user) => (
                 <span className="text-muted-foreground" title={formatInstant(user.last_login_at)}>
@@ -388,7 +388,7 @@ function userColumns(choose: (user: UserOut) => void): Column<UserOut>[] {
         },
         {
             id: 'created',
-            header: LABELS.word.created,
+            header: LABELS.word.created.label,
             className: 'text-xs',
             cell: (user) => (
                 <span className="text-muted-foreground" title={formatInstant(user.created_at)}>
@@ -404,13 +404,13 @@ function tokenRows(revoke: (token: TokenOut) => void): Column<TokenOut>[] {
     return [
         {
             id: 'account',
-            header: LABELS.word.account,
+            header: LABELS.word.account.label,
             className: 'font-mono text-xs',
             cell: (token) => <span>{token.username}</span>,
         },
         {
             id: 'name',
-            header: LABELS.word.name,
+            header: LABELS.word.name.label,
             cell: (token) => <span className="text-sm font-medium">{token.name}</span>,
         },
         {
@@ -421,7 +421,7 @@ function tokenRows(revoke: (token: TokenOut) => void): Column<TokenOut>[] {
         },
         {
             id: 'created',
-            header: LABELS.word.created,
+            header: LABELS.word.created.label,
             className: 'text-xs',
             cell: (token) => (
                 <span className="text-muted-foreground" title={formatInstant(token.created_at)}>
@@ -525,24 +525,24 @@ function AccountPanel({
                     )}
                 </p>
                 <p className="text-xs text-faint">
-                    {LABELS.word.created} <Instant at={user.created_at} /> ·{' '}
+                    {LABELS.word.created.label} <Instant at={user.created_at} /> ·{' '}
                     {user.last_login_at === null ? (
                         LABELS.users.never_signed_in
                     ) : (
                         <>
-                            {LABELS.users.last_signed_in} <Instant at={user.last_login_at} />
+                            {LABELS.word.last_signed_in.term} <Instant at={user.last_login_at} />
                         </>
                     )}
                 </p>
             </div>
 
             <div className="space-y-1.5">
-                <Label htmlFor="panel-name">{LABELS.word.name}</Label>
+                <Label htmlFor="panel-name">{LABELS.word.name.label}</Label>
                 <Input
                     id="panel-name"
                     value={draft.name}
                     autoComplete="off"
-                    placeholder={LABELS.users.name_placeholder}
+                    placeholder={LABELS.word.name.placeholder}
                     onChange={(event) => {
                         onDraft({ ...draft, name: event.target.value })
                     }}
@@ -589,7 +589,7 @@ function AccountPanel({
 
             <div className="flex flex-wrap gap-2">
                 <Button size="sm" disabled={busy || !changed} onClick={onSave}>
-                    {LABELS.action.save}
+                    {LABELS.action.save.verb}
                 </Button>
                 <Button
                     variant="outline"
@@ -600,7 +600,7 @@ function AccountPanel({
                         onActive(!user.active)
                     }}
                 >
-                    {user.active ? LABELS.users.deactivate : LABELS.users.activate}
+                    {user.active ? LABELS.action.deactivate : LABELS.action.activate}
                 </Button>
             </div>
 
