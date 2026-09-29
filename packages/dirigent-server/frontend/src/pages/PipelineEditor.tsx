@@ -51,7 +51,7 @@ import {
     withStepName,
     writeSource,
 } from '@/lib/pipeline-document'
-import { issuesNote } from '@/lib/pipeline-plan'
+import { appliedNote, issuesNote } from '@/lib/pipeline-plan'
 import {
     importanceMark,
     importanceOf,
@@ -738,11 +738,8 @@ export function PipelineEditor() {
                     }}
                     onApplied={(result) => {
                         setIssues(issuesNote(result.plan.issues))
-                        toast.success(
-                            result.version === null
-                                ? `${result.plan.code} was left as it was`
-                                : `${result.plan.code} is at version ${String(result.version)}`,
-                        )
+                        const note = appliedNote(result)
+                        toast.success(note.line, { description: note.detail })
                         // The document has an address of its own now, and it is not this one.
                         if (creating) {
                             void navigate(`/pipelines/${encodeURIComponent(result.plan.code)}`)
