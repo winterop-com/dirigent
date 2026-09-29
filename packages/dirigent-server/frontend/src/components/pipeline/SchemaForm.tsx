@@ -247,7 +247,7 @@ function Field({
                 >
                     {field.name}
                 </Label>
-                {field.required && <span className="text-xs text-primary">required</span>}
+                {field.required && <span className="text-xs text-primary-ink">required</span>}
                 {/* A field written as a reference is not the control the hint describes, so what
                     that control would take is not what this field is about. */}
                 {field.hint !== null && note === null && (

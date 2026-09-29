@@ -338,7 +338,7 @@ function userColumns(choose: (user: UserOut) => void): Column<UserOut>[] {
             cell: (user) => (
                 <button
                     type="button"
-                    className="text-left text-sm font-medium underline-offset-4 hover:text-primary hover:underline"
+                    className="text-left text-sm font-medium underline-offset-4 hover:text-primary-ink hover:underline"
                     onClick={() => {
                         choose(user)
                     }}

@@ -158,7 +158,7 @@ function Body({ title, value }: { title: string; value: JsonMap }) {
 /** The way out to the thing's own screen. */
 function Opens({ to, children }: { to: string; children: ReactNode }) {
     return (
-        <Link className="text-xs text-primary hover:underline" to={to}>
+        <Link className="text-xs text-primary-ink hover:underline" to={to}>
             {children}
         </Link>
     )

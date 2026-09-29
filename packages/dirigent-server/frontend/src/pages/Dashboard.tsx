@@ -255,7 +255,7 @@ function Section({ title, to, children }: { title: string; to: string; children:
         <section className="mb-6 space-y-2 last:mb-0">
             <div className="space-y-1">
                 <h2 className="text-sm font-semibold">
-                    <Link to={to} className="hover:text-primary">
+                    <Link to={to} className="hover:text-primary-ink">
                         {title}
                     </Link>
                 </h2>

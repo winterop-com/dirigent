@@ -78,7 +78,20 @@ export function clampRailWidth(width: number): number {
 }
 
 export const railCollapsed = createStore(readFlag(RAIL_KEY, false))
+
+/**
+ * Whether the right panel is drawn open.
+ *
+ * TWO FACTS, ONE STORED. What the reader chose with the toggle is their preference, and it is
+ * the only thing written to storage. A screen opening the panel -- a selection, a link that
+ * names a row -- opens it for that visit alone: the next screen starts from the preference.
+ */
 export const panelOpen = createStore(readFlag(PANEL_OPEN_KEY, false))
+
+let preferredOpen = panelOpen.get()
+
+/** An open asked for by a screen that has not filled the panel since. */
+let visitOpenPending = false
 export const panelWidth = createStore(readWidth(PANEL_WIDTH_KEY, PANEL_DEFAULT_WIDTH, clampPanelWidth))
 export const railWidth = createStore(readWidth(RAIL_WIDTH_KEY, RAIL_WIDTH, clampRailWidth))
 
@@ -112,20 +125,25 @@ export function closeSheet(): void {
     panelSheet.set(false)
 }
 
-/** Open the right panel, which is what selecting something on a screen does. */
+/**
+ * Open the right panel for this visit to the screen, which is what selecting something does.
+ *
+ * It writes no preference: a deep link or a selection is not the reader choosing how the
+ * panel stands on every screen.
+ */
 export function openPanel(): void {
     panelSheet.set(true)
-    if (panelOpen.get()) return
-    write(PANEL_OPEN_KEY, 'true')
+    visitOpenPending = true
     panelOpen.set(true)
 }
 
-/** Show or hide the right panel. */
+/** Show or hide the right panel, and keep that as the reader's preference. */
 export function togglePanel(): void {
-    panelOpen.update((open) => {
-        write(PANEL_OPEN_KEY, String(!open))
-        return !open
-    })
+    const open = !panelOpen.get()
+    preferredOpen = open
+    visitOpenPending = false
+    write(PANEL_OPEN_KEY, String(open))
+    panelOpen.set(open)
 }
 
 /** Set the right panel's width, in pixels, clamped to what the shell can draw. */
@@ -192,7 +210,11 @@ export function fillPanel(tabs: readonly PanelTab[], owner?: PanelOwner): () => 
         // A sheet is over the screen it was raised from, so arriving at another one takes it
         // down rather than carrying it across.
         panelSheet.set(false)
+        // An open this screen asked for before its first fill is its own; any other is the
+        // last screen's, and this one starts from the reader's preference.
+        if (!visitOpenPending) panelOpen.set(preferredOpen)
     }
+    if (owner !== undefined) visitOpenPending = false
     return () => {
         if (panelTabs.get() === tabs) panelTabs.set([])
     }

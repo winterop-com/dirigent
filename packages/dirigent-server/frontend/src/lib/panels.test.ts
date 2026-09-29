@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest'
+import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
 import {
     PANEL_MAX_WIDTH,
@@ -8,12 +8,14 @@ import {
     clampPanelWidth,
     clampRailWidth,
     fillPanel,
+    openPanel,
     openPanelTab,
     panelOpen,
     panelTab,
     panelTabs,
     railWidth,
     setRailWidth,
+    togglePanel,
     type PanelTab,
 } from '@/lib/panels'
 
@@ -79,6 +81,76 @@ describe('which panel tab is open', () => {
     test('opens the panel along with it, because a named tab nobody can see is not open', () => {
         panelOpen.set(false)
         openPanelTab('step')
+        expect(panelOpen.get()).toBe(true)
+    })
+})
+
+describe('whether the panel is open', () => {
+    const tabs: PanelTab[] = [{ id: 'one', label: 'One', render: () => null }]
+    // Tests run in Node, so storage is two methods over a map.
+    const held = new Map<string, string>()
+    const stored = () => held.get('dirigent.panelOpen') ?? null
+
+    beforeAll(() => {
+        Object.defineProperty(globalThis, 'localStorage', {
+            value: {
+                getItem: (key: string) => held.get(key) ?? null,
+                setItem: (key: string, value: string) => held.set(key, value),
+            },
+            configurable: true,
+            writable: true,
+        })
+    })
+
+    afterAll(() => {
+        Reflect.deleteProperty(globalThis, 'localStorage')
+    })
+
+    function preferClosed() {
+        if (panelOpen.get()) togglePanel()
+        else {
+            togglePanel()
+            togglePanel()
+        }
+    }
+
+    test("is the reader's to keep when they toggle it", () => {
+        preferClosed()
+        expect(stored()).toBe('false')
+        togglePanel()
+        expect(panelOpen.get()).toBe(true)
+        expect(stored()).toBe('true')
+    })
+
+    test('opens for a screen that asks without writing a preference', () => {
+        preferClosed()
+        openPanel()
+        expect(panelOpen.get()).toBe(true)
+        expect(stored()).toBe('false')
+    })
+
+    test('stays open on the screen that asked before its first fill', () => {
+        preferClosed()
+        fillPanel(tabs, { screen: 'panel-test:before' })
+        openPanel()
+        fillPanel(tabs, { screen: 'panel-test:linked' })
+        expect(panelOpen.get()).toBe(true)
+    })
+
+    test("goes back to the reader's preference on the next screen", () => {
+        preferClosed()
+        fillPanel(tabs, { screen: 'panel-test:linked' })
+        openPanel()
+        fillPanel(tabs, { screen: 'panel-test:linked' })
+        fillPanel(tabs, { screen: 'panel-test:editor' })
+        expect(panelOpen.get()).toBe(false)
+    })
+
+    test('keeps an open the reader chose across screens', () => {
+        preferClosed()
+        togglePanel()
+        fillPanel(tabs, { screen: 'panel-test:a' })
+        fillPanel(tabs, { screen: 'panel-test:b' })
         expect(panelOpen.get()).toBe(true)
     })
 })

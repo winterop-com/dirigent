@@ -393,7 +393,7 @@ function FieldReference({ field }: { field: FieldDescriptor }) {
             <div className="flex flex-wrap items-baseline gap-x-2">
                 <span className="font-mono text-sm font-medium">{field.name}</span>
                 <span className="text-xs text-muted-foreground">{typeLabel(field)}</span>
-                {field.required && <span className="text-xs text-primary">required</span>}
+                {field.required && <span className="text-xs text-primary-ink">required</span>}
                 {field.hint !== null && <span className="text-xs text-faint">{field.hint}</span>}
                 {fallback !== null && <span className="text-xs text-faint">default {fallback}</span>}
             </div>

@@ -114,6 +114,43 @@ test('a rule is declared from the screen, and appears in the listing it was decl
     await expect(row.locator('td').filter({ hasText: 'log' }).locator('[data-slot="mark"]')).toHaveCount(1)
 })
 
+test('escape on the target picker leaves the text saying what is chosen', async ({ page }) => {
+    await page.getByRole('button', { name: 'New rule' }).click()
+    const dialog = page.getByRole('dialog')
+    const field = dialog.getByLabel('Deliver through')
+    await expect(field).toHaveValue('The process log')
+
+    // A filter typed and abandoned: the popup closes and the box reads the chosen row again.
+    await field.click()
+    await field.fill('zzz')
+    await field.press('Escape')
+    // At once, not once the popup has finished closing: read without a retry.
+    expect(await field.inputValue()).toBe('The process log')
+    await expect(page.getByRole('listbox')).toHaveCount(0)
+
+    // What the box reads is what is created.
+    await dialog.getByLabel('Code').fill(RULE.code)
+    await dialog.getByRole('button', { name: 'Failed' }).click()
+    await dialog.getByRole('button', { name: 'Every pipeline' }).click()
+    await dialog.getByRole('button', { name: 'Create' }).click()
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    await expect(ruleRow(page)).toContainText('log')
+
+    // A press on the closed box clears nothing, and the choice is still the one created with.
+    await page.getByRole('button', { name: 'New rule' }).click()
+    await expect(field).toHaveValue('The process log')
+    await field.press('Escape')
+    await expect(field).toHaveValue('The process log')
+    await dialog.getByLabel('Code').fill(WIDE.code)
+    await dialog.getByRole('button', { name: 'Failed' }).click()
+    await dialog.getByRole('button', { name: 'Every pipeline' }).click()
+    await dialog.getByRole('button', { name: 'Create' }).click()
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    await expect(
+        page.getByRole('row').or(page.getByRole('listitem')).filter({ hasText: WIDE.code }),
+    ).toContainText('log')
+})
+
 test.describe('on a phone', () => {
     test.use({ viewport: { width: 390, height: 844 } })
 

@@ -21,6 +21,11 @@ is exempt, and the second half of this check reads index.css itself and fails if
 appears there that is not the three plus these. A named exception can be counted; a pattern
 cannot.
 
+AMBER AS TEXT IS ``text-primary-ink``. ``--primary`` is a fill tuned to carry its own
+foreground, and in a light palette it does not hold 4.5:1 as text on the ground; its ink twin
+does. Anything in the app's own source that sets ``text-primary`` is text or a glyph on the
+ground, so the bare class is refused and the ink twin named.
+
 Run it alone with ``uv run python scripts/check_ui_classes.py``; ``make ui-lint`` calls it.
 """
 
@@ -52,6 +57,15 @@ ARBITRARY_TYPE_SIZE = re.compile(r"text-\[\d*\.?\d+(?:px|rem|pt)\]")
 #: Tailwind's own steps above the scale. The three the app has are xs, sm and base; every larger
 #: step is a fourth size arriving through the back door, and index.css does not define them.
 OFF_SCALE_TYPE_SIZE = re.compile(r"\btext-(?:lg|xl|[2-9]xl)\b")
+
+#: The amber fill's token used as ink, bare or under a variant: ``text-primary``,
+#: ``hover:text-primary``. ``text-primary-ink`` and ``text-primary-foreground`` do not match.
+PRIMARY_AS_TEXT = re.compile(r"\btext-primary(?![-\w])")
+
+INK_FIX = (
+    "--primary is a fill. Amber text or a glyph on the ground is text-primary-ink, which holds "
+    "4.5:1 in every palette. See docs/ui-conventions.md."
+)
 
 FIX = (
     "the type scale is three sizes. Use text-xs (chips, badges, counts, metadata), "
@@ -102,19 +116,20 @@ def source_files() -> list[Path]:
     return sorted(found)
 
 
-def violations(path: Path) -> list[tuple[int, str]]:
-    """Find off-scale type sizes in one file.
+def violations(path: Path) -> list[tuple[int, str, str]]:
+    """Find off-scale type sizes and the amber fill used as ink in one file.
 
     Args:
         path: The source file to scan.
 
     Returns:
-        ``(line number, offending class)`` pairs, in source order.
+        ``(line number, offending class, fix)`` triples, in source order.
     """
-    hits: list[tuple[int, str]] = []
+    hits: list[tuple[int, str, str]] = []
     for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
         for pattern in (ARBITRARY_TYPE_SIZE, OFF_SCALE_TYPE_SIZE):
-            hits.extend((lineno, found.group(0)) for found in pattern.finditer(line))
+            hits.extend((lineno, found.group(0), FIX) for found in pattern.finditer(line))
+        hits.extend((lineno, found.group(0), INK_FIX) for found in PRIMARY_AS_TEXT.finditer(line))
     return sorted(hits)
 
 
@@ -152,15 +167,15 @@ def main() -> int:
         return 0
     total = 0
     for path in files:
-        for lineno, found in violations(path):
+        for lineno, found, fix in violations(path):
             total += 1
-            print(f"{path.relative_to(REPO_ROOT)}:{lineno}: {found} -- {FIX}")
+            print(f"{path.relative_to(REPO_ROOT)}:{lineno}: {found} -- {fix}")
     for lineno, found in minted():
         total += 1
         print(f"{THEME.relative_to(REPO_ROOT)}:{lineno}: {found} -- {CSS_FIX}")
     if total:
         plural = "" if total == 1 else "s"
-        print(f"\n{total} off-scale type size{plural} in {len(files)} files.", file=sys.stderr)
+        print(f"\n{total} class violation{plural} in {len(files)} files.", file=sys.stderr)
         return 1
     print(f"ui classes ok ({len(files)} files)")
     return 0
