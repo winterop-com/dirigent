@@ -1,5 +1,6 @@
 """Profiles: where they are found, what they may hold, and what wins over what."""
 
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
@@ -14,6 +15,7 @@ from dirigent_cli.profiles import (
     load_store,
     resolve_endpoint,
 )
+from dirigent_client import DEFAULT_CONNECT_TIMEOUT, DEFAULT_RETRIES, DEFAULT_TIMEOUT
 
 FILE = """
 default: staging
@@ -206,3 +208,29 @@ def test_the_project_env_file_is_found_from_a_subdirectory(tmp_path: Path) -> No
     deep = tmp_path / "pipelines" / "nested"
     deep.mkdir(parents=True)
     assert resolve_endpoint(start=deep, environ={}).token == "from-the-env-file"
+
+
+def test_an_instance_on_a_slow_link_may_be_given_longer_to_answer(tmp_path: Path) -> None:
+    write(
+        tmp_path,
+        """
+profiles:
+  far:
+    url: https://dirigent.example.org
+    token: a-token
+    timeout: 2m
+    connect_timeout: 10s
+    retries: 4
+""",
+    )
+    endpoint = resolve_endpoint(start=tmp_path, environ={})
+    assert endpoint.timeout == timedelta(minutes=2)
+    assert endpoint.connect_timeout == timedelta(seconds=10)
+    assert endpoint.retries == 4
+
+
+def test_a_profile_that_says_nothing_about_patience_gets_the_client_defaults(tmp_path: Path) -> None:
+    endpoint = resolve_endpoint(start=tmp_path / "empty", environ={})
+    assert endpoint.connect_timeout == timedelta(seconds=DEFAULT_CONNECT_TIMEOUT)
+    assert endpoint.timeout == timedelta(seconds=DEFAULT_TIMEOUT)
+    assert endpoint.retries == DEFAULT_RETRIES

@@ -1,13 +1,14 @@
-"""Profiles: which server the CLI talks to, and how it gets a token for it.
+"""Profiles: which server the CLI talks to, how it gets a token for it, and how patient it is.
 
-A profile is client-side addressing only and must never hold a database URL: a CLI that
-could reach the database would bypass authentication, attribution, and validation.
+A profile is client-side only and must never hold a database URL: a CLI that could reach the
+database would bypass authentication, attribution, and validation.
 """
 
 import os
 import shutil
 import subprocess
 from collections.abc import Mapping
+from datetime import timedelta
 from pathlib import Path
 from typing import Any, Final, cast
 
@@ -15,8 +16,8 @@ import yaml
 from dotenv import dotenv_values
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, model_validator
 
-from dirigent_client import API_PREFIX
-from dirigent_common import EntityName
+from dirigent_client import API_PREFIX, DEFAULT_CONNECT_TIMEOUT, DEFAULT_RETRIES, DEFAULT_TIMEOUT
+from dirigent_common import Duration, EntityName
 
 PROJECT_PROFILES: Final = Path(".dirigent") / "profiles.yaml"
 PROJECT_ENV_FILE: Final = ".env"
@@ -32,13 +33,16 @@ DATABASE_SCHEMES: Final = ("postgresql", "postgres", "sqlite", "mysql")
 
 TOKEN_COMMAND_TIMEOUT: Final = 30.0
 
+DEFAULT_REQUEST_TIMEOUT: Final = timedelta(seconds=DEFAULT_TIMEOUT)
+DEFAULT_CONNECT_BUDGET: Final = timedelta(seconds=DEFAULT_CONNECT_TIMEOUT)
+
 
 class ProfileError(Exception):
     """A profile could not be read, found, or turned into a usable token."""
 
 
 class Profile(BaseModel):
-    """One named server and how to obtain a token for it."""
+    """One named server, how to obtain a token for it, and how long to wait on it."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -52,6 +56,15 @@ class Profile(BaseModel):
 
     api_prefix: str = API_PREFIX
     """Where this instance serves its API, for one configured with a different prefix."""
+
+    timeout: Duration = DEFAULT_REQUEST_TIMEOUT
+    """How long a request to this instance may take to answer."""
+
+    connect_timeout: Duration = DEFAULT_CONNECT_BUDGET
+    """How long reaching this instance may take before it is called unreachable."""
+
+    retries: int = Field(default=DEFAULT_RETRIES, ge=0)
+    """How many further attempts a lost or refused-with-a-5xx request gets."""
 
     @model_validator(mode="after")
     def _refuse_a_database_url(self) -> "Profile":
@@ -193,6 +206,9 @@ class Endpoint(BaseModel):
     profile: str | None = None
     source: str = "default"
     api_prefix: str = API_PREFIX
+    timeout: Duration = DEFAULT_REQUEST_TIMEOUT
+    connect_timeout: Duration = DEFAULT_CONNECT_BUDGET
+    retries: int = DEFAULT_RETRIES
 
 
 def resolve_endpoint(
@@ -236,4 +252,7 @@ def resolve_endpoint(
         profile=chosen.name if chosen else None,
         source=source,
         api_prefix=chosen.api_prefix if chosen else API_PREFIX,
+        timeout=chosen.timeout if chosen else DEFAULT_REQUEST_TIMEOUT,
+        connect_timeout=chosen.connect_timeout if chosen else DEFAULT_CONNECT_BUDGET,
+        retries=chosen.retries if chosen else DEFAULT_RETRIES,
     )

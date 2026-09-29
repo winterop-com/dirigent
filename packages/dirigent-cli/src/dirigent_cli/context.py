@@ -143,4 +143,11 @@ class Session(BlockingDirigent):
 def client_for(state: CliState, *, needs_token: bool = True) -> Session:
     """Build the API client for a resolved endpoint."""
     endpoint = state.endpoint(needs_token=needs_token)
-    return Session(url=endpoint.url, token=endpoint.token, api_prefix=endpoint.api_prefix)
+    return Session(
+        url=endpoint.url,
+        token=endpoint.token,
+        api_prefix=endpoint.api_prefix,
+        timeout=endpoint.timeout.total_seconds(),
+        connect_timeout=endpoint.connect_timeout.total_seconds(),
+        retries=endpoint.retries,
+    )

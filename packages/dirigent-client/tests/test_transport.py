@@ -132,7 +132,7 @@ async def test_a_detail_that_is_a_field_list_is_rendered_into_problems() -> None
     assert [str(issue) for issue in raised.value.problems] == ["body.name: field required"]
 
 
-async def test_an_unreachable_server_names_the_url_it_could_not_reach(no_sleep: list[float]) -> None:
+async def test_an_unreachable_server_names_the_url_it_could_not_reach() -> None:
     def handler(request: httpx2.Request) -> httpx2.Response:
         raise httpx2.ConnectError("connection refused", request=request)
 
@@ -141,6 +141,38 @@ async def test_an_unreachable_server_names_the_url_it_could_not_reach(no_sleep: 
             await dg.pipelines.list()
     assert BASE_URL in raised.value.message
     assert isinstance(raised.value.cause, httpx2.ConnectError)
+
+
+@pytest.mark.parametrize(
+    "error",
+    [httpx2.ConnectError, httpx2.ConnectTimeout, httpx2.UnsupportedProtocol, httpx2.LocalProtocolError],
+)
+async def test_a_connection_that_was_never_made_is_not_attempted_again(
+    error: type[httpx2.RequestError], no_sleep: list[float]
+) -> None:
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        raise error("never got there", request=request)
+
+    recorder = Recorder(handler)
+    async with client_of(recorder) as dg:
+        with pytest.raises(TransportError):
+            await dg.pipelines.list()
+    assert len(recorder.calls) == 1
+    assert no_sleep == []
+
+
+async def test_reaching_the_instance_is_budgeted_apart_from_waiting_for_its_answer() -> None:
+    seen: list[dict[str, float | None]] = []
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        seen.append(request.extensions["timeout"])
+        return ok({"items": [], "next": None})
+
+    async with client_of(Recorder(handler), timeout=45.0, connect_timeout=1.5) as dg:
+        await dg.pipelines.list()
+        await dg.transport.request("GET", "/pipelines", timeout=90.0)
+    assert [budget["connect"] for budget in seen] == [1.5, 1.5]
+    assert [budget["read"] for budget in seen] == [45.0, 90.0]
 
 
 async def test_an_idempotent_call_is_retried_through_a_transport_failure(no_sleep: list[float]) -> None:

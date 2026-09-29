@@ -31,7 +31,13 @@ def _normalise_prefix(prefix: str) -> str:
     return f"/{trimmed}" if trimmed else ""
 
 
+#: How long a request that reached an instance may take to answer.
 DEFAULT_TIMEOUT: Final = 30.0
+
+#: How long getting as far as an instance may take: the name resolved, the socket accepted,
+#: the TLS handshake finished. Nothing that has to be read is counted here.
+DEFAULT_CONNECT_TIMEOUT: Final = 2.0
+
 DEFAULT_RETRIES: Final = 2
 BACKOFF_SECONDS: Final = 0.25
 BACKOFF_MAX_SECONDS: Final = 4.0
@@ -39,6 +45,16 @@ BACKOFF_MAX_SECONDS: Final = 4.0
 #: A POST or a PATCH can have taken effect before the connection broke, so repeating one
 #: risks a second run, a second token, a second account.
 IDEMPOTENT_METHODS: Final = frozenset({"GET", "HEAD", "OPTIONS", "PUT", "DELETE"})
+
+#: Failures no second attempt can change: the connection was never established -- refused,
+#: unresolvable, or never answered within the connect budget -- or the request was not a
+#: request the transport could make.
+NEVER_RETRIED: Final = (
+    httpx2.ConnectError,
+    httpx2.ConnectTimeout,
+    httpx2.UnsupportedProtocol,
+    httpx2.LocalProtocolError,
+)
 
 
 def backoff_for(attempt: int) -> float:
@@ -66,6 +82,7 @@ class Transport:
         url: str,
         token: str | None = None,
         timeout: float = DEFAULT_TIMEOUT,
+        connect_timeout: float = DEFAULT_CONNECT_TIMEOUT,
         retries: int = DEFAULT_RETRIES,
         headers: Mapping[str, str] | None = None,
         http_transport: httpx2.AsyncBaseTransport | None = None,
@@ -75,15 +92,20 @@ class Transport:
         self.url = url.rstrip("/")
         self.api_prefix = _normalise_prefix(api_prefix)
         self.retries = retries
+        self.connect_timeout = connect_timeout
         sent = {**(headers or {})}
         if token:
             sent["Authorization"] = f"Bearer {token}"
         self._client = httpx2.AsyncClient(
             base_url=self.url,
             headers=sent,
-            timeout=timeout,
+            timeout=self.budget(timeout),
             transport=http_transport,
         )
+
+    def budget(self, timeout: float | None) -> httpx2.Timeout:
+        """Give reaching the instance its own budget, and the given timeout to the answer."""
+        return httpx2.Timeout(timeout, connect=self.connect_timeout)
 
     def session_cookie(self, name: str) -> str | None:
         """Read a cookie the instance set on this connection, or report that it set none."""
@@ -130,7 +152,7 @@ class Transport:
         target = f"{self.api_prefix if prefixed else ''}{path}"
         sent: dict[str, Any] = dict(kwargs)
         if timeout is not None:
-            sent["timeout"] = timeout
+            sent["timeout"] = self.budget(timeout)
         retryable = method.upper() in IDEMPOTENT_METHODS
         attempts = self.retries + 1 if retryable else 1
         for attempt in range(attempts):
@@ -138,7 +160,7 @@ class Transport:
             try:
                 response = await self._client.request(method, target, **sent)
             except httpx2.HTTPError as error:
-                if last:
+                if last or isinstance(error, NEVER_RETRIED):
                     raise TransportError(self.url, error) from error
                 await asyncio.sleep(backoff_for(attempt))
                 continue
@@ -182,7 +204,7 @@ class Transport:
         """Open a streaming GET, held open for as long as the caller reads it."""
         target = f"{self.api_prefix}{path}"
         try:
-            async with self._client.stream("GET", target, timeout=None, **kwargs) as response:
+            async with self._client.stream("GET", target, timeout=self.budget(None), **kwargs) as response:
                 if response.status_code >= 400:
                     await response.aread()
                     raise self._refusal(response, target)

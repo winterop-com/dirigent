@@ -115,10 +115,19 @@ from dirigent_client.schemas import (
     WebhookTokenOut,
     WorkerOut,
 )
-from dirigent_client.transport import API_PREFIX, Transport
+from dirigent_client.transport import (
+    API_PREFIX,
+    DEFAULT_CONNECT_TIMEOUT,
+    DEFAULT_RETRIES,
+    DEFAULT_TIMEOUT,
+    Transport,
+)
 
 __all__ = [
     "API_PREFIX",
+    "DEFAULT_CONNECT_TIMEOUT",
+    "DEFAULT_RETRIES",
+    "DEFAULT_TIMEOUT",
     "TERMINAL_RUN_STATUSES",
     "VERSION_HEADER",
     "AlertEvent",

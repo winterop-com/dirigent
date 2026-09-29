@@ -70,7 +70,7 @@ async def main() -> int:
     # proxy, another service -- is NotDirigent, and both mean the URL rather than the
     # request is wrong. Every refusal is a DirigentError, so one clause is enough when the
     # distinction does not matter.
-    async with Dirigent(url="http://127.0.0.1:1", token=token, retries=0) as dg:
+    async with Dirigent(url="http://127.0.0.1:1", token=token) as dg:
         try:
             await dg.system.info()
         except NotDirigent as refusal:

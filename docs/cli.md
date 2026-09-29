@@ -77,10 +77,27 @@ profiles:
     url: https://dirigent.example.org
     token_cmd: pass show dirigent/prod    # any command that prints the token
     api_prefix: /dirigent/v1              # only if that instance moved its API
+    connect_timeout: 10s                  # only if the link to it is slow to open
 ```
 
 `api_prefix` matches the instance's own setting of the same name, and defaults to `/api/v1`.
 An instance that moves its API has to say so here too, or its own CLI cannot reach it.
+
+How patient the CLI is with one instance is three more keys, and every one of them has a
+default that needs no file:
+
+| Key | Default | What it bounds |
+| --- | --- | --- |
+| `connect_timeout` | `2s` | Getting as far as the instance: the name resolved, the socket accepted, the TLS handshake done. Past it the URL is called unreachable |
+| `timeout` | `30s` | Waiting for the answer to a request already on its way. An apply of a large document or a listing on a busy instance takes tens of seconds |
+| `retries` | `2` | Further attempts at a request that was lost in flight or refused with a 5xx, and only for a method that is safe to repeat |
+
+The two timeouts are separate because they fail for different reasons. A refused port, a name
+that does not resolve and a host that never answers are all the wrong address, and none of
+them becomes the right address by waiting, so the CLI gives up on them in a couple of seconds
+and never retries them. A request that reached the instance is another matter, and it keeps
+the full thirty seconds. Raise `connect_timeout` for a link that is genuinely slow to open,
+such as a satellite hop or a handshake through a distant proxy.
 
 ```bash
 dg --profile prod runs list --status failed
@@ -94,14 +111,14 @@ live too. The shell's own value always wins over the file's. The same file is th
 layer under the environment, which is how the `DIRIGENT_SECRET_KEY` beside that token reaches
 every command run in the project directory.
 
-A profile holds a URL and a token, and nothing else. It never holds a database URL, and one
-that names a database scheme is refused on sight: a CLI that could reach the database would
-bypass authentication, attribution, and validation entirely. There are three disjoint
+A profile holds how to reach one server, and nothing else. It never holds a database URL, and
+one that names a database scheme is refused on sight: a CLI that could reach the database
+would bypass authentication, attribution, and validation entirely. There are three disjoint
 configuration planes and this is only the first of them:
 
 | Plane | Holds | Lives |
 | --- | --- | --- |
-| Profiles | A server URL, and how to get a token | Beside you, in a project or `~/.config` |
+| Profiles | A server URL, how to get a token, and how patient to be | Beside you, in a project or `~/.config` |
 | Server settings | `DIRIGENT_DATABASE_URL`, `DIRIGENT_SECRET_KEY`, the artifact root | The environment, the project's `.env`, or `dirigent.yaml`, on the host running the server and the workers |
 | Connections | Third-party credentials | Encrypted inside the server's database |
 
