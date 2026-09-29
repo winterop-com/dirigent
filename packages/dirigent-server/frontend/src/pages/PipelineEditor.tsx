@@ -359,7 +359,10 @@ export function PipelineEditor() {
     // instance already holds writes nothing, so the verb is shut here rather than opening a
     // dialog whose own answer is that pressing its button would do nothing. Validate and Run are
     // unaffected: both act on a document that has not changed.
-    const applyRefusal = firstShut(sent, creating || edits.count > 0 ? undefined : NOTHING_TO_APPLY)
+    const applyRefusal = firstShut(
+        sent,
+        creating || edits.count > 0 ? undefined : LABELS.editor.apply.nothing_to_apply,
+    )
 
     // The palette's own shelf, named for the pipeline the way every other reading of it is.
     const shelf = LABELS.editor.topbar.shelf(

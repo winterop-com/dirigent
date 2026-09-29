@@ -205,7 +205,7 @@ export function ApplyDialog({
                 if (made.length > 0) toast.success(storedNote(made))
                 const lifted = onLift()
                 if (lifted === null) {
-                    setProblem(local(LIFT_FAILED))
+                    setProblem(local(LABELS.editor.carried.lift_failed))
                     return
                 }
                 const result = await applyPipeline(lifted, false)
@@ -248,13 +248,11 @@ export function ApplyDialog({
                         writes would be untrue of what pressing it does, so only Validate says it.
                         The carried line counts what applying stores, so it waits for the read
                         that settles the count rather than saying a number that then changes. */}
-                    {carried ? (
-                        !reading && <DialogDescription>{offerNote(items)}</DialogDescription>
-                    ) : (
-                        mode === 'validate' && (
-                            <DialogDescription>{LABELS.editor.apply.nothing_written}</DialogDescription>
-                        )
-                    )}
+                    {carried
+                        ? !reading && <DialogDescription>{offerNote(items)}</DialogDescription>
+                        : mode === 'validate' && (
+                              <DialogDescription>{LABELS.editor.apply.nothing_written}</DialogDescription>
+                          )}
                 </DialogHeader>
 
                 {/* A CARRIED SECTION IS ANSWERED, NOT RESTATED. Every other refusal is drawn as

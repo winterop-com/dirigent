@@ -389,8 +389,8 @@ test('validating an intact document reports no issues', async ({ page }) => {
     await expect(dialog.getByText(/Apply writes nothing/)).toBeVisible()
     await expect(dialog.getByText(/apply will refuse/)).toHaveCount(0)
     // Validate asks nothing, so the one control dismisses it and says so.
-    await expect(dialog.getByRole('button', { name: 'Close' })).toBeVisible()
-    await expect(dialog.getByRole('button', { name: 'Apply', exact: true })).toHaveCount(0)
+    await expect(dialog.getByRole('button', { name: LABELS.action.close })).toBeVisible()
+    await expect(dialog.getByRole('button', { name: LABELS.action.apply, exact: true })).toHaveCount(0)
 })
 
 /**
@@ -403,16 +403,16 @@ test('apply is shut on a document the instance already holds, and says why', asy
     await applyExample(page.request, DOCUMENT_EXAMPLE)
 
     await page.goto(`/pipelines/${DOCUMENT_PIPELINE}`)
-    const apply = page.getByRole('button', { name: 'Apply', exact: true })
+    const apply = page.getByRole('button', { name: LABELS.action.apply, exact: true })
     await expect(apply).toBeDisabled()
-    await expect(apply).toHaveAttribute('title', /version the instance holds/)
+    await expect(apply).toHaveAttribute('title', LABELS.editor.apply.nothing_to_apply)
     // A shut verb stays reachable, so the sentence can be read without a pointer.
     await apply.focus()
     await expect(apply).toBeFocused()
 
     // The two verbs beside it act on a document that has not changed, so both stay live.
-    await expect(page.getByRole('button', { name: 'Validate' })).toBeEnabled()
-    await expect(page.getByRole('button', { name: 'Run', exact: true })).toBeEnabled()
+    await expect(page.getByRole('button', { name: LABELS.action.validate })).toBeEnabled()
+    await expect(page.getByRole('button', { name: LABELS.action.run, exact: true })).toBeEnabled()
 
     await apply.click({ force: true })
     await expect(page.getByRole('dialog')).toHaveCount(0)

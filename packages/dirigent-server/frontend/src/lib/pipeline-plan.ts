@@ -36,7 +36,7 @@ export interface PlanView {
  * way every other action that completed without incident says itself.
  */
 export function unchangedNote(plan: PipelinePlan): string {
-    return `${plan.code} is already at this document. Nothing was written.`
+    return LABELS.editor.apply.unchanged(plan.code)
 }
 
 /** What one plan says, as the dialog lays it out. */

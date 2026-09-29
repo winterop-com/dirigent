@@ -54,6 +54,24 @@ export async function signInAs(page: Page, username: string, password: string): 
     await page.getByRole('button', { name: LABELS.login.sign_in }).click()
     // The front door is the root, so a session that has just begun is at the root.
     await expect(page).toHaveURL(/^https?:\/\/[^/]+\/$/)
+    await settledFonts(page)
+}
+
+/**
+ * Wait until the self-hosted faces have laid out, before anything in this suite measures a box.
+ *
+ * A LAYOUT MEASURED MID-SWAP IS A DIFFERENT LAYOUT. The palette's search row sits 15.377px below
+ * the top of its dialog in the fallback face and 15.987px in IBM Plex, and an assertion on a
+ * rounded 16 is the second of those -- so a spec that measured before the swap read 15 and failed
+ * for a reason that has nothing to do with what it was testing. Nothing about the page says when
+ * that happened; `document.fonts.ready` does, and a frame after it is when the layout it changed
+ * has been laid out again.
+ */
+export async function settledFonts(page: Page): Promise<void> {
+    await page.evaluate(async () => {
+        await document.fonts.ready
+        await new Promise((laid) => requestAnimationFrame(() => requestAnimationFrame(laid)))
+    })
 }
 
 /**

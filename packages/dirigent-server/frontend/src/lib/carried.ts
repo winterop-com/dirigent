@@ -44,6 +44,7 @@
  */
 
 import type { JsonMap, Problem } from '@/lib/api'
+import { LABELS } from '@/lib/labels'
 
 /** The sections a document may carry, which an instance refuses to store. `CARRIED` in core. */
 export const CARRIED = ['connections', 'schemas'] as const
@@ -157,38 +158,24 @@ export function creations(items: readonly CarriedItem[]): CarriedItem[] {
  * afterwards as a plan that wrote nothing.
  */
 export function offerBlocked(items: readonly CarriedItem[]): string | undefined {
+    const words = LABELS.editor.carried
     const differing = codesOf(items, 'schema', 'differs')
     if (differing.length > 0) {
-        const many = differing.length > 1
-        return (
-            `This instance holds ${many ? 'schemas' : 'a schema'} coded ${differing.join(', ')} that ` +
-            `${many ? 'are' : 'is'} not what this document carries. Other pipelines name that code, ` +
-            `so nothing here replaces it: change what the document carries, or carry it under a code of its own.`
-        )
+        const named = differing.join(', ')
+        return differing.length > 1 ? words.differs_why_many(named) : words.differs_why_one(named)
     }
     const connections = codesOf(items, 'connection', 'missing')
     if (connections.length > 0) {
-        const many = connections.length > 1
-        return `This instance has no ${many ? 'connections coded' : 'connection coded'} ${connections.join(', ')}.`
+        const named = connections.join(', ')
+        return connections.length > 1 ? words.no_connection_many(named) : words.no_connection_one(named)
     }
-    if (codesOf(items, 'schema', 'missing').length > 0) {
-        return "This document's schemas are not stored, and storing one is an admin's."
-    }
+    if (codesOf(items, 'schema', 'missing').length > 0) return words.no_schema_gate
     return undefined
 }
 
 /** What one row says becomes of it, in the words a requirements list already reads in. */
 export function actionWord(item: CarriedItem): string {
-    switch (item.action) {
-        case 'create':
-            return 'create'
-        case 'held':
-            return 'already here'
-        case 'differs':
-            return 'differs'
-        case 'missing':
-            return 'missing'
-    }
+    return LABELS.editor.carried.state[item.action]
 }
 
 /**
@@ -201,11 +188,8 @@ export function actionWord(item: CarriedItem): string {
  */
 export function offerNote(items: readonly CarriedItem[]): string {
     const made = creations(items).length
-    const stores =
-        made === 0
-            ? 'Applying names every code here under requires.'
-            : `Applying stores the ${made === 1 ? 'schema' : 'schemas'} marked create, and names every code here under requires.`
-    return `An instance does not store what a document carries. ${stores}`
+    const words = LABELS.editor.carried
+    return words.note(made === 0 ? words.names_only : made === 1 ? words.stores_one : words.stores_many)
 }
 
 /**
@@ -216,16 +200,12 @@ export function offerNote(items: readonly CarriedItem[]): string {
  */
 export function connectionNote(items: readonly CarriedItem[]): string | undefined {
     if (codesOf(items, 'connection', 'missing').length === 0) return undefined
-    return (
-        'A connection is not created from a document: a document can carry a credential in ' +
-        'plain text, in a password field or inside a URL.'
-    )
+    return LABELS.editor.carried.connection_note
 }
 
 /** What was stored, said once it has been: the toast a write nothing on screen is waiting for. */
 export function storedNote(made: readonly CarriedItem[]): string {
-    const count = made.length
-    return `Stored ${String(count)} ${count === 1 ? 'schema' : 'schemas'}: ${made.map((one) => one.code).join(', ')}`
+    return LABELS.editor.carried.stored(made.length, made.map((one) => one.code).join(', '))
 }
 
 /** The carried connections this instance has not got, which is what a door is offered for. */

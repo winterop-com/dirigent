@@ -4,22 +4,11 @@ import { KindChip } from '@/components/KindChip'
 import { Button } from '@/components/ui/button'
 import { actionWord, connectionNote, missingConnections, offerBlocked, type CarriedItem } from '@/lib/carried'
 import { newConnectionPath } from '@/lib/connections'
+import { LABELS } from '@/lib/labels'
 import { cn } from '@/lib/utils'
 
-/** What the section is headed, which is what a test asks for. */
-export const OFFER_TITLE = 'Carried'
-
-/** What the section says while what this instance holds is still being read. */
-export const OFFER_READING = 'Reading what this instance holds.'
-
-/** What the door to the connections screen says, which keeps the noun this screen does not name. */
-export const NEW_CONNECTION = 'New connection'
-
 /** What one carried entry is called on its own line, in the reader's word rather than the wire's. */
-const NOUNS: Readonly<Record<CarriedItem['kind'], string>> = {
-    schema: 'schema',
-    connection: 'connection',
-}
+const NOUNS: Readonly<Record<CarriedItem['kind'], string>> = LABELS.editor.carried.noun
 
 /**
  * The way through a refusal made for a carried section: what applying stores, and what it does not.
@@ -46,10 +35,10 @@ export function CarriedOffer({ items, reading }: { items: readonly CarriedItem[]
     return (
         <section className="space-y-2">
             <h2 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-                {OFFER_TITLE}
+                {LABELS.editor.carried.title}
             </h2>
             {reading ? (
-                <p className="text-xs text-muted-foreground">{OFFER_READING}</p>
+                <p className="text-xs text-muted-foreground">{LABELS.editor.carried.reading}</p>
             ) : (
                 <>
                     <ul className="space-y-1 text-xs">
@@ -81,7 +70,9 @@ export function CarriedOffer({ items, reading }: { items: readonly CarriedItem[]
                                         <Link to={newConnectionPath(item.connectionKind ?? '', item.code)} />
                                     }
                                 >
-                                    {doors.length === 1 ? NEW_CONNECTION : `${NEW_CONNECTION} ${item.code}`}
+                                    {doors.length === 1
+                                        ? LABELS.editor.carried.new_connection
+                                        : `${LABELS.editor.carried.new_connection} ${item.code}`}
                                 </Button>
                             ))}
                         </p>
