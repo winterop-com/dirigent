@@ -540,7 +540,7 @@ in the Eclipse Public License, v. 2.0 are satisfied: GNU General Public License 
 ## SIL Open Font License 1.1
 
 - `@fontsource-variable/ibm-plex-sans` -- IBM Plex Sans, Copyright 2019 IBM Corp. All rights reserved.
-- `@fontsource/ibm-plex-mono` -- IBM Plex Mono, Copyright 2017 IBM Corp. All rights reserved.
+- `@fontsource/jetbrains-mono` -- JetBrains Mono, Copyright 2020 The JetBrains Mono Project Authors, SIL Open Font License 1.1.
 
 ```
 SIL OPEN FONT LICENSE Version 1.1 - 26 February 2007
