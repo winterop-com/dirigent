@@ -88,7 +88,7 @@ export function SourceTab({
             schema={schema}
             path={DOCUMENT_PATH}
             label={where === null ? DOCUMENT_LABEL : `${DOCUMENT_LABEL}, ${where}`}
-            className={where === null ? 'h-full' : 'min-h-0 flex-1'}
+            className="min-h-0 flex-1"
             readOnly={readOnly}
             onChange={(next) => {
                 typed.current = true
@@ -110,7 +110,11 @@ export function SourceTab({
                     <p className="mt-1">The other tabs are showing the last document that parsed.</p>
                 </div>
             )}
-            <WindowedPane name={DOCUMENT_LABEL} className="min-h-0 flex-1" windowed={pane('in a window')}>
+            <WindowedPane
+                name={DOCUMENT_LABEL}
+                className="min-h-0 flex-1 bg-background"
+                windowed={pane('in a window')}
+            >
                 {pane(null)}
             </WindowedPane>
         </div>

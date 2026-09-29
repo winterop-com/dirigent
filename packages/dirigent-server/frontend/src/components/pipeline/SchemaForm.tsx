@@ -644,7 +644,7 @@ function TextControl({
         return (
             <WindowedPane
                 name={field.name}
-                className="overflow-hidden rounded-md border border-border"
+                className="overflow-hidden rounded-md border border-border bg-background"
                 onBlur={onTouch}
                 aside={field.kind === 'code' ? <ProgramReference mediaType={mediaType} /> : undefined}
                 windowed={

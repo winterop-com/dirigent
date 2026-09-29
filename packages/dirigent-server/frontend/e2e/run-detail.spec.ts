@@ -1,6 +1,15 @@
 import { expect, test, type APIRequestContext } from '@playwright/test'
 
-import { applyDocument, applyExample, everyNodeIsInView, graphZoom, signIn, startRun } from './support.ts'
+import {
+    applyDocument,
+    applyExample,
+    canvasSettled,
+    dragBy,
+    everyNodeIsInView,
+    graphZoom,
+    signIn,
+    startRun,
+} from './support.ts'
 
 /**
  * The run detail screen, against a run this suite really started on a real `dg dev`.
@@ -305,4 +314,156 @@ test('a graph is laid out in the order its steps were written, in flight and onc
     await page.reload()
     await expect(page.locator('.react-flow__node')).toHaveCount(RACE_STEPS.length)
     expect(await drawnOrder(page)).toEqual(RACE_STEPS)
+})
+
+/** Three steps in a row, whose last box is the one an opening right panel would cover. */
+const IN_A_ROW = {
+    format: 'dirigent/v1',
+    kind: 'pipeline',
+    code: 'three-in-a-row',
+    steps: {
+        first: { block: 'transform.jq', config: { input: { at: 1 }, program: '.' } },
+        second: { block: 'transform.jq', depends_on: ['first'], config: { input: { at: 2 }, program: '.' } },
+        third: { block: 'transform.jq', depends_on: ['second'], config: { input: { at: 3 }, program: '.' } },
+    },
+}
+
+/** Whether a node's whole box lies inside the canvas. */
+async function nodeInView(page: Parameters<typeof signIn>[0], id: string): Promise<boolean> {
+    return page.evaluate((step) => {
+        const pane = document.querySelector('.react-flow')
+        const node = document.querySelector(`.react-flow__node[data-id="${step}"]`)
+        if (pane === null || node === null) return false
+        const canvas = pane.getBoundingClientRect()
+        const box = node.getBoundingClientRect()
+        return (
+            box.left >= canvas.left - 1 &&
+            box.right <= canvas.right + 1 &&
+            box.top >= canvas.top - 1 &&
+            box.bottom <= canvas.bottom + 1
+        )
+    }, id)
+}
+
+test('choosing the last step keeps it on the canvas the opening panel narrows', async ({ page }) => {
+    // REVERT-PROOF: a box on the run's graph cannot be dragged, so pressing one starts a pan that
+    // goes nowhere -- and a canvas that counted that as the reader taking the view over stopped
+    // re-fitting just as the panel it opened took the right of the canvas, over the chosen step.
+    await signIn(page)
+    await applyDocument(page.request, IN_A_ROW)
+    const runId = await startRun(page.request, 'three-in-a-row')
+
+    await page.goto(`/runs/${runId}`)
+    await expect(page.locator('.react-flow__node')).toHaveCount(3)
+    // The panel is shut, which is what a first visit opens with, so the fit had the whole width.
+    await expect(page.locator('aside[inert]')).toHaveCount(1)
+    await everyNodeIsInView(page)
+    await canvasSettled(page)
+
+    await page.locator('.react-flow__node[data-id="third"]').click()
+    await expect(page.locator('aside[inert]')).toHaveCount(0)
+    await canvasSettled(page)
+    await expect.poll(async () => nodeInView(page, 'third')).toBe(true)
+    await everyNodeIsInView(page)
+})
+
+test('a view the reader moved is kept when the panel opens, with the chosen step brought onto it', async ({
+    page,
+}) => {
+    await signIn(page)
+    await applyDocument(page.request, IN_A_ROW)
+    const runId = await startRun(page.request, 'three-in-a-row')
+
+    await page.goto(`/runs/${runId}`)
+    await expect(page.locator('.react-flow__node')).toHaveCount(3)
+    await everyNodeIsInView(page)
+    await canvasSettled(page)
+
+    // A pan to the right, which leaves the last box nearer the edge the panel opens over.
+    await dragBy(page, page.locator('.react-flow__node[data-id="second"]'), 120, 0)
+    await canvasSettled(page)
+    const zoom = await graphZoom(page)
+
+    await expect(page.locator('aside[inert]')).toHaveCount(1)
+    await page.locator('.react-flow__node[data-id="third"]').click()
+    await expect(page.locator('aside[inert]')).toHaveCount(0)
+    await canvasSettled(page)
+    await expect.poll(async () => nodeInView(page, 'third')).toBe(true)
+    expect(await graphZoom(page), 'a moved view is not re-fitted').toBe(zoom)
+})
+
+/**
+ * Two steps whose outputs are wide: one value on a single long line, and a list of long lines
+ * tall enough that its box scrolls.
+ */
+const WIDE_OUTPUTS = {
+    format: 'dirigent/v1',
+    kind: 'pipeline',
+    code: 'wide-outputs',
+    steps: {
+        one: { block: 'transform.jq', config: { input: { line: 'x'.repeat(240) }, program: '.line' } },
+        many: {
+            block: 'transform.jq',
+            config: {
+                input: { lines: Array.from({ length: 30 }, (_, at) => `${String(at)} ${'y'.repeat(240)}`) },
+                program: '.lines',
+            },
+        },
+    },
+}
+
+/**
+ * How many pieces of the text in a step's output box lie under its window button.
+ *
+ * Only the part of each line inside the box's scrolled view counts, which is what is drawn.
+ */
+async function textUnderTheButton(page: Parameters<typeof signIn>[0], step: string): Promise<number> {
+    const panel = page.locator('aside')
+    const button = panel.getByLabel(`Open ${step} · output in a window`)
+    await expect(button).toBeVisible()
+    const at = await button.boundingBox()
+    if (at === null) throw new Error('the window button has no box')
+    return panel
+        .locator('pre')
+        .first()
+        .evaluate((element, b) => {
+            const outer = element.getBoundingClientRect()
+            const left = outer.left + element.clientLeft
+            const top = outer.top + element.clientTop
+            const right = left + element.clientWidth
+            const bottom = top + element.clientHeight
+            const range = document.createRange()
+            range.selectNodeContents(element)
+            return [...range.getClientRects()].filter((line) => {
+                const l = Math.max(line.left, left)
+                const r = Math.min(line.right, right)
+                const t = Math.max(line.top, top)
+                const u = Math.min(line.bottom, bottom)
+                if (l >= r || t >= u) return false
+                return l < b.x + b.width && r > b.x && t < b.y + b.height && u > b.y
+            }).length
+        }, at)
+}
+
+test("a step output's window button covers none of its text, however long its lines", async ({ page }) => {
+    // REVERT-PROOF: the button sat over the foot of the box, and the strip kept clear for it was
+    // padding at the end of the text -- so a box scrolled anywhere short of its end drew its
+    // bottom line's tail under the button.
+    await signIn(page)
+    await applyDocument(page.request, WIDE_OUTPUTS)
+    const runId = await startRun(page.request, 'wide-outputs')
+
+    await page.goto(`/runs/${runId}`)
+    await expect(page.locator('.react-flow__node')).toHaveCount(2)
+    await expect(page.locator('.status-chip[data-status="succeeded"]').first()).toBeVisible({
+        timeout: 30_000,
+    })
+
+    for (const step of ['one', 'many']) {
+        // Each step replaces what the one before it put in the panel.
+        // oxlint-disable-next-line no-await-in-loop
+        await page.locator(`.react-flow__node[data-id="${step}"]`).click()
+        // oxlint-disable-next-line no-await-in-loop
+        expect(await textUnderTheButton(page, step), `${step}: text under the button`).toBe(0)
+    }
 })

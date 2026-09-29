@@ -714,10 +714,9 @@ corner of the pane.** `components/WindowedPane` is where that gesture is written
 button, its corner, and the window, which is the viewport less a gutter -- and every pane that
 offers one comes through it: a config field carrying a program, a value edited as JSON, a
 report document, an alert body, an example's source, and the block of produced JSON on a run's
-step and a schema's page. The corner is the one place a reader loses nothing: it is where a
-pane's two scrollbars meet and where a document's last line ends early, so a pane whose content
-can end level with it -- a one-line JSON value -- keeps that strip as padding rather than
-drawing text under the button.
+step and a schema's page. The button stands in a strip of its own under the pane, inside the
+box, and the pane scrolls above it: a line that runs to the right edge, wherever the pane is
+scrolled to, ends before the button rather than under it.
 
 **A field that names a thing shows the thing.** A string property carrying `x-dirigent-ref` holds
 the code of a connection or a schema, and under the box the form draws what that code resolves to,
@@ -1313,9 +1312,12 @@ Both canvases open with the whole DAG in view: `fitView` with padding, held betw
 bounds in `lib/dag-layout`. `FIT_MAX_ZOOM` keeps a pipeline of two boxes at its own size rather
 than magnified to fill the space, and `FIT_MIN_ZOOM` keeps a node above the size its 14px title
 stops being readable at -- a graph too big for that is panned to rather than shrunk past
-legibility. It re-fits when the node set changes and when the canvas is resized, and stops the
-moment the reader pans, zooms or drags a box -- after that the view is theirs, and Re-layout is
-how they hand it back. The browser suite asserts every node's box lies inside the canvas.
+legibility. It re-fits when the node set changes and when the canvas is resized -- the right
+panel opening is a resize -- and stops the moment the reader pans, zooms or drags a box: after
+that the view is theirs, and Re-layout is how they hand it back. A press that moves nothing, on
+the ground or on a run's box, is not a pan. A resize of a view the reader took over only brings
+the chosen box back onto the canvas, at their zoom, if the resize cut it. The browser suite
+asserts every node's box lies inside the canvas.
 
 **A deep graph is wrapped onto rows rather than drawn as one.** Seventeen steps in one
 left-to-right row is three thousand pixels of canvas, and a fit answers that by putting a node's
