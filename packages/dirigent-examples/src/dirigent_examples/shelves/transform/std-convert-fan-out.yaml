@@ -98,8 +98,8 @@ steps:
   per_region:
     block: transform.jq
     depends_on: [active]
-    # for_each is expanded when the run is created, so it reads params and not a step's
-    # output: the regions cannot come out of the csv the run is about to parse.
+    # for_each reads params, so the three regions are on the graph before the csv is even
+    # parsed; each region then filters the parsed rows for itself.
     for_each: "${params.regions}"
     config:
       input:

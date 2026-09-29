@@ -547,6 +547,97 @@ steps:
     assert settled == {("greet", "east"), ("greet", "west"), ("greet", "north")}
 
 
+def test_the_late_fan_out_example_streams_its_items_and_never_the_gate_they_replaced() -> None:
+    """The step waits as one attempt with no item, which is not a unit of work anybody watches."""
+    result = invoke("run", "--local", str(EXAMPLES / "patterns" / "fan-out-over-an-output.yaml"))
+    assert result.exit_code == 0, result.output
+    streamed = [
+        (event["item"], event["message"])
+        for event in of_kind(records(result.stdout), "step")
+        if event["step"] == "read"
+    ]
+    assert {item for item, message in streamed if message == "succeeded"} == {"0", "1", "2", "3"}
+    assert all(item is not None for item, _ in streamed), "no transition belongs to the gate"
+    end = closing(result.stdout)
+    assert end["message"] == "succeeded"
+    summary = next(step for step in end["steps"] if step["step"] == "summary")
+    assert summary["output"]["value"]["stations"] == 4
+
+
+def test_the_late_fan_out_example_skips_its_fan_out_over_an_empty_listing() -> None:
+    result = invoke("run", "--local", str(EXAMPLES / "patterns" / "fan-out-over-an-output.yaml"), "-p", "stations=0")
+    assert result.exit_code == 0, result.output
+    settled = {step["step"]: step["status"] for step in closing(result.stdout)["steps"]}
+    assert settled == {"stations": "succeeded", "read": "skipped", "summary": "skipped"}
+
+
+#: Every example teaching a fan-out over a step's output, the run it ends as, and each step's
+#: settled statuses in the order the closing record lists them.
+LATE_FAN_OUT_EXAMPLES = [
+    (
+        "patterns/fan-out-over-an-empty-listing.yaml",
+        "succeeded",
+        {"stations": ["succeeded"], "read": ["skipped"], "summary": ["skipped"], "report": ["succeeded"]},
+    ),
+    (
+        "patterns/fan-out-over-a-nested-path.yaml",
+        "succeeded",
+        {"catalogue": ["succeeded"], "per_station": ["succeeded"] * 3, "collected": ["succeeded"]},
+    ),
+    (
+        "patterns/fan-out-late-item-wise.yaml",
+        "succeeded",
+        {
+            "stations": ["succeeded"],
+            "measure": ["succeeded"] * 3,
+            "label": ["succeeded"] * 3,
+            "board": ["succeeded"],
+        },
+    ),
+    (
+        "patterns/fan-out-late-after-continue.yaml",
+        "completed_with_errors",
+        {"probe": ["succeeded", "failed", "succeeded"], "publish": ["succeeded"] * 2, "tally": ["succeeded"]},
+    ),
+    (
+        "triggers/watch-fan-out-per-message.yaml",
+        "succeeded",
+        {"arrive": ["succeeded"], "handle": ["succeeded"] * 3, "ack": ["succeeded"]},
+    ),
+    (
+        "failure/fan-out-too-wide.yaml",
+        "failed",
+        {"pages": ["succeeded"] * 11, "flatten": ["succeeded"], "each_row": ["failed"], "notify": ["succeeded"]},
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    ("example", "ends", "settled"), LATE_FAN_OUT_EXAMPLES, ids=[one[0] for one in LATE_FAN_OUT_EXAMPLES]
+)
+def test_every_late_fan_out_example_runs_as_its_header_says(
+    example: str, ends: str, settled: dict[str, list[str]]
+) -> None:
+    result = invoke("run", "--local", str(EXAMPLES / example))
+    end = closing(result.stdout)
+    assert end["message"] == ends, result.output
+    found: dict[str, list[str]] = {}
+    for step in end["steps"]:
+        found.setdefault(step["step"], []).append(step["status"])
+    assert {name: sorted(statuses) for name, statuses in found.items()} == {
+        name: sorted(statuses) for name, statuses in settled.items()
+    }
+
+
+def test_the_too_wide_example_fails_its_fan_out_as_too_wide() -> None:
+    result = invoke("run", "--local", str(EXAMPLES / "failure" / "fan-out-too-wide.yaml"))
+    failure = next(one for one in closing(result.stdout)["failures"] if one["step"] == "each_row")
+    assert (failure["error_class"], failure["error"]) == (
+        "rejected",
+        "step 'each_row' maps over 11000 items, and this instance allows at most 10000 in one grid (fan_out_max_items)",
+    )
+
+
 def test_the_stream_shows_what_a_block_reported_rather_than_only_that_it_reported(tmp_path: Path) -> None:
     result = invoke("run", "--local", str(write(tmp_path, HELLO)), "--enable-unsafe", "shell.run")
     reported = next(

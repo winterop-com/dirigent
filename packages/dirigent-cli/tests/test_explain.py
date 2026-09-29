@@ -152,17 +152,22 @@ def test_an_adoption_of_an_unknown_grid_stays_unknown() -> None:
     assert [one.step for one in shape.warnings] == ["wide"], "the step that named the reference is warned about once"
 
 
-def test_a_for_each_reading_a_step_output_is_unknown() -> None:
-    """resolve_fan_out refuses it when the run is created; the shape cannot resolve it either."""
+def test_a_for_each_reading_a_step_output_names_the_step_it_waits_for() -> None:
+    """A late grid is as wide as its source makes it, which only the run can say."""
     shape = explain(
         document(
             {
                 "first": {"block": "shell.run"},
                 "second": {"block": "shell.run", "depends_on": ["first"], "for_each": "${steps.first.output}"},
+                "third": {"block": "shell.run", "depends_on": ["second"], "for_each": "${steps.second.items}"},
             }
         )
     )
-    assert rows(shape)["second"].cardinality == "unknown"
+    second, third = rows(shape)["second"], rows(shape)["third"]
+    assert (second.cardinality, second.elements, second.grid_source) == ("from first", None, "first")
+    assert (third.cardinality, third.grid_source) == ("adopts second", "second")
+    assert shape.attempts_at_least is True
+    assert [(one.step, one.cause) for one in shape.warnings] == [("second", "late-cardinality")]
 
 
 def test_an_unknown_cardinality_counts_once_and_marks_the_total_a_floor() -> None:

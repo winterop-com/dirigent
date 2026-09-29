@@ -44,6 +44,7 @@ from dirigent_core.engine.definition import (
     TimeoutAction,
     load_definition,
 )
+from dirigent_core.engine.expansion import collect_outputs, is_gate, item_value_of
 from dirigent_core.engine.failure import Failure, backoff_delay, should_retry
 from dirigent_core.engine.recovery import overdue_deadlines
 from dirigent_core.engine.references import ReferenceScope, UnknownReference, references_in, resolve_config
@@ -51,7 +52,6 @@ from dirigent_core.engine.runs import (
     ACTIVE_RUN_STATUSES,
     EngineRuns,
     cancel_remote,
-    item_value_of,
     promote_queued_run,
 )
 from dirigent_core.engine.services import EngineServices
@@ -66,6 +66,7 @@ from dirigent_core.messages import (
     CONFIG_REFUSED,
     DEADLINE_PASSED,
     DEADLINE_SKIPPED,
+    FAN_OUT_WITHOUT_ITEM,
     GONE_PROBES,
     ITEM_UNPAIRED,
     REMOTE_JOB_FAILED,
@@ -217,6 +218,17 @@ class Engine:
                 definition,
                 attempt,
                 Failure.rejected(STEP_NOT_IN_VERSION, step=repr(attempt.step_name)),
+                now,
+            )
+            return None
+
+        if is_gate(definition, attempt):
+            await self._settle_and_advance(
+                session,
+                run,
+                definition,
+                attempt,
+                Failure.rejected(FAN_OUT_WITHOUT_ITEM, step=repr(attempt.step_name)),
                 now,
             )
             return None
@@ -725,7 +737,7 @@ class Engine:
         now: datetime,
     ) -> RunStatus:
         """Walk the DAG, and settle everything a run that reached a terminal status owes."""
-        status = await advance(session, run, definition, now=now)
+        status = await advance(session, run, definition, services=self.services, now=now)
         if status in TERMINAL_RUN_STATUSES:
             # Imported here rather than at module scope: alerting imports this module back,
             # so naming it at import time closes a cycle.
@@ -1148,29 +1160,6 @@ def _read_poke(sensor: AnySensor, observed: BaseModel | NotYet) -> CallResult:
             cursor=observed.cursor,
         )
     return Produced(output=observed.model_dump(mode="json"), cursor=sensor.resume_cursor(observed))
-
-
-async def collect_outputs(session: AsyncSession, run_id: UUID, definition: PipelineDefinition) -> dict[str, JsonValue]:
-    """Gather the stored outputs a step's references may read.
-
-    A fan-out step's output is the list of its items' outputs in item order.
-    """
-    rows = await session.execute(
-        sa.select(StepAttempt, RunItem.item_index)
-        .join(RunItem, RunItem.id == StepAttempt.run_item_id, isouter=True)
-        .where(StepAttempt.run_id == run_id, StepAttempt.status == AttemptStatus.SUCCEEDED)
-        .order_by(StepAttempt.step_name, RunItem.item_index, StepAttempt.attempt)
-    )
-    collected: dict[str, JsonValue] = {}
-    fanned: dict[str, list[JsonValue]] = {}
-    for attempt, _index in rows:
-        step = definition.steps.get(attempt.step_name)
-        if step is not None and step.is_fan_out:
-            fanned.setdefault(attempt.step_name, []).append(attempt.output)
-        else:
-            collected[attempt.step_name] = attempt.output
-    collected.update(fanned)
-    return collected
 
 
 async def collect_item_outputs(

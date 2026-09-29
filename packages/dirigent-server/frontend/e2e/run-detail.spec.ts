@@ -509,3 +509,45 @@ test('a live wait draws how far it has come as a line on its node and under its 
     await ranToCompletion(page.request, runId)
     await expect(page.getByRole('progressbar')).toHaveCount(0)
 })
+
+/**
+ * A list that takes its time, and a fan-out over what it listed.
+ *
+ * THE GRID IS WRITTEN WHILE THE PAGE IS OPEN. `each` reads `list`'s output, so the run is created
+ * with one pending gate in its place and the items arrive on the stream once `list` succeeds --
+ * the only fan-out whose width a person can watch appear.
+ */
+const LISTED_LATER = {
+    format: 'dirigent/v1',
+    kind: 'pipeline',
+    code: 'listed-later',
+    steps: {
+        list: { block: 'playground.generate', config: { rows: 3, seed: 7, delay: '3s' } },
+        each: {
+            block: 'playground.generate',
+            depends_on: ['list'],
+            for_each: '${steps.list.output.records}',
+            config: { input: '${item}' },
+        },
+    },
+}
+
+test('a fan-out over a step output waits for it, then draws its items as they arrive', async ({ page }) => {
+    await signIn(page)
+    await applyDocument(page.request, LISTED_LATER)
+    const runId = await startRun(page.request, 'listed-later')
+
+    await page.goto(`/runs/${runId}`)
+    const each = page.locator('.react-flow__node[data-id="each"]')
+    await expect(each.getByText('waits for list', { exact: true })).toBeVisible()
+    const waiting = await each.boundingBox()
+
+    await expect(each.getByText('3 items', { exact: true })).toBeVisible({ timeout: 30_000 })
+    await expect(each.getByText('waits for list', { exact: true })).toHaveCount(0)
+    await expect(page.locator('.status-chip[data-status="succeeded"]').first()).toBeVisible({
+        timeout: 30_000,
+    })
+    await expect(each.locator('.step-node')).toHaveAttribute('data-outcome', 'succeeded')
+    const expanded = await each.boundingBox()
+    expect(expanded?.height, 'the box keeps its height when the grid expands into it').toBe(waiting?.height)
+})

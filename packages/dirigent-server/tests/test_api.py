@@ -23,6 +23,7 @@ from dirigent_client.enums import AttemptStatus, LogLevel, RunItemStatus, RunSta
 from dirigent_client.schemas import LogEntryOut, Page, RunOut
 from dirigent_core.config import Settings
 from dirigent_core.database import create_engine, create_session_factory, session_scope
+from dirigent_core.engine.executor import Engine
 from dirigent_core.models import (
     ArtifactRef,
     Connection,
@@ -1284,6 +1285,7 @@ def test_the_dag_is_the_same_story_the_grid_told(client: TestClient) -> None:
             "depends_on": [],
             "rule": "all_success",
             "fan_out": False,
+            "grid_source": None,
             "items_total": 0,
             "items_failed": 0,
             "attempts": 1,
@@ -1296,6 +1298,7 @@ def test_the_dag_is_the_same_story_the_grid_told(client: TestClient) -> None:
             "depends_on": ["seed"],
             "rule": "all_success",
             "fan_out": True,
+            "grid_source": None,
             "items_total": 3,
             "items_failed": 1,
             "attempts": 4,
@@ -1308,6 +1311,7 @@ def test_the_dag_is_the_same_story_the_grid_told(client: TestClient) -> None:
             "depends_on": ["spread"],
             "rule": "all_success",
             "fan_out": False,
+            "grid_source": None,
             "items_total": 0,
             "items_failed": 0,
             "attempts": 1,
@@ -1403,6 +1407,66 @@ def test_the_detail_counts_the_grids_it_no_longer_carries(client: TestClient) ->
     assert "items" not in detail and "attempts" not in detail
     assert len(client.get(f"{PREFIX}/runs/{run_id}/items", params={"limit": 500}).json()["items"]) == 3
     assert len(client.get(f"{PREFIX}/runs/{run_id}/attempts", params={"limit": 500}).json()["items"]) == 6
+
+
+#: A document that lists records and then fans out over what it listed.
+LATE_FAN_OUT = """
+format: dirigent/v1
+kind: pipeline
+code: listed
+steps:
+  list:
+    block: playground.generate
+    config:
+      rows: 3
+      seed: 7
+  each:
+    block: playground.generate
+    depends_on: [list]
+    for_each: ${steps.list.output.records}
+    config:
+      input: ${item}
+"""
+
+
+def worked(client: TestClient) -> None:
+    """Run every unit the instance has due, the way one worker would."""
+    app = cast("FastAPI", client.app)
+
+    async def work() -> None:
+        engine = create_engine(app.state.settings)
+        try:
+            worker = Engine(create_session_factory(engine), app.state.services, owner="test-worker")
+            while (unit := await worker.claim()) is not None:
+                await worker.run_unit(unit)
+        finally:
+            await engine.dispose()
+
+    asyncio.run(work())
+
+
+def test_a_late_grid_names_its_source_and_counts_its_items_once_expanded(client: TestClient) -> None:
+    apply_document(client, LATE_FAN_OUT)
+    run_id = str(client.post(f"{PREFIX}/pipelines/listed/$run", json={"params": {}}).json()["run_id"])
+
+    def each() -> tuple[dict[str, Any], int]:
+        detail = client.get(f"{PREFIX}/runs/{run_id}").json()
+        node = next(node for node in detail["dag"]["nodes"] if node["code"] == "each")
+        return node, detail["items_total"]
+
+    node, total = each()
+    assert (node["grid_source"], node["fan_out"], node["outcome"], node["items_total"], total) == (
+        "list",
+        True,
+        "pending",
+        0,
+        0,
+    )
+
+    worked(client)
+
+    node, total = each()
+    assert (node["grid_source"], node["outcome"], node["items_total"], total) == ("list", "succeeded", 3, 3)
 
 
 def test_a_runs_attempts_walk_in_pages(client: TestClient) -> None:

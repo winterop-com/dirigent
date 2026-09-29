@@ -1846,3 +1846,72 @@ async def test_a_watch_settling_while_it_is_paused_never_deadlocks_on_postgres(
             assert watch.paused is True
             assert watch.waiting_run_id is None, "a paused watch keeps no run waiting"
         await toggle(False)
+
+
+async def test_items_of_a_source_settling_at_once_expand_a_late_grid_exactly_once(
+    pg_sessions: Any, pg_services: EngineServices, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every outcome transaction takes the run lock, so only the last of them sees the gate ready.
+
+    The walk is slowed between writing its outcome and reading the run's attempts, which is the
+    window two unlocked settlements both read the other as still running in, and the gate is
+    then never expanded at all.
+    """
+    from dirigent_core.engine import state
+
+    unhurried = state.load_attempts
+
+    async def hurried(session: AsyncSession, run_id: Any) -> list[StepAttempt]:
+        await asyncio.sleep(0.05)
+        return await unhurried(session, run_id)
+
+    monkeypatch.setattr(state, "load_attempts", hurried)
+    definition = PipelineDefinition(
+        code="late-contended",
+        steps={
+            "spread": StepDefinition(
+                block="test.echo", for_each=[f"item-{index}" for index in range(UNITS)], config={"value": "${item}"}
+            ),
+            "push": StepDefinition(
+                block="test.echo",
+                depends_on=["spread"],
+                for_each="${steps.spread.output}",
+                config={"value": "late-${item.value}"},
+            ),
+        },
+    )
+    run = await start(pg_sessions, pg_services, definition)
+
+    async def worker(name: str) -> None:
+        engine = Engine(pg_sessions, pg_services, owner=name)
+        while True:
+            unit = await engine.claim()
+            if unit is None:
+                return
+            await engine.run_unit(unit)
+
+    await asyncio.gather(*(worker(f"worker-{index}") for index in range(WORKERS)))
+
+    async with pg_sessions() as session:
+        stored = await session.get(Run, run.id)
+        assert stored is not None
+        assert stored.status is RunStatus.SUCCEEDED
+        items = await session.execute(
+            sa.select(sa.func.count()).select_from(RunItem).where(RunItem.run_id == run.id, RunItem.step_name == "push")
+        )
+        assert int(items.scalar_one()) == UNITS, "the grid was written once"
+        gates = await session.execute(
+            sa.select(sa.func.count())
+            .select_from(StepAttempt)
+            .where(StepAttempt.run_id == run.id, StepAttempt.step_name == "push", StepAttempt.run_item_id.is_(None))
+        )
+        assert int(gates.scalar_one()) == 0
+        expanded = await session.execute(
+            sa.select(sa.func.count())
+            .select_from(LogEntry)
+            .where(LogEntry.run_id == run.id, LogEntry.message.like("expanded into%"))
+        )
+        assert int(expanded.scalar_one()) == 1
+    assert sorted(value for value in EchoOperator.calls if value.startswith("late-")) == sorted(
+        f"late-item-{index}" for index in range(UNITS)
+    )

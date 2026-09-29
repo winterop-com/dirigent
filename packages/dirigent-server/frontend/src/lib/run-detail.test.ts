@@ -12,6 +12,7 @@ import {
     readsAsTheWholeStep,
     waitingOf,
     drawnStates,
+    emptyStripLabel,
     edgeClasses,
     edgeMotion,
     edgeTone,
@@ -74,6 +75,7 @@ function node(over: Partial<DagNode> = {}): DagNode {
         depends_on: [],
         rule: 'all_success',
         fan_out: false,
+        grid_source: null,
         items_total: 0,
         items_failed: 0,
         attempts: 0,
@@ -147,6 +149,7 @@ function drawn(over: Partial<StepView> = {}): StepView {
         node: node(),
         outcome: 'pending',
         attempts: [],
+        items: 0,
         latest: null,
         detail: null,
         duration_ms: null,
@@ -659,6 +662,60 @@ describe('how far a live wait has come', () => {
             attempt({ id: 'a-2', attempt: 2, status: 'waiting', waiting_progress: 0.1 }),
         ])
         expect(stepViews(state, NOW)[0]?.progress).toBe(0.1)
+    })
+})
+
+describe('a fan-out over a step output', () => {
+    const dag = {
+        nodes: [
+            node({ code: 'list' }),
+            node({ code: 'each', fan_out: true, grid_source: 'list', depends_on: ['list'] }),
+        ],
+        edges: [['list', 'each']] as [string, string][],
+    }
+    const gate = attempt({ id: 'gate', step_name: 'each', status: 'pending', started_at: null })
+
+    test('waits for its source as one pending gate, which is not an element of the step', () => {
+        const views = stepViews(fed([gate], initialState(detail({ dag }))), NOW)
+        const each = views[1]
+        expect(each?.outcome).toBe('pending')
+        expect(each?.strip).toEqual({ kind: 'empty' })
+        expect(each?.items).toBe(0)
+        expect(each === undefined ? null : emptyStripLabel(each)).toBe('waits for list')
+    })
+
+    test('reads as its items once they arrive, though nothing said the gate was deleted', () => {
+        const state = fed(
+            [
+                gate,
+                attempt({ id: 'a-0', step_name: 'each', item: '0', item_index: 0, status: 'succeeded' }),
+                attempt({ id: 'a-1', step_name: 'each', item: '1', item_index: 1, status: 'succeeded' }),
+            ],
+            initialState(detail({ dag })),
+        )
+        const each = stepViews(state, NOW)[1]
+        expect(each?.outcome).toBe('succeeded')
+        expect(each?.attempts.map((one) => one.id)).toEqual(['a-0', 'a-1'])
+        expect(each?.items).toBe(2)
+        expect(each?.strip.kind).toBe('chips')
+        expect(each?.strip.kind === 'chips' ? each.strip.items.map((chip) => chip.key) : []).toEqual([
+            '0',
+            '1',
+        ])
+    })
+
+    test('is what its gate settled as when the grid could not be expanded', () => {
+        const state = fed(
+            [{ ...gate, status: 'skipped', finished_at: '2026-03-01T11:59:20Z' }],
+            initialState(detail({ dag })),
+        )
+        const each = stepViews(state, NOW)[1]
+        expect(each?.outcome).toBe('skipped')
+        expect(each === undefined ? null : emptyStripLabel(each)).toBe('fans out')
+    })
+
+    test('a grid fixed at creation only says that it fans out', () => {
+        expect(emptyStripLabel(drawn({ node: node({ fan_out: true }) }))).toBe('fans out')
     })
 })
 

@@ -163,6 +163,7 @@ def _dag(
                 depends_on=list(step.depends_on),
                 rule=step.rule.value,
                 fan_out=step.is_fan_out,
+                grid_source=definition.grid_source(name),
                 items_total=sum(of_step.values()),
                 items_failed=of_step.get(RunItemStatus.FAILED, 0),
                 attempts=attempts[name].total if name in attempts else 0,

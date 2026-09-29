@@ -1314,7 +1314,10 @@ step's own pane holds the whole of it. A step whose `for_each` fans it out says 
 line -- a stacked glyph and the count, or the word "each" where the list is an expression a run
 resolves -- in the neutral ink that line is already in, because a status is the only colour a node
 carries. A run's third
-line is live state -- what a step is waiting for, how a retry went -- and stays. Elk is told
+line is live state -- what a step is waiting for, how a retry went -- and stays. A run's fan-out
+holds its elements in one strip beneath the three lines; before a grid read from a step's output
+has expanded, that strip is the faint words `waits for <step>`, on one line, so the box keeps its
+height when the elements arrive. Elk is told
 the height each is actually drawn at, or the rows come out spaced for a box that is not there.
 
 

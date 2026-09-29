@@ -104,7 +104,7 @@ async def test_the_worker_registers_and_then_marks_itself_stopped(
         row = found.scalar_one()
     assert row.concurrency == 3
     assert row.tags == ["docker"]
-    assert row.plugins == {"engine-tests": 12}
+    assert row.plugins == {"engine-tests": 13}
     assert row.catalog_digest == services.host.catalog().digest
     assert row.hostname
 

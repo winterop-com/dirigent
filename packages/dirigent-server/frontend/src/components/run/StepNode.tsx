@@ -6,7 +6,7 @@ import { ProgressLine } from '@/components/run/ProgressLine'
 import { StatusDot } from '@/components/run/StatusChip'
 import { formatDuration } from '@/lib/format'
 import { headingOf } from '@/lib/identity'
-import { nodeTone, type StepView } from '@/lib/run-detail'
+import { emptyStripLabel, nodeTone, type StepView } from '@/lib/run-detail'
 import { statusTokens } from '@/lib/status'
 import { cn } from '@/lib/utils'
 
@@ -29,6 +29,9 @@ export type StepNode = Node<StepNodeData, 'step'>
  * few enough to name, counted once there are not -- because sixty items are sixty attempts of
  * one step and not sixty places in the pipeline. The strip is decided in `lib/run-detail`; this
  * only draws what it decided.
+ *
+ * A FAN-OUT OVER A STEP'S OUTPUT SAYS WHAT IT WAITS FOR where its strip will be, on the same
+ * one line, so the box keeps its height when the grid expands into it.
  *
  * THE COUNT ON THE HEADER IS ITEMS, NOT TRIES. A fan-out step's attempts are its elements, and
  * how wide the step is is what somebody reads off the graph; how many times one element was
@@ -75,10 +78,8 @@ export function StepNode({ data, selected }: NodeProps<StepNode>) {
                 >
                     {heading.title}
                 </span>
-                {view.node.fan_out && view.node.items_total > 0 && (
-                    <span className="ml-auto shrink-0 font-mono text-xs text-faint">
-                        {view.node.items_total} items
-                    </span>
+                {view.node.fan_out && view.items > 0 && (
+                    <span className="ml-auto shrink-0 font-mono text-xs text-faint">{view.items} items</span>
                 )}
             </div>
             <span data-testid="step-line" className="truncate font-mono text-xs text-muted-foreground">
@@ -101,7 +102,7 @@ export function StepNode({ data, selected }: NodeProps<StepNode>) {
 /** The elements of a fan-out step: named while they fit, counted once they do not. */
 function ItemStrip({ view }: { view: StepView }) {
     if (view.strip.kind === 'empty') {
-        return <span className="truncate text-xs text-faint">fans out</span>
+        return <span className="truncate text-xs text-faint">{emptyStripLabel(view)}</span>
     }
     if (view.strip.kind === 'counts') {
         return (

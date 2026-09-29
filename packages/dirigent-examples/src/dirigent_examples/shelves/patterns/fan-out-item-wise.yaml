@@ -12,8 +12,8 @@
 #
 # Three things the pairing buys, and one it costs:
 #
-#   1. Cardinality is still fixed when the run is created. The grid comes from a step that was
-#      itself expanded then, so nothing here waits on execution to know how wide it is.
+#   1. The width is the adopted grid's. Here that grid comes from params, so it was fixed when
+#      the run was created; adopting a grid read from a step's output expands when that one does.
 #   2. The names must be a direct dependency: the adopted step goes in depends_on. Pairing
 #      across a step that is not waited for would read an item that has not run.
 #   3. Adoption chains. A third step may map over the second's items and still reach the

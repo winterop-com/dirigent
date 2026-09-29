@@ -1,0 +1,86 @@
+# A watched batch, handled one message at a time.
+#
+# watch-a-sensor.yaml keeps one run waiting on a batch and summarises each batch as a whole.
+# This one gives every message of a batch its own item: `handle` fans out over the batch the
+# sensor handed over, ${steps.arrive.output.messages}, so a message that cannot be handled is
+# recorded against itself while the rest of its batch carries on, and each one has its own
+# retry budget.
+#
+# The width of `handle` is whatever arrived, which nothing knows when the watch arms the run.
+# So the run is created with `handle` waiting as one pending attempt, and the transaction that
+# settles `arrive`'s success -- the same one that arms the next run -- writes one item per
+# message. The run that got the batch fans it out while the next run is already waiting.
+#
+#   dg apply examples/triggers/watch-fan-out-per-message.yaml
+#   dg runs list --pipeline watch-fan-out-per-message   # a new run every few seconds
+#   dg watch pause watch-fan-out-per-message follow
+#
+# `dg run --local` runs the pipeline once, as an ordinary run, which waits for one batch and
+# fans it out; the watch lands paused on a throwaway instance.
+#
+# Hop by hop:
+#
+#   arrive   playground.arrive, parked for two seconds, then a batch of three messages, each
+#            with an offset and a value. Under the watch, offsets carry on from batch to batch.
+#   handle   one item per message. ${item.value} is that message's reading, and ${item.offset}
+#            where it sat in the stream, so each item says which message it handled.
+#   ack      the join: the offsets handled, which is what a consumer commits.
+#
+# EXPECT A LOCAL RUN TO SUCCEED in about two seconds, with three items under `handle` and an
+# ack naming offsets 0, 1 and 2.
+
+format: dirigent/v1
+kind: pipeline
+code: watch-fan-out-per-message
+name: A watched batch, one item per message
+description: |
+  A watch hands each run a batch, and a `for_each` over the batch's messages gives every
+  message its own item, written when the batch arrives.
+
+  One message that cannot be handled fails its own item, not the batch.
+
+tags: [triggers, sensor, transform, fan-out, jq]
+
+requires:
+  blocks:
+    - playground.arrive
+    - transform.jq
+
+steps:
+  arrive:
+    block: playground.arrive
+    # The watched step is a root sensor that does not fan out itself; the fan-out is after it.
+    poll: 1s
+    deadline: 1m
+    config:
+      after: 2s
+      after_pokes: 0
+      rows: 3
+      seed: 5
+      fields:
+        station: city
+        reading: pyfloat
+
+  handle:
+    block: transform.jq
+    depends_on: [arrive]
+    # One item per message the sensor handed over, as many as arrived.
+    for_each: ${steps.arrive.output.messages}
+    # A message that cannot be handled is recorded against itself; the others still ack.
+    items: continue
+    config:
+      input: ${item}
+      program: '{offset: .offset, station: .value.station}'
+
+  ack:
+    block: transform.jq
+    depends_on: [handle]
+    config:
+      input: ${steps.handle.output}
+      program: '{handled: length, offsets: [.[].value.offset]}'
+
+triggers:
+  watches:
+    - code: follow
+      name: Follow the arrivals
+      step: arrive

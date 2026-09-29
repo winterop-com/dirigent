@@ -1,0 +1,92 @@
+# A listing that came back empty, and the fan-out over it that therefore never runs.
+#
+# fan-out-over-an-output.yaml fans out over whatever a step listed. This is the same shape on
+# the day the listing finds nothing: `stations` succeeds with no records, so `read` has no
+# items to write. A late grid follows the rule every grid follows -- an empty list skips the
+# step -- and a skip is a real terminal outcome, so everything behind it under the default
+# all_success edge is skipped too.
+#
+# Nothing here failed. An empty listing is a quiet day, not an error, and the run ends
+# succeeded. `read` is skipped with a reason: its one attempt carries run.fan_out_empty and
+# says which step left the list empty.
+#
+# Hop by hop:
+#
+#   stations  the listing, asked for zero rows, so its `records` is [].
+#   read      one item per listed station, and there are none: skipped, with nothing written.
+#   summary   the join behind it, skipped because `read` was.
+#   report    rule: all_done, so it runs whatever happened above it; it reads the listing,
+#             which is the one thing that did happen, and says how many stations there were.
+#
+# EXPECT THIS RUN TO SUCCEED at once, with `read` and `summary` skipped and `report` saying
+# zero stations.
+#
+# To change it: -p stations=3 gives the listing something to find, and every step runs.
+#
+#   dg run --local examples/patterns/fan-out-over-an-empty-listing.yaml
+#   dg run --local examples/patterns/fan-out-over-an-empty-listing.yaml -p stations=3
+
+format: dirigent/v1
+kind: pipeline
+code: fan-out-over-an-empty-listing
+name: Fan out over an empty listing
+description: |
+  A `for_each` over a step's output that turns out to be an empty list skips the step, and
+  the skip carries down every `all_success` edge behind it.
+
+  The run still succeeds: an empty listing is a day with nothing to do.
+
+tags: [patterns, transform, fan-out, references, rules]
+
+requires:
+  blocks:
+    - playground.generate
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    stations:
+      type: integer
+      default: 0
+      minimum: 0
+      maximum: 50
+      description: How many stations the listing finds; zero is the case this file is about.
+
+steps:
+  stations:
+    block: playground.generate
+    config:
+      rows: ${params.stations}
+      seed: 7
+      fields:
+        station: city
+
+  read:
+    block: playground.generate
+    depends_on: [stations]
+    # An empty list here writes no items, and a fan-out with none is skipped.
+    for_each: ${steps.stations.output.records}
+    config:
+      input: ${item}
+      fields:
+        celsius:
+          provider: pyint
+          args: {min_value: -20, max_value: 30}
+
+  summary:
+    block: transform.jq
+    depends_on: [read]
+    config:
+      input: ${steps.read.output}
+      program: 'length'
+
+  report:
+    block: transform.jq
+    depends_on: [summary]
+    # all_done runs once `summary` has settled, skipped included, which is what lets the run
+    # say what the empty day looked like.
+    rule: all_done
+    config:
+      input: ${steps.stations.output}
+      program: '{stations: .rows}'

@@ -65,10 +65,13 @@ class StepShape(BaseModel):
     depends_on: list[str] = Field(default_factory=list[str])
 
     cardinality: int | str = 1
-    """How many run items this step becomes: a count, ``adopts <step>``, or ``unknown``."""
+    """How many run items this step becomes: a count, ``adopts <step>``, ``from <step>``, or ``unknown``."""
 
     elements: int | None = 1
     """The count behind the cardinality, which an adoption takes from the grid it adopts."""
+
+    grid_source: str | None = None
+    """The step a late grid waits for before it expands, or null for a grid fixed at creation."""
 
     reference: str | None = None
     """The ``for_each`` this step maps over, where it names one rather than listing it."""

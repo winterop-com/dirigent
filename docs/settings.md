@@ -46,6 +46,7 @@ environment, and the server inside one never opens the file.
 | `heartbeat` | `DIRIGENT_HEARTBEAT` | `"15s"` | How often a worker refreshes the leases it holds and its registry row. |
 | `claim_idle` | `DIRIGENT_CLAIM_IDLE` | `"500ms"` | How long an idle worker waits before asking for work again when nothing wakes it. |
 | `log_flush_interval` | `DIRIGENT_LOG_FLUSH_INTERVAL` | `"1s"` | How often a running attempt's buffered log entries are written to the run. |
+| `fan_out_max_items` | `DIRIGENT_FAN_OUT_MAX_ITEMS` | `10000` | How many items one fan-out grid may expand into; a run that would be wider is refused. |
 | `log_entries_per_attempt` | `DIRIGENT_LOG_ENTRIES_PER_ATTEMPT` | `1000` | How many entries one attempt may log before the rest are dropped with one warning. |
 | `log_flush_batch` | `DIRIGENT_LOG_FLUSH_BATCH` | `100` | How many buffered entries write themselves without waiting for the flush interval. |
 | `sweep_interval` | `DIRIGENT_SWEEP_INTERVAL` | `"30s"` | How often a worker runs the crash-recovery sweeper over expired leases. |

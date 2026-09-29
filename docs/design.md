@@ -661,6 +661,8 @@ semantics instead of writing error-handling code:
   A step whose `for_each` is `${steps.<name>.items}` maps over that fan-out's grid instead of
   one of its own, pairs with it by item position, and reads its match as
   `${steps.<name>.item.output.<field>}`. An item whose match did not succeed is skipped.
+  A `for_each` over an upstream step's output is expanded when the step becomes ready; a list
+  that cannot be read, or one wider than `fan_out_max_items`, fails it as `rejected`.
 - **Run level: what do we tell the operator?** Run status derives mechanically from the
   leaves: all succeeded; some failed but tolerated (`completed_with_errors`); a required path
   failed (`failed`); `cancelled`. Alert rules key off exactly these.
@@ -1364,10 +1366,12 @@ Reading guide for the choices above:
   `name:` is display only: `depends_on` and `${steps....}` read the map key and nothing else.
 - `params` is checked at apply time to be a JSON Schema itself, so `type: objcet` is refused
   with the document rather than at the first run.
-- `for_each` is expanded when the run is created, so the item grid exists from the moment a
-  run is visible. It may therefore read `params.*`, `run.*`, and an upstream fan-out's grid as
-  `${steps.<name>.items}`, but not a step's output: a grid drawn before the run starts cannot
-  be sized by work the run has not done yet.
+- A `for_each` over `params.*`, `run.*`, or an upstream fan-out's grid as
+  `${steps.<name>.items}` is expanded when the run is created, so the item grid exists from the
+  moment a run is visible. One over an upstream step's output, `${steps.<name>.output.*}`, is
+  expanded when its step becomes ready: until then the step is one pending attempt with no
+  item, and the transaction that readies it writes the items. No grid may be wider than
+  `fan_out_max_items`.
 - `${...}` is the whole reference language, and it has five namespaces: `params.*`,
   `steps.*` (`steps.<name>.output.*`, `steps.<name>.items`, `steps.<name>.item.output.*`),
   `item`, `run.*` (`run.scratch`, `run.id`, `run.window.start`, `run.window.end`), and

@@ -154,7 +154,9 @@ deadline chain  -
 
 A cardinality is a number wherever the document fixes one: a literal list, or a
 `${params.x}` the document gives a default. `adopts <step>` is a step mapping over another
-fan-out's grid, and it is as wide as that grid. `unknown` is a width only the run can fix --
+fan-out's grid, and it is as wide as that grid. `from <step>` is a `for_each` over a step's
+output, as wide as that step's list turns out to be; the row's `grid_source` names the step, and
+the step is counted once. `unknown` is a width only the run can fix --
 a parameter with no default, a window's bounds -- and the attempts total then counts that
 step once and reads `at least` rather than `at most`. `attempts` is every automatic try the
 document allows, which is each step's `max_attempts` times the items it maps over; the

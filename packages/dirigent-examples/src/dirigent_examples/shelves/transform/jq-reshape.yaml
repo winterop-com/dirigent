@@ -65,8 +65,8 @@ steps:
   per_region:
     block: transform.jq
     depends_on: [reshape]
-    # for_each is expanded when the run is created, so it reads params and not a step's
-    # output. The reshaped list is read in config, where an output reference belongs.
+    # for_each reads params, so the grid is fixed when the run is created. The reshaped list
+    # is read in config, where each region picks its own rows out of it.
     for_each: "${params.regions}"
     config:
       input:

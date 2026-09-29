@@ -65,6 +65,11 @@ One step definition, many run items.
 | [fan-out-then-join.yaml](fan-out-then-join.yaml) | The join, which is just a step with no `for_each` of its own | `succeeded` |
 | [fan-out-nested-objects.yaml](fan-out-nested-objects.yaml) | Elements that are objects, and `${item.limits.max_ms}` | `succeeded` |
 | [fan-out-item-wise.yaml](fan-out-item-wise.yaml) | A second fan-out over the same grid, and the item it pairs with | `succeeded` |
+| [fan-out-over-an-output.yaml](fan-out-over-an-output.yaml) | List, then fan out over what was listed: a grid written when its source succeeds | `succeeded` |
+| [fan-out-over-an-empty-listing.yaml](fan-out-over-an-empty-listing.yaml) | A listing that found nothing: the fan-out over it is skipped, and so is what needed it | `succeeded` |
+| [fan-out-over-a-nested-path.yaml](fan-out-over-a-nested-path.yaml) | A list four fields inside an output, reached with the dotted path | `succeeded` |
+| [fan-out-late-item-wise.yaml](fan-out-late-item-wise.yaml) | Adopting a listed grid, and `${steps.<name>.item.output}` over it | `succeeded` |
+| [fan-out-late-after-continue.yaml](fan-out-late-after-continue.yaml) | A late grid over a fan-out under `items: continue`: only the survivors | `completed_with_errors` |
 
 ## Parameters
 

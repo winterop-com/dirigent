@@ -37,6 +37,7 @@ from dirigent_core.engine.definition import (
     dump_definition,
     load_definition,
 )
+from dirigent_core.engine.expansion import is_gate, new_attempt, write_items
 from dirigent_core.engine.references import ReferenceScope, resolve
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.engine.state import advance, lock_pipeline, lock_run
@@ -50,7 +51,8 @@ from dirigent_core.messages import (
     CHILD_REFUSED,
     FAN_OUT_NOT_A_LIST,
     FAN_OUT_NOT_FANNING,
-    FAN_OUT_READS_OUTPUT,
+    FAN_OUT_TOO_WIDE,
+    GATE_NOT_RETRYABLE,
     NO_ATTEMPT_TO_RETRY,
     NOT_RETRYABLE,
     PARENT_GONE,
@@ -262,12 +264,19 @@ async def create_run(
             window_end=window.end if window is not None else None,
         )
         # Topological order, because a step may map over an upstream fan-out's grid and that
-        # grid has to be expanded before the step adopting it is.
+        # grid has to be expanded before the step adopting it is. A late grid is None here: its
+        # step gets a gate, and the walk expands it once the step is ready.
         grids: dict[str, list[JsonValue]] = {}
-        expanded: list[tuple[str, list[JsonValue]]] = []
+        expanded: list[tuple[str, list[JsonValue] | None]] = []
+        maximum = services.settings.fan_out_max_items
         for name in definition.topological_order():
             step = definition.steps[name]
+            if definition.grid_source(name) is not None:
+                expanded.append((name, None))
+                continue
             elements = resolve_fan_out(name, step, scope.model_copy(update={"grids": grids}))
+            if len(elements) > maximum:
+                raise FanOutError(FAN_OUT_TOO_WIDE, step=repr(name), count=len(elements), maximum=maximum)
             expanded.append((name, elements))
             if step.is_fan_out:
                 grids[name] = elements
@@ -310,13 +319,13 @@ async def create_run(
             span.set_attribute("dirigent.run.id", str(run.id))
 
             seeds = cursors or {}
-            for name, elements in expanded:
+            for name, grid in expanded:
                 await _create_step_rows(
-                    session, run, name, definition.steps[name], elements, moment, held=held, cursor=seeds.get(name)
+                    session, run, name, definition.steps[name], grid, moment, held=held, cursor=seeds.get(name)
                 )
             await session.flush()
             if not held:
-                await advance(session, run, definition, now=moment)
+                await advance(session, run, definition, services=services, now=moment)
             _logger.info(
                 "run created",
                 run_id=str(run.id),
@@ -332,60 +341,27 @@ async def _create_step_rows(
     run: Run,
     name: str,
     step: StepDefinition,
-    elements: Sequence[JsonValue],
+    elements: Sequence[JsonValue] | None,
     moment: datetime,
     *,
     held: bool,
     cursor: JsonMap | None = None,
 ) -> None:
-    """Write the attempt rows one step needs, one per element of an already expanded fan-out."""
-    if not step.is_fan_out:
-        session.add(_new_attempt(run, name, step, moment, held=held, cursor=cursor))
+    """Write the attempt rows one step needs: one, one per element of a fixed grid, or a gate.
+
+    ``elements`` is None for a late grid, whose step starts as one attempt with no item.
+    """
+    if not step.is_fan_out or elements is None:
+        session.add(new_attempt(run, name, step, moment, held=held, cursor=cursor))
         return
-    for index, element in enumerate(elements):
-        item = RunItem(
-            run_id=run.id,
-            step_name=name,
-            item_index=index,
-            item_key=str(element)[:500],
-            item_value={"value": element},
-            status=RunItemStatus.PENDING,
-        )
-        session.add(item)
-        await session.flush()
-        session.add(_new_attempt(run, name, step, moment, held=held, run_item_id=item.id))
-
-
-def _new_attempt(
-    run: Run,
-    name: str,
-    step: StepDefinition,
-    moment: datetime,
-    *,
-    held: bool,
-    run_item_id: UUID | None = None,
-    cursor: JsonMap | None = None,
-) -> StepAttempt:
-    """Build one attempt row: root steps queued, everything else pending on its edges."""
-    root = not step.depends_on and not held
-    return StepAttempt(
-        poke_cursor=dict(cursor) if cursor is not None else None,
-        run_id=run.id,
-        run_item_id=run_item_id,
-        step_name=name,
-        block_id=step.block,
-        attempt=1,
-        kind=AttemptKind.AUTOMATIC,
-        status=AttemptStatus.QUEUED if root else AttemptStatus.PENDING,
-        available_at=moment if root else None,
-    )
+    await write_items(session, run, name, step, elements, moment, held=held)
 
 
 def resolve_fan_out(name: str, step: StepDefinition, scope: ReferenceScope) -> list[JsonValue]:
-    """Expand a step's ``for_each`` into the list of elements it maps over.
+    """Expand a fixed grid's ``for_each`` into the list of elements it maps over.
 
-    Cardinality is fixed when the run is created, so a ``for_each`` may read parameters, the
-    run, and an upstream fan-out's already expanded grid, but not a step's output.
+    A fixed grid reads parameters, the run, and an upstream fan-out's already expanded grid. A
+    ``for_each`` that reads a step's output is late, and the walk resolves it instead.
     """
     expression = step.for_each
     if isinstance(expression, list):
@@ -399,8 +375,6 @@ def resolve_fan_out(name: str, step: StepDefinition, scope: ReferenceScope) -> l
         if grid is None:
             raise FanOutError(FAN_OUT_NOT_FANNING, step=repr(name), adopted=repr(adopted))
         return list(grid)
-    if "steps." in expression:
-        raise FanOutError(FAN_OUT_READS_OUTPUT, step=repr(name), expression=repr(expression))
     resolved = resolve(expression, scope)
     if not isinstance(resolved, list):
         raise FanOutError(
@@ -569,7 +543,7 @@ async def promote_queued_run(session: AsyncSession, services: EngineServices, pi
         version = await session.get(PipelineVersion, run.pipeline_version_id)
         if version is None:
             continue
-        await advance(session, run, load_definition(version.document))
+        await advance(session, run, load_definition(version.document), services=services)
         _logger.info("held run released", run_id=str(run.id))
         return run
     return None
@@ -628,6 +602,9 @@ async def retry_step(
     if not attempts:
         raise RunCreationError(NO_ATTEMPT_TO_RETRY, run=run.id, step=repr(step_name))
     latest = attempts[0]
+    if is_gate(definition, latest):
+        source = definition.grid_source(step_name) or step_name
+        raise RunCreationError(GATE_NOT_RETRYABLE, step=repr(step_name), source=repr(source))
     if latest.status not in (AttemptStatus.FAILED, AttemptStatus.SKIPPED, AttemptStatus.CANCELLED):
         raise RunCreationError(NOT_RETRYABLE, step=repr(step_name), status=latest.status.value)
     watched = await _watched_by(session, run, step_name)
@@ -742,13 +719,6 @@ async def _reopen_propagated_skips(session: AsyncSession, run_id: UUID) -> None:
     for attempt in rows.scalars():
         attempt.status = AttemptStatus.PENDING
         attempt.finished_at = None
-
-
-def item_value_of(item: RunItem | None) -> tuple[JsonValue, bool]:
-    """Unwrap the element a run item maps, and say whether there is one at all."""
-    if item is None or item.item_value is None:
-        return None, False
-    return item.item_value.get("value"), True
 
 
 def attempts_of(run_id: UUID, attempts: Sequence[StepAttempt]) -> list[StepAttempt]:

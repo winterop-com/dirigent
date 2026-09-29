@@ -65,30 +65,8 @@ CLAUDE.md first, commit signed with conventional messages, every change ships wi
 `make test-postgres` stay green, coverage stays at or above 90, `mkdocs build --strict`
 stays clean, and every example stays executable.
 
-1. **Streaming through the DAG, stage 2: a fan-out over a step's output.** Stage 1 is the
-   `watch` trigger. Today a grid's size is fixed when the run is created, and
-   `resolve_fan_out` refuses a `steps.` reference with `FAN_OUT_READS_OUTPUT`, so "list, then
-   fan out over what was listed" needs a child pipeline through `pipeline.run`. The
-   recommended design keeps the syntax, `for_each: ${steps.list_files.output.files}`, and
-   expands late. At creation the step gets one pending gate attempt, so it reads pending
-   rather than skipped. When it becomes ready, `advance` resolves the list from the
-   ancestors' outputs and writes the items and their attempts in the same transaction. A
-   gate is never claimed, retrying one is refused, and an adopter of a late grid expands
-   with matching indices. Alongside it comes an instance setting `fan_out_max_items`
-   (default 10000) for every grid, and optionally `DagNode.grid_source` so a node can name
-   what it waits for. The alternatives were to expand when the source succeeds, which needs
-   a `run_grids` table and writes rows that may be skipped, or to make expansion a claimable
-   unit, which is the only one that scales past tens of thousands of items or reads a list
-   from storage.
-   To decide before building:
-   - whether an empty list skips the step, as an empty params grid does, or succeeds with
-     no items so a join still runs;
-   - whether the cap applies to params grids too;
-   - whether retrying an upstream item after expansion leaves the grid frozen or is refused;
-   - whether the source may be any ancestor or only a direct `depends_on`.
-   After that, stage 3 starts with item-by-item scheduling: item i of B ready when item i of
-   A succeeds rather than when all of A has. Streaming a single step comes last, and only if
-   it is still wanted.
+1. **Streaming through the DAG, stage 3: item-by-item scheduling.** Item i of a step is ready
+   when item i of the grid it adopts has succeeded, rather than when all of that step has.
 2. **Input sources: a pipeline that is always listening.** A source is a pipeline's first
    node, `steps: echo: source: {kind: endpoint, path: /echo, methods: [POST]}`, and its
    lifecycle belongs to the pipeline. It listens from the moment the pipeline is applied and

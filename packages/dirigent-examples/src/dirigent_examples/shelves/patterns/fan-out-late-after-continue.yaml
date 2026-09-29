@@ -1,0 +1,77 @@
+# A fan-out whose failures were tolerated, feeding a fan-out over what it did produce.
+#
+# A fan-out step's output is the list of its items' outputs, and only the items that
+# succeeded are in it. So a late grid read from a fan-out under items: continue is exactly as
+# wide as the part of the batch that worked: the failed item is not a hole in the list, it is
+# absent from it, and the step after it never makes an item for it.
+#
+# The source has to be allowed to finish for this to happen. Under the default fail_fast one
+# failed item fails the whole step, and a fan-out behind it under all_success is skipped,
+# with nothing expanded. Under continue the source succeeds while one item did, and the run
+# ends completed_with_errors to say that something was tolerated.
+#
+# Hop by hop:
+#
+#   probe    one item per station. Each element says how many attempts its station fails;
+#            lighthouse fails one, and the default policy gives a step a single attempt, so
+#            that item fails and the other two succeed.
+#   publish  a fan-out over probe's output. Two stations succeeded, so it has two items;
+#            the one that failed is not in the list, so there is no item for it at all.
+#   tally    the join: how many were published, which is two.
+#
+# EXPECT THIS RUN TO END completed_with_errors, with one failed item under `probe`, two items
+# under `publish`, and a tally of two.
+#
+# To change it: set lighthouse's fail to 0 and every station gets through, `publish` has
+# three items, and the run succeeds.
+#
+#   dg run --local examples/patterns/fan-out-late-after-continue.yaml
+
+format: dirigent/v1
+kind: pipeline
+code: fan-out-late-after-continue
+name: A late grid over what survived
+description: |
+  A late grid read from a fan-out under `items: continue` has one item per item that
+  succeeded; a failed item is absent from the list, so nothing is made for it.
+
+  The run ends completed_with_errors, which says a failure was tolerated.
+
+tags: [patterns, transform, fan-out, failure, references]
+
+requires:
+  blocks:
+    - playground.generate
+    - transform.jq
+
+steps:
+  probe:
+    block: playground.generate
+    for_each:
+      - {station: harbour, fail: 0}
+      - {station: lighthouse, fail: 1}
+      - {station: pier, fail: 0}
+    # One refusal does not stop the other stations, and the step still succeeds.
+    items: continue
+    config:
+      input: {station: "${item.station}"}
+      # playground.generate fails this many attempts before it succeeds, and rejected is a
+      # class no retry is spent on.
+      fail_until: ${item.fail}
+      fail_as: rejected
+
+  publish:
+    block: transform.jq
+    depends_on: [probe]
+    # probe's output is only its succeeded items' outputs, so this grid is the survivors.
+    for_each: ${steps.probe.output}
+    config:
+      input: ${item.records}
+      program: '.[0].station'
+
+  tally:
+    block: transform.jq
+    depends_on: [publish]
+    config:
+      input: ${steps.publish.output}
+      program: '{published: length, stations: [.[].value]}'

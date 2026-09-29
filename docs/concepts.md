@@ -212,11 +212,25 @@ a free-text field.
 Also called a **RunItem**. When a step declares `for_each`, the run gets one item per element
 of that list, each with its own status, its own error, and its own retry.
 
-Fan-out cardinality is fixed when the run is created, not while it executes, which is why
-`for_each` reads `params.*`, `run.*`, and the grid an upstream fan-out already has -- every
-one of them known before anything executes -- and never a step's output. The practical
-payoff is that the item grid exists from the moment a run is visible: a run over five hundred
-inputs reads as a grid of five hundred outcomes rather than one opaque failure.
+A `for_each` that reads `params.*` or `run.*` is fixed when the run is created, so the item
+grid exists from the moment a run is visible: a run over five hundred inputs reads as a grid
+of five hundred outcomes rather than one opaque failure.
+
+A `for_each` that reads an upstream step's output, `${steps.list_files.output.files}`, is
+expanded late: "list, then fan out over what was listed". The run is created with the step
+waiting as one pending attempt with no item, so it reads pending rather than skipped and the
+run cannot settle before it; when the step becomes ready, the transaction that readied it
+writes one item per element of the list, in list order, and queues them all. The source may be
+any step upstream, and a fan-out's output -- the list of its items' outputs -- is a list like
+any other. An empty list skips the step, as an empty grid fixed at creation does. A value that
+is not a list, or a field the output does not have, fails the step as `rejected` with nothing
+written. The grid is read once: retrying one of its items retries that item, and retrying the
+source afterwards does not redraw it. `rule: one_failed` is refused on such a step, because it
+is ready before the output exists.
+
+No grid may be wider than the instance's `fan_out_max_items` (10000 by default). A grid fixed at
+creation over it refuses the run; a late one fails its step as `rejected` with
+`run.fan_out_too_wide`.
 
 A step may also map over a grid another fan-out already has, by writing
 `for_each: ${steps.spread.items}` where `spread` is a fan-out it depends on directly. The two
@@ -225,7 +239,8 @@ element in both, and the second reads its match with
 `${steps.spread.item.output.<field>}` -- one file per district written from the district's own
 export, rather than the whole batch handed over as a list. An item whose match did not succeed
 is skipped, not failed, so the rest of the grid carries on. Adoption chains: a third step may
-map over the second's items and still read the first's.
+map over the second's items and still read the first's. A step adopting a late grid is late
+too, and expands with the same indices once the grid it adopts has settled.
 
 The step's `items` policy decides what one bad element means. Under the default, `fail_fast`,
 any failed item fails the step. Under `continue`, the step succeeds as long as one item did,
@@ -257,6 +272,9 @@ gaps below are as load-bearing as the features.
   fan-out's grid and reads its matching item with `${steps.<name>.item.output.<field>}`,
   which is how one item's value reaches one item of the next step rather than the whole list.
   See `examples/patterns/fan-out-item-wise.yaml`.
+- **Fan-out over an output.** A `for_each` that reads `${steps.<name>.output.<field>}` maps a
+  step over a list an upstream step produced, and its grid is written when that step has
+  settled. See `examples/patterns/fan-out-over-an-output.yaml`.
 - **Parallelism.** Every step whose prerequisites are met is claimable, so the graph's width
   is the parallelism. What bounds it is worker concurrency, not anything in the document. See
   `examples/graph/parallel-branches.yaml`.
