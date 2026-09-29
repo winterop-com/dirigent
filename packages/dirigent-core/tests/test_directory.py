@@ -116,7 +116,7 @@ async def test_a_document_carrying_its_own_schemas_is_refused(
     assert [refused.path for refused in summary.refused] == ["carried.yaml"]
     assert summary.refused[0].message == (
         "this document carries its own schemas (reading), which an instance will not store: "
-        "create them with `dg schema create` and let the document name them in requires.schemas"
+        "create them on the instance and let the document name them under requires.schemas"
     )
     async with session_scope(sessions) as session:
         assert await find_pipeline(session, "carried") is None

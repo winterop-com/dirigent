@@ -25,7 +25,7 @@ import {
 import { headingOf } from '@/lib/identity'
 import { LABELS } from '@/lib/labels'
 import { sayRefusal } from '@/components/Refusal'
-import { instantiate } from '@/lib/starters'
+import { copyStarter } from '@/lib/starters'
 import { cn } from '@/lib/utils'
 
 export const FROM_A_STARTER = LABELS.pipelines.from_starter
@@ -54,9 +54,11 @@ export const PICKER_NONE = LABELS.pipelines.starters.none
  * a legitimate thing to do -- the editor's panel then says what to create -- but it is not a
  * thing to discover afterwards, so how much of what it needs is here stands beside the title.
  *
- * THE COPY IS MADE HERE, AND IT IS `lib/starters`. What this answers with is the document text
- * a `dg pipeline new` of the same starter would have written, so the caller opens an editor on
- * it and knows nothing about the rewrite -- there is one copy rule and both surfaces use it.
+ * THE COPY IS MADE HERE, AND IT IS `lib/starters`. What this answers with is a copy under its
+ * own code with the `starter` tag off, which is what the Examples screen's own door hands over
+ * too. What the document carries stays in it: an instance refuses a document that carries a
+ * connection or a schema, and the dialog that refusal raises is where the shapes in it can
+ * still be stored, so taking them out happens there rather than here.
  */
 export function StarterPicker({
     open,
@@ -88,7 +90,7 @@ export function StarterPicker({
             (detail) => {
                 onOpenChange(false)
                 setQuery('')
-                onChoose(instantiate(detail.source, detail.code), detail.code)
+                onChoose(copyStarter(detail.source, detail.code), detail.code)
             },
             (error: unknown) => {
                 sayRefusal(error)

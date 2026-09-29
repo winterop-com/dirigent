@@ -1109,6 +1109,7 @@ const editor = {
         requires_nothing: 'This document requires nothing in particular of an instance.',
         block_chip: (block: string) => `block ${block}`,
         connection_chip: (connection: string) => `connection ${connection}`,
+        schema_chip: (schema: string) => `schema ${schema}`,
         pipeline_chip: (pipeline: string) => `pipeline ${pipeline}`,
         missing_chip_title: (thing: string) =>
             `${thing} is not installed on this instance, so applying and running this document will fail`,
@@ -1181,9 +1182,67 @@ const editor = {
         /** Said only by Validate: it would be untrue of what the apply button does. */
         nothing_written: 'Nothing was written.',
         checking: 'Checking the document.',
-        /** Why the button is shut while the dry run is still out. */
-        unchecked: 'The document has not been checked yet.',
-        unacceptable: 'This document is not one the instance would accept.',
+        /** Why Apply is shut on a document that is already the version the instance holds. */
+        nothing_to_apply: 'This document is the version the instance holds.',
+        /** What an apply that wrote nothing amounts to, said as a line rather than a dialog. */
+        unchanged: (pipeline: string) => `${pipeline} is already at this document. Nothing was written.`,
+    },
+
+    /**
+     * The way through a refusal made for a section the document carries.
+     *
+     * The refusal itself is the server's and arrives with its own code; none of these repeat
+     * it. They say what this screen does about it: what becomes of each carried entry, why a
+     * connection is never one of the things it stores, and what stands in the way.
+     */
+    carried: {
+        /** The section over the list, headed with the word the corpus already uses. */
+        title: 'Carried',
+        /** Said while the instance is being asked what it holds under each carried code. */
+        reading: 'Reading what this instance holds.',
+        /** Why the button waits, which is that same read. */
+        unread: 'What this instance holds has not been read yet.',
+        /** The rule and what applying does, in the one line over the list. */
+        note: (applying: string) => `An instance does not store what a document carries. ${applying}`,
+        stores_one: 'Applying stores the schema marked create, and names every code here under requires.',
+        stores_many: 'Applying stores the schemas marked create, and names every code here under requires.',
+        names_only: 'Applying names every code here under requires.',
+        /** What one carried entry is called on its row, lower case and inside a line. */
+        noun: {
+            schema: 'schema',
+            connection: 'connection',
+        },
+        /** What becomes of one entry, in the words its row reads. */
+        state: {
+            /** Stored on this instance from what the document carries. */
+            create: 'create',
+            /** The instance holds it already, and what it holds is what the document will use. */
+            held: 'already here',
+            /** The instance holds something else under that code. */
+            differs: 'differs',
+            /** The instance has not got it, and nothing here stores it. */
+            missing: 'missing',
+        },
+        /** What was stored, once it has been, since the plan after it may write nothing. */
+        stored: (count: number, codes: string) =>
+            `Stored ${String(count)} ${count === 1 ? 'schema' : 'schemas'}: ${codes}`,
+        /** Why a credential is never taken out of a document, whatever fields it declares. */
+        connection_note:
+            'A connection is not created from a document: a document can carry a credential in plain text, in a password field or inside a URL.',
+        /** The door to the screen where a credential is typed into a box that does not echo it. */
+        new_connection: 'New connection',
+        /** Why applying would bind this document to a shape its author did not write. */
+        differs_why_one: (code: string) =>
+            `This instance holds a schema coded ${code} that is not what this document carries. Other pipelines name that code, so nothing here replaces it: change what the document carries, or carry it under a code of its own.`,
+        differs_why_many: (codes: string) =>
+            `This instance holds schemas coded ${codes} that are not what this document carries. Other pipelines name those codes, so nothing here replaces them: change what the document carries, or carry them under codes of their own.`,
+        /** Why the apply would refuse: a connection the document names is not on this instance. */
+        no_connection_one: (code: string) => `This instance has no connection coded ${code}.`,
+        no_connection_many: (codes: string) => `This instance has no connections coded ${codes}.`,
+        /** Why the apply would refuse for an account that may not store a schema. */
+        no_schema_gate: "This document's schemas are not stored, and storing one is an admin's.",
+        /** What is said when the lift produced nothing a document could be read back from. */
+        lift_failed: 'The carried sections could not be taken out of this document. Edit it by hand.',
     },
 
     /** What the server said an apply would do, as the dialog and the status bar read it. */
@@ -1248,6 +1307,7 @@ const editor = {
         step: (step: string, block: string) => `this run will fail at ${step}: ${block} is not installed`,
         block: (block: string) => `this document requires ${block}, which is not installed`,
         connection: (connection: string) => `the connection ${connection} is not configured on this instance`,
+        schema: (schema: string) => `the schema ${schema} is not stored on this instance`,
     },
 } as const
 

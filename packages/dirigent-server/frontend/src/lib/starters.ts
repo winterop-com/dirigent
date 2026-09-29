@@ -40,9 +40,26 @@ const ITEM = /^([^\S\n]+)-[^\S\n]+(\S.*?)[^\S\n]*$/u
 /** Where a `requires:` section goes in a document that has none: after the first of these. */
 const ANCHORS = ['tags', 'description', 'code'] as const
 
-/** Copy a starter's text under a new code, naming what the original carried. */
+/**
+ * A copy of a starter's text, under a new code: the two lines a copy rewrites.
+ *
+ * What it carries is left where it is. A carried section is what makes the document run alone,
+ * and taking it out is about what an instance stores rather than about whose copy this is, so
+ * it happens at the apply -- `uncarry`, from the dialog the instance's refusal raises.
+ */
+export function copyStarter(source: string, code: string): string {
+    return retag(recode(source, code))
+}
+
+/**
+ * What `dg pipeline new` writes into a project: a copy, with what it carried named instead.
+ *
+ * The CLI rewrites both halves at once because a file on disk is all it has. The app makes the
+ * same two rewrites at the two moments it has for them, and this is what they add up to -- the
+ * suite asserts this against the CLI's own cases so the two cannot drift.
+ */
 export function instantiate(source: string, code: string): string {
-    return uncarry(retag(recode(source, code)))
+    return uncarry(copyStarter(source, code))
 }
 
 /** Rewrite the one top-level `code:` line, leaving every other line alone. */
@@ -106,8 +123,13 @@ function dropLine(source: string, start: number, end: number): string {
     return source.slice(0, start) + (tail.startsWith('\n') ? tail.slice(1) : tail)
 }
 
-/** Take each carried section out and name the codes it held under `requires:`. */
-function uncarry(source: string): string {
+/**
+ * Take each carried section out and name the codes it held under `requires:`.
+ *
+ * A copy of a starter is made of this and the two rewrites above it; an apply that was refused
+ * for a carried section is made of this alone, over the text the editor is holding.
+ */
+export function uncarry(source: string): string {
     let written = source
     for (const section of CARRIED) {
         const codes = carried(written, section)

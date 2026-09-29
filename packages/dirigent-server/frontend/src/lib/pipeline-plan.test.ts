@@ -6,6 +6,7 @@ import {
     changesIn,
     issuesNote,
     planView,
+    unchangedNote,
     triggerChanges,
 } from '@/lib/pipeline-plan'
 import type { ApplyResult, DiffSummary, Materialized, PipelinePlan } from '@/lib/pipelines'
@@ -69,6 +70,17 @@ describe('what a plan says', () => {
         expect(view.headline).toContain('Apply writes nothing')
         expect(view.tone).toBe('quiet')
         expect(view.applicable).toBe(false)
+    })
+
+    /**
+     * NOT EVERY ANSWER IS A DIALOG. An apply of the document the instance already holds has no
+     * consequence to weigh, so it is reported the way every other action that completed without
+     * incident is, in one line rather than a card with a button that cannot act.
+     */
+    test('an unchanged apply is a line to report, naming the pipeline and what happened', () => {
+        expect(unchangedNote(plan({ action: 'unchanged' }))).toBe(
+            'convert-one is already at this document. Nothing was written.',
+        )
     })
 
     test('an invalid document is a refusal, and the issues are what it shows instead', () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { instantiate } from '@/lib/starters'
+import { copyStarter, instantiate, uncarry } from '@/lib/starters'
 
 /**
  * The cases `packages/dirigent-cli/tests/test_starters.py` asserts, asserted again here.
@@ -152,5 +152,28 @@ describe('instantiate', () => {
                 '[open-data, http]',
             ),
         )
+    })
+})
+
+/**
+ * THE APP MAKES THE CLI'S ONE REWRITE AT TWO MOMENTS, and this is what they add up to.
+ *
+ * `copyStarter` is what the Examples screen and the picker hand the editor -- the two lines a
+ * copy rewrites -- and `uncarry` is what the Apply dialog sends when the instance refuses a
+ * carried section. Their composition has to be the file `dg pipeline new` writes, or the two
+ * surfaces have drifted.
+ */
+describe('the two halves of the copy', () => {
+    it('compose to the file the CLI writes', () => {
+        for (const source of [FLOW, BLOCK, CARRYING, REQUIRING]) {
+            expect(uncarry(copyStarter(source, 'mine'))).toBe(instantiate(source, 'mine'))
+        }
+    })
+
+    it('leaves what a document carries alone until the apply', () => {
+        const copied = copyStarter(CARRYING, 'mine')
+        expect(copied).toContain('\nconnections:')
+        expect(copied).toContain('code: mine')
+        expect(copied).not.toContain('starter')
     })
 })

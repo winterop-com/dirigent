@@ -128,7 +128,12 @@ export function RunDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-lg" initialFocus={fields.length === 0 ? runNow : undefined}>
+            {/* The footer carries the way out, so the corner's own is not drawn as well. */}
+            <DialogContent
+                className="sm:max-w-lg"
+                showCloseButton={false}
+                initialFocus={fields.length === 0 ? runNow : undefined}
+            >
                 <DialogHeader>
                     {/* The title is the verb alone, since the pipeline is named beneath it. */}
                     <DialogTitle>{LABELS.action.run}</DialogTitle>

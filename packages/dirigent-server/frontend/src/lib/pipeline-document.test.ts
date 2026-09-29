@@ -15,6 +15,7 @@ import {
     fanOutOf,
     forgetDocument,
     fromYaml,
+    liftedDocument,
     loadDocument,
     NEW_CODE,
     NEW_DOCUMENT,
@@ -389,6 +390,87 @@ describe('the store the whole screen reads', () => {
             draft: null,
             parseError: null,
         })
+    })
+})
+
+describe('lifting what a document carries', () => {
+    beforeEach(forgetDocument)
+
+    /** A starter as a shelf holds one: comments, a carried schema, and a carried connection. */
+    const CARRYING = [
+        '# A night over eight regions.',
+        'format: dirigent/v1',
+        'kind: pipeline',
+        'code: nightly-regional-load',
+        '',
+        'requires:',
+        '  blocks:',
+        '    - validate.schema',
+        '',
+        '# Carried, so a --local run has the shapes without an instance holding them.',
+        'schemas:',
+        '  nightly-catalogue:',
+        '    type: object',
+        '',
+        'connections:',
+        '  ops-receiver:',
+        '    kind: http',
+        '',
+        'steps:',
+        '  check:',
+        '    block: validate.schema',
+        '    # The gate every region is read through.',
+        '    config:',
+        '      schema: nightly-catalogue',
+        '',
+    ].join('\n')
+
+    /**
+     * THIS IS WHAT THE REFUSED APPLY SENDS. Both sections come out and their codes are named
+     * under `requires:`, which is exactly what `dg pipeline new` writes into a project.
+     */
+    test('takes both sections out and names their codes under requires', () => {
+        startDocument(CARRYING)
+        const lifted = liftedDocument()
+        expect(lifted?.schemas).toBeUndefined()
+        expect(lifted?.connections).toBeUndefined()
+        expect(lifted?.requires).toEqual({
+            blocks: ['validate.schema'],
+            schemas: ['nightly-catalogue'],
+            connections: ['ops-receiver'],
+        })
+    })
+
+    test('writes nothing back, so a lift nobody applied never reaches the pane', () => {
+        startDocument(CARRYING)
+        liftedDocument()
+        const state = documentStore.get()
+        expect(state.source).toBe(CARRYING)
+        expect(state.local?.schemas).toBeDefined()
+    })
+
+    test('lifts a document that has no text any more, which is one a form has edited', () => {
+        startDocument(CARRYING)
+        changeDocument((current) => withStepName(current, 'check', 'The gate'))
+        expect(documentStore.get().source).toBeNull()
+        const lifted = liftedDocument()
+        expect(lifted?.schemas).toBeUndefined()
+        expect(lifted?.requires).toEqual({
+            blocks: ['validate.schema'],
+            schemas: ['nightly-catalogue'],
+            connections: ['ops-receiver'],
+        })
+    })
+
+    test('leaves a document that carries nothing exactly as it stands', () => {
+        loadDocument('convert-one', document())
+        expect(liftedDocument()).toEqual(document())
+    })
+
+    test('answers with nothing while the source pane holds text that is not a document', () => {
+        startDocument(CARRYING)
+        writeSource('steps:\n  parse: [')
+        expect(liftedDocument()).toBeNull()
     })
 })
 

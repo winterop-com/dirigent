@@ -24,6 +24,7 @@ import {
     connectionPath,
     connectionsNote,
     healthOf,
+    NEW_CONNECTION_CODE,
     NEW_CONNECTION_KEY,
     readConnection,
     readConnectionKinds,
@@ -73,8 +74,10 @@ export function Connections() {
     const { code: chosen = null } = useParams()
     const navigate = useNavigate()
     const [params, setParams] = useSearchParams()
-    // The kind a link asked for a credential of, which is what opens the dialog on that kind.
+    // The kind a link asked for a credential of, which is what opens the dialog on that kind,
+    // and the code it already knows, which is what the form opens filled in with.
     const asked = params.get(NEW_CONNECTION_KEY)
+    const askedCode = params.get(NEW_CONNECTION_CODE)
     const [creating, setCreating] = useState(false)
     // Open while a link is asking for a kind, and while somebody opened it on this screen.
     const minting = creating || asked !== null
@@ -259,16 +262,18 @@ export function Connections() {
             </PageState>
 
             <NewConnection
-                key={asked ?? ''}
+                key={`${asked ?? ''}:${askedCode ?? ''}`}
                 open={minting}
                 kinds={kinds ?? []}
                 startKind={asked ?? ''}
+                startCode={askedCode ?? ''}
                 onOpenChange={(next) => {
                     setCreating(next)
                     // The link's question has been answered either way, so it leaves the address
                     // rather than reopening the dialog on the next read of this screen.
                     if (!next && asked !== null) {
                         params.delete(NEW_CONNECTION_KEY)
+                        params.delete(NEW_CONNECTION_CODE)
                         setParams(params, { replace: true })
                     }
                 }}

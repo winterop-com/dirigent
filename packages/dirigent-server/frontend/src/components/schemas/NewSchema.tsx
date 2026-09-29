@@ -89,7 +89,11 @@ export function NewSchema({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="flex h-[80vh] w-[min(56rem,90vw)] max-w-[min(56rem,90vw)] flex-col gap-3 sm:max-w-[min(56rem,90vw)]">
+            {/* The footer carries the way out, so the corner's own is not drawn as well. */}
+            <DialogContent
+                className="flex h-[80vh] w-[min(56rem,90vw)] max-w-[min(56rem,90vw)] flex-col gap-3 sm:max-w-[min(56rem,90vw)]"
+                showCloseButton={false}
+            >
                 <DialogHeader>
                     <DialogTitle>{LABELS.schemas.new}</DialogTitle>
                     <DialogDescription>

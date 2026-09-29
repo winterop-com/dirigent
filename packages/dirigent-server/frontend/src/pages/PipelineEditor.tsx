@@ -38,6 +38,7 @@ import {
     type DocumentEdits,
     editsIn,
     forgetDocument,
+    liftedDocument,
     loadDocument,
     NEW_DOCUMENT,
     startDocument,
@@ -271,7 +272,8 @@ export function PipelineEditor() {
     // would teach a reader to stop believing it.
     const catalog = useMemo(() => (blocks.length === 0 ? null : blocks.map((block) => block.id)), [blocks])
     const held = useMemo(() => connections?.map((one) => one.code) ?? null, [connections])
-    const unmet = useMemo(() => unmetIn(local, catalog, held), [catalog, held, local])
+    const stored = useMemo(() => schemas?.map((one) => one.code) ?? null, [schemas])
+    const unmet = useMemo(() => unmetIn(local, catalog, held, stored), [catalog, held, local, stored])
     const warnings = useMemo(() => unmetLines(unmet), [unmet])
 
     // THE NOTE IS STATEFUL OR IT IS NOT THERE. What the graph already draws is not restated
@@ -353,6 +355,15 @@ export function PipelineEditor() {
     // `$run` runs the version the instance holds, and there is not one yet.
     const runRefusal = creating ? firstShut(write.why, LABELS.editor.topbar.not_applied) : sent
 
+    // A DIALOG IS A DECISION, AND THIS ONE WOULD HAVE NONE TO MAKE. An apply of the version the
+    // instance already holds writes nothing, so the verb is shut here rather than opening a
+    // dialog whose own answer is that pressing its button would do nothing. Validate and Run are
+    // unaffected: both act on a document that has not changed.
+    const applyRefusal = firstShut(
+        sent,
+        creating || edits.count > 0 ? undefined : LABELS.editor.apply.nothing_to_apply,
+    )
+
     // The palette's own shelf, named for the pipeline the way every other reading of it is.
     const shelf = LABELS.editor.topbar.shelf(
         RUN_GROUP,
@@ -384,7 +395,8 @@ export function PipelineEditor() {
                           icon: CheckCircle2,
                           keywords: ['write', 'version', 'save'],
                           run: () => {
-                              setDialog('apply')
+                              if (applyRefusal === undefined) setDialog('apply')
+                              else toast.info(applyRefusal)
                           },
                       },
                   ]
@@ -427,7 +439,7 @@ export function PipelineEditor() {
                 run: askRelayout,
             },
         ])
-    }, [creating, mayWrite, shelf, small])
+    }, [applyRefusal, creating, mayWrite, shelf, small])
 
     const tabs = useMemo<PanelTab[]>(() => {
         if (local === null && pipeline === null) return []
@@ -631,8 +643,8 @@ export function PipelineEditor() {
                                       label: LABELS.action.apply,
                                       icon: CheckCircle2,
                                       variant: applyVariant(edits, creating),
-                                      disabled: sent !== undefined,
-                                      why: sent,
+                                      disabled: applyRefusal !== undefined,
+                                      why: applyRefusal,
                                       onClick: () => {
                                           setDialog('apply')
                                       },
@@ -732,6 +744,7 @@ export function PipelineEditor() {
                     onPlan={(plan) => {
                         setIssues(issuesNote(plan.issues))
                     }}
+                    onLift={liftedDocument}
                     onApplied={(result) => {
                         setIssues(issuesNote(result.plan.issues))
                         const note = appliedNote(result)

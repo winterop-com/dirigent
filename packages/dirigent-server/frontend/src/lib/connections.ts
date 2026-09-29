@@ -120,15 +120,22 @@ export function connectionPath(code: string): string {
 /** The search key a link uses to ask the connections screen for a fresh credential of one kind. */
 export const NEW_CONNECTION_KEY = 'new'
 
+/** The search key that fills the code box, for a door opened by something that knows the code. */
+export const NEW_CONNECTION_CODE = 'code'
+
 /**
  * Where a screen sends somebody who has nothing of a kind yet: the listing, with its dialog
- * open on that kind.
+ * open on that kind, and on the code where the caller knows one.
  *
- * A link rather than a dialog raised where it was pressed, because minting a credential is the
- * connections screen's own question and this is a door to it.
+ * A link rather than a dialog raised where it was pressed, because creating a credential is the
+ * connections screen's own question and this is a door to it. What the caller already knows is
+ * carried through the address so the form opens filled in that far -- never a secret, which is
+ * typed into a box that does not echo it and is not a thing to put in a URL.
  */
-export function newConnectionPath(kind: string): string {
-    return `/connections?${NEW_CONNECTION_KEY}=${encodeURIComponent(kind)}`
+export function newConnectionPath(kind: string, code?: string): string {
+    const query = new URLSearchParams({ [NEW_CONNECTION_KEY]: kind })
+    if (code !== undefined && code !== '') query.set(NEW_CONNECTION_CODE, code)
+    return `/connections?${query.toString()}`
 }
 
 /** Read one connection by the code it is addressed by, secrets redacted as every read is. */
