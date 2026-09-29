@@ -158,7 +158,7 @@ export function StepTab({
                 {blockProblem !== null ? (
                     <p className="text-xs text-critical">{blockProblem.detail}</p>
                 ) : block === null ? (
-                    <p className="text-xs text-muted-foreground">{LABELS.editor.step.reading_schema}</p>
+                    <p className="text-xs text-muted-foreground">{LABELS.shell.reading}</p>
                 ) : (
                     <SchemaForm
                         // Choosing another step is another form, not the same one with new
@@ -234,7 +234,7 @@ export function StepTab({
             </div>
 
             <div className="space-y-1.5">
-                <Label htmlFor="step-display-name">{LABELS.word.name}</Label>
+                <Label htmlFor="step-display-name">{LABELS.word.name.label}</Label>
                 <Input
                     id="step-display-name"
                     value={named}
@@ -243,7 +243,7 @@ export function StepTab({
                         setNamed(event.target.value)
                         onName(event.target.value)
                     }}
-                    placeholder={LABELS.editor.step.name_placeholder}
+                    placeholder={LABELS.word.name.placeholder}
                 />
                 <p className="text-xs text-faint">{LABELS.editor.step.name_note(step)}</p>
             </div>

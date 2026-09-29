@@ -10,7 +10,7 @@ import { useDragSize } from '@/hooks/use-drag-size'
 import { useStore } from '@/hooks/use-store'
 import { ApiError } from '@/lib/api'
 import { formatClock } from '@/lib/format'
-import { LABELS } from '@/lib/labels'
+import { counted, LABELS } from '@/lib/labels'
 import { followTails } from '@/lib/preferences'
 import { itemLabels, itemOfEntry, type RunDetailState } from '@/lib/run-detail'
 import { readLogs, type LogEntryOut } from '@/lib/runs'
@@ -126,7 +126,7 @@ export function RunTerminal({
     const shown = useMemo(() => visibleLines(state.logs, filters, labels), [state.logs, filters, labels])
     const drawn = useMemo(() => countLines(shown), [shown])
     const held = useMemo(() => countLines(state.logs), [state.logs])
-    const counted = lineCount(drawn, held)
+    const countNote = lineCount(drawn, held)
     const steps = stepChoices(state)
 
     const toBottom = useCallback(() => {
@@ -144,10 +144,7 @@ export function RunTerminal({
 
     const copy = () => {
         void navigator.clipboard?.writeText(copyText(shown)).then(
-            () =>
-                toast.success(
-                    drawn === 1 ? LABELS.terminal.copied_one : LABELS.terminal.copied_many(String(drawn)),
-                ),
+            () => toast.success(counted(drawn, LABELS.terminal.copied)(String(drawn))),
             () => toast.error(LABELS.runs.clipboard_refused),
         )
     }
@@ -193,9 +190,7 @@ export function RunTerminal({
             },
             (error: unknown) => {
                 setSaving(false)
-                toast.error(
-                    error instanceof ApiError ? error.problem.detail : LABELS.terminal.download_failed,
-                )
+                toast.error(error instanceof ApiError ? error.problem.detail : LABELS.refusal.no_answer.term)
             },
         )
     }
@@ -287,7 +282,7 @@ export function RunTerminal({
                         aria-label={MATCH_LABEL}
                     />
 
-                    {counted !== null && <span className="text-xs text-muted-foreground">{counted}</span>}
+                    {countNote !== null && <span className="text-xs text-muted-foreground">{countNote}</span>}
 
                     <div className="flex-1" />
 
@@ -418,7 +413,7 @@ function Line({
             <span className="text-terminal-faint">{formatClock(entry.created_at)} </span>
             <span className={cn(LEVEL_INK[entry.level] ?? 'text-terminal-muted')}>{entry.level} </span>
             {step === null ? (
-                <span className="text-terminal-faint">{LABELS.terminal.run_line}</span>
+                <span className="text-terminal-faint">{LABELS.word.run.term}</span>
             ) : (
                 <button
                     type="button"

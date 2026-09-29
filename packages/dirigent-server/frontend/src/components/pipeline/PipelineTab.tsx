@@ -9,7 +9,7 @@ import type { JsonMap } from '@/lib/api'
 import { shortDigest } from '@/lib/format'
 import { LABELS } from '@/lib/labels'
 import { headingOf } from '@/lib/identity'
-import type { ConnectionOut } from '@/lib/connections'
+import { type ConnectionOut, healthOf } from '@/lib/connections'
 import type { PipelineOut, PipelineVersionOut } from '@/lib/pipelines'
 import {
     blockMissing,
@@ -137,7 +137,7 @@ export function PipelineTab({
                 )}
             </Section>
 
-            <Section title={LABELS.editor.pipeline_pane.connections}>
+            <Section title={LABELS.word.connection.heading}>
                 {named.length === 0 ? (
                     <p className="text-xs text-muted-foreground">
                         {LABELS.editor.pipeline_pane.no_connections}
@@ -165,7 +165,7 @@ export function PipelineTab({
                                             </span>
                                         ) : (
                                             <span className="text-muted-foreground">
-                                                {held.kind} · {healthOf(held)}
+                                                {held.kind} · {healthSaid(held)}
                                             </span>
                                         )
                                     }
@@ -203,27 +203,27 @@ export function PipelineTab({
                 </div>
             </Section>
 
-            <Section title={LABELS.editor.pipeline_pane.triggers}>
+            <Section title={LABELS.word.trigger.heading}>
                 {schedules.length === 0 && webhooks.length === 0 && watches.length === 0 ? (
                     <p className="text-xs text-muted-foreground">{LABELS.editor.pipeline_pane.no_triggers}</p>
                 ) : (
                     <ul className="space-y-0.5 text-xs text-muted-foreground">
                         {schedules.map((schedule, index) => (
                             <li key={`schedule-${String(index)}`}>
-                                {LABELS.editor.pipeline_pane.schedule}{' '}
+                                {LABELS.word.schedule.term}{' '}
                                 <span className="font-mono">{stringAt(schedule, 'code') ?? '--'}</span>{' '}
                                 {clockOf(schedule)}
                             </li>
                         ))}
                         {webhooks.map((webhook, index) => (
                             <li key={`webhook-${String(index)}`}>
-                                {LABELS.editor.pipeline_pane.webhook}{' '}
+                                {LABELS.word.webhook.term}{' '}
                                 <span className="font-mono">{stringAt(webhook, 'code') ?? '--'}</span>
                             </li>
                         ))}
                         {watches.map((watch, index) => (
                             <li key={`watch-${String(index)}`}>
-                                {LABELS.editor.pipeline_pane.watch}{' '}
+                                {LABELS.word.watch.term}{' '}
                                 <span className="font-mono">{stringAt(watch, 'code') ?? '--'}</span>{' '}
                                 {LABELS.editor.pipeline_pane.watch_on}{' '}
                                 <span className="font-mono">{stringAt(watch, 'step') ?? '--'}</span>
@@ -253,7 +253,7 @@ export function PipelineTab({
                 )}
             </Section>
 
-            <Section title={LABELS.editor.pipeline_pane.versions}>
+            <Section title={LABELS.word.version.heading}>
                 {versions.length === 0 ? (
                     <p className="text-xs text-muted-foreground">{LABELS.editor.pipeline_pane.no_versions}</p>
                 ) : (
@@ -302,13 +302,16 @@ function defaultOf(field: FieldDescriptor): string | null {
         : LABELS.editor.pipeline_pane.default_of(String(field.fallback))
 }
 
-/** How a connection's last check reads. */
-function healthOf(connection: ConnectionOut): string {
-    if (connection.last_check_at === null) return LABELS.state.health.unchecked
-    if (connection.last_check_healthy === null) return LABELS.state.health.unverified
-    return connection.last_check_healthy
-        ? LABELS.editor.pipeline_pane.answering
-        : (connection.last_check_detail ?? LABELS.editor.pipeline_pane.not_answering)
+/**
+ * How a connection's last check reads here, which is how it reads everywhere.
+ *
+ * The words are `healthOf`'s in `lib/connections`: this pane spelled two of its own until the
+ * catalogue showed the product saying "answering" where every other screen says "healthy".
+ * What the check actually said still wins, because this row has room for the whole of it.
+ */
+function healthSaid(connection: ConnectionOut): string {
+    const view = healthOf(connection)
+    return view.state === 'failed' ? (view.detail ?? view.label) : view.label
 }
 
 /** One chip under "requires": what is needed, and whether this instance has it. */

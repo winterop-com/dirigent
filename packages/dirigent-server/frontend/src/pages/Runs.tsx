@@ -16,7 +16,7 @@ import { refreshSeconds } from '@/lib/refresh'
 import { usePaged } from '@/hooks/use-paged'
 import { useRead } from '@/hooks/use-read'
 import { elapsedBetween, formatDuration, formatInstant, formatRelative } from '@/lib/format'
-import { LABELS } from '@/lib/labels'
+import { counted, LABELS } from '@/lib/labels'
 import { LIST_GROUP, registerActions } from '@/lib/palette'
 import { readPipelineNames, readTagsOffered } from '@/lib/pipelines'
 import {
@@ -145,9 +145,7 @@ export function Runs() {
                         {state.fresh > 0 && (
                             <Button variant="outline" size="sm" onClick={note}>
                                 <ArrowUp aria-hidden />
-                                {state.fresh === 1
-                                    ? LABELS.runs.fresh_one
-                                    : LABELS.runs.fresh_many(String(state.fresh))}
+                                {counted(state.fresh, LABELS.runs.fresh)(String(state.fresh))}
                             </Button>
                         )}
                     </>
@@ -170,7 +168,7 @@ export function Runs() {
                     }}
                 />
                 <Choice
-                    label={LABELS.word.window}
+                    label={LABELS.word.window.label}
                     value={filters.since}
                     options={WINDOWS.map((window) => ({
                         value: window,
@@ -204,7 +202,7 @@ export function Runs() {
                     reading={state.reading}
                     next={state.next}
                     onMore={more}
-                    noun={LABELS.runs.row_noun}
+                    noun={LABELS.word.run.count}
                 />
             </PageState>
         </>
@@ -221,7 +219,7 @@ function runColumns(names: ReadonlyMap<string, string | null> | null): Column<Ru
     return [
         {
             id: 'pipeline',
-            header: LABELS.word.pipeline,
+            header: LABELS.word.pipeline.label,
             kind: 'title',
             cell: (run) => <PipelineRef code={run.pipeline} name={names?.get(run.pipeline) ?? null} />,
         },
@@ -252,7 +250,7 @@ function runColumns(names: ReadonlyMap<string, string | null> | null): Column<Ru
         },
         {
             id: 'trigger',
-            header: LABELS.word.trigger,
+            header: LABELS.word.trigger.label,
             kind: 'prose',
             cell: (run) => {
                 const started = triggerSummary(run)
@@ -267,7 +265,7 @@ function runColumns(names: ReadonlyMap<string, string | null> | null): Column<Ru
         },
         {
             id: 'started',
-            header: LABELS.runs.column_started,
+            header: LABELS.word.started.label,
             className: 'text-xs',
             cell: (run) => (
                 <span

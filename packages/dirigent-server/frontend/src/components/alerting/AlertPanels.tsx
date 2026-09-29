@@ -175,7 +175,7 @@ export function RulePanel({
                         title={write.why}
                         onClick={toggle}
                     >
-                        {rule.paused ? LABELS.alerting.resume : LABELS.alerting.pause}
+                        {rule.paused ? LABELS.action.resume : LABELS.action.pause}
                     </Button>
                 </Refusable>
                 <Refusable why={write.why}>
@@ -198,14 +198,14 @@ export function RulePanel({
                         title={write.why}
                         onClick={remove}
                     >
-                        {LABELS.action.delete}
+                        {LABELS.action.delete.verb}
                     </Button>
                 </Refusable>
             </div>
 
             <div className="space-y-2">
                 <p className="text-xs text-muted-foreground">{LABELS.alerting.recent_deliveries}</p>
-                {!state.read && <p className="text-xs text-faint">{LABELS.alerting.reading}</p>}
+                {!state.read && <p className="text-xs text-faint">{LABELS.shell.reading}</p>}
                 {state.read && mine.length === 0 && (
                     <p className="text-xs text-faint">{LABELS.alerting.deliveries_empty}</p>
                 )}
@@ -325,7 +325,7 @@ function RuleText({
                     {LABELS.action.cancel}
                 </Button>
                 <Button size="sm" disabled={busy} onClick={save}>
-                    {busy ? LABELS.alerting.saving : LABELS.action.save}
+                    {busy ? LABELS.action.save.busy : LABELS.action.save.verb}
                 </Button>
             </div>
         </div>
@@ -377,7 +377,7 @@ export function NotificationPanel({
                 ) : (
                     <>
                         <Fact label={LABELS.word.event}>{LABELS.alerting.event[notification.event]}</Fact>
-                        <Fact label={LABELS.word.rule}>
+                        <Fact label={LABELS.word.rule.label}>
                             <span className="font-mono text-xs">{notification.rule}</span>
                         </Fact>
                     </>
@@ -385,7 +385,7 @@ export function NotificationPanel({
                 <Fact label={LABELS.word.delivers_through}>
                     <Channel notifier={notification.notifier} connection={notification.connection} />
                 </Fact>
-                <Fact label={LABELS.word.run}>
+                <Fact label={LABELS.word.run.label}>
                     <Run notification={notification} />
                 </Fact>
                 <Fact label={LABELS.alerting.queued_at}>
@@ -400,8 +400,8 @@ export function NotificationPanel({
                         <Instant at={notification.available_at} />
                     </Fact>
                 )}
-                <Fact label={LABELS.alerting.attempts}>
-                    {LABELS.alerting.attempts_of(notification.attempt, notification.max_attempts)}
+                <Fact label={LABELS.word.attempt.heading}>
+                    {LABELS.alerting.attempts_of.bare(notification.attempt, notification.max_attempts)}
                 </Fact>
             </dl>
 

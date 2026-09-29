@@ -501,13 +501,23 @@ export interface FiringView {
  * seeing, and it is what decides the colour.
  */
 export function firingView(firing: FiringOut): FiringView {
+    const said = FIRING_WORDS[firing.outcome]
     return {
         tone: firing.misfired ? 'warn' : TONES[firing.outcome],
-        label: firing.misfired ? LABELS.triggers.schedule.misfired(firing.outcome) : firing.outcome,
+        label: firing.misfired ? LABELS.triggers.schedule.misfired(said) : said,
         runId: firing.run_id,
         detail: firing.detail,
     }
 }
+
+/**
+ * What each outcome is called, keyed by the wire's own value.
+ *
+ * The word and the wire's value are the same characters, and the table is still the point: a
+ * cell that drew `firing.outcome` was drawing a word that had never been near the catalogue,
+ * so no review saw it and no second language could reach it.
+ */
+const FIRING_WORDS: Record<FiringOutcome, string> = LABELS.triggers.schedule.outcome
 
 /** What each outcome is worth, before a misfire has its say. */
 const TONES: Record<FiringOutcome, OutcomeTone> = {
@@ -531,8 +541,16 @@ export interface DeliveryView {
 export function deliveryView(delivery: DeliveryOut): DeliveryView {
     const tone: OutcomeTone =
         delivery.outcome === 'accepted' ? 'good' : delivery.outcome === 'rejected' ? 'critical' : 'quiet'
-    return { tone, label: delivery.outcome, runId: delivery.run_id, reason: delivery.reason }
+    return {
+        tone,
+        label: DELIVERY_WORDS[delivery.outcome],
+        runId: delivery.run_id,
+        reason: delivery.reason,
+    }
 }
+
+/** What each outcome is called, keyed by the wire's own value. `FIRING_WORDS`' reason. */
+const DELIVERY_WORDS: Record<WebhookOutcome, string> = LABELS.triggers.webhook.outcome
 
 /** How much of a webhook's token a listing may show, which is the prefix and nothing after it. */
 export function hookPath(webhook: Pick<WebhookOut, 'token_prefix'>): string {

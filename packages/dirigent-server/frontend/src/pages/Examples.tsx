@@ -165,7 +165,7 @@ export function Examples() {
             [
                 {
                     id: EXAMPLE_TAB,
-                    label: LABELS.word.example,
+                    label: LABELS.word.example.label,
                     render: () => (
                         <Suspense fallback={<PanelReading />}>
                             <ExamplePanel
@@ -233,7 +233,7 @@ export function Examples() {
                 {/* A choice of one is not a choice: the control appears when a pack is installed. */}
                 {plugins.length > 1 && (
                     <Choice
-                        label={LABELS.word.plugin}
+                        label={LABELS.word.plugin.label}
                         value={filters.plugin}
                         anything={LABELS.examples.any_plugin}
                         options={plugins.map((plugin) => ({ value: plugin, label: plugin }))}
@@ -274,7 +274,7 @@ export function Examples() {
                     reading={false}
                     next={null}
                     onMore={NO_MORE}
-                    noun={LABELS.examples.noun}
+                    noun={LABELS.word.example.count}
                     onSelect={(row) => {
                         setChosen(row)
                         openPanelTab(EXAMPLE_TAB)
@@ -323,7 +323,7 @@ function exampleColumns(
     return [
         {
             id: 'example',
-            header: LABELS.word.example,
+            header: LABELS.word.example.label,
             kind: 'title',
             cell: (row) => {
                 const heading = headingOf(row)
@@ -408,7 +408,7 @@ function exampleColumns(
             ? [
                   {
                       id: 'plugin',
-                      header: LABELS.word.plugin,
+                      header: LABELS.word.plugin.label,
                       className: 'w-32 font-mono text-xs whitespace-nowrap',
                       cell: (row: ExampleOut) => <span className="text-muted-foreground">{row.plugin}</span>,
                   },

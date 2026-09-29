@@ -96,7 +96,7 @@ export function CreateUser({
                 </div>
 
                 <div className="space-y-2">
-                    <Label htmlFor="new-name">{LABELS.word.name}</Label>
+                    <Label htmlFor="new-name">{LABELS.word.name.label}</Label>
                     <Input
                         id="new-name"
                         value={form.name}
@@ -165,7 +165,7 @@ export function CreateUser({
                         disabled={busy || form.username.trim() === '' || form.password === ''}
                         onClick={send}
                     >
-                        {LABELS.action.create}
+                        {LABELS.action.create.verb}
                     </Button>
                 </DialogFooter>
             </DialogContent>

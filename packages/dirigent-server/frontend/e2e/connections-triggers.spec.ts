@@ -218,7 +218,7 @@ test('a connection is minted through the form its own kind publishes', async ({ 
 
     // The kind is a choice over what this instance has installed, and choosing one is what
     // draws the config: every box below is the kind's own schema, its secrets excepted.
-    await dialog.getByLabel(LABELS.word.kind).click()
+    await dialog.getByLabel(LABELS.word.kind.label).click()
     // Every kind the dialog offers is marked as well as named.
     const kindRow = page.getByRole('option', { name: 'http', exact: true })
     await expect(kindRow.locator('[data-slot="mark"]')).toHaveCount(1)
@@ -229,7 +229,7 @@ test('a connection is minted through the form its own kind publishes', async ({ 
     // A secret is written and never read, here as much as in the panel.
     await expect(dialog.getByLabel('basic_password')).toHaveAttribute('type', 'password')
 
-    await dialog.getByRole('button', { name: LABELS.action.create }).click()
+    await dialog.getByRole('button', { name: LABELS.action.create.verb }).click()
     await expect(page.getByRole('dialog')).toHaveCount(0)
 
     // The row is on the listing, saying which kind it is and never a word of the credential.
@@ -266,7 +266,7 @@ test('a schedule shows its clock and its zone, and a webhook shows its prefix', 
     const webhook = rowOf(page, HOOK.webhook)
     await expect(webhook).toContainText('POST /hooks/')
     await expect(webhook).toContainText(LABELS.triggers.webhook.unsigned)
-    await expect(webhook).toContainText('60/min')
+    await expect(webhook).toContainText(LABELS.word.rate_limit.value('60'))
 
     // The foot counts what has been read, and there is no page number anywhere on the screen.
     await expect(page.getByText(/\d+ schedules?/)).toBeVisible()
@@ -285,8 +285,8 @@ test('a schedule opens its own facts and its firing history beside the listing',
     // The panel's own tab, rather than the aside: the navigation rail is an aside too.
     const panel = page.getByRole('tabpanel')
     await expect(panel).toContainText('Europe/Oslo')
-    await expect(panel).toContainText(LABELS.triggers.schedule.firings)
-    await expect(panel).toContainText(LABELS.triggers.schedule.not_fired)
+    await expect(panel).toContainText(LABELS.word.firing.heading)
+    await expect(panel).toContainText(LABELS.triggers.schedule.no_firings)
 
     // A paused schedule fires at no instant. The row keeps the one the scheduler computed, so
     // that it has somewhere to resume from, and the screen says it is paused once: the chip.
@@ -462,10 +462,10 @@ test('a webhook minted in the browser shows its token once and never again', asy
 
     // The mapping is the pipeline's own parameters, one row each, and a path is written
     // against the one the payload carries.
-    await expect(dialog.getByLabel(LABELS.shell.instance.environment, { exact: true })).toBeVisible()
+    await expect(dialog.getByLabel(LABELS.word.environment.term, { exact: true })).toBeVisible()
     await dialog.getByLabel('day', { exact: true }).fill('$.published.date')
 
-    await dialog.getByRole('button', { name: LABELS.action.create }).click()
+    await dialog.getByRole('button', { name: LABELS.action.create.verb }).click()
 
     // The token is readable exactly here: the instance keeps only its hash.
     const token = page.getByTestId('webhook-token')
@@ -512,7 +512,7 @@ test('a schedule is created by picking its pipeline and reading its clock back',
     // Choosing the pipeline drew its own parameter form, and a pinned value is sent with it.
     await dialog.getByLabel('day', { exact: true }).fill('2026-02-02')
 
-    await dialog.getByRole('button', { name: LABELS.action.create }).click()
+    await dialog.getByRole('button', { name: LABELS.action.create.verb }).click()
     await expect(page.getByRole('dialog')).toHaveCount(0)
 
     const row = rowOf(page, code)
@@ -539,5 +539,5 @@ test('a clock nothing can read says so where its firings would be, and shuts Cre
         .fill('not a cron expression')
 
     await expect(dialog.getByTestId('clock-reading')).toContainText('is not a cron expression')
-    await expect(dialog.getByRole('button', { name: LABELS.action.create })).toBeDisabled()
+    await expect(dialog.getByRole('button', { name: LABELS.action.create.verb })).toBeDisabled()
 })

@@ -65,7 +65,7 @@ export function OutputTab({ state, runId }: { state: RunDetailState; runId: stri
                 }
             >
                 {artifacts === null ? (
-                    <p className="text-xs text-muted-foreground">{LABELS.runs.artifacts_reading}</p>
+                    <p className="text-xs text-muted-foreground">{LABELS.shell.reading}</p>
                 ) : rows.length === 0 ? (
                     <p className="text-xs text-muted-foreground">{LABELS.runs.artifacts_empty}</p>
                 ) : (

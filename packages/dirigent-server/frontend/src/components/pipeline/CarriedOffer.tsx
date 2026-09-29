@@ -38,7 +38,7 @@ export function CarriedOffer({ items, reading }: { items: readonly CarriedItem[]
                 {LABELS.editor.carried.title}
             </h2>
             {reading ? (
-                <p className="text-xs text-muted-foreground">{LABELS.editor.carried.reading}</p>
+                <p className="text-xs text-muted-foreground">{LABELS.shell.reading}</p>
             ) : (
                 <>
                     <ul className="space-y-1 text-xs">
@@ -71,8 +71,8 @@ export function CarriedOffer({ items, reading }: { items: readonly CarriedItem[]
                                     }
                                 >
                                     {doors.length === 1
-                                        ? LABELS.editor.carried.new_connection
-                                        : `${LABELS.editor.carried.new_connection} ${item.code}`}
+                                        ? LABELS.connections.new
+                                        : `${LABELS.connections.new} ${item.code}`}
                                 </Button>
                             ))}
                         </p>

@@ -60,7 +60,7 @@ export function BrandPane({
             <dl className="relative flex items-baseline gap-x-3 text-xs lg:absolute lg:right-12 lg:bottom-12 lg:left-12 lg:grid lg:grid-cols-[4.5rem_1fr] lg:gap-y-1.5 xl:right-18 xl:left-18">
                 <dt className="sr-only text-terminal-faint lg:not-sr-only">{LABELS.login.instance}</dt>
                 <dd className="font-mono text-terminal-muted">{window.location.host}</dd>
-                <dt className="sr-only text-terminal-faint lg:not-sr-only">{LABELS.login.version}</dt>
+                <dt className="sr-only text-terminal-faint lg:not-sr-only">{LABELS.word.version.term}</dt>
                 <dd className="font-mono text-terminal-muted">{version ?? ''}</dd>
             </dl>
         </aside>

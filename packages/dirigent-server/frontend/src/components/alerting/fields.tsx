@@ -64,10 +64,10 @@ export function TargetPicker({
 }) {
     return (
         <div className="space-y-2">
-            <Label htmlFor={id}>{LABELS.alerting.deliver_through}</Label>
+            <Label htmlFor={id}>{LABELS.word.delivers_through}</Label>
             <Picker
                 id={id}
-                label={LABELS.alerting.deliver_through}
+                label={LABELS.word.delivers_through}
                 value={value}
                 options={options}
                 placeholder={LABELS.alerting.target_search}

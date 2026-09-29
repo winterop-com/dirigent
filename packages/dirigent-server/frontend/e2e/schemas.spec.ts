@@ -73,7 +73,9 @@ test('a link that opened a schema leaves the next screen starting closed', async
     // draws the way a first visit does.
     await page.goto('/pipelines/std-convert-fan-out')
     await expect(page.locator('.react-flow__node').first()).toBeVisible()
-    const panel = page.locator('aside').filter({ has: page.getByRole('tab', { name: LABELS.word.step }) })
+    const panel = page
+        .locator('aside')
+        .filter({ has: page.getByRole('tab', { name: LABELS.word.step.label }) })
     await expect(panel).toBeAttached()
     await expect(panel).toHaveAttribute('inert')
 })

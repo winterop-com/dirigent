@@ -187,8 +187,8 @@ test('the stored document reads as its graph, and a step reads as its own config
     await page.locator('.react-flow__node').getByText('parse', { exact: true }).click()
 
     const panel = page.locator('aside')
-    await expect(panel.getByRole('tab', { name: LABELS.word.step })).toBeVisible()
-    await expect(panel.getByRole('tab', { name: LABELS.word.pipeline })).toBeVisible()
+    await expect(panel.getByRole('tab', { name: LABELS.word.step.label })).toBeVisible()
+    await expect(panel.getByRole('tab', { name: LABELS.word.pipeline.label })).toBeVisible()
     await expect(panel.getByRole('tab', { name: LABELS.word.source })).toBeVisible()
     await expect(panel.getByText('convert.std', { exact: true })).toBeVisible()
 
@@ -249,7 +249,7 @@ test('the engine half of a step is groups that say their state, and one opens in
     const panel = page.locator('aside')
     const config = panel.getByRole('heading', { name: LABELS.word.config })
     const waits = panel.getByRole('button', { name: /Waits for/ })
-    const displayName = panel.getByLabel(LABELS.word.name, { exact: true })
+    const displayName = panel.getByLabel(LABELS.word.name.label, { exact: true })
     await expect(config).toBeVisible()
     await expect(waits).toBeVisible()
 
@@ -474,7 +474,7 @@ test('a document that reads a window is not run until it is given one', async ({
     await expect(page.locator('.status-chip[data-status="succeeded"]').first()).toBeVisible({
         timeout: 30_000,
     })
-    await expect((await runFacts(page)).getByText(LABELS.runs.fact.window, { exact: true })).toBeVisible()
+    await expect((await runFacts(page)).getByText(LABELS.word.window.term, { exact: true })).toBeVisible()
 })
 
 test('a document that reads no window keeps its window behind a link and runs without one', async ({
@@ -505,8 +505,8 @@ test('a document that reads no window keeps its window behind a link and runs wi
         timeout: 30_000,
     })
     const panel = await runFacts(page)
-    await expect(panel.getByText(LABELS.runs.fact.created, { exact: true })).toBeVisible()
-    await expect(panel.getByText(LABELS.runs.fact.window, { exact: true })).toHaveCount(0)
+    await expect(panel.getByText(LABELS.word.created.term, { exact: true })).toBeVisible()
+    await expect(panel.getByText(LABELS.word.window.term, { exact: true })).toHaveCount(0)
 })
 
 /**
@@ -768,7 +768,7 @@ test('a chosen step is deleted by the key, and never while a text box has the fo
 
     // The step's own pane opens on the choice, and typing a name into it is not a deletion.
     await page.locator('.react-flow__node[data-id="report"]').click()
-    const name = page.locator('aside').getByLabel(LABELS.word.name, { exact: true })
+    const name = page.locator('aside').getByLabel(LABELS.word.name.label, { exact: true })
     await name.click()
     await name.press('Backspace')
     await expect(page.locator('.react-flow__node')).toHaveCount(2)
@@ -979,9 +979,12 @@ test('New pipeline opens the editor on a document nothing has applied, and apply
     // The panel opens on the step tab like any other document; the source, where the skeleton
     // and its code are written, is a tab away.
     const panel = page.locator('aside')
-    await expect(panel.getByRole('tab', { name: LABELS.word.step })).toHaveAttribute('aria-selected', 'true')
+    await expect(panel.getByRole('tab', { name: LABELS.word.step.label })).toHaveAttribute(
+        'aria-selected',
+        'true',
+    )
     // Nothing is applied, so there is no pipeline to read: that tab is not offered.
-    await expect(panel.getByRole('tab', { name: LABELS.word.pipeline })).toHaveCount(0)
+    await expect(panel.getByRole('tab', { name: LABELS.word.pipeline.label })).toHaveCount(0)
     await panel.getByRole('tab', { name: LABELS.word.source }).click()
 
     const editor = panel.getByTestId('code-editor')
@@ -1018,7 +1021,12 @@ test('New pipeline opens the editor on a document nothing has applied, and apply
 
     // The document has an address of its own now, at the version the apply wrote.
     await expect(page).toHaveURL(new RegExp(`/pipelines/${code}$`))
-    await expect(page.getByText('v1', { exact: true })).toBeVisible()
+    // The chip by its own title, not by its text: once the apply lands, the foot states the
+    // version the instance holds as well, and a bare `v1` matches whichever of the two got
+    // there first.
+    await expect(page.getByTitle(LABELS.editor.version.counted('1'))).toHaveText(
+        LABELS.editor.version.short('1'),
+    )
     await expect(page.getByText('Started in the editor', { exact: true }).first()).toBeVisible()
 })
 
@@ -1063,8 +1071,8 @@ test('choosing a step switches the panel to its own tab, whatever was open, and 
     await expect(panel.getByRole('tab', { name: 'Step · parse' })).toBeVisible()
 
     // Read something else in the panel, then choose another box: the click is the intent.
-    await panel.getByRole('tab', { name: LABELS.word.pipeline }).click()
-    await expect(panel.getByRole('tab', { name: LABELS.word.pipeline })).toHaveAttribute(
+    await panel.getByRole('tab', { name: LABELS.word.pipeline.label }).click()
+    await expect(panel.getByRole('tab', { name: LABELS.word.pipeline.label })).toHaveAttribute(
         'aria-selected',
         'true',
     )

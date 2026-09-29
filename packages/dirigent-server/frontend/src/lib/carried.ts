@@ -44,7 +44,7 @@
  */
 
 import type { JsonMap, Problem } from '@/lib/api'
-import { LABELS } from '@/lib/labels'
+import { counted, LABELS } from '@/lib/labels'
 
 /** The sections a document may carry, which an instance refuses to store. `CARRIED` in core. */
 export const CARRIED = ['connections', 'schemas'] as const
@@ -162,12 +162,12 @@ export function offerBlocked(items: readonly CarriedItem[]): string | undefined 
     const differing = codesOf(items, 'schema', 'differs')
     if (differing.length > 0) {
         const named = differing.join(', ')
-        return differing.length > 1 ? words.differs_why_many(named) : words.differs_why_one(named)
+        return counted(differing.length, words.differs_why)(named)
     }
     const connections = codesOf(items, 'connection', 'missing')
     if (connections.length > 0) {
         const named = connections.join(', ')
-        return connections.length > 1 ? words.no_connection_many(named) : words.no_connection_one(named)
+        return counted(connections.length, words.no_connection)(named)
     }
     if (codesOf(items, 'schema', 'missing').length > 0) return words.no_schema_gate
     return undefined
@@ -189,7 +189,7 @@ export function actionWord(item: CarriedItem): string {
 export function offerNote(items: readonly CarriedItem[]): string {
     const made = creations(items).length
     const words = LABELS.editor.carried
-    return words.note(made === 0 ? words.names_only : made === 1 ? words.stores_one : words.stores_many)
+    return words.note(made === 0 ? words.names_only : counted(made, words.stores))
 }
 
 /**
@@ -205,7 +205,10 @@ export function connectionNote(items: readonly CarriedItem[]): string | undefine
 
 /** What was stored, said once it has been: the toast a write nothing on screen is waiting for. */
 export function storedNote(made: readonly CarriedItem[]): string {
-    return LABELS.editor.carried.stored(made.length, made.map((one) => one.code).join(', '))
+    return counted(made.length, LABELS.editor.carried.stored)(
+        String(made.length),
+        made.map((one) => one.code).join(', '),
+    )
 }
 
 /** The carried connections this instance has not got, which is what a door is offered for. */

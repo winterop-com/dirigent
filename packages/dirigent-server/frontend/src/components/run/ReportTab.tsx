@@ -100,7 +100,7 @@ export function ReportTab({
     }
 
     if (found === null) {
-        return <p className="p-4 text-sm text-muted-foreground">{LABELS.runs.report_reading}</p>
+        return <p className="p-4 text-sm text-muted-foreground">{LABELS.shell.reading}</p>
     }
 
     if (found.document === null) return <Summary report={report} problem={problem} />
@@ -148,7 +148,7 @@ function Summary({ report, problem }: { report: RunReport | null; problem: Probl
                 {problem !== null ? (
                     <p className="text-xs text-muted-foreground">{problem.detail}</p>
                 ) : report === null ? (
-                    <p className="text-xs text-muted-foreground">{LABELS.runs.summary_reading}</p>
+                    <p className="text-xs text-muted-foreground">{LABELS.shell.reading}</p>
                 ) : (
                     <>
                         <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">

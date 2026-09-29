@@ -23,7 +23,7 @@ const CRON = { file: 'examples/triggers/cron-nightly.yaml', schedule: 'nightly',
 const CONNECTION = 'e2e-role-http'
 
 /** What a control shut by a role says: that this account cannot, and nothing more. */
-const SHUT = 'Not available to a viewer.'
+const SHUT = LABELS.refusal.shut
 
 /** One connection to press Check on. The health path answers on this very instance. */
 async function seedConnection(request: APIRequestContext, baseURL: string): Promise<void> {

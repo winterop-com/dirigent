@@ -51,7 +51,7 @@ export async function signInAs(page: Page, username: string, password: string): 
     await page.goto('/login')
     await page.getByLabel(LABELS.word.username).fill(username)
     await page.getByLabel(LABELS.word.password, { exact: true }).fill(password)
-    await page.getByRole('button', { name: LABELS.login.sign_in }).click()
+    await page.getByRole('button', { name: LABELS.action.sign_in.verb }).click()
     // The front door is the root, so a session that has just begun is at the root.
     await expect(page).toHaveURL(/^https?:\/\/[^/]+\/$/)
     await settledFonts(page)

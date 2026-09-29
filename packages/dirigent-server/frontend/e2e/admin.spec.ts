@@ -74,7 +74,7 @@ async function createAccount(page: Page, username: string, email?: string): Prom
     await dialog.getByLabel(LABELS.word.username, { exact: true }).fill(username)
     if (email !== undefined) await dialog.getByLabel(LABELS.word.email, { exact: true }).fill(email)
     await dialog.getByLabel(LABELS.word.password, { exact: true }).fill('a-long-enough-password')
-    await dialog.getByRole('button', { name: LABELS.action.create, exact: true }).click()
+    await dialog.getByRole('button', { name: LABELS.action.create.verb, exact: true }).click()
 }
 
 test('the dashboard composes its tiles out of the listings behind them', async ({ page }) => {
@@ -152,10 +152,10 @@ test('an account is made, and then turned off', async ({ page }) => {
     await expect(panel).toContainText('viewer')
 
     // When it was made and whether it has ever been used are read here, not counted.
-    await expect(panel).toContainText(LABELS.word.created)
+    await expect(panel).toContainText(LABELS.word.created.label)
     await expect(panel).toContainText(LABELS.users.never_signed_in)
 
-    await panel.getByRole('button', { name: LABELS.users.deactivate }).click()
+    await panel.getByRole('button', { name: LABELS.action.deactivate }).click()
     await expect(rowOf(page, username)).toContainText('deactivated')
 
     // And the panel says so of itself, rather than leaving the button label to imply it.
@@ -167,7 +167,7 @@ test('the last admin cannot deactivate itself, and is told so where it asked', a
     await page.goto('/admin/users')
 
     await page.getByRole('button', { name: DEV_USERNAME, exact: true }).click()
-    await page.getByRole('button', { name: LABELS.users.deactivate }).click()
+    await page.getByRole('button', { name: LABELS.action.deactivate }).click()
 
     // The refusal is the server's own sentence, rendered beside the button that asked for it
     // rather than as a toast that outlives the screen. Its status phrase is not a heading: it
@@ -213,7 +213,7 @@ test('the settings search reaches across every category', async ({ page }) => {
     const dialog = page.getByRole('dialog')
 
     await dialog.getByLabel(LABELS.settings.search).fill('password')
-    await expect(dialog.getByRole('button', { name: LABELS.word.account, exact: true })).toBeVisible()
+    await expect(dialog.getByRole('button', { name: LABELS.word.account.label, exact: true })).toBeVisible()
     await expect(
         dialog.getByRole('button', { name: LABELS.settings.category.general, exact: true }),
     ).toHaveCount(0)
@@ -243,7 +243,7 @@ test('the nav is three groups and About is not one of them', async ({ page }) =>
 
     // The version lives on Server, and the two links are at that pane's foot.
     await dialog.getByRole('button', { name: LABELS.settings.category.server, exact: true }).click()
-    await expect(dialog.getByText(LABELS.word.version, { exact: true })).toBeVisible()
+    await expect(dialog.getByText(LABELS.word.version.label, { exact: true })).toBeVisible()
     await expect(dialog.getByRole('link', { name: LABELS.settings.documentation })).toBeVisible()
     await expect(dialog.getByRole('link', { name: LABELS.settings.api_reference })).toHaveAttribute(
         'href',
@@ -274,7 +274,7 @@ test('the password form expands under its row and states the refusal there', asy
     await signIn(page)
     await page.getByRole('button', { name: 'Settings', exact: true }).click()
     const dialog = page.getByRole('dialog')
-    await dialog.getByRole('button', { name: LABELS.word.account, exact: true }).click()
+    await dialog.getByRole('button', { name: LABELS.word.account.label, exact: true }).click()
 
     // Nothing is over the dialog: the form is in the row, and the button that opened it is gone.
     await dialog.getByRole('button', { name: LABELS.action.change, exact: true }).click()
@@ -310,8 +310,8 @@ test('an email is carried into the panel, changed there, and is unique across ac
     // Saving a changed one writes it, and reading the panel again answers the new address.
     const moved = `${username}-moved@example.test`
     await panel.getByLabel(LABELS.word.email).fill(moved)
-    await panel.getByRole('button', { name: LABELS.action.save }).click()
-    await expect(panel.getByRole('button', { name: LABELS.action.save })).toBeDisabled()
+    await panel.getByRole('button', { name: LABELS.action.save.verb }).click()
+    await expect(panel.getByRole('button', { name: LABELS.action.save.verb })).toBeDisabled()
     await page.reload()
     await page.getByRole('button', { name: username, exact: true }).click()
     await expect(page.getByRole('tabpanel').getByLabel(LABELS.word.email)).toHaveValue(moved)
@@ -366,8 +366,8 @@ test('a token is minted for another account, and the tokens table says whose it 
     await page.getByRole('tabpanel').getByRole('button', { name: LABELS.users.new_token }).click()
     const dialog = page.getByRole('dialog')
     await expect(dialog).toContainText(`It holds whatever ${username} holds.`)
-    await dialog.getByLabel(LABELS.word.name).fill(token)
-    await dialog.getByRole('button', { name: LABELS.action.create, exact: true }).click()
+    await dialog.getByLabel(LABELS.word.name.label).fill(token)
+    await dialog.getByRole('button', { name: LABELS.action.create.verb, exact: true }).click()
 
     // The secret is shown once, beside the account it authenticates as.
     await expect(dialog).toContainText(username)

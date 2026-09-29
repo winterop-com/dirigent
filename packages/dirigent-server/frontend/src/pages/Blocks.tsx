@@ -117,7 +117,7 @@ export function Blocks() {
     useEffect(() => {
         if (open !== null) {
             return fillPanel(
-                [{ id: 'block', label: LABELS.word.block, render: () => <BlockPanel entry={open} /> }],
+                [{ id: 'block', label: LABELS.word.block.label, render: () => <BlockPanel entry={open} /> }],
                 { screen: 'blocks' },
             )
         }
@@ -175,7 +175,7 @@ export function Blocks() {
                                 reading={false}
                                 next={null}
                                 onMore={NO_MORE}
-                                noun={LABELS.blocks.noun}
+                                noun={LABELS.word.block.count}
                                 onSelect={select}
                                 selected={(entry) => `block:${entry.id}` === chosen}
                                 onClose={unchoose}
@@ -229,7 +229,7 @@ function blockColumns(uses: ReadonlyMap<string, number>): Column<BlockEntry>[] {
     return [
         {
             id: 'block',
-            header: LABELS.word.block,
+            header: LABELS.word.block.label,
             kind: 'title',
             cell: (entry) => (
                 <div className="min-w-0">
@@ -243,19 +243,19 @@ function blockColumns(uses: ReadonlyMap<string, number>): Column<BlockEntry>[] {
         },
         {
             id: 'kind',
-            header: LABELS.word.kind,
+            header: LABELS.word.kind.label,
             className: 'min-w-32 whitespace-nowrap',
             cell: (entry) => <KindChip kind={entry.kind} />,
         },
         {
             id: 'examples',
-            header: LABELS.blocks.examples_header,
+            header: LABELS.word.example.heading,
             className: 'min-w-28 whitespace-nowrap',
             cell: (entry) => <ExampleCount id={entry.id} many={uses.get(entry.id) ?? 0} />,
         },
         {
             id: 'plugin',
-            header: LABELS.word.plugin,
+            header: LABELS.word.plugin.label,
             className: 'min-w-36 font-mono text-xs whitespace-nowrap',
             cell: (entry) => <span className="text-muted-foreground">{entry.plugin}</span>,
         },
@@ -310,13 +310,13 @@ function entryColumns(kind: Registry['key']): Column<CatalogEntry>[] {
         },
         {
             id: 'kind',
-            header: LABELS.word.kind,
+            header: LABELS.word.kind.label,
             className: 'min-w-32 whitespace-nowrap',
             cell: () => <KindChip kind={worn} />,
         },
         {
             id: 'plugin',
-            header: LABELS.word.plugin,
+            header: LABELS.word.plugin.label,
             className: 'min-w-36 font-mono text-xs whitespace-nowrap',
             cell: (entry) => <span className="text-muted-foreground">{entry.plugin}</span>,
         },
@@ -341,7 +341,7 @@ function EntryPanel({ entry }: { entry: CatalogEntry }) {
 
             <Section title={LABELS.word.config}>
                 {fields.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">{LABELS.blocks.entry_no_config}</p>
+                    <p className="text-sm text-muted-foreground">{LABELS.form.no_configuration}</p>
                 ) : (
                     <div className="flex flex-col gap-4">
                         {fields.map((field) => (
@@ -385,7 +385,7 @@ function BlockPanel({ entry }: { entry: BlockEntry }) {
 
             <Section title={LABELS.word.config}>
                 {fields.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">{LABELS.blocks.block_no_config}</p>
+                    <p className="text-sm text-muted-foreground">{LABELS.form.no_configuration}</p>
                 ) : (
                     <div className="flex flex-col gap-4">
                         {fields.map((field) => (

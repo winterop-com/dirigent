@@ -117,7 +117,7 @@ test('the seams hold with the right panel open', async ({ page }) => {
         .first()
         .getByText('jq-reshape', { exact: true })
         .click()
-    await expect(page.getByRole('tab', { name: LABELS.word.pipeline })).toBeVisible()
+    await expect(page.getByRole('tab', { name: LABELS.word.pipeline.label })).toBeVisible()
 
     const strips = await topStrips(page)
     expect(strips.length).toBe(3)
@@ -162,7 +162,7 @@ test('an empty listing states the fact and stops', async ({ page }) => {
     await page.goto('/admin/alerting')
     await expect(page.getByRole('heading', { name: LABELS.screen.alerting.name })).toBeVisible()
     await expect(page.getByText(/No rules\./)).toBeVisible()
-    await expect(page.getByRole('button', { name: LABELS.alerting.new_rule })).toBeVisible()
+    await expect(page.getByRole('button', { name: LABELS.alerting.new_rule.button })).toBeVisible()
 })
 
 test('a collapsed rail wakes when its edge is dragged outward', async ({ page }) => {

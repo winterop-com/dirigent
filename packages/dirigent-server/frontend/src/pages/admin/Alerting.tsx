@@ -120,7 +120,7 @@ function Alerting() {
                 [
                     {
                         id: 'rule',
-                        label: LABELS.word.rule,
+                        label: LABELS.word.rule.label,
                         render: () => (
                             <RulePanel
                                 rule={rule}
@@ -147,7 +147,7 @@ function Alerting() {
                 [
                     {
                         id: 'notification',
-                        label: LABELS.word.notification,
+                        label: LABELS.word.notification.label,
                         render: () => (
                             <NotificationPanel
                                 notification={row}
@@ -174,7 +174,7 @@ function Alerting() {
                 ? [
                       {
                           id: 'alerting:rule',
-                          title: LABELS.alerting.palette.new_rule,
+                          title: LABELS.alerting.new_rule.palette,
                           group: ADMIN_GROUP,
                           screen: true,
                           icon: BellPlus,
@@ -249,7 +249,7 @@ function Alerting() {
                     },
                     {
                         id: 'rule',
-                        label: LABELS.alerting.new_rule,
+                        label: LABELS.alerting.new_rule.button,
                         icon: BellPlus,
                         disabled: !write.may,
                         why: write.why,
@@ -265,7 +265,7 @@ function Alerting() {
             </section>
 
             <section className="space-y-2">
-                <h2 className="text-sm font-semibold">{LABELS.alerting.rules_heading}</h2>
+                <h2 className="text-sm font-semibold">{LABELS.word.rule.heading}</h2>
                 <PageState
                     loading={!rules.state.read}
                     problem={rules.state.problem}
@@ -280,7 +280,7 @@ function Alerting() {
                         reading={rules.state.reading}
                         next={rules.state.next}
                         onMore={rules.more}
-                        noun={LABELS.alerting.rules_noun}
+                        noun={LABELS.word.rule.count}
                         onSelect={chooseRule}
                         selected={(rule) => rule.id === chosenRule}
                         onClose={unchoose}
@@ -290,7 +290,7 @@ function Alerting() {
 
             <section className="mt-8 space-y-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h2 className="text-sm font-semibold">{LABELS.alerting.notifications_heading}</h2>
+                    <h2 className="text-sm font-semibold">{LABELS.word.notification.heading}</h2>
                     <div className="flex flex-wrap gap-2">
                         <Choice
                             label={LABELS.word.status}
@@ -329,7 +329,7 @@ function Alerting() {
                         reading={notifications.state.reading}
                         next={notifications.state.next}
                         onMore={notifications.more}
-                        noun={LABELS.alerting.notifications_noun}
+                        noun={LABELS.word.notification.count}
                         onSelect={chooseNotification}
                         selected={(row) => row.id === chosenNotification}
                         onClose={unchoose}
@@ -440,7 +440,7 @@ function Scope({ rule }: { rule: AlertRuleOut }) {
 const RULE_COLUMNS: Column<AlertRuleOut>[] = [
     {
         id: 'rule',
-        header: LABELS.word.rule,
+        header: LABELS.word.rule.label,
         kind: 'title',
         cell: (rule) => {
             const heading = headingOf(rule)
@@ -545,7 +545,7 @@ const NOTIFICATION_COLUMNS: Column<NotificationOut>[] = [
     },
     {
         id: 'run',
-        header: LABELS.word.run,
+        header: LABELS.word.run.label,
         cell: (notification) => <Run notification={notification} />,
     },
     {
@@ -563,7 +563,7 @@ const NOTIFICATION_COLUMNS: Column<NotificationOut>[] = [
                 <Instant className="text-muted-foreground" at={notification.sent_at} />
             ) : notification.attempt > 0 ? (
                 <span className="text-faint">
-                    {LABELS.alerting.attempts_counted(notification.attempt, notification.max_attempts)}
+                    {LABELS.alerting.attempts_of.counted(notification.attempt, notification.max_attempts)}
                 </span>
             ) : null,
     },

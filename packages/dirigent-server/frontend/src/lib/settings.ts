@@ -38,7 +38,7 @@ export const SETTINGS_CATEGORIES: readonly SettingsCategory[] = [
     { id: 'general', label: LABELS.settings.category.general, group: 'preferences' },
     { id: 'theme', label: LABELS.settings.category.theme, group: 'preferences' },
     { id: 'shortcuts', label: LABELS.settings.category.shortcuts, group: 'preferences' },
-    { id: 'account', label: LABELS.word.account, group: 'you' },
+    { id: 'account', label: LABELS.word.account.label, group: 'you' },
     { id: 'server', label: LABELS.settings.category.server, group: 'instance' },
 ]
 
@@ -134,13 +134,13 @@ export function settingsRows(apple: boolean): SettingsRow[] {
         {
             id: 'server:version',
             category: 'server',
-            label: LABELS.word.version,
+            label: LABELS.word.version.label,
             keywords: ['release', 'build'],
         },
         {
             id: 'server:environment',
             category: 'server',
-            label: LABELS.word.environment,
+            label: LABELS.word.environment.label,
             keywords: ['dev', 'production', 'staging'],
         },
         {
@@ -152,7 +152,7 @@ export function settingsRows(apple: boolean): SettingsRow[] {
         {
             id: 'server:blocks',
             category: 'server',
-            label: LABELS.settings.row.blocks,
+            label: LABELS.word.block.heading,
             keywords: ['catalog', 'steps', 'plugins'],
         },
         {
@@ -164,7 +164,7 @@ export function settingsRows(apple: boolean): SettingsRow[] {
         {
             id: 'server:plugins',
             category: 'server',
-            label: LABELS.settings.row.plugins,
+            label: LABELS.word.plugin.heading,
             keywords: ['extensions', 'packages', 'installed'],
         },
     ]

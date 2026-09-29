@@ -1,4 +1,4 @@
-import { LABELS } from '@/lib/labels'
+import { counted, LABELS } from '@/lib/labels'
 import type { PlanView } from '@/lib/pipeline-plan'
 
 /**
@@ -26,7 +26,10 @@ export function PlanReading({ view }: { view: PlanView }) {
             {view.issues.length > 0 && (
                 <div className="space-y-1 rounded-md border border-critical/40 p-2" role="alert">
                     <p className="text-xs font-medium text-critical">
-                        {LABELS.editor.plan.issues_refuse(view.issues.length)}
+                        {counted(
+                            view.issues.length,
+                            LABELS.editor.plan.issues_refuse,
+                        )(String(view.issues.length))}
                     </p>
                     <ul className="space-y-0.5 text-xs">
                         {view.issues.map((issue) => (

@@ -70,7 +70,9 @@ export function Clock({ schedule }: { schedule: ScheduleOut }) {
         return (
             <span className="flex flex-wrap items-baseline gap-1.5 text-sm">
                 {once.fired && (
-                    <span className="text-xs text-muted-foreground">{LABELS.triggers.schedule.fired}</span>
+                    <span className="text-xs text-muted-foreground">
+                        {LABELS.triggers.schedule.outcome.fired}
+                    </span>
                 )}
                 <Instant at={once.at} />
             </span>
@@ -84,9 +86,7 @@ export function NextFire({ schedule }: { schedule: ScheduleOut }) {
     const next = nextFireView(schedule)
     return (
         <span data-testid="next-fire">
-            {next.kind === 'none' && (
-                <span className="text-faint">{LABELS.triggers.schedule.nothing_scheduled}</span>
-            )}
+            {next.kind === 'none' && <span className="text-faint">{LABELS.triggers.schedule.none_due}</span>}
             {next.kind === 'due' && <Instant className="text-muted-foreground" at={next.at} />}
         </span>
     )

@@ -26,7 +26,7 @@ export const LOOK_COLUMNS: Column<LookEntry>[] = [
     },
     {
         id: 'pipeline',
-        header: LABELS.word.pipeline,
+        header: LABELS.word.pipeline.label,
         kind: 'title',
         cell: (entry) => {
             const heading = headingOf({ code: entry.run.pipeline, name: entry.name })

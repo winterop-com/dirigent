@@ -101,7 +101,7 @@ export function SchedulePanel({
                     </Fact>
                 )}
                 {schedule.last_fired_at !== null && (
-                    <Fact label={LABELS.triggers.schedule.last_fired}>
+                    <Fact label={LABELS.word.firing.last}>
                         <span title={formatInstant(schedule.last_fired_at)}>
                             {formatRelative(schedule.last_fired_at)}
                         </span>
@@ -128,13 +128,13 @@ export function SchedulePanel({
                     title={write.why}
                     onClick={toggle}
                 >
-                    {schedule.paused ? LABELS.triggers.resume : LABELS.triggers.pause}
+                    {schedule.paused ? LABELS.action.resume : LABELS.action.pause}
                 </Button>
             </Refusable>
 
             <History
-                title={LABELS.triggers.schedule.firings}
-                empty={LABELS.triggers.schedule.not_fired}
+                title={LABELS.word.firing.heading}
+                empty={LABELS.triggers.schedule.no_firings}
                 loading={!state.read}
                 rows={state.rows}
                 keyOf={firingId}
@@ -196,8 +196,8 @@ export function WebhookPanel({
                     <span className="font-mono">{LABELS.triggers.webhook.post(hookPath(webhook))}</span>
                 </Fact>
                 <Fact label={LABELS.word.signature}>{signing(webhook)}</Fact>
-                <Fact label={LABELS.word.rate_limit}>
-                    {LABELS.triggers.webhook.rate_a_minute(String(webhook.rate_limit_per_minute))}
+                <Fact label={LABELS.word.rate_limit.label}>
+                    {LABELS.word.rate_limit.value(String(webhook.rate_limit_per_minute))}
                 </Fact>
                 <Fact label={LABELS.triggers.webhook.last_delivery}>
                     {webhook.last_delivery_at === null ? (
@@ -232,7 +232,7 @@ export function WebhookPanel({
                             act(setWebhookActive(pipeline, webhook.code, !webhook.active), onChanged)
                         }}
                     >
-                        {webhook.active ? LABELS.triggers.webhook.disable : LABELS.triggers.webhook.enable}
+                        {webhook.active ? LABELS.action.disable : LABELS.action.enable}
                     </Button>
                 </Refusable>
                 <Refusable why={write.why}>
@@ -303,7 +303,7 @@ export function WatchPanel({
             </Head>
 
             <dl className="space-y-1.5">
-                <Fact label={LABELS.word.step}>
+                <Fact label={LABELS.word.step.label}>
                     <span className="font-mono">{watch.step}</span>
                 </Fact>
                 {watchView(watch).kind !== 'paused' && (
@@ -359,7 +359,7 @@ export function WatchPanel({
                     title={write.why}
                     onClick={toggle}
                 >
-                    {watch.paused ? LABELS.triggers.resume : LABELS.triggers.pause}
+                    {watch.paused ? LABELS.action.resume : LABELS.action.pause}
                 </Button>
             </Refusable>
         </div>
@@ -436,7 +436,7 @@ function History<T>({
     return (
         <div className="space-y-2">
             <p className="text-xs text-muted-foreground">{title}</p>
-            {loading && <p className="text-xs text-faint">{LABELS.triggers.history.loading}</p>}
+            {loading && <p className="text-xs text-faint">{LABELS.shell.reading}</p>}
             {!loading && rows.length === 0 && <p className="text-xs text-faint">{empty}</p>}
             <ul className="divide-y divide-border">
                 {rows.map((row) => (
@@ -453,7 +453,7 @@ function History<T>({
                     disabled={reading}
                     onClick={onMore}
                 >
-                    {reading ? LABELS.triggers.history.more_busy : LABELS.triggers.history.more}
+                    {reading ? LABELS.shell.reading : LABELS.triggers.history.more}
                 </Button>
             )}
         </div>

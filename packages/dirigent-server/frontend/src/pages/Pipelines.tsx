@@ -215,7 +215,7 @@ export function Pipelines() {
         return [
             {
                 id: PREVIEW_TAB,
-                label: LABELS.word.pipeline,
+                label: LABELS.word.pipeline.label,
                 render: () => (
                     <Suspense fallback={<PanelReading />}>
                         <PipelinePreview key={chosen.code} pipeline={chosen} />
@@ -335,7 +335,7 @@ export function Pipelines() {
                     reading={state.reading}
                     next={state.next}
                     onMore={more}
-                    noun={LABELS.pipelines.noun}
+                    noun={LABELS.word.pipeline.count}
                 />
             </PageState>
 
@@ -400,7 +400,7 @@ function pipelineColumns(onTag: (tag: string) => void): Column<PipelineOut>[] {
     return [
         {
             id: 'pipeline',
-            header: LABELS.word.pipeline,
+            header: LABELS.word.pipeline.label,
             kind: 'title',
             cell: (row) => {
                 const retired = retirement(row)
@@ -457,7 +457,7 @@ function pipelineColumns(onTag: (tag: string) => void): Column<PipelineOut>[] {
         },
         {
             id: 'triggers',
-            header: LABELS.pipelines.column.triggers,
+            header: LABELS.word.trigger.heading,
             cell: (row) =>
                 row.schedules === 0 && row.webhooks === 0 && row.watches === 0 ? null : (
                     <span

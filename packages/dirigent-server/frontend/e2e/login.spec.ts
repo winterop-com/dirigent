@@ -25,7 +25,7 @@ const paneWidth = async (page: Page) =>
 async function openLogin(page: Page, width: number, height: number): Promise<void> {
     await page.setViewportSize({ width, height })
     await page.goto('/login')
-    await expect(page.getByRole('heading', { name: LABELS.login.sign_in })).toBeVisible()
+    await expect(page.getByRole('heading', { name: LABELS.action.sign_in.verb })).toBeVisible()
 }
 
 /** Drag the seam by `by` pixels, from wherever it is standing. */
@@ -53,7 +53,7 @@ test('the seam drags, and what it was dragged to comes back with the browser', a
     expect(narrowed).toBeCloseTo(1440 - FORM_COLUMN - 100, 0)
 
     await page.reload()
-    await expect(page.getByRole('heading', { name: LABELS.login.sign_in })).toBeVisible()
+    await expect(page.getByRole('heading', { name: LABELS.action.sign_in.verb })).toBeVisible()
     expect(await paneWidth(page)).toBeCloseTo(narrowed, 0)
     expect(before).toBeLessThan(narrowed)
 })
@@ -97,7 +97,7 @@ test('a double-click gives the pane its own clamp back, and so does Delete', asy
 
     // The clamp is what a fresh browser gets, so nothing was left behind in storage.
     await page.reload()
-    await expect(page.getByRole('heading', { name: LABELS.login.sign_in })).toBeVisible()
+    await expect(page.getByRole('heading', { name: LABELS.action.sign_in.verb })).toBeVisible()
     expect(await paneWidth(page)).toBeCloseTo(clamped, 0)
 })
 

@@ -287,7 +287,7 @@ test('choosing a pipeline row reads it beside the listing, and its title opens t
     const panel = page.locator('aside')
     await expect(panel.getByText(LABELS.word.parameters, { exact: true })).toBeVisible()
     await expect(panel.getByText(LABELS.editor.pipeline_pane.recent_runs, { exact: true })).toBeVisible()
-    await expect(panel.getByText(LABELS.editor.pipeline_pane.versions, { exact: true })).toBeVisible()
+    await expect(panel.getByText(LABELS.word.version.heading, { exact: true })).toBeVisible()
     await expect(panel.getByText(DESCRIPTION, { exact: false })).toBeVisible()
     // Reading a row did not leave the listing.
     await expect(page).toHaveURL(/\/pipelines$/)

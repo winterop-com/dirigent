@@ -82,19 +82,19 @@ export function StepTab({
                 <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
                     {heading.code !== null && (
                         <Fact
-                            term={LABELS.runs.fact.step}
+                            term={LABELS.word.step.term}
                             detail={<span className="font-mono">{heading.code}</span>}
                         />
                     )}
                     <Fact
-                        term={LABELS.runs.fact.block}
+                        term={LABELS.word.block.term}
                         detail={<span className="font-mono">{view.node.block}</span>}
                     />
                     <Fact term={LABELS.runs.fact.rule} detail={view.node.rule} />
                     {view.node.depends_on.length > 0 && (
                         <Fact term={LABELS.runs.fact.after} detail={view.node.depends_on.join(', ')} />
                     )}
-                    <Fact term={LABELS.runs.fact.started} detail={<Instant at={started} />} />
+                    <Fact term={LABELS.word.started.term} detail={<Instant at={started} />} />
                     {/* A step that never queued or never parked says so by saying nothing: a
                         fact reading zero is a row spent on an answer of "no", and one reading
                         the whole of the step is the row above it said again. */}
@@ -107,7 +107,7 @@ export function StepTab({
                 </dl>
             </div>
 
-            <Section title={countedHeading(LABELS.runs.attempts, view.attempts.length)}>
+            <Section title={countedHeading(LABELS.word.attempt.heading, view.attempts.length)}>
                 {view.attempts.length === 0 ? (
                     <p className="text-xs text-muted-foreground">{LABELS.runs.no_attempts}</p>
                 ) : (

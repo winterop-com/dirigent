@@ -120,7 +120,10 @@ test("a line's step prefix opens that step in the panel", async ({ page }) => {
 
     await page.locator('[data-log-line] button', { hasText: 'generate' }).click()
 
-    await expect(panel.getByRole('tab', { name: LABELS.word.step })).toHaveAttribute('aria-selected', 'true')
+    await expect(panel.getByRole('tab', { name: LABELS.word.step.label })).toHaveAttribute(
+        'aria-selected',
+        'true',
+    )
     await expect(panel.getByText('generate', { exact: true })).toBeVisible()
 })
 

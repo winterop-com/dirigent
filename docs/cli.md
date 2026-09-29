@@ -496,7 +496,7 @@ Four exit codes, across every command:
 | Code | Meaning |
 | --- | --- |
 | 0 | It worked |
-| 1 | It ran and the answer was no: a failed run, a refusal from the server, a connection that answered unhealthy. A check that ran and could not decide is not a no, and exits 0 |
+| 1 | It ran and the answer was no: a failed run, a refusal from the server, a connection whose check failed. A check that ran and could not decide is not a no, and exits 0 |
 | 2 | The command line is wrong: an unknown flag, a missing argument |
 | 3 | It never got as far as running: the process refused the environment, a safety gate said no, or a local run could not be set up |
 

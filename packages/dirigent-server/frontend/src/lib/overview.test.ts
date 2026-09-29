@@ -133,9 +133,9 @@ describe('a summary names only what happened', () => {
         expect(
             summarise([
                 [1, 'running'],
-                [2, 'waiting to be claimed'],
+                [2, 'queued'],
             ]),
-        ).toBe('1 running, 2 waiting to be claimed.')
+        ).toBe('1 running, 2 queued.')
     })
 
     test('is nothing at all when nothing happened, so the caller says what that means', () => {
@@ -220,7 +220,7 @@ describe('what is happening right now', () => {
             ]),
         )
         expect(tile.value).toBe('3')
-        expect(tile.note).toBe('1 running, 2 waiting to be claimed.')
+        expect(tile.note).toBe('1 running, 2 queued.')
         expect(tile.tone).toBe('info')
     })
 
@@ -249,7 +249,7 @@ describe('the workers tile states the worst fact', () => {
     // tile that reported it would be hiding the one nobody has heard from.
     test('a silent worker outranks a draining one that sorts before it', () => {
         const tile = workersTile(whole([worker('a', { status: 'draining' }), worker('b', { stale: true })]))
-        expect(tile.note).toBe('b has gone quiet.')
+        expect(tile.note).toBe('b has gone silent.')
         expect(tile.tone).toBe('critical')
     })
 
@@ -268,7 +268,7 @@ describe('the workers tile states the worst fact', () => {
         const tile = workersTile(
             whole([worker('a', { code_matches_server: false }), worker('b', { stale: true })]),
         )
-        expect(tile.note).toBe('b has gone quiet.')
+        expect(tile.note).toBe('b has gone silent.')
     })
 
     test('an empty registry is a warning rather than a clean fleet', () => {

@@ -63,7 +63,7 @@ export function ChannelStrip({ channels, read }: { channels: readonly Channel[];
 
 /** What the section says instead of channels, and nothing where it has some to draw. */
 function channelNote(count: number, read: boolean): { text: string; tone: string } | null {
-    if (!read) return { text: LABELS.alerting.reading, tone: 'text-sm text-faint' }
+    if (!read) return { text: LABELS.shell.reading, tone: 'text-sm text-faint' }
     if (count === 0) return { text: LABELS.alerting.channels_none, tone: 'text-sm text-muted-foreground' }
     return null
 }

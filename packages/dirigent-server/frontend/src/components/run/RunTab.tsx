@@ -40,9 +40,9 @@ export function RunTab({ run }: { run: RunOut }) {
 
             {run.error !== null && <p className="text-xs break-words text-critical">{run.error}</p>}
 
-            <Section title={LABELS.word.trigger}>
+            <Section title={LABELS.word.trigger.label}>
                 <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
-                    <Fact term={LABELS.runs.fact.kind} detail={started.kind} />
+                    <Fact term={LABELS.word.kind.term} detail={started.kind} />
                     <Fact
                         term={LABELS.runs.fact.by}
                         detail={
@@ -64,12 +64,12 @@ export function RunTab({ run }: { run: RunOut }) {
 
             <Section title={LABELS.runs.timing}>
                 <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
-                    <Fact term={LABELS.runs.fact.created} detail={<Instant at={run.created_at} />} />
-                    <Fact term={LABELS.runs.fact.started} detail={<Instant at={run.started_at} />} />
+                    <Fact term={LABELS.word.created.term} detail={<Instant at={run.created_at} />} />
+                    <Fact term={LABELS.word.started.term} detail={<Instant at={run.started_at} />} />
                     <Fact term={LABELS.runs.fact.finished} detail={<Instant at={run.finished_at} />} />
                     {run.window_start !== null && run.window_end !== null && (
                         <Fact
-                            term={LABELS.runs.fact.window}
+                            term={LABELS.word.window.term}
                             detail={
                                 <span title={LABELS.measure.range(run.window_start, run.window_end)}>
                                     {formatWindow(run.window_start, run.window_end)}
@@ -99,7 +99,7 @@ export function RunTab({ run }: { run: RunOut }) {
             <Section title={LABELS.word.definition}>
                 <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
                     <Fact
-                        term={LABELS.runs.fact.pipeline}
+                        term={LABELS.word.pipeline.term}
                         detail={
                             <Link
                                 className="text-primary-ink hover:underline"
@@ -109,9 +109,9 @@ export function RunTab({ run }: { run: RunOut }) {
                             </Link>
                         }
                     />
-                    <Fact term={LABELS.runs.fact.version} detail={run.pipeline_version} />
+                    <Fact term={LABELS.word.version.term} detail={run.pipeline_version} />
                     <Fact
-                        term={LABELS.runs.fact.run}
+                        term={LABELS.word.run.term}
                         detail={<Copyable value={run.id} label={COPY_RUN_LABEL} />}
                     />
                     {run.trace_id !== null && (

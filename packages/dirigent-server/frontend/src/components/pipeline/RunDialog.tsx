@@ -175,7 +175,7 @@ export function RunDialog({
                 {needsWindow || windowAsked ? (
                     <div className="space-y-2">
                         <div className="flex flex-wrap items-baseline gap-x-2">
-                            <Label>{LABELS.word.window}</Label>
+                            <Label>{LABELS.word.window.label}</Label>
                             <span className="font-mono text-xs text-faint">{zoneLabel(mode)}</span>
                         </div>
                         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">

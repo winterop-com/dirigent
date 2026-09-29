@@ -18,6 +18,7 @@ from clisupport import asking_for_the_rendering, closing, of_kind, only, plain, 
 from dirigent_cli import commands
 from dirigent_cli.commands import instance_settings
 from dirigent_cli.main import app, dev_admin, hoist_globals
+from dirigent_cli.output import CONNECTION_HEALTH
 from dirigent_cli.profiles import resolve_endpoint
 from dirigent_cli.project import InitChoices, ProjectError, find_project, scaffold
 from dirigent_common import BlockModel, HealthReport
@@ -1277,11 +1278,11 @@ def test_a_check_that_answered_says_healthy_and_ends_well(server: str) -> None:
 
 
 @pytest.mark.parametrize("extra_plugins", VERDICTS, indirect=True)
-def test_a_check_the_system_refused_says_unhealthy_and_ends_badly(server: str) -> None:
+def test_a_check_the_system_refused_says_failed_and_ends_badly(server: str) -> None:
     result = connection_checking("refusing", "unhealthy")
     assert result.exit_code == 1
     record = only(result.stdout, "connection.checked")
-    assert (record["message"], record["healthy"]) == ("unhealthy", False)
+    assert (record["message"], record["healthy"]) == ("failed", False)
 
 
 @pytest.mark.parametrize("extra_plugins", VERDICTS, indirect=True)
@@ -1295,13 +1296,14 @@ def test_a_check_that_could_not_decide_says_so_and_is_not_a_failure(server: str)
 
 
 @pytest.mark.parametrize("extra_plugins", VERDICTS, indirect=True)
-def test_the_listing_tells_an_undecided_check_from_a_no(server: str) -> None:
-    """The three outcomes are three cells; none of them is the blank a row nothing has checked shows."""
+def test_the_listing_draws_each_check_in_the_word_every_surface_says_it_in(server: str) -> None:
+    """The four states are four cells, in the four words the web UI's own catalogue holds."""
     connection_checking("answering", "healthy")
     connection_checking("refusing", "unhealthy")
     connection_checking("undecidable", "undecided")
     machine("connection", "create", "verdict", "unasked", "--set", "verdict=healthy")
-    assert "not verified" in plain(invoke("connection", "list").stdout)
+    drawn = plain(invoke("connection", "list").stdout)
+    assert {word for word in CONNECTION_HEALTH.values() if word in drawn} == set(CONNECTION_HEALTH.values())
     listed = rows(machine("connection", "list").stdout, "connection")
     assert {row["code"]: row["last_check_healthy"] for row in listed} == {
         "answering": True,

@@ -70,7 +70,7 @@ export function StatTile({ tile }: { tile: Tile }) {
 export function TilePlaceholder() {
     return (
         <Card className="h-full">
-            <CardContent className="p-3 text-xs text-faint">{LABELS.dashboard.reading}</CardContent>
+            <CardContent className="p-3 text-xs text-faint">{LABELS.shell.reading}</CardContent>
         </Card>
     )
 }

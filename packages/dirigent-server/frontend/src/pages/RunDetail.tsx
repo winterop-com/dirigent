@@ -307,7 +307,7 @@ export function RunDetail() {
         return [
             {
                 id: 'step',
-                label: LABELS.word.step,
+                label: LABELS.word.step.label,
                 render: () =>
                     chosen === null ? (
                         <p className="p-4 text-sm text-muted-foreground">{LABELS.runs.no_step_chosen}</p>
@@ -323,7 +323,7 @@ export function RunDetail() {
                         />
                     ),
             },
-            { id: 'run', label: LABELS.word.run, render: () => <RunTab run={state.run} /> },
+            { id: 'run', label: LABELS.word.run.label, render: () => <RunTab run={state.run} /> },
             {
                 id: 'output',
                 label: LABELS.word.output,

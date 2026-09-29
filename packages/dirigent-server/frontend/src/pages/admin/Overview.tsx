@@ -190,7 +190,7 @@ function Overview() {
                         reading={false}
                         next={null}
                         onMore={NOTHING_MORE}
-                        noun={LABELS.dashboard.noun.runs}
+                        noun={LABELS.word.run.count}
                         onSelect={(entry) => void navigate(`/runs/${entry.run.id}`)}
                     />
                 </PageState>
@@ -198,7 +198,7 @@ function Overview() {
 
             <section className="space-y-2">
                 <h2 className="text-sm font-semibold">{LABELS.screen.workers.name}</h2>
-                <WorkersTable state={workers.state} more={workers.more} empty={LABELS.dashboard.no_workers} />
+                <WorkersTable state={workers.state} more={workers.more} empty={LABELS.workers.empty} />
             </section>
         </>
     )
