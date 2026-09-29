@@ -247,10 +247,12 @@ function runColumns(names: ReadonlyMap<string, string | null> | null): Column<Ru
         {
             id: 'trigger',
             header: 'Trigger',
+            kind: 'prose',
             cell: (run) => {
                 const started = triggerSummary(run)
+                const whole = started.said === null ? started.kind : `${started.kind} · ${started.said}`
                 return (
-                    <span className="text-xs">
+                    <span className="block min-w-0 truncate text-xs" title={whole}>
                         {started.kind}
                         {started.who !== null && <span className="text-faint"> · {started.who}</span>}
                     </span>

@@ -506,3 +506,54 @@ test.describe('the same row as a card', () => {
         expect(sideways).toBeLessThanOrEqual(0)
     })
 })
+
+/** A parent that starts three child runs, each triggered by a step of it. */
+const PARENT = { file: 'examples/patterns/pipeline-run-with-params.yaml', code: 'pipeline-run-with-params' }
+const CHILD = { file: 'examples/patterns/pipeline-run-child.yaml', code: 'pipeline-run-child' }
+
+test.describe('a run started by a step of another run', () => {
+    test.use({ viewport: { width: 1024, height: 768 } })
+
+    test('names its parent briefly, holds the table in its box, and opens the parent', async ({ page }) => {
+        await signIn(page)
+        await applyExample(page.request, CHILD.file)
+        await applyExample(page.request, PARENT.file)
+        const parent = await startRun(page.request, PARENT.code)
+        await ranToCompletion(page.request, parent)
+
+        await page.goto('/runs')
+        const row = runRowOf(page, CHILD.code)
+        await expect(row).toBeVisible()
+        // At a desk width the listing is still a table: the trigger cell yields rather than
+        // pushing the columns past the box.
+        await expect(page.getByRole('table')).toBeVisible()
+
+        // The parent is named by the tail of its id, and the whole of what was recorded is on
+        // hover.
+        const trigger = row.locator('td').nth(2).locator('[title]')
+        await expect(trigger).toContainText(parent.slice(-8))
+        await expect(trigger).not.toContainText(parent)
+        await expect(trigger).toHaveAttribute('title', new RegExp(parent))
+
+        // NOTHING SCROLLS SIDEWAYS: the listing's content fits its own box.
+        const overflow = await page
+            .locator('.list-scroll')
+            .first()
+            .evaluate((box) => box.scrollWidth - box.clientWidth)
+        expect(overflow).toBeLessThanOrEqual(0)
+
+        // The run's own panel names the parent the same way, and is the way to it. The panel
+        // stands beside the graph at a desk width.
+        await page.setViewportSize({ width: 1280, height: 720 })
+        await row.click()
+        await expect(page).toHaveURL(/\/runs\/[0-9a-f-]+$/)
+        await expect(page.locator('.react-flow__node').first()).toBeVisible()
+        await page.getByRole('button', { name: 'Show or hide the side panel' }).click()
+        const panel = page.locator('aside')
+        await panel.getByRole('tab', { name: 'Run' }).click()
+        const toParent = panel.getByRole('link', { name: `a step of run ${parent.slice(-8)}` })
+        await expect(toParent).toBeVisible()
+        await toParent.click()
+        await expect(page).toHaveURL(new RegExp(`/runs/${parent}$`))
+    })
+})

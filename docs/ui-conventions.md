@@ -1013,7 +1013,10 @@ where the rail's own cell in the status bar puts it above the breakpoint.
 **A listing row becomes a card where the table will not fit**, which on a phone is every
 listing. The table is one component and so is its narrow form: `ListTable` draws its first
 column as the card's head -- the title as the row's link, the code in mono once -- and every
-other column as a labelled fact under it, labelled by that column's own header. What a row does
+other column as a labelled fact under it, labelled by that column's own header. A column headed
+by nothing is a control -- a check, a revoke -- and it has no label row: it stands under the
+facts at the card's content edge, where the head starts, rather than in the value column beside
+a blank. `cardFacts` in `lib/card-form` is that split. What a row does
 as a table it does here: a row that opens a panel opens it, and a row that is a link is one. The
 card is the whole listing's form, header row and column widths included, so nothing on a narrow
 table has to be told how to shrink.
@@ -1394,6 +1397,12 @@ and with the id on hover. `Run` is the word that stands in over the pipeline's n
 a run loaded to name -- the palette's shelf while the read is in flight -- and it is followed by
 the pipeline and the instant the moment there is one. A queued run has not started, so every one
 of those readings takes `started_at ?? created_at` and none of them can draw a blank.
+
+**A run started by a step of another names that run by its short id.** `triggerSummary` in
+`lib/runs` is the one phrase -- `a step of run 32ee6409`, `shortId`'s tail of `parent_run_id` --
+on the runs listing's Trigger cell and the run's own Trigger facts, where it is the link to the
+parent. What the server recorded, uuid and all, is on hover. The Trigger column is prose: it
+truncates in its share rather than widening the table.
 
 **Two durations, measured at two altitudes.** The run's is `started_at` to `finished_at`, beside
 its status chip; a step's is the earliest start of any of its attempts to the latest finish of any
