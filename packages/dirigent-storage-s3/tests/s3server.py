@@ -13,7 +13,7 @@ from pydantic import SecretStr
 
 from dirigent_storage_s3 import MULTIPART_THRESHOLD, S3StorageBackend, S3StorageConfig, open_client
 
-S3_IMAGE: Final = "rustfs/rustfs:1.0.0-rc.4@sha256:a9fbb5e5bfce09ccd0869ac9a7b0e39191c6868d75ec4c5d08ebbd5475db5d6b"
+S3_IMAGE: Final = "rustfs/rustfs:1.0.0-rc.4"
 
 S3_PORT: Final = 9000
 

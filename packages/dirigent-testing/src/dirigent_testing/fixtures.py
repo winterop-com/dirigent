@@ -14,7 +14,7 @@ from dirigent_testing.doubles import FakeContext, FakeStorage
 from dirigent_testing.environment import scrub_configuration
 
 #: The server the lanes that need a real PostgreSQL start for themselves.
-POSTGRES_IMAGE: Final = "postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24"
+POSTGRES_IMAGE: Final = "postgres:17-alpine"
 
 #: Every database connection a pool has opened and not closed again, by identity.
 _open_connections: set[int] = set()

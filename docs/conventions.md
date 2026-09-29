@@ -208,20 +208,3 @@ attempts logging five thousand lines each, against a real PostgreSQL, and writes
 path cost -- rows a second, flush sizes and durations, how long a line takes to become
 visible, connections held, and what the settled reads cost -- as `load` records on stdout.
 It is a measurement, not a threshold: it is run on purpose, by a person, and read.
-
-## An image is named by tag and digest
-
-Every container image this repository runs -- the stack under `infra/`, the fixtures the
-marked lanes start for themselves -- is written `name:tag@sha256:...`. The tag says which
-version a reader is looking at; the digest is what is pulled, so a moving tag cannot change
-under a build, and an image withdrawn upstream fails on its own name rather than resolving to
-something else. Moving to a new version means resolving its digest and writing both:
-
-```console
-$ docker buildx imagetools inspect postgres:17-alpine --format '{{.Manifest.Digest}}'
-```
-
-CI pulls what a lane needs through `scripts/pull_images.py`, which tries a dropped pull again
-before failing. Two optional repository secrets, `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN`,
-make those pulls authenticated and lift the anonymous rate limit a runner shares with every
-other job on its machine; with either unset the lanes pull anonymously.

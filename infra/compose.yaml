@@ -49,7 +49,7 @@ x-dirigent: &dirigent
 
 services:
   postgres:
-    image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+    image: postgres:17-alpine
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-dirigent}
@@ -110,7 +110,7 @@ services:
   # Artifact storage. The endpoint the connection names is the one containers resolve, not
   # the one a shell on the host does: `localhost` inside a container is the container.
   s3:
-    image: ${DIRIGENT_S3_IMAGE:-rustfs/rustfs:1.0.0-rc.4@sha256:a9fbb5e5bfce09ccd0869ac9a7b0e39191c6868d75ec4c5d08ebbd5475db5d6b}
+    image: ${DIRIGENT_S3_IMAGE:-rustfs/rustfs:1.0.0-rc.4}
     restart: unless-stopped
     environment:
       RUSTFS_ACCESS_KEY: ${S3_ACCESS_KEY:-dirigent}
