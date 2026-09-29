@@ -17,10 +17,10 @@ import { cn } from '@/lib/utils'
  * takes all the screen there is, less a gutter; a reference for the language sits beside the
  * editor when the caller has one, and stacks below it on a narrow screen.
  *
- * THE BUTTON SITS WHERE NO TEXT DOES, and this is the only place it is drawn. The bottom-right
- * corner of a pane is where its two scrollbars meet and a document's last line ends early, so
- * the button there covers nothing a reader needs; at the top right it covered the tail of a
- * program's first line. Every pane that offers a window -- a source field, a report document, an
+ * THE BUTTON SITS WHERE NO TEXT DOES, and this is the only place it is drawn: in a strip of its
+ * own under the pane, at the bottom-right corner of the box. The pane scrolls above the strip, so
+ * a line that runs to the right edge, wherever the pane is scrolled to, ends before the button
+ * rather than under it. Every pane that offers a window -- a source field, a report document, an
  * alert body, a block of produced JSON -- takes the button, the corner and the window from here,
  * so there is one corner to learn.
  *
@@ -39,11 +39,11 @@ export function WindowedPane({
 }: {
     /** What the content is called: the window's title, and what the button names. */
     name: string
-    /** What the box around the pane in place is, which a source pane draws as a bordered field. */
+    /** What the box around the pane and the button's strip is, which a source pane draws as a
+     * bordered field. */
     className?: string
     onBlur?: () => void
-    /** The pane as it stands in place, at whatever height its caller gave it, with the
-     * bottom-right corner left clear for the button. */
+    /** The pane as it stands in place, at whatever height its caller gave it. */
     children: ReactNode
     /** The same buffer's pane, as the window draws it. */
     windowed: ReactNode
@@ -52,19 +52,21 @@ export function WindowedPane({
 }) {
     const [wide, setWide] = useState(false)
     return (
-        <div className={cn('relative', className)} onBlur={onBlur}>
-            {children}
-            <Button
-                variant="ghost"
-                size="icon"
-                aria-label={`Open ${name} in a window`}
-                className="absolute right-3.5 bottom-1.5 size-6 rounded-md border border-border bg-background/90 text-faint"
-                onClick={() => {
-                    setWide(true)
-                }}
-            >
-                <Maximize2 className="size-3.5" aria-hidden />
-            </Button>
+        <div className={cn('flex flex-col', className)} onBlur={onBlur}>
+            <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+            <div className="flex shrink-0 justify-end p-1.5 pt-0">
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Open ${name} in a window`}
+                    className="size-6 rounded-md border border-border bg-background text-faint"
+                    onClick={() => {
+                        setWide(true)
+                    }}
+                >
+                    <Maximize2 className="size-3.5" aria-hidden />
+                </Button>
+            </div>
             <Dialog open={wide} onOpenChange={setWide}>
                 {/* Focus is not handed back to the control on close: the library restores it
                     after the exit animation, past any blur, and the ring it then wears reads

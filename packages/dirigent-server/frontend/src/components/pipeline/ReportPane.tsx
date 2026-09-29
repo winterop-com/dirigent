@@ -107,7 +107,7 @@ export function ReportPane({
             {choice === 'own' && (
                 <WindowedPane
                     name={TEMPLATE_LABEL}
-                    className="overflow-hidden rounded-md border border-border"
+                    className="overflow-hidden rounded-md border border-border bg-background"
                     aside={<ProgramReference mediaType={TEMPLATE_MEDIA_TYPE} />}
                     windowed={
                         <CodePane

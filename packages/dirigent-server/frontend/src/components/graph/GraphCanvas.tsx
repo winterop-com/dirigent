@@ -18,8 +18,11 @@ import {
     fitOptionsFor,
     MAX_ZOOM,
     MIN_ZOOM,
+    revealPoint,
     steppedZoom,
+    viewMoved,
     viewportSignature,
+    type CanvasView,
 } from '@/lib/dag-layout'
 
 /**
@@ -97,6 +100,8 @@ export function GraphCanvas({
 }) {
     // A pan, a zoom or a drag the reader made, which is what stops the canvas re-deciding the view.
     const [moved, setMoved] = useState(false)
+    // Where the view stood when the reader's current pan or zoom began.
+    const gesture = useRef<CanvasView | null>(null)
     // A connection being drawn, which is what lights every port on the canvas at once.
     const [connecting, setConnecting] = useState(false)
 
@@ -118,10 +123,15 @@ export function GraphCanvas({
             // React Flow answers neither key while the focus is in a text box, so a Backspace
             // meant for a config field is never a step.
             deleteKeyCode={editing === null ? null : ['Delete', 'Backspace']}
-            onMoveStart={(event) => {
+            onMoveStart={(event, view) => {
                 // React Flow passes null for a move it made itself, so only a reader's own
-                // gesture takes the view over.
-                if (event !== null) setMoved(true)
+                // gesture can take the view over.
+                gesture.current = event === null ? null : view
+            }}
+            onMoveEnd={(event, view) => {
+                const from = gesture.current
+                gesture.current = null
+                if (event !== null && from !== null && viewMoved(from, view)) setMoved(true)
             }}
             onNodeClick={(_, node) => {
                 onSelect(node.id)
@@ -262,13 +272,36 @@ function FitToGraph({ nodes, moved }: { nodes: Node[]; moved: boolean }) {
         }
     }, [flow, moved, signature])
 
-    // The canvas gets narrower when the right panel is dragged open, and a graph that then
-    // ran off under the panel is the shape no longer being readable.
+    const chosen = nodes.find((node) => node.selected === true)?.id ?? null
+    const selected = useRef(chosen)
+    useEffect(() => {
+        selected.current = chosen
+    }, [chosen])
+
+    // The canvas gets narrower when the right panel opens, and a graph that then ran off under
+    // the panel is the shape no longer being readable. A view the reader has taken over is not
+    // re-fitted; only the chosen box is brought back onto the canvas if the resize cut it.
     useEffect(() => {
         const element = wrapper.current?.parentElement
-        if (element === null || element === undefined || moved) return
+        if (element === null || element === undefined) return
         const observer = new ResizeObserver(() => {
-            void fitCapped(flow)
+            if (!moved) {
+                void fitCapped(flow)
+                return
+            }
+            const node = selected.current === null ? undefined : flow.getInternalNode(selected.current)
+            if (node === undefined) return
+            const box = {
+                ...node.internals.positionAbsolute,
+                width: node.measured.width ?? 0,
+                height: node.measured.height ?? 0,
+            }
+            const view = flow.getViewport()
+            const centre = revealPoint(box, view, {
+                width: element.clientWidth,
+                height: element.clientHeight,
+            })
+            if (centre !== null) void flow.setCenter(centre.x, centre.y, { zoom: view.zoom, duration: 0 })
         })
         observer.observe(element)
         return () => {

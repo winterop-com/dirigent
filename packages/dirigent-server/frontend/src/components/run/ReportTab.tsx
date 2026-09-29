@@ -110,24 +110,26 @@ export function ReportTab({
     return (
         <WindowedPane
             name={DOCUMENT_NAME}
-            className="flex flex-col gap-3 p-4"
+            className="p-4"
             windowed={
                 <div className={cn('min-h-0 w-full flex-1 overflow-y-auto', READING)}>
                     <Description text={markdown} ink="body" />
                 </div>
             }
         >
-            <Description text={markdown} ink="body" />
-            {prefix !== null && (
-                <a
-                    className="w-fit text-xs text-primary-ink hover:underline"
-                    href={artifactUrl(prefix, found.document.id)}
-                    download={DOCUMENT_NAME}
-                    rel="noopener"
-                >
-                    Download the markdown
-                </a>
-            )}
+            <div className="flex flex-col gap-3">
+                <Description text={markdown} ink="body" />
+                {prefix !== null && (
+                    <a
+                        className="w-fit text-xs text-primary-ink hover:underline"
+                        href={artifactUrl(prefix, found.document.id)}
+                        download={DOCUMENT_NAME}
+                        rel="noopener"
+                    >
+                        Download the markdown
+                    </a>
+                )}
+            </div>
         </WindowedPane>
     )
 }
