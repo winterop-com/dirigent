@@ -19,6 +19,10 @@ import { refusalLines } from '@/lib/refusal'
  * server wrote for a person to act on, and `problems` carries the individual failures when a
  * validation refused several things at once. `lib/refusal` decides which of the last two say
  * something the other does not.
+ *
+ * ALL THREE ARE ONE CARD, SO NONE OF THEM PADS ITSELF. The card's own 16px is the inset every
+ * surface in this app holds its content at, and a `py-` laid over it is a second answer to a
+ * question the card has already answered.
  */
 export function PageState({
     loading,
@@ -38,7 +42,7 @@ export function PageState({
     if (loading) {
         return (
             <Card>
-                <CardContent className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
+                <CardContent className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Loader2 className="size-4 animate-spin" aria-hidden />
                     Reading from the server
                 </CardContent>
@@ -49,7 +53,7 @@ export function PageState({
         const lines = refusalLines(problem)
         return (
             <Card>
-                <CardContent className="flex items-start gap-3 py-8">
+                <CardContent className="flex items-start gap-2">
                     <ServerCrash className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden />
                     <div className="space-y-1">
                         <p className="text-sm font-medium">{problem.title}</p>
@@ -73,7 +77,7 @@ export function PageState({
     if (empty) {
         return (
             <Card>
-                <CardContent className="py-2 text-sm text-muted-foreground">{emptyMessage}</CardContent>
+                <CardContent className="text-sm text-muted-foreground">{emptyMessage}</CardContent>
             </Card>
         )
     }
