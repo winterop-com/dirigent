@@ -6,6 +6,7 @@ code and render the same refusal in another language without anything else chang
 """
 
 import re
+from collections.abc import Mapping, Sequence
 from string import Formatter
 from typing import Any, ClassVar, Final, Self
 
@@ -172,7 +173,7 @@ def _validation_message(error_type: str) -> Message:
     return VALIDATION.messages.get(name) or VALIDATION.define(name, _PYDANTIC_TEXT)
 
 
-def validation_issue(detail: dict[str, Any], *, suggestion: str = "") -> Issue:
+def validation_issue(detail: Mapping[str, Any], *, suggestion: str = "") -> Issue:
     """Render one pydantic error as an issue, keeping the value that failed out of the params.
 
     The input value may be a credential or a fragment of a payload, so the params name its
@@ -188,6 +189,24 @@ def validation_issue(detail: dict[str, Any], *, suggestion: str = "") -> Issue:
     return Issue.of(_validation_message(str(detail.get("type", "value_error"))), location=location or None, **params)
 
 
-def validation_issues(errors: list[dict[str, Any]]) -> list[Issue]:
+def validation_issues(errors: Sequence[Mapping[str, Any]]) -> list[Issue]:
     """Render every pydantic error of one validation as issues."""
     return [validation_issue(detail) for detail in errors]
+
+
+#: How much of an exception's own text is kept, where it is stored per attempt or per check.
+RAISED_DETAIL_CHARS: Final = 2000
+
+
+def raised_detail(error: Exception) -> str:
+    """Say what an exception said about itself, falling back to its class when it said nothing.
+
+    A Python class name is not a sentence anybody wrote, so it is the last thing left to say
+    rather than the first thing said. What comes back is an operator's detail: it belongs in a
+    log, in a refusal's params, or in the ``{detail}`` of a message that supplies the sentence
+    around it, and never alone in front of a person.
+    """
+    detail = str(error).strip() or type(error).__name__
+    if len(detail) > RAISED_DETAIL_CHARS:
+        return f"{detail[:RAISED_DETAIL_CHARS]} [truncated, {len(detail)} characters]"
+    return detail

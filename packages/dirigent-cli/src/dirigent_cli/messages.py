@@ -25,7 +25,7 @@ RUN_DB_UPGRADE = CLI.define("run_db_upgrade", "run dg db upgrade")
 
 UNKNOWN_CONNECTION_KIND = CLI.define("unknown_connection_kind", "no connection kind {kind} is installed ({known})")
 
-CONNECTION_UNUSABLE = CLI.define("connection_unusable", "{code} is not a usable {kind} connection: {detail}")
+CONNECTION_UNUSABLE = CLI.define("connection_unusable", "{code} is not a usable {kind} connection")
 
 INVALID_AGE = CLI.define("invalid_age", "{detail}")
 

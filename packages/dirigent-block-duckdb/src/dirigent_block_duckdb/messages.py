@@ -24,8 +24,8 @@ NO_STORAGE_CONNECTION = DUCKDB.define(
 
 NO_HTTPFS = DUCKDB.define(
     "no_httpfs",
-    "duckdb could not load its {extension} extension, which is what reads {scheme}:// here; install "
-    "it once on this worker with duckdb -c 'INSTALL {extension}'",
+    "duckdb could not load its {extension} extension, which is what reads {scheme}:// here; "
+    "the extension is not installed on this worker",
 )
 
 STATEMENT_OUTSIDE_THE_RUN = DUCKDB.define(

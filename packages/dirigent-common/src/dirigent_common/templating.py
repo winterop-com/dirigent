@@ -14,6 +14,7 @@ from dirigent_common.messages import (
     TEMPLATE_LINE,
     TEMPLATE_NO_INCLUDE,
     TEMPLATE_NO_SUCH_TEMPLATE,
+    raised_detail,
 )
 from dirigent_common.sizes import format_size
 
@@ -160,5 +161,5 @@ def render(source: str | jinja2.Template, context: Mapping[str, Any], *, max_byt
             raise TemplateError(TEMPLATE_NO_INCLUDE.render()) from error
         raise TemplateError(TEMPLATE_FAILED.render(detail=str(error))) from error
     except Exception as error:
-        raise TemplateError(TEMPLATE_FAILED.render(detail=f"{type(error).__name__}: {error}")) from error
+        raise TemplateError(TEMPLATE_FAILED.render(detail=raised_detail(error))) from error
     return "".join(chunks)

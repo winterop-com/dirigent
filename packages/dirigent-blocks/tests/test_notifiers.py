@@ -445,7 +445,7 @@ async def test_a_check_that_cannot_reach_slack_reports_rather_than_raises(monkey
     config = SlackNotifierConfig(bot_token=SecretStr(BOT_TOKEN), channel="#ops")
     report = await SlackConnectionKind().check(config)
     assert report.healthy is False
-    assert "ConnectError" in (report.detail or "")
+    assert "no route" in (report.detail or ""), "the remote's own words, not the exception class"
 
 
 async def test_an_incoming_webhook_is_reported_as_unverifiable_without_a_call(
@@ -691,13 +691,13 @@ async def test_a_check_reports_a_password_the_server_refuses(smtp: Server) -> No
     settings = mail_settings(port=smtp.port, username="postmaster", password=SecretStr("wrong"))
     report = await EmailConnectionKind().check(settings)
     assert report.healthy is False
-    assert "SMTPAuthenticationError" in (report.detail or "")
+    assert "535" in (report.detail or ""), "the server's own refusal, not the exception class"
 
 
 async def test_a_check_that_cannot_reach_a_server_reports_rather_than_raises() -> None:
     report = await EmailConnectionKind().check(mail_settings(port=free_port(), timeout=timedelta(seconds=2)))
     assert report.healthy is False
-    assert "SMTPConnectError" in (report.detail or "")
+    assert "connecting" in (report.detail or ""), "what went wrong in words, not the exception class"
 
 
 async def test_a_check_with_no_host_says_so_without_dialling() -> None:

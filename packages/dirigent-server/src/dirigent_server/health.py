@@ -9,6 +9,7 @@ from fastapi import APIRouter, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from dirigent_client.schemas import CheckResult, CheckStatus, Health, Readiness
+from dirigent_common import raised_detail
 from dirigent_core.database import ping
 
 router = APIRouter(tags=["health"])
@@ -73,7 +74,7 @@ async def run_checks(registry: HealthCheckRegistry) -> dict[str, CheckResult]:
         try:
             return await check.check()
         except Exception as error:
-            return CheckResult(status=CheckStatus.UNHEALTHY, detail=f"{type(error).__name__}: {error}")
+            return CheckResult(status=CheckStatus.UNHEALTHY, detail=raised_detail(error))
 
     names = list(registry)
     results = await asyncio.gather(*(run(registry[name]) for name in names))

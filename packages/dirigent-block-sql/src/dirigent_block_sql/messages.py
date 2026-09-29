@@ -31,7 +31,7 @@ NO_JSON_SPELLING = SQL.define("no_json_spelling", "a column of this result has n
 
 ENGINE_PACKAGE_MISSING = SQL.define(
     "engine_package_missing",
-    "{backend} needs the engine package: uv pip install {package}",
+    "{backend} needs the {package} package, which is not installed on this worker",
 )
 
 NO_ASYNC_DRIVER = SQL.define(

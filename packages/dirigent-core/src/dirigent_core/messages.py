@@ -22,8 +22,8 @@ POOL_TOO_SMALL = DATABASE.define(
 SCHEMA_STALE = DATABASE.define(
     "schema_stale",
     "the database at {where} was written by a different dirigent: {differences} difference(s), "
-    "first {first}; before 1.0 the schema is not migrated, so start from an empty state "
-    "(`dg dev --wipe-state`, or delete the state directory) or point at a database this version created",
+    "first {first}; before 1.0 the schema is not migrated, so this instance needs an empty state "
+    "to start from, or a database this version created",
 )
 
 
@@ -63,8 +63,7 @@ SECRET = Catalogue("secret")
 
 SECRET_KEY_MISSING = SECRET.define(
     "key_missing",
-    "no secret key is configured: set DIRIGENT_SECRET_KEY before storing or reading "
-    "connection secrets (generate one with `dg secret-key`)",
+    "no secret key is configured: DIRIGENT_SECRET_KEY must hold one before a connection secret can be stored or read",
 )
 
 EMPTY_SECRET = SECRET.define("empty", "{fields} cannot be stored empty: a required secret needs a value")
@@ -124,7 +123,7 @@ UNKNOWN_BLOCK = HOST.define(
     "Install the plugin package that contributes it.",
 )
 
-UNKNOWN_EXAMPLE = HOST.define("unknown_example", "no example {code} is installed; `dg examples list` says what is.")
+UNKNOWN_EXAMPLE = HOST.define("unknown_example", "no example {code} is installed.")
 
 AMBIGUOUS_EXAMPLE = HOST.define(
     "ambiguous_example",
@@ -671,11 +670,21 @@ STEP_NOT_IN_VERSION = RUN.define("step_not_in_version", "step {step} is not in t
 
 CONFIG_REFUSED = RUN.define("config_refused", "{detail}")
 
-CONFIG_FAILED = RUN.define("config_failed", "{kind}: {detail}")
+# A failure nobody anticipated has no sentence of its own, and a Python class name is not one:
+# the person is told what failed and where the words are, and the class and the exception's own
+# text ride in the params and in the step's log, which is what an operator reads.
+
+CONFIG_FAILED = RUN.define(
+    "config_failed",
+    "the config of step {step} could not be prepared, and the failure names no value to correct",
+)
 
 BLOCK_NOT_INSTALLED = RUN.define("block_not_installed", "block {block} is not installed")
 
-BLOCK_RAISED = RUN.define("block_raised", "{kind}: {detail}")
+BLOCK_RAISED = RUN.define(
+    "block_raised",
+    "the {block} block failed with an error it does not explain; the step's log carries what it raised",
+)
 
 GONE_PROBES = RUN.define("gone_probes", "{detail} (after {probes} consecutive GONE probes)")
 

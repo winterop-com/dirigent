@@ -42,7 +42,7 @@ from dirigent_block_queues.messages import (
     RABBIT_PUBLISH_TIMED_OUT,
     RABBIT_READ_FAILED,
 )
-from dirigent_common import BlockModel, Duration, HealthReport
+from dirigent_common import BlockModel, Duration, HealthReport, raised_detail
 from dirigent_plugin import (
     BlockFailure,
     ConnectionKind,
@@ -196,7 +196,7 @@ class RabbitConnectionKind(ConnectionKind):
             finally:
                 await connection.close()
         except Exception as error:  # every client error is a health answer, never a raise
-            return HealthReport(healthy=False, detail=f"{type(error).__name__}: {error}")
+            return HealthReport(healthy=False, detail=raised_detail(error))
         return HealthReport(healthy=True, detail="a channel opened")
 
 
