@@ -16,6 +16,44 @@ tag is what publishes: `.github/workflows/release.yaml` builds every package and
 to PyPI through trusted publishing, then builds the image from that commit and pushes it as
 `<version>` and `latest`. The two sibling repositories then relock against the tag and bump.
 
+## 0.22.0
+
+Released 2026-09-29. Every package in the workspace moves to 0.22.0 together, and so do
+`dirigent-dhis2` and `dirigent-integration`.
+
+- **Every word the UI says has a code.** `lib/labels.ts` holds them all, one nested object
+  whose path is the code, built the way `dirigent_common.messages` is built: a catalogue per
+  area, a duplicate refused by the compiler rather than at import, and a sentence with a value
+  in it written as a function with named parameters. A translation is a second table,
+  `const nb: typeof LABELS`, and the compiler fails a missing code, a stray one, or a sentence
+  taking different parameters. `scripts/check_ui_labels.py` runs in `make static` and fails a
+  user-visible literal outside the catalogue, or a label nothing reads.
+- **A refusal renders in the language of the surface that draws it.** The wire carries the code
+  and the params; each surface renders its own sentence. The browser reads `detail` only as the
+  fallback for a code it does not know. `RunOut`, `ItemOut`, `StepReport`, `RunReport`,
+  `LogEntryOut`, `AlertMessage` and `RunSnapshot` carry what a renderer needs, and a log entry
+  holds its code in a column rather than inside `fields`.
+- **A pack contributes the wording its codes are rendered from.** `labels` is the seventh
+  `Contribution` surface, a list of catalogues gathered by the host and served from
+  `GET /labels`, so a pack's refusal reaches a browser in the browser's language. The nine
+  in-tree families contribute 152 codes. The field defaults to empty, so a pack that does not
+  set it loads unchanged.
+- **A refusal a person reads is written for that person.** An uncaught block error no longer
+  reaches the run view as a Python class name: the sentence says the block failed and points at
+  the step's log, which carries what it raised. Six messages that told a browser user to type a
+  command say what is wrong instead, and a test walking every catalogue fails a new one.
+  Eleven cancellations that were bare English now carry codes.
+- **One word per concept.** A schedule's firing was spelled nine ways, `queued` four; a column
+  and the fact beside it disagreed on case in seven places. Each is one entry now, with its
+  surface forms under it. `test_shared_words.py` fails the CLI and the UI drifting apart on a
+  word they both say.
+- **A pack can check its own wording.** `dirigent_testing.check_pack_messages` reports a refusal
+  raised under no code, a message nothing reads, and a code two catalogues both define. It is
+  opted into with one line, like the package's other assertions.
+- **The mono face is JetBrains Mono**, self-hosted, with the same advance as what it replaces.
+- **One inset per surface.** 16px, stated once and spent everywhere; a listing row that fills
+  the panel takes it back when pressed again; a dialog draws one control that dismisses it.
+
 ## 0.21.0
 
 Released 2026-09-27. Every package in the workspace moves to 0.21.0 together, and so do
