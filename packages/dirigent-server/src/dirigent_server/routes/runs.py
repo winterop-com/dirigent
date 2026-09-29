@@ -1,6 +1,7 @@
 """Runs: the list, the detail with its DAG view model, cancellation, retry, logs, events, and a report."""
 
 import asyncio
+import time
 from collections.abc import AsyncGenerator, Generator, Mapping, Sequence
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
@@ -29,7 +30,7 @@ from dirigent_client.schemas import (
     StepReport,
 )
 from dirigent_common.durations import DurationError, parse_duration
-from dirigent_core import telemetry
+from dirigent_core import telemetry, wakeups
 from dirigent_core.artifacts import JSON_CONTENT_TYPE, TEXT_KEY, canonical_json, open_artifact
 from dirigent_core.database import session_scope
 from dirigent_core.engine.definition import PipelineDefinition, load_definition
@@ -485,6 +486,19 @@ def next_interval(current: float) -> float:
     return min(current * FOLLOW_BACKOFF, FOLLOW_MAX_INTERVAL_SECONDS)
 
 
+async def quiet_wait(mark: wakeups.Mark, waited: float, interval: float) -> tuple[float, float]:
+    """Wait out one quiet interval, or less when the run moves, and say how long and what next.
+
+    A run that moved sends the stream back to its shortest interval.
+    """
+    started = time.monotonic()
+    moved = await wakeups.wait_settled(mark, timeout=interval)
+    elapsed = time.monotonic() - started
+    if moved:
+        return waited + elapsed, FOLLOW_INTERVAL_SECONDS
+    return waited + elapsed, next_interval(interval)
+
+
 def _claim(user_id: UUID) -> str:
     """Name the principal a stream is opened by, refusing one that already holds the cap.
 
@@ -552,6 +566,7 @@ async def _tail(
         waited = 0.0
         interval = FOLLOW_INTERVAL_SECONDS
         while waited < FOLLOW_MAX_SECONDS:
+            moved = wakeups.settled_mark(run_id)
             page, settled = await asyncio.shield(_tail_read(sessions, run_id, cursor, step))
             for entry in page.items:
                 yield f"id: {entry.id}\nevent: log\ndata: {entry.model_dump_json()}\n\n"
@@ -562,9 +577,7 @@ async def _tail(
             if settled:
                 yield "event: end\ndata: {}\n\n"
                 return
-            await asyncio.sleep(interval)
-            waited += interval
-            interval = next_interval(interval)
+            waited, interval = await quiet_wait(moved, waited, interval)
         yield "event: expired\ndata: {}\n\n"
 
 
@@ -740,6 +753,7 @@ async def _story(
         waited = 0.0
         interval = FOLLOW_INTERVAL_SECONDS
         while waited < FOLLOW_MAX_SECONDS:
+            changed = wakeups.settled_mark(run_id)
             # Shielded for the same reason _tail_read is: a disconnect lands between polls,
             # never inside a driver await holding the pooled connection.
             attempts, spilled, page, rendered, read_labels = await asyncio.shield(
@@ -783,9 +797,7 @@ async def _story(
                     return
                 drained = True
                 continue
-            await asyncio.sleep(interval)
-            waited += interval
-            interval = next_interval(interval)
+            waited, interval = await quiet_wait(changed, waited, interval)
         yield "event: expired\ndata: {}\n\n"
 
 

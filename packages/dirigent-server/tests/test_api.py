@@ -2356,6 +2356,38 @@ def test_a_quiet_log_stream_widens_its_poll_interval_to_the_ceiling() -> None:
     assert next_interval(FOLLOW_INTERVAL_SECONDS) > FOLLOW_INTERVAL_SECONDS
 
 
+async def test_a_stream_waiting_out_a_quiet_interval_wakes_when_its_run_moves() -> None:
+    import asyncio
+    import time
+    from uuid import uuid4
+
+    from dirigent_core import wakeups
+    from dirigent_server.routes.runs import FOLLOW_INTERVAL_SECONDS, FOLLOW_MAX_INTERVAL_SECONDS, quiet_wait
+
+    run_id = uuid4()
+    mark = wakeups.settled_mark(run_id)
+    asyncio.get_running_loop().call_later(0.05, wakeups.hub.deliver, wakeups.SETTLED, str(run_id))
+    began = time.monotonic()
+
+    waited, interval = await quiet_wait(mark, 0.0, FOLLOW_MAX_INTERVAL_SECONDS)
+
+    assert time.monotonic() - began < 1.0
+    assert 0.0 < waited < 1.0
+    assert interval == FOLLOW_INTERVAL_SECONDS
+
+
+async def test_a_stream_whose_run_stays_quiet_widens_after_the_interval() -> None:
+    from uuid import uuid4
+
+    from dirigent_core import wakeups
+    from dirigent_server.routes.runs import next_interval, quiet_wait
+
+    waited, interval = await quiet_wait(wakeups.settled_mark(uuid4()), 1.0, 0.01)
+
+    assert waited >= 1.01
+    assert interval == next_interval(0.01)
+
+
 def test_a_settled_failure_can_be_retried_with_an_idempotency_key(client: TestClient) -> None:
     """A manual retry creates exactly one attempt, however many times it is asked for."""
     import asyncio

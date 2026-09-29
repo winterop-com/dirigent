@@ -14,6 +14,7 @@ from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
+from dirigent_core import wakeups
 from dirigent_core.config import Settings
 
 _logger = structlog.get_logger("dirigent.database")
@@ -143,7 +144,8 @@ def create_lock_engine(settings: Settings) -> AsyncEngine:
 
 
 def create_session_factory(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
-    """Build the session factory the engine and the API share."""
+    """Build the session factory the engine and the API share, its commits publishing wake-ups."""
+    wakeups.observe()
     return async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
 
 

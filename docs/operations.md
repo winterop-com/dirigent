@@ -219,6 +219,44 @@ beside it, that is 19,000 log rows a second written to the run, a flush transact
 the burst with the overflow untouched. The numbers are a measurement of one machine, not a
 promise; run it on yours.
 
+### How soon a run starts
+
+A worker with nothing to do is not polling on a clock. Every transaction that makes work
+claimable -- a run created, a step readied by the one before it, a manual retry, a lease the sweeper
+requeued -- publishes a wake-up that fires when that transaction commits and never when it
+rolls back, and every idle worker wakes and claims. `FOR UPDATE SKIP LOCKED` still decides
+which one of them gets the attempt. A run's own stream wakes the same way when one of its
+attempts moves or its status changes, which is what `dg run --watch` and the run screen read,
+and a `pipeline.run` step waiting on a child is probed the moment the child settles.
+
+On PostgreSQL a wake-up is `NOTIFY` on one of three channels, and each process holds one extra
+connection that listens: `dirigent_work` for claimable work, `dirigent_settled` with the run id
+as its payload, and `dirigent_sources`, which is reserved for input sources. On SQLite the
+process is the only one, and a wake-up is handed from the committing session to the waiters
+inside it.
+
+A wake-up is only a hint to look sooner. A worker still asks again after `DIRIGENT_CLAIM_IDLE`,
+and a stream still reads on its own interval, so a lost wake-up costs exactly the poll it
+replaced. A listener whose connection drops reconnects on its own and wakes every waiter in
+its process when it is back. Behind PgBouncer the listening connection needs *session*
+pooling, which the scheduler's lock already asks for; in transaction pooling the wake-ups are
+lost and every wait falls back to its poll.
+
+The stated latency, measured by the `postgres` lane's
+`test_the_latency_a_run_waits_for_its_worker` against PostgreSQL 17 in a container on an
+M-series laptop, twenty runs per shape against an idle worker at the default `500ms`
+`DIRIGENT_CLAIM_IDLE`:
+
+| Shape | Median | 90th percentile | Polling only, median |
+| --- | --- | --- | --- |
+| A one-step run, created to claimed | 8 ms | 13 ms | 277 ms |
+| A one-step run, created to settled | 22 ms | 34 ms | 295 ms |
+| A three-step chain, created to settled | 66 ms | 88 ms | 1,332 ms |
+
+The polling-only column is the same test with every wake-up discarded, which is what a lost
+notification costs on each hop. `pytest -m postgres -s -k latency` prints both as
+`wakeup_latency` records; run it on yours.
+
 **What limits N is database connections, and the arithmetic is worth doing before you find
 it.** One process's ceiling on PostgreSQL is
 `DIRIGENT_DATABASE_POOL_SIZE + DIRIGENT_DATABASE_MAX_OVERFLOW`, which at the defaults is
@@ -631,7 +669,7 @@ the stack is complete out of the box; see
 | `DIRIGENT_WORKER_NAME` | hostname plus pid | Registry name of this worker. Constrained like every entity code, because the registry is a listing an operator reads. |
 | `DIRIGENT_LEASE` | `60s` | How long a claimed attempt's lease is valid before the sweeper may reclaim it. |
 | `DIRIGENT_HEARTBEAT` | `15s` | How often a worker refreshes the leases it holds and its registry row. |
-| `DIRIGENT_CLAIM_IDLE` | `500ms` | How long a worker waits before asking for work again when the queue is empty. |
+| `DIRIGENT_CLAIM_IDLE` | `500ms` | How long an idle worker waits before asking for work again when nothing wakes it. A commit that queues work wakes it at once, so this is what a lost wake-up costs; see [how soon a run starts](#how-soon-a-run-starts). |
 | `DIRIGENT_SWEEP_INTERVAL` | `30s` | How often a worker runs the crash-recovery sweeper over expired leases. This is also the cadence the queue-depth and `waiting` gauges are sampled on. |
 | `DIRIGENT_STUCK_RUN` | `1h` | A running run with no attempt progress for this long is flagged as stuck, which is what raises a `run_stuck` alert. |
 | `DIRIGENT_STALE_WORKER` | `15m` | A worker registry row whose last heartbeat is older than this is deleted by the sweeper, not marked stopped -- a worker's name carries its process id, so the process it described can never come back under that name. Fifteen minutes is sixty beats at the default heartbeat, and the margin has to survive a paused container: deleting the row of a worker that is merely slow removes it from the inventory while it is still claiming work. Reaping the registry does not touch the work such a worker held; expired leases are reclaimed by the lease sweeper on a much shorter clock. |
