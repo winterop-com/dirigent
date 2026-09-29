@@ -1215,7 +1215,7 @@ async def test_a_body_that_fails_while_rendering_falls_back_to_the_facts(
     assert [entry.message for entry in warned] == [
         "the body of alert 'page-ops' was not rendered, so the default was sent"
     ]
-    assert "ZeroDivisionError" in str((warned[0].fields or {})["reason"])
+    assert "division by zero" in str((warned[0].fields or {})["reason"])
 
 
 async def test_a_subject_that_fails_while_rendering_falls_back_to_the_default(
@@ -1239,7 +1239,7 @@ async def test_a_subject_that_fails_while_rendering_falls_back_to_the_default(
     assert [entry.message for entry in warned] == [
         "the subject of alert 'page-ops' was not rendered, so the default was sent"
     ]
-    assert "ZeroDivisionError" in str((warned[0].fields or {})["reason"])
+    assert "division by zero" in str((warned[0].fields or {})["reason"])
 
 
 async def test_a_template_that_fails_while_rendering_leaves_settled_work_settled(

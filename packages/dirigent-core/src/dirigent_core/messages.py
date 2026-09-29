@@ -63,8 +63,7 @@ SECRET = Catalogue("secret")
 
 SECRET_KEY_MISSING = SECRET.define(
     "key_missing",
-    "no secret key is configured: DIRIGENT_SECRET_KEY must hold one before a connection "
-    "secret can be stored or read",
+    "no secret key is configured: DIRIGENT_SECRET_KEY must hold one before a connection secret can be stored or read",
 )
 
 EMPTY_SECRET = SECRET.define("empty", "{fields} cannot be stored empty: a required secret needs a value")
