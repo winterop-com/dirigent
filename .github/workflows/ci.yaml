@@ -2,7 +2,7 @@ name: ci
 
 on:
   push:
-    branches: [main]
+    branches: [main, ci/the-required-lane-runs-in-parallel]
   pull_request:
 
 concurrency:
