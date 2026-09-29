@@ -69,11 +69,6 @@ const TAG = 'fan-out'
  * The documents run so the filtered listing has history in it, all of them already on the
  * instance and all of them cheap: inline data, Postman Echo, or the run's own scratch space.
  * Two settle badly on purpose, which is the point of showing them.
- *
- * `pipeline-run-with-params` wears the tag and is deliberately not here: it starts child runs,
- * and a child's trigger cell carries the parent run's uuid, which widens the runs listing past
- * the frame. The assertion below refuses that picture, so the cast leaves it out rather than
- * the picture leaving out a scrollbar.
  */
 const CAST: { pipeline: string; body?: Record<string, unknown>; ends: string }[] = [
     { pipeline: 'fan-out-literal-list', ends: 'succeeded' },
@@ -81,6 +76,8 @@ const CAST: { pipeline: string; body?: Record<string, unknown>; ends: string }[]
     { pipeline: 'fan-out-then-join', ends: 'succeeded' },
     { pipeline: 'fan-out-item-wise', ends: 'succeeded' },
     { pipeline: 'fan-out-nested-objects', ends: 'succeeded' },
+    // Starts three child runs, so the runs listing carries runs a step of another run started.
+    { pipeline: 'pipeline-run-with-params', ends: 'succeeded' },
     // run.window.* is a property of the run, so this one is refused without an interval.
     {
         pipeline: 'references-cheat-sheet',

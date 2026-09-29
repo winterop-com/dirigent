@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'vitest'
 
+import { shortId } from '@/lib/format'
+
 import {
     emptyNote,
     EVERY_RUN,
@@ -22,6 +24,7 @@ const RUN: RunOut = {
     status: 'succeeded',
     params: {},
     triggered_by_kind: 'schedule',
+    parent_run_id: null,
     triggered_by_label: 'nightly',
     trace_id: null,
     error: null,
@@ -134,7 +137,12 @@ describe('the filters an address asks the listing to open on', () => {
 
 describe('what started a run', () => {
     test('is the kind, and who or what it was', () => {
-        expect(triggerSummary(RUN)).toEqual({ kind: 'schedule', who: 'nightly' })
+        expect(triggerSummary(RUN)).toEqual({
+            kind: 'schedule',
+            who: 'nightly',
+            said: 'nightly',
+            parent: null,
+        })
     })
 
     test('spells a kind the way a person reads it rather than the way the wire writes it', () => {
@@ -151,12 +159,27 @@ describe('what started a run', () => {
             triggered_by_kind: 'backfill' as const,
             triggered_by_label: 'backfill nightly',
         }
-        expect(triggerSummary(filled)).toEqual({ kind: 'backfill', who: 'backfill nightly' })
+        expect(triggerSummary(filled)).toMatchObject({ kind: 'backfill', who: 'backfill nightly' })
     })
 
     test('names a watch, which armed the run to wait on its sensor', () => {
         const armed = { ...RUN, triggered_by_kind: 'watch' as const, triggered_by_label: 'watch follow' }
-        expect(triggerSummary(armed)).toEqual({ kind: 'watch', who: 'watch follow' })
+        expect(triggerSummary(armed)).toMatchObject({ kind: 'watch', who: 'watch follow' })
+    })
+
+    test('names a parent run by its short id, and keeps what the server recorded whole', () => {
+        const parent = '0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b'
+        const child = {
+            ...RUN,
+            triggered_by_kind: 'pipeline' as const,
+            parent_run_id: parent,
+            triggered_by_label: `a step of run ${parent}`,
+        }
+        const started = triggerSummary(child)
+        expect(started.who).toBe(`a step of run ${shortId(parent)}`)
+        expect(started.who).not.toContain(parent)
+        expect(started.said).toBe(`a step of run ${parent}`)
+        expect(started.parent).toBe(parent)
     })
 })
 
