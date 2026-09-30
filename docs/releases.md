@@ -16,6 +16,43 @@ tag is what publishes: `.github/workflows/release.yaml` builds every package and
 to PyPI through trusted publishing, then builds the image from that commit and pushes it as
 `<version>` and `latest`. The two sibling repositories then relock against the tag and bump.
 
+## 0.23.0
+
+Released 2026-10-01. Every package in the workspace moves to 0.23.0 together, and so do
+`dirigent-dhis2` and `dirigent-integration`.
+
+- **A run holds the shapes it started with.** When a run is created it reads the body of every
+  schema its document names and keeps those bodies on the run, the way it keeps its resolved
+  parameters, its priority and its worker tags. Every attempt, every later step and every retry
+  check against those bodies rather than the table, so an edit reaches the next run of a pipeline
+  naming the code and never one already under way. A `${...}` in a step's `schema` is refused when
+  the document is applied: a code that is not a code until the run is under way is one nothing else
+  can see either, neither the `requires` preflight nor the dependants a delete is refused for.
+- **A schema in use is not changed blind.** Deleting a schema a current pipeline names is refused;
+  editing one never is, because a code is fixed once minted and refusing the edit would freeze an
+  in-use schema for good. The dependants are read from the documents themselves, which already
+  declare them, so nothing has to be kept in step.
+- **A stored schema is corrected where it is read.** The Schemas screen edits name, description and
+  body; the apply dialog's `differs` row offers the same correction in place; and `dg schema update`
+  does it from a shell, taking a body the way `create` does. A label given empty is cleared and one
+  left out is left alone -- which `dg` could not express before, so seeding quietly wiped the title
+  and description of every schema it replaced.
+- **A missing connection is minted in the row that says so.** The apply dialog's offer opens the
+  connection form under the row rather than sending the reader to another screen and losing the
+  document they had typed.
+- **A label says only what is known.** Messages that asserted what the code could not tell --
+  that a password was unchanged when the request never answered, that parameters were a JSON object
+  at the moment they were not -- now say what is true. Every counted sentence carries both its forms,
+  so nothing renders "1 items"; every noun the CLI and the UI both say is held to one word by a test;
+  and a lane fails documentation that quotes a label the catalogue no longer has.
+- **A form is not hidden under its own cap.** Three dialogs capped an inner block and hid the form
+  inside it, two of them standing taller than the window with nothing to scroll. A surface caps and
+  its body scrolls; only a read-only preview takes a height of its own, and that height belongs to
+  the block rather than its callers.
+- **An unread catalog is not an empty one.** The step menu answered "No block matches that." while
+  it was still reading the catalog, so a reader who typed quickly was told the block they wanted did
+  not exist and their Enter placed nothing.
+
 ## 0.22.0
 
 Released 2026-09-29. Every package in the workspace moves to 0.22.0 together, and so do
