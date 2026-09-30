@@ -1493,6 +1493,13 @@ const editor = {
             one: (count: string, codes: string) => `Stored ${count} schema: ${codes}`,
             many: (count: string, codes: string) => `Stored ${count} schemas: ${codes}`,
         },
+        /**
+         * The row's own control, which opens the form that mints it under that row.
+         *
+         * The row already carries the code and the kind, so the word on the control is the
+         * verb alone and the whole of it is what a reader who cannot see the row hears.
+         */
+        create_row: (code: string) => `Create connection ${code}`,
         /** Why a credential is never taken out of a document, whatever fields it declares. */
         connection_note:
             'A connection is not created from a document: a document can carry a credential in plain text, in a password field or inside a URL.',
@@ -2280,6 +2287,8 @@ const connections = {
     /** Why Create is shut, in the order the dialog decides it. */
     needs_code: 'A connection is addressed by its code, and this one has none.',
     needs_kind: 'No kind is chosen, and a connection is a credential of one kind.',
+    /** Why Create is shut on a kind nothing here publishes a config for. */
+    kind_unknown: (kind: string) => `This instance has no connection kind coded ${kind}.`,
     unreadable_setting: 'A setting holds text that is not a value.',
 
     /** A write-only password box, which says whether the instance already holds one. */
