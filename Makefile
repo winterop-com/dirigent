@@ -46,17 +46,19 @@ lint: ## Format and auto-fix (mutating)
 	$(UV) run ruff format .
 	$(UV) run ruff check --fix .
 
-static: ## Read-only gate without the tests: ruff, mypy, pyright, the UI type scale and labels
+static: ## Read-only gate without the tests: ruff, mypy, pyright, the UI type scale and every label
 	$(UV) run ruff format --check .
 	$(UV) run ruff check .
 	$(UV) run mypy packages
 	$(UV) run pyright
-	# Both read .ts/.tsx as text and need no node, so they hold the type scale and the label
-	# catalogue in every lane, including the ones with no bun on them. `ui-lint` runs them too,
-	# for a UI contributor whose one command should cover everything.
+	# These read .ts/.tsx and .md as text and need no node, so they hold the type scale, the
+	# label catalogue and what the documentation quotes out of it in every lane, including the
+	# ones with no bun on them. `ui-lint` runs them too, for a UI contributor whose one command
+	# should cover everything.
 	$(UV) run python scripts/check_ui_classes.py
 	$(UV) run python scripts/check_ui_labels.py
 	$(UV) run python scripts/check_refusal_labels.py
+	$(UV) run python scripts/check_docs_labels.py
 
 check: static ui-gate ## Read-only gate: the static one, the UI's, then the tests
 	$(UV) run pytest -n $(WORKERS)
@@ -131,7 +133,7 @@ ui-dev: ## Serve the UI with hot reload, proxying the API to a running `dg dev`
 ui-fmt: ## Format the UI sources (mutating)
 	$(FRONTEND_INSTALL) && bun run fmt
 
-ui-lint: ## Read-only UI gate: the formatter, oxlint, the type checker, the type scale, the labels
+ui-lint: ## Read-only UI gate: the formatter, oxlint, the type checker, the type scale, every label
 	$(FRONTEND_INSTALL) && bun run fmt:check
 	cd $(FRONTEND) && bun run lint
 	# tsc is the only thing that catches a type error: vite strips types without checking
@@ -140,6 +142,7 @@ ui-lint: ## Read-only UI gate: the formatter, oxlint, the type checker, the type
 	$(UV) run python scripts/check_ui_classes.py
 	$(UV) run python scripts/check_ui_labels.py
 	$(UV) run python scripts/check_refusal_labels.py
+	$(UV) run python scripts/check_docs_labels.py
 
 ui-test: ## Run the UI unit lane (vitest, node environment, no DOM)
 	$(FRONTEND_INSTALL) && bun run test

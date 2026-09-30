@@ -502,7 +502,7 @@ the connection's own page, beside the boxes that change it: a settings line per 
 of `url=` and `timeout=` to scan past before the health cell is reached, and it pushes the cells
 that matter off the side of the table. There is no description column either, for the same
 reason and because a description is the panel's. **Health is an 8px dot and one word**, and the
-words are `healthOf`'s -- `healthy`, `failed`, `never checked`, `not verified` -- in the channel
+words are `healthOf`'s -- `healthy`, `failed`, `never checked`{ .label }, `not verified`{ .label } -- in the channel
 strip's three colours: green where the last check passed, red where it failed, grey where
 nothing was proved. One vocabulary, decided in `lib/connections` and read by every screen that
 draws a credential's health. **The check's own sentence is not on the row**: it is the tooltip on
@@ -709,7 +709,7 @@ stays JSON, and the reason is always that a cell cannot hold what the values are
 `params` takes any JSON value, a map of lists takes a list, a map whose values may be null takes
 something an empty cell is not. **A reference in place of the whole map is not a table.** The
 document language lets `${...}` stand wherever a value goes, so a map written as one is the text
-it was written as, with `a reference, not a table` beside the label; clearing the box brings the
+it was written as, with `a reference, not a table`{ .label } beside the label; clearing the box brings the
 table back.
 
 **A field that carries a program is edited as one.** A string whose schema published a
@@ -740,9 +740,9 @@ the code of a connection or a schema, and under the box the form draws what that
 in the step panel's own group gesture: a shut row with a one-line summary, and the definition under
 it against the group rule when it is opened. A schema the document carries in its top-level
 `schemas:` resolves before one the instance holds, which is the order the engine resolves them in,
-and says `carried by this document`; one the instance holds says `instance` and opens with a link
+and says `carried by this document`{ .label }; one the instance holds says `instance` and opens with a link
 to `/schemas/<code>`, a connection with `<kind> · <state>` and a link to `/connections/<code>`. A
-code nothing holds is `not stored` or `not configured`, muted, and not a button -- there is nothing
+code nothing holds is `not stored`{ .label } or `not configured`{ .label }, muted, and not a button -- there is nothing
 under it to open. Nothing is called missing while the listing behind the answer is still being
 read, and a value written `${...}` names no code at all, so neither draws a row. The code itself is
 never repeated: the box above the row already holds it.
@@ -807,7 +807,7 @@ agree about one document.
 **A control that cannot hold a reference gives way to a box**: a key/value table, a choice and a
 switch each draw a value the schema describes, and drawn by their own control a reference would
 read as empty, unset or off and the first touch would write that over the document. So the text is
-drawn, what it is is said beside the label -- `a reference, not a table`, `not a choice`, `not a
+drawn, what it is is said beside the label -- `a reference, not a table`{ .label }, `not a choice`, `not a
 switch` -- and clearing the box brings the control back.
 
 **The refusal here is the client's half.** A field is checked against its own schema so a form can
@@ -830,12 +830,12 @@ Run is shut, because `$run` runs the version the instance holds and there is not
 apply creates the pipeline and the screen goes to the address it will answer at from then on --
 which is why a static `pipelines/$new` route sits beside the dynamic `pipelines/:code`, and why
 `New` is the primary half of the listing's split button while the two doors for a document
-written somewhere else, `From a starter` and `From file…`, are in the menu beside it.
+written somewhere else, `From a starter`{ .label } and `From file…`{ .label }, are in the menu beside it.
 
 **A document opens on the source that holds it.** The editor's panel opens on the step tab,
 because a pipeline is read a step at a time, and choosing a box on the canvas opens that tab
 rather than whichever one was last in front of somebody. The exception is a document that arrived
-as text: `From file…` on the listing hands the editor what it read and `From a starter` hands
+as text: `From file…`{ .label } on the listing hands the editor what it read and `From a starter`{ .label } hands
 it the copy it made, and the editor opens on the source pane, which is where that document
 actually is. A blank `/pipelines/$new` opens on the step tab like every other screen -- the canvas
 says how to add the first step, and the source, whose schema would mark an empty `steps` map
@@ -880,7 +880,7 @@ around everything that stays survive it -- and the button says `Apply`, because 
 what somebody wants and not the steps behind it.
 
 **Four cases, and the row says which.** A carried entry meets an instance that has nothing under
-that code (`create`), one holding the same thing (`already here`), or one holding something else
+that code (`create`), one holding the same thing (`already here`{ .label }), or one holding something else
 under the same name (`differs`); the fourth is a document that only names a code under
 `requires:`, which carries nothing to create from and is what the plan's own issues and the
 Requires chips say. **Applying never replaces a stored schema.** A stored schema is what every
@@ -901,7 +901,7 @@ of the apply, because the two answer to different people -- one pipeline's autho
 every other pipeline naming that code lives with the result. **The identity travels with the
 body**: storing a schema reads its own `title` and `description` where the write names neither and
 `PATCH /schemas/{code}` reads nothing, so a replacement sends all three or the instance keeps the
-labels of a shape it no longer holds. The row then reads `already here` and the confirm is drawn,
+labels of a shape it no longer holds. The row then reads `already here`{ .label } and the confirm is drawn,
 the collision it was shut for having gone -- and that is the whole report, in the place the reader
 is already looking.
 
@@ -928,7 +928,7 @@ every generated form folds them behind, and a write-only box per secret field --
 **nothing is read out of the carried connection**, which is the whole reason a connection is not
 created from a document. A kind this instance has not installed publishes no config schema, so
 that row offers no form at all and says `missing` alone. The instance is asked again the moment
-the credential exists, which turns the row `already here` and is what was in the way of the
+the credential exists, which turns the row `already here`{ .label } and is what was in the way of the
 confirm being drawn; nothing says it a second time as a line or a toast. A remedy that has to
 send somebody to another screen belongs on a document the instance already holds a version of,
 and there is no such remedy in this dialog.
@@ -1290,10 +1290,10 @@ everything else: a kind nothing is set up for, a credential nobody has checked, 
 proved nothing. A reader learns three colours once; six would be a legend.
 
 **The words are the tooltip's, and a credential's are the connections listing's**: `healthy`,
-`failed`, `not verified` and `never checked` are `healthOf`'s, read through it rather than said a
+`failed`, `not verified`{ .label } and `never checked`{ .label } are `healthOf`'s, read through it rather than said a
 second way here, so one credential reads the same wherever it is drawn. The strip adds two of its
 own, for the two things that are not a credential: `ready` for the log channel, which nothing
-checks, and `not set up` for an installed notifier no credential exists for. The tooltip is this
+checks, and `not set up`{ .label } for an installed notifier no credential exists for. The tooltip is this
 app's own primitive, it opens on hover and on keyboard focus alike, and it holds, in this order:
 the kind and the state word (`email · failed`), how long ago the check was where there was one,
 the connection's code in mono, and the check's own sentence in full. Nothing on the strip ever
@@ -1751,7 +1751,7 @@ the compiler, `everyLabel()` as the walk.
 sentence makes that label a function, because a caller in this bundle passes the value and the
 compiler checks the call. A refusal's values arrive as a map off the wire, so there is no call to
 check and nothing for a signature to buy: the `refused` section names its holes instead --
-`No run {run_id}.` -- and the name has to be one the server's own template writes. That is the
+`No run {run_id}.`{ .label } -- and the name has to be one the server's own template writes. That is the
 one place in the catalogue where a value is not a parameter, and
 `scripts/check_refusal_labels.py` holds both halves to each other so a renamed param fails the
 gate rather than sending the renderer quietly back to English.
@@ -1824,6 +1824,25 @@ all if it is sentence-shaped, and it refuses a label in the catalogue that no so
 It cannot see a bare lower-case word returned from a lib function, because nothing reading the
 text can tell one from a wire value -- review and `scripts/ui_copy.py` cover that.
 
+**Documentation that quotes a label backticks it and marks it `{ .label }`.** A released note
+once named a screen's heading in running prose, the heading was renamed, and the note went on
+saying a word the product had stopped saying with nothing to catch it. Nothing could: `docs/`
+holds 652 distinct backticked phrases and a handful of them are labels, so a check that guessed
+would be mostly false alarm. The author says which instead:
+
+```markdown
+The account panel's `Reset password`{ .label } button ends every session of the account.
+```
+
+`scripts/check_docs_labels.py`, in `make static` and `make ui-lint`, then refuses a marked phrase
+the catalogue no longer holds, exactly as written, naming the page and the line. It is
+`attr_list`, so the phrase renders as the inline code it already was; a marked page needs nothing
+else, and a marker inside a fenced block is teaching the syntax rather than quoting the product.
+**A phrase quoted with no marker on it is not checked**, which is the price of not guessing --
+so a label named in prose is named this way or the sentence is written not to need it. What the
+*server* says is not a label and takes no marker: a refusal's own wording is held to Python by
+`scripts/check_refusal_labels.py` and by `dirigent-cli/tests/test_shared_words.py`.
+
 ## Interface copy is plain, and most of it is absent
 
 A label, a hint, a description in the interface is plain product English: "Timezone",
@@ -1857,7 +1876,7 @@ everywhere behind this door. **A listing's search box says `Search` and nothing 
 `components/SearchField`: the heading over it already names what is being searched, and the noun
 and what a match is made over stay on its accessible name, which is read without that heading
 beside it. A box on a surface whose subject no heading states says what it matches over instead
--- a picker's `Search by name or code`, the terminal's `Search lines`, the palette's own row.
+-- a picker's `Search by name or code`{ .label }, the terminal's `Search lines`{ .label }, the palette's own row.
 
 **The brand pane never carries a tagline.** What is on it is the mark, the word `dirigent`, and
 the instance and the version the door answers for. A line saying what the product is for is
