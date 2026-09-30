@@ -21,9 +21,9 @@ POOL_TOO_SMALL = DATABASE.define(
 
 SCHEMA_STALE = DATABASE.define(
     "schema_stale",
-    "the database at {where} was written by a different dirigent: {differences} difference(s), "
-    "first {first}; before 1.0 the schema is not migrated, so this instance needs an empty state "
-    "to start from, or a database this version created",
+    "the database at {where} was written by a different dirigent, first {first}; before 1.0 the "
+    "schema is not migrated, so this instance needs an empty state to start from, or a database "
+    "this version created",
 )
 
 
@@ -49,7 +49,7 @@ UNKNOWN_PIPELINE = PIPELINE.define("unknown", "no pipeline coded {code}")
 
 PIPELINE_IN_USE = PIPELINE.define(
     "in_use",
-    "pipeline {code} has {runs} run(s) still in flight and cannot be deleted; finish or cancel them first",
+    "pipeline {code} has runs still in flight ({runs}) and cannot be deleted; finish or cancel them first",
 )
 
 PIPELINE_DEACTIVATED = PIPELINE.define("deactivated", "pipeline {code} is deactivated")
