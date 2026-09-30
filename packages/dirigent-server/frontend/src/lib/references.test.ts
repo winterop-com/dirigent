@@ -12,6 +12,7 @@ const STORED: SchemaOut = {
     body: { type: 'object', properties: { id: { type: 'string' } } },
     created_at: '2026-09-01T09:00:00Z',
     updated_at: '2026-09-01T09:00:00Z',
+    used_by: [],
 }
 
 const CONNECTION: ConnectionOut = {

@@ -954,6 +954,7 @@ const refused = {
         unknown_timezone: '{name} is not an IANA timezone this host knows. Try UTC or Europe/Oslo.',
     },
     schema: {
+        in_use: 'Schema {code} cannot be removed while {pipelines} name it. A pipeline must stop naming it first.',
         invalid: 'This is not a valid JSON Schema{at}: {detail}',
         no_code:
             'This schema names no code. Give one, set $id, or store it from a file whose name is a code.',
@@ -1531,6 +1532,17 @@ const editor = {
         /** What updating does, and what it does to everything else naming the code. */
         update_note:
             'Updating replaces what the instance holds with what this document carries. Every pipeline naming this code validates against the new shape from its next attempt.',
+        /**
+         * Which pipelines those are, where the instance holds any.
+         *
+         * The note says a replacement reaches whoever names the code; this says who. The
+         * document being applied may not be among them, and that is the point: the reader is
+         * deciding for other people's pipelines.
+         */
+        update_used_by: {
+            one: (pipelines: string) => `That is ${pipelines}.`,
+            many: (pipelines: string) => `Those are ${pipelines}.`,
+        },
         /** Why a credential is never taken out of a document, whatever fields it declares. */
         connection_note:
             'A connection is not created from a document: a document can carry a credential in plain text, in a password field or inside a URL.',
@@ -2585,6 +2597,28 @@ const schemas = {
     description_placeholder: 'What this shape is for. Markdown is rendered.',
     /** Why editing the body is a decision rather than a correction, said where it is made. */
     body_warning: 'Every pipeline naming this code validates against this shape from its next attempt.',
+
+    /**
+     * Which stored pipelines validate against this code, over the body a save would replace.
+     *
+     * The generic warning says an edit reaches whoever names the code; this says who that is,
+     * because the decision is made for them and a count is not a name.
+     */
+    used_by: {
+        one: (pipelines: string) => `${pipelines} validates against this shape.`,
+        many: (pipelines: string) => `${pipelines} validate against this shape.`,
+    },
+
+    /**
+     * Why the delete control is shut, worn by the wrapper around it.
+     *
+     * Removing a shape a stored pipeline names is refused, and a control that cannot act says so
+     * before it is pressed rather than after.
+     */
+    in_use: {
+        one: (pipelines: string) => `${pipelines} names this shape, so it cannot be removed.`,
+        many: (pipelines: string) => `${pipelines} name this shape, so it cannot be removed.`,
+    },
 } as const
 
 /**

@@ -140,6 +140,12 @@ SCHEMA_NO_CODE = SCHEMA.define(
 
 SCHEMA_INVALID = SCHEMA.define("invalid", "this is not a valid JSON Schema{at}: {detail}")
 
+SCHEMA_IN_USE = SCHEMA.define(
+    "in_use",
+    "schema {code} cannot be removed while {count} pipeline(s) name it ({pipelines}); "
+    "a pipeline must stop naming it first",
+)
+
 
 PARAMETER = Catalogue("parameter")
 

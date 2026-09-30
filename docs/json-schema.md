@@ -44,12 +44,28 @@ description are stored beside the body rather than read back out of it, so editi
 body does not move the name; the box does.
 
 **A gate reads the stored schema fresh on every attempt.** Nothing pins a body into a pipeline
-version: `validate.schema` resolves the code against what the instance holds when the attempt is
+version: `validate.schema` resolves the code against the snapshot taken when the attempt is
 claimed. So changing a stored schema changes what *every* pipeline naming that code validates
-against, from its next attempt onwards -- including one that is running while you edit. Nothing
-refuses the edit on those grounds and nothing warns the pipelines' authors; the admin role is the
-only thing in the way, which is the same bargain `DELETE` has always been. If the new shape is
-not what the other readers of that code expect, store it under a code of its own instead.
+against, from its next claim onwards -- an attempt already running finishes against the body it
+was handed, and the next step of that same run, or a retry of that same step, is checked against
+the new one.
+
+**So an edit is reported and a removal is refused.** Every schema response carries `used_by`: the
+codes of the stored pipelines whose current version names the schema, whether under
+`requires.schemas` or in a step's schema field. The edit itself still lands, because correcting a
+shape every pipeline should now validate against is what editing a stored schema is *for*, the
+code cannot be changed to sidestep it, and whether a new body still admits what a dependent
+pipeline sends is not a question a schema can be asked. The Schemas screen names those pipelines
+beside the body instead, so the decision is made with them in view rather than blind. If the new
+shape is not what the other readers of that code expect, store it under a code of its own.
+
+`DELETE /api/v1/schemas/{code}` is the half that is refused, with `schema.in_use`, for as long as
+`used_by` is not empty. Applying a document that names a schema the instance does not hold is
+already refused by the `requires` preflight, so a delete that went through would leave behind
+exactly the state no apply is allowed to create -- and the next apply of an untouched pipeline
+would be what discovered it. Only each pipeline's *current* version counts: a version nobody
+applies any more is history, and a pipeline stops naming a code by applying a version that does
+not, after which the code is free to remove.
 
 ## The shape of a shape
 

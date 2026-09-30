@@ -43,7 +43,7 @@ class SchemaUpdate(BaseModel):
 
 
 class SchemaOut(WireModel):
-    """A schema as every response shows it: the identity quartet and the schema body."""
+    """A schema as every response shows it: the identity quartet, the body, and what names it."""
 
     id: UUID
     code: str
@@ -52,3 +52,9 @@ class SchemaOut(WireModel):
     body: JsonMap
     created_at: datetime
     updated_at: datetime
+    used_by: list[str] = Field(default_factory=list[str])
+    """The codes of the stored pipelines whose current version names this schema, in code order.
+
+    A reader deciding whether to change a shape is deciding for these pipelines, so every
+    response carries them rather than leaving a surface to ask a second time. Empty means
+    nothing stored names it, and editing or removing it is nobody else's business."""

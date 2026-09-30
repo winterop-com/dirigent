@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
 import { LABELS } from '../src/lib/labels.ts'
-import { apiPrefix, applyExample, signIn, writeInEditor } from './support.ts'
+import { apiPrefix, applyDocument, applyExample, signIn, writeInEditor } from './support.ts'
 
 /**
  * The Schemas screen, against a real instance.
@@ -19,6 +19,11 @@ import { apiPrefix, applyExample, signIn, writeInEditor } from './support.ts'
  * AND THAT A SHAPE SOMEBODY GOT WRONG CAN BE PUT RIGHT. The panel is a form over
  * `PATCH /schemas/{code}`, so what these assert is the round trip: what the boxes send, what the
  * row behind them then says, and that the code is not among the things it sends.
+ *
+ * AND THAT THE TWO HALVES ANSWER DIFFERENTLY UNDER A DEPENDENCY. Removing a shape a stored
+ * pipeline names is refused and correcting one is not, so the panel has to draw both at once: a
+ * Delete that is shut and says which pipeline shut it, beside a Save that still works. Whether a
+ * disabled control carries a reachable reason is a question only a browser answers.
  */
 
 const SCHEMA = {
@@ -176,6 +181,71 @@ test('a shape somebody got wrong is corrected in the panel it is read in', async
     const read = await (await page.request.get(`${prefix}/schemas/e2e-org-unit`)).json()
     expect(read.body.required).toEqual(['id', 'displayName'])
     expect(read.code).toBe('e2e-org-unit')
+})
+
+/** A pipeline whose gate validates against the seeded schema, so the code is named by a version. */
+const NAMING = {
+    format: 'dirigent/v1',
+    kind: 'pipeline',
+    code: 'e2e-schema-dependant',
+    requires: { schemas: ['e2e-org-unit'] },
+    steps: {
+        gate: {
+            block: 'validate.schema',
+            config: { input: { id: 'x' }, schema: 'e2e-org-unit' },
+        },
+    },
+}
+
+test('a shape a pipeline names cannot be deleted, and the shut control says which', async ({
+    page,
+}) => {
+    await signIn(page)
+    await seedSchema(page.request)
+    await applyDocument(page.request, NAMING)
+
+    await page.goto('/schemas/e2e-org-unit')
+    const panel = page.locator('aside')
+
+    // The pipelines naming the code are drawn beside the body, because saving is a decision
+    // made on their behalf.
+    await expect(panel.getByText('e2e-schema-dependant', { exact: false })).toBeVisible()
+
+    // A control that would be refused says so before it is pressed. The reason rides on the
+    // wrapper, because a disabled button takes no pointer events.
+    const remove = panel.getByRole('button', { name: LABELS.action.delete.verb })
+    await expect(remove).toBeDisabled()
+    await expect(remove.locator('xpath=..')).toHaveAttribute(
+        'title',
+        /e2e-schema-dependant.*cannot be removed/,
+    )
+
+    // And the shape is still there, because nothing was sent.
+    const prefix = await apiPrefix(page.request)
+    expect((await page.request.get(`${prefix}/schemas/e2e-org-unit`)).status()).toBe(200)
+})
+
+test('the same shape is still corrected in place while that pipeline names it', async ({ page }) => {
+    await signIn(page)
+    await seedSchema(page.request)
+    await applyDocument(page.request, NAMING)
+
+    await page.goto('/schemas/e2e-org-unit')
+    const panel = page.locator('aside')
+
+    const editor = panel.getByTestId('code-editor')
+    await expect(editor.locator('.view-lines')).toContainText('properties')
+    await writeInEditor(page, editor, JSON.stringify({ ...SCHEMA, required: ['id', 'code'] }, null, 2))
+
+    // Save is not shut by the dependency: correcting the shape every pipeline should now
+    // validate against is what this panel is for.
+    await panel.getByRole('button', { name: LABELS.action.save.verb }).click()
+    await expect(panel.getByText(LABELS.action.save.done)).toBeVisible()
+
+    const prefix = await apiPrefix(page.request)
+    const read = await (await page.request.get(`${prefix}/schemas/e2e-org-unit`)).json()
+    expect(read.body.required).toEqual(['id', 'code'])
+    expect(read.used_by).toEqual(['e2e-schema-dependant'])
 })
 
 test('the panel box is checked against the meta-schema, like the dialog it was written in', async ({

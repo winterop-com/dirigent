@@ -2465,8 +2465,11 @@ def schema_list(ctx: typer.Context) -> None:
         return emit_records("schema", rows)
     table(
         "schemas",
-        ["code", "name", "description"],
-        [[row.code, row.name or "-", row.description or "-"] for row in rows],
+        ["code", "name", "description", "used by"],
+        [
+            [row.code, row.name or "-", row.description or "-", str(len(row.used_by)) if row.used_by else "-"]
+            for row in rows
+        ],
     )
 
 
@@ -2511,13 +2514,20 @@ def schema_show(ctx: typer.Context, code: Annotated[str, typer.Argument()]) -> N
         row = dg.call(dg.schemas.get(code))
     if state_of(ctx).json_output:
         return emit_one("schema", row)
-    fields(f"schema {code}", {"name": row.name or "-", "description": row.description or "-"})
+    fields(
+        f"schema {code}",
+        {
+            "name": row.name or "-",
+            "description": row.description or "-",
+            "used by": ", ".join(row.used_by) or "-",
+        },
+    )
     console.print_json(data=row.body)
 
 
 @schema_app.command("delete")
 def schema_delete(ctx: typer.Context, code: Annotated[str, typer.Argument()]) -> None:
-    """Remove a schema."""
+    """Remove a schema, which the instance refuses while a stored pipeline names it."""
     with client_for(state_of(ctx)) as dg:
         dg.call(dg.schemas.delete(code))
     emit_fact("schema.deleted", message="deleted", code=code)

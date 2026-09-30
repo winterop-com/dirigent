@@ -13,7 +13,15 @@ import { type JsonMap, type Problem } from '@/lib/api'
 import { headingOf } from '@/lib/identity'
 import { LABELS } from '@/lib/labels'
 import { local, refusalOf } from '@/lib/refusal'
-import { bodyText, deleteSchema, schemaPatch, updateSchema, type SchemaOut } from '@/lib/schemas'
+import {
+    bodyText,
+    deleteSchema,
+    schemaPatch,
+    updateSchema,
+    validatedBy,
+    whyKept,
+    type SchemaOut,
+} from '@/lib/schemas'
 
 /** The media type that asks for the meta-schema of the draft the server validates with. */
 const SCHEMA_MEDIA_TYPE = 'application/schema+json'
@@ -47,6 +55,12 @@ const SCHEMA_MEDIA_TYPE = 'application/schema+json'
  * THE DESCRIPTION IS DRAWN ONCE, AND IT IS THE BOX. A panel that is a form has its values in its
  * controls; rendering the same sentence as prose above the box it is typed in is one fact twice
  * on a surface with nothing between the two copies.
+ *
+ * AN EDIT IS OFFERED UNDER A DEPENDENCY AND A REMOVAL IS NOT. Correcting a shape every pipeline
+ * should now validate against is what this panel is for, so Save stays live and the pipelines
+ * that name the code are drawn beside the body -- the decision is made for them, and a count is
+ * not a name. `DELETE /schemas/{code}` refuses a code a stored pipeline names, so Delete is shut
+ * before it is pressed instead of answering a refusal afterwards.
  */
 export function SchemaPanel({
     schema,
@@ -69,6 +83,11 @@ export function SchemaPanel({
 
     const heading = headingOf(schema)
     const write = useMayWrite('admin')
+    // The role is asked first: an account that may not write at all is not told about a
+    // dependency it could do nothing with either way.
+    const kept = write.may ? whyKept(schema) : undefined
+    const why = write.why ?? kept
+    const validated = validatedBy(schema)
 
     // Typing into either pane is an edit, so what the foot said about the last save is spent.
     const edited = (next: string) => {
@@ -169,6 +188,7 @@ export function SchemaPanel({
             <div className="space-y-1.5">
                 <Label>{LABELS.word.schema.label}</Label>
                 <p className="text-xs text-faint">{LABELS.schemas.body_warning}</p>
+                {validated !== null && <p className="text-xs text-muted-foreground">{validated}</p>}
                 <WindowedPane
                     name={LABELS.schemas.body_title(schema.code)}
                     className="overflow-hidden rounded-md border border-border bg-background"
@@ -210,13 +230,13 @@ export function SchemaPanel({
                     </Button>
                 </Refusable>
                 {saved && <span className="text-xs text-muted-foreground">{LABELS.action.save.done}</span>}
-                <Refusable why={write.why}>
+                <Refusable why={why}>
                     <Button
                         variant="outline"
                         size="sm"
                         className="destructive-action ml-auto"
-                        disabled={busy || removing || !write.may}
-                        title={write.why}
+                        disabled={busy || removing || !write.may || kept !== undefined}
+                        title={why}
                         onClick={remove}
                     >
                         {removing ? LABELS.action.delete.busy : LABELS.action.delete.verb}

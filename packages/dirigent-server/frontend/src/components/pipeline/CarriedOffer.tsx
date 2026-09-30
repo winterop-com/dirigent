@@ -11,7 +11,7 @@ import { useMayWrite } from '@/hooks/use-may-write'
 import { type Problem } from '@/lib/api'
 import { actionWord, connectionNote, mayUpdate, offerBlocked, type CarriedItem } from '@/lib/carried'
 import { type ConnectionOut, type SurfaceEntry } from '@/lib/connections'
-import { LABELS } from '@/lib/labels'
+import { counted, LABELS } from '@/lib/labels'
 import { refusalOf } from '@/lib/refusal'
 import { updateSchema, wholeSchema } from '@/lib/schemas'
 import { cn } from '@/lib/utils'
@@ -317,6 +317,11 @@ function MintConnection({
  * THE ROW IS THE REPORT. What the write did is the row turning `already here` and the confirm
  * appearing behind it, which is where the reader is already looking; a line saying so as well
  * would be the same fact twice.
+ *
+ * AND IT NAMES WHO IT IS FOR. The note says a replacement reaches every pipeline naming the code;
+ * under it, the pipelines that do. The document being applied need not be among them, which is
+ * the whole reason the write is pressed on its own: what is being decided belongs to their
+ * authors, and a reader cannot weigh that against a sentence with no names in it.
  */
 function UpdateSchema({
     item,
@@ -349,6 +354,11 @@ function UpdateSchema({
             <p className="text-xs font-semibold tracking-wide text-faint uppercase">{words.held_heading}</p>
             <JsonBlock title={words.held_body(item.code)} text={JSON.stringify(item.stored, null, 2)} />
             <p className="text-xs text-muted-foreground">{words.update_note}</p>
+            {item.usedBy.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                    {counted(item.usedBy.length, words.update_used_by)(item.usedBy.join(', '))}
+                </p>
+            )}
             {problem !== null && <Refusal problem={problem} />}
             {/* A WAY BACK AND A WAY FORWARD. Cancel gives the row its control back and writes
                 nothing; Update is shut only for an account that may not store a schema. */}

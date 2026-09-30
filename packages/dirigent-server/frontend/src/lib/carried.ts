@@ -89,12 +89,22 @@ export interface CarriedItem {
     body: JsonMap | null
     /** The schema body the instance holds under that code, for the row that has to show it. */
     stored: JsonMap | null
+    /**
+     * The stored pipelines naming this code, which a replacement is made on behalf of.
+     *
+     * One pipeline's author is applying; these are the ones that live with the result, so the
+     * row names them rather than leaving the reader to guess who "everything naming that code"
+     * is. Empty for a connection, and for a code the instance holds nothing under.
+     */
+    usedBy: readonly string[]
 }
 
 /** One stored schema, as much of it as this comparison needs. A `SchemaOut` is one. */
 export interface StoredSchema {
     code: string
     body: JsonMap
+    /** The pipelines whose current version names it, as every schema response carries them. */
+    used_by: readonly string[]
 }
 
 /** What this instance holds of what a document carries, or null where a read has not landed. */
@@ -138,6 +148,7 @@ export function carriedItems(document: JsonMap, held: Held, mayCreate: boolean):
             connectionKind: null,
             body: asMap(body),
             stored: held.schemas?.find((one) => one.code === code)?.body ?? null,
+            usedBy: held.schemas?.find((one) => one.code === code)?.used_by ?? [],
         })),
         ...Object.entries(sectionIn(document, 'connections')).map(([code, definition]) => ({
             kind: 'connection' as const,
@@ -146,6 +157,7 @@ export function carriedItems(document: JsonMap, held: Held, mayCreate: boolean):
             connectionKind: kindOf(definition),
             body: null,
             stored: null,
+            usedBy: [],
         })),
     ]
 }

@@ -12,6 +12,7 @@ A schema is checked to be a valid schema of that draft before it is stored.
 """
 
 import re
+from collections.abc import Sequence
 from uuid import UUID
 
 import sqlalchemy as sa
@@ -19,10 +20,12 @@ from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dirigent_client.schemas import Catalog
 from dirigent_common import JsonMap
+from dirigent_core.documents import schemas_named
 from dirigent_core.errors import DomainError
-from dirigent_core.messages import SCHEMA_INVALID, SCHEMA_NO_CODE
-from dirigent_core.models import Schema
+from dirigent_core.messages import SCHEMA_IN_USE, SCHEMA_INVALID, SCHEMA_NO_CODE
+from dirigent_core.models import Pipeline, PipelineVersion, Schema
 
 #: The code a schema is given when it names none: a slug drawn from ``$id`` or a filename.
 _CODE_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{0,199}$")
@@ -30,6 +33,18 @@ _CODE_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{0,199}$")
 
 class SchemaRefused(DomainError):
     """A schema that cannot be stored, and the reason a caller can show."""
+
+
+class SchemaInUse(DomainError):
+    """A schema was asked to be removed while a stored pipeline still names it."""
+
+    status = 409
+    message = SCHEMA_IN_USE
+
+    def __init__(self, code: str, pipelines: Sequence[str]) -> None:
+        """Say which pipelines name it, so what has to change is in the refusal."""
+        super().__init__(code=repr(code), count=len(pipelines), pipelines=", ".join(pipelines))
+        self.pipelines = list(pipelines)
 
 
 def code_from_id(schema_id: str) -> str | None:
@@ -125,6 +140,28 @@ async def schema_codes(session: AsyncSession) -> set[str]:
     """Every schema code the instance holds, for the requires preflight."""
     rows = await session.execute(sa.select(Schema.code))
     return {code for (code,) in rows.all()}
+
+
+async def schema_users(session: AsyncSession, catalog: Catalog) -> dict[str, list[str]]:
+    """Which stored pipelines name each schema code, by the code they name it under.
+
+    Only each pipeline's current version is asked. A past version is history: holding a schema
+    back because a version nobody applies any more once named it would make a code undeletable
+    for the life of the instance.
+
+    The documents are read and walked here rather than queried into, so a JSON operator no
+    dialect shares is never reached for and SQLite and PostgreSQL answer the same thing.
+    """
+    statement = (
+        sa.select(Pipeline.code, PipelineVersion.document)
+        .join(PipelineVersion, PipelineVersion.pipeline_id == Pipeline.id)
+        .where(PipelineVersion.version == Pipeline.current_version)
+    )
+    users: dict[str, set[str]] = {}
+    for code, document in (await session.execute(statement)).all():
+        for named in schemas_named(document, catalog):
+            users.setdefault(named, set()).add(code)
+    return {named: sorted(pipelines) for named, pipelines in users.items()}
 
 
 async def all_schemas(session: AsyncSession) -> list[Schema]:
