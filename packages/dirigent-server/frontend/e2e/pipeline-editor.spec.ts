@@ -1427,3 +1427,97 @@ test('a carried schema that collides with a stored one is updated in its own row
     expect(read.body.required).toEqual(['carried_here'])
     expect(read.name).toBeNull()
 })
+
+/** A stored shape long enough to have put this row's own controls off the screen: 200+ lines. */
+function longShape(): Record<string, unknown> {
+    const properties: Record<string, unknown> = {}
+    for (let at = 0; at < 68; at += 1) {
+        properties[`field_${String(at).padStart(2, '0')}`] = {
+            type: 'string',
+            description: `What field ${String(at)} of the record carries.`,
+        }
+    }
+    return {
+        $id: REFERENCE_SCHEMA,
+        title: REFERENCE_SCHEMA_TITLE,
+        type: 'object',
+        required: ['id'],
+        properties,
+    }
+}
+
+/**
+ * How far below the fold a control in this row sits, in pixels; positive is clipped.
+ *
+ * IT IS MEASURED AGAINST THE SCROLLER AND NOT THE DIALOG. A control cut off by the body's fold
+ * is still inside the dialog's own box, so comparing it against that box reads a clipped control
+ * as visible. The scroller is found by walking up from the control itself.
+ */
+async function belowTheFold(row: Locator, label: string): Promise<number> {
+    return row.evaluate((node, wanted) => {
+        const button = [...node.querySelectorAll('button')].find(
+            (one) => (one.textContent ?? '').trim() === wanted,
+        )
+        if (button === undefined) return Number.NaN
+        let walk = button.parentElement
+        while (walk !== null) {
+            const style = getComputedStyle(walk)
+            if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
+                return Math.round(button.getBoundingClientRect().bottom - walk.getBoundingClientRect().bottom)
+            }
+            walk = walk.parentElement
+        }
+        return Number.NaN
+    }, label)
+}
+
+/**
+ * A DECISION'S CONTROLS ARE NEVER THE PART THAT SCROLLS AWAY. The shape the instance holds is
+ * reference material for the decision above it and has no length of its own, so drawn at its own
+ * height it put this row's Cancel and confirm thousands of pixels below the foot of the dialog's
+ * scroller: a reader had to go looking for the control the dialog was asking them to press. The
+ * pane takes a pane's height instead and the window carries the whole shape.
+ *
+ * THE SHORT DESKTOP IS THE BINDING ONE, because the dialog's own cap leaves least room there --
+ * a phone is narrower, which costs wrapped lines, but it is also taller.
+ */
+test("a long stored shape leaves the row's own controls on screen", async ({ page, baseURL }) => {
+    await signIn(page)
+    await seedNamed(page.request, baseURL ?? '')
+    const prefix = await apiPrefix(page.request)
+    const lengthened = await page.request.patch(`${prefix}/schemas/${REFERENCE_SCHEMA}`, {
+        data: { body: longShape() },
+    })
+    expect(lengthened.ok(), await lengthened.text()).toBe(true)
+
+    await page.goto('/pipelines')
+    await page.getByRole('button', { name: LABELS.pipelines.new }).click()
+    const panel = page.locator('aside')
+    await panel.getByRole('tab', { name: LABELS.word.source }).click()
+    await writeInEditor(page, panel.getByTestId('code-editor'), CARRYING)
+
+    await page.getByRole('button', { name: LABELS.action.apply, exact: true }).click()
+    const dialog = page.getByRole('dialog')
+    const row = dialog.locator('li').filter({ hasText: REFERENCE_SCHEMA })
+    await expect(row).toContainText(LABELS.editor.carried.state.differs)
+    await row.getByRole('button', { name: LABELS.editor.carried.update_row(REFERENCE_SCHEMA) }).click()
+    await expect(row.getByRole('button', { name: LABELS.editor.carried.update_confirm })).toBeVisible()
+
+    for (const size of [
+        { width: 1024, height: 768 },
+        { width: 390, height: 844 },
+    ]) {
+        await page.setViewportSize(size)
+        const where = `${String(size.width)}x${String(size.height)}`
+        for (const control of [LABELS.action.cancel, LABELS.editor.carried.update_confirm]) {
+            // Polled rather than read once: a viewport that has just changed is a layout still
+            // settling, and a measurement taken mid-reflow is a different layout's.
+            await expect
+                .poll(async () => belowTheFold(row, control), {
+                    message: `${control} at ${where}`,
+                    timeout: 10_000,
+                })
+                .toBeLessThanOrEqual(0)
+        }
+    }
+})
