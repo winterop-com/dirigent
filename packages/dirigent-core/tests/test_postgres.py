@@ -70,6 +70,7 @@ from dirigent_core.pipelines import (
     require_pipeline,
 )
 from dirigent_core.plugins import PluginHost
+from dirigent_core.schemas import schema_users, store_schema
 from dirigent_plugin import RemoteHandle
 from engineblocks import EchoOperator, EngineTestPlugin, RemoteOperator, reset_blocks
 
@@ -1915,3 +1916,34 @@ async def test_items_of_a_source_settling_at_once_expand_a_late_grid_exactly_onc
     assert sorted(value for value in EchoOperator.calls if value.startswith("late-")) == sorted(
         f"late-item-{index}" for index in range(UNITS)
     )
+
+
+async def test_which_pipelines_name_a_schema_answers_the_same_over_jsonb(
+    pg_sessions: async_sessionmaker[AsyncSession], pg_host: PluginHost
+) -> None:
+    """The reference lookup reads documents and walks them in Python, so jsonb changes nothing.
+
+    ``pipeline_versions.document`` is jsonb here and plain JSON on SQLite. The walk never reaches
+    for an operator only one dialect has, which is the whole reason a schema in use can be found
+    without a table to point a foreign key at.
+    """
+    async with session_scope(pg_sessions) as session:
+        await store_schema(session, {"$id": "ou-shape", "type": "object"})
+        await store_schema(session, {"$id": "spare-shape", "type": "object"})
+        holder = Pipeline(code="gated", current_version=1)
+        session.add(holder)
+        await session.flush()
+        session.add(
+            PipelineVersion(
+                pipeline_id=holder.id,
+                version=1,
+                document={
+                    "requires": {"schemas": ["ou-shape"]},
+                    "steps": {"gate": {"block": "test.echo", "config": {"schema": "ou-shape"}}},
+                },
+                digest="sha256:gated",
+            )
+        )
+
+    async with session_scope(pg_sessions) as session:
+        assert await schema_users(session, pg_host.catalog()) == {"ou-shape": ["gated"]}

@@ -39,8 +39,8 @@ const NOTHING_HELD: Held = { schemas: [], connections: [] }
 /** Every code held, and every schema holding exactly what the document carries. */
 const EVERYTHING_HELD: Held = {
     schemas: [
-        { code: 'nightly-catalogue', body: CATALOGUE },
-        { code: 'nightly-region', body: REGION },
+        { code: 'nightly-catalogue', body: CATALOGUE, used_by: [] },
+        { code: 'nightly-region', body: REGION, used_by: [] },
     ],
     connections: ['ops-receiver'],
 }
@@ -121,7 +121,7 @@ describe('the four cases a carried entry meets', () => {
 
     test('reads the same body through a different key order as the same body', () => {
         const held: Held = {
-            schemas: [{ code: 'order-shape', body: { title: 'x', type: 'object' } }],
+            schemas: [{ code: 'order-shape', body: { title: 'x', type: 'object' }, used_by: [] }],
             connections: [],
         }
         const carried: JsonMap = { schemas: { 'order-shape': { type: 'object', title: 'x' } } }
@@ -135,7 +135,7 @@ describe('the four cases a carried entry meets', () => {
      */
     test('calls a carried schema the instance holds something else under a difference', () => {
         const held: Held = {
-            schemas: [{ code: 'nightly-region', body: { type: 'string' } }],
+            schemas: [{ code: 'nightly-region', body: { type: 'string' }, used_by: [] }],
             connections: ['ops-receiver'],
         }
         const items = carriedItems(DOCUMENT, held, true)
@@ -145,7 +145,7 @@ describe('the four cases a carried entry meets', () => {
 
     test('shuts the button on a difference, naming the code and what else reads it', () => {
         const held: Held = {
-            schemas: [{ code: 'nightly-region', body: { type: 'string' } }],
+            schemas: [{ code: 'nightly-region', body: { type: 'string' }, used_by: [] }],
             connections: ['ops-receiver'],
         }
         const why = offerBlocked(carriedItems(DOCUMENT, held, true))
@@ -155,10 +155,24 @@ describe('the four cases a carried entry meets', () => {
 
     test('carries both shapes on the row, so the collision can be shown and replaced', () => {
         const stored = { type: 'string' }
-        const held: Held = { schemas: [{ code: 'nightly-region', body: stored }], connections: [] }
+        const held: Held = {
+            schemas: [{ code: 'nightly-region', body: stored, used_by: [] }],
+            connections: [],
+        }
         const row = carriedItems(DOCUMENT, held, true).find((one) => one.code === 'nightly-region')
         expect(row?.body).toEqual(REGION)
         expect(row?.stored).toEqual(stored)
+    })
+
+    test('carries the pipelines naming the stored code, so a replacement names who it is for', () => {
+        const held: Held = {
+            schemas: [{ code: 'nightly-region', body: { type: 'string' }, used_by: ['audited'] }],
+            connections: [],
+        }
+        const row = carriedItems(DOCUMENT, held, true).find((one) => one.code === 'nightly-region')
+        expect(row?.action).toBe('differs')
+        // The document being applied need not be among them, which is why the write stands alone.
+        expect(row?.usedBy).toEqual(['audited'])
     })
 
     /**
@@ -167,7 +181,7 @@ describe('the four cases a carried entry meets', () => {
      */
     test('offers the update on a collision and on nothing else', () => {
         const held: Held = {
-            schemas: [{ code: 'nightly-region', body: { type: 'string' } }],
+            schemas: [{ code: 'nightly-region', body: { type: 'string' }, used_by: [] }],
             connections: ['ops-receiver'],
         }
         const offered = carriedItems(DOCUMENT, held, true).filter(mayUpdate)
@@ -232,7 +246,10 @@ describe('an account that may not store a schema', () => {
 
 describe('what the rows and the sentences under them say', () => {
     test('says what each row does in the words the row reads', () => {
-        const held: Held = { schemas: [{ code: 'nightly-region', body: REGION }], connections: [] }
+        const held: Held = {
+            schemas: [{ code: 'nightly-region', body: REGION, used_by: [] }],
+            connections: [],
+        }
         expect(carriedItems(DOCUMENT, held, true).map(actionWord)).toEqual([
             'create',
             'already here',

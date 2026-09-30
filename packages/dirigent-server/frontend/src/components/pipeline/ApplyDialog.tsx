@@ -124,7 +124,9 @@ export function ApplyDialog({
         ]).then(([schemas, connections]) => {
             setHeld({
                 schemas: schemas.flatMap((one) =>
-                    one.status === 'fulfilled' ? [{ code: one.value.code, body: one.value.body }] : [],
+                    one.status === 'fulfilled'
+                        ? [{ code: one.value.code, body: one.value.body, used_by: one.value.used_by }]
+                        : [],
                 ),
                 connections: connections.flatMap((one) =>
                     one.status === 'fulfilled' ? [one.value.code] : [],

@@ -1,6 +1,14 @@
 import { describe, expect, test } from 'vitest'
 
-import { bodyText, schemaPatch, schemasNote, wholeSchema, type SchemaOut } from '@/lib/schemas'
+import {
+    bodyText,
+    schemaPatch,
+    schemasNote,
+    validatedBy,
+    wholeSchema,
+    whyKept,
+    type SchemaOut,
+} from '@/lib/schemas'
 
 const STORED: SchemaOut = {
     id: '9f2a4c1e-0000-4000-8000-000000000001',
@@ -10,6 +18,7 @@ const STORED: SchemaOut = {
     body: { $id: 'org-unit', title: 'Organisation unit', type: 'object' },
     created_at: '2026-09-01T10:00:00Z',
     updated_at: '2026-09-01T10:00:00Z',
+    used_by: [],
 }
 
 describe('the text a stored schema is opened in', () => {
@@ -85,5 +94,24 @@ describe('what the screen says it holds', () => {
         expect(schemasNote([])).toBeNull()
         expect(schemasNote([STORED])).toBe('1 schema')
         expect(schemasNote([STORED, { ...STORED, code: 'field-unit' }])).toBe('2 schemas')
+    })
+})
+
+describe('what a stored schema says about the pipelines naming it', () => {
+    test('a shape nothing names is freely removed and says nothing about dependants', () => {
+        expect(whyKept(STORED)).toBeUndefined()
+        expect(validatedBy(STORED)).toBeNull()
+    })
+
+    test('a shape one pipeline names shuts the delete and names the pipeline', () => {
+        const held = { ...STORED, used_by: ['nightly'] }
+        expect(whyKept(held)).toBe('nightly names this shape, so it cannot be removed.')
+        expect(validatedBy(held)).toBe('That is nightly.')
+    })
+
+    test('several pipelines are listed in the order the server gave them', () => {
+        const held = { ...STORED, used_by: ['nightly', 'weekly'] }
+        expect(whyKept(held)).toBe('nightly, weekly name this shape, so it cannot be removed.')
+        expect(validatedBy(held)).toBe('Those are nightly, weekly.')
     })
 })

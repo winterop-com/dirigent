@@ -28,6 +28,14 @@ export interface SchemaOut {
     body: JsonMap
     created_at: string
     updated_at: string
+    /**
+     * The codes of the stored pipelines whose current version names this schema, in code order.
+     *
+     * Every response carries it, so a control that would be refused knows before it is pressed
+     * and a reader changing a shape knows whose pipelines they are changing it for. Empty means
+     * nothing stored names it.
+     */
+    used_by: string[]
 }
 
 /** Read one page of schemas, in code order. */
@@ -109,6 +117,30 @@ export function wholeSchema(body: JsonMap): SchemaUpdate {
 function keyword(body: JsonMap, name: 'title' | 'description'): string | null {
     const said = body[name]
     return typeof said === 'string' ? said : null
+}
+
+/**
+ * Why a stored schema cannot be removed, or nothing where it can be.
+ *
+ * `DELETE /schemas/{code}` refuses a code a stored pipeline's current version names, so the
+ * control that would send it reads this and shuts before it is pressed rather than answering a
+ * refusal afterwards. Editing is not refused and has no equivalent: correcting a shape every
+ * pipeline should now validate against is what editing a stored schema is for.
+ */
+export function whyKept(schema: Pick<SchemaOut, 'used_by'>): string | undefined {
+    if (schema.used_by.length === 0) return undefined
+    return counted(schema.used_by.length, LABELS.schemas.in_use)(schema.used_by.join(', '))
+}
+
+/**
+ * Which pipelines validate against this shape, or nothing where none do.
+ *
+ * It finishes the warning it is drawn under rather than restating it, so it reads as the second
+ * half of one sentence: saving is a decision made on their behalf, and a count is not a name.
+ */
+export function validatedBy(schema: Pick<SchemaOut, 'used_by'>): string | null {
+    if (schema.used_by.length === 0) return null
+    return counted(schema.used_by.length, LABELS.schemas.used_by)(schema.used_by.join(', '))
 }
 
 /**

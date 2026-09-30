@@ -322,6 +322,73 @@ def test_a_stored_schema_is_corrected_in_place_and_keeps_its_code(client: TestCl
     assert client.get(f"{PREFIX}/schemas/reading").json()["body"]["required"] == ["id"]
 
 
+def test_a_schema_a_pipeline_names_cannot_be_removed_but_can_still_be_corrected(client: TestClient) -> None:
+    """The two are not the same severity, and the routes answer differently.
+
+    Applying a document that names a schema no instance holds is already refused, so a delete
+    that went through would leave behind the state no apply is allowed to create. An edit is
+    the other way round: correcting a shape every pipeline should now validate against is what
+    editing a stored schema is for, so it lands and the answer says whose pipelines it landed
+    for.
+    """
+    body = {"$id": "ou-shape", "type": "object", "required": ["id"]}
+    assert client.post(f"{PREFIX}/schemas", json={"body": body}).status_code == 201
+
+    document = yaml.safe_load(DOCUMENT)
+    document["code"] = "gated"
+    document["requires"] = {"schemas": ["ou-shape"]}
+    document["steps"]["gate"] = {
+        "block": "validate.schema",
+        "config": {"input": {"id": "x"}, "schema": "ou-shape"},
+    }
+    assert client.post(f"{PREFIX}/pipelines/$apply", json={"document": document}).status_code == 200
+
+    refused = client.delete(f"{PREFIX}/schemas/ou-shape")
+    assert refused.status_code == 409, refused.text
+    assert refused.json()["code"] == "schema.in_use"
+    assert refused.json()["params"]["pipelines"] == "gated"
+    assert client.get(f"{PREFIX}/schemas/ou-shape").status_code == 200, "and the shape is still there"
+
+    corrected = client.patch(
+        f"{PREFIX}/schemas/ou-shape", json={"body": {"type": "object", "required": ["id", "name"]}}
+    )
+    assert corrected.status_code == 200, "an edit under a dependency is the reader's to make"
+    assert corrected.json()["used_by"] == ["gated"], "and the answer says whose it is"
+    assert corrected.json()["body"]["required"] == ["id", "name"]
+
+
+def test_a_schema_nothing_names_is_edited_and_removed_freely(client: TestClient) -> None:
+    """Nothing depends on it, so nothing about it is anybody else's business."""
+    created = client.post(f"{PREFIX}/schemas", json={"body": {"$id": "unused-shape", "type": "object"}})
+    assert created.status_code == 201
+    assert created.json()["used_by"] == []
+
+    edited = client.patch(f"{PREFIX}/schemas/unused-shape", json={"body": {"type": "array"}})
+    assert edited.status_code == 200
+    assert edited.json()["used_by"] == []
+    assert client.delete(f"{PREFIX}/schemas/unused-shape").status_code == 204
+
+
+def test_a_schema_named_only_by_a_pipeline_no_longer_naming_it_is_removable(client: TestClient) -> None:
+    """A dependency is the current version's, not every version's.
+
+    A code named by a version nobody applies any more would otherwise be held for the life of
+    the instance, with nothing a reader could do about it.
+    """
+    assert client.post(f"{PREFIX}/schemas", json={"body": {"$id": "stale-shape", "type": "object"}}).status_code == 201
+
+    naming = yaml.safe_load(DOCUMENT)
+    naming["code"] = "moved-on"
+    naming["requires"] = {"schemas": ["stale-shape"]}
+    assert client.post(f"{PREFIX}/pipelines/$apply", json={"document": naming}).status_code == 200
+    assert client.delete(f"{PREFIX}/schemas/stale-shape").status_code == 409
+
+    dropped = yaml.safe_load(DOCUMENT)
+    dropped["code"] = "moved-on"
+    assert client.post(f"{PREFIX}/pipelines/$apply", json={"document": dropped}).status_code == 200
+    assert client.delete(f"{PREFIX}/schemas/stale-shape").status_code == 204
+
+
 def test_a_body_that_is_not_a_valid_schema_is_refused(client: TestClient) -> None:
     refused = client.post(f"{PREFIX}/schemas", json={"code": "bad", "body": {"type": "not-a-type"}})
     assert refused.status_code == 422

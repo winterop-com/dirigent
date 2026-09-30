@@ -1,15 +1,21 @@
 """Storing named JSON Schemas: identity from the schema's own keywords, and the validity gate."""
 
 import pytest
+import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from dirigent_common import JsonMap
 from dirigent_core.database import session_scope
+from dirigent_core.documents import reference_fields, schemas_named
+from dirigent_core.models import Pipeline, PipelineVersion
+from dirigent_core.plugins import PluginHost
 from dirigent_core.schemas import (
     SchemaRefused,
     check_valid_schema,
     code_from_id,
     resolve_identity,
     schema_codes,
+    schema_users,
     store_schema,
 )
 
@@ -91,3 +97,72 @@ async def test_load_schemas_snapshots_every_body_by_code(sessions: async_session
         loaded = await load_schemas(session)
     assert set(loaded) == {"org-unit"}
     assert loaded["org-unit"]["required"] == ["id", "displayName"]
+
+
+def test_a_block_declares_which_of_its_fields_hold_a_schema_code(host: PluginHost) -> None:
+    """The marker is the definition, and it survives the ``$ref`` pydantic publishes it behind.
+
+    A field typed as a named alias is published as a pointer into ``$defs``, and an optional one
+    as a union of that pointer and null, so neither shape carries the marker on the property
+    itself.
+    """
+    echo = host.catalog().block("test.echo")
+    assert echo is not None
+    assert reference_fields(echo.config_schema, "schema") == {"schema"}
+
+    failing = host.catalog().block("test.fail")
+    assert failing is not None
+    assert reference_fields(failing.config_schema, "schema") == set(), "a block naming no schema names none"
+
+
+def test_a_document_names_the_schemas_it_requires_and_the_ones_its_steps_gate_on(host: PluginHost) -> None:
+    """A key a block never declared as a reference is a value, whatever it is spelled."""
+    document = {
+        "requires": {"schemas": ["required-shape"]},
+        "steps": {
+            "gate": {"block": "test.echo", "config": {"value": "hi", "schema": "step-shape"}},
+            "plain": {"block": "test.fail", "config": {"schema": "not-a-reference"}},
+        },
+    }
+    assert schemas_named(document, host.catalog()) == {"required-shape", "step-shape"}
+
+
+def test_a_schema_code_written_as_a_reference_is_not_one_a_document_can_be_said_to_name(
+    host: PluginHost,
+) -> None:
+    """What a ``${...}`` stands for has no value until a run resolves it."""
+    document = {"steps": {"gate": {"block": "test.echo", "config": {"schema": "${params.shape}"}}}}
+    assert schemas_named(document, host.catalog()) == set()
+
+
+async def test_which_pipelines_name_a_schema_is_read_from_every_current_version(
+    sessions: async_sessionmaker[AsyncSession], host: PluginHost
+) -> None:
+    """The map answers for every code at once, so one listing costs one walk.
+
+    A version that is not the current one is not a dependency: the second apply below leaves
+    version 1 naming the schema and nothing holding it.
+    """
+    async with session_scope(sessions) as session:
+        await store_schema(session, ORG_UNIT)
+        await _store_version(session, "gated", 1, {"requires": {"schemas": ["org-unit"]}})
+        await _store_version(session, "ungated", 1, {"steps": {}})
+    async with session_scope(sessions) as session:
+        assert await schema_users(session, host.catalog()) == {"org-unit": ["gated"]}
+
+    async with session_scope(sessions) as session:
+        await _store_version(session, "gated", 2, {"steps": {}})
+    async with session_scope(sessions) as session:
+        assert await schema_users(session, host.catalog()) == {}
+
+
+async def _store_version(session: AsyncSession, code: str, version: int, document: JsonMap) -> None:
+    """Store one pipeline version and make it the current one, without going through an apply."""
+    row = (await session.execute(sa.select(Pipeline).where(Pipeline.code == code))).scalar_one_or_none()
+    if row is None:
+        row = Pipeline(code=code)
+        session.add(row)
+        await session.flush()
+    session.add(PipelineVersion(pipeline_id=row.id, version=version, document=document, digest=f"sha256:{code}"))
+    row.current_version = version
+    await session.flush()

@@ -632,6 +632,34 @@ def test_schema_takes_its_code_from_the_filename_when_there_is_no_id(tmp_path: P
     assert "reading" in stored.output
 
 
+def test_schema_delete_is_refused_while_a_pipeline_names_it(tmp_path: Path, server: str) -> None:
+    """The refusal the instance made reaches the terminal under its own code.
+
+    A server refusal crosses the wire as a code, its params and the sentence whichever process
+    minted it rendered, and the CLI writes that as its ``error`` record -- so nothing here has to
+    hold a second copy of the words.
+    """
+    path = tmp_path / "gate-shape.json"
+    path.write_text('{"$id": "gate-shape", "title": "Gate shape", "type": "object"}')
+    assert machine("schema", "create", str(path)).exit_code == 0
+
+    naming = tmp_path / "gated.yaml"
+    naming.write_text(
+        "format: dirigent/v1\nkind: pipeline\ncode: gated\nrequires:\n  schemas: [gate-shape]\n"
+        "steps:\n  gate:\n    block: validate.schema\n    config: {input: {}, schema: gate-shape}\n"
+    )
+    assert machine("apply", str(naming)).exit_code == 0
+
+    refused = machine("schema", "delete", "gate-shape")
+    assert refused.exit_code != 0, refused.output
+    problem = refusal(refused.stdout)
+    assert problem["code"] == "schema.in_use"
+    assert problem["params"]["pipelines"] == "gated"
+
+    # The shape is still there, so the refusal cost nothing.
+    assert machine("schema", "show", "gate-shape").exit_code == 0
+
+
 def test_schema_create_refuses_a_body_that_is_not_a_schema(tmp_path: Path, server: str) -> None:
     path = tmp_path / "broken.json"
     path.write_text('{"$id": "broken", "type": "not-a-type"}')

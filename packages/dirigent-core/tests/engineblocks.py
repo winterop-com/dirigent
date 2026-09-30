@@ -17,6 +17,7 @@ from dirigent_plugin import (
     ProbeResult,
     ProbeStatus,
     RemoteHandle,
+    SchemaRef,
     Sensor,
     SensorSpec,
     ShellString,
@@ -37,8 +38,8 @@ class EchoConfig(BlockModel):
     connection: str | None = None
     """Named like a real block's, so the connection checks have a config field to read."""
 
-    json_schema: str | None = Field(alias="schema", default=None)
-    """Named like validate.schema's, so the schema checks have a config field to read."""
+    json_schema: SchemaRef | None = Field(alias="schema", default=None)
+    """Declared like validate.schema's, so the schema checks have a reference field to read."""
 
     labels: dict[str, str] = {}
     """A free-form map, so a test has somewhere to write keys the format does not interpret."""

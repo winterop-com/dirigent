@@ -236,7 +236,7 @@ may, and an operator everything a viewer may.
 | `DELETE /api/v1/pipelines/{code}` | Destroying a definition and its history |
 | `POST /api/v1/schemas` | Publishing a shape every document may reference |
 | `PATCH /api/v1/schemas/{code}` | Changing one under everything that references it |
-| `DELETE /api/v1/schemas/{code}` | Removing one under everything that references it |
+| `DELETE /api/v1/schemas/{code}` | Removing one, which is refused while a pipeline names it |
 
 A write a role may not perform is answered with `403` and one sentence of detail:
 `not permitted for your role`. It is the same status and the same sentence whichever boundary
