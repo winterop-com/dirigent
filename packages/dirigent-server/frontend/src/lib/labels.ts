@@ -70,6 +70,11 @@ const action = {
         busy: 'Saving',
         done: 'Saved.',
     },
+    /** Replace what is stored with what is in front of the reader. */
+    update: {
+        verb: 'Update',
+        busy: 'Updating',
+    },
     /** Write a shape to the instance, which is what a schema is created by. */
     store: {
         verb: 'Store',
@@ -1500,15 +1505,26 @@ const editor = {
          * verb alone and the whole of it is what a reader who cannot see the row hears.
          */
         create_row: (code: string) => `Create connection ${code}`,
+        /** The same, for the row whose stored schema would be replaced by what is carried. */
+        update_row: (code: string) => `Update schema ${code}`,
+        /** The confirm inside that row, which says the whole of what pressing it does. */
+        update_confirm: 'Update the stored schema',
+        /** Over the pane in that row: which of the two shapes is being read. */
+        held_heading: 'On this instance',
+        /** What the pane's own window is titled, which is the shape and where it is held. */
+        held_body: (code: string) => `${code} · on this instance`,
+        /** What updating does, and what it does to everything else naming the code. */
+        update_note:
+            'Updating replaces what the instance holds with what this document carries. Every pipeline naming this code validates against the new shape from its next attempt.',
         /** Why a credential is never taken out of a document, whatever fields it declares. */
         connection_note:
             'A connection is not created from a document: a document can carry a credential in plain text, in a password field or inside a URL.',
-        /** Why applying would bind this document to a shape its author did not write. */
+        /** Why applying is shut: a code the document carries is a shape the instance does not hold. */
         differs_why: {
             one: (code: string) =>
-                `This instance holds a schema coded ${code} that is not what this document carries. Other pipelines name that code, so nothing here replaces it: change what the document carries, or carry it under a code of its own.`,
+                `This instance holds a schema coded ${code} that is not what this document carries. Every pipeline naming that code validates against the stored one.`,
             many: (codes: string) =>
-                `This instance holds schemas coded ${codes} that are not what this document carries. Other pipelines name those codes, so nothing here replaces them: change what the document carries, or carry them under codes of their own.`,
+                `This instance holds schemas coded ${codes} that are not what this document carries. Every pipeline naming those codes validates against the stored ones.`,
         },
         /** Why the apply would refuse: a connection the document names is not on this instance. */
         no_connection: {
@@ -2532,6 +2548,19 @@ const schemas = {
     code_placeholder: 'taken from $id when left blank',
     /** A body the browser could not read as JSON, said where it was typed. */
     unreadable: (error: string) => `The schema is not readable JSON: ${error}`,
+
+    /**
+     * Under the name box: that the name is stored beside the schema rather than read out of it.
+     *
+     * A create reads the schema's own `title`; an update does not, so the two can part company
+     * and the box is what decides which one the screen reads. That is semantics the control
+     * cannot show, which is the only thing a hint is for.
+     */
+    name_hint: 'Stored beside the schema. Editing title in the body does not move it.',
+    /** The description box, which is the schema's own `description` as it was stored. */
+    description_placeholder: 'What this shape is for. Markdown is rendered.',
+    /** Why editing the body is a decision rather than a correction, said where it is made. */
+    body_warning: 'Every pipeline naming this code validates against this shape from its next attempt.',
 } as const
 
 /**

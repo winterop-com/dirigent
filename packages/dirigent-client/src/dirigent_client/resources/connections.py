@@ -1,6 +1,6 @@
 """Connections: coded credential records of a contributed kind, redacted in every response."""
 
-from dirigent_client.resources.base import Resource, query, request_body
+from dirigent_client.resources.base import Resource, edit_body, query, request_body
 from dirigent_client.schemas import ConnectionIn, ConnectionOut, ConnectionUpdate, Page
 from dirigent_common import HealthReport, JsonMap
 
@@ -37,9 +37,13 @@ class Connections(Resource):
         name: str | None = None,
         description: str | None = None,
     ) -> ConnectionOut:
-        """Replace a connection's settings; the config is sent whole, not merged field by field."""
-        payload = ConnectionUpdate(name=name, description=description, config=config)
-        return await self._one(ConnectionOut, "PATCH", f"/connections/{code}", json=request_body(payload))
+        """Replace a connection's settings; the config is sent whole, not merged field by field.
+
+        An argument left out is a field the request says nothing about, so settings stored on
+        their own keep the name and the description the credential was created with.
+        """
+        sent = edit_body(ConnectionUpdate, name=name, description=description, config=config)
+        return await self._one(ConnectionOut, "PATCH", f"/connections/{code}", json=sent)
 
     async def delete(self, code: str) -> None:
         """Remove a credential record."""

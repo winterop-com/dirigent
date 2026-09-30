@@ -1363,3 +1363,65 @@ test('a carried connection is minted in its own row, and the document is never l
     expect(detail.document.connections).toBeUndefined()
     expect(detail.document.requires).toEqual({ connections: [CARRIED_CONNECTION] })
 })
+
+/**
+ * THE THIRD OPTION, WHICH THE BROWSER COULD NOT TAKE. A document carrying a shape under a code
+ * the instance already holds a different shape under is a collision, and the two answers beside
+ * it were both the document author's: change what the document carries, or carry it under
+ * another code. The third is to update the stored schema, and it is the right one often enough
+ * that leaving it out made this dialog a dead end.
+ *
+ * IT IS PRESSED IN THE ROW AND NOT BY THE APPLY. Applying stores what the document carries and
+ * names the codes; replacing what another pipeline validates against is a second decision, so
+ * the confirm is drawn only once the collision has gone -- and nothing navigates, for the same
+ * reason the connection above opens where it does.
+ */
+test('a carried schema that collides with a stored one is updated in its own row', async ({
+    page,
+    baseURL,
+}) => {
+    await signIn(page)
+    await seedNamed(page.request, baseURL ?? '')
+    const prefix = await apiPrefix(page.request)
+    await page.request.delete(`${prefix}/pipelines/carries-its-shape`)
+
+    await page.goto('/pipelines')
+    await page.getByRole('button', { name: LABELS.pipelines.new }).click()
+    const panel = page.locator('aside')
+    await panel.getByRole('tab', { name: LABELS.word.source }).click()
+    await writeInEditor(page, panel.getByTestId('code-editor'), CARRYING)
+
+    await page.getByRole('button', { name: LABELS.action.apply, exact: true }).click()
+    const dialog = page.getByRole('dialog')
+    const row = dialog.locator('li').filter({ hasText: REFERENCE_SCHEMA })
+    await expect(row).toContainText(LABELS.editor.carried.state.differs)
+
+    // A CONFIRM IS DRAWN ONLY WHERE PRESSING IT WOULD DO SOMETHING: the collision shuts it, and
+    // the sentence beside the rows says which code collided.
+    await expect(dialog.getByRole('alert')).toContainText(REFERENCE_SCHEMA)
+    await expect(dialog.getByRole('button', { name: LABELS.action.apply, exact: true })).toHaveCount(0)
+
+    // THE DECISION OPENS UNDER THE ROW, over the shape the reader cannot otherwise see without
+    // leaving a document nothing has applied.
+    await row.getByRole('button', { name: LABELS.editor.carried.update_row(REFERENCE_SCHEMA) }).click()
+    await expect(row.getByText(LABELS.editor.carried.held_heading)).toBeVisible()
+    await expect(row.getByText(REFERENCE_SCHEMA_TITLE, { exact: false }).first()).toBeVisible()
+
+    await row.getByRole('button', { name: LABELS.editor.carried.update_confirm }).click()
+
+    // THE ROW IS THE REPORT: it turns `already here`, which is what was in the way of the
+    // confirm being drawn at all.
+    await expect(row).toContainText(LABELS.editor.carried.state.held)
+    const confirm = dialog.getByRole('button', { name: LABELS.action.apply, exact: true })
+    await expect(confirm).toBeVisible()
+    await expect(page).toHaveURL(/\/pipelines\/\$new$/)
+
+    await confirm.click()
+    await expect(page).toHaveURL(/\/pipelines\/carries-its-shape$/)
+
+    // The instance holds what the document carried, identity and all: a store reads a schema's
+    // own title and this one declares none, so the name the seed gave it is cleared with it.
+    const read = await (await page.request.get(`${prefix}/schemas/${REFERENCE_SCHEMA}`)).json()
+    expect(read.body.required).toEqual(['carried_here'])
+    expect(read.name).toBeNull()
+})

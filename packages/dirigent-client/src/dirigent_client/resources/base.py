@@ -30,6 +30,18 @@ def query(**values: object) -> dict[str, Any]:
     return {name: value for name, value in values.items() if value is not None}
 
 
+def edit_body(model: type[BaseModel], **values: object) -> dict[str, Any]:
+    """Render a PATCH body carrying only the members the caller named.
+
+    A member left out and a member sent as null are different requests to this API -- one
+    leaves the field alone, the other clears it -- and a body built from every parameter's
+    default cannot tell them apart. So the model is validated over what was given and dumped
+    over what was set, and a field nobody named does not travel.
+    """
+    payload = model.model_validate({name: value for name, value in values.items() if value is not None})
+    return payload.model_dump(mode="json", by_alias=True, exclude_unset=True)
+
+
 def request_body(schema: BaseModel) -> dict[str, Any]:
     """Render a request schema as the JSON body it is sent as.
 

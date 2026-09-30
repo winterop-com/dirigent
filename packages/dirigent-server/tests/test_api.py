@@ -294,6 +294,34 @@ def test_a_schema_reads_its_identity_from_its_own_keywords(client: TestClient) -
     assert client.get(f"{PREFIX}/schemas/org-unit").status_code == 404
 
 
+def test_a_stored_schema_is_corrected_in_place_and_keeps_its_code(client: TestClient) -> None:
+    """A shape somebody got wrong is edited rather than deleted and written again.
+
+    The body sent replaces the stored one and is checked the same way a create's is; the name
+    and the description are stored beside it and are not read back out of the new body, so a
+    request saying nothing about them leaves them alone.
+    """
+    body = {"$id": "reading", "title": "A reading", "description": "One reading.", "type": "object"}
+    assert client.post(f"{PREFIX}/schemas", json={"body": body}).status_code == 201
+
+    corrected = client.patch(f"{PREFIX}/schemas/reading", json={"body": {"type": "object", "required": ["id"]}})
+    assert corrected.status_code == 200
+    assert corrected.json()["code"] == "reading"
+    assert corrected.json()["body"]["required"] == ["id"]
+    assert corrected.json()["name"] == "A reading"
+    assert corrected.json()["description"] == "One reading."
+
+    relabelled = client.patch(f"{PREFIX}/schemas/reading", json={"name": "The reading", "description": None})
+    assert relabelled.json()["name"] == "The reading"
+    assert relabelled.json()["description"] is None
+    assert relabelled.json()["body"]["required"] == ["id"]
+
+    assert client.patch(f"{PREFIX}/schemas/nothing-here", json={"name": "x"}).status_code == 404
+    refused = client.patch(f"{PREFIX}/schemas/reading", json={"body": {"type": "not-a-type"}})
+    assert refused.status_code == 422
+    assert client.get(f"{PREFIX}/schemas/reading").json()["body"]["required"] == ["id"]
+
+
 def test_a_body_that_is_not_a_valid_schema_is_refused(client: TestClient) -> None:
     refused = client.post(f"{PREFIX}/schemas", json={"code": "bad", "body": {"type": "not-a-type"}})
     assert refused.status_code == 422

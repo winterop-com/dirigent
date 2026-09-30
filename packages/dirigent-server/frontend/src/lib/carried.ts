@@ -20,11 +20,19 @@
  * code under `requires:` and carries nothing -- there is nothing here to create from, and the
  * apply's own issues and the editor's Requires chips are what say it, through `lib/requirements`.
  *
- * `differs` IS NOT ACTED ON. A stored schema is what every other pipeline naming that code
- * validates against, so replacing it from a document being applied would change what those
- * pipelines mean, and an apply that quietly bound this document's gate to a different shape
- * than the one written in it would be worse still. The row says the codes collide and the
- * button is shut; resolving it is a deliberate act elsewhere.
+ * APPLYING NEVER REPLACES A STORED SCHEMA. A stored schema is what every other pipeline naming
+ * that code validates against, and a run reads it fresh on every attempt, so an apply that
+ * wrote over one would change what those pipelines check without anybody having decided that.
+ * The line over the list counts what applying stores, and that stays true: `differs` shuts the
+ * button, and `offerBlocked` says which code collided.
+ *
+ * `differs` IS THE ROW'S OWN DECISION. Replacing the stored shape with the one the document
+ * carries is often the right answer and it was the one thing the browser could not do, so the
+ * row holds it: what the instance holds, what updating does to everything naming that code, and
+ * a control that writes it. It is a write of its own rather than a step of the apply, because
+ * the two answer to different people -- one pipeline's author is applying, and every other
+ * pipeline naming the code lives with the result. Once it has been written the row reads
+ * `already here` and the apply the collision shut is drawn.
  *
  * A CODE IS NOT INVENTED HERE. The code a carried schema is stored under is the key the document
  * already writes it under, which is what every `validate.schema` step in it references and what
@@ -64,7 +72,7 @@ export type CarriedAction =
     | 'create'
     /** The instance holds it already, and the document will name the instance's own. */
     | 'held'
-    /** The instance holds something else under that code, which nothing here resolves. */
+    /** The instance holds something else under that code, which the row offers to replace. */
     | 'differs'
     /** The instance has not got it and nothing here stores it, so the apply is refused. */
     | 'missing'
@@ -79,6 +87,8 @@ export interface CarriedItem {
     connectionKind: string | null
     /** The schema body the document carried, which is what a create stores. */
     body: JsonMap | null
+    /** The schema body the instance holds under that code, for the row that has to show it. */
+    stored: JsonMap | null
 }
 
 /** One stored schema, as much of it as this comparison needs. A `SchemaOut` is one. */
@@ -127,6 +137,7 @@ export function carriedItems(document: JsonMap, held: Held, mayCreate: boolean):
             action: schemaAction(code, asMap(body), held.schemas, mayCreate),
             connectionKind: null,
             body: asMap(body),
+            stored: held.schemas?.find((one) => one.code === code)?.body ?? null,
         })),
         ...Object.entries(sectionIn(document, 'connections')).map(([code, definition]) => ({
             kind: 'connection' as const,
@@ -134,6 +145,7 @@ export function carriedItems(document: JsonMap, held: Held, mayCreate: boolean):
             action: (held.connections?.includes(code) ?? false) ? ('held' as const) : ('missing' as const),
             connectionKind: kindOf(definition),
             body: null,
+            stored: null,
         })),
     ]
 }
@@ -153,9 +165,10 @@ export function creations(items: readonly CarriedItem[]): CarriedItem[] {
  *
  * A code the document carries that this instance holds a different thing under comes first: the
  * apply would go through and the pipeline would be bound to the instance's shape rather than the
- * one written in the document, which is the one outcome nobody would see. After it come the
- * things the apply refuses of its own accord, said here before the button is pressed rather than
- * afterwards as a plan that wrote nothing.
+ * one written in the document, which is the one outcome nobody would see. The row offers the
+ * update that settles it, so this is what stands in the way until somebody has. After it come
+ * the things the apply refuses of its own accord, said here before the button is pressed rather
+ * than afterwards as a plan that wrote nothing.
  */
 export function offerBlocked(items: readonly CarriedItem[]): string | undefined {
     const words = LABELS.editor.carried
@@ -209,6 +222,18 @@ export function storedNote(made: readonly CarriedItem[]): string {
         String(made.length),
         made.map((one) => one.code).join(', '),
     )
+}
+
+/**
+ * Whether this row's own update would do something, which is whether it is drawn at all.
+ *
+ * A collision over a schema, with both shapes on the entry: the one the document carries, which
+ * is what would be written, and the one the instance holds, which is what the row shows to say
+ * what is being replaced. A row missing either has nothing to write or nothing to show, and a
+ * control that cannot act is not offered.
+ */
+export function mayUpdate(item: CarriedItem): boolean {
+    return item.kind === 'schema' && item.action === 'differs' && item.body !== null && item.stored !== null
 }
 
 /** The carried connections this instance has not got, which is what a door is offered for. */

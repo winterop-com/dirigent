@@ -747,7 +747,12 @@ never repeated: the box above the row already holds it.
 **A JSON Schema is edited against its own meta-schema.** The media type
 `application/schema+json` is what asks for it: a buffer holding a schema document is checked
 against JSON Schema 2020-12, the draft the server validates with, so its keywords complete as
-they are typed and a value the draft does not take is marked where it was written.
+they are typed and a value the draft does not take is marked where it was written. Two buffers
+hold one -- the dialog a schema is written in, and the panel a stored one is corrected in -- so a
+shape is fixed in the editor it was authored in rather than read in one place and rewritten in
+another. What that panel may change is what `SchemaUpdate` carries: the name, the description and
+the body. The `code` is the heading and never a box, because the route addresses the schema by it
+and every `validate.schema` step and `requires.schemas` entry names it.
 
 **The label is the key.** What is being edited is a document, and the word an author writes in it
 is `max_response` rather than "Max Response". `description` is the help under the label, and whether a
@@ -875,10 +880,27 @@ what somebody wants and not the steps behind it.
 that code (`create`), one holding the same thing (`already here`), or one holding something else
 under the same name (`differs`); the fourth is a document that only names a code under
 `requires:`, which carries nothing to create from and is what the plan's own issues and the
-Requires chips say. **`differs` is never acted on**: a stored schema is what every other pipeline
-naming that code validates against, so replacing it from a document being applied would change
-what those pipelines mean, and applying over it would bind this document's gate to a shape its
-author did not write. The row names the collision and the confirm is not drawn.
+Requires chips say. **Applying never replaces a stored schema.** A stored schema is what every
+other pipeline naming that code validates against, and a gate reads it fresh on every attempt, so
+an apply that wrote over one would change what those pipelines check without anybody having
+decided that -- and the line over the list, which counts what applying stores, would stop being
+true. `differs` shuts the confirm and the sentence beside the rows says which code collided.
+
+**So `differs` is the row's own decision, and it opens in the row like every other.** What stood
+beside it was a sentence naming two remedies, both of them the document author's: change what the
+document carries, or carry it under a code of its own. The third -- update the stored schema to
+what the document carries -- is the right one often enough that leaving it out made the dialog a
+dead end, and it was the one thing the browser could not do at all. So the row expands over what
+the instance holds, drawn whole in the pane a schema is read in everywhere else; says that every
+pipeline naming that code validates against the new shape from its next attempt, which is what a
+gate resolving live actually means; and offers the write. It is a write of its own and not a step
+of the apply, because the two answer to different people -- one pipeline's author is applying, and
+every other pipeline naming that code lives with the result. **The identity travels with the
+body**: storing a schema reads its own `title` and `description` where the write names neither and
+`PATCH /schemas/{code}` reads nothing, so a replacement sends all three or the instance keeps the
+labels of a shape it no longer holds. The row then reads `already here` and the confirm is drawn,
+the collision it was shut for having gone -- and that is the whole report, in the place the reader
+is already looking.
 
 **A carried schema is stored and a carried connection is not.** A schema is a shape: it holds no
 credential, and storing it under the code the document already names puts the same resource where

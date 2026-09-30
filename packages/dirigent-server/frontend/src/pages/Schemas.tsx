@@ -3,13 +3,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 
 import { ApiChip } from '@/components/ApiChip'
-import { Description } from '@/components/Description'
-import { JsonBlock } from '@/components/JsonBlock'
 import { ListTable, type Column } from '@/components/list/ListTable'
 import { PageHeader, PageState } from '@/components/PageState'
 import { Refusable } from '@/components/Refusable'
-import { sayRefusal } from '@/components/Refusal'
 import { NewSchema } from '@/components/schemas/NewSchema'
+import { SchemaPanel } from '@/components/schemas/SchemaPanel'
 import { Button } from '@/components/ui/button'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { usePaged } from '@/hooks/use-paged'
@@ -19,7 +17,7 @@ import { LABELS } from '@/lib/labels'
 import { LIST_GROUP, registerActions } from '@/lib/palette'
 import { closePanel, fillPanel, openPanel } from '@/lib/panels'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
-import { deleteSchema, readSchema, readSchemas, schemasNote, type SchemaOut } from '@/lib/schemas'
+import { readSchema, readSchemas, schemasNote, type SchemaOut } from '@/lib/schemas'
 import { cn } from '@/lib/utils'
 
 const schemaId = (row: SchemaOut) => row.code
@@ -36,16 +34,22 @@ const schemaId = (row: SchemaOut) => row.code
  * so a shape somebody is reading is a link they can send -- and a code past the pages read so far
  * is read on its own rather than made to depend on where its row happens to fall.
  *
- * THE BODY IS THE SCHEMA. Opening a row shows the schema itself, coloured, with the window the
- * step panel uses -- a schema is JSON, and the reader wants to read it.
+ * THE BODY IS THE SCHEMA, AND IT IS EDITED WHERE IT IS READ. Opening a row shows the schema
+ * itself in the editor it was written in, checked against 2020-12 as it is typed, with the
+ * window every pane too small for what it holds offers. A shape somebody got wrong is corrected
+ * here; the code is not, because the route addresses the schema by it.
  */
 export function Schemas() {
     const { code: chosen = null } = useParams()
     const navigate = useNavigate()
     const [creating, setCreating] = useState(false)
     const { state, more, reload } = usePaged(readSchemas, schemaId)
+    // What a save has since made of a row, folded over the listing rather than re-read: a
+    // reload blanks the rows while it is in flight, and the panel would empty under the hands
+    // that just pressed Save.
+    const [fresher, setFresher] = useState<Record<string, SchemaOut>>({})
 
-    const rows = state.rows
+    const rows = useMemo(() => state.rows.map((row) => fresher[row.code] ?? row), [fresher, state.rows])
     const listed = rows.find((row) => row.code === chosen) ?? null
     // A code the walk has not reached, read on its own. A 404 answers nothing and the panel
     // stays shut, which is what an address naming no schema should do.
@@ -54,7 +58,21 @@ export function Schemas() {
         [chosen, listed],
     )
     const alone = useRead(ask)
-    const open = listed ?? alone.value
+    const read = alone.value
+    const open = listed ?? (read === null ? null : (fresher[read.code] ?? read))
+
+    const held = useCallback((row: SchemaOut) => {
+        setFresher((current) => ({ ...current, [row.code]: row }))
+    }, [])
+
+    // A code that is gone is not a code with a fresher row: one stored under it again is a new
+    // schema, and the row this held would shadow it.
+    const forget = useCallback((code: string) => {
+        setFresher((current) => {
+            const { [code]: _gone, ...rest } = current
+            return rest
+        })
+    }, [])
 
     // The address is the selection, so a link straight to a schema opens the panel it names.
     useEffect(() => {
@@ -78,12 +96,24 @@ export function Schemas() {
                 {
                     id: 'schema',
                     label: LABELS.word.schema.label,
-                    render: () => <SchemaPanel key={open.code} schema={open} onDeleted={reload} />,
+                    render: () => (
+                        <SchemaPanel
+                            key={open.code}
+                            schema={open}
+                            onSaved={held}
+                            onDeleted={() => {
+                                forget(open.code)
+                                void navigate('/schemas', { replace: true })
+                                closePanel()
+                                reload()
+                            }}
+                        />
+                    ),
                 },
             ],
             { screen: 'schemas' },
         )
-    }, [open, reload])
+    }, [forget, held, navigate, open, reload])
 
     const write = useMayWrite('admin')
     const mayWrite = write.may
@@ -212,41 +242,5 @@ function Named({ row }: { row: SchemaOut }) {
                 </span>
             )}
         </span>
-    )
-}
-
-/** The selected schema, in the right panel: its description, and the schema body itself. */
-function SchemaPanel({ schema, onDeleted }: { schema: SchemaOut; onDeleted: () => void }) {
-    const [removing, setRemoving] = useState(false)
-    const write = useMayWrite('admin')
-    const remove = () => {
-        setRemoving(true)
-        void deleteSchema(schema.code)
-            .then(onDeleted, sayRefusal)
-            .finally(() => {
-                setRemoving(false)
-            })
-    }
-    return (
-        <div className="flex min-h-0 flex-col gap-4 p-4">
-            <Description text={schema.description} />
-            <JsonBlock
-                title={LABELS.schemas.body_title(schema.code)}
-                text={JSON.stringify(schema.body, null, 2)}
-                className="max-h-[60vh]"
-            />
-            <Refusable why={write.why}>
-                <Button
-                    variant="outline"
-                    size="sm"
-                    className="self-start"
-                    disabled={removing || !write.may}
-                    title={write.why}
-                    onClick={remove}
-                >
-                    {removing ? LABELS.action.delete.busy : LABELS.action.delete.verb}
-                </Button>
-            </Refusable>
-        </div>
     )
 }

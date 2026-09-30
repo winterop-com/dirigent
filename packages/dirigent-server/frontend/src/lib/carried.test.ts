@@ -10,6 +10,7 @@ import {
     creations,
     offerBlocked,
     connectionNote,
+    mayUpdate,
     missingConnections,
     offerNote,
     sameJson,
@@ -129,8 +130,8 @@ describe('the four cases a carried entry meets', () => {
 
     /**
      * THREE: the codes collide and the bodies do not. Applying would bind this pipeline's gate
-     * to the instance's shape rather than the one written in the document, and replacing would
-     * change what every other pipeline naming that code means, so neither happens.
+     * to the instance's shape rather than the one written in the document, so the apply is shut
+     * and the row carries the write that settles it.
      */
     test('calls a carried schema the instance holds something else under a difference', () => {
         const held: Held = {
@@ -142,14 +143,40 @@ describe('the four cases a carried entry meets', () => {
         expect(creations(items).map((one) => one.code)).toEqual(['nightly-catalogue'])
     })
 
-    test('shuts the button on a difference, naming the code and refusing to replace it', () => {
+    test('shuts the button on a difference, naming the code and what else reads it', () => {
         const held: Held = {
             schemas: [{ code: 'nightly-region', body: { type: 'string' } }],
             connections: ['ops-receiver'],
         }
         const why = offerBlocked(carriedItems(DOCUMENT, held, true))
         expect(why).toContain('nightly-region')
-        expect(why).toContain('nothing here replaces it')
+        expect(why).toContain('Every pipeline naming that code')
+    })
+
+    test('carries both shapes on the row, so the collision can be shown and replaced', () => {
+        const stored = { type: 'string' }
+        const held: Held = { schemas: [{ code: 'nightly-region', body: stored }], connections: [] }
+        const row = carriedItems(DOCUMENT, held, true).find((one) => one.code === 'nightly-region')
+        expect(row?.body).toEqual(REGION)
+        expect(row?.stored).toEqual(stored)
+    })
+
+    /**
+     * The row's own control is drawn only where pressing it would do something: a collision
+     * over a schema, with the shape to write and the shape being replaced both in hand.
+     */
+    test('offers the update on a collision and on nothing else', () => {
+        const held: Held = {
+            schemas: [{ code: 'nightly-region', body: { type: 'string' } }],
+            connections: ['ops-receiver'],
+        }
+        const offered = carriedItems(DOCUMENT, held, true).filter(mayUpdate)
+        expect(offered.map((one) => one.code)).toEqual(['nightly-region'])
+    })
+
+    test('offers it on nothing where every code agrees or is absent', () => {
+        expect(carriedItems(DOCUMENT, EVERYTHING_HELD, true).some(mayUpdate)).toBe(false)
+        expect(carriedItems(DOCUMENT, NOTHING_HELD, true).some(mayUpdate)).toBe(false)
     })
 
     /**
