@@ -113,7 +113,7 @@ export function ConnectionFields({
                     <p className="text-xs font-semibold tracking-wide text-faint uppercase">
                         {LABELS.connections.settings_heading}
                     </p>
-                    <div className="max-h-[40vh] space-y-3 overflow-y-auto pr-1">
+                    <div className="space-y-3">
                         <SchemaForm
                             fields={form.fields}
                             values={draft.values}

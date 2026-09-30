@@ -42,13 +42,20 @@ export function NewConnection({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-xl" showCloseButton={false}>
+            <DialogContent
+                className="flex max-h-[calc(100vh-4rem)] flex-col sm:max-w-xl"
+                showCloseButton={false}
+            >
                 <DialogHeader>
                     <DialogTitle>{LABELS.connections.new}</DialogTitle>
                     <DialogDescription>{LABELS.connections.sealed}</DialogDescription>
                 </DialogHeader>
 
-                <ConnectionFields form={form} kinds={kinds} ids="connection-new" />
+                {/* The boxes scroll and the verbs do not: a kind with a dozen settings is
+                    taller than a short screen, and Create is what somebody reaches for. */}
+                <div className="-mx-1 min-h-0 flex-1 space-y-4 overflow-y-auto px-1">
+                    <ConnectionFields form={form} kinds={kinds} ids="connection-new" />
+                </div>
 
                 <DialogFooter>
                     <DialogClose render={<Button variant="ghost" />}>{LABELS.action.close}</DialogClose>
