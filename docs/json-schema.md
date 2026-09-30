@@ -2,7 +2,7 @@
 
 A schema is a named picture of a payload: the shape a read is expected to return, written down
 once so a pipeline can be refused the moment the payload moves out from under it. Dirigent holds
-schemas as a first-class resource -- create, list, show, delete -- and validates every one as a
+schemas as a first-class resource -- create, list, show, update, delete -- and validates every one as a
 [JSON Schema, Draft 2020-12](https://json-schema.org/draft/2020-12) when you store it. This page
 is that language, taught on the shapes a pipeline actually reads.
 
@@ -20,6 +20,7 @@ dg schema create schemas/acme-sites.json   # from a file
 dg schema create -                         # from stdin
 dg schema list
 dg schema show acme-sites
+dg schema update acme-sites schemas/acme-sites.json   # the corrected file, labels and all
 dg schema delete acme-sites
 ```
 
@@ -43,6 +44,29 @@ Schemas screen is that request with the schema in the editor it was written in. 
 description are stored beside the body rather than read back out of it, so editing `title` in the
 body does not move the name; the box does.
 
+`dg schema update` is the same request from a shell, and it changes a shape, its labels, or both:
+
+```bash
+# the corrected file replaces the shape, and its own title and description come with it
+dg schema update acme-sites schemas/acme-sites.json
+dg schema update acme-sites -                        # or from stdin
+
+# labels alone, leaving the stored shape untouched
+dg schema update acme-sites --name "Acme sites"
+dg schema update acme-sites --description ""         # given empty clears what is stored
+```
+
+**What this was not given, it leaves alone.** A label named is set, a label given empty is
+cleared, and one left out stays as it stands -- so a corrected shape sent on its own keeps the
+name it was stored with. Where a file replaces the body, that file's own `title` and
+`description` come with it, exactly as `dg schema create` reads them, because the labels should
+belong to the shape the instance now holds rather than to the one it no longer does. Pass
+`--name` or `--description` to override what the file declares. This is the one place `dg` and
+the Schemas screen part company on purpose: the screen edits a shape in the boxes beside it, so
+there `title` in the body moves nothing, while the command line hands over a whole authored file
+and its keywords travel with it. The Apply dialog does the same when it replaces a carried
+schema, for the same reason.
+
 **A gate reads the stored schema fresh on every attempt.** Nothing pins a body into a pipeline
 version: `validate.schema` resolves the code against the snapshot taken when the attempt is
 claimed. So changing a stored schema changes what *every* pipeline naming that code validates
@@ -56,8 +80,9 @@ codes of the stored pipelines whose current version names the schema, whether un
 shape every pipeline should now validate against is what editing a stored schema is *for*, the
 code cannot be changed to sidestep it, and whether a new body still admits what a dependent
 pipeline sends is not a question a schema can be asked. The Schemas screen names those pipelines
-beside the body instead, so the decision is made with them in view rather than blind. If the new
-shape is not what the other readers of that code expect, store it under a code of its own.
+beside the body instead, so the decision is made with them in view rather than blind, and the
+`schema.updated` record `dg schema update` writes carries the same list for the same reason. If
+the new shape is not what the other readers of that code expect, store it under a code of its own.
 
 `DELETE /api/v1/schemas/{code}` is the half that is refused, with `schema.in_use`, for as long as
 `used_by` is not empty. Applying a document that names a schema the instance does not hold is

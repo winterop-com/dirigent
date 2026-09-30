@@ -36,6 +36,8 @@ from dirigent_client.errors import (
     ValidationFailed,
     WaitTimeout,
 )
+from dirigent_client.resources.base import CLEAR, Clear
+from dirigent_client.resources.schemas import declared_label
 from dirigent_client.schemas import (
     LOG_NOTIFIER,
     TERMINAL_RUN_STATUSES,
@@ -125,6 +127,7 @@ from dirigent_client.transport import (
 
 __all__ = [
     "API_PREFIX",
+    "CLEAR",
     "DEFAULT_CONNECT_TIMEOUT",
     "DEFAULT_RETRIES",
     "DEFAULT_TIMEOUT",
@@ -149,6 +152,7 @@ __all__ = [
     "BlockKind",
     "BlockingDirigent",
     "Catalog",
+    "Clear",
     "CheckResult",
     "CheckStatus",
     "Conflict",
@@ -239,4 +243,5 @@ __all__ = [
     "WebhookTokenOut",
     "WorkerOut",
     "WorkerStatus",
+    "declared_label",
 ]

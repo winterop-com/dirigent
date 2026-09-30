@@ -1,11 +1,26 @@
 """What every namespaced accessor shares: the transport, and the parsing of a response."""
 
-from typing import Any
+from enum import Enum
+from typing import Any, Final
 
 from pydantic import BaseModel, SecretStr
 
 from dirigent_client.schemas import Page
 from dirigent_client.transport import Transport
+
+
+class Clear(Enum):
+    """What an edit passes where a field is to be sent as null rather than left out.
+
+    ``None`` is how every edit here spells "say nothing about this field", so the request
+    that clears one needs a value of its own.
+    """
+
+    CLEAR = "clear"
+
+
+#: Passed to an edit in place of a value, to send that field as null and clear what is stored.
+CLEAR: Final = Clear.CLEAR
 
 
 class Resource:
@@ -36,9 +51,11 @@ def edit_body(model: type[BaseModel], **values: object) -> dict[str, Any]:
     A member left out and a member sent as null are different requests to this API -- one
     leaves the field alone, the other clears it -- and a body built from every parameter's
     default cannot tell them apart. So the model is validated over what was given and dumped
-    over what was set, and a field nobody named does not travel.
+    over what was set, and a field nobody named does not travel. `CLEAR` is how a caller
+    names a field in order to send it as null.
     """
-    payload = model.model_validate({name: value for name, value in values.items() if value is not None})
+    named = {name: (None if value is CLEAR else value) for name, value in values.items() if value is not None}
+    payload = model.model_validate(named)
     return payload.model_dump(mode="json", by_alias=True, exclude_unset=True)
 
 

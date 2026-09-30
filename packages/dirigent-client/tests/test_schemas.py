@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 import pytest
 from pydantic import ValidationError
 
-from dirigent_client.resources.base import edit_body, request_body
+from dirigent_client.resources.base import CLEAR, edit_body, request_body
 from dirigent_client.schemas import (
     AttemptOut,
     BackfillAccepted,
@@ -111,4 +111,30 @@ def test_an_edit_body_is_read_back_as_a_request_saying_nothing_about_what_it_lef
     read = SchemaUpdate.model_validate(edit_body(SchemaUpdate, name=None, description=None, body={"type": "object"}))
     assert read.changing("body")
     assert not read.changing("name")
+    assert not read.changing("description")
+
+
+def test_an_edit_body_sends_a_named_field_as_null_where_a_caller_asked_to_clear_one() -> None:
+    """``None`` says nothing about a field, so clearing one needs a value of its own.
+
+    The endpoint tells the two apart by ``model_fields_set``, so a clear has to travel as a
+    key carrying null rather than as a key that is not there.
+    """
+    assert edit_body(SchemaUpdate, name=CLEAR, description=None, body=None) == {"name": None}
+    assert edit_body(SchemaUpdate, name=CLEAR, description=CLEAR, body=None) == {
+        "name": None,
+        "description": None,
+    }
+    body = {"type": "object"}
+    assert edit_body(SchemaUpdate, name="Org unit", description=CLEAR, body=body) == {
+        "name": "Org unit",
+        "description": None,
+        "body": body,
+    }
+
+
+def test_a_cleared_field_is_read_back_as_a_request_that_asked_for_null() -> None:
+    read = SchemaUpdate.model_validate(edit_body(SchemaUpdate, name=CLEAR, description=None, body=None))
+    assert read.changing("name")
+    assert read.name is None
     assert not read.changing("description")

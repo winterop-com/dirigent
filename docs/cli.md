@@ -868,6 +868,7 @@ verb and whose fields are the identity of what changed:
 | `run.cancelled` | `dg runs cancel` | `run_id`, `status` |
 | `run.retried` | `dg runs retry` | `run_id`, `step`, `item`, and the `attempt` it minted |
 | `schema.created` | `dg schema create` | `code`, `name` |
+| `schema.updated` | `dg schema update` | `code`, `name` as it now stands, `changed[]` naming which of `name`, `description` and `body` the request said anything about, and `used_by[]`, the stored pipelines that validate against the shape from their next attempt |
 | `schema.deleted` | `dg schema delete` | `code` |
 | `trigger_document.deleted` | `dg trigger-document delete` | `code`, and that its `schedules`, `webhooks` and `watches` went with it |
 | `token.revoked` | `dg admin token revoke` | `code`, and `username` when `--user` named one |
@@ -1052,6 +1053,7 @@ dg examples show CODE [-f FILE] [--local] # the document, verbatim, as the shelf
 dg pipeline new STARTER [--code X] [--dir DIR] [--local]   # copy a starter into this project
 dg schema list | show CODE | delete CODE
 dg schema create FILE|- [--code CODE] [--name TEXT] [--description TEXT]
+dg schema update CODE [FILE|-] [--name TEXT] [--description TEXT]   # a label given empty is cleared
 
 # Connect
 dg connection list | show CODE | check CODE | delete CODE

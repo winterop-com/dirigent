@@ -1856,3 +1856,140 @@ def test_a_run_that_rendered_no_document_says_how_to_ask_for_one(tmp_path: Path,
     assert refused.exit_code == 1
     assert "has no report document" in plain(refused.output)
     assert "declare `report:`" in plain(refused.output)
+
+
+def test_schema_update_replaces_a_stored_body_and_says_who_validates_against_it(tmp_path: Path, server: str) -> None:
+    """An edit is never refused for being depended on, so the record names the dependents.
+
+    The pipelines validating against the code are what the edit was a decision about, and the
+    record carries them so the reader is not sent to a second command to find out.
+    """
+    path = tmp_path / "gate-shape.json"
+    path.write_text('{"$id": "gate-shape", "title": "Gate shape", "type": "object"}')
+    assert machine("schema", "create", str(path)).exit_code == 0
+
+    naming = tmp_path / "gated.yaml"
+    naming.write_text(
+        "format: dirigent/v1\nkind: pipeline\ncode: gated\nrequires:\n  schemas: [gate-shape]\n"
+        "steps:\n  gate:\n    block: validate.schema\n    config: {input: {}, schema: gate-shape}\n"
+    )
+    assert machine("apply", str(naming)).exit_code == 0
+
+    corrected = tmp_path / "corrected.json"
+    corrected.write_text('{"$id": "gate-shape", "title": "Gate shape", "type": "object", "required": ["celsius"]}')
+    edited = machine("schema", "update", "gate-shape", str(corrected))
+    assert edited.exit_code == 0, edited.output
+    record = only(edited.stdout, "schema.updated")
+    assert record["code"] == "gate-shape"
+    assert record["used_by"] == ["gated"]
+    assert record["changed"] == ["name", "description", "body"]
+
+    shown = rows(machine("schema", "show", "gate-shape").stdout, "schema")[0]
+    assert shown["body"]["required"] == ["celsius"]
+
+
+def test_schema_update_changes_one_label_and_leaves_the_rest_standing(tmp_path: Path, server: str) -> None:
+    """A field the request says nothing about is a field the instance keeps."""
+    path = tmp_path / "reading.json"
+    path.write_text('{"$id": "reading", "title": "Reading", "description": "One reading.", "type": "object"}')
+    assert machine("schema", "create", str(path)).exit_code == 0
+
+    edited = machine("schema", "update", "reading", "--name", "Sensor reading")
+    assert edited.exit_code == 0, edited.output
+    assert only(edited.stdout, "schema.updated")["changed"] == ["name"]
+
+    shown = rows(machine("schema", "show", "reading").stdout, "schema")[0]
+    assert shown["name"] == "Sensor reading"
+    assert shown["description"] == "One reading."
+    assert shown["body"]["type"] == "object"
+
+
+def test_schema_update_clears_a_label_given_empty(tmp_path: Path, server: str) -> None:
+    """Not given and given empty are different requests, and only one of them clears.
+
+    An empty title is the absence of a title rather than a title, so the empty string is
+    never what gets stored: it is how a clear is asked for.
+    """
+    path = tmp_path / "unit.json"
+    path.write_text('{"$id": "unit", "title": "Unit", "description": "A unit.", "type": "object"}')
+    assert machine("schema", "create", str(path)).exit_code == 0
+
+    edited = machine("schema", "update", "unit", "--description", "")
+    assert edited.exit_code == 0, edited.output
+    assert only(edited.stdout, "schema.updated")["changed"] == ["description"]
+
+    shown = rows(machine("schema", "show", "unit").stdout, "schema")[0]
+    assert shown["description"] is None
+    assert shown["name"] == "Unit"
+
+
+def test_schema_update_relabels_from_the_replacing_schemas_own_keywords(tmp_path: Path, server: str) -> None:
+    """Replacing the body takes the new schema's identity, the way storing one does.
+
+    ``PATCH`` reads no keywords of its own, so a stored schema whose body was replaced would
+    otherwise keep labels belonging to a shape the instance no longer holds.
+    """
+    path = tmp_path / "site.json"
+    path.write_text('{"$id": "site", "title": "Site", "description": "A site.", "type": "object"}')
+    assert machine("schema", "create", str(path)).exit_code == 0
+
+    replacing = tmp_path / "replacing.json"
+    replacing.write_text('{"$id": "site", "title": "Facility", "type": "object"}')
+    edited = machine("schema", "update", "site", str(replacing))
+    assert edited.exit_code == 0, edited.output
+
+    shown = rows(machine("schema", "show", "site").stdout, "schema")[0]
+    assert shown["name"] == "Facility"
+    # The replacing schema declares no description, so the one belonging to the old shape goes.
+    assert shown["description"] is None
+
+
+def test_schema_update_takes_an_option_over_the_replacing_schemas_keyword(tmp_path: Path, server: str) -> None:
+    path = tmp_path / "ward.json"
+    path.write_text('{"$id": "ward", "title": "Ward", "type": "object"}')
+    assert machine("schema", "create", str(path)).exit_code == 0
+
+    replacing = tmp_path / "replacing.json"
+    replacing.write_text('{"$id": "ward", "title": "Ignored", "type": "object"}')
+    edited = machine("schema", "update", "ward", str(replacing), "--name", "District ward")
+    assert edited.exit_code == 0, edited.output
+
+    assert rows(machine("schema", "show", "ward").stdout, "schema")[0]["name"] == "District ward"
+
+
+def test_schema_update_reads_a_replacing_schema_from_standard_input(tmp_path: Path, server: str) -> None:
+    path = tmp_path / "flow.json"
+    path.write_text('{"$id": "flow", "title": "Flow", "type": "object"}')
+    assert machine("schema", "create", str(path)).exit_code == 0
+
+    edited = runner.invoke(
+        app,
+        ["schema", "update", "flow", "-"],
+        input='{"$id": "flow", "title": "Flow", "type": "object", "required": ["litres"]}',
+    )
+    assert edited.exit_code == 0, edited.output
+    assert rows(machine("schema", "show", "flow").stdout, "schema")[0]["body"]["required"] == ["litres"]
+
+
+def test_schema_update_refuses_a_request_that_says_nothing(tmp_path: Path, server: str) -> None:
+    path = tmp_path / "empty.json"
+    path.write_text('{"$id": "empty", "type": "object"}')
+    assert machine("schema", "create", str(path)).exit_code == 0
+
+    refused = machine("schema", "update", "empty")
+    assert refused.exit_code != 0, refused.output
+    assert refusal(refused.stdout)["code"] == "cli.schema_nothing_to_change"
+
+
+def test_schema_update_refuses_a_replacing_body_that_is_not_a_schema(tmp_path: Path, server: str) -> None:
+    path = tmp_path / "shape.json"
+    path.write_text('{"$id": "shape", "type": "object"}')
+    assert machine("schema", "create", str(path)).exit_code == 0
+
+    broken = tmp_path / "broken.json"
+    broken.write_text('{"$id": "shape", "type": "not-a-type"}')
+    refused = machine("schema", "update", "shape", str(broken))
+    assert refused.exit_code != 0, refused.output
+
+    # The refusal cost nothing: the shape the instance holds is the one it held.
+    assert rows(machine("schema", "show", "shape").stdout, "schema")[0]["body"]["type"] == "object"
