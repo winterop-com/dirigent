@@ -1411,7 +1411,20 @@ JSON, a stored body, the definition a field's code resolves to -- and it does no
 field, or anything else with a control inside it. That is the fault the rule was written for: a
 settings group capped at `40vh` hid the last password box under its own fold, and what was on
 screen was a label with no control beneath it. Everything else between a header and a footer
-still declares no height.
+still declares no height -- and it came back in three dialogs at once, each in that same shape:
+the run dialog capped the parameter form it wrapped at `50vh`, the new webhook capped its payload
+mapping at `32vh` and the new schedule its pinned parameters at the same, every one of them
+inside a surface that declared no height of its own. So two of the three stood taller than a
+768px window with nothing to scroll, and the third hid 1372px of its own form under a fold
+nothing drew. **A share of the viewport named anywhere but on the surface is the tell**, and it
+is what a scan can read.
+
+**A preview's height is the block's, not its callers'.** Where one component draws every preview
+of a kind -- `JsonBlock` is the block of JSON everywhere -- the height is stated there once, so a
+call site cannot leave it off and two call sites cannot disagree about it. A surface with less
+room to give narrows it from outside and says what it measured, which is what the apply dialog's
+carried row does; a surface with more room does not widen it, because the window is where the
+whole of a thing is read.
 
 ## A row expands under itself rather than opening a second dialog
 

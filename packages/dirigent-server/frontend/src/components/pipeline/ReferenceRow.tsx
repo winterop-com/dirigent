@@ -160,7 +160,7 @@ function connectionRow(resolution: ReturnType<typeof resolveConnection>, marks: 
 
 /** A definition, in the same coloured box and the same window every piece of JSON here gets. */
 function Body({ title, value }: { title: string; value: JsonMap }) {
-    return <JsonBlock title={title} text={JSON.stringify(value, null, 2)} className="max-h-64" />
+    return <JsonBlock title={title} text={JSON.stringify(value, null, 2)} />
 }
 
 /** The way out to the thing's own screen. */
