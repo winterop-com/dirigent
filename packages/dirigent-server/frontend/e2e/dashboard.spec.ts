@@ -46,12 +46,11 @@ test('the root is the home screen rather than a redirect to a listing', async ({
         '/runs',
     )
     await expect(
-        main.getByRole('link', { name: LABELS.dashboard.needs_a_look, exact: true }),
+        main.getByRole('link', { name: LABELS.dashboard.troubled_runs, exact: true }),
     ).toHaveAttribute('href', '/runs')
-    await expect(main.getByRole('link', { name: LABELS.dashboard.next_fires, exact: true })).toHaveAttribute(
-        'href',
-        '/triggers',
-    )
+    await expect(
+        main.getByRole('link', { name: LABELS.dashboard.next_firings, exact: true }),
+    ).toHaveAttribute('href', '/triggers')
 
     // The rail leads with it, and the corner mark goes to it.
     await expect(page.getByRole('link', { name: LABELS.screen.dashboard.name, exact: true })).toBeVisible()

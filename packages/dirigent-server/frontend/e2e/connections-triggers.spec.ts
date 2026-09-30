@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 
-import { LABELS } from '../src/lib/labels.ts'
+import { counted, LABELS } from '../src/lib/labels.ts'
 import { apiPrefix, applyDocument, applyExample, signIn } from './support.ts'
 
 /**
@@ -268,9 +268,16 @@ test('a schedule shows its clock and its zone, and a webhook shows its prefix', 
     await expect(webhook).toContainText(LABELS.triggers.webhook.unsigned)
     await expect(webhook).toContainText(LABELS.word.rate_limit.value('60'))
 
-    // The foot counts what has been read, and there is no page number anywhere on the screen.
-    await expect(page.getByText(/\d+ schedules?/)).toBeVisible()
-    await expect(page.getByText(/\d+ webhooks?/)).toBeVisible()
+    // The foot counts what has been read, and there is no page number anywhere on the screen. How
+    // many rows this instance holds is not this spec's business, but the sentence beside that
+    // number is: it has to be the one the catalogue spells for the number actually on screen.
+    for (const noun of [LABELS.word.schedule.count, LABELS.word.webhook.count]) {
+        const foot = page.getByText(new RegExp(`^\\d+ (${noun.one}|${noun.many})$`))
+        await expect(foot).toBeVisible()
+        const said = await foot.innerText()
+        const read = Number(said.split(' ')[0])
+        expect(said).toBe(LABELS.shell.rows_read(String(read), counted(read, noun)))
+    }
 })
 
 test('a schedule opens its own facts and its firing history beside the listing', async ({ page }) => {

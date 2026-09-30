@@ -186,7 +186,7 @@ function Delivery({ row }: { row: NotificationOut }) {
                         {LABELS.alerting.delivered} <Instant at={row.sent_at} />.
                     </>
                 ) : row.status === 'failed' ? (
-                    counted(row.max_attempts, LABELS.alerting.given_up)(row.attempt, row.max_attempts)
+                    counted(row.max_attempts, LABELS.alerting.delivery_stopped)(row.attempt, row.max_attempts)
                 ) : row.attempt === 0 ? (
                     LABELS.alerting.queued_for_worker
                 ) : (

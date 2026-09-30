@@ -7,7 +7,7 @@ import { useCardForm } from '@/hooks/use-card-form'
 import { useSmallScreen, useSmallWindow } from '@/hooks/use-small-screen'
 import { cardFacts, type CardColumn } from '@/lib/card-form'
 import { sizingOf, TITLE_CELL, type ColumnKind, type Shares, type Sizing } from '@/lib/column-width'
-import { LABELS } from '@/lib/labels'
+import { type Counted, LABELS } from '@/lib/labels'
 import { PAGE, rowsRead } from '@/lib/paging'
 import { panelStanding } from '@/lib/panels'
 import { cn } from '@/lib/utils'
@@ -101,8 +101,8 @@ export function ListTable<T>({
     /** The cursor the next page continues from, or null at the end of the listing. */
     next: string | null
     onMore: () => void
-    /** What one row is, in the plural, for the sentence along the foot. */
-    noun: string
+    /** What one row is, in both numbers, for the sentence along the foot. */
+    noun: Counted<string>
     /** What choosing a row does, on a screen where a row opens something beside the table. */
     onSelect?: (row: T) => void
     /** Which row is open, so the table can say so. */

@@ -107,7 +107,7 @@ describe('what a diff amounts to', () => {
             changesIn(
                 diff({ steps_added: ['as_csv'], steps_changed: ['parse', 'report'], params_changed: true }),
             ),
-        ).toEqual(['steps added: as_csv', 'steps changed: parse, report', 'the parameter schema changed'])
+        ).toEqual(['step added: as_csv', 'steps changed: parse, report', 'the parameter schema changed'])
     })
 
     test('is nothing when the two definitions are the same in every respect', () => {

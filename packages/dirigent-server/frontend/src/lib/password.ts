@@ -62,7 +62,7 @@ export function passwordBody(form: PasswordForm): PasswordChangeRequest {
 /** What a failed change leaves on screen: the server's problem document, or what arrived instead. */
 export function refusalOf(error: unknown): Problem {
     if (error instanceof ApiError) return error.problem
-    return refused(`${LABELS.refusal.no_answer.sentence} ${LABELS.refusal.no_answer.password_unchanged}`)
+    return refused(`${LABELS.refusal.no_answer.sentence} ${LABELS.refusal.no_answer.password_unconfirmed}`)
 }
 
 /**

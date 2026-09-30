@@ -10,7 +10,7 @@
  * issues a refusal lists are laid out identically whichever of the two asked for them.
  */
 
-import { counted, LABELS } from '@/lib/labels'
+import { counted, type Counted, LABELS } from '@/lib/labels'
 import type { ApplyResult, DiffSummary, Materialized, PipelinePlan, ValidationIssue } from '@/lib/pipelines'
 
 /** How loudly a plan reads: a refusal is not the same news as a version being written. */
@@ -82,15 +82,19 @@ export function planView(plan: PipelinePlan): PlanView {
 export function changesIn(diff: DiffSummary | null): string[] {
     if (diff === null) return []
     const lines: string[] = []
-    if (diff.steps_added.length > 0) lines.push(LABELS.editor.plan.steps_added(diff.steps_added.join(', ')))
-    if (diff.steps_removed.length > 0)
-        lines.push(LABELS.editor.plan.steps_removed(diff.steps_removed.join(', ')))
-    if (diff.steps_changed.length > 0)
-        lines.push(LABELS.editor.plan.steps_changed(diff.steps_changed.join(', ')))
+    named(lines, diff.steps_added, LABELS.editor.plan.steps_added)
+    named(lines, diff.steps_removed, LABELS.editor.plan.steps_removed)
+    named(lines, diff.steps_changed, LABELS.editor.plan.steps_changed)
     if (diff.params_changed) lines.push(LABELS.editor.plan.params_changed)
     if (diff.triggers_changed) lines.push(LABELS.editor.plan.triggers_changed)
     if (diff.settings_changed) lines.push(LABELS.editor.plan.settings_changed)
     return lines
+}
+
+/** One line naming the steps a diff put in one of its lists, and nothing where the list is empty. */
+function named(lines: string[], steps: readonly string[], sentence: Counted<(steps: string) => string>) {
+    if (steps.length === 0) return
+    lines.push(counted(steps.length, sentence)(steps.join(', ')))
 }
 
 /** What an apply did to the triggers, or nothing when it left every one of them alone. */

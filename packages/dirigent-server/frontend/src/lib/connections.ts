@@ -19,7 +19,7 @@
  */
 
 import { apiJson, apiSend, type JsonMap, type Page } from '@/lib/api'
-import { counted, LABELS, type NounForms } from '@/lib/labels'
+import { counted, type Counted, LABELS } from '@/lib/labels'
 import { PAGE } from '@/lib/paging'
 import { fieldsOf, type FieldDescriptor } from '@/lib/schema-form'
 
@@ -331,10 +331,13 @@ export function connectionsHealth(rows: readonly Checked[]): ConnectionsHealth {
  * the count it stands beside decides which one is drawn; the screen whose subject is already
  * connections passes none.
  */
-export function connectionsNote(rows: readonly Checked[], noun: NounForms | null = null): string | null {
+export function connectionsNote(
+    rows: readonly Checked[],
+    noun: Counted<string> | null = null,
+): string | null {
     if (rows.length === 0) return null
     const { total, healthy, unverified, unchecked } = connectionsHealth(rows)
-    const named = noun === null ? '' : ` ${counted(total, { one: noun.term, many: noun.count })}`
+    const named = noun === null ? '' : ` ${counted(total, noun)}`
     const said = [LABELS.connections.note.healthy(String(healthy), String(total), named)]
     if (unverified > 0) said.push(LABELS.connections.note.unverified(String(unverified)))
     if (unchecked > 0) {

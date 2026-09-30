@@ -175,12 +175,12 @@ function Overview() {
             )}
 
             <section className="mb-6 space-y-2">
-                <h2 className="text-sm font-semibold">{LABELS.dashboard.needs_a_look}</h2>
+                <h2 className="text-sm font-semibold">{LABELS.dashboard.troubled_runs}</h2>
                 <PageState
                     loading={!failed.read || !messy.read}
                     problem={failed.problem ?? messy.problem}
                     empty={look.length === 0}
-                    emptyMessage={LABELS.dashboard.nothing_to_look_at}
+                    emptyMessage={LABELS.dashboard.nothing_troubled}
                 >
                     <ListTable
                         chrome={{ footer: false }}
