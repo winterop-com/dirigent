@@ -2683,7 +2683,7 @@ const schemas = {
     name_hint: 'Stored beside the schema. Editing title in the body does not move it.',
     /** The description box, which is the schema's own `description` as it was stored. */
     description_placeholder: 'What this shape is for. Markdown is rendered.',
-    /** Why editing the body is a decision rather than a correction, said where it is made. */
+    /** Why editing the body is a decision rather than a correction, over the names it reaches. */
     body_warning: 'Every pipeline naming this code checks against this shape from its next run.',
 
     /**
@@ -2695,16 +2695,19 @@ const schemas = {
      */
     body_in_flight: 'A run in flight keeps the shape it started with.',
 
+    /** The section naming the stored pipelines that check against this code. */
+    used_by: 'Used by',
+
     /**
-     * Which stored pipelines check against this code, over the body a save would replace.
+     * The fold over the dependants that did not fit, which draws the rest where it stands.
      *
-     * It finishes the warning above it rather than restating it: that line says an edit reaches
-     * every pipeline naming the code, and this names them, because the decision is made for
-     * them and a count is not a name.
+     * The names are capped rather than drawn to whatever length the instance has, so a shape
+     * fifty pipelines name is a section a reader can see past instead of a panel that is mostly
+     * one list.
      */
-    used_by: {
-        one: (pipelines: string) => `That is ${pipelines}.`,
-        many: (pipelines: string) => `Those are ${pipelines}.`,
+    more_pipelines: {
+        one: (count: string) => `${count} more pipeline`,
+        many: (count: string) => `${count} more pipelines`,
     },
 
     /**

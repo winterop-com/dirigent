@@ -14,9 +14,27 @@ by the owner.
 1. Build the branch with `make ui-static` — the e2e suite serves `frontend/dist`, and a
    checkout's `dg dev` serves the packaged `dirigent-server/src/dirigent_server/static/` when
    it holds a bundle, else `frontend/dist`, so a stale bundle reviews the wrong code — then
-   open every screen the diff touches, dark palette first, then light.
+   open every screen the diff touches, dark palette first, then light. A worktree serves the
+   branch it is in: `playwright.config.ts` sets `reuseExistingServer` outside CI, so another
+   checkout already holding the suite's port hands the run its bundle and every reading is that
+   branch's. Give the run a port of its own with `E2E_PORT` rather than taking one over.
 2. Walk the checklist below per screen. Screenshot anything that fails.
 3. Small findings: fix on the branch. Judgment calls: put them to the owner before merging.
+
+## Measuring whether a control is above the fold
+
+Both traps below report a clean pass on a surface that is actually clipped.
+
+- **Measure against the scroller the control sits in, found by walking up from the control.**
+  A panel and a dialog are `overflow-hidden` boxes whose scrolling child is further in, so a
+  control below the fold is still inside the panel's own rect and reads as visible. Walk up
+  from the control to the first ancestor whose computed `overflow-y` is `auto` or `scroll`, and
+  compare the control's rect to that element's. `belowTheFold` in `e2e/support.ts` is that walk;
+  a suite measuring a control against anything else is measuring the wrong box.
+- **After a viewport change, poll until two reads agree.** `document.fonts.ready` and a couple
+  of frames land mid-resize, while the surface is still settling: readings taken there came out
+  about 55px wrong. Read the geometry, wait a frame, read it again, and measure only once two
+  consecutive reads match.
 
 ## The checklist (each rule lives in docs/ui-conventions.md — read it first)
 

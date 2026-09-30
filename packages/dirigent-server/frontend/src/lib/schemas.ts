@@ -133,17 +133,6 @@ export function whyKept(schema: Pick<SchemaOut, 'used_by'>): string | undefined 
 }
 
 /**
- * Which pipelines validate against this shape, or nothing where none do.
- *
- * It finishes the warning it is drawn under rather than restating it, so it reads as the second
- * half of one sentence: saving is a decision made on their behalf, and a count is not a name.
- */
-export function validatedBy(schema: Pick<SchemaOut, 'used_by'>): string | null {
-    if (schema.used_by.length === 0) return null
-    return counted(schema.used_by.length, LABELS.schemas.used_by)(schema.used_by.join(', '))
-}
-
-/**
  * What the schemas listing says when it has nothing in it.
  *
  * A schema is authored, not discovered, so an empty instance is one nobody has written a

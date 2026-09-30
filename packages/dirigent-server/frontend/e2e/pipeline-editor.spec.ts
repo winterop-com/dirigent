@@ -6,6 +6,7 @@ import {
     apiPrefix,
     applyDocument,
     applyExample,
+    belowTheFold,
     canvasSettled,
     clickEdge,
     dragBy,
@@ -1493,31 +1494,6 @@ function longShape(): Record<string, unknown> {
         required: ['id'],
         properties,
     }
-}
-
-/**
- * How far below the fold a control in this row sits, in pixels; positive is clipped.
- *
- * IT IS MEASURED AGAINST THE SCROLLER AND NOT THE DIALOG. A control cut off by the body's fold
- * is still inside the dialog's own box, so comparing it against that box reads a clipped control
- * as visible. The scroller is found by walking up from the control itself.
- */
-async function belowTheFold(row: Locator, label: string): Promise<number> {
-    return row.evaluate((node, wanted) => {
-        const button = [...node.querySelectorAll('button')].find(
-            (one) => (one.textContent ?? '').trim() === wanted,
-        )
-        if (button === undefined) return Number.NaN
-        let walk = button.parentElement
-        while (walk !== null) {
-            const style = getComputedStyle(walk)
-            if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
-                return Math.round(button.getBoundingClientRect().bottom - walk.getBoundingClientRect().bottom)
-            }
-            walk = walk.parentElement
-        }
-        return Number.NaN
-    }, label)
 }
 
 /**

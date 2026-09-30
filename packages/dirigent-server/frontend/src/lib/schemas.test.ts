@@ -1,14 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import {
-    bodyText,
-    schemaPatch,
-    schemasNote,
-    validatedBy,
-    wholeSchema,
-    whyKept,
-    type SchemaOut,
-} from '@/lib/schemas'
+import { bodyText, schemaPatch, schemasNote, wholeSchema, whyKept, type SchemaOut } from '@/lib/schemas'
 
 const STORED: SchemaOut = {
     id: '9f2a4c1e-0000-4000-8000-000000000001',
@@ -100,18 +92,15 @@ describe('what the screen says it holds', () => {
 describe('what a stored schema says about the pipelines naming it', () => {
     test('a shape nothing names is freely removed and says nothing about dependants', () => {
         expect(whyKept(STORED)).toBeUndefined()
-        expect(validatedBy(STORED)).toBeNull()
     })
 
     test('a shape one pipeline names shuts the delete and names the pipeline', () => {
         const held = { ...STORED, used_by: ['nightly'] }
         expect(whyKept(held)).toBe('nightly names this shape, so it cannot be removed.')
-        expect(validatedBy(held)).toBe('That is nightly.')
     })
 
     test('several pipelines are listed in the order the server gave them', () => {
         const held = { ...STORED, used_by: ['nightly', 'weekly'] }
         expect(whyKept(held)).toBe('nightly, weekly name this shape, so it cannot be removed.')
-        expect(validatedBy(held)).toBe('Those are nightly, weekly.')
     })
 })

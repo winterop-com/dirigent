@@ -403,3 +403,33 @@ export async function clickEdge(page: Page, edge: Locator): Promise<void> {
     })
     await page.mouse.click(at.x, at.y)
 }
+
+/**
+ * How far below the fold a named control inside this container sits, in pixels; positive is
+ * clipped.
+ *
+ * IT IS MEASURED AGAINST THE SCROLLER AND NOT THE SURFACE. A control cut off by a body's fold is
+ * still inside the dialog's or the panel's own box, so comparing it against that box reads a
+ * clipped control as visible. The scroller is found by walking up from the control itself, which
+ * is what makes one helper answer for a dialog row and for a panel alike.
+ *
+ * `Number.NaN` where the control or the scroller is not there, which fails the comparison a
+ * caller makes rather than passing quietly.
+ */
+export async function belowTheFold(within: Locator, label: string): Promise<number> {
+    return within.evaluate((node, wanted) => {
+        const button = [...node.querySelectorAll('button')].find(
+            (one) => (one.textContent ?? '').trim() === wanted,
+        )
+        if (button === undefined) return Number.NaN
+        let walk = button.parentElement
+        while (walk !== null) {
+            const style = getComputedStyle(walk)
+            if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
+                return Math.round(button.getBoundingClientRect().bottom - walk.getBoundingClientRect().bottom)
+            }
+            walk = walk.parentElement
+        }
+        return Number.NaN
+    }, label)
+}
