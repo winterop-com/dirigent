@@ -1,7 +1,15 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
 import { LABELS } from '../src/lib/labels.ts'
-import { apiPrefix, applyDocument, applyExample, removeSchema, signIn, writeInEditor } from './support.ts'
+import {
+    apiPrefix,
+    applyDocument,
+    applyExample,
+    belowTheFold,
+    removeSchema,
+    signIn,
+    writeInEditor,
+} from './support.ts'
 
 /**
  * The Schemas screen, against a real instance.
@@ -207,8 +215,8 @@ test('a shape a pipeline names cannot be deleted, and the shut control says whic
     await page.goto('/schemas/e2e-org-unit')
     const panel = page.locator('aside')
 
-    // The pipelines naming the code are drawn beside the body, because saving is a decision
-    // made on their behalf.
+    // The pipelines naming the code are named rather than counted, because saving is a decision
+    // made on their behalf. They are drawn past the verbs, in their own section.
     await expect(panel.getByText('e2e-schema-dependant', { exact: false })).toBeVisible()
 
     // A control that would be refused says so before it is pressed. The reason rides on the
@@ -380,4 +388,90 @@ test.describe('a listing whose titles run long', () => {
         }
         expect(cut).toEqual([])
     })
+})
+
+/** A stored pipeline naming the seeded schema, one per dependant the panel is measured with. */
+function dependant(at: number): Record<string, unknown> {
+    return {
+        format: 'dirigent/v1',
+        kind: 'pipeline',
+        code: `e2e-fold-dependant-${String(at).padStart(2, '0')}`,
+        requires: { schemas: ['e2e-org-unit'] },
+        steps: {
+            gate: {
+                block: 'validate.schema',
+                config: { input: { id: 'x' }, schema: 'e2e-org-unit' },
+            },
+        },
+    }
+}
+
+/**
+ * Put the schema on the instance with exactly this many stored pipelines naming it.
+ *
+ * `seedSchema` clears whatever named the code last, so each count is measured against the
+ * dependants it asked for and not the ones the count before it left behind.
+ */
+async function seedDependants(request: APIRequestContext, many: number): Promise<void> {
+    await seedSchema(request)
+    for (let at = 0; at < many; at += 1) {
+        await applyDocument(request, dependant(at))
+    }
+}
+
+/**
+ * THE VERBS ARE NEVER THE PART AN INSTANCE PUSHES OFF THE SCREEN. How many pipelines name a
+ * stored schema is the instance's to decide, and drawn above Save that count decided where Save
+ * was: ten of them put both verbs 114px under the fold of a 1024x768 panel and three put them
+ * 60px under it, while the body they were said to be about has a fixed height and moves nothing.
+ * The dependants are drawn after the verbs instead, which is why every reading here is the same
+ * number whatever the count -- and that, rather than the sign of any one of them, is the fix.
+ *
+ * THE SHORT DESKTOP IS THE BINDING ONE. The two viewports this product is reviewed at are
+ * 1024x768 and 390x844, so the phone is 76px taller: its narrower column costs wrapped lines and
+ * the extra height more than pays for them. The same held of the apply dialog.
+ */
+test('the verbs stay on screen however many pipelines name the shape', async ({ page }) => {
+    await signIn(page)
+
+    const readings = new Map<string, number[]>()
+    for (const many of [0, 3, 10]) {
+        await page.setViewportSize({ width: 1024, height: 768 })
+        await seedDependants(page.request, many)
+        await page.goto('/schemas/e2e-org-unit')
+
+        // The rail is an aside too, and below 768px the panel is a sheet rather than an aside, so
+        // the container is whichever of them holds this panel's own Save.
+        const panel = page.locator('aside, [data-panel-sheet]').filter({
+            has: page.getByRole('button', { name: LABELS.action.save.verb, exact: true }),
+        })
+        await expect(panel).toBeVisible()
+
+        for (const size of [
+            { width: 1024, height: 768 },
+            { width: 390, height: 844 },
+        ]) {
+            await page.setViewportSize(size)
+            const where = `${String(size.width)}x${String(size.height)}`
+            await expect(panel).toBeVisible()
+            for (const control of [LABELS.action.save.verb, LABELS.action.delete.verb]) {
+                // Polled rather than read once: a viewport that has just changed is a layout
+                // still settling, and a reading taken mid-reflow is a different layout's.
+                await expect
+                    .poll(async () => belowTheFold(panel, control), {
+                        message: `${control} at ${where}, ${String(many)} naming the shape`,
+                        timeout: 10_000,
+                    })
+                    .toBeLessThanOrEqual(0)
+                const key = `${where} ${control}`
+                readings.set(key, [...(readings.get(key) ?? []), await belowTheFold(panel, control)])
+            }
+        }
+    }
+
+    // One reading per viewport and control however many name the shape: the dependants cannot
+    // move a verb any more, because they are no longer drawn above one.
+    for (const [key, seen] of readings) {
+        expect(new Set(seen).size, `${key}: ${seen.join(', ')}`).toBe(1)
+    }
 })
