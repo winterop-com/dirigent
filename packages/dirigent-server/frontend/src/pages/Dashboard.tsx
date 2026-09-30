@@ -200,12 +200,12 @@ export function Dashboard() {
                 </PageState>
             </Section>
 
-            <Section title={LABELS.dashboard.needs_a_look} to="/runs">
+            <Section title={LABELS.dashboard.troubled_runs} to="/runs">
                 <PageState
                     loading={!failed.read || !messy.read}
                     problem={failed.problem ?? messy.problem}
                     empty={look.length === 0}
-                    emptyMessage={LABELS.dashboard.nothing_to_look_at}
+                    emptyMessage={LABELS.dashboard.nothing_troubled}
                 >
                     <ListTable
                         chrome={{ footer: false }}
@@ -221,7 +221,7 @@ export function Dashboard() {
                 </PageState>
             </Section>
 
-            <Section title={LABELS.dashboard.next_fires} to="/triggers">
+            <Section title={LABELS.dashboard.next_firings} to="/triggers">
                 <PageState
                     loading={!ahead.read}
                     problem={ahead.problem}

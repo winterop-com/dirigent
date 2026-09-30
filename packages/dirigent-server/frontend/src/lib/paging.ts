@@ -16,7 +16,7 @@
  */
 
 import type { Page, Problem } from '@/lib/api'
-import { LABELS } from '@/lib/labels'
+import { counted, type Counted, LABELS } from '@/lib/labels'
 
 /** How many rows a page of any listing in this app asks for. */
 export const PAGE = 50
@@ -97,11 +97,13 @@ export function noted<T>(state: Paged<T>): Paged<T> {
  * A BARE COUNT READS AS A TOTAL. This API answers no total, so "50 pipelines" in front of an
  * instance holding 135 is a number somebody would act on and be wrong. The cursor is what says
  * there is more, and the foot says so beside the count.
+ *
+ * THE NOUN ARRIVES IN BOTH NUMBERS, and which one is drawn is `counted`'s decision. A foot
+ * cannot reach the singular from the plural: the rule that turns watches into a watch turns
+ * entries into an entrie, and a language with three plural forms has no such rule at all.
  */
-export function rowsRead(count: number, noun: string, more: boolean): string {
-    // A noun whose plural took -es drops both letters: watches is a watch, not a watche.
-    const one = /(?:ch|sh|x|ss)es$/.test(noun) ? noun.slice(0, -2) : noun.replace(/s$/, '')
-    const spelled = count === 1 ? one : noun
+export function rowsRead(count: number, noun: Counted<string>, more: boolean): string {
+    const spelled = counted(count, noun)
     return more
         ? LABELS.shell.rows_read_more(String(count), spelled)
         : LABELS.shell.rows_read(String(count), spelled)

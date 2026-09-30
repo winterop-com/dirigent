@@ -355,7 +355,7 @@ export function healthNote(workers: readonly WorkerOut[], connections: readonly 
             ),
         )
     if (healthy < total) {
-        const note = connectionsNote(connections, LABELS.word.connection)
+        const note = connectionsNote(connections, LABELS.word.connection.count)
         if (note !== null) said.push(note)
     }
     if (said.length > 0) {

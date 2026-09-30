@@ -1027,7 +1027,7 @@ test('New pipeline opens the editor on a document nothing has applied, and apply
     // The chip by its own title, not by its text: once the apply lands, the foot states the
     // version the instance holds as well, and a bare `v1` matches whichever of the two got
     // there first.
-    await expect(page.getByTitle(LABELS.editor.version.counted('1'))).toHaveText(
+    await expect(page.getByTitle(LABELS.editor.version.explained('1'))).toHaveText(
         LABELS.editor.version.short('1'),
     )
     await expect(page.getByText('Started in the editor', { exact: true }).first()).toBeVisible()

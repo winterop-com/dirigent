@@ -648,7 +648,10 @@ stands beside the control as chips that take themselves off.
 
 **A count says what it counts.** `rowsRead` writes "1 pipeline", "50 runs, more to load": the noun
 is the row's, singular where there is one of it, and a listing with a cursor left says so. A bare
-number along a foot reads as a total, and a keyset walk has no total to state.
+number along a foot reads as a total, and a keyset walk has no total to state. **The noun reaches
+the foot in both numbers**, as the `{one, many}` pair its `count` entry holds, and `ListTable`'s
+`noun` prop takes that pair rather than a word: a foot handed one plural would have to reach the
+singular by rule, and the rule that makes a watch out of watches makes an entrie out of entries.
 
 ## A graph is a shape, and each screen reduces its own to it
 
@@ -1770,11 +1773,18 @@ label, a column header, a card's fact and a section heading are Sentence case; a
 term, a chip and a fragment inside a sentence are lower case. Where the product draws one noun in
 more than one of those, the entry holds each form it actually draws, under the surface it is drawn
 on: `label` for the singular a control or a column wears, `heading` for the plural over a section
-or a table, `term` for the lower-case singular a definition list reads, `count` for the lower-case
-plural a listing's foot counts. A form nothing draws is not written down, and nothing derives one
+or a table, `term` for the lower-case singular a definition list reads, `count` for the sentence a
+listing's foot counts in. A form nothing draws is not written down, and nothing derives one
 form from another -- capitalising in code compiles English's capitalisation rule into the app,
 which is the one thing this catalogue exists to keep out. `Started` beside `started`, and `Blocks`
 beside a per-screen `blocks`, are that rule not yet applied.
+
+**A counted surface holds both numbers, so `count` is a `{one, many}` pair.** A foot counts rows
+and a row may be one of them, so the entry spells the singular as well: `count: {one: 'watch',
+many: 'watches'}`, and `counted` picks. A word that also stands alone in a sentence is written
+again under `term`, because that is a surface of its own -- the two hold the same string in
+English and need not in a language that declines a counted noun, which is exactly the difference
+a shared entry would hide.
 
 **A verb is one entry in `action`, and the states of its own control sit under it.** The word on
 the button, the word while the request is in flight and the word once it has landed are one

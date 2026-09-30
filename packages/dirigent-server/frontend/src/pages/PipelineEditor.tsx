@@ -595,7 +595,7 @@ export function PipelineEditor() {
                     title={
                         pipeline === null || pipeline.current_version === null
                             ? LABELS.editor.version.unapplied
-                            : LABELS.editor.version.counted(String(pipeline.current_version))
+                            : LABELS.editor.version.explained(String(pipeline.current_version))
                     }
                 >
                     {pipeline === null || pipeline.current_version === null

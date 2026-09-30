@@ -151,9 +151,15 @@ const action = {
  * section heading are Sentence case; a definition-list term and a fragment inside a sentence are
  * lower case. A noun this product draws in more than one of those holds each form it actually
  * draws -- `label` for the singular a control or a column wears, `heading` for the plural over a
- * section or a table, `term` for the lower-case singular, `count` for the lower-case plural a
- * listing's foot counts -- and a form nothing draws is not written down. Nothing derives one form
+ * section or a table, `term` for the lower-case singular, `count` for the sentence a listing's
+ * foot counts in -- and a form nothing draws is not written down. Nothing derives one form
  * from another: capitalising in code compiles English's own rule into the app.
+ *
+ * A COUNTED SURFACE HOLDS BOTH NUMBERS. `count` is a `{one, many}` pair, so a foot counting one
+ * row says "1 watch" because the word is written there and not because anything took the plural
+ * apart. A word that also stands alone in a sentence is written again under `term`, which is a
+ * surface of its own: the two are the same string in English and need not be in another
+ * language.
  */
 const word = {
     /** The addressable key, unique and constrained. */
@@ -179,13 +185,19 @@ const word = {
     pipeline: {
         label: 'Pipeline',
         term: 'pipeline',
-        count: 'pipelines',
+        count: {
+            one: 'pipeline',
+            many: 'pipelines',
+        },
     },
     /** One execution of a pipeline. */
     run: {
         label: 'Run',
         term: 'run',
-        count: 'runs',
+        count: {
+            one: 'run',
+            many: 'runs',
+        },
     },
     /** One node of a pipeline. */
     step: {
@@ -197,25 +209,36 @@ const word = {
         label: 'Block',
         heading: 'Blocks',
         term: 'block',
-        count: 'blocks',
+        count: {
+            one: 'block',
+            many: 'blocks',
+        },
     },
     /** A named credential. */
     connection: {
         label: 'Connection',
         heading: 'Connections',
-        term: 'connection',
-        count: 'connections',
+        count: {
+            one: 'connection',
+            many: 'connections',
+        },
     },
     /** A shape a payload is checked against. */
     schema: {
         label: 'Schema',
-        count: 'schemas',
+        count: {
+            one: 'schema',
+            many: 'schemas',
+        },
     },
     /** A shipped document. */
     example: {
         label: 'Example',
         heading: 'Examples',
-        count: 'examples',
+        count: {
+            one: 'example',
+            many: 'examples',
+        },
     },
     /** What fires a pipeline without a person. */
     trigger: {
@@ -227,28 +250,40 @@ const word = {
         label: 'Schedule',
         heading: 'Schedules',
         term: 'schedule',
-        count: 'schedules',
+        count: {
+            one: 'schedule',
+            many: 'schedules',
+        },
     },
     /** An inbound endpoint that fires a pipeline. */
     webhook: {
         label: 'Webhook',
         heading: 'Webhooks',
         term: 'webhook',
-        count: 'webhooks',
+        count: {
+            one: 'webhook',
+            many: 'webhooks',
+        },
     },
     /** A step that waits for an external condition. */
     watch: {
         label: 'Watch',
         heading: 'Watches',
         term: 'watch',
-        count: 'watches',
+        count: {
+            one: 'watch',
+            many: 'watches',
+        },
     },
     /** One time a schedule went off. Not the verb: what the scheduler decided is an outcome. */
     firing: {
         /** The column of what a schedule last did, and the panel's fact for the same moment. */
         last: 'Last firing',
         heading: 'Firings',
-        count: 'firings',
+        count: {
+            one: 'firing',
+            many: 'firings',
+        },
     },
     /** One try of one step, or of one delivery. */
     attempt: {
@@ -258,29 +293,44 @@ const word = {
     rule: {
         label: 'Rule',
         heading: 'Rules',
-        count: 'rules',
+        count: {
+            one: 'rule',
+            many: 'rules',
+        },
     },
     /** One queued alert delivery. */
     notification: {
         label: 'Notification',
         heading: 'Notifications',
-        count: 'notifications',
+        count: {
+            one: 'notification',
+            many: 'notifications',
+        },
     },
     /** A node that claims work. */
     worker: {
         label: 'Worker',
-        count: 'workers',
+        count: {
+            one: 'worker',
+            many: 'workers',
+        },
     },
     /** A person's record. */
     account: {
         label: 'Account',
         heading: 'Accounts',
-        count: 'accounts',
+        count: {
+            one: 'account',
+            many: 'accounts',
+        },
     },
     /** What an automation signs in with in place of a password. */
     token: {
         heading: 'Tokens',
-        count: 'tokens',
+        count: {
+            one: 'token',
+            many: 'tokens',
+        },
     },
     /** A person's code, which is what they sign in as. */
     username: 'Username',
@@ -841,7 +891,7 @@ const refusal = {
         /** What a read adds: silence may only mean the server is not up yet. */
         may_be_starting: 'It may be starting, or the connection was lost.',
         /** What the password form adds: with no answer, whether the write happened is not known. */
-        password_unchanged: 'The password change could not be confirmed.',
+        password_unconfirmed: 'The password change could not be confirmed.',
     },
     /** The heading over a refusal whose body was not a problem document, which is its status. */
     http_status: (status: string) => `HTTP ${status}`,
@@ -1131,10 +1181,10 @@ const dashboard = {
     right_now: 'Right now',
     nothing_live: 'Nothing is running and nothing is waiting.',
     /** The runs that want somebody, on both screens. */
-    needs_a_look: 'Runs in trouble',
-    nothing_to_look_at: 'Nothing has failed or finished with errors.',
+    troubled_runs: 'Runs in trouble',
+    nothing_troubled: 'Nothing has failed or finished with errors.',
     /** The firings still ahead. */
-    next_fires: 'Next firings',
+    next_firings: 'Next firings',
     no_fire_due: 'No firing is due.',
 
     /** The column headers of the three feeds. What each foot counts is `word`. */
@@ -1256,7 +1306,8 @@ const editor = {
         none: 'no version',
         short: (version: string) => `v${version}`,
         unapplied: 'No version of this pipeline has been applied.',
-        counted: (version: string) =>
+        /** The chip's own tooltip, which is where what makes a version is said. */
+        explained: (version: string) =>
             `Version ${version}. Only an apply that changes the document creates a version.`,
     },
 
@@ -1558,9 +1609,18 @@ const editor = {
         unchanged: (pipeline: string) => `Apply writes nothing — ${pipeline} already matches this document`,
         create: (pipeline: string) => `Apply creates ${pipeline} at version 1`,
         update: (version: string, pipeline: string) => `Apply writes version ${version} of ${pipeline}`,
-        steps_added: (steps: string) => `steps added: ${steps}`,
-        steps_removed: (steps: string) => `steps removed: ${steps}`,
-        steps_changed: (steps: string) => `steps changed: ${steps}`,
+        steps_added: {
+            one: (steps: string) => `step added: ${steps}`,
+            many: (steps: string) => `steps added: ${steps}`,
+        },
+        steps_removed: {
+            one: (steps: string) => `step removed: ${steps}`,
+            many: (steps: string) => `steps removed: ${steps}`,
+        },
+        steps_changed: {
+            one: (steps: string) => `step changed: ${steps}`,
+            many: (steps: string) => `steps changed: ${steps}`,
+        },
         params_changed: 'the parameter schema changed',
         triggers_changed: 'the triggers changed',
         settings_changed: 'the name, description, or concurrency policy changed',
@@ -2363,15 +2423,24 @@ const blocks = {
     registry: {
         scheme: {
             title: 'Storage schemes',
-            noun: 'schemes',
+            noun: {
+                one: 'scheme',
+                many: 'schemes',
+            },
         },
         notifier: {
             title: 'Notifiers',
-            noun: 'notifiers',
+            noun: {
+                one: 'notifier',
+                many: 'notifiers',
+            },
         },
         connection: {
             title: 'Connection kinds',
-            noun: 'connection kinds',
+            noun: {
+                one: 'connection kind',
+                many: 'connection kinds',
+            },
         },
     },
     /** A registry row's title column, which holds an id and the line its schema opens with. */
@@ -2831,7 +2900,8 @@ const alerting = {
     /** Where the message got to, as the dialog watches the row settle. */
     delivered: 'Delivered',
     queued_for_worker: 'Queued for the next worker pass.',
-    given_up: {
+    /** Where the delivery ran out of the tries the instance allows. */
+    delivery_stopped: {
         one: (attempt: number, allowed: number) => `Delivery stopped after ${attempt} of ${allowed} attempt.`,
         many: (attempt: number, allowed: number) =>
             `Delivery stopped after ${attempt} of ${allowed} attempts.`,
@@ -2944,21 +3014,10 @@ export const LABELS = {
     settings,
 } as const satisfies Record<string, Catalogue>
 
-/** A sentence whose grammar moves with the count it is about. */
+/** A sentence, or the noun inside one, whose grammar moves with the count it is about. */
 export interface Counted<T> {
     one: T
     many: T
-}
-
-/**
- * The two lower-case forms of a noun this product counts.
- *
- * A sentence that takes its noun as a value takes both forms, because which one is drawn is
- * decided by the count standing beside it rather than by the caller's own grammar.
- */
-export interface NounForms {
-    readonly term: string
-    readonly count: string
 }
 
 /**

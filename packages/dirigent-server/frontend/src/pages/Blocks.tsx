@@ -21,7 +21,7 @@ import {
     type CatalogEntry,
 } from '@/lib/blocks'
 import { examplesPerBlock, readAllExamples } from '@/lib/examples'
-import { counted as pick, LABELS } from '@/lib/labels'
+import { counted as pick, type Counted, LABELS } from '@/lib/labels'
 import { closePanel, fillPanel, openPanel } from '@/lib/panels'
 import { fieldsOf, type FieldDescriptor } from '@/lib/schema-form'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
@@ -32,7 +32,7 @@ const blockId = (entry: BlockEntry) => entry.id
 interface Registry {
     key: 'scheme' | 'notifier' | 'connection'
     title: string
-    noun: string
+    noun: Counted<string>
 }
 
 const REGISTRIES: Registry[] = [

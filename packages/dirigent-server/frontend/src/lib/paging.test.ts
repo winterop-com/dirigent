@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { Page, Problem } from '@/lib/api'
+import { LABELS } from '@/lib/labels'
 import { appended, exhausted, noRows, noted, prepended, refused, rowsRead, started } from '@/lib/paging'
 
 interface Row {
@@ -103,17 +104,42 @@ describe('a cursor-paged listing', () => {
 
 describe('the foot of a listing', () => {
     it('says there is more where the cursor says so', () => {
-        expect(rowsRead(50, 'pipelines', true)).toBe('50 pipelines, more to load')
+        expect(rowsRead(50, LABELS.word.pipeline.count, true)).toBe('50 pipelines, more to load')
     })
 
     it('states the count alone once the listing has run out', () => {
-        expect(rowsRead(50, 'pipelines', false)).toBe('50 pipelines')
+        expect(rowsRead(50, LABELS.word.pipeline.count, false)).toBe('50 pipelines')
     })
 
-    it('counts one row in the singular', () => {
-        expect(rowsRead(1, 'runs', false)).toBe('1 run')
-        expect(rowsRead(1, 'watches', false)).toBe('1 watch')
-        expect(rowsRead(1, 'schedules', false)).toBe('1 schedule')
-        expect(rowsRead(0, 'runs', false)).toBe('0 runs')
+    // "1 items" is the whole bug class, so every noun this app counts rows in is pinned at one
+    // as well as at two: a plural nothing spelled is a plural somebody derived.
+    it.each([
+        [LABELS.word.pipeline.count, '0 pipelines', '1 pipeline', '2 pipelines'],
+        [LABELS.word.run.count, '0 runs', '1 run', '2 runs'],
+        [LABELS.word.block.count, '0 blocks', '1 block', '2 blocks'],
+        [LABELS.word.connection.count, '0 connections', '1 connection', '2 connections'],
+        [LABELS.word.schema.count, '0 schemas', '1 schema', '2 schemas'],
+        [LABELS.word.example.count, '0 examples', '1 example', '2 examples'],
+        [LABELS.word.schedule.count, '0 schedules', '1 schedule', '2 schedules'],
+        [LABELS.word.webhook.count, '0 webhooks', '1 webhook', '2 webhooks'],
+        [LABELS.word.watch.count, '0 watches', '1 watch', '2 watches'],
+        [LABELS.word.firing.count, '0 firings', '1 firing', '2 firings'],
+        [LABELS.word.rule.count, '0 rules', '1 rule', '2 rules'],
+        [LABELS.word.notification.count, '0 notifications', '1 notification', '2 notifications'],
+        [LABELS.word.worker.count, '0 workers', '1 worker', '2 workers'],
+        [LABELS.word.account.count, '0 accounts', '1 account', '2 accounts'],
+        [LABELS.word.token.count, '0 tokens', '1 token', '2 tokens'],
+        [LABELS.blocks.registry.scheme.noun, '0 schemes', '1 scheme', '2 schemes'],
+        [LABELS.blocks.registry.notifier.noun, '0 notifiers', '1 notifier', '2 notifiers'],
+        [
+            LABELS.blocks.registry.connection.noun,
+            '0 connection kinds',
+            '1 connection kind',
+            '2 connection kinds',
+        ],
+    ])('counts %o at none, at one and at two', (noun, none, one, two) => {
+        expect(rowsRead(0, noun, false)).toBe(none)
+        expect(rowsRead(1, noun, false)).toBe(one)
+        expect(rowsRead(2, noun, false)).toBe(two)
     })
 })
