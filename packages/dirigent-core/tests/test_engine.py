@@ -63,6 +63,7 @@ from dirigent_core.models import (
     utcnow,
 )
 from dirigent_core.plugins import PluginHost
+from dirigent_core.schemas import store_schema
 from dirigent_core.secrets import SecretBox
 from dirigent_core.storage import FileStorageBackend, FileStorageConfig, Storage, parse_uri
 from dirigent_plugin import ByteSink, ErrorClass, ProbeStatus, RemoteHandle
@@ -3083,3 +3084,163 @@ async def test_an_output_too_large_to_inline_is_persisted_through_the_configured
         assert stored is not None
         assert stored.uri is not None, "the output was small enough to inline, so nothing was persisted"
     assert writes == ["connection"], "the output was persisted through the unconfigured default backend"
+
+
+#: The shape a run pins, and the correction an edit makes to it.
+OU_SHAPE = {"type": "object", "required": ["id"], "properties": {"id": {"type": "string"}}}
+OU_SHAPE_CORRECTED = {"type": "object", "required": ["id", "name"], "properties": {"id": {"type": "string"}}}
+
+
+def gated(*names: str) -> PipelineDefinition:
+    """A pipeline whose steps each name the ``ou-shape`` schema, chained so one runs at a time."""
+    built: dict[str, StepDefinition] = {}
+    previous: list[str] = []
+    for name in names:
+        built[name] = StepDefinition(
+            block="test.echo", config={"value": name, "schema": "ou-shape"}, depends_on=list(previous)
+        )
+        previous = [name]
+    return PipelineDefinition(code="gated", steps=built)
+
+
+async def test_a_run_holds_the_body_of_every_schema_its_document_names(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    """The codes the document names, and nothing else the instance happens to hold."""
+    async with session_scope(sessions) as session:
+        await store_schema(session, OU_SHAPE, code="ou-shape")
+        await store_schema(session, OU_SHAPE, code="unnamed-shape")
+
+    run = await start(sessions, services, gated("one"))
+
+    assert set(run.schemas) == {"ou-shape"}, "a run holds the shapes it checks against, not the table"
+    assert run.schemas["ou-shape"] == OU_SHAPE
+
+
+async def test_a_run_that_names_no_schema_holds_none(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    """Nothing is read for a document that gates on no shape."""
+    async with session_scope(sessions) as session:
+        await store_schema(session, OU_SHAPE, code="ou-shape")
+
+    run = await start(
+        sessions, services, PipelineDefinition(code="plain", steps=steps(one=StepDefinition(block="test.echo")))
+    )
+
+    assert run.schemas == {}
+
+
+async def test_editing_a_stored_schema_leaves_a_started_run_on_the_body_it_started_with(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices, engine: Engine
+) -> None:
+    """The next step of a run in flight is handed what the run pinned, not what is stored.
+
+    This is the whole point of the pin: before it, the claim read the table, so the second
+    step of a two-step run checked against a body the first step never saw.
+    """
+    async with session_scope(sessions) as session:
+        await store_schema(session, OU_SHAPE, code="ou-shape")
+
+    run = await start(sessions, services, gated("one", "two"))
+
+    first = await engine.claim()
+    assert first is not None
+    assert first.schemas["ou-shape"] == OU_SHAPE
+    await engine.run_unit(first)
+
+    async with session_scope(sessions) as session:
+        await store_schema(session, OU_SHAPE_CORRECTED, code="ou-shape")
+
+    second = await engine.claim()
+    assert second is not None
+    assert second.step_name == "two"
+    assert second.schemas["ou-shape"] == OU_SHAPE, "the second step checks against what the run started with"
+    assert (await reload(sessions, run.id)).schemas["ou-shape"] == OU_SHAPE
+
+
+async def test_a_run_created_after_an_edit_holds_the_corrected_body(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    """An edit is visible to the next run, which is what editing a stored schema is for."""
+    async with session_scope(sessions) as session:
+        await store_schema(session, OU_SHAPE, code="ou-shape")
+    before = await start(sessions, services, gated("one"))
+
+    async with session_scope(sessions) as session:
+        await store_schema(session, OU_SHAPE_CORRECTED, code="ou-shape")
+    after = await start(sessions, services, gated("one"))
+
+    assert before.schemas["ou-shape"] == OU_SHAPE
+    assert after.schemas["ou-shape"] == OU_SHAPE_CORRECTED
+
+
+async def test_a_retry_of_an_attempt_checks_against_the_body_the_run_started_with(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices, engine: Engine
+) -> None:
+    """A retry is another attempt of the same run, so it is handed the same shapes."""
+    async with session_scope(sessions) as session:
+        await store_schema(session, OU_SHAPE, code="ou-shape")
+
+    # The gate is downstream and never reached: what the retry is handed comes from the run,
+    # so the step being retried need not be the one that named the shape.
+    definition = PipelineDefinition(
+        code="gated",
+        steps=steps(
+            one=StepDefinition(block="test.fail", retry=FAST_RETRY),
+            two=StepDefinition(block="test.echo", config={"value": "two", "schema": "ou-shape"}, depends_on=["one"]),
+        ),
+    )
+    run = await start(sessions, services, definition)
+    assert run.schemas["ou-shape"] == OU_SHAPE
+
+    first = await engine.claim()
+    assert first is not None
+    assert first.attempt_number == 1
+    await engine.run_unit(first)
+
+    async with session_scope(sessions) as session:
+        await store_schema(session, OU_SHAPE_CORRECTED, code="ou-shape")
+
+    retried = await engine.claim(now=utcnow() + timedelta(seconds=30))
+    assert retried is not None
+    assert retried.step_name == "one"
+    assert retried.attempt_number == 2, "the second attempt of the same run"
+    assert retried.schemas["ou-shape"] == OU_SHAPE
+    assert (await reload(sessions, run.id)).schemas["ou-shape"] == OU_SHAPE
+
+
+async def test_a_run_is_refused_where_a_schema_its_document_names_is_not_held(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    """No run starts that would fail at its gate, and the refusal names what to do."""
+    async with session_scope(sessions) as session:
+        await store_schema(session, OU_SHAPE, code="some-other-shape")
+        version = await save_pipeline(session, gated("one"))
+        with pytest.raises(RunCreationError) as refused:
+            await create_run(session, services, version)
+
+    assert refused.value.code == "run.schema_not_held"
+    assert refused.value.params["code"] == "'ou-shape'"
+    assert refused.value.params["held"] == "some-other-shape"
+
+
+async def test_a_child_run_holds_its_own_shapes_rather_than_its_parent_s(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    """A child resolves its own current version, so it pins what that version names."""
+    async with session_scope(sessions) as session:
+        await store_schema(session, OU_SHAPE, code="ou-shape")
+        await store_schema(session, OU_SHAPE_CORRECTED, code="child-shape")
+        child_version = await save_pipeline(
+            session,
+            PipelineDefinition(
+                code="child", steps=steps(one=StepDefinition(block="test.echo", config={"schema": "child-shape"}))
+            ),
+        )
+        child = await create_run(session, services, child_version)
+    parent = await start(sessions, services, gated("one"))
+
+    assert child is not None
+    assert set(parent.schemas) == {"ou-shape"}
+    assert set(child.schemas) == {"child-shape"}, "a child pins its own, and inherits none of the parent's"

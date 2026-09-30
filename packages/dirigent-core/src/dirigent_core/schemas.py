@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirigent_client.schemas import Catalog
 from dirigent_common import JsonMap
-from dirigent_core.documents import schemas_named
+from dirigent_core.engine.definition import schemas_named
 from dirigent_core.errors import DomainError
 from dirigent_core.messages import SCHEMA_IN_USE, SCHEMA_INVALID, SCHEMA_NO_CODE
 from dirigent_core.models import Pipeline, PipelineVersion, Schema

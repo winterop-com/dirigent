@@ -142,8 +142,7 @@ SCHEMA_INVALID = SCHEMA.define("invalid", "this is not a valid JSON Schema{at}: 
 
 SCHEMA_IN_USE = SCHEMA.define(
     "in_use",
-    "schema {code} cannot be removed while {count} pipeline(s) name it ({pipelines}); "
-    "a pipeline must stop naming it first",
+    "schema {code} cannot be removed while pipelines name it ({pipelines}); a pipeline must stop naming it first",
 )
 
 
@@ -325,6 +324,14 @@ STEP_CONFIG_INVALID = DOCUMENT.define("step_config_invalid", "{detail}")
 STEP_CONNECTION_MISSING = DOCUMENT.define("step_connection_missing", "no connection coded {code} exists ({available})")
 
 STEP_SCHEMA_MISSING = DOCUMENT.define("step_schema_missing", "no schema coded {code} exists ({available})")
+
+# A run holds the bodies of the schemas its document names, read when it is created, so a
+# code nothing can read until the run has started names no shape it could have held.
+STEP_SCHEMA_INTERPOLATED = DOCUMENT.define(
+    "step_schema_interpolated",
+    "{code} is resolved once the run has started, and a schema is named by its code: a run "
+    "takes the shapes its document names when it starts, so write the code this step checks against",
+)
 
 FOR_EACH_LITERAL = DOCUMENT.define(
     "for_each_literal",
@@ -677,7 +684,17 @@ RUN = Catalogue("run")
 
 RUN_UNKNOWN_CONNECTION = RUN.define("unknown_connection", "no connection coded {ref} ({available})")
 
-RUN_UNKNOWN_SCHEMA = RUN.define("unknown_schema", "no schema coded {code} ({available})")
+RUN_UNKNOWN_SCHEMA = RUN.define(
+    "unknown_schema",
+    "this run holds no shape coded {code}: it checks against the shapes its document named when "
+    "it started ({available}), and takes no others while it runs",
+)
+
+RUN_SCHEMA_NOT_HELD = RUN.define(
+    "schema_not_held",
+    "no schema coded {code} exists on this instance ({held}), and this pipeline checks against "
+    "it; store that shape, or apply a version of the pipeline that does not name it",
+)
 
 UNKNOWN_CONNECTION_KIND = RUN.define(
     "unknown_connection_kind",

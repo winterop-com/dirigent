@@ -983,6 +983,8 @@ const refused = {
         carried_schemas:
             'This document carries its own schemas ({named}), which an instance will not store. Create them on the instance and let the document name them under requires.schemas.',
         no_format: 'The document declares no format. Add format: {format}.',
+        step_schema_interpolated:
+            '{code} is resolved once the run has started, and a schema is named by its code. A run takes the shapes its document names when it starts, so write the code this step checks against.',
         unsatisfied: 'The document does not satisfy {format}.',
     },
     host: {
@@ -1003,6 +1005,10 @@ const refused = {
     },
     run: {
         not_retryable: 'Step {step} is {status}, and only a settled failure can be retried.',
+        schema_not_held:
+            'No schema coded {code} exists on this instance ({held}), and this pipeline checks against it. Store that shape, or apply a version of the pipeline that does not name it.',
+        unknown_schema:
+            'This run holds no shape coded {code}. It checks against the shapes its document named when it started ({available}), and takes no others while it runs.',
     },
     schedule: {
         backfill_one_time:
@@ -1593,7 +1599,7 @@ const editor = {
         held_body: (code: string) => `${code} · on this instance`,
         /** What updating does, and what it does to everything else naming the code. */
         update_note:
-            'Updating replaces what the instance holds with what this document carries. Every pipeline naming this code validates against the new shape from its next attempt.',
+            'Updating replaces what the instance holds with what this document carries. Every pipeline naming this code checks against the new shape from its next run.',
         /**
          * Which pipelines those are, where the instance holds any.
          *
@@ -1611,9 +1617,9 @@ const editor = {
         /** Why applying is shut: a code the document carries is a shape the instance does not hold. */
         differs_why: {
             one: (code: string) =>
-                `This instance holds a schema coded ${code} that is not what this document carries. Every pipeline naming that code validates against the stored one.`,
+                `This instance holds a schema coded ${code} that is not what this document carries. Every pipeline naming that code checks against the stored one from its next run.`,
             many: (codes: string) =>
-                `This instance holds schemas coded ${codes} that are not what this document carries. Every pipeline naming those codes validates against the stored ones.`,
+                `This instance holds schemas coded ${codes} that are not what this document carries. Every pipeline naming those codes checks against the stored ones from its next run.`,
         },
         /** Why the apply would refuse: a connection the document names is not on this instance. */
         no_connection: {
@@ -2676,10 +2682,19 @@ const schemas = {
     /** The description box, which is the schema's own `description` as it was stored. */
     description_placeholder: 'What this shape is for. Markdown is rendered.',
     /** Why editing the body is a decision rather than a correction, said where it is made. */
-    body_warning: 'Every pipeline naming this code validates against this shape from its next attempt.',
+    body_warning: 'Every pipeline naming this code checks against this shape from its next run.',
 
     /**
-     * Which stored pipelines validate against this code, over the body a save would replace.
+     * What the edit does not reach, under the pipelines it does.
+     *
+     * It reads after the names rather than before them, because the line above governs that
+     * list and a run in flight is not on it. `dg schema update` says the same two
+     * facts in the same order, and `test_shared_words.py` holds the pair to one wording.
+     */
+    body_in_flight: 'A run in flight keeps the shape it started with.',
+
+    /**
+     * Which stored pipelines check against this code, over the body a save would replace.
      *
      * It finishes the warning above it rather than restating it: that line says an edit reaches
      * every pipeline naming the code, and this names them, because the decision is made for

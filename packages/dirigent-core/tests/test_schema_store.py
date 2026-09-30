@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from dirigent_common import JsonMap
 from dirigent_core.database import session_scope
-from dirigent_core.documents import reference_fields, schemas_named
+from dirigent_core.engine.definition import schemas_named
 from dirigent_core.models import Pipeline, PipelineVersion
 from dirigent_core.plugins import PluginHost
 from dirigent_core.schemas import (
@@ -18,6 +18,7 @@ from dirigent_core.schemas import (
     schema_users,
     store_schema,
 )
+from dirigent_plugin import reference_fields
 
 ORG_UNIT = {
     "$id": "org-unit",
@@ -85,18 +86,6 @@ async def test_storing_an_invalid_schema_writes_nothing(sessions: async_sessionm
             await store_schema(session, {"type": 5})
     async with session_scope(sessions) as session:
         assert await schema_codes(session) == set()
-
-
-async def test_load_schemas_snapshots_every_body_by_code(sessions: async_sessionmaker[AsyncSession]) -> None:
-    """What a claim hands a block is the whole table, code to body, as ``validate.schema`` reads it."""
-    from dirigent_core.engine import load_schemas
-
-    async with session_scope(sessions) as session:
-        await store_schema(session, ORG_UNIT)
-    async with session_scope(sessions) as session:
-        loaded = await load_schemas(session)
-    assert set(loaded) == {"org-unit"}
-    assert loaded["org-unit"]["required"] == ["id", "displayName"]
 
 
 def test_a_block_declares_which_of_its_fields_hold_a_schema_code(host: PluginHost) -> None:

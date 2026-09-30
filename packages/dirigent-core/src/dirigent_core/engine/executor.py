@@ -36,7 +36,6 @@ from dirigent_core.engine.context import (
     LogRow,
     kept_level,
     load_connections,
-    load_schemas,
 )
 from dirigent_core.engine.definition import (
     PipelineDefinition,
@@ -357,7 +356,7 @@ class Engine:
             item=item_value,
             has_item=has_item,
             connections=await load_connections(session),
-            schemas=await load_schemas(session),
+            schemas=dict(run.schemas),
             traceparent=run.traceparent,
             remote_handle=RemoteHandle.model_validate(attempt.remote_handle) if attempt.remote_handle else None,
             fetched_output=attempt.fetched_output,

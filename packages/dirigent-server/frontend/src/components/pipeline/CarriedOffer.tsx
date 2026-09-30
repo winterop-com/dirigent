@@ -306,9 +306,13 @@ function MintConnection({
  *
  * WHAT IS SHOWN IS WHAT WOULD BE LOST. The shape the document carries is in the editor behind
  * this dialog; the one the instance holds is the half the reader cannot otherwise see without
- * leaving a document nothing has applied, so it is drawn here -- whole, in the pane a schema is
- * read in everywhere else, with the window that pane always offers. Nothing caps it: the surface
- * scrolls and a block inside it does not.
+ * leaving a document nothing has applied, so it is drawn here, in the pane a schema is read in
+ * everywhere else, with the window that pane always offers.
+ *
+ * AND IT TAKES A PANE'S HEIGHT, NOT THE SHAPE'S. A stored shape has no length of its own: given
+ * its own height, a 283-line one left this row's Cancel and confirm 4904px below the foot of the
+ * dialog's scroller, so the control performing the decision was the part that scrolled away.
+ * Nine lines here, and the window for the rest.
  *
  * THE IDENTITY TRAVELS WITH THE BODY. Storing a schema reads its own `title` and `description`
  * where the write names neither, and `PATCH /schemas/{code}` reads nothing, so `wholeSchema`
@@ -352,12 +356,21 @@ function UpdateSchema({
     return (
         <div className="min-w-0 space-y-3 rounded-lg border border-border bg-secondary/30 p-2">
             <p className="text-xs font-semibold tracking-wide text-faint uppercase">{words.held_heading}</p>
-            <JsonBlock title={words.held_body(item.code)} text={JSON.stringify(item.stored, null, 2)} />
+            <JsonBlock
+                title={words.held_body(item.code)}
+                text={JSON.stringify(item.stored, null, 2)}
+                className="max-h-40"
+            />
             <p className="text-xs text-muted-foreground">{words.update_note}</p>
             {item.usedBy.length > 0 && (
-                <p className="text-xs text-muted-foreground">
-                    {counted(item.usedBy.length, words.update_used_by)(item.usedBy.join(', '))}
-                </p>
+                <>
+                    <p className="text-xs text-muted-foreground">
+                        {counted(item.usedBy.length, words.update_used_by)(item.usedBy.join(', '))}
+                    </p>
+                    {/* The Schemas panel's own sentence, drawn rather than said twice: one fact
+                        lives in one label wherever it is read. */}
+                    <p className="text-xs text-muted-foreground">{LABELS.schemas.body_in_flight}</p>
+                </>
             )}
             {problem !== null && <Refusal problem={problem} />}
             {/* A WAY BACK AND A WAY FORWARD. Cancel gives the row its control back and writes

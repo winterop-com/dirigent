@@ -188,7 +188,12 @@ export function SchemaPanel({
             <div className="space-y-1.5">
                 <Label>{LABELS.word.schema.label}</Label>
                 <p className="text-xs text-faint">{LABELS.schemas.body_warning}</p>
-                {validated !== null && <p className="text-xs text-muted-foreground">{validated}</p>}
+                {validated !== null && (
+                    <>
+                        <p className="text-xs text-muted-foreground">{validated}</p>
+                        <p className="text-xs text-faint">{LABELS.schemas.body_in_flight}</p>
+                    </>
+                )}
                 <WindowedPane
                     name={LABELS.schemas.body_title(schema.code)}
                     className="overflow-hidden rounded-md border border-border bg-background"

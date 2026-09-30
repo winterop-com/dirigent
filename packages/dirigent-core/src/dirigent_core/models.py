@@ -239,6 +239,13 @@ class Run(Entity):
     Pinned at creation, so a later version of the document does not re-route a run in
     flight. An empty list is claimable by any worker."""
 
+    schemas: Mapped[JsonMap] = mapped_column(JsonDocument, nullable=False, default=dict)
+    """The body of every JSON Schema the document names, by code, as it stood at creation.
+
+    Pinned at creation, so editing a stored schema does not change what a run already
+    started validates against. The bodies themselves are held, not their codes: there is no
+    schema versioning to resolve a code back through."""
+
 
 class RunItem(Entity):
     """One element of a fan-out step's mapped input, with its own status and retry."""
