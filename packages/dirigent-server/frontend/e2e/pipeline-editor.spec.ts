@@ -1263,3 +1263,103 @@ test('a schema the document carries answers the gate before anything the instanc
     await row.click()
     await expect(panel.getByText('carried_here', { exact: false }).first()).toBeVisible()
 })
+
+/**
+ * THE WAY OUT OF A MISSING CONNECTION DOES NOT COST THE DOCUMENT.
+ *
+ * A document carrying a `connections:` section is refused by the apply, and the row that says
+ * this instance has not got the connection it names is where a credential is minted. That row
+ * used to carry a link to the Connections screen, and a document nothing has applied is held
+ * nowhere but this screen -- so taking the way forward threw away everything somebody had typed
+ * and came back to an empty skeleton. The form opens under the row instead: nothing navigates,
+ * the code and the kind the document declares are not asked for again, and the row turns
+ * `already here` the moment the credential exists.
+ *
+ * WHAT IS ASSERTED IS THE DOCUMENT SURVIVING, not the gesture. The address never leaves
+ * `/pipelines/$new` while the credential is minted, and the apply after it writes the steps that
+ * were typed before it -- which is the whole of what the old door lost.
+ */
+const CARRIED_CONNECTION = 'e2e-minted-in-the-row'
+
+const CARRYING_CONNECTION_PIPELINE = 'carries-a-connection'
+
+/** The step this document declares, which is what has to still be there at the end. */
+const CARRIED_STEP = 'call_out'
+
+const CARRYING_CONNECTION = [
+    'format: dirigent/v1',
+    'kind: pipeline',
+    `code: ${CARRYING_CONNECTION_PIPELINE}`,
+    'connections:',
+    `  ${CARRIED_CONNECTION}:`,
+    '    kind: http',
+    '    config:',
+    '      base_url: http://127.0.0.1:1',
+    'steps:',
+    `  ${CARRIED_STEP}:`,
+    '    block: http.request',
+    '    config:',
+    `      connection: ${CARRIED_CONNECTION}`,
+    '      path: /health',
+    '',
+].join('\n')
+
+test('a carried connection is minted in its own row, and the document is never left', async ({ page }) => {
+    await signIn(page)
+    const prefix = await apiPrefix(page.request)
+    // Whatever an earlier run left behind: this spec is about a code the instance has not got.
+    await page.request.delete(`${prefix}/connections/${CARRIED_CONNECTION}`)
+    await page.request.delete(`${prefix}/pipelines/${CARRYING_CONNECTION_PIPELINE}`)
+
+    await page.goto('/pipelines')
+    await page.getByRole('button', { name: LABELS.pipelines.new }).click()
+    await expect(page).toHaveURL(/\/pipelines\/\$new$/)
+
+    const panel = page.locator('aside')
+    await panel.getByRole('tab', { name: LABELS.word.source }).click()
+    const editor = panel.getByTestId('code-editor')
+    await writeInEditor(page, editor, CARRYING_CONNECTION)
+    await expect(page.locator('.react-flow__node').getByText(CARRIED_STEP, { exact: true })).toBeVisible()
+
+    // The apply refuses a carried section, and the offer under the refusal is what answers it.
+    await page.getByRole('button', { name: LABELS.action.apply, exact: true }).click()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog.getByRole('heading', { name: LABELS.editor.apply.title })).toBeVisible()
+
+    // THE ROW SAYS THE INSTANCE HAS NOT GOT IT, and the confirm is not drawn while that holds.
+    const row = dialog.locator('li').filter({ hasText: CARRIED_CONNECTION })
+    await expect(row).toContainText(LABELS.editor.carried.state.missing)
+    await expect(dialog.getByText(LABELS.editor.carried.no_connection.one(CARRIED_CONNECTION))).toBeVisible()
+
+    // THE FORM OPENS UNDER THE ROW. The code and the kind are the document's, so neither is
+    // asked for again -- what the form asks for is the credential this instance will hold.
+    await row.getByRole('button', { name: LABELS.editor.carried.create_row(CARRIED_CONNECTION) }).click()
+    await expect(dialog.getByLabel('base_url', { exact: true })).toBeVisible()
+    await expect(dialog.getByLabel(LABELS.word.code, { exact: true })).toHaveCount(0)
+    await expect(dialog.getByLabel(LABELS.word.kind.label, { exact: true })).toHaveCount(0)
+
+    await dialog.getByLabel('base_url', { exact: true }).fill('http://127.0.0.1:1')
+    await row.getByRole('button', { name: LABELS.action.create.verb, exact: true }).click()
+
+    // THE ROW ANSWERS ITSELF, and nothing said it twice: what was missing is now the
+    // instance's own, which is what was in the way of the confirm being drawn at all.
+    await expect(row).toContainText(LABELS.editor.carried.state.held)
+    const confirm = dialog.getByRole('button', { name: LABELS.action.apply, exact: true })
+    await expect(confirm).toBeVisible()
+
+    // AND NOTHING NAVIGATED. The document is still the one that was typed, at the address it
+    // was typed at -- which is exactly what the link out of this row used to cost.
+    await expect(page).toHaveURL(/\/pipelines\/\$new$/)
+
+    await confirm.click()
+    // The first apply creates the pipeline and the screen goes to the address it answers at.
+    await expect(page).toHaveURL(new RegExp(`/pipelines/${CARRYING_CONNECTION_PIPELINE}$`))
+    await expect(page.locator('.react-flow__node').getByText(CARRIED_STEP, { exact: true })).toBeVisible()
+
+    // The document that was stored names the connection by code and carries no section of its own.
+    const stored = await page.request.get(`${prefix}/pipelines/${CARRYING_CONNECTION_PIPELINE}`)
+    expect(stored.ok(), await stored.text()).toBe(true)
+    const detail = (await stored.json()) as { document: Record<string, unknown> }
+    expect(detail.document.connections).toBeUndefined()
+    expect(detail.document.requires).toEqual({ connections: [CARRIED_CONNECTION] })
+})

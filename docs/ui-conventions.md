@@ -887,9 +887,26 @@ step in the document references and nothing here invents or renames it. A connec
 hold a credential in a field the kind declares secret and in one it does not, since a `sql` or a
 `git` connection's `url` carries a password or a token inline, so nothing can read a carried
 connection and say no credential is in it; nor can it be compared with a stored one, because a
-read redacts every secret field. It is named under `requires:` and the way forward is a door to
-the Connections screen with the kind and the code already in the address -- never a sentence
-telling somebody where to go while a button goes there.
+read redacts every secret field. It is named under `requires:` and the way forward is the form
+that mints one -- never a sentence telling somebody where to go while a button goes there.
+
+**And that form opens in the row that said so, because leaving this screen costs the document.**
+A pipeline nothing has applied is held in `lib/pipeline-document` and nowhere else, and the
+editor forgets it as it unmounts, so a link out of this dialog was a control that destroyed the
+work it was offered to rescue -- which is the same fault as a confirm that cannot confirm, read
+from the other end. The row expands under itself instead, the gesture below for a row whose verb
+needs a form, and nothing navigates. **The code and the kind are the document's own**, the row
+already draws both, and no box asks for either again: a create under a different code would
+leave the row exactly as it was, and the code is never on a screen twice. What the form asks for
+is the credential -- the kind's required settings, its optional ones folded behind the one link
+every generated form folds them behind, and a write-only box per secret field -- because
+**nothing is read out of the carried connection**, which is the whole reason a connection is not
+created from a document. A kind this instance has not installed publishes no config schema, so
+that row offers no form at all and says `missing` alone. The instance is asked again the moment
+the credential exists, which turns the row `already here` and is what was in the way of the
+confirm being drawn; nothing says it a second time as a line or a toast. A remedy that has to
+send somebody to another screen belongs on a document the instance already holds a version of,
+and there is no such remedy in this dialog.
 
 **What a copy of a starter still needs is said where the copy lands.** A copy rewrites the two
 lines that make it somebody's own and leaves what the document carries in it, because the apply
@@ -1333,14 +1350,38 @@ and each row is padded 8px again: the wash is inset 8, its content lands on the 
 everything else. A box nested inside a surface that is already inset takes the same 8 --
 `Refusal` inside a form or a dialog is `p-2`, not a second 16.
 
+**A surface scrolls; a block inside it does not.** A dialog above the breakpoint has no height
+of its own, so one that outgrows a short screen is capped at `max-h-[calc(100vh-4rem)]`, laid
+out as a column, and its body is the part that scrolls -- the header and the verbs stay where
+somebody reaches for them, which is the same arrangement `index.css` gives every dialog below
+the breakpoint. A block that caps itself instead puts a second scroll inside the first and cuts
+its own content off at a line nothing drew: a settings group capped at `40vh` hid the last
+password box under its own fold, and what was on screen was a label with no control beneath it.
+So the three tall dialogs -- a new rule, a new connection, and an apply whose offer opens a form
+in a row -- cap the surface and scroll the body, and nothing between the header and the footer
+declares a height.
+
 ## A row expands under itself rather than opening a second dialog
 
-Where a row's verb needs a form -- changing a password on the settings dialog -- the form opens
-in that row's own place, under it: its fields on one line, and Cancel beside the verb, right
-aligned at its foot. A dialog raised over a dialog puts a scrim over the thing it is about, and
-the row that offered the verb is already the sentence saying what the form is for. The button
-that opened it is replaced by the section while it stands, so there are never two controls that
-shut it, and the refusal is `Refusal` inside the section, where the fields it is about are.
+Where a row's verb needs a form -- changing a password on the settings dialog, minting the
+connection an apply's carried offer says this instance has not got -- the form opens in that
+row's own place, under it: its fields on one line, and Cancel beside the verb, right aligned at
+its foot. A dialog raised over a dialog puts a scrim over the thing it is about, and the row that
+offered the verb is already the sentence saying what the form is for. The button that opened it
+is replaced by the section while it stands, so there are never two controls that shut it, and the
+refusal is `Refusal` inside the section, where the fields it is about are. **One row at a time**:
+two open forms in one list are two half-typed things with one confirm behind them.
+
+**What the row already says, the form does not ask.** The row is the summary, so a box repeating
+a value drawn a line above it draws that value twice and offers to change something the row's own
+case depends on. A form that stands inside another decision opens on what is required and folds
+the rest, because the list the row belongs to has to stay on screen beside it.
+
+**A form reached this way is the same form it is anywhere else.** Its state, what it sends and
+why its confirm is shut live in one place that both surfaces read -- `lib/connection-draft` and
+`hooks/use-connection-draft` under `ConnectionFields`, drawn by the New connection dialog and by
+that row -- because a second copy of a form is a second set of rules about what a blank box
+means, and one of the two will be the one with the credential in it.
 
 The step panel's engine groups are the same gesture at rest: the row is the group's own summary,
 and its fields open under it rather than in a pane of their own.

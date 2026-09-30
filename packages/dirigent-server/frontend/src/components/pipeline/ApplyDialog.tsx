@@ -27,7 +27,7 @@ import {
     storedNote,
     type Held,
 } from '@/lib/carried'
-import { readConnection } from '@/lib/connections'
+import { readConnection, readConnectionKinds, type SurfaceEntry } from '@/lib/connections'
 import { LABELS } from '@/lib/labels'
 import { local, refusalOf } from '@/lib/refusal'
 import { planView, unchangedNote, type PlanView } from '@/lib/pipeline-plan'
@@ -77,6 +77,7 @@ export function ApplyDialog({
     const [problem, setProblem] = useState<Problem | null>(null)
     const [applying, setApplying] = useState(false)
     const [held, setHeld] = useState<Held>(NOTHING_READ)
+    const [kinds, setKinds] = useState<readonly SurfaceEntry[] | null>(null)
     const write = useMayWrite()
     const store = useMayWrite('admin')
 
@@ -139,6 +140,31 @@ export function ApplyDialog({
         }
         readHeld(document)
     }, [carried, document, readHeld])
+
+    /**
+     * What kinds a credential may be minted of here, read once a carried section was refused.
+     *
+     * A row offering to mint the connection the document names asks for that kind's own config
+     * schema, and the catalog is where one is published. It is read here rather than passed in,
+     * because this dialog is already what asks the instance what it holds; a plain refusal asks
+     * for none of it.
+     */
+    useEffect(() => {
+        if (!carried || kinds !== null) return
+        let live = true
+        void readConnectionKinds().then(
+            (found) => {
+                if (live) setKinds(found)
+            },
+            () => {
+                // Nothing to offer a form over, so the rows say what they say and the way
+                // forward is the Connections screen. The server decides either way.
+            },
+        )
+        return () => {
+            live = false
+        }
+    }, [carried, kinds])
 
     const items = useMemo(
         () => (carried ? carriedItems(document, held, store.may) : []),
@@ -239,7 +265,10 @@ export function ApplyDialog({
             {/* ONE DISMISSAL, ONE CONTROL. The footer always carries the way out -- `Cancel`
                 beside a confirm, `Close` where there is nothing to confirm -- so the corner's
                 own is not drawn as well. */}
-            <DialogContent className="sm:max-w-lg" showCloseButton={false}>
+            <DialogContent
+                className="flex max-h-[calc(100vh-4rem)] flex-col sm:max-w-lg"
+                showCloseButton={false}
+            >
                 <DialogHeader>
                     <DialogTitle>
                         {mode === 'apply' ? LABELS.editor.apply.title : LABELS.editor.apply.validate_title}
@@ -255,15 +284,33 @@ export function ApplyDialog({
                           )}
                 </DialogHeader>
 
-                {/* A CARRIED SECTION IS ANSWERED, NOT RESTATED. Every other refusal is drawn as
+                {/* THE READING SCROLLS AND THE VERBS DO NOT. A row of the offer opens a form
+                    under itself, and a plan of thirty steps is longer than a short screen either
+                    way, so what grows is the part above the footer rather than the dialog.
+
+                    A CARRIED SECTION IS ANSWERED, NOT RESTATED. Every other refusal is drawn as
                     the server wrote it; this one has a list and controls under it that say the
                     same fact in the terms of this screen, so its sentence is not drawn twice. */}
-                {problem !== null && !carried && <Refusal problem={problem} />}
-                {carried && <CarriedOffer items={items} reading={reading} />}
-                {problem === null && view === null && (
-                    <p className="text-sm text-muted-foreground">{LABELS.editor.apply.checking}</p>
-                )}
-                {view !== null && <PlanReading view={view} />}
+                <div className="-mx-1 min-h-0 flex-1 space-y-4 overflow-y-auto px-1">
+                    {problem !== null && !carried && <Refusal problem={problem} />}
+                    {carried && (
+                        <CarriedOffer
+                            items={items}
+                            reading={reading}
+                            kinds={kinds}
+                            onCreated={() => {
+                                // The row said the instance had not got it and now it has. Nothing
+                                // says so twice: the read turns that row `already here`, which is
+                                // what was in the way of the confirm being drawn at all.
+                                readHeld(document)
+                            }}
+                        />
+                    )}
+                    {problem === null && view === null && (
+                        <p className="text-sm text-muted-foreground">{LABELS.editor.apply.checking}</p>
+                    )}
+                    {view !== null && <PlanReading view={view} />}
+                </div>
 
                 {/* A DIALOG THAT ONLY TELLS HAS ONE CONTROL, AND IT SAYS DISMISSAL. There is
                     nothing to cancel where there was never a second path. */}
