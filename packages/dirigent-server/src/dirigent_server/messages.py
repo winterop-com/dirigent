@@ -102,18 +102,17 @@ PLAYGROUND_BAD_KNOB = SERVER.define("playground_bad_knob", "{detail}")
 
 PLAYGROUND_HEADER_REFUSED = SERVER.define(
     "playground_header_refused",
-    "the playground will not set {header} on itself: a header that plants a cookie, opens "
-    "this origin to another site, or weakens what a browser enforces here teaches nothing",
+    "the playground will not set {header} on itself: it sets no header that plants a cookie, "
+    "opens this origin to another site, or weakens what a browser enforces here",
 )
 
 PLAYGROUND_OFF_INSTANCE = SERVER.define(
     "playground_off_instance",
-    "{to} is not a path on this instance, and the playground redirects nowhere else: an "
-    "open redirect is a phishing tool wearing this instance's own domain",
+    "{to} is not a path on this instance: the playground redirects only to paths on this instance",
 )
 
 PLAYGROUND_UNAUTHENTICATED = SERVER.define(
     "playground_unauthenticated",
     "this route wants a credential: the basic pair {username}/{username}, or the documented "
-    "bearer token. Both are public constants and guard nothing",
+    "bearer token. Both are public constants",
 )
