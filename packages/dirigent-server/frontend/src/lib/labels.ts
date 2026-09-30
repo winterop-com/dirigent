@@ -2601,12 +2601,13 @@ const schemas = {
     /**
      * Which stored pipelines validate against this code, over the body a save would replace.
      *
-     * The generic warning says an edit reaches whoever names the code; this says who that is,
-     * because the decision is made for them and a count is not a name.
+     * It finishes the warning above it rather than restating it: that line says an edit reaches
+     * every pipeline naming the code, and this names them, because the decision is made for
+     * them and a count is not a name.
      */
     used_by: {
-        one: (pipelines: string) => `${pipelines} validates against this shape.`,
-        many: (pipelines: string) => `${pipelines} validate against this shape.`,
+        one: (pipelines: string) => `That is ${pipelines}.`,
+        many: (pipelines: string) => `Those are ${pipelines}.`,
     },
 
     /**

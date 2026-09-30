@@ -13,6 +13,7 @@ import {
     everyNodeIsInView,
     graphZoom,
     nodeAt,
+    removeSchema,
     signIn,
     writeInEditor,
 } from './support.ts'
@@ -1143,7 +1144,8 @@ const CARRYING = [
 /** Put the schema and the connection these specs name onto the instance. */
 async function seedNamed(request: APIRequestContext, baseURL: string): Promise<void> {
     const prefix = await apiPrefix(request)
-    await request.delete(`${prefix}/schemas/${REFERENCE_SCHEMA}`)
+    // A stored schema a pipeline names cannot be removed, so the dependants go with it.
+    await removeSchema(request, REFERENCE_SCHEMA)
     const stored = await request.post(`${prefix}/schemas`, {
         data: {
             body: {

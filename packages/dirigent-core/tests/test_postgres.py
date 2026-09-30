@@ -45,7 +45,6 @@ from dirigent_core.engine.recovery import detect_stuck_runs, sweep_leases
 from dirigent_core.engine.runs import RunCreationError, cancel_run, create_run, retry_step, save_pipeline
 from dirigent_core.engine.state import StepOutcome, attempt_counts, item_counts, lock_run
 from dirigent_core.ids import uuid7
-from dirigent_core.schemas import schema_users, store_schema
 from dirigent_core.models import (
     AlertRule,
     Base,
@@ -71,6 +70,7 @@ from dirigent_core.pipelines import (
     require_pipeline,
 )
 from dirigent_core.plugins import PluginHost
+from dirigent_core.schemas import schema_users, store_schema
 from dirigent_plugin import RemoteHandle
 from engineblocks import EchoOperator, EngineTestPlugin, RemoteOperator, reset_blocks
 

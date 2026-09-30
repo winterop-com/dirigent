@@ -135,8 +135,8 @@ export function whyKept(schema: Pick<SchemaOut, 'used_by'>): string | undefined 
 /**
  * Which pipelines validate against this shape, or nothing where none do.
  *
- * Said beside the body, because saving is a decision made on their behalf and a count is not a
- * name.
+ * It finishes the warning it is drawn under rather than restating it, so it reads as the second
+ * half of one sentence: saving is a decision made on their behalf, and a count is not a name.
  */
 export function validatedBy(schema: Pick<SchemaOut, 'used_by'>): string | null {
     if (schema.used_by.length === 0) return null

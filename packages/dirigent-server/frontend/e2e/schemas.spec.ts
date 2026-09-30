@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
 import { LABELS } from '../src/lib/labels.ts'
-import { apiPrefix, applyDocument, applyExample, signIn, writeInEditor } from './support.ts'
+import { apiPrefix, applyDocument, applyExample, removeSchema, signIn, writeInEditor } from './support.ts'
 
 /**
  * The Schemas screen, against a real instance.
@@ -37,7 +37,9 @@ const SCHEMA = {
 
 async function seedSchema(request: APIRequestContext): Promise<void> {
     const prefix = await apiPrefix(request)
-    await request.delete(`${prefix}/schemas/e2e-org-unit`)
+    // A spec that leaves a pipeline naming this code leaves the code undeletable, which is the
+    // rule this screen is about: the dependants go first, as they would for a person.
+    await removeSchema(request, 'e2e-org-unit')
     const created = await request.post(`${prefix}/schemas`, { data: { body: SCHEMA } })
     expect(created.ok(), await created.text()).toBe(true)
 }

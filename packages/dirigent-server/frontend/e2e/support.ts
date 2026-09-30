@@ -113,6 +113,26 @@ export async function apiPrefix(request: APIRequestContext): Promise<string> {
     return config.api_prefix
 }
 
+/**
+ * Remove a stored schema, taking whatever names it first.
+ *
+ * `DELETE /schemas/{code}` is refused while a stored pipeline's current version names the code,
+ * so a fixture that reseeds a schema has to clear the dependants the way a person would. What
+ * names it rides on the schema itself, so nothing here guesses. A code the instance has not got
+ * is nothing to remove.
+ */
+export async function removeSchema(request: APIRequestContext, code: string): Promise<void> {
+    const prefix = await apiPrefix(request)
+    const read = await request.get(`${prefix}/schemas/${encodeURIComponent(code)}`)
+    if (!read.ok()) return
+    const held = (await read.json()) as { used_by?: string[] }
+    for (const pipeline of held.used_by ?? []) {
+        await request.delete(`${prefix}/pipelines/${encodeURIComponent(pipeline)}`)
+    }
+    const removed = await request.delete(`${prefix}/schemas/${encodeURIComponent(code)}`)
+    expect(removed.ok(), await removed.text()).toBe(true)
+}
+
 /** Apply one of this repository's examples to the instance under test. */
 export async function applyExample(request: APIRequestContext, reference: string): Promise<void> {
     const prefix = await apiPrefix(request)
