@@ -21,7 +21,7 @@ import { useStore } from '@/hooks/use-store'
 import { stepKeyFor } from '@/lib/add-step'
 import { ApiError, type JsonMap, type Problem } from '@/lib/api'
 import { authStore } from '@/lib/auth'
-import { readBlock, readCatalog, type BlockEntry } from '@/lib/blocks'
+import { catalogUnread, readBlock, readCatalog, type BlockEntry } from '@/lib/blocks'
 import { placeStep, type Placement } from '@/lib/canvas-layout'
 import { headingOf, titleOf } from '@/lib/identity'
 import { LABELS } from '@/lib/labels'
@@ -270,7 +270,7 @@ export function PipelineEditor() {
     // Two reads that may not have landed, and null until each does: an unread catalog is not an
     // empty one, and a screen that shouted "not installed" for the half second before it lands
     // would teach a reader to stop believing it.
-    const catalog = useMemo(() => (blocks.length === 0 ? null : blocks.map((block) => block.id)), [blocks])
+    const catalog = useMemo(() => (catalogUnread(blocks) ? null : blocks.map((block) => block.id)), [blocks])
     const held = useMemo(() => connections?.map((one) => one.code) ?? null, [connections])
     const stored = useMemo(() => schemas?.map((one) => one.code) ?? null, [schemas])
     const unmet = useMemo(() => unmetIn(local, catalog, held, stored), [catalog, held, local, stored])

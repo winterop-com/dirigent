@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 
-import { LABELS } from '../src/lib/labels.ts'
+import { counted, LABELS } from '../src/lib/labels.ts'
 import { applyDocument, ranToFailure, refusedDocument, signIn, startRun } from './support.ts'
 
 /**
@@ -144,7 +144,12 @@ test('the day is drawn by the hour, and what this instance depends on is beside 
     // The panel beside it lists the workers and the connections, and says in one line what is
     // not perfect. `dg dev` runs a worker of its own, so this instance has one to list.
     await expect(page.getByRole('heading', { name: LABELS.word.health })).toBeVisible()
-    await expect(page.getByRole('main')).toContainText(
-        /worker · \d+ slots?|has gone silent|No worker has ever registered/i,
-    )
+    // The worker this instance really has, with the noun the catalogue spells for its slot count:
+    // an alternation that also allowed a silent worker or none at all would pass whatever happened.
+    const worker = page.getByText(/^worker · \d+ slots?$/)
+    await expect(worker).toBeVisible()
+    const said = await worker.innerText()
+    const slots = Number(/\d+/.exec(said)?.[0])
+    expect(slots).toBeGreaterThan(0)
+    expect(said).toBe(counted(slots, LABELS.dashboard.health.worker)(String(slots)))
 })

@@ -116,7 +116,9 @@ test('the stacked form stands under the brand strip', async ({ page }) => {
 
     // The section's top padding and nothing else: a form centred in what is left under the
     // strip would start a third of the way down a phone.
-    expect(eyebrow.y - (strip.y + strip.height)).toBeLessThanOrEqual(80)
+    const under = eyebrow.y - (strip.y + strip.height)
+    expect(under).toBeGreaterThanOrEqual(0)
+    expect(under).toBeLessThanOrEqual(80)
 })
 
 test('two columns keep the pane at its floor', async ({ page }) => {

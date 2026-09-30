@@ -328,7 +328,14 @@ test('a watch shows the run it has waiting, and pausing it leaves none', async (
     await expect(row).toContainText('follow')
     await expect(row).toContainText('e2e-watched')
     await expect(row).toContainText('arrive')
-    await expect(page.getByText(/\d+ watch(es)?/)).toBeVisible()
+    // The foot counts what has been read, and the noun beside that number has to be the one the
+    // catalogue spells for the number actually on screen rather than either of its forms.
+    const watches = LABELS.word.watch.count
+    const foot = page.getByText(new RegExp(`^\\d+ (${watches.one}|${watches.many})$`))
+    await expect(foot).toBeVisible()
+    const said = await foot.innerText()
+    const read = Number(said.split(' ')[0])
+    expect(said).toBe(LABELS.shell.rows_read(String(read), counted(read, watches)))
 
     await row.getByText('Follow the arrivals', { exact: true }).click()
     const panel = page.getByRole('tabpanel')

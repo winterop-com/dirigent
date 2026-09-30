@@ -67,7 +67,12 @@ test('the bar along the foot is one element, and its cells fill it exactly', asy
         const bar = bars[0]?.getBoundingClientRect()
         const cells = [...document.querySelectorAll('[data-shell-cell]')].map((element) => {
             const box = element.getBoundingClientRect()
-            return { top: Math.round(box.top), bottom: Math.round(box.bottom), right: Math.round(box.right) }
+            return {
+                top: Math.round(box.top),
+                bottom: Math.round(box.bottom),
+                left: Math.round(box.left),
+                right: Math.round(box.right),
+            }
         })
         return bar === undefined
             ? null
@@ -90,7 +95,7 @@ test('the bar along the foot is one element, and its cells fill it exactly', asy
         expect(cell.bottom).toBe(measured?.barBottom)
     }
     // The settings cell ends exactly where the status cell begins: one divider, no gap.
-    expect(measured?.cells[0].right).toBeGreaterThan(0)
+    expect(measured?.cells[0].right).toBe(measured?.cells[1].left)
 })
 
 test('the seams hold with the rail collapsed', async ({ page }) => {
@@ -98,6 +103,8 @@ test('the seams hold with the rail collapsed', async ({ page }) => {
     await expect(page.getByRole('button', { name: LABELS.shell.expand_nav })).toBeVisible()
 
     const strips = await topStrips(page)
+    // Or the loop below runs over nothing and the test passes having measured no seam at all.
+    expect(strips.length).toBeGreaterThanOrEqual(2)
     for (const strip of strips) {
         expect(strip.top).toBe(strips[0].top)
         expect(strip.height).toBe(strips[0].height)
@@ -129,13 +136,20 @@ test('the seams hold with the right panel open', async ({ page }) => {
 
 test('the seams hold in the light palette as they do in the dark one', async ({ page }) => {
     await page.goto('/pipelines')
+    // The system palette is the dark one here, so the light one below is the stored choice's
+    // doing: without this the default would answer light and the choice would go untested.
+    await page.emulateMedia({ colorScheme: 'dark' })
     await page.evaluate(() => {
         localStorage.setItem('theme', 'light')
     })
     await page.reload()
     await expect(page.getByRole('heading', { name: LABELS.screen.pipelines.name })).toBeVisible()
+    // The palette this test is named for is really the one on the page.
+    await expect(page.locator('html')).toHaveClass(/light/)
+    await expect(page.locator('html')).not.toHaveClass(/dark/)
 
     const strips = await topStrips(page)
+    expect(strips.length).toBeGreaterThanOrEqual(2)
     for (const strip of strips) {
         expect(strip.top).toBe(strips[0].top)
         expect(strip.height).toBe(strips[0].height)

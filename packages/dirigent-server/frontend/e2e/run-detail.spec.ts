@@ -547,6 +547,7 @@ test('a fan-out over a step output waits for it, then draws its items as they ar
     const each = page.locator('.react-flow__node[data-id="each"]')
     await expect(each.getByText('waits for list', { exact: true })).toBeVisible()
     const waiting = await each.boundingBox()
+    if (waiting === null) throw new Error('the fan-out box has no box on the screen')
 
     await expect(each.getByText('3 items', { exact: true })).toBeVisible({ timeout: 30_000 })
     await expect(each.getByText('waits for list', { exact: true })).toHaveCount(0)
@@ -555,5 +556,6 @@ test('a fan-out over a step output waits for it, then draws its items as they ar
     })
     await expect(each.locator('.step-node')).toHaveAttribute('data-outcome', 'succeeded')
     const expanded = await each.boundingBox()
-    expect(expanded?.height, 'the box keeps its height when the grid expands into it').toBe(waiting?.height)
+    if (expanded === null) throw new Error('the fan-out box has no box on the screen')
+    expect(expanded.height, 'the box keeps its height when the grid expands into it').toBe(waiting.height)
 })

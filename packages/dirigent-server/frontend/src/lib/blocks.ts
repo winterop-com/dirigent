@@ -59,6 +59,18 @@ export interface Catalog {
     connection_kinds: CatalogEntry[]
 }
 
+/**
+ * Whether the catalog has yet to land, which every screen that draws it has to tell from a
+ * catalog that landed empty.
+ *
+ * A host always contributes blocks, so no blocks means the read has not come back rather than
+ * that this instance publishes none. A screen that cannot tell the two apart states, for the
+ * half second before the answer arrives, that nothing is installed.
+ */
+export function catalogUnread(blocks: readonly BlockEntry[]): boolean {
+    return blocks.length === 0
+}
+
 /** The family a block id files under, which is everything before its first dot. */
 export function familyOf(id: string): string {
     const dot = id.indexOf('.')

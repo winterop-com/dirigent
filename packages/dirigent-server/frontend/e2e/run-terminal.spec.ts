@@ -196,6 +196,8 @@ test('opening the terminal opens no second stream', async ({ page }) => {
     await page.goto(`/runs/${runId}`)
     await expect(page.locator('.react-flow__node').first()).toBeVisible()
     const streamsBefore = asked.filter((url) => url.includes('%24events') || url.includes('$events')).length
+    // The screen holds one already, or the comparison below is 0 against 0.
+    expect(streamsBefore).toBeGreaterThan(0)
 
     await openTerminal(page)
     await expect(page.locator('[data-log-line]')).toHaveCount(LINES)

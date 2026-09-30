@@ -15,7 +15,7 @@ import {
 import { SEARCH_PLACEHOLDER } from '@/components/SearchField'
 import { Input } from '@/components/ui/input'
 import { blockShelves, searchBlocks, type BlockCrumb } from '@/lib/add-step'
-import type { BlockEntry } from '@/lib/blocks'
+import { catalogUnread, type BlockEntry } from '@/lib/blocks'
 import { LABELS } from '@/lib/labels'
 import { cn } from '@/lib/utils'
 
@@ -31,6 +31,11 @@ import { cn } from '@/lib/utils'
  * somebody who knows where a block lives; the box is for somebody who knows what it is called.
  * Typing replaces the shelves with flat results because a breadcrumb is faster to read than a
  * tree is to walk, and clearing the box puts the shelves back.
+ *
+ * AN UNREAD CATALOG IS NOT AN EMPTY ONE. The menu opens on whatever the screen has, and the
+ * catalog is a read that may not have landed; a search over nothing would answer that no block
+ * matches, which is the one thing it does not know. So it says it is still reading, and the
+ * return key has nothing to place until it has.
  *
  * THE BOX HOLDS THE KEYS WHILE IT HOLDS TEXT. A menu answers arrows and letters itself, which
  * would take a keystroke meant for the search box, so while there is something in it this
@@ -212,7 +217,9 @@ function AddStepMenuContent({
             </div>
 
             <div className="p-1 pt-0">
-                {searching ? (
+                {catalogUnread(blocks) ? (
+                    <Note>{LABELS.editor.canvas.reading_catalog}</Note>
+                ) : searching ? (
                     <Results found={found} active={active} onChoose={choose} />
                 ) : (
                     // Every group is a group, one block or many: a uniform root reads as one
@@ -241,6 +248,11 @@ function AddStepMenuContent({
     )
 }
 
+/** The one line the menu draws in place of rows, whichever reason it has none. */
+function Note({ children }: { children: ReactNode }) {
+    return <p className="px-1.5 py-2 text-sm text-muted-foreground">{children}</p>
+}
+
 /** What the box found, breadcrumbed, with the one this app's own arrows are on marked. */
 function Results({
     found,
@@ -252,11 +264,7 @@ function Results({
     onChoose: (block: string) => void
 }) {
     if (found.length === 0) {
-        return (
-            <p className="px-1.5 py-2 text-sm text-muted-foreground">
-                {LABELS.editor.canvas.no_block_matches}
-            </p>
-        )
+        return <Note>{LABELS.editor.canvas.no_block_matches}</Note>
     }
     return (
         <>

@@ -349,6 +349,9 @@ async function titlesPast(page: Page): Promise<number> {
             return reach - element.getBoundingClientRect().right
         }
         const cells = [...document.querySelectorAll('[data-list-title] *')]
+        // Nothing to measure is a fault of its own: `Math.max(0)` is 0, which reads as room to
+        // spare at every width and would sweep the whole range green having measured no title.
+        if (cells.length === 0) return Number.NaN
         return Math.max(0, ...cells.map((element) => past(element)))
     })
 }
@@ -376,6 +379,7 @@ test.describe('a listing whose titles run long', () => {
             await page.setViewportSize({ width, height: 900 })
             await settled(page)
             const past = await titlesPast(page)
+            if (Number.isNaN(past)) throw new Error(`no title to measure at ${String(width)}px`)
             if (past > 0) cut.push(width)
         }
         expect(cut).toEqual([])
