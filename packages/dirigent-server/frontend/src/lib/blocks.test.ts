@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest'
 
 import {
     byGroup,
+    catalogUnread,
     configSummary,
     defaultLabel,
     factsOf,
@@ -254,5 +255,15 @@ describe('the facts a block carries besides its schemas', () => {
         const terms = factsOf(SHELL).map((fact) => fact.term)
         expect(terms).not.toContain('default_poll_seconds')
         expect(terms).not.toContain('default_deadline_seconds')
+    })
+})
+
+describe('catalogUnread', () => {
+    test('calls no blocks an unread catalog, because a host always contributes some', () => {
+        expect(catalogUnread([])).toBe(true)
+    })
+
+    test('calls a catalog that answered a read one', () => {
+        expect(catalogUnread([SHELL])).toBe(false)
     })
 })

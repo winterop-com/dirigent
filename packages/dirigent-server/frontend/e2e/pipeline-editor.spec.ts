@@ -826,6 +826,51 @@ test('the search box narrows the menu to breadcrumbed results, and the return ke
 })
 
 /**
+ * AN UNREAD CATALOG IS NOT AN EMPTY ONE.
+ *
+ * The menu opens on whatever the screen has in hand, and the catalog is a read that may not have
+ * landed. A search over nothing would answer that no block matches -- the one thing it does not
+ * know -- and a sentence that is wrong for the half second before the answer arrives teaches a
+ * reader to stop believing it. So the menu says which of the two it is in, and the row is there
+ * to place once the read comes back.
+ */
+test('the menu says it is reading the catalog rather than that nothing matches', async ({ page }) => {
+    await signIn(page)
+
+    // The catalog is held until this spec lets it go, so the two states are asserted on in turn
+    // rather than raced for.
+    let release = () => {}
+    const held = new Promise<void>((resolve) => {
+        release = resolve
+    })
+    await page.route(/\/api\/v\d+\/blocks$/, async (route) => {
+        await held
+        await route.fallback()
+    })
+
+    await page.goto('/pipelines/$new')
+    await page.getByRole('button', { name: ADD_STEP_LABEL }).click()
+    await expect(page.getByLabel(SEARCH_LABEL)).toBeFocused()
+
+    const menu = page.getByRole('menu')
+    // Before a search: no shelves to draw, and it says why rather than drawing an empty popup.
+    await expect(menu.getByText(LABELS.editor.canvas.reading_catalog, { exact: true })).toBeVisible()
+
+    // And during one: still reading, rather than the flat denial the same box used to answer with.
+    await page.getByLabel(SEARCH_LABEL).fill('shell')
+    await expect(menu.getByText(LABELS.editor.canvas.reading_catalog, { exact: true })).toBeVisible()
+    await expect(menu.getByText(LABELS.editor.canvas.no_block_matches, { exact: true })).toHaveCount(0)
+
+    release()
+    // The read lands under the search already typed, and the row it found is there to place.
+    const found = menu.getByRole('menuitem').filter({ hasText: 'shell ▸ run' })
+    await expect(found).toHaveCount(1)
+    await expect(menu.getByText(LABELS.editor.canvas.reading_catalog, { exact: true })).toHaveCount(0)
+    await found.click()
+    await expect(page.locator('.react-flow__node')).toHaveCount(1)
+})
+
+/**
  * THE FIRST ESCAPE CLEARS WHAT WAS TYPED, THE SECOND CLOSES THE MENU.
  *
  * A box holding a search nobody wants any more is one keystroke from the shelves; a menu nobody
@@ -938,8 +983,12 @@ test('the button in the corner opens the same menu, under itself', async ({ page
     if (anchor === null || popup === null) return
     expect(popup.x).toBeLessThan(anchor.x + anchor.width + 40)
 
+    // The catalog is a read that may not have landed when the menu opens, so the row is waited
+    // for rather than a keystroke sent at whatever is there.
     await page.getByLabel(SEARCH_LABEL).fill('shell')
-    await page.keyboard.press('Enter')
+    const found = menu.getByRole('menuitem').filter({ hasText: 'shell ▸ run' })
+    await expect(found).toHaveCount(1)
+    await found.click()
     await expect(page.locator('.react-flow__node')).toHaveCount(1)
 
     // And the keyboard alone opens it: the button takes the focus ring and answers Enter.

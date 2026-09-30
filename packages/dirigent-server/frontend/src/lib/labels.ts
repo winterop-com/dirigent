@@ -1370,6 +1370,8 @@ const editor = {
         /** What the menu's box narrows, in the words of what it searches. */
         search_blocks: 'Search blocks by id, summary or kind',
         no_block_matches: 'No block matches that.',
+        /** The menu opened before the catalog landed, which is not a catalog with nothing in it. */
+        reading_catalog: 'Reading the catalog…',
         /** A box's own menu: one more step after this one, and this one taken away. */
         add_after: 'Add step after',
         delete_step: 'Delete step',
