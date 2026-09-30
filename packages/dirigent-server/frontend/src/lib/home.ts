@@ -370,7 +370,7 @@ export function healthNote(workers: readonly WorkerOut[], connections: readonly 
 export const FIRE_ROWS = 6
 
 /**
- * What is running or waiting to be claimed, newest first.
+ * What is in flight, newest first.
  *
  * TWO LISTING CALLS AND NO MORE, and neither of them is windowed. `GET /runs` narrows to one
  * status at a time, and a run that has been going since before the window would be missing from

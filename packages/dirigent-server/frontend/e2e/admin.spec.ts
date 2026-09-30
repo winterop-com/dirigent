@@ -91,7 +91,7 @@ test('the dashboard composes its tiles out of the listings behind them', async (
     await expect(tile(page, 'Last 24 hours')).not.toContainText('Nothing has run')
 
     // Each of the other four states its own fact and links to the screen that explains it.
-    await expect(tile(page, 'Right now')).toBeVisible()
+    await expect(tile(page, LABELS.word.in_flight.heading)).toBeVisible()
     await expect(tile(page, 'Workers')).toHaveAttribute('href', '/admin/workers')
     await expect(tile(page, 'Connections')).toHaveAttribute('href', '/connections')
     await expect(tile(page, 'Schedules')).toHaveAttribute('href', '/triggers')
@@ -119,10 +119,10 @@ test('a tile counts the states that occurred and spends no clause on the ones th
     await expect(tile(page, 'Last 24 hours')).toContainText('failed')
     await expect(tile(page, 'Last 24 hours')).not.toContainText('0 finished with errors')
 
-    // Nothing is running or waiting once it has settled, and that is one sentence about an idle
+    // Nothing is in flight once it has settled, and that is one sentence about an idle
     // instance rather than a pair of zeroes.
-    await expect(tile(page, 'Right now')).toContainText(LABELS.dashboard.nothing_live)
-    await expect(tile(page, 'Right now')).not.toContainText('0 running')
+    await expect(tile(page, LABELS.word.in_flight.heading)).toContainText(LABELS.dashboard.nothing_in_flight)
+    await expect(tile(page, LABELS.word.in_flight.heading)).not.toContainText('0 running')
 
     // The run that failed is in the table the tiles sit above.
     await expect(page.getByRole('main').getByRole('row').filter({ hasText: 'failed' }).first()).toBeVisible()

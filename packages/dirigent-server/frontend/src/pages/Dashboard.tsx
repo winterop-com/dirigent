@@ -179,12 +179,12 @@ export function Dashboard() {
                 )}
             </div>
 
-            <Section title={LABELS.dashboard.right_now} to="/runs">
+            <Section title={LABELS.word.in_flight.heading} to="/runs">
                 <PageState
                     loading={!running.read || !queued.read}
                     problem={running.problem ?? queued.problem}
                     empty={live.length === 0}
-                    emptyMessage={LABELS.dashboard.nothing_live}
+                    emptyMessage={LABELS.dashboard.nothing_in_flight}
                 >
                     <ListTable
                         chrome={{ footer: false }}

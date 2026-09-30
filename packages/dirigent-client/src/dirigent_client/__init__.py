@@ -41,6 +41,8 @@ from dirigent_client.resources.schemas import declared_label
 from dirigent_client.schemas import (
     LOG_NOTIFIER,
     TERMINAL_RUN_STATUSES,
+    TEST_BODY,
+    TEST_SUBJECT,
     AlertRuleIn,
     AlertRuleOut,
     ApplyRequest,
@@ -135,6 +137,8 @@ __all__ = [
     "VERSION_HEADER",
     "AlertEvent",
     "LOG_NOTIFIER",
+    "TEST_BODY",
+    "TEST_SUBJECT",
     "AlertRuleIn",
     "AlertRuleOut",
     "AlertScope",

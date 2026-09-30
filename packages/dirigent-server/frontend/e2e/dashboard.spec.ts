@@ -41,10 +41,9 @@ test('the root is the home screen rather than a redirect to a listing', async ({
     // Each section is here whatever the instance holds, and each is the way out to the screen
     // that owns what it lists.
     const main = page.getByRole('main')
-    await expect(main.getByRole('link', { name: LABELS.dashboard.right_now, exact: true })).toHaveAttribute(
-        'href',
-        '/runs',
-    )
+    await expect(
+        main.getByRole('link', { name: LABELS.word.in_flight.heading, exact: true }),
+    ).toHaveAttribute('href', '/runs')
     await expect(
         main.getByRole('link', { name: LABELS.dashboard.troubled_runs, exact: true }),
     ).toHaveAttribute('href', '/runs')
@@ -107,7 +106,7 @@ test('the last day is counted by what settled, and a state at zero is not writte
 
     // Nothing is going once it has settled, and that is one sentence rather than a pair of
     // zeroes above an empty list.
-    await expect(main).toContainText(LABELS.dashboard.nothing_live)
+    await expect(main).toContainText(LABELS.dashboard.nothing_in_flight)
 })
 
 test('a tile opens the listing narrowed the way the tile counted it', async ({ page, baseURL }) => {

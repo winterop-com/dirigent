@@ -2,6 +2,8 @@
 
 from dirigent_client.schemas.alerts import (
     LOG_NOTIFIER,
+    TEST_BODY,
+    TEST_SUBJECT,
     AlertRuleIn,
     AlertRuleOut,
     AlertRuleUpdate,
@@ -126,6 +128,8 @@ __all__ = [
     "Labels",
     "LastRun",
     "LOG_NOTIFIER",
+    "TEST_BODY",
+    "TEST_SUBJECT",
     "LogEntryOut",
     "LoginRequest",
     "Materialized",

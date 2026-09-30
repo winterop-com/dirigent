@@ -478,6 +478,11 @@ def prioritised(priority: object) -> str:
 #: same words out of its own catalogue, and `tests/test_shared_words.py` holds the two together.
 IMPORTANCE_FLOOR = "{importance} and above"
 
+#: What a pipeline's unsettled runs are called, wherever a rendering names the count the server
+#: computes from `ACTIVE_RUN_STATUSES`. The web UI heads its own feed of them with the same noun
+#: out of its catalogue, and `tests/test_shared_words.py` fails when the two stop agreeing.
+RUNS_IN_FLIGHT = "runs in flight"
+
 
 def watching(scope: object, importance: object) -> str:
     """What an alert rule watches, in one cell: its scope, and the floor it fires at.

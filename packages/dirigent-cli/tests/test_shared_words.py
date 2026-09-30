@@ -25,10 +25,11 @@ from pathlib import Path
 import pytest
 
 from dirigent_cli.messages import WORKER_NEVER_REGISTERED, WORKER_SILENT
-from dirigent_cli.output import ALERT_EVENTS, CONNECTION_HEALTH, IMPORTANCE_FLOOR
+from dirigent_cli.output import ALERT_EVENTS, CONNECTION_HEALTH, IMPORTANCE_FLOOR, RUNS_IN_FLIGHT
 from dirigent_cli.summaries import SCHEMA_REACHES
 from dirigent_client.enums import AlertEvent, FiringOutcome, WebhookOutcome
-from dirigent_core.messages import DOCUMENT_EMPTY
+from dirigent_client.schemas.alerts import TEST_SUBJECT
+from dirigent_core.messages import DOCUMENT_EMPTY, PIPELINE_IN_USE
 from dirigent_server.messages import FORBIDDEN
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -127,6 +128,31 @@ def test_a_document_that_is_empty_is_refused_in_one_sentence() -> None:
 def test_an_alert_rules_importance_floor_is_written_the_same_way() -> None:
     """`dg` puts the scope in front of this half; the half itself is one sentence."""
     assert sentence("alerting.importance_floor") == IMPORTANCE_FLOOR
+
+
+def test_a_test_message_says_the_same_thing_whoever_sends_it() -> None:
+    """The dialog sends the subject it shows, so its placeholder is the wire's own default.
+
+    It was a literal in the component, and a placeholder that only looked like the default: the
+    browser omitted the field and the server filled it in. Now the browser sends it, which is what
+    makes this a label -- and what makes the copy worth holding to the wire's own word.
+    `TestRequest.subject`, `queue_test_message` and `dg alerts test --subject` all default to the
+    constant compared here, so this is the one crossing left that a compiler cannot see.
+    """
+    assert said("alerting.test_subject") == TEST_SUBJECT
+
+
+def test_a_run_that_has_not_settled_is_in_flight_wherever_it_is_named() -> None:
+    """One noun for the QUEUED-or-RUNNING pair, which the web UI used to head `Right now`.
+
+    The CLI's column is the run noun with the state after it, so those two are held whole. The two
+    refusals are held to the noun alone: each writes the sentence its own surface needs, and what
+    would drift is the word, not the shape.
+    """
+    noun = as_fragment(said("word.in_flight.heading"))
+    assert f"{said('word.run.count.many')} {noun}" == RUNS_IN_FLIGHT
+    assert noun in as_fragment(said("refused.pipeline.in_use"))
+    assert noun in PIPELINE_IN_USE.text
 
 
 def test_a_role_gate_refuses_in_one_wording() -> None:
