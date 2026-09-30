@@ -103,7 +103,7 @@ const SETTLED: readonly (readonly [RunStatus, string])[] = [
  *
  * A RUN STILL GOING IS NOT COUNTED HERE. It is in the window and it is in the number above the
  * sentence, but it has settled in no state, so the sentence has no clause to spend on it -- what
- * is running is the question "right now" answers.
+ * is running is the question the in-flight tile answers.
  */
 export function dayTile(runs: Page<RunOut>): Tile {
     const buckets = bucketByStatus(runs.items)
@@ -135,10 +135,10 @@ export function nowTile(runs: Page<RunOut>): Tile {
         summarise([
             [running, LABELS.state.run.running.chip],
             [queued, LABELS.state.run.queued.chip],
-        ]) ?? LABELS.dashboard.nothing_live
+        ]) ?? LABELS.dashboard.nothing_in_flight
     return {
         id: 'now',
-        label: LABELS.dashboard.right_now,
+        label: LABELS.word.in_flight.heading,
         value: String(running + queued),
         note,
         tone: running + queued === 0 ? 'neutral' : 'info',

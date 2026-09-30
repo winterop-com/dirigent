@@ -26,7 +26,7 @@ from dirigent_client.enums import (
     NotificationStatus,
     RunStatus,
 )
-from dirigent_client.schemas.alerts import LOG_NOTIFIER
+from dirigent_client.schemas.alerts import LOG_NOTIFIER, TEST_BODY, TEST_SUBJECT
 from dirigent_common import (
     EntityName,
     JsonMap,
@@ -688,8 +688,8 @@ async def queue_test_message(
     services: EngineServices,
     *,
     connection: str | None = None,
-    subject: str = "dirigent test alert",
-    body: str = "This is a test message sent through the notifier surface.",
+    subject: str = TEST_SUBJECT,
+    body: str = TEST_BODY,
 ) -> Notification:
     """Queue one unattached message, which is what ``dg alerts test`` sends.
 

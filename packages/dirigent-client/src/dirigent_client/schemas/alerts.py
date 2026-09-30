@@ -27,6 +27,14 @@ TEST_CONNECTION_HELP = (
     "The connection this message delivers through, whose kind names the sender; absent delivers to the process log."
 )
 
+#: What a test message says and sends when the caller writes neither. Every surface that offers a
+#: test reads these rather than spelling them again: `dg alerts test`, the engine's own
+#: `queue_test_message`, and the web UI, whose catalogue holds the subject under
+#: `alerting.test_subject` and is held to this one by `dirigent-cli/tests/test_shared_words.py`.
+TEST_SUBJECT = "dirigent test alert"
+
+TEST_BODY = "This is a test message sent through the notifier surface."
+
 
 class AlertRuleIn(BaseModel):
     """An alert rule as a caller declares it."""
@@ -108,8 +116,8 @@ class TestRequest(BaseModel):
     """Which target to send a test message through, and what to say."""
 
     connection: str | None = Field(default=None, description=TEST_CONNECTION_HELP)
-    subject: str = "dirigent test alert"
-    body: str = "This is a test message sent through the notifier surface."
+    subject: str = TEST_SUBJECT
+    body: str = TEST_BODY
 
 
 class TestQueued(WireModel):

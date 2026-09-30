@@ -88,6 +88,7 @@ from dirigent_cli.messages import (
 from dirigent_cli.messages import WINDOW_GRAMMAR as WINDOW_GRAMMAR_MESSAGE
 from dirigent_cli.output import (
     CONNECTION_HEALTH,
+    RUNS_IN_FLIGHT,
     Detail,
     age,
     connection_health,
@@ -827,7 +828,7 @@ def pipeline_list(
         return emit_records("pipeline", rows)
     table(
         "pipelines",
-        ["code", "name", "tags", "version", "active", "runs in flight", "updated"],
+        ["code", "name", "tags", "version", "active", RUNS_IN_FLIGHT, "updated"],
         [
             [
                 row.code,
@@ -863,7 +864,7 @@ def pipeline_show(
             "importance": row.importance.value,
             "active": "yes" if row.active else "no",
             "current version": row.current_version,
-            "runs in flight": row.active_runs,
+            RUNS_IN_FLIGHT: row.active_runs,
             "created": moment(row.created_at),
         },
     )

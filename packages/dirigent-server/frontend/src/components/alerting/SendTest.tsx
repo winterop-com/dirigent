@@ -29,9 +29,6 @@ const POLL_MS = 1000
 /** How long the dialog watches before it stops asking and says where the row is. */
 const POLL_LIMIT_MS = 60_000
 
-/** What a test message says when nobody changes it, which is the server's own default. */
-const DEFAULT_SUBJECT = 'dirigent test alert'
-
 /** What the dialog opens with, which a rule's panel fills in from the rule. */
 export interface TestDraft {
     connection: string
@@ -103,7 +100,9 @@ export function SendTest({
         setWatching(null)
         void sendTest({
             connection: targetChosen(connection),
-            ...(subject.trim() === '' ? {} : { subject: subject.trim() }),
+            // An empty box sends what the box was showing, so the placeholder is not a promise
+            // about a default nobody here can see. An empty subject is refused at delivery.
+            subject: subject.trim() === '' ? LABELS.alerting.test_subject : subject.trim(),
         })
             .then(
                 (queued) => {
@@ -139,7 +138,7 @@ export function SendTest({
                     label={LABELS.word.subject}
                     value={subject}
                     onChange={setSubject}
-                    placeholder={DEFAULT_SUBJECT}
+                    placeholder={LABELS.alerting.test_subject}
                 />
 
                 {problem !== null && <Refusal problem={problem} />}

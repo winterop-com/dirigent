@@ -1109,7 +1109,7 @@ and the thing under `fields`, so a `jq` path that read `.run.status` now reads
 ### Accounts
 
 - **An admin resets any account's password**: `dg admin user password NAME`, or the
-  `Reset password` button in the account panel. Every session of the account ends; its API tokens
+  `Reset password`{ .label } button in the account panel. Every session of the account ends; its API tokens
   keep working.
 - **A token belongs to an account, and the screen says so.** The tokens table carries an
   `Account` column, a revoked row says `revoked` instead of offering a button that can only fail,

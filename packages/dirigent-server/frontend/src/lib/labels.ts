@@ -199,6 +199,20 @@ const word = {
             many: 'runs',
         },
     },
+    /**
+     * A run that has not settled: queued, or claimed and running.
+     *
+     * The pair already has a name everywhere else in this product -- `ACTIVE_RUN_STATUSES` in the
+     * engine, the `dirigent.worker.in_flight` metric, the column `dg pipeline list` heads, the
+     * sentence a refused delete answers with -- so no screen coins a second one. There is no
+     * `count` pair: the phrase does not inflect, so a number in front of it is the whole of it.
+     */
+    in_flight: {
+        /** Over the front door's feed of them, and on the overview's tile. */
+        heading: 'In flight',
+        /** A cell that counts them rather than naming one state of the two. */
+        counted: (count: string) => `${count} in flight`,
+    },
     /** One node of a pipeline. */
     step: {
         label: 'Step',
@@ -1178,9 +1192,8 @@ const dashboard = {
         all_well: 'Every worker and every connection is healthy.',
     },
 
-    /** What is in flight, which is the front door's first feed. */
-    right_now: 'Right now',
-    nothing_live: 'Nothing is running and nothing is waiting.',
+    /** The front door's first feed is headed by the noun, in `word.in_flight`. */
+    nothing_in_flight: 'Nothing is in flight.',
     /** The runs that want somebody, on both screens. */
     troubled_runs: 'Runs in trouble',
     nothing_troubled: 'Nothing has failed or finished with errors.',
@@ -1247,8 +1260,6 @@ const pipelines = {
     },
     /** How the newest run of a pipeline reads in the listing. */
     last_run: {
-        /** Runs are in flight, so the cell counts them rather than naming the last one. */
-        running: (count: string) => `${count} running`,
         /** A run that was read before a worker put a moment on it. */
         not_started: 'not started',
         /** Nothing has ever run. */
@@ -2927,6 +2938,15 @@ const alerting = {
 
     /** What sending a test amounts to, under the dialog's title. */
     test_explained: 'The message goes through the same queue a real alert does, and a worker delivers it.',
+    /**
+     * What a test message says when nobody writes a subject.
+     *
+     * The dialog draws this as the subject box's placeholder and sends it when the box is left
+     * empty, so the placeholder is what the channel will actually receive rather than a guess at
+     * the server's own default. `TestRequest.subject` holds the same words for a caller that
+     * sends none, and `dirigent-cli/tests/test_shared_words.py` fails when the two drift.
+     */
+    test_subject: 'dirigent test alert',
     send: 'Send',
     /** The same verb once one message has already gone. */
     send_again: 'Send again',

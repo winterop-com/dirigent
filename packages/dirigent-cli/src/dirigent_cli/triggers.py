@@ -28,7 +28,7 @@ from dirigent_cli.output import (
     throttle_note,
     watching,
 )
-from dirigent_client import LOG_NOTIFIER, AlertEvent, AlertScope, WebhookTokenOut
+from dirigent_client import LOG_NOTIFIER, TEST_SUBJECT, AlertEvent, AlertScope, WebhookTokenOut
 from dirigent_common import Message
 
 schedule_app = typer.Typer(
@@ -609,7 +609,7 @@ def alerts_test(
         str | None,
         typer.Option("--connection", help="The connection to deliver through; none delivers to the process log."),
     ] = None,
-    subject: Annotated[str, typer.Option("--subject", help="What the test message says.")] = "dirigent test alert",
+    subject: Annotated[str, typer.Option("--subject", help="What the test message says.")] = TEST_SUBJECT,
 ) -> None:
     """Send a test message to one target, on the same queue a real alert takes."""
     with client_for(state_of(ctx)) as dg:

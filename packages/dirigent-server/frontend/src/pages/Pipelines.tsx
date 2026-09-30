@@ -509,9 +509,7 @@ function LastRunCell({ row }: { row: PipelineOut }) {
                 style={statusTokens('running') as CSSProperties}
             >
                 <span className="status-dot" aria-hidden />
-                {row.active_runs === 1
-                    ? LABELS.state.run.running.chip
-                    : LABELS.pipelines.last_run.running(String(row.active_runs))}
+                {LABELS.word.in_flight.counted(String(row.active_runs))}
             </span>
         )
     }
