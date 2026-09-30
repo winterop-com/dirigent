@@ -199,9 +199,7 @@ const NAMING = {
     },
 }
 
-test('a shape a pipeline names cannot be deleted, and the shut control says which', async ({
-    page,
-}) => {
+test('a shape a pipeline names cannot be deleted, and the shut control says which', async ({ page }) => {
     await signIn(page)
     await seedSchema(page.request)
     await applyDocument(page.request, NAMING)

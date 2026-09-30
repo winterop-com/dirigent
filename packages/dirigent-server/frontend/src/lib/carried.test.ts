@@ -155,7 +155,10 @@ describe('the four cases a carried entry meets', () => {
 
     test('carries both shapes on the row, so the collision can be shown and replaced', () => {
         const stored = { type: 'string' }
-        const held: Held = { schemas: [{ code: 'nightly-region', body: stored, used_by: [] }], connections: [] }
+        const held: Held = {
+            schemas: [{ code: 'nightly-region', body: stored, used_by: [] }],
+            connections: [],
+        }
         const row = carriedItems(DOCUMENT, held, true).find((one) => one.code === 'nightly-region')
         expect(row?.body).toEqual(REGION)
         expect(row?.stored).toEqual(stored)
@@ -243,7 +246,10 @@ describe('an account that may not store a schema', () => {
 
 describe('what the rows and the sentences under them say', () => {
     test('says what each row does in the words the row reads', () => {
-        const held: Held = { schemas: [{ code: 'nightly-region', body: REGION, used_by: [] }], connections: [] }
+        const held: Held = {
+            schemas: [{ code: 'nightly-region', body: REGION, used_by: [] }],
+            connections: [],
+        }
         expect(carriedItems(DOCUMENT, held, true).map(actionWord)).toEqual([
             'create',
             'already here',
