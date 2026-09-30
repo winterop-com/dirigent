@@ -885,19 +885,21 @@ under the same name (`differs`); the fourth is a document that only names a code
 `requires:`, which carries nothing to create from and is what the plan's own issues and the
 Requires chips say. **Applying never replaces a stored schema.** A stored schema is what every
 other pipeline naming that code checks against, from its next run, so an apply that wrote over
-one would change what those pipelines check without anybody having decided that -- and the line over the list, which counts what applying stores, would stop being
-true. `differs` shuts the confirm and the sentence beside the rows says which code collided.
+one would change what those pipelines check without anybody having decided that -- and the line
+over the list, which counts what applying stores, would stop being true. `differs` shuts the
+confirm and the sentence beside the rows says which code collided.
 
 **So `differs` is the row's own decision, and it opens in the row like every other.** What stood
 beside it was a sentence naming two remedies, both of them the document author's: change what the
 document carries, or carry it under a code of its own. The third -- update the stored schema to
 what the document carries -- is the right one often enough that leaving it out made the dialog a
 dead end, and it was the one thing the browser could not do at all. So the row expands over what
-the instance holds, drawn whole in the pane a schema is read in everywhere else; says that every
-pipeline naming that code checks against the new shape from its next run, which is what a run
-pinning its shapes at creation actually means -- and, under the names, that a run in flight
-keeps the shape it started with, which is the half a reader mid-run needs; and offers the write. It is a write of its own and not a step
-of the apply, because the two answer to different people -- one pipeline's author is applying, and
+the instance holds, in the pane a schema is read in everywhere else and at a pane's height, with
+the window for the whole of it; says that every pipeline naming that code checks against the new
+shape from its next run, which is what a run pinning its shapes at creation actually means --
+and, under the names, that a run in flight keeps the shape it started with, which is the half a
+reader mid-run needs; and offers the write. It is a write of its own and not a step of the
+apply, because the two answer to different people -- one pipeline's author is applying, and
 every other pipeline naming that code lives with the result. **The identity travels with the
 body**: storing a schema reads its own `title` and `description` where the write names neither and
 `PATCH /schemas/{code}` reads nothing, so a replacement sends all three or the instance keeps the
@@ -1385,6 +1387,31 @@ password box under its own fold, and what was on screen was a label with no cont
 So the three tall dialogs -- a new rule, a new connection, and an apply whose offer opens a form
 in a row -- cap the surface and scroll the body, and nothing between the header and the footer
 declares a height.
+
+**A preview of what already exists is the one exception, and it takes a pane's height.** A
+surface that asks for a decision has to draw the thing being decided about -- the schema this
+instance holds, under the sentences saying what replacing it would do -- and that reference
+material has no length of its own. Given its own height it grows until the sentences and the
+controls that act on it are below the fold: the apply dialog's `differs` row drew a 283-line
+shape as 5110px of pane and left its own Cancel and confirm 4904px past the foot of the dialog's
+scroller, and even a sixteen-line shape with ten dependants left them 98px past it. A reader must
+never have to go looking for the control the surface is asking them to press. So a preview
+declares a height and scrolls inside itself, which is what holds the sentences and the controls
+still, and the whole of it stays one press away in the window every pane offers.
+
+**The height is the one that leaves the controls on screen, and it is measured.** It is a pane's
+height rather than a share of the viewport -- `max-h-40` on the block of JSON in that row, nine
+lines, which is what the dialog's own cap leaves on a 768px screen once the sentences have had
+their room. What it is measured against is the scroller the controls sit in, found by walking up
+from the control: compared against the dialog's own box a clipped control reads as visible, which
+is how this got past two rounds of review.
+
+**A preview, and nothing else.** The exception covers read-only reference material -- a block of
+JSON, a stored body, the definition a field's code resolves to -- and it does not reach a form, a
+field, or anything else with a control inside it. That is the fault the rule was written for: a
+settings group capped at `40vh` hid the last password box under its own fold, and what was on
+screen was a label with no control beneath it. Everything else between a header and a footer
+still declares no height.
 
 ## A row expands under itself rather than opening a second dialog
 
