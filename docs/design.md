@@ -1575,7 +1575,7 @@ dg validate [file|url] [--server] [--explain]
 dg pipeline list | show | versions | validate | activate | deactivate | delete NAME
 dg pipeline new STARTER [--code X] [--dir DIR]        # copy a starter into this project
 dg examples list [--starter] [--shelf S] | show CODE  # the documents every installed plugin ships
-dg schema list | create file|- | show | delete CODE   # named JSON Schemas the instance holds
+dg schema list | create file|- | show | update CODE [file|-] | delete CODE   # named JSON Schemas
 
 # execution
 dg run NAME|file|url [-p key=value ...] [-P FILE] [--watch] [--local] [--window START..END]

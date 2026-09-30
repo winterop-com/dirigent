@@ -217,3 +217,57 @@ async def test_the_installed_corpus_is_seeded_with_no_directory_named(dg: Dirige
     closing = of_kind(stream, "seed.done")[-1]
     assert closing["plugins"] == ["examples"]
     assert closing["pipelines"] == len(applied)
+
+
+SCHEMA_FIRST = """
+format: dirigent/v1
+kind: pipeline
+code: seeded-gated
+description: A document carrying the shape its gate validates against.
+schemas:
+  seeded-shape:
+    $id: seeded-shape
+    title: Seeded shape
+    description: The shape as the corpus first declared it.
+    type: object
+requires:
+  schemas: [seeded-shape]
+steps:
+  gate:
+    block: validate.schema
+    config:
+      input: {}
+      schema: seeded-shape
+"""
+
+SCHEMA_RELABELLED = SCHEMA_FIRST.replace("title: Seeded shape", "title: Renamed shape").replace(
+    "description: The shape as the corpus first declared it.\n    type: object",
+    "type: object",
+)
+
+
+async def test_re_seeding_a_carried_schema_relabels_it_from_what_the_document_declares(
+    dg: Dirigent, tmp_path: Path
+) -> None:
+    """A corpus labels a schema the same way on a fresh instance and on a seeded one.
+
+    Storing a schema reads its own ``title`` and ``description`` and editing one reads
+    neither, so the replacement has to send what the document declares -- or the second seed
+    of a changed corpus would leave the first seed's labels behind.
+    """
+    directory = tmp_path / "gated"
+    directory.mkdir()
+    (directory / "gated.yaml").write_text(SCHEMA_FIRST)
+    [record async for record in seed_directories(dg, [directory])]
+
+    stored = await dg.schemas.get("seeded-shape")
+    assert stored.name == "Seeded shape"
+    assert stored.description == "The shape as the corpus first declared it."
+
+    (directory / "gated.yaml").write_text(SCHEMA_RELABELLED)
+    [record async for record in seed_directories(dg, [directory])]
+
+    relabelled = await dg.schemas.get("seeded-shape")
+    assert relabelled.name == "Renamed shape"
+    # The document dropped the description, so the one belonging to the old shape goes with it.
+    assert relabelled.description is None

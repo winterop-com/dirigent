@@ -74,6 +74,7 @@ from dirigent_cli.messages import (
     RUN_SKIPPED,
     SCAFFOLD_REFUSED,
     SCHEMA_NOT_AN_OBJECT,
+    SCHEMA_NOTHING_TO_CHANGE,
     SCHEMA_UNREADABLE,
     SET_DG_TOKEN,
     SOURCE_REFUSED,
@@ -135,6 +136,7 @@ from dirigent_cli.sources import (
 from dirigent_cli.stream import Sink, track_steps, use_scratch_prefix
 from dirigent_cli.timing import RunProfile, attempt_timing, by_step, profile, step_timing
 from dirigent_client import (
+    CLEAR,
     ApplyResult,
     AttemptEvent,
     AttemptOut,
@@ -142,6 +144,7 @@ from dirigent_client import (
     BackfillAccepted,
     BlockKind,
     Catalog,
+    Clear,
     DocumentKind,
     ExampleDetail,
     ExampleOut,
@@ -159,6 +162,7 @@ from dirigent_client import (
     RunReport,
     RunStatus,
     ValidationIssue,
+    declared_label,
 )
 from dirigent_common import Issue, JsonMap, Message
 from dirigent_core import migrations
@@ -2486,6 +2490,19 @@ def schema_create(
     ] = None,
 ) -> None:
     """Store a locally authored JSON Schema, taking its identity from its own keywords."""
+    schema, document = _read_schema(reference)
+    resolved = code
+    if resolved is None and not (isinstance(schema.get("$id"), str) and code_from_id(cast("str", schema["$id"]))):
+        resolved = code_from_id(Path(document.ref).name) if document.ref != "(stdin)" else None
+    with client_for(state_of(ctx)) as dg:
+        created = dg.call(dg.schemas.create(schema, code=resolved, name=name, description=description))
+    if state_of(ctx).json_output:
+        return emit_fact("schema.created", message="created", code=created.code, name=created.name)
+    console.print(f"[green]stored[/] schema [bold]{created.code}[/]")
+
+
+def _read_schema(reference: str) -> tuple[JsonMap, Document]:
+    """Read a locally authored JSON Schema from a file, a URL, or standard input."""
     try:
         document = read_document(reference)
     except SourceError as error:
@@ -2496,15 +2513,69 @@ def schema_create(
         fail(SCHEMA_UNREADABLE, label=document.label, detail=str(error))
     if not isinstance(body, dict):
         fail(SCHEMA_NOT_AN_OBJECT, label=document.label, kind=type(body).__name__)
-    schema = cast("JsonMap", body)
-    resolved = code
-    if resolved is None and not (isinstance(schema.get("$id"), str) and code_from_id(cast("str", schema["$id"]))):
-        resolved = code_from_id(Path(document.ref).name) if document.ref != "(stdin)" else None
+    return cast("JsonMap", body), document
+
+
+def _label_given(text: str | None) -> str | Clear | None:
+    """Read a label option: not given leaves what is stored, and given empty clears it.
+
+    An empty title is the absence of one rather than a title, and no screen can draw it, so
+    the empty string is never what gets stored.
+    """
+    if text is None:
+        return None
+    return text.strip() or CLEAR
+
+
+@schema_app.command("update")
+def schema_update(
+    ctx: typer.Context,
+    code: Annotated[str, typer.Argument(help="The schema to change; a code is fixed once minted.")],
+    reference: Annotated[
+        str | None,
+        typer.Argument(help="A JSON Schema file, or - for standard input, to replace the stored body with."),
+    ] = None,
+    name: Annotated[
+        str | None,
+        typer.Option(help="A human title; taken from the replacing schema's title when omitted, cleared when empty."),
+    ] = None,
+    description: Annotated[
+        str | None,
+        typer.Option(help="What the schema is for; taken from the replacing schema's description, cleared when empty."),
+    ] = None,
+) -> None:
+    """Correct a stored schema: replace the shape, relabel it, or both.
+
+    What this was not given is left as it stands, and an option given empty clears what is
+    stored. Replacing the body takes the new schema's own ``title`` and ``description`` where
+    the options name neither, exactly as storing one does, so the labels belong to the shape
+    the instance now holds rather than to the one it no longer does.
+
+    An edit is never refused for being depended on: a code is fixed once minted, so refusing
+    it would freeze an in-use shape permanently. The answer names the pipelines that validate
+    against it, and the decision was made for them.
+    """
+    schema = _read_schema(reference)[0] if reference is not None else None
+    label = _label_given(name)
+    about = _label_given(description)
+    if schema is not None:
+        label = declared_label(schema, "title") if label is None else label
+        about = declared_label(schema, "description") if about is None else about
+    changed = [
+        field for field, given in (("name", label), ("description", about), ("body", schema)) if given is not None
+    ]
+    if not changed:
+        fail(SCHEMA_NOTHING_TO_CHANGE, code=code)
     with client_for(state_of(ctx)) as dg:
-        created = dg.call(dg.schemas.create(schema, code=resolved, name=name, description=description))
-    if state_of(ctx).json_output:
-        return emit_fact("schema.created", message="created", code=created.code, name=created.name)
-    console.print(f"[green]stored[/] schema [bold]{created.code}[/]")
+        edited = dg.call(dg.schemas.update(code, body=schema, name=label, description=about))
+    emit_fact(
+        "schema.updated",
+        message="updated",
+        code=edited.code,
+        name=edited.name,
+        changed=changed,
+        used_by=edited.used_by,
+    )
 
 
 @schema_app.command("show")

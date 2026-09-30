@@ -26,6 +26,7 @@ import pytest
 
 from dirigent_cli.messages import WORKER_NEVER_REGISTERED, WORKER_SILENT
 from dirigent_cli.output import ALERT_EVENTS, CONNECTION_HEALTH, IMPORTANCE_FLOOR
+from dirigent_cli.summaries import SCHEMA_REACHES
 from dirigent_client.enums import AlertEvent, FiringOutcome, WebhookOutcome
 from dirigent_core.messages import DOCUMENT_EMPTY
 from dirigent_server.messages import FORBIDDEN
@@ -163,3 +164,8 @@ def test_every_firing_outcome_has_a_word_the_web_ui_can_draw(outcome: FiringOutc
 def test_every_delivery_outcome_has_a_word_the_web_ui_can_draw(outcome: WebhookOutcome) -> None:
     """The same fault on the webhook panel, and the same answer."""
     assert said(f"triggers.webhook.outcome.{outcome.value}")
+
+
+def test_changing_a_stored_schema_reaches_its_readers_in_one_wording() -> None:
+    """The screen warns before the save and `dg` reports after it. One fact, one sentence."""
+    assert as_fragment(said("schemas.body_warning")) == as_fragment(SCHEMA_REACHES)

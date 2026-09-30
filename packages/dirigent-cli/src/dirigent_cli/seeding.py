@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from dirigent_cli.local import ConnectionSpec
-from dirigent_client import Dirigent, DirigentError, PlanAction, ProvenanceSource
+from dirigent_client import Dirigent, DirigentError, PlanAction, ProvenanceSource, declared_label
 from dirigent_common import JsonMap
 from dirigent_core.documents import CARRIED, SUFFIXES, is_document, readable, safe_load
 from dirigent_core.protocol import Record, make
@@ -99,11 +99,21 @@ def _schemas(raw: JsonMap) -> dict[str, JsonMap]:
 
 
 async def _schema(client: Dirigent, code: str, body: JsonMap) -> None:
-    """Store one named schema, replacing the body of one this instance already holds."""
+    """Store one named schema, replacing the shape and the labels of one already held.
+
+    Storing reads the schema's own ``title`` and ``description`` and editing reads neither, so
+    the replacement sends what the document's schema declares about itself; otherwise the same
+    corpus would label a schema one way on a fresh instance and another way on a seeded one.
+    """
     try:
         await client.schemas.create(body, code=code)
     except DirigentError:
-        await client.schemas.update(code, body=body)
+        await client.schemas.update(
+            code,
+            body=body,
+            name=declared_label(body, "title"),
+            description=declared_label(body, "description"),
+        )
 
 
 async def _connections(client: Dirigent, declared: Sequence[ConnectionSpec], origin: str) -> AsyncIterator[Record]:

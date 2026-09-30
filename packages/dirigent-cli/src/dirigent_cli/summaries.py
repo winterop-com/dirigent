@@ -52,6 +52,7 @@ BULKY: Final = frozenset(
         "token",
         "preflight",
         "requires",
+        "used_by",
     }
 )
 
@@ -342,6 +343,26 @@ def _created(record: Record) -> RenderableType | None:
     return Group(*parts)
 
 
+#: What a changed shape reaches. The web UI warns in these words before a save, out of its own
+#: catalogue, and `tests/test_shared_words.py` fails when the two stop agreeing. Written without
+#: terminal punctuation, because the rendering puts the pipelines after it.
+SCHEMA_REACHES = "Every pipeline naming this code validates against this shape from its next attempt"
+
+
+def _schema_edited(record: Record) -> RenderableType | None:
+    """Render whose pipelines the shape that was just changed was changed for.
+
+    An edit is never refused for being depended on, so the pipelines validating against the
+    code are the ones the edit was a decision about, and they are named rather than counted.
+    """
+    named = _texts(record, "used_by")
+    if not named:
+        return None
+    parts: list[RenderableType] = [f"\n{SCHEMA_REACHES}:"]
+    parts.extend(f"  [yellow]-[/] {escape(one)}" for one in named)
+    return Group(*parts)
+
+
 def _config(record: Record) -> RenderableType | None:
     """Render the effective configuration as a setting-per-row table."""
     settings = record.get("settings")
@@ -524,4 +545,5 @@ RENDERERS: Final[Mapping[str, Callable[[Record], RenderableType | None]]] = {
     "project.scaffolded": _scaffolded,
     "instance.initialised": _initialised,
     "pipeline.created": _created,
+    "schema.updated": _schema_edited,
 }

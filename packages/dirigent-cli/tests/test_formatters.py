@@ -454,3 +454,39 @@ def test_a_process_that_minted_a_token_hands_it_over_beneath_its_line() -> None:
     assert "starting" in drawn
     quiet = printed(Console().render(make("process", at=AT, message="ready", process="dev")))
     assert "DG_TOKEN" not in quiet
+
+
+def test_a_changed_schema_names_the_pipelines_it_was_changed_for() -> None:
+    """The dependents ride off the line and are drawn beneath it, named rather than counted."""
+    edited = make(
+        "schema.updated",
+        at=AT,
+        message="updated",
+        code="gate-shape",
+        name="Gate shape",
+        changed=["body"],
+        used_by=["gated", "nightly"],
+    )
+    drawn = printed(Console().render(edited))
+    line, beneath = drawn.splitlines()[0], drawn.splitlines()[1:]
+    assert "code=gate-shape" in line
+    assert 'changed=["body"]' in line
+    # The dependents ride off the line, so a shape twenty pipelines name still reads as one.
+    assert "used_by" not in line
+    assert "gated" not in line
+    assert summaries.SCHEMA_REACHES in "\n".join(beneath)
+    assert [one.strip() for one in beneath if one.strip().startswith("-")] == ["- gated", "- nightly"]
+
+
+def test_a_changed_schema_nothing_depends_on_draws_nothing_beneath_its_line() -> None:
+    edited = make(
+        "schema.updated",
+        at=AT,
+        message="updated",
+        code="lonely",
+        name=None,
+        changed=["name"],
+        used_by=[],
+    )
+    assert summaries.beneath(edited) is None
+    assert "lonely" in printed(Console().render(edited))

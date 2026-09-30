@@ -189,6 +189,11 @@ SCHEMA_NOT_AN_OBJECT = CLI.define(
     "{label} is not a JSON Schema: a schema is an object, and this is {kind}",
 )
 
+SCHEMA_NOTHING_TO_CHANGE = CLI.define(
+    "schema_nothing_to_change",
+    "nothing was given to change about {code}; pass a schema file, --name or --description",
+)
+
 # What a profile refuses at validation. Pydantic owns the code a validator's refusal reaches
 # the wire under, so this is rendered into the ``ValueError`` it wraps.
 
