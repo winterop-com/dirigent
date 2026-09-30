@@ -542,7 +542,6 @@ function AccountPanel({
                     id="panel-name"
                     value={draft.name}
                     autoComplete="off"
-                    placeholder={LABELS.word.name.placeholder}
                     onChange={(event) => {
                         onDraft({ ...draft, name: event.target.value })
                     }}

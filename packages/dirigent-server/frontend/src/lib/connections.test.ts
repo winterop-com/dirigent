@@ -14,6 +14,7 @@ import {
     withCheck,
     type ConnectionOut,
 } from '@/lib/connections'
+import { LABELS } from '@/lib/labels'
 
 /** A secret nobody may ever see on a screen, whatever a config claims to hold. */
 const CREDENTIAL = 'hunter2-the-actual-password'
@@ -279,9 +280,13 @@ describe('what the status bar says the connections screen is showing', () => {
     })
 
     test('takes the noun a sentence about more than connections needs', () => {
-        expect(connectionsNote([checked(true), checked(null)], 'connections')).toBe(
+        expect(connectionsNote([checked(true), checked(null)], LABELS.word.connection)).toBe(
             '1 of 2 connections healthy · 1 has never been checked',
         )
+    })
+
+    test('draws that noun in the singular where it counts one', () => {
+        expect(connectionsNote([checked(false)], LABELS.word.connection)).toBe('0 of 1 connection healthy')
     })
 
     test('says what could not be verified beside the count rather than as a failure', () => {

@@ -18,6 +18,7 @@ import { LOG_TARGET } from '@/lib/alert-form'
 import {
     channelsOf,
     importanceNote,
+    narrowed,
     NOTIFICATION_STATUSES,
     readAlertRules,
     readNotifications,
@@ -32,7 +33,7 @@ import {
 } from '@/lib/alerting'
 import { readConnections, type ConnectionOut } from '@/lib/connections'
 import { headingOf } from '@/lib/identity'
-import { LABELS } from '@/lib/labels'
+import { counted, LABELS } from '@/lib/labels'
 import { ADMIN_GROUP, registerActions } from '@/lib/palette'
 import { closePanel, fillPanel, openPanel } from '@/lib/panels'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
@@ -320,7 +321,11 @@ function Alerting() {
                     loading={!notifications.state.read}
                     problem={notifications.state.problem}
                     empty={notificationRows.length === 0}
-                    emptyMessage={LABELS.alerting.notifications_empty}
+                    emptyMessage={
+                        narrowed(filters)
+                            ? LABELS.alerting.notifications_empty_filtered
+                            : LABELS.alerting.notifications_empty
+                    }
                 >
                     <ListTable
                         columns={NOTIFICATION_COLUMNS}
@@ -563,7 +568,10 @@ const NOTIFICATION_COLUMNS: Column<NotificationOut>[] = [
                 <Instant className="text-muted-foreground" at={notification.sent_at} />
             ) : notification.attempt > 0 ? (
                 <span className="text-faint">
-                    {LABELS.alerting.attempts_of.counted(notification.attempt, notification.max_attempts)}
+                    {counted(notification.max_attempts, LABELS.alerting.attempts_of.counted)(
+                        notification.attempt,
+                        notification.max_attempts,
+                    )}
                 </span>
             ) : null,
     },

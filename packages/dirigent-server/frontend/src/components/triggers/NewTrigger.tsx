@@ -192,7 +192,6 @@ export function NewSchedule({
                         label={LABELS.word.name.label}
                         value={named}
                         onChange={setNamed}
-                        placeholder={LABELS.word.name.placeholder}
                     />
                 </div>
 
@@ -375,7 +374,6 @@ export function NewWebhook({
                         label={LABELS.word.name.label}
                         value={named}
                         onChange={setNamed}
-                        placeholder={LABELS.word.name.placeholder}
                     />
                 </div>
 
@@ -897,7 +895,7 @@ function Field({
     label: string
     value: string
     onChange: (value: string) => void
-    placeholder: string
+    placeholder?: string
     mono?: boolean
 }) {
     return (

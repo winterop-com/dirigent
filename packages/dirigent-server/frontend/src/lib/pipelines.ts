@@ -17,7 +17,7 @@
 import { apiJson, apiSend, type JsonMap, type Page } from '@/lib/api'
 import { formatRelative } from '@/lib/format'
 import { titleOf } from '@/lib/identity'
-import { LABELS } from '@/lib/labels'
+import { counted, LABELS, type NounForms } from '@/lib/labels'
 import { PAGE } from '@/lib/paging'
 import type { RunWindow } from '@/lib/run-window'
 import type { RunPriority } from '@/lib/runs'
@@ -365,9 +365,9 @@ export function applyPipeline(document: JsonMap, dryRun: boolean): Promise<Apply
 /** What fires a pipeline on its own, in words, which is what the glyphs are titled with. */
 export function triggerSummary(row: Pick<PipelineOut, 'schedules' | 'webhooks' | 'watches'>): string {
     const parts = [
-        count(row.schedules, LABELS.word.schedule.term),
-        count(row.webhooks, LABELS.word.webhook.term),
-        count(row.watches, LABELS.word.watch.term, LABELS.word.watch.count),
+        count(row.schedules, LABELS.word.schedule),
+        count(row.webhooks, LABELS.word.webhook),
+        count(row.watches, LABELS.word.watch),
     ].filter((part) => part !== null)
     if (parts.length === 0) return LABELS.pipelines.trigger_summary.none
     if (parts.length === 1) return parts[0]
@@ -389,9 +389,9 @@ export function emptyNote(loaded: number, tags: readonly string[]): string {
 }
 
 /** A count and the thing counted, or nothing at all when there are none. */
-function count(many: number, thing: string, things = `${thing}s`): string | null {
+function count(many: number, noun: NounForms): string | null {
     if (many === 0) return null
-    return `${String(many)} ${many === 1 ? thing : things}`
+    return `${String(many)} ${counted(many, { one: noun.term, many: noun.count })}`
 }
 
 /** How a pipeline's last run reads in the listing: a state, when it was, and what went wrong. */

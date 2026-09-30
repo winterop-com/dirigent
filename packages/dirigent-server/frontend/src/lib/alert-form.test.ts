@@ -59,20 +59,18 @@ describe('why a new rule cannot be declared yet', () => {
     })
 
     test('a rule is addressed by a code', () => {
-        expect(unreadyRule(aDraft({ code: '  ' }))).toBe(
-            'A rule is addressed by its code, and this one has none.',
-        )
+        expect(unreadyRule(aDraft({ code: '  ' }))).toBe('Enter a code.')
     })
 
     test('a code is the shape every code in this instance is', () => {
-        expect(unreadyRule(aDraft({ code: 'Page Ops' }))).toBe('A code is lowercase words joined by - or _.')
+        expect(unreadyRule(aDraft({ code: 'Page Ops' }))).toBe(
+            'A code is lowercase letters and digits, joined by single - or _.',
+        )
         expect(unreadyRule(aDraft({ code: 'page_ops-2' }))).toBeUndefined()
     })
 
     test('a rule watching one pipeline has to name it', () => {
-        expect(unreadyRule(aDraft({ scope: 'pipeline' }))).toBe(
-            'A rule watching one pipeline names that pipeline, and this one names none.',
-        )
+        expect(unreadyRule(aDraft({ scope: 'pipeline' }))).toBe('Choose a pipeline.')
         expect(unreadyRule(aDraft({ scope: 'pipeline', pipeline: 'nightly' }))).toBeUndefined()
     })
 

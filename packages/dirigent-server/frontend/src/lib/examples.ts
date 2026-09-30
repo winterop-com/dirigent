@@ -22,7 +22,7 @@
 import { apiJson, type Page } from '@/lib/api'
 import { readCatalog } from '@/lib/blocks'
 import { readConnections } from '@/lib/connections'
-import { LABELS } from '@/lib/labels'
+import { counted as pick, LABELS } from '@/lib/labels'
 import { readSchemas } from '@/lib/schemas'
 
 /** What a shared document needs of an instance. `Requirements`. */
@@ -228,7 +228,9 @@ export function requirementsSummary(items: readonly Requirement[]): string | nul
     if (items.length === 0) return null
     const counted = COUNTED.flatMap(([kind, one, many]) => {
         const held = items.filter((item) => item.kind === kind).length
-        return held === 0 ? [] : [LABELS.examples.requirement.counted(String(held), held === 1 ? one : many)]
+        return held === 0
+            ? []
+            : [LABELS.examples.requirement.counted(String(held), pick(held, { one, many }))]
     })
     const missing = missingCount(items)
     return missing === 0

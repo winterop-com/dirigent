@@ -142,7 +142,6 @@ export function SchemaPanel({
                 <Input
                     id="schema-name"
                     value={named}
-                    placeholder={LABELS.word.name.placeholder}
                     disabled={!write.may}
                     onChange={(event) => {
                         setNamed(event.target.value)

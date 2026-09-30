@@ -66,6 +66,6 @@ describe('what a refused change leaves on screen', () => {
     test("is a sentence of this app's when nothing answered at all", () => {
         const problem = refusalOf(new TypeError('network down'))
         expect(problem.status).toBe(0)
-        expect(problem.detail).toContain('has not been changed')
+        expect(problem.detail).toContain('could not be confirmed')
     })
 })

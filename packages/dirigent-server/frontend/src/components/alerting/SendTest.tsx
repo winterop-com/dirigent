@@ -20,7 +20,7 @@ import { LOG_TARGET, targetChosen, targetOptions } from '@/lib/alert-form'
 import { deliverySettled, readNotification, sendTest, type NotificationOut } from '@/lib/alerting'
 import type { Problem } from '@/lib/api'
 import type { ConnectionOut } from '@/lib/connections'
-import { LABELS } from '@/lib/labels'
+import { counted, LABELS } from '@/lib/labels'
 import { refusalOf } from '@/lib/refusal'
 
 /** How often the queued row is read back while it is still moving. */
@@ -186,7 +186,7 @@ function Delivery({ row }: { row: NotificationOut }) {
                         {LABELS.alerting.delivered} <Instant at={row.sent_at} />.
                     </>
                 ) : row.status === 'failed' ? (
-                    LABELS.alerting.given_up(row.attempt, row.max_attempts)
+                    counted(row.max_attempts, LABELS.alerting.given_up)(row.attempt, row.max_attempts)
                 ) : row.attempt === 0 ? (
                     LABELS.alerting.queued_for_worker
                 ) : (

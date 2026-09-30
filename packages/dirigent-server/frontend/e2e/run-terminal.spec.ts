@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises'
 
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 
-import { LABELS } from '../src/lib/labels.ts'
+import { counted, LABELS } from '../src/lib/labels.ts'
 import { applyExample, ranToCompletion, signIn, startRun } from './support.ts'
 
 /**
@@ -25,12 +25,12 @@ const LINES = 6
 /** What each of the two storage.write steps says, which is one line apiece. */
 const WROTE = 'wrote'
 
-/** The labels this screen's own controls carry, spelled as the components export them. */
-const TOGGLE = "Show or hide this run's terminal"
-const STEP_FILTER = 'Filter by step'
-const LEVEL_FILTER = 'Least level shown'
-const MATCH_FILTER = 'Filter lines by text'
-const RESIZE = 'Resize the terminal'
+/** The labels this screen's own controls carry, read from the catalogue that carries them. */
+const TOGGLE = LABELS.runs.toggle_terminal
+const STEP_FILTER = LABELS.terminal.step_filter
+const LEVEL_FILTER = LABELS.terminal.level_filter
+const MATCH_FILTER = LABELS.terminal.match_filter
+const RESIZE = LABELS.terminal.resize
 
 /** Apply the example, run it, and wait for it to settle, answering with the run's id. */
 async function settledRun(request: APIRequestContext): Promise<string> {
@@ -171,7 +171,7 @@ test("download raw saves the run's whole log as NDJSON", async ({ page }) => {
     // asserts on what arrives rather than on where an anchor points.
     const saving = page.waitForEvent('download')
     await page.getByRole('button', { name: LABELS.terminal.download }).click()
-    await expect(page.getByText(`${String(LINES)} lines saved`)).toBeVisible()
+    await expect(page.getByText(counted(LINES, LABELS.terminal.saved)(String(LINES)))).toBeVisible()
     const saved = await saving
 
     expect(saved.suggestedFilename()).toBe(`dirigent-run-${runId}.ndjson`)

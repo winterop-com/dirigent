@@ -18,7 +18,7 @@
 import type { Page } from '@/lib/api'
 import { connectionsHealth, healthOf, type ConnectionOut } from '@/lib/connections'
 import { titleOf } from '@/lib/identity'
-import { LABELS } from '@/lib/labels'
+import { counted as pick, LABELS } from '@/lib/labels'
 import type { PipelineOut } from '@/lib/pipelines'
 import type { RunOut } from '@/lib/runs'
 import type { RunStatus } from '@/lib/status'
@@ -219,10 +219,7 @@ export function connectionsTile(connections: Page<ConnectionOut>): Tile {
             : unverified > 0
               ? LABELS.dashboard.tile.unverified(String(unverified))
               : unchecked > 0
-                ? LABELS.dashboard.tile.never_checked(
-                      String(unchecked),
-                      unchecked === 1 ? LABELS.dashboard.tile.has : LABELS.dashboard.tile.have,
-                  )
+                ? pick(unchecked, LABELS.dashboard.tile.never_checked)(String(unchecked))
                 : LABELS.dashboard.tile.connections_well
     return {
         id: 'connections',
@@ -256,7 +253,7 @@ export function schedulesTile(pipelines: Page<PipelineOut>): Tile {
         note:
             schedules === 0
                 ? LABELS.dashboard.tile.schedules_empty
-                : LABELS.dashboard.tile.schedules_across(
+                : pick(pipelines.items.length, LABELS.dashboard.tile.schedules_across)(
                       atLeast(scheduled.length, truncated),
                       counted(pipelines),
                   ),

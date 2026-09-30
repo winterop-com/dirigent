@@ -79,7 +79,7 @@ describe('what a plan says', () => {
      */
     test('an unchanged apply is a line to report, naming the pipeline and what happened', () => {
         expect(unchangedNote(plan({ action: 'unchanged' }))).toBe(
-            'convert-one is already at this document. Nothing was written.',
+            'convert-one already matches this document. Nothing was written.',
         )
     })
 
@@ -93,7 +93,7 @@ describe('what a plan says', () => {
             },
         ]
         const view = planView(plan({ action: 'invalid', next_version: null, diff: null, issues }))
-        expect(view.headline).toBe('Apply will refuse convert-one')
+        expect(view.headline).toBe('Applying convert-one will be refused')
         expect(view.tone).toBe('critical')
         expect(view.applicable).toBe(false)
         expect(view.issues).toEqual(issues)
@@ -186,7 +186,7 @@ describe('what the status bar says about a validation', () => {
                     params: {},
                 },
             ]),
-        ).toBe('1 issue — apply will refuse')
+        ).toBe('1 issue — applying will be refused')
         expect(
             issuesNote([
                 {
@@ -202,7 +202,7 @@ describe('what the status bar says about a validation', () => {
                     params: {},
                 },
             ]),
-        ).toBe('2 issues — apply will refuse')
+        ).toBe('2 issues — applying will be refused')
     })
 
     test('says nothing at all when the document validated', () => {

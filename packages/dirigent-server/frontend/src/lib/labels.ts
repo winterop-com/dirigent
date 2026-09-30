@@ -161,8 +161,6 @@ const word = {
     /** The optional human title, which carries no identity at all. */
     name: {
         label: 'Name',
-        /** The box beneath it, wherever a thing is given a display title. */
-        placeholder: 'What to call it on screen',
     },
     /** The long-form, markdown-capable text. */
     description: 'Description',
@@ -205,6 +203,7 @@ const word = {
     connection: {
         label: 'Connection',
         heading: 'Connections',
+        term: 'connection',
         count: 'connections',
     },
     /** A shape a payload is checked against. */
@@ -483,10 +482,10 @@ const state = {
         unverified: 'not verified',
         /** It answered. */
         healthy: 'healthy',
-        /** It did not answer, as a row's word and as a sentence. */
+        /** The last check did not pass, as a row's word and as a sentence. */
         failed: {
             word: 'failed',
-            sentence: 'did not answer',
+            sentence: 'failed its last check',
         },
     },
     /**
@@ -750,7 +749,10 @@ const shell = {
     /** The same tag, once it is narrowing. */
     stop_filtering_by_tag: (tag: string) => `Stop filtering by ${tag}`,
     /** The tags a row had no room for, spelled out behind the `+N`. */
-    folded_tags: (count: string, tags: string) => `${count} more tags: ${tags}`,
+    folded_tags: {
+        one: (count: string, tags: string) => `${count} more tag: ${tags}`,
+        many: (count: string, tags: string) => `${count} more tags: ${tags}`,
+    },
 
     /** The button at the foot of a table that reads the next page. In flight it says `reading`. */
     load_more: (count: string) => `Load ${count} more`,
@@ -788,7 +790,7 @@ const palette = {
     title: 'Command palette',
     description: 'Every place this app can go, and everything it can do from here',
     placeholder: 'Go to a screen, or run something',
-    empty: 'Nothing here answers to that',
+    empty: 'Nothing matches that.',
 
     /** What the two keys along the foot do. */
     foot: {
@@ -838,8 +840,8 @@ const refusal = {
         term: 'the server did not answer',
         /** What a read adds: silence may only mean the server is not up yet. */
         may_be_starting: 'It may be starting, or the connection was lost.',
-        /** What the password form adds: nothing was written. */
-        password_unchanged: 'The password has not been changed.',
+        /** What the password form adds: with no answer, whether the write happened is not known. */
+        password_unchanged: 'The password change could not be confirmed.',
     },
     /** The heading over a refusal whose body was not a problem document, which is its status. */
     http_status: (status: string) => `HTTP ${status}`,
@@ -931,7 +933,7 @@ const refused = {
     },
     pipeline: {
         deactivated: 'Pipeline {code} is deactivated.',
-        in_use: 'Pipeline {code} has {runs} runs still in flight and cannot be deleted. Finish or cancel them first.',
+        in_use: 'Pipeline {code} has runs still in flight ({runs}) and cannot be deleted. Finish or cancel them first.',
         no_such_version: 'Pipeline {code} has no version {version}.',
         unknown: 'No pipeline coded {code}.',
     },
@@ -979,11 +981,11 @@ const refused = {
         no_user: 'No user named {username}.',
         no_user_token: 'No live token named {name} for {username}.',
         playground_header_refused:
-            'The playground will not set {header} on itself. A header that plants a cookie, opens this origin to another site, or weakens what a browser enforces here teaches nothing.',
+            'The playground will not set {header} on itself. It sets no header that plants a cookie, opens this origin to another site, or weakens what a browser enforces here.',
         playground_off_instance:
-            "{to} is not a path on this instance, and the playground redirects nowhere else: an open redirect is a phishing tool wearing this instance's own domain.",
+            '{to} is not a path on this instance. The playground redirects only to paths on this instance.',
         playground_unauthenticated:
-            'This route wants a credential: the basic pair {username}/{username}, or the documented bearer token. Both are public constants and guard nothing.',
+            'This route wants a credential: the basic pair {username}/{username}, or the documented bearer token. Both are public constants.',
         prune_names_nothing:
             'Keep names no codes, and pruning against an empty set would deactivate every directory pipeline.',
         redacted_secret:
@@ -1070,15 +1072,17 @@ const dashboard = {
         /** What the external system said, where it said anything. */
         said: (detail: string) => `: ${detail}`,
         unverified: (count: string) => `${count} could not be verified.`,
-        never_checked: (count: string, verb: string) => `${count} ${verb} never been checked.`,
-        /** The verb that agrees with the count of credentials nothing has asked yet. */
-        has: 'has',
-        have: 'have',
+        never_checked: {
+            one: (count: string) => `${count} has never been checked.`,
+            many: (count: string) => `${count} have never been checked.`,
+        },
         /** Every credential answered. */
         connections_well: 'Every connection answered when it was last checked.',
         schedules_empty: 'Nothing on this instance fires on its own.',
-        schedules_across: (scheduled: string, pipelines: string) =>
-            `Across ${scheduled} of ${pipelines} pipelines.`,
+        schedules_across: {
+            one: (scheduled: string, pipelines: string) => `Across ${scheduled} of ${pipelines} pipeline.`,
+            many: (scheduled: string, pipelines: string) => `Across ${scheduled} of ${pipelines} pipelines.`,
+        },
     },
 
     /** The bar chart of the last day, and the reading of it for somebody not seeing it. */
@@ -1094,21 +1098,29 @@ const dashboard = {
         /** The chart's accessible name, where the window held nothing. */
         summary_empty: 'No run was started in the last 24 hours.',
         /** The chart's accessible name: how much was started, then how it came out. */
-        summary: (started: string, outcomes: string) =>
-            `${started} runs started in the last 24 hours, by the hour: ${outcomes}.`,
+        summary: {
+            one: (started: string, outcomes: string) =>
+                `${started} run started in the last 24 hours, by the hour: ${outcomes}.`,
+            many: (started: string, outcomes: string) =>
+                `${started} runs started in the last 24 hours, by the hour: ${outcomes}.`,
+        },
     },
 
     /** The panel beside the chart: the workers and the connections as one list. */
     health: {
         hint: 'The workers claiming work, and every connection.',
         /** A worker with nothing to report: what it is, and how much it can take. */
-        worker: (count: string, slots: string) => `worker · ${count} ${slots}`,
-        slot: 'slot',
-        slots: 'slots',
+        worker: {
+            one: (count: string) => `worker · ${count} slot`,
+            many: (count: string) => `worker · ${count} slots`,
+        },
         /** The workers half of the foot, drawn only where it is not perfect. The CLI's own
          * `health.worker.never_registered` opens with these same words. */
         no_worker: 'no worker has ever registered',
-        workers_healthy: (well: string, total: string) => `${well} of ${total} workers healthy`,
+        workers_healthy: {
+            one: (well: string, total: string) => `${well} of ${total} worker healthy`,
+            many: (well: string, total: string) => `${well} of ${total} workers healthy`,
+        },
         /** Both halves well, on an instance that holds no credentials. */
         every_worker_well: 'Every worker is healthy, and this instance holds no connections.',
         /** Both halves well. */
@@ -1119,7 +1131,7 @@ const dashboard = {
     right_now: 'Right now',
     nothing_live: 'Nothing is running and nothing is waiting.',
     /** The runs that want somebody, on both screens. */
-    needs_a_look: 'Needs a look',
+    needs_a_look: 'Runs in trouble',
     nothing_to_look_at: 'Nothing has failed or finished with errors.',
     /** The firings still ahead. */
     next_fires: 'Next firings',
@@ -1200,7 +1212,7 @@ const pipelines = {
         /** The listing was narrowed to one tag nothing wears. */
         tagged: (tag: string) => `No pipeline is tagged ${tag}.`,
         /** Narrowed to several, which nothing wears all of. */
-        all_tags: (tags: string) => `No pipeline wears all of ${tags}.`,
+        all_tags: (tags: string) => `No pipeline is tagged with all of ${tags}.`,
         /** This instance holds none. */
         none: 'No pipelines.',
     },
@@ -1210,7 +1222,7 @@ const pipelines = {
         description: 'Copy a shipped document into the editor, under a code of your own',
         placeholder: 'Search the starters',
         /** What was typed matches no starter. */
-        empty: 'No starter answers to that',
+        empty: 'No starter matches that.',
         /** Nothing installed here ships one. */
         none: 'No starters installed. Plugins contribute them.',
     },
@@ -1245,7 +1257,7 @@ const editor = {
         short: (version: string) => `v${version}`,
         unapplied: 'No version of this pipeline has been applied.',
         counted: (version: string) =>
-            `Version ${version} of this pipeline, counting the applies that changed it.`,
+            `Version ${version}. Only an apply that changes the document creates a version.`,
     },
 
     /** The strip above the canvas, and what this screen contributes to the command palette. */
@@ -1317,7 +1329,7 @@ const editor = {
         /** Under the name box: a name is a display string and the key is what is referenced. */
         name_note: (step: string) => `Display only. Every reference to this step is by its key, ${step}.`,
         /** Above the list of what one field's own schema refuses. */
-        refused_at_apply: 'This step will be refused at apply.',
+        refused_at_apply: 'Applying will be refused because of this step.',
         add_prerequisite: 'Add a prerequisite',
         stop_waiting: (step: string) => `Stop waiting for ${step}`,
     },
@@ -1341,7 +1353,10 @@ const editor = {
         poll_own_cadence: 'poll its own cadence',
         no_deadline: 'no deadline',
         on_timeout: (choice: string) => `on_timeout ${choice}`,
-        attempts: (count: string) => `${count} attempts`,
+        attempts: {
+            one: (count: string) => `${count} attempt`,
+            many: (count: string) => `${count} attempts`,
+        },
         backoff: (delay: string) => `${delay} backoff`,
         /** What each delay is multiplied by, and the delay it stops growing at. */
         growth: (multiplier: string, ceiling: string) => `×${multiplier} up to ${ceiling}`,
@@ -1383,7 +1398,7 @@ const editor = {
         no_connections: 'This pipeline names no connections.',
         /** A named connection the listing has not landed for, so nothing is claimed about it. */
         health_unread: 'health unread',
-        requires_nothing: 'This document requires nothing in particular of an instance.',
+        requires_nothing: 'This document requires nothing of an instance.',
         block_chip: (block: string) => `block ${block}`,
         connection_chip: (connection: string) => `connection ${connection}`,
         schema_chip: (schema: string) => `schema ${schema}`,
@@ -1455,7 +1470,7 @@ const editor = {
         /** Why Apply is shut on a document that is already the version the instance holds. */
         nothing_to_apply: 'This document is the version the instance holds.',
         /** What an apply that wrote nothing amounts to, said as a line rather than a dialog. */
-        unchanged: (pipeline: string) => `${pipeline} is already at this document. Nothing was written.`,
+        unchanged: (pipeline: string) => `${pipeline} already matches this document. Nothing was written.`,
     },
 
     /**
@@ -1532,15 +1547,15 @@ const editor = {
             many: (codes: string) => `This instance has no connections coded ${codes}.`,
         },
         /** Why the apply would refuse for an account that may not store a schema. */
-        no_schema_gate: "This document's schemas are not stored, and storing one is an admin's.",
+        no_schema_gate: "This document's schemas are not stored, and only an admin can store one.",
         /** What is said when the lift produced nothing a document could be read back from. */
         lift_failed: 'The carried sections could not be taken out of this document. Edit it by hand.',
     },
 
     /** What the server said an apply would do, as the dialog and the status bar read it. */
     plan: {
-        refuse: (pipeline: string) => `Apply will refuse ${pipeline}`,
-        unchanged: (pipeline: string) => `Apply writes nothing — ${pipeline} is already at this document`,
+        refuse: (pipeline: string) => `Applying ${pipeline} will be refused`,
+        unchanged: (pipeline: string) => `Apply writes nothing — ${pipeline} already matches this document`,
         create: (pipeline: string) => `Apply creates ${pipeline} at version 1`,
         update: (version: string, pipeline: string) => `Apply writes version ${version} of ${pipeline}`,
         steps_added: (steps: string) => `steps added: ${steps}`,
@@ -1553,8 +1568,8 @@ const editor = {
         no_changes: 'No changes from the stored version.',
         /** What the instance refuses about the document, counted. */
         issues_refuse: {
-            one: (count: string) => `${count} issue — apply will refuse`,
-            many: (count: string) => `${count} issues — apply will refuse`,
+            one: (count: string) => `${count} issue — applying will be refused`,
+            many: (count: string) => `${count} issues — applying will be refused`,
         },
         /** What an apply that was carried out amounts to, in one line. */
         left_as_it_was: (pipeline: string) => `${pipeline} was left as it was`,
@@ -1693,30 +1708,33 @@ const form = {
         required: (label: string) => `${label} is required`,
         not_null: (label: string) => `${label} may not be null`,
         /** A union, none of whose branches take the value. */
-        shapes: (label: string, shapes: string) => `${label} is ${shapes}`,
-        one_of: (label: string, options: string) => `${label} is one of ${options}`,
-        boolean: (label: string) => `${label} is true or false`,
-        text: (label: string) => `${label} is text`,
-        number: (label: string) => `${label} is a number`,
-        map: (label: string) => `${label} is a map, or a reference to one`,
+        shapes: (label: string, shapes: string) => `${label} must be ${shapes}`,
+        one_of: (label: string, options: string) => `${label} must be one of ${options}`,
+        boolean: (label: string) => `${label} must be true or false`,
+        text: (label: string) => `${label} must be text`,
+        number: (label: string) => `${label} must be a number`,
+        map: (label: string) => `${label} must be a map, or a reference to one`,
         /** One entry of a map, named by its key. */
-        entry: (label: string, key: string, shapes: string) => `${label}.${key} is ${shapes}`,
+        entry: (label: string, key: string, shapes: string) => `${label}.${key} must be ${shapes}`,
         /** The count decides which form is drawn, so the number crosses rather than the text. */
         min_length: {
-            one: (label: string, count: string) => `${label} is at least ${count} character`,
-            many: (label: string, count: string) => `${label} is at least ${count} characters`,
+            one: (label: string, count: string) => `${label} must be at least ${count} character long`,
+            many: (label: string, count: string) => `${label} must be at least ${count} characters long`,
         },
-        max_length: (label: string, count: string) => `${label} is at most ${count} characters`,
+        max_length: {
+            one: (label: string, count: string) => `${label} must be at most ${count} character long`,
+            many: (label: string, count: string) => `${label} must be at most ${count} characters long`,
+        },
         pattern: (label: string, pattern: string) => `${label} does not match ${pattern}`,
-        whole_number: (label: string) => `${label} is a whole number`,
-        minimum: (label: string, least: string) => `${label} is at least ${least}`,
-        maximum: (label: string, most: string) => `${label} is at most ${most}`,
-        greater_than: (label: string, least: string) => `${label} is greater than ${least}`,
-        less_than: (label: string, most: string) => `${label} is less than ${most}`,
+        whole_number: (label: string) => `${label} must be a whole number`,
+        minimum: (label: string, least: string) => `${label} must be at least ${least}`,
+        maximum: (label: string, most: string) => `${label} must be at most ${most}`,
+        greater_than: (label: string, least: string) => `${label} must be greater than ${least}`,
+        less_than: (label: string, most: string) => `${label} must be less than ${most}`,
         /** Text in a JSON box that does not parse, where the engine said nothing itself. */
         not_json: 'that is not JSON',
         /** One cell of a map, holding something the map does not take. */
-        map_values: (label: string, shapes: string) => `${label} values are ${shapes}`,
+        map_values: (label: string, shapes: string) => `${label} values must be ${shapes}`,
         duplicate_key: (label: string, key: string) => `${label} carries ${key} twice`,
     },
 } as const
@@ -1882,7 +1900,7 @@ const runs = {
     copy_trace_action: 'Copy this run trace id',
     trace_copied: 'trace id copied',
     /** An insecure origin, or a browser that refused: the string is still on screen. */
-    clipboard_refused: 'this browser would not give up its clipboard',
+    clipboard_refused: 'this browser would not write to the clipboard',
     /** A re-run the server accepted without starting anything. */
     nothing_started: (status: string) => `nothing started: ${status}`,
     /** The Step tab, before a node has been chosen on the graph. */
@@ -1959,7 +1977,10 @@ const runs = {
     // The graph's nodes, and the sentences `lib/run-detail` folds for them.
 
     /** How wide a fan-out step is, on the node's header. */
-    node_items: (count: string) => `${count} items`,
+    node_items: {
+        one: (count: string) => `${count} item`,
+        many: (count: string) => `${count} items`,
+    },
     /** The node's tooltip, where a live wait reports how far it has come. */
     node_hint: (detail: string, percent: string) => `${detail} (${percent}%)`,
     /** One state's tally, for a fan-out too wide to name its elements. */
@@ -2015,7 +2036,7 @@ const terminal = {
     // The three controls that narrow what is drawn.
 
     /** The accessible name of the level select. */
-    level_filter: 'Least level shown',
+    level_filter: 'Minimum log level',
     /** Each threshold, said as what it lets through. `LogLevel` is the key. */
     level: {
         debug: 'All levels',
@@ -2056,7 +2077,10 @@ const terminal = {
         one: (count: string) => `${count} line copied`,
         many: (count: string) => `${count} lines copied`,
     },
-    saved: (count: string) => `${count} lines saved`,
+    saved: {
+        one: (count: string) => `${count} line saved`,
+        many: (count: string) => `${count} lines saved`,
+    },
 
     // The log pane inside a step's tab, where the tense is the step's own.
 
@@ -2143,10 +2167,10 @@ const triggers = {
             /** What goes where the next firings would, when the parser said nothing of its own. */
             unreadable_clock: 'This clock cannot be read.',
             /** Why Create is shut: no pipeline, no code, no clock, or parameters that do not fit. */
-            no_pipeline: 'A schedule fires one pipeline, and this one names none.',
-            no_code: 'A schedule is addressed by its code, and this one has none.',
+            no_pipeline: 'Choose a pipeline.',
+            no_code: 'Enter a code.',
             no_clock: 'Nothing says when this fires.',
-            params_refused: 'A pinned parameter is not what this pipeline takes.',
+            params_refused: 'A pinned parameter is not valid for this pipeline.',
         },
     },
 
@@ -2195,8 +2219,8 @@ const triggers = {
             /** Said beside Create, because the token is answered once and never again. */
             token_once: 'Its token is shown once, after Create.',
             /** Why Create is shut. */
-            no_pipeline: 'A webhook fires one pipeline, and this one names none.',
-            no_code: 'A webhook is addressed by its code, and this one has none.',
+            no_pipeline: 'Choose a pipeline.',
+            no_code: 'Enter a code.',
         },
         /** The one moment a minted token is readable. */
         token: {
@@ -2248,7 +2272,7 @@ const triggers = {
         no_params: 'This pipeline takes no parameters.',
         /** What a box of JSON that is not the parameters says: unparseable, or not an object. */
         params_unreadable: 'this is not JSON',
-        params_not_object: 'The parameters are a JSON object.',
+        params_not_object: 'The parameters must be a JSON object.',
     },
 } as const
 
@@ -2292,7 +2316,7 @@ const connections = {
     settings_heading: 'Settings',
     /** Why Save or Create is shut. `Refusal` is drawn beside the boxes it is about, so the
      * sentence does not have to say which way to look. */
-    settings_refused: 'A setting is not what this kind accepts.',
+    settings_refused: 'A setting is not valid for this kind.',
 
     /** The dialog that mints one, under its title. */
     sealed: 'Secret fields are sealed on the way in and never read back out.',
@@ -2301,8 +2325,8 @@ const connections = {
     /** The kind box before anything is chosen. */
     choose_kind: 'Choose a kind',
     /** Why Create is shut, in the order the dialog decides it. */
-    needs_code: 'A connection is addressed by its code, and this one has none.',
-    needs_kind: 'No kind is chosen, and a connection is a credential of one kind.',
+    needs_code: 'Enter a code.',
+    needs_kind: 'Choose a kind.',
     /** Why Create is shut on a kind nothing here publishes a config for. */
     kind_unknown: (kind: string) => `This instance has no connection kind coded ${kind}.`,
     unreadable_setting: 'A setting holds text that is not a value.',
@@ -2438,7 +2462,7 @@ const examples = {
     /** No plugin contributed anything. */
     none_installed: 'No examples installed. Plugins contribute them.',
     /** The filters left nothing. */
-    none_match: 'Nothing in the corpus matches that.',
+    none_match: 'No example matches that.',
     /** Nothing to show, with nothing being narrowed. */
     empty: 'No examples.',
 
@@ -2509,7 +2533,7 @@ const examples = {
     },
     /** Where a document filed at the top of a distribution's shelves sits. */
     root_shelf: 'the root',
-    requires_nothing: 'This document requires nothing in particular of an instance.',
+    requires_nothing: 'This document requires nothing of an instance.',
     /** What the read-only editor holding the document is called, in place and in a window. */
     source_pane: 'The document',
     source_pane_windowed: (name: string) => `${name}, in a window`,
@@ -2584,7 +2608,7 @@ const users = {
     never_signed_in: 'never signed in',
     /** Under the name field: that the name carries no identity and the username does. */
     name_hint: (username: string) =>
-        `Display only. This account signs in as ${username}, and that is what every reference to it is by.`,
+        `Display only. Every reference to this account is by the username it signs in as, ${username}.`,
     /** The placeholder on a field that may be left blank. */
     optional: 'Optional',
     email_hint: 'Unique across accounts.',
@@ -2612,9 +2636,9 @@ const users = {
     password_too_short: (minimum: string) => `A password must be at least ${minimum} characters.`,
 
     /** Under the new-token dialog's title, where the token is the caller's own. */
-    token_scope_self: 'It holds whatever this account holds.',
+    token_scope_self: 'This token can do whatever this account can.',
     /** The same line, where the token is minted for another account. */
-    token_scope_for: (username: string) => `It holds whatever ${username} holds.`,
+    token_scope_for: (username: string) => `This token can do whatever ${username} can.`,
     token_name_placeholder: 'ci-deploy',
     token_name_hint: 'Lower case, digits and single hyphens. It is what the token is revoked by.',
     /** Beside the secret, which the server answers once and cannot answer again. */
@@ -2623,7 +2647,7 @@ const users = {
 
     /** Under the reset-password dialog's title: what setting a password does to what is open. */
     reset_password_hint: (username: string) =>
-        `${username} is signed out everywhere and its tokens keep working.`,
+        `Resetting signs ${username} out of every session. Its tokens keep working.`,
     new_password: 'New password',
 } as const
 
@@ -2670,7 +2694,9 @@ const alerting = {
         palette: 'New alert rule',
     },
     rules_empty: 'No rules.',
-    notifications_empty: 'Nothing queued.',
+    notifications_empty: 'No notifications.',
+    /** The same listing, once a filter is what left it empty. */
+    notifications_empty_filtered: 'No notification matches these filters.',
     /** The queue's filters, when neither narrows anything. */
     any_status: 'Any status',
     any_notifier: 'Any notifier',
@@ -2736,7 +2762,10 @@ const alerting = {
         /** In a column headed Attempts, where the noun would be the heading said twice. */
         bare: (attempt: number, allowed: number) => `${attempt} of ${allowed}`,
         /** Where nothing above it says what is being counted. */
-        counted: (attempt: number, allowed: number) => `${attempt} of ${allowed} attempts`,
+        counted: {
+            one: (attempt: number, allowed: number) => `${attempt} of ${allowed} attempt`,
+            many: (attempt: number, allowed: number) => `${attempt} of ${allowed} attempts`,
+        },
     },
     /** What raised the message. */
     raised_by: 'Raised by',
@@ -2758,7 +2787,7 @@ const alerting = {
     description_placeholder: 'What this rule is for',
     pipeline_search: 'Search by name or code',
     /** Only pipelines at or above the chosen floor. */
-    importance_hint: 'Only pipelines that matter at least this much.',
+    importance_hint: 'Only pipelines at this importance or above.',
     /** What the control answers with when a rule fires whatever the pipeline is worth. */
     importance_any: 'Any',
     target_search: 'Search by name, kind or code',
@@ -2786,9 +2815,9 @@ const alerting = {
 
     /** Why Create is shut on a new rule, in the order somebody fills the form in. */
     unready: {
-        code_missing: 'A rule is addressed by its code, and this one has none.',
-        code_shape: 'A code is lowercase words joined by - or _.',
-        pipeline_missing: 'A rule watching one pipeline names that pipeline, and this one names none.',
+        code_missing: 'Enter a code.',
+        code_shape: 'A code is lowercase letters and digits, joined by single - or _.',
+        pipeline_missing: 'Choose a pipeline.',
         throttle_shape: 'A throttle is a duration, such as 15m.',
     },
 
@@ -2802,7 +2831,11 @@ const alerting = {
     /** Where the message got to, as the dialog watches the row settle. */
     delivered: 'Delivered',
     queued_for_worker: 'Queued for the next worker pass.',
-    given_up: (attempt: number, allowed: number) => `Given up after ${attempt} of ${allowed} attempts.`,
+    given_up: {
+        one: (attempt: number, allowed: number) => `Delivery stopped after ${attempt} of ${allowed} attempt.`,
+        many: (attempt: number, allowed: number) =>
+            `Delivery stopped after ${attempt} of ${allowed} attempts.`,
+    },
     /** One try behind us, and the moment of the next, which the sentence is finished with. */
     attempt_of: (attempt: number, allowed: number) => `Attempt ${attempt} of ${allowed}, next try`,
 } as const
@@ -2847,8 +2880,8 @@ const settings = {
 
     /** The fact a row adds where its control cannot show one. */
     description: {
-        timezone: 'Timestamps everywhere; a schedule keeps its own.',
-        current_line: 'Every editor, in place and in a window, including read-only ones.',
+        timezone: 'Every timestamp on screen. A schedule keeps its own zone.',
+        current_line: 'Every editor, including a read-only one and one in a window.',
     },
 
     /** The accessible name of the Timezone row's control, which is not the row's own word. */
@@ -2915,6 +2948,17 @@ export const LABELS = {
 export interface Counted<T> {
     one: T
     many: T
+}
+
+/**
+ * The two lower-case forms of a noun this product counts.
+ *
+ * A sentence that takes its noun as a value takes both forms, because which one is drawn is
+ * decided by the count standing beside it rather than by the caller's own grammar.
+ */
+export interface NounForms {
+    readonly term: string
+    readonly count: string
 }
 
 /**
