@@ -608,6 +608,9 @@ def upgrade() -> None:
             "worker_tags", sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"), nullable=False
         ),
         sa.Column(
+            "schemas", sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"), nullable=False
+        ),
+        sa.Column(
             "created_at",
             dirigent_core.types.UtcDateTime(timezone=True),
             server_default=sa.func.now(),

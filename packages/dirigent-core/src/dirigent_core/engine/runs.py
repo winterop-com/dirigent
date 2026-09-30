@@ -36,6 +36,7 @@ from dirigent_core.engine.definition import (
     StepDefinition,
     dump_definition,
     load_definition,
+    schemas_named,
 )
 from dirigent_core.engine.expansion import is_gate, new_attempt, write_items
 from dirigent_core.engine.references import ReferenceScope, resolve
@@ -64,12 +65,13 @@ from dirigent_core.messages import (
     RUN_PIPELINE_INACTIVE,
     RUN_PIPELINE_NO_VERSIONS,
     RUN_PIPELINE_UNREADABLE,
+    RUN_SCHEMA_NOT_HELD,
     RUN_UNKNOWN_PIPELINE,
     RUN_VERSION_GONE,
     SELF_START,
     STEP_REFUSED,
 )
-from dirigent_core.models import Pipeline, PipelineVersion, Run, RunItem, StepAttempt, Watch, utcnow
+from dirigent_core.models import Pipeline, PipelineVersion, Run, RunItem, Schema, StepAttempt, Watch, utcnow
 from dirigent_core.storage import scratch_prefix
 from dirigent_plugin import RemoteHandle, RunRefused, RunSnapshot, RunState, StartedRun
 
@@ -242,6 +244,7 @@ async def create_run(
     definition = load_definition(version.document)
     resolved_params = definition.validate_params(params or {}, services.format_checker)
     _refuse_disabled_blocks(definition, services)
+    pinned_schemas = await _pin_schemas(session, services, version)
     who = attribution or Attribution()
 
     # The span the whole run hangs from. Its context is written to the row, and every
@@ -316,6 +319,7 @@ async def create_run(
                 window_end=window.end if window is not None else None,
                 log_levels=dict(log_levels) if log_levels else None,
                 worker_tags=list(definition.requires.workers),
+                schemas=pinned_schemas,
             )
             session.add(run)
             await session.flush()
@@ -392,6 +396,31 @@ def _refuse_disabled_blocks(definition: PipelineDefinition, services: EngineServ
         refusal = services.local_execution_refusal(step.block)
         if refusal is not None:
             raise RunCreationError(STEP_REFUSED, step=repr(name), detail=refusal.message)
+
+
+async def _pin_schemas(session: AsyncSession, services: EngineServices, version: PipelineVersion) -> dict[str, JsonMap]:
+    """Read the body of every schema the version's document names, for the run to hold.
+
+    A run checks against these bodies for as long as it lives, so editing a stored schema
+    changes what the next run of a pipeline checks against and never what one already started
+    does. Only the codes the document names are read: a run holds the shapes it checks
+    against, not the table.
+
+    Applying a document that names a schema the instance does not hold is refused, and so is
+    removing one a stored pipeline names, so a code with no body here is a state no apply can
+    reach. The run is refused rather than started to fail at its gate.
+    """
+    named = schemas_named(version.document, services.host.catalog())
+    if not named:
+        return {}
+    rows = await session.execute(sa.select(Schema).where(Schema.code.in_(sorted(named))))
+    pinned = {row.code: dict(row.body) for row in rows.scalars()}
+    missing = sorted(named - set(pinned))
+    if missing:
+        codes = await session.execute(sa.select(Schema.code))
+        held = ", ".join(sorted(code for (code,) in codes.all())) or "none are held"
+        raise RunCreationError(RUN_SCHEMA_NOT_HELD, code=repr(missing[0]), held=held)
+    return pinned
 
 
 async def cancel_run(

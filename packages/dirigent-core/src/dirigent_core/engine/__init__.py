@@ -6,7 +6,6 @@ from dirigent_core.engine.context import (
     ConnectionRecord,
     EngineStepContext,
     load_connections,
-    load_schemas,
 )
 from dirigent_core.engine.definition import (
     FORMAT_V1,
@@ -109,7 +108,6 @@ __all__ = [
     "evaluate_rule",
     "load_connections",
     "load_definition",
-    "load_schemas",
     "resolve",
     "resolve_config",
     "retry_step",

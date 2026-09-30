@@ -3,17 +3,17 @@
 import re
 from datetime import datetime, timedelta
 from enum import StrEnum
-from typing import Annotated, Final, Literal, Self, cast
+from typing import Annotated, Any, Final, Literal, Self, cast
 
 from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema import ValidationError as SchemaValidationError
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator, model_validator
 
 from dirigent_client.enums import Importance, RunPriority
-from dirigent_client.schemas import Requirements
+from dirigent_client.schemas import Catalog, Requirements
 from dirigent_common import TEMPLATE_MEDIA_TYPE, EntityName, JsonMap, StepName, TemplateError, compile_template
 from dirigent_common.durations import Duration
-from dirigent_core.engine.references import references_in
+from dirigent_core.engine.references import has_reference, references_in
 from dirigent_core.errors import DomainError
 from dirigent_core.messages import (
     BAD_TAG,
@@ -28,7 +28,7 @@ from dirigent_core.messages import (
     TOO_MANY_TAGS,
     UNKNOWN_DEPENDENCY,
 )
-from dirigent_plugin import BLOCK_ID_PATTERN
+from dirigent_plugin import BLOCK_ID_PATTERN, reference_fields
 
 FORMAT_V1: Final = "dirigent/v1"
 
@@ -638,3 +638,36 @@ def _with_defaults(schema: JsonMap, params: JsonMap) -> JsonMap:
         if name not in filled and isinstance(declared, dict) and "default" in declared:
             filled[name] = cast("dict[str, object]", declared)["default"]
     return filled
+
+
+def schemas_named(document: JsonMap, catalog: Catalog) -> set[str]:
+    """Every stored-schema code one pipeline document names, by requirement or by step.
+
+    Read from the stored document rather than a parsed definition, so a version applied by an
+    older dirigent still answers. A code written as a ``${...}`` reference is not one this can
+    know: what it stands for has no value until a run resolves it.
+    """
+    named: set[str] = set()
+    requires = document.get("requires")
+    if isinstance(requires, dict):
+        asked = cast("dict[str, Any]", requires).get("schemas")
+        if isinstance(asked, list):
+            named.update(one for one in cast("list[object]", asked) if isinstance(one, str) and not has_reference(one))
+    steps = document.get("steps")
+    if not isinstance(steps, dict):
+        return named
+    for step in cast("dict[str, Any]", steps).values():
+        if not isinstance(step, dict):
+            continue
+        held = cast("dict[str, Any]", step)
+        block = held.get("block")
+        config = held.get("config")
+        entry = catalog.block(block) if isinstance(block, str) else None
+        if entry is None or not isinstance(config, dict):
+            continue
+        settings = cast("dict[str, Any]", config)
+        for field in reference_fields(entry.config_schema, "schema"):
+            value = settings.get(field)
+            if isinstance(value, str) and not has_reference(value):
+                named.add(value)
+    return named

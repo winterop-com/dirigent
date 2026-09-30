@@ -243,7 +243,9 @@ model)`, `http(ref)`, `schema(code)`, `format_checker()`, `storage`, `scratch`, 
 when the attempt first started, unchanged by a later poke or a worker restart, so a wait
 measures itself from the attempt rather than from the poke that happens to observe it. `connection` is synchronous by contract, so
 the claim transaction snapshots the connection table for the attempt and secrets are opened
-here, on the worker path, and nowhere else. `capture` opens the storage object a block
+here, on the worker path, and nowhere else. `schema` is synchronous for the same reason, and
+reads from the bodies the run pinned when it was created, so an edited shape reaches the next
+run of a pipeline rather than the next attempt of one already under way. `capture` opens the storage object a block
 streams into and hands back the URI its output carries, which is how a block writes a stream
 without ever naming a URI of its own. `work` is the run's directory on this worker's own
 filesystem, for what a tool opens through the filesystem rather than through storage -- a
@@ -499,7 +501,7 @@ Three clusters, with the boundary visible in the schema layout itself. All times
 | `Step` | definition | Lives inside the pipeline document, not in a table: block reference, config, `depends_on` edges plus trigger rule, retry policy, timeout, optional fan-out expression. Only attempts get rows. |
 | `Schema` | definition | A named JSON Schema the instance holds, addressable by code and referenced by one. Its identity is read off the schema's own keywords -- `$id` is the code, `title` the name -- so what is stored is a portable schema and not a wrapper around one. |
 | `Trigger` | triggers | Ad hoc is implicit; persisted triggers are schedules (cron / interval / one-time, own timezone, own parameters, precomputed `next_fire_at`) and webhooks (token hash, optional HMAC secret, payload-to-parameter mapping). A `TriggerDocument` row is the third owner a schedule or webhook may have, beside a hand and a pipeline's own document. |
-| `Run` | execution | Pinned pipeline version, resolved parameters, `triggered_by` as a real reference, a `priority` pinned at creation, and an optional half-open `[window_start, window_end)` naming the logical interval the run covers. Terminal states include `completed_with_errors`. |
+| `Run` | execution | Pinned pipeline version, resolved parameters, the body of every JSON Schema the document names, `triggered_by` as a real reference, a `priority` pinned at creation, and an optional half-open `[window_start, window_end)` naming the logical interval the run covers. Terminal states include `completed_with_errors`. |
 | `RunItem` | execution | First-class fan-out: one row per mapped item with its own status and failing-step pointer, so a run over N inputs reads as a grid. |
 | `StepAttempt` | execution | One row per attempt: number, kind (automatic / manual), input, output reference, error, remote handle, lease, `available_at`, `next_poll_at`, timings. |
 | `ArtifactRef` | execution | The durable record of a step output: content type, size, digest, and either an inlined value or a URI into pluggable storage, never a worker-local path. |

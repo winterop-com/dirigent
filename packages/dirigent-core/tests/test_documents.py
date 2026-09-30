@@ -481,6 +481,19 @@ def test_a_step_naming_a_schema_no_instance_holds_and_no_document_carries_is_ref
     assert validate_against_catalog(definition, host.catalog(), schemas=["ou-shape"]) == []
 
 
+def test_a_step_whose_schema_is_a_reference_is_refused_at_apply(host: PluginHost) -> None:
+    """A run pins the bodies its document names, and a ``${...}`` names no code until too late."""
+    definition = load_text(
+        "format: dirigent/v1\ncode: late-shape\nparams:\n  type: object\n  properties: {shape: {type: string}}\n"
+        "steps:\n"
+        "  a: { block: test.echo, config: {value: hi, schema: '${params.shape}'} }\n"
+    )
+    issues = validate_against_catalog(definition, host.catalog(), schemas=["ou-shape"])
+    assert [issue.location for issue in issues] == ["steps.a.config.schema"]
+    assert issues[0].code == "document.step_schema_interpolated"
+    assert "${params.shape}" in issues[0].message
+
+
 def test_a_carried_schema_that_is_not_a_schema_is_refused_at_apply(host: PluginHost) -> None:
     """A carried body is never stored on its own, so this apply check is the only thing that catches it."""
     definition = load_text(

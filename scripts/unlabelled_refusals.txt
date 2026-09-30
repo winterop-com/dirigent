@@ -148,7 +148,6 @@ run.step_refused
 run.unknown_connection
 run.unknown_connection_kind
 run.unknown_pipeline
-run.unknown_schema
 run.unsafe_block
 run.version_gone
 schedule.cron_no_future

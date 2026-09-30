@@ -24,7 +24,7 @@ from dirigent_client.enums import LogLevel
 from dirigent_common import JsonMap
 from dirigent_core.logging import debug_kept, get_logger
 from dirigent_core.messages import RUN_UNKNOWN_CONNECTION, RUN_UNKNOWN_SCHEMA, UNKNOWN_CONNECTION_KIND
-from dirigent_core.models import Connection, Schema
+from dirigent_core.models import Connection
 from dirigent_core.secrets import SecretBox
 from dirigent_core.storage import AttemptStorage, Storage, connection_binder, work_dir
 from dirigent_plugin import BlockFailure, ByteSink, Capture, ConnectionRef, ErrorClass, Logger, Runs
@@ -78,16 +78,6 @@ async def load_connections(session: AsyncSession) -> dict[str, ConnectionRecord]
         )
         for row in rows.scalars()
     }
-
-
-async def load_schemas(session: AsyncSession) -> dict[str, JsonMap]:
-    """Snapshot every named schema for one attempt, code to its JSON Schema body.
-
-    The whole table is read for the same reason connections are: ``StepContext.schema`` is
-    synchronous by contract, so a block may name any code at any point in its call.
-    """
-    rows = await session.execute(sa.select(Schema))
-    return {row.code: dict(row.body) for row in rows.scalars()}
 
 
 MAX_MESSAGE_CHARS: Final = 4000
@@ -365,7 +355,7 @@ class EngineStepContext:
         return None if ref is None else self.connection(ref, model)
 
     def schema(self, code: str) -> JsonMap:
-        """Resolve a named JSON Schema by code, as the claim transaction snapshotted it."""
+        """Resolve a named JSON Schema by code, as the run pinned it when it was created."""
         body = self._schemas.get(code)
         if body is None:
             raise BlockFailure(

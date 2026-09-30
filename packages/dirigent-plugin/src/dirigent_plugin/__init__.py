@@ -3,6 +3,7 @@
 from dirigent_plugin.blocks import (
     BLOCK_ID_PATTERN,
     MARK_LIMIT,
+    REFERENCE_KEYWORD,
     SHELL_VARIABLE_PREFIX,
     SHELL_VARIABLES_FIELD,
     SURFACE_ID_PATTERN,
@@ -45,6 +46,7 @@ from dirigent_plugin.blocks import (
     classify_default,
     mark_refusal,
     merge_contributions,
+    reference_fields,
     shell_string_fields,
 )
 from dirigent_plugin.markers import (
@@ -112,6 +114,7 @@ __all__ = [
     "RunnerEngine",
     "Runs",
     "SURFACE_ID_PATTERN",
+    "REFERENCE_KEYWORD",
     "SchemaRef",
     "Sensor",
     "SensorSpec",
@@ -136,5 +139,6 @@ __all__ = [
     "formatters",
     "mark_refusal",
     "merge_contributions",
+    "reference_fields",
     "shell_string_fields",
 ]

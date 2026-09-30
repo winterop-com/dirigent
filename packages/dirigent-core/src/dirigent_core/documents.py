@@ -66,6 +66,7 @@ from dirigent_core.messages import (
     STEP_BLOCK_MISSING,
     STEP_CONFIG_INVALID,
     STEP_CONNECTION_MISSING,
+    STEP_SCHEMA_INTERPOLATED,
     STEP_SCHEMA_MISSING,
     STEP_UNSAFE_BLOCK,
     STORAGE_SCHEME_MISSING,
@@ -78,6 +79,7 @@ from dirigent_core.messages import (
     WRONG_DOCUMENT_KIND,
     WRONG_FORMAT,
 )
+from dirigent_plugin import reference_fields
 
 #: High enough that the canonical dump never folds a line, which would shift the digest.
 YAML_WIDTH: Final = 10_000
@@ -747,97 +749,6 @@ def _storage_fields(schema: JsonMap) -> set[str]:
     return named
 
 
-#: What a block's config schema marks a field holding another thing's code with. ``Reference``
-#: in ``dirigent_plugin`` publishes it.
-REFERENCE_KEYWORD: Final = "x-dirigent-ref"
-
-#: The only pointer shape a block's own config schema writes, which pydantic emits for a
-#: field whose type is a named alias.
-_LOCAL_DEFS: Final = "#/$defs/"
-
-
-def _pointed_at(shape: dict[str, Any], pool: dict[str, Any]) -> dict[str, Any] | None:
-    """The definition a local ``$ref`` names, or nothing where it names none."""
-    pointer = shape.get("$ref")
-    if not isinstance(pointer, str) or not pointer.startswith(_LOCAL_DEFS):
-        return None
-    target = pool.get(pointer.removeprefix(_LOCAL_DEFS))
-    return cast("dict[str, Any]", target) if isinstance(target, dict) else None
-
-
-def _shapes(shape: dict[str, Any], pool: dict[str, Any]) -> list[dict[str, Any]]:
-    """One field's own shape, the definition it points at, and each branch of a union."""
-    found: list[dict[str, Any]] = [shape]
-    target = _pointed_at(shape, pool)
-    if target is not None:
-        found.append(target)
-    for option in cast("list[Any]", shape.get("anyOf") or []):
-        if not isinstance(option, dict):
-            continue
-        branch = cast("dict[str, Any]", option)
-        found.append(branch)
-        pointed = _pointed_at(branch, pool)
-        if pointed is not None:
-            found.append(pointed)
-    return found
-
-
-def reference_fields(schema: JsonMap, kind: str) -> set[str]:
-    """Name the config fields a block publishes as references to one kind of thing.
-
-    A block says which of its strings hold a code, so nothing here guesses from a value: a
-    code and a value of the same shape are not told apart by looking. The marker rides on the
-    field's own shape or on the definition that shape points at, because a field typed as a
-    named alias is published as a ``$ref``.
-    """
-    properties = schema.get("properties")
-    if not isinstance(properties, dict):
-        return set()
-    held = schema.get("$defs")
-    pool = cast("dict[str, Any]", held) if isinstance(held, dict) else {}
-    named: set[str] = set()
-    for field, declared in cast("dict[str, Any]", properties).items():
-        if not isinstance(declared, dict):
-            continue
-        shapes = _shapes(cast("dict[str, Any]", declared), pool)
-        if any(one.get(REFERENCE_KEYWORD) == kind for one in shapes):
-            named.add(str(field))
-    return named
-
-
-def schemas_named(document: JsonMap, catalog: Catalog) -> set[str]:
-    """Every stored-schema code one pipeline document names, by requirement or by step.
-
-    Read from the stored document rather than a parsed definition, so a version applied by an
-    older dirigent still answers. A code written as a ``${...}`` reference is not one this can
-    know: what it stands for has no value until a run resolves it.
-    """
-    named: set[str] = set()
-    requires = document.get("requires")
-    if isinstance(requires, dict):
-        asked = cast("dict[str, Any]", requires).get("schemas")
-        if isinstance(asked, list):
-            named.update(one for one in cast("list[object]", asked) if isinstance(one, str) and not has_reference(one))
-    steps = document.get("steps")
-    if not isinstance(steps, dict):
-        return named
-    for step in cast("dict[str, Any]", steps).values():
-        if not isinstance(step, dict):
-            continue
-        held = cast("dict[str, Any]", step)
-        block = held.get("block")
-        config = held.get("config")
-        entry = catalog.block(block) if isinstance(block, str) else None
-        if entry is None or not isinstance(config, dict):
-            continue
-        settings = cast("dict[str, Any]", config)
-        for field in reference_fields(entry.config_schema, "schema"):
-            value = settings.get(field)
-            if isinstance(value, str) and not has_reference(value):
-                named.add(value)
-    return named
-
-
 def _scheme_issues(step: str, config: JsonMap, schema: JsonMap, schemes: set[str] | None) -> list[ValidationIssue]:
     """Refuse a step addressing a storage scheme no backend claims."""
     if schemes is None:
@@ -900,25 +811,31 @@ def _connection_issues(step: str, config: JsonMap, connections: set[str]) -> lis
 
 
 def _schema_issues(step: str, config: JsonMap, schema: JsonMap, schemas: set[str] | None) -> list[ValidationIssue]:
-    """Refuse a step naming a schema no instance holds and the document does not carry.
+    """Refuse a step naming a schema no instance holds, and one whose schema is a ``${...}``.
 
     Which of a block's fields hold a schema code is the block's own declaration, the same one
     a reference lookup reads, so a field a pack named something other than ``schema`` is
     checked here too.
+
+    A ``${...}`` in one of those fields is refused rather than left to the run: a run holds the
+    bodies of the schemas its document names, and what such a field stands for is not a code
+    until the run is already under way.
     """
     if schemas is None:
         return []
     issues: list[ValidationIssue] = []
     for key in sorted(reference_fields(schema, "schema") & set(config)):
         named = config[key]
-        if not isinstance(named, str) or has_reference(named) or named in schemas:
+        if not isinstance(named, str):
+            continue
+        location = f"steps.{step}.config.{key}"
+        if has_reference(named):
+            issues.append(ValidationIssue.of(STEP_SCHEMA_INTERPOLATED, location=location, code=repr(named)))
+            continue
+        if named in schemas:
             continue
         available = ", ".join(sorted(schemas)) or "this instance holds no schemas"
-        issues.append(
-            ValidationIssue.of(
-                STEP_SCHEMA_MISSING, location=f"steps.{step}.config.{key}", code=repr(named), available=available
-            )
-        )
+        issues.append(ValidationIssue.of(STEP_SCHEMA_MISSING, location=location, code=repr(named), available=available))
     return issues
 
 

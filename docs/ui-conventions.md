@@ -895,8 +895,8 @@ document carries, or carry it under a code of its own. The third -- update the s
 what the document carries -- is the right one often enough that leaving it out made the dialog a
 dead end, and it was the one thing the browser could not do at all. So the row expands over what
 the instance holds, drawn whole in the pane a schema is read in everywhere else; says that every
-pipeline naming that code validates against the new shape from its next attempt, which is what a
-gate resolving live actually means; and offers the write. It is a write of its own and not a step
+pipeline naming that code checks against the new shape from its next run, which is what a run
+pinning its shapes at creation actually means; and offers the write. It is a write of its own and not a step
 of the apply, because the two answer to different people -- one pipeline's author is applying, and
 every other pipeline naming that code lives with the result. **The identity travels with the
 body**: storing a schema reads its own `title` and `description` where the write names neither and

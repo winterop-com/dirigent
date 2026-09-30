@@ -147,6 +147,14 @@ class ShellString:
         return published
 
 
+#: What :class:`Reference` publishes, and what reading one back looks for.
+REFERENCE_KEYWORD: Final = "x-dirigent-ref"
+
+#: The only pointer shape a block's own config schema writes, which pydantic emits for a
+#: field whose type is a named alias.
+_LOCAL_DEFS: Final = "#/$defs/"
+
+
 class Reference:
     """Marks a config field whose value is the code of another thing this instance holds.
 
@@ -173,7 +181,7 @@ class Reference:
     ) -> JsonSchemaValue:
         """Publish what the marked field's code names, leaving what it validates untouched."""
         published = handler(schema)
-        published["x-dirigent-ref"] = self.kind
+        published[REFERENCE_KEYWORD] = self.kind
         return published
 
 
@@ -182,6 +190,55 @@ type ConnectionRef = Annotated[str, Reference("connection")]
 
 #: A schema is referenced by code: one the instance holds, or one the document carries.
 type SchemaRef = Annotated[str, Reference("schema")]
+
+
+def _pointed_at(shape: dict[str, Any], pool: dict[str, Any]) -> dict[str, Any] | None:
+    """The definition a local ``$ref`` names, or nothing where it names none."""
+    pointer = shape.get("$ref")
+    if not isinstance(pointer, str) or not pointer.startswith(_LOCAL_DEFS):
+        return None
+    target = pool.get(pointer.removeprefix(_LOCAL_DEFS))
+    return cast("dict[str, Any]", target) if isinstance(target, dict) else None
+
+
+def _shapes(shape: dict[str, Any], pool: dict[str, Any]) -> list[dict[str, Any]]:
+    """One field's own shape, the definition it points at, and each branch of a union."""
+    found: list[dict[str, Any]] = [shape]
+    target = _pointed_at(shape, pool)
+    if target is not None:
+        found.append(target)
+    for option in cast("list[Any]", shape.get("anyOf") or []):
+        if not isinstance(option, dict):
+            continue
+        branch = cast("dict[str, Any]", option)
+        found.append(branch)
+        pointed = _pointed_at(branch, pool)
+        if pointed is not None:
+            found.append(pointed)
+    return found
+
+
+def reference_fields(schema: JsonMap, kind: str) -> set[str]:
+    """Name the config fields a block publishes as references to one kind of thing.
+
+    A block says which of its strings hold a code, so nothing here guesses from a value: a
+    code and a value of the same shape are not told apart by looking. The marker rides on the
+    field's own shape or on the definition that shape points at, because a field typed as a
+    named alias is published as a ``$ref``.
+    """
+    properties = schema.get("properties")
+    if not isinstance(properties, dict):
+        return set()
+    held = schema.get("$defs")
+    pool = cast("dict[str, Any]", held) if isinstance(held, dict) else {}
+    named: set[str] = set()
+    for field, declared in cast("dict[str, Any]", properties).items():
+        if not isinstance(declared, dict):
+            continue
+        shapes = _shapes(cast("dict[str, Any]", declared), pool)
+        if any(one.get(REFERENCE_KEYWORD) == kind for one in shapes):
+            named.add(str(field))
+    return named
 
 
 #: What the engine names the variables it substitutes a shell string's references out into.
@@ -602,7 +659,12 @@ class StepContext(Protocol):
         ...
 
     def schema(self, code: str) -> JsonMap:
-        """Resolve a named JSON Schema the instance holds by code; an unknown code fails the step."""
+        """Resolve one of the JSON Schemas this run holds by code; any other code fails the step.
+
+        A run holds the body of every schema its document named when it was created, so a
+        stored schema edited mid-run does not change what the rest of that run checks
+        against. A code the document does not name is not one the run holds.
+        """
         ...
 
     def format_checker(self) -> FormatChecker:

@@ -67,17 +67,36 @@ there `title` in the body moves nothing, while the command line hands over a who
 and its keywords travel with it. The Apply dialog does the same when it replaces a carried
 schema, for the same reason.
 
-**A gate reads the stored schema fresh on every attempt.** Nothing pins a body into a pipeline
-version: `validate.schema` resolves the code against the snapshot taken when the attempt is
-claimed. So changing a stored schema changes what *every* pipeline naming that code validates
-against, from its next claim onwards -- an attempt already running finishes against the body it
-was handed, and the next step of that same run, or a retry of that same step, is checked against
-the new one.
+**A run holds the shapes it started with.** When a run is created it reads the body of every
+schema its document names -- each code under `requires.schemas`, and each one a step's config
+names -- and keeps those bodies on the run itself, the way it keeps its resolved parameters. Every
+attempt of that run, every later step of it, and every retry of any of its steps check against
+those bodies and not against the table. So an edit reaches the *next run* of a pipeline naming the
+code, and never a run already under way.
+
+That is the same grain the rest of a run works at: the pipeline version, the parameters, the
+priority and the worker tags are all resolved once when the run is created and read from the run
+from then on. A schema is one more of them.
+
+The bodies are held, not the codes, because there is no schema versioning here for a code to
+resolve back through: a run that kept only the code would be back to reading whatever the table
+now holds. Only the codes the document names are read, so a run carries the shapes it checks
+against rather than a copy of the instance's whole shelf.
+
+A `${...}` in a step's `schema` is refused when the document is applied, with
+`document.step_schema_interpolated`. A code that is not a code until the run is under way is not
+one the run could have pinned, and it is not one anything else can name either -- neither the
+`used_by` that names a schema's dependants nor the `requires` preflight can see it. A gate names
+its shape by writing the code.
+
+If a run is created while a schema its document names is not on the instance -- a state no apply
+can produce, since applying such a document is refused and removing such a schema is too -- the
+run is refused with `run.schema_not_held` rather than started to fail at its gate.
 
 **So an edit is reported and a removal is refused.** Every schema response carries `used_by`: the
 codes of the stored pipelines whose current version names the schema, whether under
 `requires.schemas` or in a step's schema field. The edit itself still lands, because correcting a
-shape every pipeline should now validate against is what editing a stored schema is *for*, the
+shape every pipeline should now check against is what editing a stored schema is *for*, the
 code cannot be changed to sidestep it, and whether a new body still admits what a dependent
 pipeline sends is not a question a schema can be asked. The Schemas screen names those pipelines
 beside the body instead, so the decision is made with them in view rather than blind, and the
