@@ -819,7 +819,7 @@ def _schema_issues(step: str, config: JsonMap, schema: JsonMap, schemas: set[str
 
     A ``${...}`` in one of those fields is refused rather than left to the run: a run holds the
     bodies of the schemas its document names, and what such a field stands for is not a code
-    until the run is already under way.
+    until the run has started.
     """
     if schemas is None:
         return []

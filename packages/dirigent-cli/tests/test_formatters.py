@@ -474,8 +474,12 @@ def test_a_changed_schema_names_the_pipelines_it_was_changed_for() -> None:
     # The dependents ride off the line, so a shape twenty pipelines name still reads as one.
     assert "used_by" not in line
     assert "gated" not in line
-    assert summaries.SCHEMA_REACHES in "\n".join(beneath)
+    drawn_beneath = "\n".join(beneath)
+    assert summaries.SCHEMA_REACHES in drawn_beneath
     assert [one.strip() for one in beneath if one.strip().startswith("-")] == ["- gated", "- nightly"]
+    # The exception reads after the names, because the colon above governs them and a run in
+    # flight is not one of them.
+    assert drawn_beneath.index(summaries.IN_FLIGHT_KEEPS_ITS_SHAPE) > drawn_beneath.index("nightly")
 
 
 def test_a_changed_schema_nothing_depends_on_draws_nothing_beneath_its_line() -> None:

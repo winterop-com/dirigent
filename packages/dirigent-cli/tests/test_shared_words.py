@@ -26,7 +26,7 @@ import pytest
 
 from dirigent_cli.messages import WORKER_NEVER_REGISTERED, WORKER_SILENT
 from dirigent_cli.output import ALERT_EVENTS, CONNECTION_HEALTH, IMPORTANCE_FLOOR, RUNS_IN_FLIGHT
-from dirigent_cli.summaries import SCHEMA_REACHES
+from dirigent_cli.summaries import IN_FLIGHT_KEEPS_ITS_SHAPE, SCHEMA_REACHES
 from dirigent_client.enums import AlertEvent, FiringOutcome, WebhookOutcome
 from dirigent_client.schemas.alerts import TEST_SUBJECT
 from dirigent_core.messages import DOCUMENT_EMPTY, PIPELINE_IN_USE
@@ -195,3 +195,13 @@ def test_every_delivery_outcome_has_a_word_the_web_ui_can_draw(outcome: WebhookO
 def test_changing_a_stored_schema_reaches_its_readers_in_one_wording() -> None:
     """The screen warns before the save and `dg` reports after it. One fact, one sentence."""
     assert as_fragment(said("schemas.body_warning")) == as_fragment(SCHEMA_REACHES)
+
+
+def test_a_run_already_under_way_is_spared_in_one_wording_too() -> None:
+    """The second fact of the same pair: who the edit does not reach.
+
+    It is a string of its own on both sides rather than a clause of the first, because on both
+    the first line is a heading over the pipelines it names and a run in flight is not one of
+    them.
+    """
+    assert as_fragment(said("schemas.body_in_flight")) == as_fragment(IN_FLIGHT_KEEPS_ITS_SHAPE)

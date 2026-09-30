@@ -346,20 +346,27 @@ def _created(record: Record) -> RenderableType | None:
 #: What a changed shape reaches. The web UI warns in these words before a save, out of its own
 #: catalogue, and `tests/test_shared_words.py` fails when the two stop agreeing. Written without
 #: terminal punctuation, because the rendering puts the pipelines after it.
-SCHEMA_REACHES = "Every pipeline naming this code validates against this shape from its next attempt"
+SCHEMA_REACHES = "Every pipeline naming this code checks against this shape from its next run"
+
+#: What it does not reach. Said after the pipelines rather than with them: the colon above governs
+#: that list, and a run in flight is not on it. Paired with the web UI's own words by the
+#: same test, and punctuated, because nothing follows it.
+IN_FLIGHT_KEEPS_ITS_SHAPE = "A run in flight keeps the shape it started with."
 
 
 def _schema_edited(record: Record) -> RenderableType | None:
     """Render whose pipelines the shape that was just changed was changed for.
 
-    An edit is never refused for being depended on, so the pipelines validating against the
+    An edit is never refused for being depended on, so the pipelines checking against the
     code are the ones the edit was a decision about, and they are named rather than counted.
+    Where no pipeline names the code, no run checks against it either, so neither line is drawn.
     """
     named = _texts(record, "used_by")
     if not named:
         return None
     parts: list[RenderableType] = [f"\n{SCHEMA_REACHES}:"]
     parts.extend(f"  [yellow]-[/] {escape(one)}" for one in named)
+    parts.append(f"\n{IN_FLIGHT_KEEPS_ITS_SHAPE}")
     return Group(*parts)
 
 

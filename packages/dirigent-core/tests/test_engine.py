@@ -3134,7 +3134,7 @@ async def test_a_run_that_names_no_schema_holds_none(
 async def test_editing_a_stored_schema_leaves_a_started_run_on_the_body_it_started_with(
     sessions: async_sessionmaker[AsyncSession], services: EngineServices, engine: Engine
 ) -> None:
-    """The next step of a run already under way is handed what the run pinned, not what is stored.
+    """The next step of a run in flight is handed what the run pinned, not what is stored.
 
     This is the whole point of the pin: before it, the claim read the table, so the second
     step of a two-step run checked against a body the first step never saw.

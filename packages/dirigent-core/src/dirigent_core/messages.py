@@ -326,10 +326,10 @@ STEP_CONNECTION_MISSING = DOCUMENT.define("step_connection_missing", "no connect
 STEP_SCHEMA_MISSING = DOCUMENT.define("step_schema_missing", "no schema coded {code} exists ({available})")
 
 # A run holds the bodies of the schemas its document names, read when it is created, so a
-# code nothing can read until the run is under way names no shape it could have held.
+# code nothing can read until the run has started names no shape it could have held.
 STEP_SCHEMA_INTERPOLATED = DOCUMENT.define(
     "step_schema_interpolated",
-    "{code} is resolved while the run is under way, and a schema is named by its code: a run "
+    "{code} is resolved once the run has started, and a schema is named by its code: a run "
     "takes the shapes its document names when it starts, so write the code this step checks against",
 )
 

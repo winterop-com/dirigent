@@ -72,7 +72,7 @@ schema its document names -- each code under `requires.schemas`, and each one a 
 names -- and keeps those bodies on the run itself, the way it keeps its resolved parameters. Every
 attempt of that run, every later step of it, and every retry of any of its steps check against
 those bodies and not against the table. So an edit reaches the *next run* of a pipeline naming the
-code, and never a run already under way.
+code, and never a run in flight.
 
 That is the same grain the rest of a run works at: the pipeline version, the parameters, the
 priority and the worker tags are all resolved once when the run is created and read from the run
@@ -84,7 +84,7 @@ now holds. Only the codes the document names are read, so a run carries the shap
 against rather than a copy of the instance's whole shelf.
 
 A `${...}` in a step's `schema` is refused when the document is applied, with
-`document.step_schema_interpolated`. A code that is not a code until the run is under way is not
+`document.step_schema_interpolated`. A code that is not a code until the run has started is not
 one the run could have pinned, and it is not one anything else can name either -- neither the
 `used_by` that names a schema's dependants nor the `requires` preflight can see it. A gate names
 its shape by writing the code.

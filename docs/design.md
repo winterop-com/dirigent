@@ -245,7 +245,7 @@ measures itself from the attempt rather than from the poke that happens to obser
 the claim transaction snapshots the connection table for the attempt and secrets are opened
 here, on the worker path, and nowhere else. `schema` is synchronous for the same reason, and
 reads from the bodies the run pinned when it was created, so an edited shape reaches the next
-run of a pipeline rather than the next attempt of one already under way. `capture` opens the storage object a block
+run of a pipeline rather than the next attempt of one in flight. `capture` opens the storage object a block
 streams into and hands back the URI its output carries, which is how a block writes a stream
 without ever naming a URI of its own. `work` is the run's directory on this worker's own
 filesystem, for what a tool opens through the filesystem rather than through storage -- a

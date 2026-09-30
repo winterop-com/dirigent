@@ -884,9 +884,8 @@ that code (`create`), one holding the same thing (`already here`{ .label }), or 
 under the same name (`differs`); the fourth is a document that only names a code under
 `requires:`, which carries nothing to create from and is what the plan's own issues and the
 Requires chips say. **Applying never replaces a stored schema.** A stored schema is what every
-other pipeline naming that code validates against, and a gate reads it fresh on every attempt, so
-an apply that wrote over one would change what those pipelines check without anybody having
-decided that -- and the line over the list, which counts what applying stores, would stop being
+other pipeline naming that code checks against, from its next run, so an apply that wrote over
+one would change what those pipelines check without anybody having decided that -- and the line over the list, which counts what applying stores, would stop being
 true. `differs` shuts the confirm and the sentence beside the rows says which code collided.
 
 **So `differs` is the row's own decision, and it opens in the row like every other.** What stood
@@ -896,7 +895,8 @@ what the document carries -- is the right one often enough that leaving it out m
 dead end, and it was the one thing the browser could not do at all. So the row expands over what
 the instance holds, drawn whole in the pane a schema is read in everywhere else; says that every
 pipeline naming that code checks against the new shape from its next run, which is what a run
-pinning its shapes at creation actually means; and offers the write. It is a write of its own and not a step
+pinning its shapes at creation actually means -- and, under the names, that a run in flight
+keeps the shape it started with, which is the half a reader mid-run needs; and offers the write. It is a write of its own and not a step
 of the apply, because the two answer to different people -- one pipeline's author is applying, and
 every other pipeline naming that code lives with the result. **The identity travels with the
 body**: storing a schema reads its own `title` and `description` where the write names neither and

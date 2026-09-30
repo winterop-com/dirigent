@@ -355,9 +355,14 @@ function UpdateSchema({
             <JsonBlock title={words.held_body(item.code)} text={JSON.stringify(item.stored, null, 2)} />
             <p className="text-xs text-muted-foreground">{words.update_note}</p>
             {item.usedBy.length > 0 && (
-                <p className="text-xs text-muted-foreground">
-                    {counted(item.usedBy.length, words.update_used_by)(item.usedBy.join(', '))}
-                </p>
+                <>
+                    <p className="text-xs text-muted-foreground">
+                        {counted(item.usedBy.length, words.update_used_by)(item.usedBy.join(', '))}
+                    </p>
+                    {/* The Schemas panel's own sentence, drawn rather than said twice: one fact
+                        lives in one label wherever it is read. */}
+                    <p className="text-xs text-muted-foreground">{LABELS.schemas.body_in_flight}</p>
+                </>
             )}
             {problem !== null && <Refusal problem={problem} />}
             {/* A WAY BACK AND A WAY FORWARD. Cancel gives the row its control back and writes

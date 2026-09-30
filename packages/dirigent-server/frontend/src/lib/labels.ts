@@ -984,7 +984,7 @@ const refused = {
             'This document carries its own schemas ({named}), which an instance will not store. Create them on the instance and let the document name them under requires.schemas.',
         no_format: 'The document declares no format. Add format: {format}.',
         step_schema_interpolated:
-            '{code} is resolved while the run is under way, and a schema is named by its code. A run takes the shapes its document names when it starts, so write the code this step checks against.',
+            '{code} is resolved once the run has started, and a schema is named by its code. A run takes the shapes its document names when it starts, so write the code this step checks against.',
         unsatisfied: 'The document does not satisfy {format}.',
     },
     host: {
@@ -1599,7 +1599,7 @@ const editor = {
         held_body: (code: string) => `${code} · on this instance`,
         /** What updating does, and what it does to everything else naming the code. */
         update_note:
-            'Updating replaces what the instance holds with what this document carries. Every pipeline naming this code checks against the new shape from its next run. A run already under way keeps the shape it started with.',
+            'Updating replaces what the instance holds with what this document carries. Every pipeline naming this code checks against the new shape from its next run.',
         /**
          * Which pipelines those are, where the instance holds any.
          *
@@ -2682,11 +2682,19 @@ const schemas = {
     /** The description box, which is the schema's own `description` as it was stored. */
     description_placeholder: 'What this shape is for. Markdown is rendered.',
     /** Why editing the body is a decision rather than a correction, said where it is made. */
-    body_warning:
-        'Every pipeline naming this code checks against this shape from its next run. A run already under way keeps the shape it started with.',
+    body_warning: 'Every pipeline naming this code checks against this shape from its next run.',
 
     /**
-     * Which stored pipelines validate against this code, over the body a save would replace.
+     * What the edit does not reach, under the pipelines it does.
+     *
+     * It reads after the names rather than before them, because the line above governs that
+     * list and a run in flight is not on it. `dg schema update` says the same two
+     * facts in the same order, and `test_shared_words.py` holds the pair to one wording.
+     */
+    body_in_flight: 'A run in flight keeps the shape it started with.',
+
+    /**
+     * Which stored pipelines check against this code, over the body a save would replace.
      *
      * It finishes the warning above it rather than restating it: that line says an edit reaches
      * every pipeline naming the code, and this names them, because the decision is made for
