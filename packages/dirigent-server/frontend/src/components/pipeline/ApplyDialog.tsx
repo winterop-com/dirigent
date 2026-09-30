@@ -304,6 +304,11 @@ export function ApplyDialog({
                                 // what was in the way of the confirm being drawn at all.
                                 readHeld(document)
                             }}
+                            onUpdated={() => {
+                                // And a stored schema replaced by the one the document carries is
+                                // the same answer to the same question, read the same way.
+                                readHeld(document)
+                            }}
                         />
                     )}
                     {problem === null && view === null && (

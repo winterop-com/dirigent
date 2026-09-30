@@ -1,6 +1,6 @@
 """Schemas: named JSON Schemas an instance holds, addressable by code and referenced by name."""
 
-from dirigent_client.resources.base import Resource, query, request_body
+from dirigent_client.resources.base import Resource, edit_body, query, request_body
 from dirigent_client.schemas import Page, SchemaIn, SchemaOut, SchemaUpdate
 from dirigent_common import JsonMap
 
@@ -36,9 +36,14 @@ class Schemas(Resource):
         name: str | None = None,
         description: str | None = None,
     ) -> SchemaOut:
-        """Replace a schema's body or its labels; the code is fixed."""
-        payload = SchemaUpdate(name=name, description=description, body=body)
-        return await self._one(SchemaOut, "PATCH", f"/schemas/{code}", json=request_body(payload))
+        """Replace a schema's body or its labels; the code is fixed.
+
+        An argument left out is a field the request says nothing about, so what the instance
+        holds under it stays: a body stored on its own keeps the name and the description the
+        schema was stored with.
+        """
+        sent = edit_body(SchemaUpdate, name=name, description=description, body=body)
+        return await self._one(SchemaOut, "PATCH", f"/schemas/{code}", json=sent)
 
     async def delete(self, code: str) -> None:
         """Remove a schema."""

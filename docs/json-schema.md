@@ -35,6 +35,22 @@ A schema reads its own identity from its keywords, so there is nothing else to p
 the instance, and what every reference uses. `title` and `description` are free text. A `$id` that
 is a full URI is accepted, and its last path segment is taken as the code.
 
+## Changing one that is already stored
+
+A shape you got wrong is corrected in place. `PATCH /api/v1/schemas/{code}` changes the name, the
+description and the body -- never the code, which is what every reference names -- and the
+Schemas screen is that request with the schema in the editor it was written in. The name and the
+description are stored beside the body rather than read back out of it, so editing `title` in the
+body does not move the name; the box does.
+
+**A gate reads the stored schema fresh on every attempt.** Nothing pins a body into a pipeline
+version: `validate.schema` resolves the code against what the instance holds when the attempt is
+claimed. So changing a stored schema changes what *every* pipeline naming that code validates
+against, from its next attempt onwards -- including one that is running while you edit. Nothing
+refuses the edit on those grounds and nothing warns the pipelines' authors; the admin role is the
+only thing in the way, which is the same bargain `DELETE` has always been. If the new shape is
+not what the other readers of that code expect, store it under a code of its own instead.
+
 ## The shape of a shape
 
 Every example below describes the same read, `GET /api/sites.json?fields=id,name,elevation`,

@@ -15,6 +15,10 @@ import { apiPrefix, applyExample, signIn, writeInEditor } from './support.ts'
  * value, so monaco is handed the meta-schema of the draft the server validates with. Only a
  * browser can say whether that arrived: the worker, the completion it answers with and the
  * marker it puts on a wrong value are the real thing here or they are nothing.
+ *
+ * AND THAT A SHAPE SOMEBODY GOT WRONG CAN BE PUT RIGHT. The panel is a form over
+ * `PATCH /schemas/{code}`, so what these assert is the round trip: what the boxes send, what the
+ * row behind them then says, and that the code is not among the things it sends.
  */
 
 const SCHEMA = {
@@ -124,6 +128,66 @@ test('the schema box marks a value the draft does not take', async ({ page }) =>
     // An unknown key is not marked -- 2020-12 says nothing about keys it does not know -- so
     // what the meta-schema refuses is a value: `type` takes one of the seven names or a list
     // of them, and never a number.
+    await writeInEditor(page, editor, '{ "type": 3 }')
+
+    await expect(editor.locator('.squiggly-warning, .squiggly-error').first()).toBeVisible({
+        timeout: 15_000,
+    })
+})
+
+test('a stored schema is relabelled in the panel, and the row follows', async ({ page }) => {
+    await signIn(page)
+    await seedSchema(page.request)
+
+    await page.goto('/schemas/e2e-org-unit')
+    const panel = page.locator('aside')
+
+    // The name is a display title with no identity, so it is a box; the code is the heading.
+    await panel.getByLabel(LABELS.word.name.label).fill('Org unit, corrected')
+    await panel.getByRole('button', { name: LABELS.action.save.verb }).click()
+    await expect(panel.getByText(LABELS.action.save.done)).toBeVisible()
+
+    // The row is the same row, folded over with what the save answered rather than re-read: the
+    // panel would empty under the hands that pressed Save if the listing were read again.
+    await expect(page.getByRole('row').filter({ hasText: 'Org unit, corrected' })).toBeVisible()
+    await expect(page).toHaveURL(/\/schemas\/e2e-org-unit$/)
+
+    const prefix = await apiPrefix(page.request)
+    const read = await (await page.request.get(`${prefix}/schemas/e2e-org-unit`)).json()
+    expect(read.name).toBe('Org unit, corrected')
+    expect(read.body.title).toBe('Organisation unit')
+})
+
+test('a shape somebody got wrong is corrected in the panel it is read in', async ({ page }) => {
+    await signIn(page)
+    await seedSchema(page.request)
+
+    await page.goto('/schemas/e2e-org-unit')
+    const panel = page.locator('aside')
+
+    const editor = panel.getByTestId('code-editor')
+    await expect(editor.locator('.view-lines')).toContainText('properties')
+    await writeInEditor(page, editor, JSON.stringify({ ...SCHEMA, required: ['id', 'displayName'] }, null, 2))
+
+    await panel.getByRole('button', { name: LABELS.action.save.verb }).click()
+    await expect(panel.getByText(LABELS.action.save.done)).toBeVisible()
+
+    const prefix = await apiPrefix(page.request)
+    const read = await (await page.request.get(`${prefix}/schemas/e2e-org-unit`)).json()
+    expect(read.body.required).toEqual(['id', 'displayName'])
+    expect(read.code).toBe('e2e-org-unit')
+})
+
+test('the panel box is checked against the meta-schema, like the dialog it was written in', async ({
+    page,
+}) => {
+    await signIn(page)
+    await seedSchema(page.request)
+
+    await page.goto('/schemas/e2e-org-unit')
+    const editor = page.locator('aside').getByTestId('code-editor')
+    // `type` takes one of the seven names or a list of them, and never a number: the draft is
+    // what says so, and only a browser can say the worker holding it arrived.
     await writeInEditor(page, editor, '{ "type": 3 }')
 
     await expect(editor.locator('.squiggly-warning, .squiggly-error').first()).toBeVisible({

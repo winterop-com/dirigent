@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 import pytest
 from pydantic import ValidationError
 
-from dirigent_client.resources.base import request_body
+from dirigent_client.resources.base import edit_body, request_body
 from dirigent_client.schemas import (
     AttemptOut,
     BackfillAccepted,
@@ -14,6 +14,7 @@ from dirigent_client.schemas import (
     BackfillRequest,
     Problem,
     RunRequest,
+    SchemaUpdate,
 )
 from dirigent_client.schemas.common import WireModel
 
@@ -91,3 +92,23 @@ def test_an_attempt_on_the_wire_carries_none_of_the_engines_bookmarks() -> None:
     assert "remote_handle" not in AttemptOut.model_fields
     assert "poke_cursor" not in AttemptOut.model_fields
     assert "fetched_output" not in AttemptOut.model_fields
+
+
+def test_an_edit_body_carries_only_the_members_the_caller_named() -> None:
+    """A member left out and a member sent as null are different requests to this API.
+
+    ``SchemaUpdate.changing`` reads ``model_fields_set``, so a body built from every
+    parameter's default would say the request asked for a name of null -- and a schema stored
+    with a new body alone would come back with its title and its description cleared.
+    """
+    body = {"type": "object"}
+    assert edit_body(SchemaUpdate, name=None, description=None, body=body) == {"body": body}
+    assert edit_body(SchemaUpdate, name="Org unit", description=None, body=None) == {"name": "Org unit"}
+    assert edit_body(SchemaUpdate, name=None, description=None, body=None) == {}
+
+
+def test_an_edit_body_is_read_back_as_a_request_saying_nothing_about_what_it_left_out() -> None:
+    read = SchemaUpdate.model_validate(edit_body(SchemaUpdate, name=None, description=None, body={"type": "object"}))
+    assert read.changing("body")
+    assert not read.changing("name")
+    assert not read.changing("description")
