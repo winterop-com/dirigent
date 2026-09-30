@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
-import { LABELS } from '../src/lib/labels.ts'
+import { counted, LABELS } from '../src/lib/labels.ts'
 import { applyDocument, applyExample, ranToCompletion, signIn, startRun } from './support.ts'
 
 /**
@@ -117,8 +117,14 @@ test('the pipelines listing carries the identity, the triggers and the last run'
     // The one that has not run says so rather than showing an empty cell.
     await expect(rowOf(page, IDLE.title)).toContainText(LABELS.pipelines.last_run.never)
 
-    // The foot counts what has been read, and there is no page number anywhere on the screen.
-    await expect(page.getByText(/\d+ pipelines/)).toBeVisible()
+    // The foot counts what has been read, and there is no page number anywhere on the screen. The
+    // noun beside the number is the one the catalogue spells for that number, not either form.
+    const pipelines = LABELS.word.pipeline.count
+    const foot = page.getByText(new RegExp(`^\\d+ (${pipelines.one}|${pipelines.many})$`))
+    await expect(foot).toBeVisible()
+    const said = await foot.innerText()
+    const read = Number(said.split(' ')[0])
+    expect(said).toBe(LABELS.shell.rows_read(String(read), counted(read, pipelines)))
 })
 
 /**
