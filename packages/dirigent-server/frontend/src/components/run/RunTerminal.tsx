@@ -187,7 +187,7 @@ export function RunTerminal({
                 anchor.click()
                 anchor.remove()
                 URL.revokeObjectURL(url)
-                toast.success(LABELS.terminal.saved(String(collected.length)))
+                toast.success(counted(collected.length, LABELS.terminal.saved)(String(collected.length)))
             },
             (error: unknown) => {
                 setSaving(false)

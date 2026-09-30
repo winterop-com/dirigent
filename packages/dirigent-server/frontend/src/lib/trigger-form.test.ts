@@ -33,7 +33,7 @@ describe('the pinned parameters, read as a form and as the JSON that form would 
     it('says a list is not the parameters rather than sending one', () => {
         const read = readValues('[1, 2]')
         expect(read.ok).toBe(false)
-        expect(read.ok === false && read.message).toBe('The parameters are a JSON object.')
+        expect(read.ok === false && read.message).toBe('The parameters must be a JSON object.')
     })
 
     it('says what is wrong with a box halfway through being typed, in the parser own words', () => {
@@ -88,15 +88,15 @@ describe('a generated signing secret', () => {
 
 describe('why Create is shut, which is what the button says of itself', () => {
     it('names the pipeline, then the code, then the clock', () => {
-        expect(unreadySchedule('', '', '')).toContain('names none')
-        expect(unreadySchedule('nightly-etl', '', '')).toContain('addressed by its code')
+        expect(unreadySchedule('', '', '')).toBe('Choose a pipeline.')
+        expect(unreadySchedule('nightly-etl', '', '')).toBe('Enter a code.')
         expect(unreadySchedule('nightly-etl', 'nightly', '  ')).toBe('Nothing says when this fires.')
         expect(unreadySchedule('nightly-etl', 'nightly', '0 5 * * *')).toBeUndefined()
     })
 
     it('asks a webhook for its pipeline and its code and nothing else', () => {
-        expect(unreadyWebhook('', 'hook')).toContain('names none')
-        expect(unreadyWebhook('webhook-trigger', '  ')).toContain('addressed by its code')
+        expect(unreadyWebhook('', 'hook')).toBe('Choose a pipeline.')
+        expect(unreadyWebhook('webhook-trigger', '  ')).toBe('Enter a code.')
         expect(unreadyWebhook('webhook-trigger', 'hook')).toBeUndefined()
     })
 })

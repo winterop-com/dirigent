@@ -504,7 +504,7 @@ describe('the line along the foot of the panel', () => {
 
     test('says of a check that could not decide that it could not, rather than that it failed', () => {
         const note = healthNote([worker('alpha')], [unverified('ops-slack', 'only a post would prove it')])
-        expect(note).toBe('0 of 1 connections healthy · 1 could not be verified.')
+        expect(note).toBe('0 of 1 connection healthy · 1 could not be verified.')
     })
 
     test('says a fleet that has never registered rather than counting none of none', () => {

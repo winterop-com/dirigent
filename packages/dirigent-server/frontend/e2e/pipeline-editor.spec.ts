@@ -387,7 +387,7 @@ test('validating an intact document reports no issues', async ({ page }) => {
     // The digest matches what was applied a moment ago, so applying would write nothing --
     // and, either way, the instance refuses nothing about it.
     await expect(dialog.getByText(/Apply writes nothing/)).toBeVisible()
-    await expect(dialog.getByText(/apply will refuse/)).toHaveCount(0)
+    await expect(dialog.getByText(LABELS.editor.plan.refuse(DOCUMENT_PIPELINE))).toHaveCount(0)
     // Validate asks nothing, so the one control dismisses it and says so.
     await expect(dialog.getByRole('button', { name: LABELS.action.close })).toBeVisible()
     await expect(dialog.getByRole('button', { name: LABELS.action.apply, exact: true })).toHaveCount(0)

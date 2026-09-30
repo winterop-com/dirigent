@@ -80,7 +80,7 @@ test('a rule is declared from the screen, and appears in the listing it was decl
     // Create is shut until the rule says enough to be one, and says why.
     const create = dialog.getByRole('button', { name: LABELS.action.create.verb })
     await expect(create).toBeDisabled()
-    await expect(create).toHaveAttribute('title', 'A rule is addressed by its code, and this one has none.')
+    await expect(create).toHaveAttribute('title', LABELS.alerting.unready.code_missing)
 
     await dialog.getByLabel(LABELS.word.code).fill(RULE.code)
     await dialog.getByLabel(LABELS.word.name.label).fill(RULE.name)

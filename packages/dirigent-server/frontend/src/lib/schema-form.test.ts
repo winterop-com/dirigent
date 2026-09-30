@@ -465,8 +465,11 @@ describe('reading one cell of a table', () => {
 
     test('a map of integers reads a whole number and refuses anything else', () => {
         expect(parseCell(WHOLE, '8080')).toEqual({ ok: true, value: 8080 })
-        expect(parseCell(WHOLE, '1.5')).toEqual({ ok: false, message: 'ports values are a whole number' })
-        expect(parseCell(WHOLE, 'east')).toEqual({ ok: false, message: 'ports values are a whole number' })
+        expect(parseCell(WHOLE, '1.5')).toEqual({ ok: false, message: 'ports values must be a whole number' })
+        expect(parseCell(WHOLE, 'east')).toEqual({
+            ok: false,
+            message: 'ports values must be a whole number',
+        })
     })
 
     test('a map that takes several shapes reads the narrowest one the text fits', () => {
@@ -586,7 +589,7 @@ describe('what is wrong with a table on screen', () => {
 
     test('a cell that is not the shape the map holds marks its own row, by the value cell', () => {
         expect(pairProblems(WHOLE, [{ key: 'http', text: '1.5' }])).toEqual([
-            { row: 0, where: 'value', message: 'ports values are a whole number' },
+            { row: 0, where: 'value', message: 'ports values must be a whole number' },
         ])
     })
 
@@ -609,7 +612,7 @@ describe('a reference standing for a whole map', () => {
     })
 
     test('a string that is no reference is not a map either, and says so', () => {
-        expect(validateField(TEXT, 'whatever', true)).toBe('env is a map, or a reference to one')
+        expect(validateField(TEXT, 'whatever', true)).toBe('env must be a map, or a reference to one')
     })
 })
 
@@ -670,7 +673,7 @@ describe('a value written as a reference', () => {
 
     test('one entry of a map may be a reference while the rest are read', () => {
         expect(validateField(PORTS, { http: '${params.port}', https: 443 }, true)).toBeNull()
-        expect(validateField(PORTS, { http: 'eighty' }, true)).toBe('ports.http is a whole number')
+        expect(validateField(PORTS, { http: 'eighty' }, true)).toBe('ports.http must be a whole number')
     })
 
     test('nothing is deferred where the values are not a document', () => {
@@ -679,13 +682,13 @@ describe('a value written as a reference', () => {
         expect(validateField(DELAY, '${params.pace}')).toBe(
             `delay does not match ${DELAY.bounds.pattern ?? ''}`,
         )
-        expect(validateFields([ROWS], { rows: '${params.rows}' })).toEqual({ rows: 'rows is a number' })
+        expect(validateFields([ROWS], { rows: '${params.rows}' })).toEqual({ rows: 'rows must be a number' })
         expect(validateFields([ROWS], { rows: '${params.rows}' }, true)).toEqual({})
     })
 
     test('a reference is typed as the text it is, in every box but the JSON one', () => {
         expect(parseInput(ROWS, '${params.rows}', true)).toEqual({ ok: true, value: '${params.rows}' })
-        expect(parseInput(ROWS, '${params.rows}')).toEqual({ ok: false, message: 'rows is a number' })
+        expect(parseInput(ROWS, '${params.rows}')).toEqual({ ok: false, message: 'rows must be a number' })
         expect(parseCell(PORTS, '${params.port}', true)).toEqual({ ok: true, value: '${params.port}' })
         expect(pairProblems(PORTS, [{ key: 'http', text: '${params.port}' }], true)).toEqual([])
         expect(pairsValue(PORTS, [{ key: 'http', text: '${params.port}' }], true)).toEqual({
@@ -721,18 +724,18 @@ describe('what is wrong with a map the document already carries', () => {
     })
 
     test('a value of the wrong shape is named by the key that carries it', () => {
-        expect(validateField(TEXT, { PATH: 3 })).toBe('env.PATH is text')
-        expect(validateField(WHOLE, { http: 1.5 })).toBe('ports.http is a whole number')
-        expect(validateField(ANY, { page: [] })).toBe('query.page is text or a number or true or false')
+        expect(validateField(TEXT, { PATH: 3 })).toBe('env.PATH must be text')
+        expect(validateField(WHOLE, { http: 1.5 })).toBe('ports.http must be a whole number')
+        expect(validateField(ANY, { page: [] })).toBe('query.page must be text or a number or true or false')
     })
 
     test('a list where a map goes says it is a map, or a reference to one', () => {
-        expect(validateField(TEXT, ['PATH'])).toBe('env is a map, or a reference to one')
-        expect(validateField(TEXT, 3)).toBe('env is a map, or a reference to one')
+        expect(validateField(TEXT, ['PATH'])).toBe('env must be a map, or a reference to one')
+        expect(validateField(TEXT, 3)).toBe('env must be a map, or a reference to one')
     })
 
     test('a form with a bad map in it may not be sent', () => {
-        expect(validateFields([TEXT], { env: { PATH: 3 } })).toEqual({ env: 'env.PATH is text' })
+        expect(validateFields([TEXT], { env: { PATH: 3 } })).toEqual({ env: 'env.PATH must be text' })
         expect(validateFields([TEXT], { env: { PATH: '/usr/bin' } })).toEqual({})
     })
 })
@@ -834,24 +837,24 @@ describe('what is wrong with a value', () => {
 
     test('a value outside an enum is refused, naming what it may be', () => {
         expect(validateField(method, 'TRACE')).toBe(
-            'method is one of GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS',
+            'method must be one of GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS',
         )
         expect(validateField(method, 'POST')).toBeNull()
     })
 
     test('a number outside its bounds is refused at the bound it broke', () => {
-        expect(validateField(depth, 0)).toBe('max_depth is at least 1')
-        expect(validateField(depth, 33)).toBe('max_depth is at most 32')
+        expect(validateField(depth, 0)).toBe('max_depth must be at least 1')
+        expect(validateField(depth, 33)).toBe('max_depth must be at most 32')
         expect(validateField(depth, 5)).toBeNull()
     })
 
     test('a fraction where the schema says integer is refused', () => {
-        expect(validateField(depth, 2.5)).toBe('max_depth is a whole number')
+        expect(validateField(depth, 2.5)).toBe('max_depth must be a whole number')
     })
 
     test('a value below an exclusive bound is refused at zero, which a minimum would allow', () => {
         const cpus = only({ cpus: { exclusiveMinimum: 0, type: 'number' } })
-        expect(validateField(cpus, 0)).toBe('cpus is greater than 0')
+        expect(validateField(cpus, 0)).toBe('cpus must be greater than 0')
         expect(validateField(cpus, 0.5)).toBeNull()
     })
 
@@ -868,9 +871,9 @@ describe('what is wrong with a value', () => {
     })
 
     test('a value of the wrong shape is named as the shape it should be', () => {
-        expect(validateField(required, 7)).toBe('from is text')
-        expect(validateField(depth, 'five')).toBe('max_depth is a number')
-        expect(validateField(only({ pull: { type: 'boolean' } }), 'yes')).toBe('pull is true or false')
+        expect(validateField(required, 7)).toBe('from must be text')
+        expect(validateField(depth, 'five')).toBe('max_depth must be a number')
+        expect(validateField(only({ pull: { type: 'boolean' } }), 'yes')).toBe('pull must be true or false')
     })
 
     describe('a union takes either of its shapes', () => {
@@ -898,11 +901,11 @@ describe('what is wrong with a value', () => {
 
         test('a value no branch takes is told off by the branch of its own type', () => {
             expect(validateField(size, 'a lot')).toContain('does not match')
-            expect(validateField(size, -3)).toBe('min_size is at least 0')
+            expect(validateField(size, -3)).toBe('min_size must be at least 0')
         })
 
         test('a value of no branch type names every shape the union takes', () => {
-            expect(validateField(size, true)).toBe('min_size is text or a whole number')
+            expect(validateField(size, true)).toBe('min_size must be text or a whole number')
         })
     })
 
@@ -914,7 +917,7 @@ describe('what is wrong with a value', () => {
     test('a whole form answers with a problem per field that has one', () => {
         expect(validateFields([required, depth], { max_depth: 99 })).toEqual({
             from: 'from is required',
-            max_depth: 'max_depth is at most 32',
+            max_depth: 'max_depth must be at most 32',
         })
         expect(validateFields([required, depth], { from: 'json', max_depth: 3 })).toEqual({})
     })
@@ -935,7 +938,7 @@ describe('reading what somebody typed', () => {
     })
 
     test('text that is not a number is refused where it was typed', () => {
-        expect(parseInput(count, 'twelve')).toEqual({ ok: false, message: 'max_depth is a number' })
+        expect(parseInput(count, 'twelve')).toEqual({ ok: false, message: 'max_depth must be a number' })
     })
 
     test('a JSON field is parsed, so a list arrives as a list', () => {
@@ -977,7 +980,7 @@ describe('reading what somebody typed', () => {
 
         test('what it holds is checked as the text it is', () => {
             expect(validateField(program, written)).toBeNull()
-            expect(validateField(program, 12)).toBe('program is text')
+            expect(validateField(program, 12)).toBe('program must be text')
             expect(validateField(program, undefined)).toBe('program is required')
         })
     })
@@ -1015,9 +1018,9 @@ describe('an enum that is not made of strings', () => {
 
     test('a number the document carries is one of the choices, and its text is not', () => {
         expect(validateField(retries, 3)).toBeNull()
-        expect(validateField(retries, '3')).toBe('retries is one of 0, 1, 3')
+        expect(validateField(retries, '3')).toBe('retries must be one of 0, 1, 3')
         expect(validateField(strict, true)).toBeNull()
-        expect(validateField(strict, 'true')).toBe('strict is one of true, false')
+        expect(validateField(strict, 'true')).toBe('strict must be one of true, false')
     })
 })
 

@@ -160,7 +160,6 @@ export function ConnectionForm({
                         setNamed(event.target.value)
                         setSaved(false)
                     }}
-                    placeholder={LABELS.word.name.placeholder}
                 />
                 <p className="text-xs text-faint">{LABELS.connections.name_hint(connection.code)}</p>
             </div>

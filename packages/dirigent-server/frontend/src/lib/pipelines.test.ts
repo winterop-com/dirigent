@@ -118,7 +118,7 @@ describe('what an empty pipelines table says', () => {
     })
 
     test('names both tags when two of them narrowed it to nothing', () => {
-        expect(emptyNote(0, ['climate', 'http'])).toBe('No pipeline wears all of climate, http.')
+        expect(emptyNote(0, ['climate', 'http'])).toBe('No pipeline is tagged with all of climate, http.')
     })
 
     test('blames the search box when rows were read and none of them match', () => {

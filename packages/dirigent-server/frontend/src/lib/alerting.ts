@@ -239,6 +239,11 @@ export interface NotificationFilters {
 /** No filter at all, which is what the screen opens on. */
 export const NO_FILTERS: NotificationFilters = { status: '', notifier: '' }
 
+/** Whether anything has been asked of the listing at all, which decides what an empty one says. */
+export function narrowed(filters: NotificationFilters): boolean {
+    return filters.status !== '' || filters.notifier !== ''
+}
+
 /** Where one page of the notifications listing is read from. */
 export function notificationsPath(
     filters: NotificationFilters,

@@ -365,7 +365,7 @@ test('a token is minted for another account, and the tokens table says whose it 
 
     await page.getByRole('tabpanel').getByRole('button', { name: LABELS.users.new_token }).click()
     const dialog = page.getByRole('dialog')
-    await expect(dialog).toContainText(`It holds whatever ${username} holds.`)
+    await expect(dialog).toContainText(LABELS.users.token_scope_for(username))
     await dialog.getByLabel(LABELS.word.name.label).fill(token)
     await dialog.getByRole('button', { name: LABELS.action.create.verb, exact: true }).click()
 

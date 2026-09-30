@@ -284,7 +284,7 @@ describe('the connections tile', () => {
             whole([connection('ok', true), connection('dhis', false, 'connection refused')]),
         )
         expect(tile.value).toBe('1 of 2')
-        expect(tile.note).toBe('dhis did not answer: connection refused')
+        expect(tile.note).toBe('dhis failed its last check: connection refused')
         expect(tile.tone).toBe('critical')
     })
 

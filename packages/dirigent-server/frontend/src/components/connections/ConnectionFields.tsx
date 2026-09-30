@@ -89,7 +89,6 @@ export function ConnectionFields({
                             onChange={(event) => {
                                 form.setName(event.target.value)
                             }}
-                            placeholder={LABELS.word.name.placeholder}
                         />
                     </div>
 

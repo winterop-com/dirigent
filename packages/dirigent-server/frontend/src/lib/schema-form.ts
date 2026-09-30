@@ -576,7 +576,7 @@ function textProblem(field: FieldDescriptor, bounds: Bounds, value: string): str
         return counted(minLength, LABELS.form.refusal.min_length)(field.name, String(minLength))
     }
     if (maxLength !== undefined && value.length > maxLength) {
-        return LABELS.form.refusal.max_length(field.name, String(maxLength))
+        return counted(maxLength, LABELS.form.refusal.max_length)(field.name, String(maxLength))
     }
     if (pattern !== undefined && !matches(pattern, value)) {
         return LABELS.form.refusal.pattern(field.name, pattern)

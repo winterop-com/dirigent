@@ -23,7 +23,7 @@
  */
 
 import type { JsonMap } from '@/lib/api'
-import { LABELS } from '@/lib/labels'
+import { counted, LABELS } from '@/lib/labels'
 import type { FieldDescriptor } from '@/lib/schema-form'
 import { forEachText, retryFields, stepFields, STEP_KEYS } from '@/lib/step-keys'
 
@@ -128,7 +128,10 @@ export function retrySummary(retry: JsonMap): SummaryPart[] {
         ? String(retry.max_backoff)
         : fallbackOf(retryFields, 'max_backoff')
     const parts: SummaryPart[] = [
-        { text: LABELS.editor.step_groups.attempts(String(attempts)), set: true },
+        {
+            text: counted(Number(attempts), LABELS.editor.step_groups.attempts)(String(attempts)),
+            set: true,
+        },
         {
             text: LABELS.editor.step_groups.backoff(
                 backoff ? String(retry.backoff) : fallbackOf(retryFields, 'backoff'),

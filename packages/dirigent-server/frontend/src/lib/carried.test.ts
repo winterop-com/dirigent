@@ -226,7 +226,7 @@ describe('an account that may not store a schema', () => {
         const items = carriedItems(SCHEMAS_ONLY, NOTHING_HELD, false)
         expect(items.map((one) => one.action)).toEqual(['missing'])
         expect(creations(items)).toEqual([])
-        expect(offerBlocked(items)).toContain("storing one is an admin's")
+        expect(offerBlocked(items)).toContain('only an admin can store one')
     })
 })
 

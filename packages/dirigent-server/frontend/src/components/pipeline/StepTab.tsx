@@ -244,7 +244,6 @@ export function StepTab({
                         setNamed(event.target.value)
                         onName(event.target.value)
                     }}
-                    placeholder={LABELS.word.name.placeholder}
                 />
                 <p className="text-xs text-faint">{LABELS.editor.step.name_note(step)}</p>
             </div>

@@ -6,7 +6,7 @@ import { ProgressLine } from '@/components/run/ProgressLine'
 import { StatusDot } from '@/components/run/StatusChip'
 import { formatDuration } from '@/lib/format'
 import { headingOf } from '@/lib/identity'
-import { LABELS } from '@/lib/labels'
+import { counted, LABELS } from '@/lib/labels'
 import { emptyStripLabel, nodeTone, type StepView } from '@/lib/run-detail'
 import { statusTokens } from '@/lib/status'
 import { cn } from '@/lib/utils'
@@ -81,7 +81,7 @@ export function StepNode({ data, selected }: NodeProps<StepNode>) {
                 </span>
                 {view.node.fan_out && view.items > 0 && (
                     <span className="ml-auto shrink-0 font-mono text-xs text-faint">
-                        {LABELS.runs.node_items(String(view.items))}
+                        {counted(view.items, LABELS.runs.node_items)(String(view.items))}
                     </span>
                 )}
             </div>

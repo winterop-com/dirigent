@@ -19,7 +19,7 @@
  */
 
 import { apiJson, apiSend, type JsonMap, type Page } from '@/lib/api'
-import { LABELS } from '@/lib/labels'
+import { counted, LABELS, type NounForms } from '@/lib/labels'
 import { PAGE } from '@/lib/paging'
 import { fieldsOf, type FieldDescriptor } from '@/lib/schema-form'
 
@@ -327,21 +327,18 @@ export function connectionsHealth(rows: readonly Checked[]): ConnectionsHealth {
  * beside the count rather than folded into it. The dashboard, the connections screen and the
  * admin tile all read here, or three screens state three answers to one question.
  *
- * `noun` is the word a sentence about more than connections needs; the screen whose subject is
- * already connections passes none.
+ * `noun` is the word a sentence about more than connections needs, in both its forms, because
+ * the count it stands beside decides which one is drawn; the screen whose subject is already
+ * connections passes none.
  */
-export function connectionsNote(rows: readonly Checked[], noun = ''): string | null {
+export function connectionsNote(rows: readonly Checked[], noun: NounForms | null = null): string | null {
     if (rows.length === 0) return null
     const { total, healthy, unverified, unchecked } = connectionsHealth(rows)
-    const named = noun === '' ? '' : ` ${noun}`
+    const named = noun === null ? '' : ` ${counted(total, { one: noun.term, many: noun.count })}`
     const said = [LABELS.connections.note.healthy(String(healthy), String(total), named)]
     if (unverified > 0) said.push(LABELS.connections.note.unverified(String(unverified)))
     if (unchecked > 0) {
-        const clause =
-            unchecked === 1
-                ? LABELS.connections.note.never_checked.one
-                : LABELS.connections.note.never_checked.many
-        said.push(clause(String(unchecked)))
+        said.push(counted(unchecked, LABELS.connections.note.never_checked)(String(unchecked)))
     }
     return said.join(' · ')
 }

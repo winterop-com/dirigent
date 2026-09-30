@@ -21,7 +21,7 @@ import {
     type CatalogEntry,
 } from '@/lib/blocks'
 import { examplesPerBlock, readAllExamples } from '@/lib/examples'
-import { LABELS } from '@/lib/labels'
+import { counted as pick, LABELS } from '@/lib/labels'
 import { closePanel, fillPanel, openPanel } from '@/lib/panels'
 import { fieldsOf, type FieldDescriptor } from '@/lib/schema-form'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
@@ -265,8 +265,7 @@ function blockColumns(uses: ReadonlyMap<string, number>): Column<BlockEntry>[] {
 /** How many shipped documents require one block, as the link that shows them. */
 function ExampleCount({ id, many }: { id: string; many: number }) {
     if (many === 0) return <span className="text-xs text-faint">{LABELS.word.none}</span>
-    const counted = many === 1 ? LABELS.blocks.example_count.one : LABELS.blocks.example_count.many
-    const said = counted(String(many))
+    const said = pick(many, LABELS.blocks.example_count)(String(many))
     return (
         <Link
             className="text-xs text-primary-ink hover:underline"

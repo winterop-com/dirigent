@@ -16,7 +16,7 @@
  */
 
 import { apiJson, type JsonMap } from '@/lib/api'
-import { LABELS } from '@/lib/labels'
+import { counted, LABELS } from '@/lib/labels'
 import type { FieldDescriptor } from '@/lib/schema-form'
 
 /** Which surface a catalog entry describes. `BlockKind`. */
@@ -119,8 +119,7 @@ export function narrowBlocks(blocks: readonly BlockEntry[], needle: string): Blo
 /** How much config a block takes, for the column that says so at a glance. */
 export function configSummary(fields: readonly FieldDescriptor[]): string {
     if (fields.length === 0) return LABELS.word.none
-    const said = fields.length === 1 ? LABELS.blocks.config_fields.one : LABELS.blocks.config_fields.many
-    return said(String(fields.length))
+    return counted(fields.length, LABELS.blocks.config_fields)(String(fields.length))
 }
 
 /**

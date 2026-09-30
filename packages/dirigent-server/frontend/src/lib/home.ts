@@ -20,7 +20,7 @@ import {
     type HealthView,
 } from '@/lib/connections'
 import { kindGlyph, NO_MARKS, type Glyph, type KindMarks } from '@/lib/glyphs'
-import { LABELS } from '@/lib/labels'
+import { counted as pick, LABELS } from '@/lib/labels'
 import { concernTone, DAY, type Tile, type TileTone } from '@/lib/overview'
 import { readPipelines, type PipelineOut } from '@/lib/pipelines'
 import { EVERY_RUN, runsLink, type RunOut } from '@/lib/runs'
@@ -247,7 +247,7 @@ export function chartSummary(buckets: readonly HourBucket[]): string {
         ),
         counted(String(settled((bucket) => bucket.failed)), LABELS.state.run.failed.chip),
     ]
-    return LABELS.dashboard.chart.summary(String(total), parts.join(', '))
+    return pick(total, LABELS.dashboard.chart.summary)(String(total), parts.join(', '))
 }
 
 /** Whether a row of the health panel is a worker or a connection. */
@@ -298,12 +298,7 @@ export function healthRows(
             tone: concern === null ? 'good' : concernTone(concern),
             detail:
                 concern === null
-                    ? LABELS.dashboard.health.worker(
-                          String(worker.concurrency),
-                          worker.concurrency === 1
-                              ? LABELS.dashboard.health.slot
-                              : LABELS.dashboard.health.slots,
-                      )
+                    ? pick(worker.concurrency, LABELS.dashboard.health.worker)(String(worker.concurrency))
                     : concernSaid(concern),
             at: concern === null ? null : worker.last_seen_at,
         }
@@ -353,9 +348,14 @@ export function healthNote(workers: readonly WorkerOut[], connections: readonly 
     const said: string[] = []
     if (workers.length === 0) said.push(LABELS.dashboard.health.no_worker)
     else if (well < workers.length)
-        said.push(LABELS.dashboard.health.workers_healthy(String(well), String(workers.length)))
+        said.push(
+            pick(workers.length, LABELS.dashboard.health.workers_healthy)(
+                String(well),
+                String(workers.length),
+            ),
+        )
     if (healthy < total) {
-        const note = connectionsNote(connections, LABELS.word.connection.count)
+        const note = connectionsNote(connections, LABELS.word.connection)
         if (note !== null) said.push(note)
     }
     if (said.length > 0) {
