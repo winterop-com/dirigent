@@ -113,7 +113,6 @@ export function SchedulePanel({
                             <JsonBlock
                                 title={LABELS.triggers.pinned_title(schedule.code)}
                                 text={asJson(schedule.params)}
-                                className="max-h-64"
                             />
                         </div>
                     </Fact>
@@ -214,7 +213,6 @@ export function WebhookPanel({
                             <JsonBlock
                                 title={LABELS.triggers.webhook.mapping_title(webhook.code)}
                                 text={asJson(webhook.params_from_payload)}
-                                className="max-h-64"
                             />
                         </div>
                     </Fact>
@@ -333,7 +331,6 @@ export function WatchPanel({
                             <JsonBlock
                                 title={LABELS.triggers.watch.cursor_title(watch.code)}
                                 text={asJson(watch.cursor)}
-                                className="max-h-64"
                             />
                         </div>
                     </Fact>
@@ -344,7 +341,6 @@ export function WatchPanel({
                             <JsonBlock
                                 title={LABELS.triggers.pinned_title(watch.code)}
                                 text={asJson(watch.params)}
-                                className="max-h-64"
                             />
                         </div>
                     </Fact>

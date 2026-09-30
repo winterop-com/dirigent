@@ -171,9 +171,7 @@ function StepOutput({ step, attempts }: { step: string; attempts: readonly Attem
     if (reading.uri !== null) {
         return <StoredOutput uri={reading.uri} bytes={reading.bytes} />
     }
-    return (
-        <JsonBlock title={LABELS.runs.output_title(step)} text={asJson(reading.value)} className="max-h-72" />
-    )
+    return <JsonBlock title={LABELS.runs.output_title(step)} text={asJson(reading.value)} />
 }
 
 /** An output that went to storage, said as where it went and how large it is there. */
@@ -257,7 +255,6 @@ function ItemOutputRow({ step, item }: { step: string; item: ItemOutput }) {
                     <JsonBlock
                         title={LABELS.runs.item_output_title(step, item.key)}
                         text={asJson(reading.value)}
-                        className="max-h-72"
                     />
                 ))}
         </li>

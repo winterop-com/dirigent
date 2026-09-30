@@ -130,7 +130,7 @@ export function RunDialog({
         <Dialog open={open} onOpenChange={onOpenChange}>
             {/* The footer carries the way out, so the corner's own is not drawn as well. */}
             <DialogContent
-                className="sm:max-w-lg"
+                className="flex max-h-[calc(100vh-4rem)] flex-col sm:max-w-lg"
                 showCloseButton={false}
                 initialFocus={fields.length === 0 ? runNow : undefined}
             >
@@ -145,8 +145,10 @@ export function RunDialog({
                     </DialogDescription>
                 </DialogHeader>
 
-                {fields.length > 0 && (
-                    <div className="max-h-[50vh] overflow-y-auto">
+                {/* The body scrolls and the footer does not: a long parameter form outgrows a short
+                    screen, and Run is what somebody reaches for. */}
+                <div className="-mx-1 min-h-0 flex-1 space-y-4 overflow-y-auto px-1">
+                    {fields.length > 0 && (
                         <SchemaForm
                             fields={fields}
                             values={values}
@@ -169,79 +171,83 @@ export function RunDialog({
                                 setUnreadable((current) => withUnreadable(current, name, message))
                             }}
                         />
-                    </div>
-                )}
+                    )}
 
-                {needsWindow || windowAsked ? (
-                    <div className="space-y-2">
-                        <div className="flex flex-wrap items-baseline gap-x-2">
-                            <Label>{LABELS.word.window.label}</Label>
-                            <span className="font-mono text-xs text-faint">{zoneLabel(mode)}</span>
+                    {needsWindow || windowAsked ? (
+                        <div className="space-y-2">
+                            <div className="flex flex-wrap items-baseline gap-x-2">
+                                <Label>{LABELS.word.window.label}</Label>
+                                <span className="font-mono text-xs text-faint">{zoneLabel(mode)}</span>
+                            </div>
+                            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                <WindowField
+                                    id="run-window-start"
+                                    label={LABELS.word.start}
+                                    value={windowStart}
+                                    onChange={setWindowStart}
+                                />
+                                <WindowField
+                                    id="run-window-end"
+                                    label={LABELS.word.end}
+                                    value={windowEnd}
+                                    onChange={setWindowEnd}
+                                />
+                            </div>
                         </div>
-                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                            <WindowField
-                                id="run-window-start"
-                                label={LABELS.word.start}
-                                value={windowStart}
-                                onChange={setWindowStart}
-                            />
-                            <WindowField
-                                id="run-window-end"
-                                label={LABELS.word.end}
-                                value={windowEnd}
-                                onChange={setWindowEnd}
-                            />
+                    ) : (
+                        <Button
+                            variant="link"
+                            className="w-fit px-0 text-primary-ink"
+                            onClick={() => {
+                                setWindowAsked(true)
+                            }}
+                        >
+                            {LABELS.editor.run.add_window}
+                        </Button>
+                    )}
+
+                    {warnings.length > 0 && (
+                        <div className="space-y-0.5 rounded-md border border-warning/40 bg-warning/10 p-2">
+                            {warnings.map((line) => (
+                                <p key={line} className="text-xs text-warning-ink">
+                                    {line}
+                                </p>
+                            ))}
                         </div>
-                    </div>
-                ) : (
-                    <Button
-                        variant="link"
-                        className="w-fit px-0 text-primary-ink"
-                        onClick={() => {
-                            setWindowAsked(true)
-                        }}
-                    >
-                        {LABELS.editor.run.add_window}
-                    </Button>
-                )}
+                    )}
 
-                {warnings.length > 0 && (
-                    <div className="space-y-0.5 rounded-md border border-warning/40 bg-warning/10 p-2">
-                        {warnings.map((line) => (
-                            <p key={line} className="text-xs text-warning-ink">
-                                {line}
-                            </p>
-                        ))}
-                    </div>
-                )}
+                    {problem !== null && (
+                        <p className="text-xs text-critical" role="alert">
+                            {said(problem)}
+                        </p>
+                    )}
 
-                {problem !== null && (
-                    <p className="text-xs text-critical" role="alert">
-                        {said(problem)}
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">{LABELS.editor.run.log}</span>
+                        <Select
+                            value={level}
+                            onValueChange={(chosen) => {
+                                setLevel(chosen === 'debug' ? 'debug' : 'info')
+                            }}
+                        >
+                            <SelectTrigger
+                                size="sm"
+                                className="w-40"
+                                aria-label={LABELS.editor.run.log_level}
+                            >
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="info">{LABELS.editor.run.info_and_up}</SelectItem>
+                                <SelectItem value="debug">{LABELS.editor.run.debug_too}</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <p className="text-xs text-faint">
+                        {LABELS.editor.run.runs_as(username ?? LABELS.editor.run.this_session)}
                     </p>
-                )}
-
-                <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">{LABELS.editor.run.log}</span>
-                    <Select
-                        value={level}
-                        onValueChange={(chosen) => {
-                            setLevel(chosen === 'debug' ? 'debug' : 'info')
-                        }}
-                    >
-                        <SelectTrigger size="sm" className="w-40" aria-label={LABELS.editor.run.log_level}>
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="info">{LABELS.editor.run.info_and_up}</SelectItem>
-                            <SelectItem value="debug">{LABELS.editor.run.debug_too}</SelectItem>
-                        </SelectContent>
-                    </Select>
                 </div>
-
-                <p className="text-xs text-faint">
-                    {LABELS.editor.run.runs_as(username ?? LABELS.editor.run.this_session)}
-                </p>
 
                 <DialogFooter>
                     <Button variant="outline" onClick={() => onOpenChange(false)}>

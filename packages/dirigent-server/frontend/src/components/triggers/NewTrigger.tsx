@@ -158,98 +158,105 @@ export function NewSchedule({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-xl" showCloseButton={false}>
+            <DialogContent
+                className="flex max-h-[calc(100vh-4rem)] flex-col sm:max-w-xl"
+                showCloseButton={false}
+            >
                 <DialogHeader>
                     <DialogTitle>{LABELS.triggers.schedule.new}</DialogTitle>
                 </DialogHeader>
 
-                <div className="space-y-2">
-                    <Label htmlFor="schedule-pipeline">{LABELS.word.pipeline.label}</Label>
-                    <Picker
-                        id="schedule-pipeline"
-                        label={LABELS.word.pipeline.label}
-                        value={pipeline}
-                        options={pipelines}
-                        placeholder={LABELS.triggers.dialog.pipeline_hint}
-                        onChange={(picked) => {
-                            setPipeline(picked)
-                            params.reset()
-                        }}
-                    />
-                </div>
+                {/* The body scrolls and the footer does not: a form this long outgrows a short
+                    screen, and Create is what somebody reaches for. */}
+                <div className="-mx-1 min-h-0 flex-1 space-y-4 overflow-y-auto px-1">
+                    <div className="space-y-2">
+                        <Label htmlFor="schedule-pipeline">{LABELS.word.pipeline.label}</Label>
+                        <Picker
+                            id="schedule-pipeline"
+                            label={LABELS.word.pipeline.label}
+                            value={pipeline}
+                            options={pipelines}
+                            placeholder={LABELS.triggers.dialog.pipeline_hint}
+                            onChange={(picked) => {
+                                setPipeline(picked)
+                                params.reset()
+                            }}
+                        />
+                    </div>
 
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <Field
-                        id="schedule-code"
-                        label={LABELS.word.code}
-                        value={code}
-                        onChange={setCode}
-                        placeholder={LABELS.triggers.schedule.dialog.code_hint}
-                        mono
-                    />
-                    <Field
-                        id="schedule-name"
-                        label={LABELS.word.name.label}
-                        value={named}
-                        onChange={setNamed}
-                    />
-                </div>
-
-                <Field
-                    id="schedule-description"
-                    label={LABELS.word.description}
-                    value={description}
-                    onChange={setDescription}
-                    placeholder={LABELS.triggers.schedule.dialog.description_hint}
-                />
-
-                <div className="space-y-2">
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                        <div className="space-y-2">
-                            <Label>{LABELS.word.clock}</Label>
-                            <Segmented
-                                label={LABELS.word.clock}
-                                size="md"
-                                value={clock}
-                                options={CLOCKS.map((one) => ({ value: one.value, label: one.label }))}
-                                onChoose={setClock}
-                            />
-                        </div>
                         <Field
-                            id="schedule-expression"
-                            label={written.label}
-                            value={expression}
-                            onChange={setExpression}
-                            placeholder={written.hint}
+                            id="schedule-code"
+                            label={LABELS.word.code}
+                            value={code}
+                            onChange={setCode}
+                            placeholder={LABELS.triggers.schedule.dialog.code_hint}
                             mono
                         />
-                    </div>
-                    <ClockReading reading={reading} zone={timezone} />
-                </div>
-
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <div className="space-y-2">
-                        <Label htmlFor="schedule-timezone">{LABELS.word.timezone}</Label>
-                        <Picker
-                            id="schedule-timezone"
-                            label={LABELS.word.timezone}
-                            value={timezone}
-                            options={zones}
-                            placeholder={LABELS.triggers.schedule.dialog.timezone_hint}
-                            onChange={setTimezone}
+                        <Field
+                            id="schedule-name"
+                            label={LABELS.word.name.label}
+                            value={named}
+                            onChange={setNamed}
                         />
                     </div>
-                    <PriorityField
-                        id="schedule-priority"
-                        value={priority}
-                        pipeline={chosen.priority}
-                        onChange={setPriority}
+
+                    <Field
+                        id="schedule-description"
+                        label={LABELS.word.description}
+                        value={description}
+                        onChange={setDescription}
+                        placeholder={LABELS.triggers.schedule.dialog.description_hint}
                     />
+
+                    <div className="space-y-2">
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                            <div className="space-y-2">
+                                <Label>{LABELS.word.clock}</Label>
+                                <Segmented
+                                    label={LABELS.word.clock}
+                                    size="md"
+                                    value={clock}
+                                    options={CLOCKS.map((one) => ({ value: one.value, label: one.label }))}
+                                    onChoose={setClock}
+                                />
+                            </div>
+                            <Field
+                                id="schedule-expression"
+                                label={written.label}
+                                value={expression}
+                                onChange={setExpression}
+                                placeholder={written.hint}
+                                mono
+                            />
+                        </div>
+                        <ClockReading reading={reading} zone={timezone} />
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <div className="space-y-2">
+                            <Label htmlFor="schedule-timezone">{LABELS.word.timezone}</Label>
+                            <Picker
+                                id="schedule-timezone"
+                                label={LABELS.word.timezone}
+                                value={timezone}
+                                options={zones}
+                                placeholder={LABELS.triggers.schedule.dialog.timezone_hint}
+                                onChange={setTimezone}
+                            />
+                        </div>
+                        <PriorityField
+                            id="schedule-priority"
+                            value={priority}
+                            pipeline={chosen.priority}
+                            onChange={setPriority}
+                        />
+                    </div>
+
+                    <ParamsBox chosen={pipeline !== ''} fields={chosen.fields} params={params} />
+
+                    {problem !== null && <Refusal problem={problem} />}
                 </div>
-
-                <ParamsBox chosen={pipeline !== ''} fields={chosen.fields} params={params} />
-
-                {problem !== null && <Refusal problem={problem} />}
 
                 <DialogFooter>
                     <DialogClose render={<Button variant="ghost" />}>{LABELS.action.close}</DialogClose>
@@ -340,141 +347,148 @@ export function NewWebhook({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-xl" showCloseButton={false}>
+            <DialogContent
+                className="flex max-h-[calc(100vh-4rem)] flex-col sm:max-w-xl"
+                showCloseButton={false}
+            >
                 <DialogHeader>
                     <DialogTitle>{LABELS.triggers.webhook.new}</DialogTitle>
                 </DialogHeader>
 
-                <div className="space-y-2">
-                    <Label htmlFor="webhook-pipeline">{LABELS.word.pipeline.label}</Label>
-                    <Picker
-                        id="webhook-pipeline"
-                        label={LABELS.word.pipeline.label}
-                        value={pipeline}
-                        options={pipelines}
-                        placeholder={LABELS.triggers.dialog.pipeline_hint}
-                        onChange={(picked) => {
-                            setPipeline(picked)
-                            setPaths({})
-                        }}
-                    />
-                </div>
-
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <Field
-                        id="webhook-code"
-                        label={LABELS.word.code}
-                        value={code}
-                        onChange={setCode}
-                        placeholder={LABELS.triggers.webhook.dialog.code_hint}
-                        mono
-                    />
-                    <Field
-                        id="webhook-name"
-                        label={LABELS.word.name.label}
-                        value={named}
-                        onChange={setNamed}
-                    />
-                </div>
-
-                <Field
-                    id="webhook-description"
-                    label={LABELS.word.description}
-                    value={description}
-                    onChange={setDescription}
-                    placeholder={LABELS.triggers.webhook.dialog.description_hint}
-                />
-
-                <div className="space-y-2">
-                    <Label>{LABELS.word.payload_mapping}</Label>
-                    <div className="max-h-[32vh] overflow-y-auto rounded-md border border-border p-3">
-                        {chosen.fields.length === 0 ? (
-                            <p className="text-sm text-muted-foreground">
-                                {pipeline === ''
-                                    ? LABELS.triggers.dialog.no_pipeline
-                                    : LABELS.triggers.dialog.no_params}
-                            </p>
-                        ) : (
-                            <div className="space-y-3">
-                                {chosen.fields.map((field) => (
-                                    <div key={field.name} className="grid grid-cols-2 items-start gap-3">
-                                        <div className="space-y-0.5">
-                                            <Label
-                                                htmlFor={`mapping-${field.name}`}
-                                                className="font-mono text-sm"
-                                            >
-                                                {field.name}
-                                            </Label>
-                                            {field.required && (
-                                                <p className="text-xs text-primary-ink">
-                                                    {LABELS.triggers.webhook.dialog.required}
-                                                </p>
-                                            )}
-                                        </div>
-                                        <Input
-                                            id={`mapping-${field.name}`}
-                                            className="font-mono"
-                                            spellCheck={false}
-                                            placeholder={LABELS.triggers.webhook.dialog.path_hint}
-                                            value={paths[field.name] ?? ''}
-                                            onChange={(event) => {
-                                                setPaths((held) => ({
-                                                    ...held,
-                                                    [field.name]: event.target.value,
-                                                }))
-                                            }}
-                                        />
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                    <p className="text-xs text-faint">{LABELS.triggers.webhook.dialog.mapping_note}</p>
-                </div>
-
-                <div className="space-y-2">
-                    <Label htmlFor="webhook-secret">{LABELS.triggers.webhook.dialog.secret}</Label>
-                    <InputGroup className="bg-field dark:bg-field">
-                        <InputGroupInput
-                            id="webhook-secret"
-                            type="password"
-                            autoComplete="new-password"
-                            value={secret}
-                            onChange={(event) => {
-                                setSecret(event.target.value)
+                {/* The body scrolls and the footer does not: a form this long outgrows a short
+                    screen, and Create is what somebody reaches for. */}
+                <div className="-mx-1 min-h-0 flex-1 space-y-4 overflow-y-auto px-1">
+                    <div className="space-y-2">
+                        <Label htmlFor="webhook-pipeline">{LABELS.word.pipeline.label}</Label>
+                        <Picker
+                            id="webhook-pipeline"
+                            label={LABELS.word.pipeline.label}
+                            value={pipeline}
+                            options={pipelines}
+                            placeholder={LABELS.triggers.dialog.pipeline_hint}
+                            onChange={(picked) => {
+                                setPipeline(picked)
+                                setPaths({})
                             }}
-                            placeholder={LABELS.triggers.webhook.dialog.secret_hint}
                         />
-                        <InputGroupAddon align="inline-end">
-                            <InputGroupButton
-                                onClick={() => {
-                                    setSecret(generatedSecret())
-                                }}
-                            >
-                                {LABELS.action.generate}
-                            </InputGroupButton>
-                        </InputGroupAddon>
-                    </InputGroup>
-                </div>
+                    </div>
 
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <Field
+                            id="webhook-code"
+                            label={LABELS.word.code}
+                            value={code}
+                            onChange={setCode}
+                            placeholder={LABELS.triggers.webhook.dialog.code_hint}
+                            mono
+                        />
+                        <Field
+                            id="webhook-name"
+                            label={LABELS.word.name.label}
+                            value={named}
+                            onChange={setNamed}
+                        />
+                    </div>
+
                     <Field
-                        id="webhook-rate"
-                        label={LABELS.word.rate_limit.label}
-                        value={rate}
-                        onChange={setRate}
-                        placeholder={String(RATE_LIMIT)}
-                        mono
+                        id="webhook-description"
+                        label={LABELS.word.description}
+                        value={description}
+                        onChange={setDescription}
+                        placeholder={LABELS.triggers.webhook.dialog.description_hint}
                     />
-                    <PriorityField
-                        id="webhook-priority"
-                        value={priority}
-                        pipeline={chosen.priority}
-                        onChange={setPriority}
-                    />
-                </div>
 
-                {problem !== null && <Refusal problem={problem} />}
+                    <div className="space-y-2">
+                        <Label>{LABELS.word.payload_mapping}</Label>
+                        <div className="rounded-md border border-border p-3">
+                            {chosen.fields.length === 0 ? (
+                                <p className="text-sm text-muted-foreground">
+                                    {pipeline === ''
+                                        ? LABELS.triggers.dialog.no_pipeline
+                                        : LABELS.triggers.dialog.no_params}
+                                </p>
+                            ) : (
+                                <div className="space-y-3">
+                                    {chosen.fields.map((field) => (
+                                        <div key={field.name} className="grid grid-cols-2 items-start gap-3">
+                                            <div className="space-y-0.5">
+                                                <Label
+                                                    htmlFor={`mapping-${field.name}`}
+                                                    className="font-mono text-sm"
+                                                >
+                                                    {field.name}
+                                                </Label>
+                                                {field.required && (
+                                                    <p className="text-xs text-primary-ink">
+                                                        {LABELS.triggers.webhook.dialog.required}
+                                                    </p>
+                                                )}
+                                            </div>
+                                            <Input
+                                                id={`mapping-${field.name}`}
+                                                className="font-mono"
+                                                spellCheck={false}
+                                                placeholder={LABELS.triggers.webhook.dialog.path_hint}
+                                                value={paths[field.name] ?? ''}
+                                                onChange={(event) => {
+                                                    setPaths((held) => ({
+                                                        ...held,
+                                                        [field.name]: event.target.value,
+                                                    }))
+                                                }}
+                                            />
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                        <p className="text-xs text-faint">{LABELS.triggers.webhook.dialog.mapping_note}</p>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="webhook-secret">{LABELS.triggers.webhook.dialog.secret}</Label>
+                        <InputGroup className="bg-field dark:bg-field">
+                            <InputGroupInput
+                                id="webhook-secret"
+                                type="password"
+                                autoComplete="new-password"
+                                value={secret}
+                                onChange={(event) => {
+                                    setSecret(event.target.value)
+                                }}
+                                placeholder={LABELS.triggers.webhook.dialog.secret_hint}
+                            />
+                            <InputGroupAddon align="inline-end">
+                                <InputGroupButton
+                                    onClick={() => {
+                                        setSecret(generatedSecret())
+                                    }}
+                                >
+                                    {LABELS.action.generate}
+                                </InputGroupButton>
+                            </InputGroupAddon>
+                        </InputGroup>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <Field
+                            id="webhook-rate"
+                            label={LABELS.word.rate_limit.label}
+                            value={rate}
+                            onChange={setRate}
+                            placeholder={String(RATE_LIMIT)}
+                            mono
+                        />
+                        <PriorityField
+                            id="webhook-priority"
+                            value={priority}
+                            pipeline={chosen.priority}
+                            onChange={setPriority}
+                        />
+                    </div>
+
+                    {problem !== null && <Refusal problem={problem} />}
+                </div>
 
                 <DialogFooter>
                     <p className="mr-auto self-center text-xs text-muted-foreground">
@@ -789,7 +803,7 @@ function ParamsBox({
                     onChoose={params.show}
                 />
             </div>
-            <div className="max-h-[32vh] overflow-y-auto rounded-md border border-border p-3">
+            <div className="rounded-md border border-border p-3">
                 {fields.length === 0 ? (
                     <p className="text-sm text-muted-foreground">
                         {chosen ? LABELS.triggers.dialog.no_params : LABELS.triggers.dialog.no_pipeline}
