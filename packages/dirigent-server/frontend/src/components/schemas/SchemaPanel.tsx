@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 
 import { CodePane } from '@/components/pipeline/CodePane'
-import { Section } from '@/components/run/Panel'
+import { Disclosure } from '@/components/pipeline/Disclosure'
 import { Refusable } from '@/components/Refusable'
 import { Refusal } from '@/components/Refusal'
 import { Button } from '@/components/ui/button'
@@ -11,7 +11,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { WindowedPane } from '@/components/WindowedPane'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { type JsonMap, type Problem } from '@/lib/api'
-import { countedHeading } from '@/lib/format'
 import { headingOf } from '@/lib/identity'
 import { counted, LABELS } from '@/lib/labels'
 import { local, refusalOf } from '@/lib/refusal'
@@ -51,14 +50,19 @@ const SCHEMA_MEDIA_TYPE = 'application/schema+json'
  * on a surface with nothing between the two copies.
  *
  * AN EDIT IS OFFERED UNDER A DEPENDENCY AND A REMOVAL IS NOT. Correcting a shape every pipeline
- * should now validate against is what this panel is for, so Save stays live and the pipelines
- * that name the code are named rather than counted -- the decision is made for them, and a count
- * is not a name. `DELETE /schemas/{code}` refuses a code a stored pipeline names, so Delete is
- * shut before it is pressed instead of answering a refusal afterwards.
+ * should now validate against is what this panel is for, so Save stays live and every pipeline
+ * that names the code is reachable by name -- the decision is made for them, and a count alone is
+ * not a name. `DELETE /schemas/{code}` refuses a code a stored pipeline names, so Delete is shut
+ * before it is pressed instead of answering a refusal afterwards.
  *
- * THE FORM ENDS AT ITS VERBS AND THE DEPENDANTS FOLLOW THEM. See `UsedBy`: they are the one thing
- * here whose length an instance decides, so they are drawn past the controls rather than over
- * them.
+ * WHAT GOVERNS THE BODY IS DRAWN OVER IT. The two sentences saying what a save reaches and what it
+ * spares are one line above the box they are about, and the dependants are the row under them --
+ * see `Dependants`.
+ *
+ * THE BODY IS SHORTER THAN THE SHAPES IT HOLDS. What has to be on screen together is that line,
+ * the dependants row and both verbs, on a 1024x768 screen; the dependants are the one thing here
+ * whose length an instance decides and the row holds its height at every count, so the pane in
+ * place is a reading height and the whole of a schema is one press away in its window.
  */
 export function SchemaPanel({
     schema,
@@ -184,6 +188,10 @@ export function SchemaPanel({
 
             <div className="space-y-1.5">
                 <Label>{LABELS.word.schema.label}</Label>
+                <p className="text-xs text-faint">
+                    {LABELS.schemas.body_warning} {LABELS.schemas.body_in_flight}
+                </p>
+                <Dependants codes={schema.used_by} />
                 <WindowedPane
                     name={LABELS.schemas.body_title(schema.code)}
                     className="overflow-hidden rounded-md border border-border bg-background"
@@ -205,7 +213,8 @@ export function SchemaPanel({
                         path={bufferOf(schema.code)}
                         label={LABELS.schemas.editor_label}
                         readOnly={!write.may}
-                        className="h-64 min-h-40"
+                        // `CodeEditor` floors itself at 256px, so a shorter pane says both numbers.
+                        className="h-40 min-h-40"
                         onChange={edited}
                     />
                 </WindowedPane>
@@ -238,43 +247,38 @@ export function SchemaPanel({
                     </Button>
                 </Refusable>
             </div>
-
-            {schema.used_by.length > 0 && <UsedBy codes={schema.used_by} />}
         </div>
     )
 }
 
-/** How many dependants are drawn before the rest go behind the fold. */
-const DRAWN = 6
-
 /**
- * The stored pipelines that check against this shape, and what an edit does to them.
+ * How many stored pipelines check against this shape, and which they are behind one press.
  *
- * IT IS DRAWN AFTER THE VERBS BECAUSE IT IS THE PART WITH NO LENGTH OF ITS OWN. Everything else
- * on this panel is a box of a size this bundle chose, but how many pipelines name a code is the
- * instance's to decide -- so a list of them above Save is a Save whose position an instance
- * decides too, which is how both verbs came to sit 114px under the fold of a 1024x768 screen
- * with ten of them. After the verbs it can be any length without moving them, and the panel's
- * own scroller is what holds it.
+ * THE ROW IS A COUNT AND THE NAMES ARE UNDER IT. How many pipelines name a code is the instance's
+ * to decide, and a list of them above Save is a Save whose position an instance decides too --
+ * which is how both verbs came to sit 114px under the fold of a 1024x768 screen with ten of them.
+ * A row stating the number is one row at every count, nought included, so nothing below it moves.
  *
- * THE NAMES ARE CAPPED AND THE REST IS A FOLD, NOT A SECOND SCROLLER. A block that scrolls
- * inside a surface that already scrolls cuts its content off at a line nothing drew, so the rest
- * go behind a link that draws them where they stand.
- *
- * THE TWO SENTENCES COME WITH THE NAMES THEY GOVERN. The first says what a save reaches and
- * heads the names, the second says what it does not and reads after them -- the same two facts
- * in the same order as `dg schema update`, which draws the first as a colon heading over the
- * same list.
+ * ALL OF THEM, AND NO SECOND SCROLLER. The decision a save makes is made on their behalf, so the
+ * names are reachable rather than capped, and the panel's own scroller is what holds them. The
+ * press that opened them closes them again.
  */
-function UsedBy({ codes }: { codes: readonly string[] }) {
-    const [whole, setWhole] = useState(false)
-    const drawn = whole ? codes : codes.slice(0, DRAWN)
-    const folded = codes.length - drawn.length
+function Dependants({ codes }: { codes: readonly string[] }) {
+    const [open, setOpen] = useState(false)
+    // Nothing to open is one line and no chevron, at the height the row it stands in for has.
+    if (codes.length === 0) {
+        return <p className="py-1.5 text-sm text-muted-foreground">{LABELS.schemas.used_by.none}</p>
+    }
     return (
-        <Section title={countedHeading(LABELS.schemas.used_by, codes.length)}>
-            <p className="text-xs text-faint">{LABELS.schemas.body_warning}</p>
+        <Disclosure
+            title={counted(codes.length, LABELS.schemas.used_by)(String(codes.length))}
+            open={open}
+            onToggle={() => {
+                setOpen(!open)
+            }}
+        >
             <div className="flex flex-wrap items-center gap-1.5">
-                {drawn.map((code) => (
+                {codes.map((code) => (
                     <span
                         key={code}
                         className="rounded-sm border border-border px-1.5 py-0.5 font-mono text-xs text-muted-foreground"
@@ -282,20 +286,8 @@ function UsedBy({ codes }: { codes: readonly string[] }) {
                         {code}
                     </span>
                 ))}
-                {folded > 0 && (
-                    <Button
-                        variant="link"
-                        className="h-auto w-fit px-0 text-primary-ink"
-                        onClick={() => {
-                            setWhole(true)
-                        }}
-                    >
-                        {counted(folded, LABELS.schemas.more_pipelines)(String(folded))}
-                    </Button>
-                )}
             </div>
-            <p className="text-xs text-faint">{LABELS.schemas.body_in_flight}</p>
-        </Section>
+        </Disclosure>
     )
 }
 
