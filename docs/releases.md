@@ -16,6 +16,16 @@ tag is what publishes: `.github/workflows/release.yaml` builds every package and
 to PyPI through trusted publishing, then builds the image from that commit and pushes it as
 `<version>` and `latest`. The two sibling repositories then relock against the tag and bump.
 
+## 0.23.1
+
+Released 2026-10-01. Every package in the workspace moves to 0.23.1 together, and so do
+`dirigent-dhis2` and `dirigent-integration`.
+
+- **The pipelines naming a stored schema are a count that opens.** They were a list under the
+  Schema label, so a schema ten pipelines named pushed Save and Delete off the screen; the row
+  above the body now states the number at every count and the names are one press away. The body
+  pane is shorter for it, and the window still draws the whole shape.
+
 ## 0.23.0
 
 Released 2026-10-01. Every package in the workspace moves to 0.23.0 together, and so do
