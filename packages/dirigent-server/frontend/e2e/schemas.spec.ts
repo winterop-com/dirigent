@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
-import { LABELS } from '../src/lib/labels.ts'
+import { counted, LABELS } from '../src/lib/labels.ts'
 import {
     apiPrefix,
     applyDocument,
@@ -215,9 +215,22 @@ test('a shape a pipeline names cannot be deleted, and the shut control says whic
     await page.goto('/schemas/e2e-org-unit')
     const panel = page.locator('aside')
 
-    // The pipelines naming the code are named rather than counted, because saving is a decision
-    // made on their behalf. They are drawn past the verbs, in their own section.
+    // The row above the body counts them, because its height cannot be the instance's to
+    // decide; the names are a press away, because saving is a decision made on their behalf.
+    const naming = panel.getByRole('button', {
+        name: LABELS.schemas.used_by.one('1'),
+        exact: true,
+    })
+    await expect(naming).toHaveAttribute('aria-expanded', 'false')
+    await expect(panel.getByText('e2e-schema-dependant', { exact: false })).toBeHidden()
+
+    await naming.click()
+    await expect(naming).toHaveAttribute('aria-expanded', 'true')
     await expect(panel.getByText('e2e-schema-dependant', { exact: false })).toBeVisible()
+
+    // What a press opened a press takes back.
+    await naming.click()
+    await expect(panel.getByText('e2e-schema-dependant', { exact: false })).toBeHidden()
 
     // A control that would be refused says so before it is pressed. The reason rides on the
     // wrapper, because a disabled button takes no pointer events.
@@ -425,11 +438,12 @@ async function seedDependants(request: APIRequestContext, many: number): Promise
 
 /**
  * THE VERBS ARE NEVER THE PART AN INSTANCE PUSHES OFF THE SCREEN. How many pipelines name a
- * stored schema is the instance's to decide, and drawn above Save that count decided where Save
+ * stored schema is the instance's to decide, and listed above Save that count decided where Save
  * was: ten of them put both verbs 114px under the fold of a 1024x768 panel and three put them
  * 60px under it, while the body they were said to be about has a fixed height and moves nothing.
- * The dependants are drawn after the verbs instead, which is why every reading here is the same
- * number whatever the count -- and that, rather than the sign of any one of them, is the fix.
+ * What stands above the verbs now is one row stating the number, which is one row at every count
+ * -- so every reading here is the same whatever the count, and that, rather than the sign of any
+ * one of them, is the fix.
  *
  * THE SHORT DESKTOP IS THE BINDING ONE. The two viewports this product is reviewed at are
  * 1024x768 and 390x844, so the phone is 76px taller: its narrower column costs wrapped lines and
@@ -450,6 +464,20 @@ test('the verbs stay on screen however many pipelines name the shape', async ({ 
             has: page.getByRole('button', { name: LABELS.action.save.verb, exact: true }),
         })
         await expect(panel).toBeVisible()
+
+        // The row above the body is what holds its height: a press at one dependant or more, and
+        // at nought one line rather than a control that opens nothing.
+        if (many === 0) {
+            await expect(panel.getByText(LABELS.schemas.used_by.none)).toBeVisible()
+            await expect(panel.getByRole('button', { name: LABELS.schemas.used_by.none })).toHaveCount(0)
+        } else {
+            await expect(
+                panel.getByRole('button', {
+                    name: counted(many, LABELS.schemas.used_by)(String(many)),
+                    exact: true,
+                }),
+            ).toHaveAttribute('aria-expanded', 'false')
+        }
 
         for (const size of [
             { width: 1024, height: 768 },
@@ -474,7 +502,7 @@ test('the verbs stay on screen however many pipelines name the shape', async ({ 
     }
 
     // One reading per viewport and control however many name the shape: the dependants cannot
-    // move a verb any more, because they are no longer drawn above one.
+    // move a verb any more, because what is drawn above one is a count rather than a list.
     for (const [key, seen] of readings) {
         expect(new Set(seen).size, `${key}: ${seen.join(', ')}`).toBe(1)
     }

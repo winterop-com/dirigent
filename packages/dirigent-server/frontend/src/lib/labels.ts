@@ -2695,19 +2695,25 @@ const schemas = {
      */
     body_in_flight: 'A run in flight keeps the shape it started with.',
 
-    /** The section naming the stored pipelines that check against this code. */
-    used_by: 'Used by',
-
     /**
-     * The fold over the dependants that did not fit, which draws the rest where it stands.
+     * The row over the stored pipelines that check against this code, which states how many.
      *
-     * The names are capped rather than drawn to whatever length the instance has, so a shape
-     * fifty pipelines name is a section a reader can see past instead of a panel that is mostly
-     * one list.
+     * It reads as the count of what the line above it governs, so the two are one reading: the
+     * shape every pipeline naming the code checks against, and how many of them there are. The
+     * names themselves are under the row, which is what makes the count the same height at one
+     * dependant and at fifty.
      */
-    more_pipelines: {
-        one: (count: string) => `${count} more pipeline`,
-        many: (count: string) => `${count} more pipelines`,
+    used_by: {
+        /**
+         * Where nothing names the code at all.
+         *
+         * It stands where the count stands and at the height the count has, so the verbs under it
+         * are in one place on a shape nothing checks against and on one ten pipelines do. It is
+         * also what says why Delete is live here and shut on the shape beside it.
+         */
+        none: 'No pipeline checks against it',
+        one: (count: string) => `${count} pipeline checks against it`,
+        many: (count: string) => `${count} pipelines check against it`,
     },
 
     /**
