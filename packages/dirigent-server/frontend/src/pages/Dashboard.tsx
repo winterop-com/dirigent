@@ -1,4 +1,4 @@
-import { useCallback, useEffect, type ReactNode } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 
 import { useHeartbeat } from '@/hooks/use-heartbeat'
 import { Link, useNavigate } from 'react-router'
@@ -61,7 +61,13 @@ import { readWorkers } from '@/lib/workers'
  */
 export function Dashboard() {
     const marks = useStore(kindMarks)
-    const day = useRead(useCallback(() => readRuns({ ...EVERY_RUN, since: DAY }, null, TILE_PAGE), []))
+    const day = useRead(
+        useCallback(async () => {
+            const page = await readRuns({ ...EVERY_RUN, since: DAY }, null, TILE_PAGE)
+            return { page, at: new Date() }
+        }, []),
+    )
+    const [opened] = useState(() => new Date())
     const running = useRead(useCallback(() => readRuns({ ...EVERY_RUN, status: 'running' }, null), []))
     const queued = useRead(useCallback(() => readRuns({ ...EVERY_RUN, status: 'queued' }, null), []))
     const failed = useRead(useCallback(() => readRuns({ ...EVERY_RUN, status: 'failed' }, null), []))
@@ -124,12 +130,13 @@ export function Dashboard() {
         ahead.value?.pipelines ?? [],
     )
     const fires = nextFires(ahead.value?.schedules ?? [])
-    const tiles = statTiles(day.value, running.value, queued.value)
+    const tiles = statTiles(day.value?.page ?? null, running.value, queued.value)
 
     // The chart is the day tile's own rows, bucketed here rather than read a second time -- one
-    // page of at most `TILE_PAGE` runs, which is the largest this API answers in one request.
-    const now = new Date()
-    const buckets = hourlyRuns(day.value?.items ?? [], now, currentOffset(now))
+    // page of at most `TILE_PAGE` runs, which is the largest this API answers in one request. Its
+    // hours end when those rows were read, not when the screen last rendered.
+    const now = day.value?.at ?? opened
+    const buckets = hourlyRuns(day.value?.page.items ?? [], now, currentOffset(now))
 
     // The panel is drawn where its two listings answered. Both are reads any signed-in account
     // may make, so what decides this is the answer rather than the role -- and an instance that
