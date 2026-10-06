@@ -178,7 +178,9 @@ def _named(difference: tuple[Any, ...]) -> SchemaDifference | None:
     if what.startswith("modify_"):
         return SchemaDifference(kind=DifferenceKind.CHANGED, table=difference[2], column=difference[3])
     element = difference[1]
-    table = element if isinstance(element, sa.Table) else getattr(element, "table", None)
+    if isinstance(element, sa.Table):
+        return SchemaDifference(kind=DifferenceKind.CHANGED, table=element.name)
+    table = getattr(element, "table", None)
     return None if table is None else SchemaDifference(kind=DifferenceKind.CHANGED, table=table.name)
 
 

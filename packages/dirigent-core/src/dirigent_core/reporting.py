@@ -130,7 +130,7 @@ class RunFacts(BaseModel):
 async def attempts_in_order(session: AsyncSession, run_id: UUID, step_order: Sequence[str] = ()) -> list[StepAttempt]:
     """Read every attempt of a run, in the order they ran."""
     rows = await session.execute(
-        sa.select(StepAttempt, RunItem.item_index)
+        sa.select(StepAttempt, sa.Nullable(RunItem.item_index))
         .outerjoin(RunItem, RunItem.id == StepAttempt.run_item_id)
         .where(StepAttempt.run_id == run_id)
     )

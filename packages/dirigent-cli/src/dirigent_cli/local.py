@@ -442,7 +442,7 @@ async def _failures(
     """Gather every failed attempt with its error and its own log lines."""
     async with session_scope(sessions) as session:
         rows = await session.execute(
-            sa.select(StepAttempt, RunItem.item_index)
+            sa.select(StepAttempt, sa.Nullable(RunItem.item_index))
             .outerjoin(RunItem, RunItem.id == StepAttempt.run_item_id)
             .where(StepAttempt.run_id == run_id, StepAttempt.status == AttemptStatus.FAILED)
         )
@@ -500,7 +500,7 @@ async def _results(
         spills = await _spills(session, run_id)
         warned = await _warnings(session, run_id)
         rows = await session.execute(
-            sa.select(StepAttempt, RunItem.item_index)
+            sa.select(StepAttempt, sa.Nullable(RunItem.item_index))
             .outerjoin(RunItem, RunItem.id == StepAttempt.run_item_id)
             .where(StepAttempt.run_id == run_id, StepAttempt.status.in_(SETTLED))
         )
