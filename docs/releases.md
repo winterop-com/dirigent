@@ -16,6 +16,19 @@ tag is what publishes: `.github/workflows/release.yaml` builds every package and
 to PyPI through trusted publishing, then builds the image from that commit and pushes it as
 `<version>` and `latest`. The two sibling repositories then relock against the tag and bump.
 
+## 0.23.3
+
+Released 2026-10-07. Every package in the workspace moves to 0.23.3 together, and so do
+`dirigent-dhis2` and `dirigent-integration`. Nothing in this repository changes; the release
+exists for the two siblings.
+
+- **The DHIS2 examples point at a play demo that answers.** `stable-2-43-1` is gone from
+  play.im.dhis2.org and `stable-2-43-2` lists no organisation units, so the example pipelines
+  `dirigent-dhis2` ships in its wheel, its tutorial, and the pipelines in
+  `dirigent-integration` move to `stable-2-42-6`. On 2.42.6 a rehearsed import reports what it
+  would import as well as update, since the demo does not hold the values 2.43.1 did; a dry
+  run still writes nothing.
+
 ## 0.23.2
 
 Released 2026-10-07. Every package in the workspace moves to 0.23.2 together, and so do
