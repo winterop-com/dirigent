@@ -1368,7 +1368,7 @@ requires-dist = [
     { name = "dirigent-common", editable = "packages/dirigent-common" },
     { name = "dirigent-core", editable = "packages/dirigent-core" },
     { name = "dirigent-examples", editable = "packages/dirigent-examples" },
-    { name = "fastapi", specifier = ">=0.141.1" },
+    { name = "fastapi", specifier = ">=0.142.2" },
 ]
 
 [[package]]

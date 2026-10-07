@@ -96,6 +96,14 @@ def create_app(
         version=__version__,
         openapi_tags=TAGS,
         lifespan=lifespan,
+        # `instrument_fastapi` is the request span, and `configure_telemetry` owns the providers.
+        telemetry={
+            "tracing": False,
+            "operation_spans": False,
+            "metrics": False,
+            "logs": False,
+            "auto_configure": False,
+        },
     )
     app.state.settings = resolved
     app.state.version = __version__

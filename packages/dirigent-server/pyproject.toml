@@ -15,7 +15,7 @@ dependencies = [
     "dirigent-common==0.23.2",
     "dirigent-core==0.23.2",
     "dirigent-examples==0.23.2",
-    "fastapi>=0.141.1",
+    "fastapi>=0.142.2",
 ]
 
 [build-system]

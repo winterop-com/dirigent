@@ -25,6 +25,11 @@ Released 2026-10-07. Every package in the workspace moves to 0.23.2 together, an
   an environment holding SQLAlchemy 2.0 beside dirigent no longer resolves. Nothing about the
   schema or the queries changes; the claim, the run report and the drift check are typed to
   2.1's generic `Select` and `Table`.
+- **A request is one span, dirigent's.** FastAPI 0.142 instruments itself whenever a tracer
+  provider is installed, which put a second server span between dirigent's request span and the
+  run it created, and would have added exporters from the environment and logged exception
+  messages beside `configure_telemetry`. The server turns FastAPI's own telemetry off, and
+  `dirigent-server` requires `fastapi>=0.142.2`.
 - **The dependencies move.** FastAPI 0.142, Starlette 1.7, Uvicorn 0.54, OpenTelemetry 1.45,
   cryptography 50.0.2 and DuckDB 1.5.6 among the Python ones; React Flow 12.12, Vite 8.3.3 and
   oxlint 1.87 in the UI.
