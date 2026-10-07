@@ -2875,7 +2875,9 @@ def test_a_run_created_through_the_api_belongs_to_the_request_trace(
     run_span = next(span for span in finished if span.name == "run api-demo")
     assert request_span.context is not None
     assert run_span.parent is not None
-    assert run_span.parent.span_id == request_span.context.span_id, "the run hangs from nothing"
+    assert run_span.parent.span_id == request_span.context.span_id, [
+        (s.name, hex(s.context.span_id), hex(s.parent.span_id) if s.parent else None, s.kind) for s in finished
+    ]
     assert trace_id == format(request_span.context.trace_id, "032x")
 
 
