@@ -107,9 +107,7 @@ def priority_rank() -> sa.Case[int]:
     )
 
 
-def due_attempt_statement(
-    now: datetime, tags: Sequence[str] = (), *, postgres: bool = False
-) -> sa.Select[tuple[StepAttempt]]:
+def due_attempt_statement(now: datetime, tags: Sequence[str] = (), *, postgres: bool = False) -> sa.Select[StepAttempt]:
     """Build the select that finds the next due unit of work this worker may run.
 
     The order is priority first, then fairness, then due time. Fairness is round-robin
