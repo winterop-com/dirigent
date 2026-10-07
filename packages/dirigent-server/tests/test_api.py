@@ -16,6 +16,9 @@ import sqlalchemy as sa
 import yaml
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from pydantic import BaseModel, SecretStr
 
@@ -2877,6 +2880,25 @@ def test_a_run_created_through_the_api_belongs_to_the_request_trace(
     assert run_span.parent is not None
     assert run_span.parent.span_id == request_span.context.span_id, "the run hangs from nothing"
     assert trace_id == format(request_span.context.trace_id, "032x")
+
+
+def test_the_framework_opens_no_spans_of_its_own(
+    client: TestClient, spans: InMemorySpanExporter, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A request is one server span, dirigent's: a second one would sit between it and the run."""
+    framework = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(framework))
+    monkeypatch.setattr(trace, "get_tracer_provider", lambda: provider)
+
+    apply_document(client, DOCUMENT)
+    client.post(f"{PREFIX}/pipelines/api-demo/$run", json={"params": {}})
+
+    assert framework.get_finished_spans() == ()
+    run_span = next(span for span in spans.get_finished_spans() if span.name == "run api-demo")
+    request_span = next(span for span in spans.get_finished_spans() if span.name.endswith("/$run"))
+    assert run_span.parent is not None and request_span.context is not None
+    assert run_span.parent.span_id == request_span.context.span_id
 
 
 # -- the pagination envelope ------------------------------------------------------
