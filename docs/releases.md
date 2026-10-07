@@ -16,6 +16,24 @@ tag is what publishes: `.github/workflows/release.yaml` builds every package and
 to PyPI through trusted publishing, then builds the image from that commit and pushes it as
 `<version>` and `latest`. The two sibling repositories then relock against the tag and bump.
 
+## 0.23.2
+
+Released 2026-10-07. Every package in the workspace moves to 0.23.2 together, and so do
+`dirigent-dhis2` and `dirigent-integration`.
+
+- **SQLAlchemy 2.1.** `dirigent-core` and `dirigent-block-sql` require `sqlalchemy>=2.1.3`, so
+  an environment holding SQLAlchemy 2.0 beside dirigent no longer resolves. Nothing about the
+  schema or the queries changes; the claim, the run report and the drift check are typed to
+  2.1's generic `Select` and `Table`.
+- **The dependencies move.** FastAPI 0.142, Starlette 1.7, Uvicorn 0.54, OpenTelemetry 1.45,
+  cryptography 50.0.2 and DuckDB 1.5.6 among the Python ones; React Flow 12.12, Vite 8.3.3 and
+  oxlint 1.87 in the UI.
+- **The dashboard's chart ends when its runs were read.** It took the hour of every render, so
+  the axis could move under rows that had not been read again; it now takes the moment the
+  day's runs answered.
+- **`dirigent-dhis2` reads DHIS2 2.44.** It requires `dhis2w-client>=1.31.1`, a release
+  that recognises a 2.44 instance, as a preview, rather than refusing it as unsupported.
+
 ## 0.23.1
 
 Released 2026-10-01. Every package in the workspace moves to 0.23.1 together, and so do
