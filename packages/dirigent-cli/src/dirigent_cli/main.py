@@ -939,9 +939,11 @@ def dev(
     checkout is not needed; both may be given, and the directories go in first.
 
     --seed fills the instance from a directory of documents the moment it answers: the
-    connections a file or a document declares are created first, then every document is
-    applied with its schedules and watches paused. A document an instance will not store is reported
-    and passed over, because a corpus holds those on purpose.
+    connections a file or a document declares and the standalone JSON Schema files are created
+    first, then every document is applied with its schedules and watches paused, and one refused
+    for naming something a later document supplies is applied again once the rest are in. A
+    document an instance will not store is reported and passed over, because a corpus holds
+    those on purpose.
     """
     import asyncio
     import os

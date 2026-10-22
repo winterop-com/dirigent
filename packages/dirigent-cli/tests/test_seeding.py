@@ -271,3 +271,107 @@ async def test_re_seeding_a_carried_schema_relabels_it_from_what_the_document_de
     assert relabelled.name == "Renamed shape"
     # The document dropped the description, so the one belonging to the old shape goes with it.
     assert relabelled.description is None
+
+
+STATION_SCHEMA = """{
+  "$id": "https://schemas.test/station-shape.json",
+  "title": "Station shape",
+  "type": "object"
+}
+"""
+
+NEEDS_THE_SCHEMA = """
+format: dirigent/v1
+kind: pipeline
+code: seeded-held-to-a-file
+description: A document held to a shape a schema file beside it declares.
+requires:
+  schemas: [station-shape]
+steps:
+  gate:
+    block: validate.schema
+    config:
+      input: {}
+      schema: station-shape
+"""
+
+NEEDS_A_LATER_ONE = """
+format: dirigent/v1
+kind: pipeline
+code: seeded-runs-another
+description: A document that names a pipeline a document after it in the corpus supplies.
+requires:
+  pipelines: [seeded-supplied-later]
+steps:
+  greet:
+    block: shell.run
+    config:
+      argv: [echo, first]
+"""
+
+SUPPLIED_LATER = """
+format: dirigent/v1
+kind: pipeline
+code: seeded-supplied-later
+description: The pipeline an earlier document names.
+steps:
+  greet:
+    block: shell.run
+    config:
+      argv: [echo, later]
+"""
+
+
+async def test_a_standalone_schema_file_is_stored_before_the_documents_held_to_it(dg: Dirigent, tmp_path: Path) -> None:
+    directory = tmp_path / "shaped"
+    (directory / "schemas").mkdir(parents=True)
+    (directory / "schemas" / "station.json").write_text(STATION_SCHEMA)
+    (directory / "a-held.yaml").write_text(NEEDS_THE_SCHEMA)
+    stream = await seeded(dg, directory)
+
+    stored = of_kind(stream, "seed.schema")
+    assert [(record["schema"], record["origin"].endswith("station.json")) for record in stored] == [
+        ("station-shape", True)
+    ]
+    assert (await dg.schemas.get("station-shape")).name == "Station shape"
+    assert [record["pipeline"] for record in of_kind(stream, "seed.applied")] == ["seeded-held-to-a-file"]
+    assert of_kind(stream, "seed.done")[0]["schemas"] == ["station-shape"]
+
+
+async def test_a_file_that_is_neither_a_document_nor_a_schema_is_left_alone(dg: Dirigent, corpus: Path) -> None:
+    stream = await seeded(dg, corpus)
+    assert of_kind(stream, "seed.schema") == []
+    assert not any("notes.yaml" in str(record.get("document", "")) for record in stream)
+
+
+async def test_a_document_naming_a_later_one_is_applied_once_the_later_one_is_in(dg: Dirigent, tmp_path: Path) -> None:
+    directory = tmp_path / "ordered"
+    directory.mkdir()
+    (directory / "a-first.yaml").write_text(NEEDS_A_LATER_ONE)
+    (directory / "b-later.yaml").write_text(SUPPLIED_LATER)
+    stream = await seeded(dg, directory)
+
+    assert [record["pipeline"] for record in of_kind(stream, "seed.applied")] == [
+        "seeded-supplied-later",
+        "seeded-runs-another",
+    ]
+    assert of_kind(stream, "seed.refused") == []
+    assert of_kind(stream, "seed.done")[0]["refused"] == 0
+
+
+async def test_a_document_that_never_resolves_is_reported_once(dg: Dirigent, corpus: Path) -> None:
+    stream = await seeded(dg, corpus)
+    refused = of_kind(stream, "seed.refused")
+    assert [record["document"].rpartition("/")[2] for record in refused] == ["refused.yaml"]
+
+
+async def test_the_installed_corpus_brings_its_connection_and_schema_files(dg: Dirigent) -> None:
+    stream = [record async for record in seed_installed(dg)]
+    closing = of_kind(stream, "seed.done")[-1]
+    assert {"orders-topic", "playground", "shop-queue"} <= set(closing["connections"])
+    assert {"ou-record", "playground-reading", "station-reading"} <= set(closing["schemas"])
+    refused = {record["document"] for record in of_kind(stream, "seed.refused")}
+    assert not any(
+        "no schema coded 'station-reading'" in str(record["reason"]) for record in of_kind(stream, "seed.refused")
+    )
+    assert all(origin.startswith("examples:") for origin in refused)
