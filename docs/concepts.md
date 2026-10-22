@@ -247,7 +247,9 @@ wait for the whole grid: it runs once its own match has settled, while the match
 are still in flight, so district 3's file is written as soon as district 3's export is done.
 It waits for the whole grid as before under `fail_fast`, where the batch stands or falls
 together, under a rule other than `all_success`, and when the step reads the grid's whole
-`output`, which holds only the items that have succeeded so far.
+`output`, which holds only the items that have succeeded so far. Over a late grid the same
+holds: an item-wise step's grid is written the moment the grid it adopts is, rather than once
+that grid has settled, and each of its items then waits for its own match.
 
 The step's `items` policy decides what one bad element means. Under the default, `fail_fast`,
 any failed item fails the step. Under `continue`, the step succeeds as long as one item did,

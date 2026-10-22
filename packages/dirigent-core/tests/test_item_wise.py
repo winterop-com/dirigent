@@ -16,6 +16,7 @@ from dirigent_core.engine.state import (
     Readiness,
     StepOutcome,
     StepState,
+    gate_readiness,
     item_readiness,
     item_wise_parent,
 )
@@ -64,11 +65,16 @@ async def by_index(sessions: async_sessionmaker[AsyncSession], run_id: UUID, ste
 
 
 async def run_one(engine: Engine) -> None:
-    """Claim and run exactly one due unit."""
+    """Claim and run exactly one due unit, a second ahead so what it queues is due by `finish`."""
     moment = datetime.now(UTC) + timedelta(seconds=1)
     unit = await engine.claim(now=moment)
     assert unit is not None
     await engine.run_unit(unit, now=moment)
+
+
+async def finish(engine: Engine) -> None:
+    """Run everything left, on a clock past every unit `run_one` ran."""
+    await drain(engine, start_at=datetime.now(UTC) + timedelta(seconds=2))
 
 
 # -- the engine ---------------------------------------------------------------------
@@ -87,7 +93,7 @@ async def test_an_item_is_queued_once_its_match_succeeded(
     assert collect[done] is AttemptStatus.QUEUED
     assert [status for index, status in enumerate(collect) if index != done] == [AttemptStatus.PENDING] * 2
 
-    await drain(engine)
+    await finish(engine)
     assert (await reload(sessions, run.id)).status is RunStatus.SUCCEEDED
     assert sorted(call for call in EchoOperator.calls if call.startswith("paired-")) == [
         "paired-dk",
@@ -105,7 +111,7 @@ async def test_a_fail_fast_parent_holds_every_item_until_it_settles(
     assert (await by_index(sessions, run.id, "spread")).count(AttemptStatus.SUCCEEDED) == 1
     assert await by_index(sessions, run.id, "collect") == [AttemptStatus.PENDING] * 3
 
-    await drain(engine)
+    await finish(engine)
     assert (await reload(sessions, run.id)).status is RunStatus.SUCCEEDED
 
 
@@ -116,7 +122,7 @@ async def test_an_item_reading_the_parents_whole_output_waits_for_all_of_it(
     await run_one(engine)
     assert await by_index(sessions, run.id, "collect") == [AttemptStatus.PENDING] * 3
 
-    await drain(engine)
+    await finish(engine)
     assert (await reload(sessions, run.id)).status is RunStatus.SUCCEEDED
     read = [call for call in EchoOperator.calls if call.startswith("last-")]
     assert read == ["last-dk"] * 3, "every item read the batch once it was whole"
@@ -129,7 +135,7 @@ async def test_an_item_under_all_done_waits_for_the_whole_grid(
     await run_one(engine)
     assert await by_index(sessions, run.id, "collect") == [AttemptStatus.PENDING] * 3
 
-    await drain(engine)
+    await finish(engine)
     assert await by_index(sessions, run.id, "collect") == [AttemptStatus.SUCCEEDED] * 3
 
 
@@ -250,3 +256,116 @@ def test_an_item_still_waits_for_the_steps_other_prerequisites() -> None:
     assert item_readiness(with_setup(), "collect", running, StepOutcome.SUCCEEDED) is Readiness.WAIT
     failed = states(setup=StepOutcome.FAILED, spread=StepOutcome.RUNNING)
     assert item_readiness(with_setup(), "collect", failed, StepOutcome.SUCCEEDED) is Readiness.NEVER
+
+
+# -- late grids ---------------------------------------------------------------------
+
+
+def listed_then_paired(*, items: ItemPolicy = ItemPolicy.CONTINUE) -> PipelineDefinition:
+    """List three countries, fan out over the listing, and map a second step over that grid."""
+    return PipelineDefinition(
+        code="late-item-wise",
+        steps=steps(
+            list=StepDefinition(block="test.list", config={"values": COUNTRIES}),
+            spread=StepDefinition(
+                block="test.echo",
+                depends_on=["list"],
+                for_each="${steps.list.output.values}",
+                config={"value": "${item}"},
+                items=items,
+            ),
+            collect=StepDefinition(
+                block="test.echo",
+                depends_on=["spread"],
+                for_each="${steps.spread.items}",
+                config={"value": "paired-${steps.spread.item.output.value}"},
+            ),
+        ),
+    )
+
+
+async def gate_of(sessions: async_sessionmaker[AsyncSession], run_id: UUID, step: str) -> list[AttemptStatus]:
+    """Read the status of the gate a late grid still stands behind, empty once it is expanded."""
+    async with sessions() as session:
+        rows = await session.execute(
+            sa.select(StepAttempt.status).where(
+                StepAttempt.run_id == run_id, StepAttempt.step_name == step, StepAttempt.run_item_id.is_(None)
+            )
+        )
+        return list(rows.scalars())
+
+
+async def test_an_adopter_of_a_late_grid_expands_once_the_grid_exists(
+    engine: Engine, sessions: Any, services: EngineServices
+) -> None:
+    run = await start(sessions, services, listed_then_paired())
+    await run_one(engine)
+
+    assert await by_index(sessions, run.id, "spread") == [AttemptStatus.QUEUED] * 3
+    assert await gate_of(sessions, run.id, "collect") == []
+    assert await by_index(sessions, run.id, "collect") == [AttemptStatus.PENDING] * 3
+
+
+async def test_an_item_of_a_late_adopter_runs_once_its_match_succeeded(
+    engine: Engine, sessions: Any, services: EngineServices
+) -> None:
+    run = await start(sessions, services, listed_then_paired())
+    await run_one(engine)
+    await run_one(engine)
+
+    spread = await by_index(sessions, run.id, "spread")
+    collect = await by_index(sessions, run.id, "collect")
+    done = spread.index(AttemptStatus.SUCCEEDED)
+    assert spread.count(AttemptStatus.SUCCEEDED) == 1
+    assert collect[done] is AttemptStatus.QUEUED
+    assert [status for index, status in enumerate(collect) if index != done] == [AttemptStatus.PENDING] * 2
+
+    await finish(engine)
+    assert (await reload(sessions, run.id)).status is RunStatus.SUCCEEDED
+    assert sorted(call for call in EchoOperator.calls if call.startswith("paired-")) == [
+        "paired-dk",
+        "paired-no",
+        "paired-se",
+    ]
+
+
+async def test_a_late_adopter_of_a_fail_fast_grid_expands_once_the_grid_has_settled(
+    engine: Engine, sessions: Any, services: EngineServices
+) -> None:
+    run = await start(sessions, services, listed_then_paired(items=ItemPolicy.FAIL_FAST))
+    await run_one(engine)
+    await run_one(engine)
+
+    assert (await by_index(sessions, run.id, "spread")).count(AttemptStatus.SUCCEEDED) == 1
+    assert await gate_of(sessions, run.id, "collect") == [AttemptStatus.PENDING]
+
+    await finish(engine)
+    assert (await reload(sessions, run.id)).status is RunStatus.SUCCEEDED
+    assert await by_index(sessions, run.id, "collect") == [AttemptStatus.SUCCEEDED] * 3
+
+
+async def test_a_late_adopter_of_an_empty_listing_is_skipped(
+    engine: Engine, sessions: Any, services: EngineServices
+) -> None:
+    definition = listed_then_paired()
+    empty = definition.model_copy(
+        update={
+            "steps": {
+                **definition.steps,
+                "list": StepDefinition(block="test.list", config={"values": []}),
+            }
+        }
+    )
+    run = await start(sessions, services, empty)
+    await finish(engine)
+    assert await gate_of(sessions, run.id, "collect") == [AttemptStatus.SKIPPED]
+    assert (await reload(sessions, run.id)).status is RunStatus.SUCCEEDED
+
+
+def test_a_late_gate_reads_its_prerequisites_whole_until_the_parent_grid_exists() -> None:
+    definition = listed_then_paired()
+    folded = states(list=StepOutcome.SUCCEEDED, spread=StepOutcome.RUNNING, collect=StepOutcome.PENDING)
+    assert gate_readiness(definition, "collect", folded, expanded=False) is Readiness.WAIT
+    assert gate_readiness(definition, "collect", folded, expanded=True) is Readiness.READY
+    settled = states(list=StepOutcome.SUCCEEDED, spread=StepOutcome.FAILED, collect=StepOutcome.PENDING)
+    assert gate_readiness(definition, "collect", settled, expanded=True) is Readiness.NEVER
