@@ -81,9 +81,9 @@ stays clean, and every example stays executable.
      the run id. Auth is a per-endpoint token by default and `public` only when written.
    - Consumer kinds (Kafka, RabbitMQ) hold a subscription on a worker through a lease.
      Watches and webhooks fold in as kinds, and packs contribute kinds through pluginkit.
-   - A reply goes through the queue and a worker, so it takes a few hundred milliseconds
-     today. Workers poll every 500 ms and nothing uses LISTEN/NOTIFY; that wake-up is its
-     own slice and speeds up every pipeline.
+   - A reply goes through the queue and a worker. The commit that queues the run wakes an
+     idle worker (`dirigent_work`, LISTEN/NOTIFY on PostgreSQL), so the queue adds no poll
+     interval; `dirigent_sources` is already defined for the sources themselves.
    The design round decides the node model, the source states, the reply contract, the
    slices and a large examples shelf.
 3. **dirigent-fhir.** Start simple. The first flagship needs no pack: an endpoint source
@@ -108,8 +108,7 @@ stays clean, and every example stays executable.
    dhis2w's FHIR packages are moving out of the dhis2w monorepo into their own
    `dhis2w-fhir` repository, as `dhis2w-security` did; the pack depends on them by package
    name, not by repository.
-4. **`dirigent-full-demo`: one instance with everything, for the tutorials on the weekend of
-   2026-10-03.** A `dg init` project at `~/dev/winterop-com/dirigent-full-demo`, beside the
+4. **`dirigent-full-demo`: one instance with everything, for the tutorials.** A `dg init` project at `~/dev/winterop-com/dirigent-full-demo`, beside the
    `dirigent-examples` folder. It is one instance that has it all:
    - every package and pack as dependencies, `dirigent-integration`'s shelves included;
    - every service the corpus teaches with, running in its compose stack: object storage
@@ -121,8 +120,7 @@ stays clean, and every example stays executable.
    - a `verify.sh` that brings it up from nothing, applies, runs the corpus and asserts
      green, the way the example repos do.
    It is a demo, not a product install; a real instance still installs only what it uses.
-   It is built once the work in flight (0.22.0, input sources slices 1 to 3, and 0.23.0) has
-   landed.
+   It is built once input sources slices 1 to 3 have landed.
 5. **Adapter packs.** Every further pack takes the shape `dirigent-dhis2` set: its own
    repository, its own examples and tests, self-testing against `dirigent-plugin`'s main,
    wired through a connection kind, with a client written fresh or wrapping a stable one, and
