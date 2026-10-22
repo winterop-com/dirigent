@@ -10,7 +10,7 @@
 # item 3 there, ${item} is the same element in both, and ${steps.<name>.item.output} is the
 # matching item's output.
 #
-# Three things the pairing buys, and one it costs:
+# Four things the pairing buys, and one it costs:
 #
 #   1. The width is the adopted grid's. Here that grid comes from params, so it was fixed when
 #      the run was created; adopting a grid read from a step's output expands when that one does.
@@ -18,7 +18,10 @@
 #      across a step that is not waited for would read an item that has not run.
 #   3. Adoption chains. A third step may map over the second's items and still reach the
 #      first's, because they are all one grid.
-#   4. The cost: an item whose match did not succeed is SKIPPED, not failed and not run. Its
+#   4. Each item goes on its own. shape runs under items: continue, so write_one's file for a
+#      region is written as soon as that region is shaped, not once every region has been.
+#      Under fail_fast the batch stands or falls together, and write_one waits for all of it.
+#   5. The cost: an item whose match did not succeed is SKIPPED, not failed and not run. Its
 #      input never existed, so there is nothing to attempt. The rest of the grid carries on.
 #
 # Hop by hop:

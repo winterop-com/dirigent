@@ -4,22 +4,27 @@ The DAG walk is the last statement of every outcome transaction: the same commit
 an attempt readies its dependents and derives the run's status.
 """
 
+import re
 from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import NamedTuple
+from typing import Final, NamedTuple, cast
 from uuid import UUID
 
 import sqlalchemy as sa
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, JsonValue
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirigent_client.enums import AttemptStatus, RunItemStatus, RunStatus
 from dirigent_client.schemas import AttemptOut
 from dirigent_core.engine.definition import ItemPolicy, PipelineDefinition, StepDefinition, TriggerRule
 from dirigent_core.engine.expansion import expand_gate, is_gate
+from dirigent_core.engine.references import references_in
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.models import Pipeline, Run, RunItem, StepAttempt, utcnow
+
+#: A reference into a step, by the step's name and the field read off it: output, items, or item.
+STEP_FIELD: Final = re.compile(r"^\s*steps\.([a-z][a-z0-9_]*)\.([a-z_]+)")
 
 
 class StepOutcome(StrEnum):
@@ -254,6 +259,62 @@ def readiness_of(definition: PipelineDefinition, name: str, states: dict[str, St
     return evaluate_rule(step.rule, outcomes)
 
 
+def item_wise_parent(definition: PipelineDefinition, name: str) -> str | None:
+    """Name the fan-out whose items this step's items wait for one by one, or None when it waits for all of it.
+
+    An item waits only for its match when the step adopts the grid of an ``items: continue``
+    fan-out under ``all_success`` and reads nothing of the grid's family but its own match: a
+    fan-out's ``output`` holds only the items that have succeeded so far.
+    """
+    step = definition.steps.get(name)
+    parent = step.adopted_grid if step is not None else None
+    if step is None or parent is None or parent not in definition.steps:
+        return None
+    if step.rule is not TriggerRule.ALL_SUCCESS or definition.steps[parent].items is not ItemPolicy.CONTINUE:
+        return None
+    family = definition.grid_family(name)
+    for reference in references_in(cast("JsonValue", step.config)):
+        read = STEP_FIELD.match(reference)
+        if read is not None and read.group(1) in family and read.group(2) != "item":
+            return None
+    return parent
+
+
+def item_readiness(
+    definition: PipelineDefinition, name: str, states: dict[str, StepState], partner: StepOutcome | None
+) -> Readiness:
+    """Evaluate one item of an item-wise step: its match in the parent's grid, and the step's other prerequisites.
+
+    A match that settled without succeeding readies the item too, so the run of it skips the
+    item as unpaired, as it does when the whole parent has settled.
+    """
+    step = definition.steps[name]
+    parent = item_wise_parent(definition, name)
+    others = [states[dependency].rule_outcome for dependency in step.depends_on if dependency != parent]
+    readiness = evaluate_rule(step.rule, others)
+    if readiness is not Readiness.READY:
+        return readiness
+    return Readiness.READY if partner is not None and partner.terminal else Readiness.WAIT
+
+
+async def item_partners(
+    session: AsyncSession, run_id: UUID, parents: Mapping[str, str]
+) -> tuple[dict[UUID, int], dict[tuple[str, int], UUID]]:
+    """Read the run items of the item-wise steps and their parents, by id and by position."""
+    names = set(parents) | set(parents.values())
+    rows = await session.execute(
+        sa.select(RunItem.id, RunItem.step_name, RunItem.item_index).where(
+            RunItem.run_id == run_id, RunItem.step_name.in_(names)
+        )
+    )
+    index_of: dict[UUID, int] = {}
+    at: dict[tuple[str, int], UUID] = {}
+    for item_id, step_name, item_index in rows.all():
+        index_of[item_id] = item_index
+        at[(step_name, item_index)] = item_id
+    return index_of, at
+
+
 def derive_run_status(states: dict[str, StepState], *, cancelled: bool = False) -> RunStatus | None:
     """Derive the run's status from its leaves, or None while anything is still in flight."""
     if cancelled:
@@ -326,15 +387,30 @@ async def advance(
     await lock_run(session, run.id)
     attempts = await load_attempts(session, run.id)
     pending = [attempt for attempt in attempts if attempt.status is AttemptStatus.PENDING]
+    parents = {
+        attempt.step_name: parent
+        for attempt in pending
+        if attempt.run_item_id is not None and (parent := item_wise_parent(definition, attempt.step_name)) is not None
+    }
+    index_of, at = await item_partners(session, run.id, parents) if parents else ({}, {})
 
     changed = True
     while changed:
         changed = False
         states = build_step_states(definition, attempts)
+        newest = latest_attempts(attempts) if parents else {}
         for attempt in list(pending):
             if attempt.status is not AttemptStatus.PENDING:
                 continue
-            match readiness_of(definition, attempt.step_name, states):
+            parent = parents.get(attempt.step_name) if attempt.run_item_id is not None else None
+            if parent is not None and attempt.run_item_id is not None:
+                partner_id = at.get((parent, index_of.get(attempt.run_item_id, -1)))
+                partner = newest.get((parent, partner_id)) if partner_id is not None else None
+                outcome = ATTEMPT_OUTCOME[partner.status] if partner is not None else None
+                readiness = item_readiness(definition, attempt.step_name, states, outcome)
+            else:
+                readiness = readiness_of(definition, attempt.step_name, states)
+            match readiness:
                 case Readiness.READY if is_gate(definition, attempt):
                     written = await expand_gate(session, services, run, definition, attempt, moment)
                     if written is not None:
