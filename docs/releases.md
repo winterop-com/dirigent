@@ -16,6 +16,37 @@ tag is what publishes: `.github/workflows/release.yaml` builds every package and
 to PyPI through trusted publishing, then builds the image from that commit and pushes it as
 `<version>` and `latest`. The two sibling repositories then relock against the tag and bump.
 
+## 0.23.4
+
+Released 2026-10-22. Every package in the workspace moves to 0.23.4 together, and so do
+`dirigent-dhis2` and `dirigent-integration`.
+
+- **The image trusts no compromised eMudhra intermediate.** The private keys of eight eMudhra
+  intermediate CAs are recoverable from their certificates
+  (https://emudhra.we-have-a-problem.com/). httpx2 trusts the system store, which in the image
+  is Debian's `ca-certificates`, and the 0.23.3 image carried `20250419~deb12u1`, which still
+  trusts them: a container answered 200 from the incident's test hosts. The runtime base moves
+  to a `python:3.13-slim-bookworm` that carries `20250419~deb12u2`, and the 0.23.4 image refuses
+  them. An instance on the 0.23.3 image should move to 0.23.4. certifi moves to 2026.10.19 in
+  the lock, for the dev tooling that reads it.
+- **An analytics run joins the job already running.** `dhis2.analytics_run` in `dirigent-dhis2`
+  asks the instance first whether an analytics tables job is running, and follows that one
+  rather than submitting a second; `join_running: false` always submits, and so does a user the
+  instance refuses the job listing. The output's new `joined` says which happened. A joined job
+  runs with the options it was started with, not the step's.
+- **An export with children no longer writes every value onto its parent.** With `children`,
+  `dhis2.data_value_set_export` answered with DHIS2's document-level `orgUnit` still set to the
+  org unit it was asked for, and an import applies that field to every value in place of the
+  value's own: the body, imported again, wrote each descendant's values onto the parent. The
+  body now leaves it out, and each value keeps its own. A step that read `body.orgUnit` from an
+  export with children finds nothing there; the org unit it asked for is its own config. A body
+  exported with children before 0.23.4 and kept in storage still carries the field.
+- **The DHIS2 examples point at `stable-2-42-7`.** `stable-2-42-6` is gone from
+  play.im.dhis2.org, so the examples and tutorial in `dirigent-dhis2` and the pipelines in
+  `dirigent-integration` move again. The integration's nightly run now asks every play demo an
+  example names for its system info and fails on any that no longer answers, so the next
+  retirement is caught the night it happens.
+
 ## 0.23.3
 
 Released 2026-10-07. Every package in the workspace moves to 0.23.3 together, and so do
