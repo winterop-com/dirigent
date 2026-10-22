@@ -67,7 +67,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --all-packages --locked --no-dev --extra otlp
 
 
-FROM python:3.13-slim-bookworm@sha256:c45a22ea000adfd9cda29364bbe7edd23001ce5cc2ad15857cfbf7766943b9ca AS runtime
+FROM python:3.13-slim-bookworm@sha256:a881a81282cca8c57f97014867fa651def1b3799030cc6b1cff45ed55ba8ef36 AS runtime
 
 # What an image built FROM this one may rely on: uv on PATH, the venv at /app/.venv named by
 # VIRTUAL_ENV so `uv pip install <package>` lands in it, git for a git+https source, and the
