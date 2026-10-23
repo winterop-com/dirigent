@@ -142,8 +142,11 @@ uv run dg run --local hello.yaml
 ```text
 2026-09-26T14:41:16.204+02:00 [info    ] started                        [run] pipeline=hello run_id=01a0ad18-3220-76eb-8df9-e50dacb275d9 local=true scratch=file:///tmp/dirigent-local-8tksuueg/artifacts/runs/01a0ad18-3220-76eb-8df9-e50dacb275d9 root=/tmp/dirigent-local-8tksuueg
 2026-09-26T14:41:16.200+02:00 [info    ] queued                         [step make] block=value.const attempt=1
+2026-09-26T14:41:16.230+02:00 [info    ] running                        [step make] block=value.const attempt=1
 2026-09-26T14:41:16.244+02:00 [info    ] finished                       [log make] duration_ms=0 output_bytes=31
 2026-09-26T14:41:16.239+02:00 [info    ] succeeded                      [step make] block=value.const attempt=1 duration_ms=9
+2026-09-26T14:41:16.239+02:00 [info    ] queued                         [step say] block=log.write attempt=1
+2026-09-26T14:41:16.293+02:00 [info    ] running                        [step say] block=log.write attempt=1
 2026-09-26T14:41:16.297+02:00 [info    ] the step before me said: hello from dirigent [log say]
 2026-09-26T14:41:16.297+02:00 [info    ] succeeded                      [step say] block=log.write attempt=1 duration_ms=4
 2026-09-26T14:41:16.394+02:00 [info    ] succeeded                      [run] pipeline=hello run_id=01a0ad18-3220-76eb-8df9-e50dacb275d9 exit_code=0
