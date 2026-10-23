@@ -2082,6 +2082,8 @@ const runs = {
     fans_out: 'fans out',
     /** A step that has not started, said as what it is behind. */
     depends_on_note: (steps: string) => `after ${steps}`,
+    /** A step whose items each go once their match in another fan-out has settled. */
+    item_by_item_after: (step: string) => `item by item after ${step}`,
     /** A step whose output went to storage, said as where it went. */
     saves_to: (uri: string) => `saves to ${uri}`,
     /** Which try an element is on, and when its next poll is due. */

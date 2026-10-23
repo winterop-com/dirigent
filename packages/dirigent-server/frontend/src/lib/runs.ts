@@ -129,6 +129,8 @@ export interface DagNode {
     fan_out: boolean
     /** The step a late grid waits for before it expands, or null for a grid fixed at creation. */
     grid_source: string | null
+    /** The fan-out whose matching item each of this step's items waits for, one by one, or null. */
+    item_wise_parent: string | null
     items_total: number
     items_failed: number
     attempts: number
