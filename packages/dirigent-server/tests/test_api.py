@@ -1394,6 +1394,7 @@ def test_the_dag_is_the_same_story_the_grid_told(client: TestClient) -> None:
             "rule": "all_success",
             "fan_out": False,
             "grid_source": None,
+            "item_wise_parent": None,
             "items_total": 0,
             "items_failed": 0,
             "attempts": 1,
@@ -1407,6 +1408,7 @@ def test_the_dag_is_the_same_story_the_grid_told(client: TestClient) -> None:
             "rule": "all_success",
             "fan_out": True,
             "grid_source": None,
+            "item_wise_parent": None,
             "items_total": 3,
             "items_failed": 1,
             "attempts": 4,
@@ -1420,6 +1422,7 @@ def test_the_dag_is_the_same_story_the_grid_told(client: TestClient) -> None:
             "rule": "all_success",
             "fan_out": False,
             "grid_source": None,
+            "item_wise_parent": None,
             "items_total": 0,
             "items_failed": 0,
             "attempts": 1,
@@ -1535,6 +1538,41 @@ steps:
     config:
       input: ${item}
 """
+
+
+PAIRED_LATE = """
+format: dirigent/v1
+kind: pipeline
+code: paired-late
+steps:
+  list:
+    block: playground.generate
+    config:
+      rows: 3
+      seed: 7
+  each:
+    block: playground.generate
+    depends_on: [list]
+    for_each: ${steps.list.output.records}
+    items: continue
+    config:
+      input: ${item}
+  again:
+    block: playground.generate
+    depends_on: [each]
+    for_each: ${steps.each.items}
+    config:
+      input: ${steps.each.item.output}
+"""
+
+
+def test_a_node_whose_items_go_one_by_one_names_the_grid_they_wait_on(client: TestClient) -> None:
+    apply_document(client, PAIRED_LATE)
+    run_id = str(client.post(f"{PREFIX}/pipelines/paired-late/$run", json={"params": {}}).json()["run_id"])
+    nodes = {node["code"]: node for node in client.get(f"{PREFIX}/runs/{run_id}").json()["dag"]["nodes"]}
+    assert nodes["again"]["item_wise_parent"] == "each"
+    assert nodes["each"]["item_wise_parent"] is None
+    assert nodes["list"]["item_wise_parent"] is None
 
 
 def worked(client: TestClient) -> None:

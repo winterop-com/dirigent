@@ -385,6 +385,7 @@ def test_a_documents_shape_is_drawn_as_the_rows_and_the_totals_its_record_carrie
                         "depends_on": ["shape"],
                         "cardinality": "adopts shape",
                         "elements": 3,
+                        "item_wise_parent": "shape",
                         "poll": "1s",
                         "deadline": "1d",
                         "on_timeout": "skip",
@@ -398,6 +399,7 @@ def test_a_documents_shape_is_drawn_as_the_rows_and_the_totals_its_record_carrie
     assert "what demo will cost" in drawn
     assert "transform.jq" in drawn and "1m30s" in drawn
     assert "adopts shape" in drawn
+    assert "item by item" in drawn, "a step whose items each wait for their own match says so beside its width"
     assert "continue" in drawn, "a fan-out that does not fail fast says so where the width is"
     assert "then skip" in drawn, "what an expired deadline makes of the step belongs beside it"
     assert "1s  block" in drawn, "a wait the catalog filled in is marked as the block's own"

@@ -35,7 +35,7 @@ from dirigent_core.artifacts import JSON_CONTENT_TYPE, TEXT_KEY, canonical_json,
 from dirigent_core.database import session_scope
 from dirigent_core.engine.definition import PipelineDefinition, load_definition
 from dirigent_core.engine.runs import cancel_run, retry_step
-from dirigent_core.engine.state import StepCounts, attempt_counts, item_counts, step_states
+from dirigent_core.engine.state import StepCounts, attempt_counts, item_counts, item_wise_parent, step_states
 from dirigent_core.messages import CANCELLED_BY
 from dirigent_core.models import (
     ArtifactRef,
@@ -166,6 +166,7 @@ def _dag(
                 rule=step.rule.value,
                 fan_out=step.is_fan_out,
                 grid_source=definition.grid_source(name),
+                item_wise_parent=item_wise_parent(definition, name),
                 items_total=sum(of_step.values()),
                 items_failed=of_step.get(RunItemStatus.FAILED, 0),
                 attempts=attempts[name].total if name in attempts else 0,

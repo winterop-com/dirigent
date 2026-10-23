@@ -73,6 +73,10 @@ class StepShape(BaseModel):
     grid_source: str | None = None
     """The step a late grid waits for before it expands, or null for a grid fixed at creation."""
 
+    item_wise_parent: str | None = None
+    """The fan-out whose matching item each of this step's items waits for, one by one, or null
+    when the step waits for its prerequisites whole."""
+
     reference: str | None = None
     """The ``for_each`` this step maps over, where it names one rather than listing it."""
 
