@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import pytest
 from fastapi.testclient import TestClient
@@ -130,7 +131,14 @@ def test_a_cron_clock_is_read_back_as_the_firings_it_would_make(client: TestClie
     assert len(firings) == 3
     assert firings[0] > datetime.now(UTC)
     assert firings == sorted(firings)
-    assert firings[1] - firings[0] == timedelta(days=1)
+    # Nightly in a zone is the same wall-clock time on consecutive days, which is 23 or 25
+    # hours apart across a daylight saving change.
+    local = [one.astimezone(ZoneInfo("Europe/Oslo")) for one in firings]
+    assert len({(one.hour, one.minute) for one in local}) == 1
+    assert [later.date() - earlier.date() for earlier, later in zip(local, local[1:], strict=False)] == [
+        timedelta(days=1),
+        timedelta(days=1),
+    ]
 
 
 def test_an_interval_clock_is_read_back_at_its_own_cadence(client: TestClient) -> None:

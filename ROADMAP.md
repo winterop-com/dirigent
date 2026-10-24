@@ -156,29 +156,65 @@ stays clean, and every example stays executable.
 
    **Still open:** an `Idempotency-Key` header de-duplicating a caller's retries into one
    run; authentication beyond tokens, which waits on the OIDC open question; and whether a
-   public endpoint needs an instance-wide switch before any pipeline may declare one.
-3. **dirigent-fhir.** Start simple. The first flagship needs no pack: an endpoint source
-   taking `application/fhir+json`, `transform.jq`, the dhis2 pack's import, and a reply. It
-   lives in `dirigent-integration`'s `shelves/fhir/`, with a standalone `fhir-to-dhis2`
-   walkthrough beside it. The pack then comes in stages, on dhis2w's FHIR libraries called
-   in-process by blocks and never as a separate server:
-   - a `fhir` connection kind with read, search, create, update and transaction/batch
-     blocks;
-   - FHIRPath as a transform engine on the verb frames (`transform.fhirpath`,
-     `map.fhirpath`, `filter.fhirpath`) over `dhis2w-fhir-engine`, which carries no DHIS2
-     coupling;
-   - structural validation, then **profiles and IG packages**: a profile resolved from a
-     pinned package (`name#version` from the FHIR package registry), a package cache, and
-     terminology for bindings;
-   - measures and CQL;
-   - the read side (`/metadata`, reads, searches, history) served by dhis2w's facade
-     routers mounted inside the dirigent server, picking only the routers wanted. This
-     needs a routes contribution surface, the open question "A server in the mix" below.
-   Converting a QuestionnaireResponse into DHIS2 uses `dhis2w-fhir` and belongs in
-   `dirigent-dhis2`. The plan sets the milestones.
-   dhis2w's FHIR packages are moving out of the dhis2w monorepo into their own
-   `dhis2w-fhir` repository, as `dhis2w-security` did; the pack depends on them by package
-   name, not by repository.
+   pipeline that pulls from one FHIR server and pushes to another, neither of them DHIS2, is as
+   much its purpose as feeding DHIS2. It depends on the FHIR engine only, and carries no DHIS2
+   dependency. Between steps a resource or a Bundle is plain FHIR JSON, as a data value set is
+   in the dhis2 pack, so `transform.jq`, references and storage work on it unchanged; inside a
+   block the engine's R4 models type what they cover (an `OperationOutcome` read into a step
+   failure, a transaction `Bundle` built), and a resource they do not model passes through as
+   JSON. Stages, each its own slice:
+   - **A `fhir` connection kind and the REST blocks.** Read, a search that follows
+     `Bundle.link[next]` under a page cap or hands its pages to a fan-out, create, update, and
+     transaction/batch. Writes are idempotent by FHIR's own means: conditional create
+     (`ifNoneExist`) and conditional update on `identifier`, never on the source server's ids,
+     and a transaction rewrites references between the resources it carries as `urn:uuid`
+     entries. An `OperationOutcome` is classified the way the dhis2 pack classifies an import
+     conflict, and the health check reads `/metadata`. The first flagship is FHIR to FHIR on a
+     schedule against a public test server (`hapi.fhir.org/baseR4`), which needs no input
+     sources and so does not wait for them.
+   - **FHIRPath on the verb frames:** `transform.fhirpath`, `map.fhirpath`, `filter.fhirpath`,
+     the mapping between two servers' profiles being where FHIRPath earns its place over jq.
+   - **CQL and measures.** `fhir.cql` evaluates a library over the resources a step produced
+     (a Bundle, a search, one patient's compartment), with libraries resolved from the
+     document, from storage, or as ELM; `fhir.measure` runs a Measure and answers with a
+     MeasureReport, which a pipeline then pushes to another FHIR server or, through
+     `dirigent-dhis2`, into DHIS2 as aggregate data values. Terminology for `in`/`memberOf`
+     comes from a value set carried in the step or from a remote FHIR terminology server.
+   - **Validation, profiles and IG packages:** structural validation first, then a profile
+     resolved from a pinned package (`name#version` from the FHIR package registry), a
+     package cache, and terminology for bindings.
+   - **FHIR in through an endpoint source,** once input sources land: `application/fhir+json`
+     taken, shaped, imported into DHIS2 by the dhis2 pack, and answered with a reply, in
+     `dirigent-integration`'s `shelves/fhir/` with a standalone `fhir-to-dhis2` walkthrough.
+     Converting a QuestionnaireResponse into DHIS2 uses `dhis2w-fhir` and belongs in
+     `dirigent-dhis2`, not here.
+   - **The read side** (`/metadata`, reads, searches, history) served by facade routers
+     mounted inside the dirigent server, picking only the routers wanted. This needs a routes
+     contribution surface, the open question "A server in the mix" below.
+
+   **What dhis2w-fhir already has, and what to release outside dhis2w.** Most of the engine
+   this pack needs exists in the `dhis2w-fhir` repository's `dhis2w-fhir-engine`, with no
+   DHIS2 in it: FHIRPath, CQL and ELM evaluators, each run against its conformance suite;
+   measure evaluation by the conventional population definitions; data sources over memory, a
+   Bundle and one patient's Bundle; CQL library resolvers over files, memory and a composite;
+   a terminology service, in memory or against a remote FHIR server; UCUM unit conversion; and
+   closed, frozen R4 models for about twenty resource types that reproduce the wire document
+   key for key. Recommended:
+   - Release the engine under a name that carries no `dhis2w`, so a FHIR user with no DHIS2
+     finds and trusts it, and have `dhis2w-fhir` depend on it as `dirigent-fhir` does. The
+     DHIS2-bound packages stay where they are: IG generation from DHIS2 metadata
+     (`dhis2w-fhir`) and the facade that projects DHIS2 and captures QuestionnaireResponses
+     into it (`dhis2w-fhir-serve`).
+   - Add the FHIR REST client neither has as a generic package beside the engine: search
+     paging, conditional create and update, transaction bundles with `urn:uuid` references,
+     `OperationOutcome` parsing, and `/metadata` reading. `dirigent-fhir`'s REST blocks are a
+     thin layer over it, and `dhis2w-fhir-serve` reuses it wherever it talks FHIR outward.
+   - Keep the R4 models hand-written and growing by need rather than generating all of R4;
+     a resource without a model is carried as JSON, so the list never gates a pipeline.
+   - Generic IG package loading (registry fetch, cache, `name#version`) is new work: the
+     package reader `dhis2w-fhir` has is for its own organisation-unit registry. It belongs
+     beside the engine too, since validation in both repositories needs it.
+   The pack depends on these by package name, not by repository.
 4. **`dirigent-full-demo`: one instance with everything, for the tutorials.** A `dg init` project at `~/dev/winterop-com/dirigent-full-demo`, beside the
    `dirigent-examples` folder. It is one instance that has it all:
    - every package and pack as dependencies, `dirigent-integration`'s shelves included;
