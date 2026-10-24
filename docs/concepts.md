@@ -242,6 +242,13 @@ is skipped, not failed, so the rest of the grid carries on. Adoption chains: a t
 map over the second's items and still read the first's. A step adopting a late grid is late
 too, and expands with the same indices once the grid it adopts has settled.
 
+When the grid it adopts runs under `items: continue`, an item of the adopting step does not
+wait for the whole grid: it runs once its own match has settled, while the match's siblings
+are still in flight, so district 3's file is written as soon as district 3's export is done.
+It waits for the whole grid as before under `fail_fast`, where the batch stands or falls
+together, under a rule other than `all_success`, and when the step reads the grid's whole
+`output`, which holds only the items that have succeeded so far.
+
 The step's `items` policy decides what one bad element means. Under the default, `fail_fast`,
 any failed item fails the step. Under `continue`, the step succeeds as long as one item did,
 the failures are recorded against their own items, and the run reports

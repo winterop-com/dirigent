@@ -663,6 +663,9 @@ semantics instead of writing error-handling code:
   A step whose `for_each` is `${steps.<name>.items}` maps over that fan-out's grid instead of
   one of its own, pairs with it by item position, and reads its match as
   `${steps.<name>.item.output.<field>}`. An item whose match did not succeed is skipped.
+  Over an `items: continue` grid, under `all_success`, and reading nothing of the grid's
+  family but its own match, an item is ready once its match has settled rather than once the
+  whole grid has; the step's other prerequisites are still read whole.
   A `for_each` over an upstream step's output is expanded when the step becomes ready; a list
   that cannot be read, or one wider than `fan_out_max_items`, fails it as `rejected`.
 - **Run level: what do we tell the operator?** Run status derives mechanically from the
