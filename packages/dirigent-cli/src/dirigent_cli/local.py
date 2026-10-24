@@ -4,6 +4,7 @@ import asyncio
 import contextlib
 import shutil
 import tempfile
+import time
 from collections.abc import AsyncIterator, Mapping, Sequence
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -17,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from dirigent_client.enums import AttemptStatus, LogLevel, RunStatus, TriggerKind
 from dirigent_common import JsonMap
-from dirigent_core import migrations
+from dirigent_core import migrations, wakeups
 from dirigent_core.config import Settings, get_settings
 from dirigent_core.database import create_engine, create_session_factory, session_scope
 from dirigent_core.documents import DocumentError, load_pipeline_text, safe_load
@@ -556,6 +557,28 @@ class Tick(BaseModel):
     error: str | None
 
 
+def _passed_through(attempt: StepAttempt, before: AttemptStatus | None) -> list[tuple[AttemptStatus, datetime]]:
+    """Name the states a started attempt went through on its way here that no poll saw, with when.
+
+    A poll reads where an attempt stands, so an attempt claimed and settled between two polls
+    would otherwise be reported only in the state it ended in. One that started was queued
+    and ran: those are reported in order, at the moment each began.
+    """
+    started = attempt.started_at
+    if started is None:
+        return []
+    passed: list[tuple[AttemptStatus, datetime]] = []
+    if before in (None, AttemptStatus.PENDING) and attempt.status is not AttemptStatus.QUEUED:
+        passed.append((AttemptStatus.QUEUED, attempt.available_at or started))
+    if before in (None, AttemptStatus.PENDING, AttemptStatus.QUEUED) and attempt.status not in (
+        AttemptStatus.QUEUED,
+        AttemptStatus.RUNNING,
+        AttemptStatus.WAITING,
+    ):
+        passed.append((AttemptStatus.RUNNING, started))
+    return passed
+
+
 async def _transitions(
     sessions: async_sessionmaker[AsyncSession],
     run_id: UUID,
@@ -582,9 +605,21 @@ async def _transitions(
         # announces one and swallows the rest. The id is the identity of the thing that moved.
         if seen.get(attempt.id) is attempt.status:
             continue
+        before = seen.get(attempt.id)
         seen[attempt.id] = attempt.status
         if attempt.status is AttemptStatus.PENDING:
             continue
+        for passed, at in _passed_through(attempt, before):
+            changed.append(
+                StepTransition(
+                    step=attempt.step_name,
+                    block=attempt.block_id,
+                    attempt=attempt.attempt,
+                    status=passed,
+                    at=at,
+                    item=labels.get(attempt.id),
+                )
+            )
         settled = attempt.status in SETTLED
         changed.append(
             StepTransition(
@@ -751,6 +786,9 @@ async def _drive(
     items = _Items()
     try:
         while waited < deadline_seconds:
+            # The mark is taken before the read, so a commit landing between the read and the
+            # wait below still wakes it.
+            mark = wakeups.settled_mark(run_id)
             # The status is read before the log is: a run that had settled by then wrote its
             # last entry before it settled, so the pages below carry the whole of it.
             tick = await _transitions(sessions, run_id, seen, items, order)
@@ -775,8 +813,9 @@ async def _drive(
                 )
                 return
             interval = POLL_SECONDS if moved else min(interval * POLL_WIDEN, POLL_CEILING)
-            await asyncio.sleep(interval)
-            waited += interval
+            paused = time.monotonic()
+            await wakeups.wait_settled(mark, timeout=interval)
+            waited += time.monotonic() - paused
         yield LocalOutcome(
             run_id=run_id,
             pipeline=pipeline,

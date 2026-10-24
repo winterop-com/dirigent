@@ -469,7 +469,9 @@ or `--schema` file still wins over both.
 ## Watching a run
 
 `--watch` and `--local` stream step transitions and block output, merged by timestamp so the
-stream reads as cause then effect:
+stream reads as cause then effect. Under `--local` every state a started attempt passed
+through is reported, `queued` and `running` included, however briefly it held them, and the
+stream wakes on each commit that moves the run rather than on its next poll:
 
 ```text
 2026-01-01T18:22:23.019+01:00 [info    ] queued                         [step fetch] block=http.request attempt=1
