@@ -1,19 +1,22 @@
 """A step is a block, a source or a reply: its rules, a run entered by hand, and a reply the server settles."""
 
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
 import pytest
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from dirigent_client.enums import AttemptKind, AttemptStatus, RunStatus, StepKind
+from dirigent_client.enums import AttemptKind, AttemptStatus, BodyKind, RunStatus, StepKind
+from dirigent_client.schemas import EndpointInput
 from dirigent_core.database import session_scope
 from dirigent_core.documents import DocumentError, load_pipeline_text, validate_against_catalog
 from dirigent_core.engine import EngineServices
 from dirigent_core.engine.executor import Engine
 from dirigent_core.engine.runs import Entry, RunCreationError, create_run, retry_step
 from dirigent_core.messages import (
+    BODY_WITHOUT_TYPE,
+    ENDPOINT_BODY_NOT_JSON,
     ENTRY_AMBIGUOUS,
     ENTRY_INPUT_REFUSED,
     ENTRY_ON_NO_SOURCES,
@@ -24,12 +27,15 @@ from dirigent_core.messages import (
     SCHEDULE_ON_SOURCES,
     SOURCE_NOT_RETRYABLE,
     UNKNOWN_KIND,
+    UNSUPPORTED_MEDIA,
 )
 from dirigent_core.models import Run, StepAttempt
 from dirigent_core.pipelines import save_pipeline
 from dirigent_core.plugins import PluginHost
+from dirigent_core.sources.endpoint import EndpointConfig, EndpointSource
 from dirigent_core.sources.entries import EntryRefused, hand_entry
 from dirigent_core.sources.kinds import built_in_kinds
+from dirigent_plugin.sources import InboundRequest, ReceiveContext, Refusal
 from test_engine import drain
 
 RECEIVED_AT = datetime(2026, 10, 24, 12, 0, tzinfo=UTC)
@@ -321,3 +327,54 @@ async def test_a_source_is_not_retried(engine: Engine, sessions: Any, services: 
         with pytest.raises(RunCreationError) as raised:
             await retry_step(session, services, stored, "ask", idempotency_key="again")
     assert raised.value.code == SOURCE_NOT_RETRYABLE.code
+
+
+def inbound(body: bytes = b"", **headers: str) -> InboundRequest:
+    """A request to the echo route, as intake would hand it to the endpoint kind."""
+    return InboundRequest(
+        method="POST",
+        path="/echo",
+        route="/echo",
+        headers={name.replace("_", "-"): value for name, value in headers.items()},
+        body=body,
+        received_at=RECEIVED_AT,
+    )
+
+
+ECHO_ROUTE = EndpointConfig(path="/echo")
+
+NO_CONTEXT = cast("ReceiveContext", None)
+
+
+def test_an_endpoint_refuses_a_media_type_it_does_not_take_before_reading_the_body() -> None:
+    refused = EndpointSource().admit(ECHO_ROUTE, inbound(content_type="application/pdf"))
+    assert refused is not None
+    assert (refused.status, refused.code) == (415, UNSUPPORTED_MEDIA.code)
+    untyped = EndpointSource().admit(ECHO_ROUTE, inbound(content_length="4"))
+    assert untyped is not None
+    assert (untyped.status, untyped.code) == (415, BODY_WITHOUT_TYPE.code)
+    assert EndpointSource().admit(ECHO_ROUTE, inbound()) is None
+
+
+async def test_an_endpoint_reads_a_body_by_its_content_type_and_drops_credentials() -> None:
+    read = await EndpointSource().receive(
+        ECHO_ROUTE,
+        inbound(b'{"said": "hi"}', content_type="application/json", authorization="Bearer secret"),
+        NO_CONTEXT,
+    )
+    assert isinstance(read, EndpointInput)
+    assert (read.body_kind, read.body, read.body_bytes) == (BodyKind.JSON, {"said": "hi"}, 14)
+    assert "authorization" not in read.headers
+    form = await EndpointSource().receive(
+        ECHO_ROUTE, inbound(b"said=hi", content_type="application/x-www-form-urlencoded"), NO_CONTEXT
+    )
+    assert isinstance(form, EndpointInput)
+    assert form.body_kind is BodyKind.FORM
+
+
+async def test_an_endpoint_refuses_a_body_that_is_not_what_it_says() -> None:
+    refused = await EndpointSource().receive(
+        ECHO_ROUTE, inbound(b"{not json", content_type="application/json"), NO_CONTEXT
+    )
+    assert isinstance(refused, Refusal)
+    assert (refused.status, refused.code) == (400, ENDPOINT_BODY_NOT_JSON.code)
