@@ -121,6 +121,35 @@ def test_an_adoption_names_the_grid_it_maps_over_and_carries_its_count() -> None
     assert shape.attempts_max == 6
 
 
+def test_an_adoption_of_a_continue_grid_says_its_items_go_one_by_one() -> None:
+    graph = {
+        "wide": {"block": "shell.run", "for_each": ["a", "b", "c"], "items": "continue"},
+        "each": {"block": "shell.run", "depends_on": ["wide"], "for_each": "${steps.wide.items}"},
+        "joined": {
+            "block": "shell.run",
+            "depends_on": ["wide"],
+            "for_each": "${steps.wide.items}",
+            "config": {"argv": ["echo", "${steps.wide.output}"]},
+        },
+    }
+    shape = explain(document(graph))
+    assert rows(shape)["each"].item_wise_parent == "wide"
+    assert rows(shape)["joined"].item_wise_parent is None, "a step reading the whole output waits for all of it"
+    assert rows(shape)["wide"].item_wise_parent is None
+
+
+def test_an_adoption_of_a_fail_fast_grid_waits_for_all_of_it() -> None:
+    shape = explain(
+        document(
+            {
+                "wide": {"block": "shell.run", "for_each": ["a", "b"]},
+                "each": {"block": "shell.run", "depends_on": ["wide"], "for_each": "${steps.wide.items}"},
+            }
+        )
+    )
+    assert rows(shape)["each"].item_wise_parent is None
+
+
 def test_an_adoption_chain_carries_the_count_through_every_link() -> None:
     shape = explain(
         document(

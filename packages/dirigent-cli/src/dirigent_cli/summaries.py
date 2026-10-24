@@ -467,8 +467,10 @@ def _shape(record: Record) -> RenderableType | None:
 
 
 def _width(row: schemas.StepShape) -> str:
-    """Say how wide a step is, and where one bad item leaves the rest of the batch running."""
+    """Say how wide a step is, whether its items go one by one, and where one bad item leaves the rest running."""
     drawn = escape(str(row.cardinality))
+    if row.item_wise_parent is not None:
+        drawn = f"{drawn}  {muted('item by item')}"
     return f"{drawn}  {muted('continue')}" if row.items == "continue" else drawn
 
 

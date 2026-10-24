@@ -25,6 +25,7 @@ from dirigent_common import Duration, JsonMap, base_format_checker, format_durat
 from dirigent_core.engine.definition import ParameterError, PipelineDefinition, RetryPolicy, StepDefinition
 from dirigent_core.engine.failure import backoff_delay
 from dirigent_core.engine.references import ReferenceScope, UnknownReference, resolve
+from dirigent_core.engine.state import item_wise_parent
 
 #: What a cardinality says when the document alone cannot fix it.
 UNKNOWN: Final = "unknown"
@@ -65,7 +66,15 @@ def explain(definition: PipelineDefinition, catalog: Catalog | None = None) -> D
     order = definition.topological_order()
     shapes: dict[str, StepShape] = {}
     for name in order:
-        shapes[name] = _step_shape(name, definition.steps[name], params, shapes, catalog, definition.grid_source(name))
+        shapes[name] = _step_shape(
+            name,
+            definition.steps[name],
+            params,
+            shapes,
+            catalog,
+            definition.grid_source(name),
+            item_wise_parent(definition, name),
+        )
     rows = [shapes[name] for name in order]
     return DocumentShape(
         attempts_max=sum(row.max_attempts * (1 if row.elements is None else row.elements) for row in rows),
@@ -95,10 +104,12 @@ def _step_shape(
     done: Mapping[str, StepShape],
     catalog: Catalog | None,
     source: str | None,
+    paired: str | None = None,
 ) -> StepShape:
     """Read one step as the work it will become, against the steps already read.
 
-    ``source`` is the step a late grid waits for, which the row names.
+    ``source`` is the step a late grid waits for, and ``paired`` the fan-out whose items this
+    step's items wait for one by one; the row names both.
     """
     cardinality, elements = _cardinality(step, params, done, source)
     poll, deadline, from_block = _waits(step, _entry(step, catalog))
@@ -109,6 +120,7 @@ def _step_shape(
         cardinality=cardinality,
         elements=elements,
         grid_source=source,
+        item_wise_parent=paired,
         reference=step.for_each if isinstance(step.for_each, str) else None,
         items=step.items.value,
         max_attempts=step.retry.max_attempts,

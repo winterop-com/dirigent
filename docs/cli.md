@@ -171,7 +171,9 @@ deadline chain  -
 
 A cardinality is a number wherever the document fixes one: a literal list, or a
 `${params.x}` the document gives a default. `adopts <step>` is a step mapping over another
-fan-out's grid, and it is as wide as that grid. `from <step>` is a `for_each` over a step's
+fan-out's grid, and it is as wide as that grid; `item by item` beside it, and the row's
+`item_wise_parent`, say each of its items runs once its own match has settled rather than once
+the whole grid has, which an `items: continue` grid gives a step that reads only its match. `from <step>` is a `for_each` over a step's
 output, as wide as that step's list turns out to be; the row's `grid_source` names the step, and
 the step is counted once. `unknown` is a width only the run can fix --
 a parameter with no default, a window's bounds -- and the attempts total then counts that
