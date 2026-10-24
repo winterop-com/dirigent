@@ -37,7 +37,7 @@ from dirigent_plugin import (
 from dirigent_plugin.markers import contribute
 
 if TYPE_CHECKING:
-    from dirigent_core.examples import ExampleEntry
+    from dirigent_core.examples import ExampleEntry, ShelfFile
 
 
 class PluginError(DomainError):
@@ -191,6 +191,12 @@ class PluginHost:
 
             self._examples = collect(self._shelves())
         return self._examples
+
+    def example_files(self) -> "list[ShelfFile]":
+        """Read every file of the installed corpus that parses to a mapping, documents and the files beside them."""
+        from dirigent_core.examples import shelf_files
+
+        return shelf_files(self._shelves())
 
     def _shelves(self) -> list[tuple[str, Sequence[Traversable]]]:
         """Ask every registered plugin for the directories its shelves live in."""

@@ -291,18 +291,20 @@ reparented -- which also means backgrounding it past the shell that launched it 
 
 `dg dev --seed DIR` fills the instance the moment its API answers: every `dirigent/v1`
 document under the directory, recursively and in path order, applied with its schedules
-paused. The connections a `connections.yaml` declares go in first, and a document that
-carries its own `connections:` or `schemas:` -- so that it also runs under `dg run --local`
--- has those created and is then applied without the section, which is the only form an
-instance stores. A document this instance will not store is reported and passed over: a
-corpus holds those on purpose. Name `--seed` more than once to seed one directory after
-another, in the order given, which is how a directory holding a connection a later document
-names goes in first. It seeds whatever instance is there, so without `--wipe-state` every
-apply is an `unchanged`.
+paused. The connections a `connections.yaml` declares go in first, then every standalone JSON
+Schema file beside the documents -- one that declares a string `$id` -- stored under the code
+`dg schema create` would give it, and a document that carries its own `connections:` or
+`schemas:` -- so that it also runs under `dg run --local` -- has those created and is then
+applied without the section, which is the only form an instance stores. A document refused
+for naming a pipeline or a schema a later document supplies is applied again once the rest
+are in, pass after pass until one stores nothing new. What is still refused then is reported
+and passed over: a corpus holds those on purpose. Name `--seed` more than once to seed one
+directory after another, in the order given. It seeds whatever instance is there, so without
+`--wipe-state` every apply is an `unchanged`.
 
 `--seed-installed` does the same for the corpus every installed plugin ships, so no checkout
-and no path is needed: it walks the catalogue `dg examples list` reads and feeds each document
-through the same apply. Both flags may be given, and the directories go in first.
+and no path is needed: it walks the shelves the catalogue `dg examples list` reads, the
+connection and schema files beside the documents included, and seeds them the same way. Both flags may be given, and the directories go in first.
 
 ```bash
 dg dev --wipe-state --seed examples            # a fresh instance with the whole corpus in it
@@ -695,9 +697,10 @@ rather than being able to change what a parser reads the record by.
 | `output` | A step settles, from `-v` up; the message is its status | The output's own fields, or `artifact` and `bytes` when it went to storage |
 | `process` | A long-running process starts, when it is ready, when `dg dev --wipe-state` clears its state, and when the process that started `dg dev` goes | `process`, and for `dg dev` the `api`, `docs`, `state`, `admin`, `token` and `migrated` it would otherwise have printed; a `state cleared` carries the `state` it deleted and the `hint` that keeps it, and a `parent gone` the `parent` pid that went |
 | `seed.connection` | `dg dev --seed` creates a connection a file or a document declares | `connection`, `connection_kind`, `action` of `created` or `updated`, and the `origin` file it was read from |
+| `seed.schema` | `dg dev --seed` stores a standalone JSON Schema file | `schema`, the code it is stored under, and the `origin` file it was read from |
 | `seed.applied` | `dg dev --seed` stores one document | `document`, `pipeline`, `action`, and the `schedules_paused` and `watches_paused` this apply brought into being |
 | `seed.refused` | `dg dev --seed` meets something the instance will not take | `document` and the `reason` it gave |
-| `seed.done` | `dg dev --seed` finishes | The `directories` it walked, and the `pipelines`, `refused` and `connections` it ended with |
+| `seed.done` | `dg dev --seed` finishes | The `directories` it walked, or with `--seed-installed` the `plugins`, and the `pipelines`, `refused`, `connections` and `schemas` it ended with |
 
 **Verbosity chooses events, never shapes.** The default writes `run`, `step` and every `log`
 line at `info` and above. `-v` adds the `output` event. `-d` adds the `log` lines a block
