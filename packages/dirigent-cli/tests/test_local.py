@@ -127,7 +127,16 @@ def test_a_document_is_applied_and_run_with_no_server(tmp_path: Path) -> None:
 
 def test_step_transitions_are_streamed_not_only_the_outcome(tmp_path: Path) -> None:
     result = invoke("run", "--local", str(write(tmp_path, HELLO)), "--enable-unsafe", "shell.run")
-    assert messages(result.stdout, "step") == ["queued", "succeeded"]
+    assert messages(result.stdout, "step") == ["queued", "running", "succeeded"]
+
+
+def test_every_state_a_step_passed_through_is_streamed_however_quickly_it_settled(tmp_path: Path) -> None:
+    """A step claimed and settled between two reads of the run is still reported queued and running."""
+    result = invoke("run", "--local", str(write(tmp_path, CHAIN)), "--enable-unsafe", "shell.run")
+    assert result.exit_code == 0, result.stdout
+    stream = [record for record in records(result.stdout) if record["kind"] == "step"]
+    for step in ("zebra", "middle", "apple"):
+        assert [record["message"] for record in stream if record["step"] == step] == ["queued", "running", "succeeded"]
 
 
 def test_a_failure_carries_the_diagnosis_before_the_database_is_discarded(tmp_path: Path) -> None:
@@ -1332,18 +1341,18 @@ async def test_the_local_driver_widens_its_poll_when_nothing_moves(
     engine, sessions, services, run_id = await _seeded_run(tmp_path / "quiet")
     monkeypatch.setattr(local, "Worker", _IdleWorker)
     intervals: list[float] = []
-    slept = asyncio.sleep
 
-    async def recording(seconds: float) -> None:
-        """Record what the driver asked to wait, wait for none of it, and write a line partway."""
-        intervals.append(seconds)
+    async def recording(_mark: object, *, timeout: float) -> bool:
+        """Record how long the driver would wait for the run to move, wait for none of it, and write a line partway."""
+        intervals.append(timeout)
         if len(intervals) == QUIET_TICKS:
             await _log_lines(sessions, run_id, ["something happened"])
         if len(intervals) == QUIET_TICKS + 2:
             raise _StopDriving
-        await slept(0)
+        await asyncio.sleep(0)
+        return False
 
-    monkeypatch.setattr(asyncio, "sleep", recording)
+    monkeypatch.setattr(local.wakeups, "wait_settled", recording)
     with pytest.raises(_StopDriving):
         async for _event in _drive(sessions, services, run_id, "paged", {}, [], 600.0):
             pass
