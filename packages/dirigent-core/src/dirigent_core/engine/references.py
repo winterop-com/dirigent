@@ -8,10 +8,11 @@ There are no expressions, loops, or conditionals, and five namespaces: ``params.
 the instance's storage root, which nothing sweeps, so ``${artifacts}/kept/x.json`` is how a
 document names an object meant to outlive the run that wrote it.
 
-``steps`` has three forms: ``steps.<name>.output.*`` is a step's stored output,
-``steps.<name>.items`` is the list a fan-out maps over and only ``for_each`` reads it, and
+``steps`` has four forms: ``steps.<name>.output.*`` is a step's stored output,
+``steps.<name>.items`` is the list a fan-out maps over and only ``for_each`` reads it,
 ``steps.<name>.item.output.*`` is the matching item's output in a step this one shares a
-grid with.
+grid with, and ``steps.<name>.error.code``, ``.message`` and ``.params`` are what a step
+failed with, which resolve only when it did.
 
 A reference that stands alone resolves to the typed value, so ``"${params.count}"`` is an
 integer downstream; one inside a larger string interpolates. An unknown reference raises
@@ -42,6 +43,7 @@ from dirigent_core.messages import (
     NO_ITEM,
     NO_OUTPUT,
     NO_WINDOW,
+    NOT_FAILED,
     NOT_PAIRED,
     UNKNOWN_NAMESPACE,
 )
@@ -86,6 +88,9 @@ class ReferenceScope(BaseModel):
 
     outputs: dict[str, JsonValue] = Field(default_factory=dict)
     """Stored outputs of upstream steps, keyed by step name."""
+
+    errors: dict[str, JsonMap] = Field(default_factory=dict)
+    """What each failed step failed with, as its code, message and params, keyed by step name."""
 
     item: JsonValue = None
     """The element this run item maps, when the step fans out."""
@@ -319,6 +324,10 @@ def _step_output(reference: str, parts: list[str], scope: ReferenceScope) -> Jso
                 available = ", ".join(sorted(scope.outputs)) or "no step has produced output yet"
                 raise UnknownReference(NO_OUTPUT, reference=reference, step=repr(name), available=available)
             return _walk(reference, scope.outputs[name], path, f"steps.{name}.output")
+        case [name, "error", *path]:
+            if name not in scope.errors:
+                raise UnknownReference(NOT_FAILED, reference=reference, step=repr(name))
+            return _walk(reference, cast("JsonValue", scope.errors[name]), path, f"steps.{name}.error")
         case [name, "items"]:
             if name not in scope.grids:
                 raise UnknownReference(NO_GRID, reference=reference, step=repr(name), bare_step=name)

@@ -45,8 +45,10 @@ from dirigent_core.messages import (
     NOT_A_MAPPING,
     NOT_YAML,
     PARAMS_SCHEMA_INVALID,
+    REFERENCE_ERROR_NOT_UPSTREAM,
     REFERENCE_GRID_IN_CONFIG,
     REFERENCE_MALFORMED_ARTIFACTS,
+    REFERENCE_MALFORMED_ERROR,
     REFERENCE_MALFORMED_ITEM,
     REFERENCE_MALFORMED_RUN,
     REFERENCE_MALFORMED_STEP,
@@ -366,6 +368,7 @@ def validate_against_catalog(
     blocks: Mapping[str, Any] | None = None,
     format_checker: FormatChecker | None = None,
     target: TriggerTarget | None = None,
+    source_kinds: Mapping[str, Any] | None = None,
 ) -> list[ValidationIssue]:
     """Check a document against what this instance actually has, reporting everything at once.
 
@@ -379,8 +382,13 @@ def validate_against_catalog(
     against; unset, they are checked against the base formats alone, which is all a caller
     holding no host can know. ``target`` is the pipeline a triggers document names, as the
     instance holds it now; on the offline path there is none to read, and only the clocks and
-    the codes are checked.
+    the codes are checked. ``source_kinds`` is the source kinds the instance knows; unset, the
+    built-in ones.
     """
+    from dirigent_core.sources.kinds import built_in_kinds
+    from dirigent_core.sources.rules import source_issues
+
+    kinds = source_kinds if source_kinds is not None else built_in_kinds()
     checker = format_checker if format_checker is not None else base_format_checker()
     sensors = _sensors(catalog) if check_blocks else None
     if isinstance(definition, TriggersDefinition):
@@ -406,6 +414,7 @@ def validate_against_catalog(
     issues.extend(_carried_schema_issues(definition))
     issues.extend(_reference_issues(definition))
     issues.extend(_trigger_issues(definition, checker, check_params=not malformed_params, sensors=sensors))
+    issues.extend(source_issues(definition, kinds))
     if check_blocks:
         issues.extend(
             _step_block_issues(
@@ -607,6 +616,10 @@ def _triggers_document_issues(
         return [ValidationIssue.of(TARGET_PIPELINE_MISSING, location="pipeline", code=repr(definition.pipeline))]
     if not target.active:
         return [ValidationIssue.of(TARGET_PIPELINE_INACTIVE, location="pipeline", code=repr(definition.pipeline))]
+    if target.definition is not None and target.definition.sources:
+        from dirigent_core.sources.rules import triggers_issues
+
+        return triggers_issues(target.code, definition.triggers)
     return _trigger_issues(definition, format_checker, against=target.definition, sensors=sensors)
 
 
@@ -672,6 +685,8 @@ def _step_block_issues(
     issues: list[ValidationIssue] = []
     for name in sorted(definition.steps):
         step = definition.steps[name]
+        if step.block is None:
+            continue
         entry = catalog.block(step.block)
         if entry is None:
             issues.append(
@@ -851,6 +866,12 @@ def _reference_issues(definition: PipelineDefinition) -> list[ValidationIssue]:
             problem = _reference_problem(reference.strip(), definition, name, upstream, declared, family)
             if problem is not None:
                 issues.append(_at(f"steps.{name}.config", problem))
+        if step.reply is not None:
+            written = cast("JsonValue", step.reply.model_dump(mode="json", exclude={"timeout"}))
+            for reference in sorted(set(references_in(written))):
+                problem = _reference_problem(reference.strip(), definition, name, upstream, declared, family)
+                if problem is not None:
+                    issues.append(_at(f"steps.{name}.reply", problem))
         issues.extend(_fan_out_literal_issues(name, step.for_each))
         issues.extend(_adoption_issues(definition, name))
         for reference in sorted(set(references_in(cast("JsonValue", step.for_each)))):
@@ -952,6 +973,14 @@ def _reference_problem(
             if target not in upstream:
                 return Issue.of(REFERENCE_NOT_UPSTREAM, reference=reference, target=repr(target), step=repr(step))
             return None
+        case ["steps", target, "error", *path]:
+            if target not in definition.steps:
+                return Issue.of(REFERENCE_UNKNOWN_STEP, reference=reference, step=repr(target))
+            if target not in upstream:
+                return Issue.of(REFERENCE_ERROR_NOT_UPSTREAM, reference=reference, target=repr(target), step=repr(step))
+            if path[:1] not in (["code"], ["message"], ["params"]) or (path[:1] != ["params"] and len(path) > 1):
+                return Issue.of(REFERENCE_MALFORMED_ERROR, reference=reference)
+            return None
         case ["steps", target, "items"]:
             return Issue.of(REFERENCE_GRID_IN_CONFIG, reference=reference, target=repr(target), bare_target=target)
         case ["steps", target, "item", "output", *_]:
@@ -1032,7 +1061,9 @@ def summarize(definition: Document) -> DocumentSummary:
     pipeline = definition.pipeline if isinstance(definition, TriggersDefinition) else None
     steps = sorted(definition.steps) if isinstance(definition, PipelineDefinition) else []
     blocks = (
-        sorted({step.block for step in definition.steps.values()}) if isinstance(definition, PipelineDefinition) else []
+        sorted({step.block for step in definition.steps.values() if step.block is not None})
+        if isinstance(definition, PipelineDefinition)
+        else []
     )
     return DocumentSummary(
         kind=definition.kind,

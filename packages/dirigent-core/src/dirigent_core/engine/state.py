@@ -15,12 +15,14 @@ import sqlalchemy as sa
 from pydantic import BaseModel, ConfigDict, JsonValue
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dirigent_client.enums import AttemptStatus, RunItemStatus, RunStatus
+from dirigent_client.enums import AttemptKind, AttemptStatus, RunItemStatus, RunStatus
 from dirigent_client.schemas import AttemptOut
 from dirigent_core.engine.definition import ItemPolicy, PipelineDefinition, StepDefinition, TriggerRule
 from dirigent_core.engine.expansion import expand_gate, is_gate
 from dirigent_core.engine.references import references_in
+from dirigent_core.engine.replies import entered_attempt, settle_reply
 from dirigent_core.engine.services import EngineServices
+from dirigent_core.messages import NOT_ENTERED
 from dirigent_core.models import Pipeline, Run, RunItem, StepAttempt, utcnow
 
 #: A reference into a step, by the step's name and the field read off it: output, items, or item.
@@ -409,7 +411,12 @@ async def advance(
     This is the last statement of an outcome transaction, so it must reach a fixpoint in one
     pass: skipping a step can unblock or doom its own dependents. A ready gate is expanded
     rather than queued, and its items join the walk as queued attempts, or as pending ones
-    an item-wise step readies one by one.
+    an item-wise step readies one by one. A ready reply is rendered and settled here, never
+    queued.
+
+    A step skipped in a run entered at a source it is not downstream of is skipped for good:
+    nothing a retry reopens can change what was entered, so it is given a start and the
+    reason, which is what keeps a retry from reopening it as a skip that only propagated.
     """
     moment = now or utcnow()
     await session.flush()
@@ -422,6 +429,8 @@ async def advance(
         if (parent := item_wise_parent(definition, name)) is not None
     }
     index_of, at = await item_partners(session, run.id, parents) if parents else ({}, {})
+    entered = entered_attempt(attempts)
+    reach = {entered.step_name, *definition.descendants_of(entered.step_name)} if entered is not None else None
 
     changed = True
     while changed:
@@ -456,6 +465,9 @@ async def advance(
                             await session.flush()
                             index_of, at = await item_partners(session, run.id, parents)
                     changed = True
+                case Readiness.READY if definition.steps[attempt.step_name].reply is not None:
+                    await settle_reply(session, services, run, definition, attempt, attempts, moment)
+                    changed = True
                 case Readiness.READY:
                     attempt.status = AttemptStatus.QUEUED
                     attempt.available_at = moment
@@ -463,6 +475,8 @@ async def advance(
                 case Readiness.NEVER:
                     attempt.status = AttemptStatus.SKIPPED
                     attempt.finished_at = moment
+                    if reach is not None and entered is not None and attempt.step_name not in reach:
+                        _not_entered(attempt, entered.step_name, moment)
                     changed = True
                 case Readiness.WAIT:
                     pass
@@ -471,7 +485,7 @@ async def advance(
     states = build_step_states(definition, attempts)
     derived = derive_run_status(states, cancelled=run.status is RunStatus.CANCELLED)
     if derived is None:
-        if run.status is RunStatus.QUEUED and any(attempt.started_at is not None for attempt in attempts):
+        if run.status is RunStatus.QUEUED and any(_worked(attempt) for attempt in attempts):
             run.status = RunStatus.RUNNING
             run.started_at = run.started_at or moment
         await session.flush()
@@ -480,6 +494,25 @@ async def advance(
     run.finished_at = run.finished_at or moment
     await session.flush()
     return derived
+
+
+def _worked(attempt: StepAttempt) -> bool:
+    """Say whether an attempt was work that started, which is what moves a run to running.
+
+    An input settled at creation and a source not entered are written with a start, and
+    neither is work the run did.
+    """
+    if attempt.kind is AttemptKind.RECEIVED or attempt.error_code == NOT_ENTERED.code:
+        return False
+    return attempt.started_at is not None
+
+
+def _not_entered(attempt: StepAttempt, entered: str, moment: datetime) -> None:
+    """Mark a skip as one no retry can reopen: the run was entered somewhere this step is not downstream of."""
+    attempt.started_at = moment
+    attempt.error = NOT_ENTERED.render(entered=repr(entered), step=repr(attempt.step_name))
+    attempt.error_code = NOT_ENTERED.code
+    attempt.error_params = {"entered": repr(entered), "step": repr(attempt.step_name)}
 
 
 async def _settle_items(

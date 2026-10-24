@@ -86,6 +86,10 @@ CANNOT_PROMPT_SET = CLI.define("cannot_prompt_set", "--json cannot prompt for {f
 
 PARAMS_REFUSED = CLI.define("params_refused", "{detail}")
 
+INPUT_REFUSED = CLI.define("input_refused", "--input is not JSON or YAML: {detail}")
+
+INPUT_FILE_UNREADABLE = CLI.define("input_file_unreadable", "--input names {path}, which cannot be read: {detail}")
+
 TRIGGERS_DOCUMENT_NOT_RUNNABLE = CLI.define(
     "triggers_document_not_runnable",
     "a triggers document declares clocks for a pipeline and cannot be run; run the pipeline it names",

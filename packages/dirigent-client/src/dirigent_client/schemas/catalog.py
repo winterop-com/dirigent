@@ -49,6 +49,31 @@ class SurfaceEntry(BaseModel):
     declares one. Monochrome: a screen fills it in the ink it draws every other mark in."""
 
 
+class SourceEntry(BaseModel):
+    """One source kind in the catalog: where an input enters a pipeline, and what it hands on."""
+
+    kind: str
+    """What a document writes as ``source.kind``."""
+
+    plugin: str
+    summary: str
+    hosting: str
+    """Who takes the kind's inputs: ``received`` by the server, ``polled`` or ``held`` by a worker."""
+
+    replies: bool = False
+    """Whether a reply node may answer an input of this kind."""
+
+    config_schema: JsonMap = Field(default_factory=dict)
+    """The fields a source node of this kind writes beside ``kind``."""
+
+    output_schema: JsonMap = Field(default_factory=dict)
+    """The input a source node of this kind hands the step after it."""
+
+    secret_fields: list[str] = Field(default_factory=list[str])
+    mark: str | None = None
+    """The ``d`` of one SVG path on a 24-unit grid this kind is drawn by, where it declares one."""
+
+
 class Catalog(BaseModel):
     """The host's merged view of every contribution."""
 
@@ -58,10 +83,16 @@ class Catalog(BaseModel):
     storage_schemes: list[SurfaceEntry] = Field(default_factory=list[SurfaceEntry])
     notifiers: list[SurfaceEntry] = Field(default_factory=list[SurfaceEntry])
     connection_kinds: list[SurfaceEntry] = Field(default_factory=list[SurfaceEntry])
+    sources: list[SourceEntry] = Field(default_factory=list[SourceEntry])
+    """The source kinds a source node may write."""
 
     def block(self, block_id: str) -> BlockEntry | None:
         """Find one catalog entry by block id."""
         return next((entry for entry in self.blocks if entry.id == block_id), None)
+
+    def source(self, kind: str) -> SourceEntry | None:
+        """Find one source kind by the ``kind`` a document writes."""
+        return next((entry for entry in self.sources if entry.kind == kind), None)
 
     @property
     def digest(self) -> str:

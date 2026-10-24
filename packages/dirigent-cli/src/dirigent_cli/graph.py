@@ -30,12 +30,22 @@ def steps_of_document(document: Mapping[str, Any]) -> list[GraphStep]:
         read.append(
             GraphStep(
                 name=str(name),
-                block=str(held.get("block", "-")),
+                block=_block_of(held),
                 depends_on=tuple(str(item) for item in cast("list[Any]", depends or ())),
                 rule=str(held.get("rule", DEFAULT_RULE)),
             )
         )
     return read
+
+
+def _block_of(step: Mapping[str, Any]) -> str:
+    """Name what a step runs: its block, a source's kind, or ``reply``."""
+    source = step.get("source")
+    if isinstance(source, dict):
+        return str(cast("dict[str, Any]", source).get("kind", "source"))
+    if "reply" in step:
+        return "reply"
+    return str(step.get("block", "-"))
 
 
 def render_graph(steps: Sequence[GraphStep]) -> list[str]:

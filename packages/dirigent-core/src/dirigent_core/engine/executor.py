@@ -43,7 +43,7 @@ from dirigent_core.engine.definition import (
     TimeoutAction,
     load_definition,
 )
-from dirigent_core.engine.expansion import collect_outputs, is_gate, item_value_of
+from dirigent_core.engine.expansion import collect_errors, collect_outputs, is_gate, item_value_of
 from dirigent_core.engine.failure import Failure, backoff_delay, should_retry
 from dirigent_core.engine.recovery import overdue_deadlines
 from dirigent_core.engine.references import ReferenceScope, UnknownReference, references_in, resolve_config
@@ -71,6 +71,7 @@ from dirigent_core.messages import (
     REMOTE_JOB_FAILED,
     REMOTE_JOB_GONE,
     REMOTE_JOB_SAID,
+    SERVER_SETTLED,
     STEP_NOT_IN_VERSION,
 )
 from dirigent_core.models import LogEntry, PipelineVersion, Run, RunItem, StepAttempt, utcnow
@@ -240,6 +241,17 @@ class Engine:
             )
             return None
 
+        if step.block is None:
+            await self._settle_and_advance(
+                session,
+                run,
+                definition,
+                attempt,
+                Failure.rejected(SERVER_SETTLED, step=repr(attempt.step_name), kind=step.kind.value),
+                now,
+            )
+            return None
+
         if attempt.deadline_at is not None and attempt.deadline_at <= now:
             await self._settle_deadline(session, run, definition, attempt, step, now)
             return None
@@ -271,6 +283,7 @@ class Engine:
         scope = ReferenceScope(
             params=dict(run.params),
             outputs=await collect_outputs(session, run.id, definition),
+            errors=await collect_errors(session, run.id, definition),
             item=item_value,
             has_item=has_item,
             item_index=item.item_index if item is not None else None,

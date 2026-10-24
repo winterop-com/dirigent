@@ -390,7 +390,8 @@ def instrument_fastapi(app: Any) -> None:
             attributes={"http.request.method": request.method, "url.path": path},
         ) as span:
             response = await call_next(request)
-            template = getattr(request.scope.get("route"), "path", None)
+            declared = getattr(request.state, "route_template", None)
+            template = declared or getattr(request.scope.get("route"), "path", None)
             if isinstance(template, str):
                 span.set_attribute("http.route", template)
                 span.update_name(f"{request.method} {template}")

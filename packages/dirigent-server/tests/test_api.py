@@ -1388,6 +1388,7 @@ def test_the_dag_is_the_same_story_the_grid_told(client: TestClient) -> None:
         {
             "code": "seed",
             "name": None,
+            "kind": "block",
             "block": "shell.run",
             "outcome": "succeeded",
             "depends_on": [],
@@ -1402,6 +1403,7 @@ def test_the_dag_is_the_same_story_the_grid_told(client: TestClient) -> None:
         {
             "code": "spread",
             "name": None,
+            "kind": "block",
             "block": "shell.run",
             "outcome": "succeeded",
             "depends_on": ["seed"],
@@ -1416,6 +1418,7 @@ def test_the_dag_is_the_same_story_the_grid_told(client: TestClient) -> None:
         {
             "code": "gather",
             "name": None,
+            "kind": "block",
             "block": "shell.run",
             "outcome": "pending",
             "depends_on": ["spread"],

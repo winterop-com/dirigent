@@ -26,7 +26,6 @@ SCHEMA_STALE = DATABASE.define(
     "this version created",
 )
 
-
 AUTH = Catalogue("auth")
 
 WEAK_PASSWORD = AUTH.define("weak_password", "a password must be at least {minimum} characters")
@@ -41,7 +40,6 @@ LAST_ADMIN = AUTH.define(
 )
 
 WRONG_PASSWORD = AUTH.define("wrong_password", "the current password is not correct")
-
 
 PIPELINE = Catalogue("pipeline")
 
@@ -58,7 +56,6 @@ PIPELINE_NO_VERSIONS = PIPELINE.define("no_versions", "pipeline {code} has no ve
 
 PIPELINE_NO_SUCH_VERSION = PIPELINE.define("no_such_version", "pipeline {code} has no version {version}")
 
-
 SECRET = Catalogue("secret")
 
 SECRET_KEY_MISSING = SECRET.define(
@@ -73,7 +70,6 @@ SECRET_KEY_MISMATCH = SECRET.define(
     "the configured DIRIGENT_SECRET_KEY cannot open this envelope{sealed_by}: "
     "either the key changed or the row belongs to another instance",
 )
-
 
 ARTIFACTS = Catalogue("artifacts")
 
@@ -102,7 +98,6 @@ OBJECT_MISSING = ARTIFACTS.define(
     "or prune the run",
 )
 
-
 HOST = Catalogue("host")
 
 UNSUPPORTED_API_VERSION = HOST.define(
@@ -130,7 +125,6 @@ AMBIGUOUS_EXAMPLE = HOST.define(
     "example {code} is carried by {plugins}; the code alone does not name one of them.",
 )
 
-
 SCHEMA = Catalogue("schema")
 
 SCHEMA_NO_CODE = SCHEMA.define(
@@ -145,7 +139,6 @@ SCHEMA_IN_USE = SCHEMA.define(
     "schema {code} cannot be removed while pipelines name it ({pipelines}); a pipeline must stop naming it first",
 )
 
-
 PARAMETER = Catalogue("parameter")
 
 PARAMETER_INVALID = PARAMETER.define("invalid", "parameter {location} is invalid: {detail}")
@@ -154,7 +147,6 @@ PARAMETER_SCHEMA_INVALID = PARAMETER.define(
     "schema_invalid",
     "the pipeline's parameter schema is not itself valid JSON Schema ({problem}); apply a corrected document to fix it",
 )
-
 
 DOCUMENT = Catalogue("document")
 
@@ -439,7 +431,6 @@ ADOPTED_NOT_UPSTREAM = DOCUMENT.define(
     "prerequisite of {step}; add it to depends_on",
 )
 
-
 SCHEDULE = Catalogue("schedule")
 
 SCHEDULE_EXACTLY_ONE_CLOCK = SCHEDULE.define(
@@ -492,7 +483,6 @@ BACKFILL_TOO_MANY = SCHEDULE.define(
     "a backfill creates at most {cap} runs, and {code} over {start}..{end} enumerates {counted}; narrow the interval",
 )
 
-
 WATCH = Catalogue("watch")
 
 DUPLICATE_WATCH = WATCH.define("duplicate", "pipeline {pipeline} already has a watch coded {code}")
@@ -524,7 +514,6 @@ WATCH_PIPELINE_REAPPLIED = WATCH.define("pipeline_reapplied", "a new version of 
 WATCH_PIPELINE_DEACTIVATED = WATCH.define("pipeline_deactivated", "its pipeline was deactivated")
 
 WATCH_PIPELINE_DELETED = WATCH.define("pipeline_deleted", "its pipeline was deleted")
-
 
 WEBHOOK = Catalogue("webhook")
 
@@ -595,7 +584,6 @@ REQUIRED_UNMAPPED = WEBHOOK.define(
     "the required parameter {name} is not mapped, so no delivery could supply it",
 )
 
-
 ALERT = Catalogue("alert")
 
 DUPLICATE_RULE = ALERT.define("duplicate_rule", "an alert rule coded {code} already exists")
@@ -623,7 +611,6 @@ NOTIFICATION_IN_FLIGHT = ALERT.define(
     "notification_in_flight",
     "a worker is delivering this one; wait for it to finish or fail",
 )
-
 
 REFERENCE = Catalogue("reference")
 
@@ -679,6 +666,7 @@ NO_WINDOW = _unresolved(
 
 NO_FIELD = _unresolved("no_field", "{walked} has no {part} ({available})")
 
+NOT_FAILED = _unresolved("not_failed", "step {step} did not fail, and its error is read only when it did")
 
 RUN = Catalogue("run")
 
@@ -836,3 +824,171 @@ CANCELLED_BY = RUN.define("cancelled_by", "cancelled by {principal}")
 REPLACED_BY_NEWER_RUN = RUN.define("replaced_by_newer_run", "replaced by a newer run")
 
 REPLACED_BY_RETRY = RUN.define("replaced_by_retry", "replaced by a manual retry")
+
+GIVEN_NO_ENTRY = RUN.define(
+    "given_no_entry",
+    "pipeline {code} starts at its sources ({sources}), so a run of it enters through one of them",
+)
+
+ENTRY_NOT_A_SOURCE = RUN.define(
+    "entry_not_a_source",
+    "step {step} is not a source of pipeline {code}; a run enters at one of {sources}",
+)
+
+ENTRY_ON_NO_SOURCES = RUN.define(
+    "entry_on_no_sources",
+    "pipeline {code} has no sources, so a run of it is not entered at a step",
+)
+
+ENTRY_AMBIGUOUS = RUN.define(
+    "entry_ambiguous",
+    "pipeline {code} has the sources {sources}; name the one this run enters at",
+)
+
+ENTRY_INPUT_REFUSED = RUN.define(
+    "entry_input_refused",
+    "the input for source {step} is not one its kind {kind} can make whole: {detail}",
+)
+
+SOURCE_NOT_RETRYABLE = RUN.define(
+    "source_not_retryable",
+    "step {step} is a source, settled with the input the run was created for; running that input again is a new run",
+)
+
+REPLY_NOT_RETRYABLE = RUN.define(
+    "reply_not_retryable",
+    "step {step} is a reply, settled by the server once, when the steps it answers from settled",
+)
+
+SERVER_SETTLED = RUN.define("server_settled", "step {step} is a {kind}, which the server settles and no worker claims")
+
+NOT_ENTERED = RUN.define("not_entered", "the input arrived at {entered}, so {step} was not entered")
+
+REPLY_REFUSED = RUN.define("reply_refused", "reply {step} could not be rendered: {detail}")
+
+REPLY_STATUS = RUN.define(
+    "reply_status", "reply {step} answers with {status}, and a reply's status is a whole number from 200 to 599"
+)
+
+REPLY_BODY_FROM = RUN.define(
+    "reply_body_from", "reply {step} streams its body from {value}, and body_from names a storage URI"
+)
+
+SOURCE = Catalogue("source")
+
+SOURCE_FIELD_REFUSED = SOURCE.define(
+    "field_refused",
+    "a source takes name, description and sample, and nothing else; {field} goes on the step after it",
+)
+
+REPLY_FIELD_REFUSED = SOURCE.define(
+    "reply_field_refused",
+    "a reply takes depends_on, rule, name and description, and nothing else; {field} is not one of them",
+)
+
+STEP_ONE_FORM = SOURCE.define(
+    "step_one_form",
+    "a step is exactly one of block, source or reply, and this one writes {named}",
+)
+
+SAMPLE_OUTSIDE_SOURCE = SOURCE.define("sample_outside_source", "only a source takes a sample")
+
+REPLY_BODY_TWICE = SOURCE.define("reply_body_twice", "a reply takes body or body_from, not both")
+
+REPLY_BAD_STATUS = SOURCE.define(
+    "reply_bad_status", "a reply's status is a whole number from 200 to 599 or a reference to one, not {status}"
+)
+
+REPLY_BAD_HEADER = SOURCE.define("reply_bad_header", "a reply does not set {header}, which the server writes itself")
+
+UNKNOWN_KIND = SOURCE.define("unknown_kind", "no source kind {kind} is available on this instance ({known})")
+
+SAMPLE_INVALID = SOURCE.define(
+    "sample_invalid", "the sample of source {step} is not an input its kind {kind} can make whole: {detail}"
+)
+
+ROOT_BESIDE_SOURCES = SOURCE.define(
+    "root_beside_sources",
+    "step {step} depends on nothing in a pipeline with sources, so it would run on every input "
+    "from every source; make it depend on the source it belongs to",
+)
+
+JOIN_OF_SOURCES = SOURCE.define(
+    "join_of_sources",
+    "step {step} waits with all_success on both {first} and {second}, and a run enters at one "
+    "source only, so it could never run; join them with all_done or always",
+)
+
+SCHEDULE_ON_SOURCES = SOURCE.define(
+    "schedule_on_sources",
+    "pipeline {code} starts at its sources, and a schedule would enter none of them; run it from a source instead",
+)
+
+TRIGGERS_ON_SOURCES = SOURCE.define(
+    "triggers_on_sources",
+    "pipeline {code} starts at its sources, and a {label} would start a run that enters none of them",
+)
+
+REQUIRED_PARAM_ON_SOURCES = SOURCE.define(
+    "required_param_on_sources",
+    "parameter {name} is required with no default, and a run a source creates takes the defaults; give it a default",
+)
+
+REPLACE_ON_HELD = SOURCE.define(
+    "replace_on_held",
+    "pipeline {code} has a {hosting} source, and concurrency: replace would cancel the run "
+    "each new input creates; use allow, skip or queue",
+)
+
+ROUTE_CLAIMED = SOURCE.define(
+    "route_claimed",
+    "{method} {template} is already answered by source {step} of pipeline {pipeline}",
+)
+
+REPLY_NOT_A_LEAF = SOURCE.define(
+    "reply_not_a_leaf", "step {dependent} depends on reply {step}, and a reply is a leaf: nothing waits on it"
+)
+
+REPLY_NO_SOURCE = SOURCE.define(
+    "reply_no_source",
+    "reply {step} is downstream of no source that replies, so there is nobody for it to answer",
+)
+
+REFERENCE_ERROR_NOT_UPSTREAM = SOURCE.define(
+    "reference_error_not_upstream",
+    "{reference} reads the failure of {target}, which is not upstream of step {step}",
+)
+
+UNSUPPORTED_MEDIA = SOURCE.define(
+    "unsupported_media",
+    "this endpoint takes {accepted}, not {content_type}; a file is posted as a URI in a JSON body",
+)
+
+BODY_WITHOUT_TYPE = SOURCE.define(
+    "body_without_type", "the body arrived with no content-type, and this endpoint takes {accepted}"
+)
+
+ENDPOINT_BODY_NOT_JSON = SOURCE.define("body_not_json", "the body is not JSON: {detail}")
+
+ENDPOINT_BODY_NOT_TEXT = SOURCE.define("body_not_text", "the body is not {charset} text: {detail}")
+
+REFERENCE_MALFORMED_ERROR = SOURCE.define(
+    "reference_malformed_error",
+    "{reference} reads a failure, which is written steps.<name>.error.code, .message, or .params",
+)
+
+SAMPLE_NOT_AN_OBJECT = SOURCE.define("sample_not_an_object", "a sample is written as an object, not a {kind}")
+
+ENDPOINT_ACCEPTS_REFUSED = SOURCE.define(
+    "endpoint_accepts_refused",
+    "an endpoint reads JSON, urlencoded forms and text, and {accepts} is none of them; "
+    "a file is posted as a URI in a JSON body",
+)
+
+ENDPOINT_METHOD_NOT_DECLARED = SOURCE.define(
+    "endpoint_method_not_declared", "the method {method} is not one this endpoint answers ({methods})"
+)
+
+ENDPOINT_PATH_PARAMS_MISSING = SOURCE.define(
+    "endpoint_path_params_missing", "the path template takes {names}, and path_params gives no value for it"
+)

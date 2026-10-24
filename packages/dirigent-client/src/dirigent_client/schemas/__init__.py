@@ -23,7 +23,7 @@ from dirigent_client.schemas.auth import (
     UserOut,
     UserUpdate,
 )
-from dirigent_client.schemas.catalog import BlockEntry, BlockKind, Catalog, SurfaceEntry
+from dirigent_client.schemas.catalog import BlockEntry, BlockKind, Catalog, SourceEntry, SurfaceEntry
 from dirigent_client.schemas.common import Page, Problem
 from dirigent_client.schemas.connections import ConnectionIn, ConnectionOut, ConnectionUpdate
 from dirigent_client.schemas.examples import ExampleDetail, ExampleOut
@@ -64,6 +64,10 @@ from dirigent_client.schemas.runs import (
     StepReport,
 )
 from dirigent_client.schemas.schemas import SchemaIn, SchemaOut, SchemaUpdate
+from dirigent_client.schemas.sources import (
+    EndpointInput,
+    RequestFacts,
+)
 from dirigent_client.schemas.system import (
     CheckResult,
     CheckStatus,
@@ -100,8 +104,8 @@ __all__ = [
     "AttemptEvent",
     "AttemptOut",
     "BackfillAccepted",
-    "BackfilledRun",
     "BackfillRequest",
+    "BackfilledRun",
     "BlockEntry",
     "BlockKind",
     "Catalog",
@@ -115,6 +119,7 @@ __all__ = [
     "DagView",
     "DeliveryOut",
     "DiffSummary",
+    "EndpointInput",
     "ExampleDetail",
     "ExampleOut",
     "FiringOut",
@@ -125,11 +130,9 @@ __all__ = [
     "ItemOut",
     "JsonList",
     "JsonMap",
+    "LOG_NOTIFIER",
     "Labels",
     "LastRun",
-    "LOG_NOTIFIER",
-    "TEST_BODY",
-    "TEST_SUBJECT",
     "LogEntryOut",
     "LoginRequest",
     "Materialized",
@@ -146,6 +149,7 @@ __all__ = [
     "PruneRequest",
     "PruneResult",
     "Readiness",
+    "RequestFacts",
     "Requirements",
     "RunAccepted",
     "RunDetail",
@@ -159,10 +163,13 @@ __all__ = [
     "SchemaIn",
     "SchemaOut",
     "SchemaUpdate",
+    "SourceEntry",
     "StepReport",
     "SurfaceEntry",
     "SystemInfo",
     "TERMINAL_RUN_STATUSES",
+    "TEST_BODY",
+    "TEST_SUBJECT",
     "TestQueued",
     "TestRequest",
     "TokenOut",

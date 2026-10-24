@@ -215,7 +215,7 @@ async def run_facts(
         steps.append(
             StepFacts(
                 step=name,
-                block=definition.steps[name].block,
+                block=definition.steps[name].block_id,
                 outcome=states[name].outcome.value,
                 attempts=len(of_step),
                 depends_on=list(definition.steps[name].depends_on),

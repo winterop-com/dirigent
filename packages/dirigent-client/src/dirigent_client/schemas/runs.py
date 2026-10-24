@@ -12,6 +12,7 @@ from dirigent_client.enums import (
     RunItemStatus,
     RunPriority,
     RunStatus,
+    StepKind,
     TriggerKind,
 )
 from dirigent_client.schemas.common import WireModel
@@ -42,7 +43,13 @@ class RunOut(WireModel):
     triggered_by_kind: TriggerKind
     parent_run_id: UUID | None = None
     """The run whose step started this one, when a step of another run did."""
+    triggered_by_id: UUID | None = None
+    """What started the run: the source, schedule, webhook, watch, token or user, as its id."""
+
     triggered_by_label: str | None = None
+    source: str | None = None
+    """The source node a run of a pipeline with sources entered at, by its step code."""
+
     trace_id: str | None = None
     error: str | None = None
     """What went wrong: the reason a cancel gave, else what the first failed attempt said."""
@@ -158,7 +165,12 @@ class DagNode(WireModel):
     name: str | None = None
     """The step's human title, when the document gave it one."""
 
+    kind: StepKind = StepKind.BLOCK
+    """Which form the step takes: a block, a source an input enters at, or a reply."""
+
     block: str
+    """The block a block step runs, the kind of a source, or ``reply``."""
+
     outcome: str
     depends_on: list[str] = Field(default_factory=list[str])
     rule: str

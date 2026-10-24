@@ -1,0 +1,41 @@
+# The smallest pipeline with a source: what arrives is answered straight back.
+#
+# A SOURCE IS WHERE AN INPUT ENTERS. `ask` is not a block: it is the pipeline's first node, and
+# a run of the pipeline starts with it already settled, its output the input that arrived. The
+# endpoint kind's input is the request: method, path, query, headers, and the body, which is
+# what `${steps.ask.output.body}` reads.
+#
+# A REPLY IS WHAT THE CALLER IS ANSWERED WITH. `answer` is rendered by the server the moment
+# the steps it depends on have settled; no worker ever claims it. Run by hand, nobody is
+# waiting on the other end, so it renders and records what it would have answered.
+#
+# RUN IT BY HAND, here, with no server. No --input takes the source's sample:
+#
+#   dg run --local examples/sources/echo-by-hand.yaml
+#   dg run --local examples/sources/echo-by-hand.yaml --input '{body: {said: hi}}'
+#
+# EXPECT THIS RUN TO SUCCEED in well under a second, the reply's body the sample's.
+
+format: dirigent/v1
+kind: pipeline
+code: echo-by-hand
+name: Echo, by hand
+description: |
+  A source takes an input and a reply answers with it: the smallest pipeline with a source,
+  run by hand with its sample or with an input given.
+
+tags: [sources]
+
+steps:
+  ask:
+    source:
+      kind: endpoint
+      path: /echo
+      methods: [POST]
+    sample:
+      body: {said: hello from the sample}
+  answer:
+    depends_on: [ask]
+    reply:
+      status: 200
+      body: ${steps.ask.output.body}

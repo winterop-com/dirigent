@@ -30,7 +30,7 @@ from dirigent_core.engine.definition import load_definition
 from dirigent_core.engine.runs import Provenance, RunWindow
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.messages import PIPELINE_DEACTIVATED, PIPELINE_NO_VERSIONS
-from dirigent_core.models import Pipeline
+from dirigent_core.models import Pipeline, utcnow
 from dirigent_core.pipelines import (
     NO_COUNTS,
     PipelineCounts,
@@ -46,6 +46,7 @@ from dirigent_core.pipelines import (
     revalidate,
     set_active,
 )
+from dirigent_core.sources.entries import hand_entry
 from dirigent_core.triggers.backfill import backfill
 from dirigent_core.triggers.schedules import UnknownSchedule, find_schedule
 from dirigent_server.dependencies import ServicesDep, SessionDep
@@ -304,11 +305,13 @@ async def start_run(
     version = await get_version(session, pipeline)
     definition = load_definition(version.document)
     definition.validate_params(payload.params, services.format_checker)
+    entry = hand_entry(definition, services.sources, payload.source, payload.input, received_at=utcnow())
     run = await create_run(
         session,
         services,
         version,
         params=payload.params,
+        entry=entry,
         attribution=Attribution(
             kind=principal.trigger_kind,
             id=principal.token_id or principal.user_id,

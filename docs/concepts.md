@@ -142,6 +142,34 @@ block's config: `retry`, `timeout`, `poll`, `deadline`, `on_timeout`, `for_each`
 `continue_on_failure`. They mean the same thing for every block, so they are written in the
 same place for every block.
 
+## Source and reply
+
+A step is exactly one of three forms: a **block**, a **source** or a **reply**. A source is
+where an input enters: `steps: ask: source: {kind: endpoint, path: /greet/{name}}`. It takes a
+`name`, a `description` and a `sample` beside its kind's own fields, and nothing a block step
+takes. A run of a pipeline with sources starts with the source it entered at already settled,
+its output the input -- for the `endpoint` kind, the request's method, path, path parameters,
+query, headers and body -- and every other source settled skipped as not entered.
+
+Sources are roots, and every other step descends from one: a root beside them would run on
+every input from every source, and is refused. A step joining the branches of two sources says
+`all_done` or `always`, since a run enters at one of them only. A pipeline with sources carries
+no schedules or watches, because what they started would enter no source.
+
+A reply is a leaf that answers whoever sent the input: a `status`, `headers`, a `content_type`,
+and a `body` (or `body_from` a storage URI), any of them referencing the run's outputs. It takes
+`depends_on`, `rule`, `name` and `description`, and the server renders it the moment the steps
+it depends on have settled; no worker claims it, and neither a source nor a reply is retried --
+running an input again is a new run.
+
+A run is entered by hand with `dg run --local`, `dg run <code>`, or the API's `$run`: `--source`
+names the source when there are several, and `--input` gives the input, in the shape of the
+source's output, which its kind makes whole -- the endpoint fills in the method its route
+declares, the path its template fills, and the body's type and size. Without `--input` the
+source's `sample` is taken. An endpoint does not yet take requests over the network, so a hand
+run holds no caller and a reply records what it would have answered. See
+`examples/sources/`.
+
 ## Block
 
 The collective term for the pluggable things a step can be: **operators** and **sensors**.
