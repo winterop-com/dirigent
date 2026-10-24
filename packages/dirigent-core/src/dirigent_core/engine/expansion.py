@@ -133,8 +133,10 @@ async def expand_gate(
     definition: PipelineDefinition,
     gate: StepAttempt,
     moment: datetime,
+    *,
+    ready: bool = True,
 ) -> list[StepAttempt] | None:
-    """Replace a ready gate with its grid's items and their queued attempts.
+    """Replace a ready gate with its grid's items and their attempts, queued unless ``ready`` is off.
 
     Returns the attempts written, and None when the gate stays: a list that cannot be read, or
     one wider than ``fan_out_max_items``, fails it as ``rejected``, and an empty one skips it.
@@ -167,7 +169,7 @@ async def expand_gate(
     if not listed:
         _skip_empty(gate, name, expression, source, moment)
         return None
-    written = await write_items(session, run, name, step, listed, moment, ready=True)
+    written = await write_items(session, run, name, step, listed, moment, ready=ready)
     await session.delete(gate)
     session.add(
         LogEntry(

@@ -665,7 +665,9 @@ semantics instead of writing error-handling code:
   `${steps.<name>.item.output.<field>}`. An item whose match did not succeed is skipped.
   Over an `items: continue` grid, under `all_success`, and reading nothing of the grid's
   family but its own match, an item is ready once its match has settled rather than once the
-  whole grid has; the step's other prerequisites are still read whole.
+  whole grid has; the step's other prerequisites are still read whole. Such a step adopting a
+  late grid expands as soon as that grid is expanded, its items written pending to be readied
+  one by one, rather than when the grid's step has settled.
   A `for_each` over an upstream step's output is expanded when the step becomes ready; a list
   that cannot be read, or one wider than `fan_out_max_items`, fails it as `rejected`.
 - **Run level: what do we tell the operator?** Run status derives mechanically from the

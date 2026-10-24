@@ -297,6 +297,34 @@ def item_readiness(
     return Readiness.READY if partner is not None and partner.terminal else Readiness.WAIT
 
 
+def gate_readiness(
+    definition: PipelineDefinition, name: str, states: dict[str, StepState], *, expanded: bool
+) -> Readiness:
+    """Evaluate the gate of an item-wise step whose grid is late: it expands once the parent's items exist.
+
+    Its items are written pending, and each then waits for its own match; until the parent's
+    grid is expanded, or once the parent has settled, the gate reads its prerequisites whole.
+    """
+    parent = item_wise_parent(definition, name)
+    if parent is None or not expanded or states[parent].outcome.terminal:
+        return readiness_of(definition, name, states)
+    step = definition.steps[name]
+    others = [states[dependency].rule_outcome for dependency in step.depends_on if dependency != parent]
+    return evaluate_rule(step.rule, others)
+
+
+def _expanded(attempts: Sequence[StepAttempt], step_name: str) -> bool:
+    """Report whether a fan-out's grid exists: its items have attempts and no gate stands in for them."""
+    items = gate = False
+    for attempt in attempts:
+        if attempt.step_name == step_name:
+            if attempt.run_item_id is None:
+                gate = True
+            else:
+                items = True
+    return items and not gate
+
+
 async def item_partners(
     session: AsyncSession, run_id: UUID, parents: Mapping[str, str]
 ) -> tuple[dict[UUID, int], dict[tuple[str, int], UUID]]:
@@ -380,7 +408,8 @@ async def advance(
 
     This is the last statement of an outcome transaction, so it must reach a fixpoint in one
     pass: skipping a step can unblock or doom its own dependents. A ready gate is expanded
-    rather than queued, and its items join the walk as queued attempts.
+    rather than queued, and its items join the walk as queued attempts, or as pending ones
+    an item-wise step readies one by one.
     """
     moment = now or utcnow()
     await session.flush()
@@ -388,9 +417,9 @@ async def advance(
     attempts = await load_attempts(session, run.id)
     pending = [attempt for attempt in attempts if attempt.status is AttemptStatus.PENDING]
     parents = {
-        attempt.step_name: parent
-        for attempt in pending
-        if attempt.run_item_id is not None and (parent := item_wise_parent(definition, attempt.step_name)) is not None
+        name: parent
+        for name in {attempt.step_name for attempt in pending}
+        if (parent := item_wise_parent(definition, name)) is not None
     }
     index_of, at = await item_partners(session, run.id, parents) if parents else ({}, {})
 
@@ -402,21 +431,30 @@ async def advance(
         for attempt in list(pending):
             if attempt.status is not AttemptStatus.PENDING:
                 continue
-            parent = parents.get(attempt.step_name) if attempt.run_item_id is not None else None
-            if parent is not None and attempt.run_item_id is not None:
+            parent = parents.get(attempt.step_name)
+            if parent is None:
+                readiness = readiness_of(definition, attempt.step_name, states)
+            elif attempt.run_item_id is None:
+                readiness = gate_readiness(definition, attempt.step_name, states, expanded=_expanded(attempts, parent))
+            else:
                 partner_id = at.get((parent, index_of.get(attempt.run_item_id, -1)))
                 partner = newest.get((parent, partner_id)) if partner_id is not None else None
                 outcome = ATTEMPT_OUTCOME[partner.status] if partner is not None else None
                 readiness = item_readiness(definition, attempt.step_name, states, outcome)
-            else:
-                readiness = readiness_of(definition, attempt.step_name, states)
             match readiness:
                 case Readiness.READY if is_gate(definition, attempt):
-                    written = await expand_gate(session, services, run, definition, attempt, moment)
+                    written = await expand_gate(
+                        session, services, run, definition, attempt, moment, ready=parent is None
+                    )
                     if written is not None:
                         pending.remove(attempt)
                         attempts.remove(attempt)
                         attempts.extend(written)
+                        if parent is not None:
+                            pending.extend(written)
+                        if parents:
+                            await session.flush()
+                            index_of, at = await item_partners(session, run.id, parents)
                     changed = True
                 case Readiness.READY:
                     attempt.status = AttemptStatus.QUEUED
