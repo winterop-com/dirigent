@@ -156,6 +156,8 @@ stays clean, and every example stays executable.
 
    **Still open:** an `Idempotency-Key` header de-duplicating a caller's retries into one
    run; authentication beyond tokens, which waits on the OIDC open question; and whether a
+   public endpoint needs an instance-wide switch before any pipeline may declare one.
+3. **dirigent-fhir: FHIR as a system of its own.** A general FHIR pack, not a DHIS2 one: a
    pipeline that pulls from one FHIR server and pushes to another, neither of them DHIS2, is as
    much its purpose as feeding DHIS2. It depends on the FHIR engine only, and carries no DHIS2
    dependency. Between steps a resource or a Bundle is plain FHIR JSON, as a data value set is
