@@ -3,7 +3,7 @@
 from collections.abc import AsyncGenerator, Mapping, Sequence
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import Any, Final, cast
+from typing import Any, Final, Literal, cast
 from uuid import UUID
 
 import sqlalchemy as sa
@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from dirigent_client.enums import (
     AttemptKind,
     AttemptStatus,
+    LogLevel,
     ProvenanceSource,
     RunItemStatus,
     RunPriority,
@@ -22,6 +23,7 @@ from dirigent_client.enums import (
 )
 from dirigent_common import JsonMap, Message
 from dirigent_core import telemetry
+from dirigent_core.artifacts import persist_output
 from dirigent_core.database import session_scope
 from dirigent_core.engine.context import (
     BufferedLogger,
@@ -51,15 +53,20 @@ from dirigent_core.messages import (
     CHAIN_CYCLE,
     CHAIN_TOO_DEEP,
     CHILD_REFUSED,
+    ENTRY_NOT_A_SOURCE,
+    ENTRY_ON_NO_SOURCES,
     FAN_OUT_NOT_A_LIST,
     FAN_OUT_NOT_FANNING,
     FAN_OUT_TOO_WIDE,
     GATE_NOT_RETRYABLE,
+    GIVEN_NO_ENTRY,
     NO_ATTEMPT_TO_RETRY,
+    NOT_ENTERED,
     NOT_RETRYABLE,
     PARENT_GONE,
     REPLACED_BY_NEWER_RUN,
     REPLACED_BY_RETRY,
+    REPLY_NOT_RETRYABLE,
     RETRY_CONCURRENCY,
     RETRY_WATCH_MOVED_ON,
     RUN_PIPELINE_INACTIVE,
@@ -69,9 +76,10 @@ from dirigent_core.messages import (
     RUN_UNKNOWN_PIPELINE,
     RUN_VERSION_GONE,
     SELF_START,
+    SOURCE_NOT_RETRYABLE,
     STEP_REFUSED,
 )
-from dirigent_core.models import Pipeline, PipelineVersion, Run, RunItem, Schema, StepAttempt, Watch, utcnow
+from dirigent_core.models import LogEntry, Pipeline, PipelineVersion, Run, RunItem, Schema, StepAttempt, Watch, utcnow
 from dirigent_core.storage import scratch_prefix
 from dirigent_plugin import RemoteHandle, RunRefused, RunSnapshot, RunState, StartedRun
 
@@ -100,6 +108,24 @@ class Attribution(BaseModel):
     kind: TriggerKind = TriggerKind.ADHOC
     id: UUID | None = None
     label: str | None = None
+
+
+class Entry(BaseModel):
+    """Where a run of a pipeline with sources enters, and the input that arrived there.
+
+    ``output`` is the input already made whole by the source's kind: it is written as the
+    entered source's output, which is what the steps after it read.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    step: str
+    output: JsonMap
+    via: Literal["request", "hand"] = "request"
+    """Whether the input arrived as a request, or was supplied by whoever started the run."""
+
+    note: str | None = None
+    """The one line the entered source logs, such as ``received POST /endpoints/echo 312 bytes``."""
 
 
 class RunWindow(BaseModel):
@@ -227,6 +253,7 @@ async def create_run(
     cursors: Mapping[str, JsonMap] | None = None,
     run_id: UUID | None = None,
     now: datetime | None = None,
+    entry: Entry | None = None,
 ) -> Run | None:
     """Instantiate a run from a pipeline version and validated parameters.
 
@@ -238,10 +265,15 @@ async def create_run(
     handed, which is how a watch carries on from where its last run left off. ``run_id`` is
     the id the run is written under, for a caller that has claimed it before the run exists.
 
+    A pipeline with sources is entered at exactly one of them, and ``entry`` says which: that
+    source's attempt is written succeeded with the input as its output, and every other source
+    is skipped as not entered, so the walk prunes the branches that input never reaches.
+
     Returns None when the pipeline's ``skip`` concurrency policy refuses the run outright.
     """
     moment = now or utcnow()
     definition = load_definition(version.document)
+    _check_entry(definition, entry)
     resolved_params = definition.validate_params(params or {}, services.format_checker)
     _refuse_disabled_blocks(definition, services)
     pinned_schemas = await _pin_schemas(session, services, version)
@@ -314,6 +346,7 @@ async def create_run(
                 triggered_by_kind=who.kind,
                 triggered_by_id=who.id,
                 triggered_by_label=who.label,
+                source_step=entry.step if entry is not None else None,
                 traceparent=telemetry.current_traceparent(),
                 window_start=window.start if window is not None else None,
                 window_end=window.end if window is not None else None,
@@ -327,6 +360,9 @@ async def create_run(
 
             seeds = cursors or {}
             for name, grid in expanded:
+                if definition.steps[name].source is not None and entry is not None:
+                    await _write_source(session, services, run, name, definition.steps[name], entry, moment)
+                    continue
                 await _create_step_rows(
                     session, run, name, definition.steps[name], grid, moment, held=held, cursor=seeds.get(name)
                 )
@@ -364,6 +400,71 @@ async def _create_step_rows(
     await write_items(session, run, name, step, elements, moment, held=held)
 
 
+def _check_entry(definition: PipelineDefinition, entry: Entry | None) -> None:
+    """Refuse a run of a pipeline with sources that names no entry, and an entry that is not a source."""
+    sources = definition.sources
+    if entry is None:
+        if sources:
+            raise RunCreationError(GIVEN_NO_ENTRY, code=repr(definition.code), sources=", ".join(sources))
+        return
+    if not sources:
+        raise RunCreationError(ENTRY_ON_NO_SOURCES, code=repr(definition.code))
+    if entry.step not in sources:
+        raise RunCreationError(
+            ENTRY_NOT_A_SOURCE, step=repr(entry.step), code=repr(definition.code), sources=", ".join(sources)
+        )
+
+
+async def _write_source(
+    session: AsyncSession,
+    services: EngineServices,
+    run: Run,
+    name: str,
+    step: StepDefinition,
+    entry: Entry,
+    moment: datetime,
+) -> None:
+    """Write one source's attempt settled: received with the input when entered, else skipped as not entered."""
+    attempt = StepAttempt(
+        run_id=run.id,
+        step_name=name,
+        block_id=step.block_id,
+        attempt=1,
+        started_at=moment,
+        finished_at=moment,
+    )
+    if name != entry.step:
+        attempt.kind = AttemptKind.AUTOMATIC
+        attempt.status = AttemptStatus.SKIPPED
+        attempt.error = NOT_ENTERED.render(entered=repr(entry.step), step=repr(name))
+        attempt.error_code = NOT_ENTERED.code
+        attempt.error_params = {"entered": repr(entry.step), "step": repr(name)}
+        session.add(attempt)
+        return
+    attempt.kind = AttemptKind.RECEIVED
+    attempt.status = AttemptStatus.SUCCEEDED
+    attempt.input = {"via": entry.via}
+    session.add(attempt)
+    await session.flush()
+    reference = await persist_output(
+        session,
+        await services.bound_storage(session),
+        attempt,
+        entry.output,
+        inline_max_bytes=services.settings.inline_artifact_max,
+    )
+    session.add(
+        LogEntry(
+            run_id=run.id,
+            step_attempt_id=attempt.id,
+            step_name=name,
+            level=LogLevel.INFO,
+            message=entry.note or ("received by hand" if entry.via == "hand" else "received"),
+            fields={"via": entry.via, "bytes": reference.size_bytes},
+        )
+    )
+
+
 def resolve_fan_out(name: str, step: StepDefinition, scope: ReferenceScope) -> list[JsonValue]:
     """Expand a fixed grid's ``for_each`` into the list of elements it maps over.
 
@@ -393,6 +494,8 @@ def resolve_fan_out(name: str, step: StepDefinition, scope: ReferenceScope) -> l
 def _refuse_disabled_blocks(definition: PipelineDefinition, services: EngineServices) -> None:
     """Refuse to create a run whose steps include a block the instance has not allowlisted."""
     for name, step in definition.steps.items():
+        if step.block is None:
+            continue
         refusal = services.local_execution_refusal(step.block)
         if refusal is not None:
             raise RunCreationError(STEP_REFUSED, step=repr(name), detail=refusal.message)
@@ -596,8 +699,13 @@ async def _occupies_slot(session: AsyncSession, run: Run) -> bool:
     """
     if run.status is not RunStatus.QUEUED or run.started_at is not None:
         return True
-    attempts = await session.execute(sa.select(StepAttempt.status).where(StepAttempt.run_id == run.id))
-    return any(status is not AttemptStatus.PENDING for status in attempts.scalars())
+    attempts = await session.execute(
+        sa.select(StepAttempt.status, StepAttempt.kind, StepAttempt.error_code).where(StepAttempt.run_id == run.id)
+    )
+    return any(
+        status is not AttemptStatus.PENDING and kind is not AttemptKind.RECEIVED and code != NOT_ENTERED.code
+        for status, kind, code in attempts.all()
+    )
 
 
 async def retry_step(
@@ -641,6 +749,11 @@ async def retry_step(
     if not attempts:
         raise RunCreationError(NO_ATTEMPT_TO_RETRY, run=run.id, step=repr(step_name))
     latest = attempts[0]
+    declared = definition.steps.get(step_name)
+    if declared is not None and declared.source is not None:
+        raise RunCreationError(SOURCE_NOT_RETRYABLE, step=repr(step_name))
+    if declared is not None and declared.reply is not None:
+        raise RunCreationError(REPLY_NOT_RETRYABLE, step=repr(step_name))
     if is_gate(definition, latest):
         source = definition.grid_source(step_name) or step_name
         raise RunCreationError(GATE_NOT_RETRYABLE, step=repr(step_name), source=repr(source))

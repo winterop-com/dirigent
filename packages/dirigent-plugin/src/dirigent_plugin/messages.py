@@ -27,7 +27,6 @@ NOT_AN_ARRAY = PLUGIN.define(
 
 NOTHING_TO_CONVERT = PLUGIN.define("nothing_to_convert", "there is nothing at {uri} to convert")
 
-
 # What a config refuses at validation. Pydantic owns the code a validator's refusal reaches
 # the wire under, so these are rendered into the ``ValueError`` it wraps.
 
@@ -41,4 +40,26 @@ DUPLICATE_ID = PLUGIN.define("duplicate_id", "duplicate {label} {value} in contr
 INVALID_MARK = PLUGIN.define(
     "invalid_mark",
     "the mark connection kind {kind} declares is not SVG path data: {detail}",
+)
+
+# What a received source's path template refuses.
+
+ROUTE_NOT_ROOTED = PLUGIN.define("route_not_rooted", "the path {template} does not start with '/'")
+
+ROUTE_BAD_PARAMETER = PLUGIN.define(
+    "route_bad_parameter",
+    "the path {template} has the segment {segment}, and a parameter is a whole segment written "
+    "as {{name}}, or {{name:path}} for the rest of the path, with a snake_case name",
+)
+
+ROUTE_BAD_SEGMENT = PLUGIN.define(
+    "route_bad_segment", "the path {template} has the segment {segment}, which a path cannot carry"
+)
+
+ROUTE_REPEATED_PARAMETER = PLUGIN.define(
+    "route_repeated_parameter", "the path {template} names the parameter {name} twice"
+)
+
+ROUTE_TAIL_NOT_LAST = PLUGIN.define(
+    "route_tail_not_last", "the path {template} has {segment} before its end, and a tail takes the rest of the path"
 )

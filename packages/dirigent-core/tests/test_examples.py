@@ -68,6 +68,7 @@ SHELVES = (
     "s3",
     "sensors",
     "showcase",
+    "sources",
     "sql",
     "transform",
     "triggers",

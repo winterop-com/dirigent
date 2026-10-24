@@ -21,12 +21,17 @@ class TokenBucket(BaseModel):
     buckets: dict[str, tuple[float, float]] = Field(default_factory=dict[str, tuple[float, float]])
     max_keys: int = Field(default=DEFAULT_MAX_KEYS, ge=1)
 
-    def allow(self, key: str, *, per_minute: int, now: float | None = None) -> bool:
-        """Take one token for a key, or report that the caller is going too fast."""
+    def allow(self, key: str, *, per_minute: int, capacity: int | None = None, now: float | None = None) -> bool:
+        """Take one token for a key, or report that the caller is going too fast.
+
+        ``capacity`` is how many tokens a full bucket holds, which is how large a burst it
+        takes; unset, it holds a minute's worth.
+        """
         moment = now if now is not None else time.monotonic()
         rate = per_minute / 60.0
-        tokens, last = self.buckets.pop(key, (float(per_minute), moment))
-        tokens = min(float(per_minute), tokens + (moment - last) * rate)
+        full = float(capacity if capacity is not None else per_minute)
+        tokens, last = self.buckets.pop(key, (full, moment))
+        tokens = min(full, tokens + (moment - last) * rate)
         allowed = tokens >= 1.0
         self.buckets[key] = (tokens - 1.0 if allowed else tokens, moment)
         self._evict()

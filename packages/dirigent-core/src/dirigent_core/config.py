@@ -355,6 +355,31 @@ class Settings(BaseSettings):
 
     A real webhook's own ``rate_limit_per_minute`` applies on top of this."""
 
+    endpoint_prefix: str = "/endpoints"
+    """Where endpoint sources are served, outside the versioned API.
+
+    A proxy in front of an instance publishes this prefix and ``/hooks`` and keeps
+    ``/api/v1`` inside, so a source's route is public without the API being so."""
+
+    source_max_body: Size = Field(default=1_048_576, ge=1)
+    """The largest body any endpoint reads, whatever its own ``max_body`` says; reading stops one byte past it."""
+
+    source_intake_rate_per_minute: int = Field(default=600, ge=1)
+    """How fast calls to one method and path are taken, before any source is looked up.
+
+    A source's own ``rate`` applies on top of this."""
+
+    source_reply_max: Duration = Field(default=timedelta(seconds=60), gt=timedelta(0))
+    """The longest a caller is held for a reply, whatever a reply node's ``timeout`` says."""
+
+    source_max_waiting: int = Field(default=256, ge=1)
+    """How many callers one server process holds open for their replies at once.
+
+    A call past it is answered 503 before its run is created."""
+
+    source_reply_poll: Duration = Field(default=timedelta(milliseconds=50), gt=timedelta(0))
+    """How often one server process reads the replies its held callers wait for, in one query."""
+
     login_rate_per_minute: int = Field(default=10, ge=1)
     """How many login attempts one address, and one username, get a minute.
 
@@ -383,10 +408,10 @@ class Settings(BaseSettings):
         """Accept a comma-separated ``key=value`` string for a mapping setting."""
         return parse_string_mapping(value)
 
-    @field_validator("api_prefix")
+    @field_validator("api_prefix", "endpoint_prefix")
     @classmethod
     def _normalise_prefix(cls, value: str) -> str:
-        """Keep the API prefix rooted and free of a trailing slash."""
+        """Keep a prefix rooted and free of a trailing slash."""
         prefix = "/" + value.strip("/")
         return prefix.rstrip("/") or "/"
 

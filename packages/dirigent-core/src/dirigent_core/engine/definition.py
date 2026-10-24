@@ -9,7 +9,7 @@ from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema import ValidationError as SchemaValidationError
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator, model_validator
 
-from dirigent_client.enums import Importance, RunPriority
+from dirigent_client.enums import Importance, RunPriority, StepKind
 from dirigent_client.schemas import Catalog, Requirements
 from dirigent_common import TEMPLATE_MEDIA_TYPE, EntityName, JsonMap, StepName, TemplateError, compile_template
 from dirigent_common.durations import Duration
@@ -21,20 +21,31 @@ from dirigent_core.messages import (
     DUPLICATE_TRIGGER_CODES,
     PARAMETER_INVALID,
     PARAMETER_SCHEMA_INVALID,
+    REPLY_BAD_HEADER,
+    REPLY_BAD_STATUS,
+    REPLY_BODY_TWICE,
+    REPLY_FIELD_REFUSED,
+    SAMPLE_OUTSIDE_SOURCE,
     SCHEDULE_ONE_CLOCK,
     SELF_DEPENDENCY,
+    SOURCE_FIELD_REFUSED,
     STEP_CYCLE,
+    STEP_ONE_FORM,
     TEMPLATE_REFUSED,
     TOO_MANY_TAGS,
     UNKNOWN_DEPENDENCY,
 )
 from dirigent_plugin import BLOCK_ID_PATTERN, reference_fields
+from dirigent_plugin.sources import SOURCE_KIND_PATTERN
 
 FORMAT_V1: Final = "dirigent/v1"
 
 KIND_PIPELINE: Final = "pipeline"
 
 KIND_TRIGGERS: Final = "triggers"
+
+#: What a reply node's attempts record as their block.
+REPLY_BLOCK_ID: Final = "reply"
 
 EMPTY_PARAMS_SCHEMA: JsonMap = {"type": "object", "properties": {}}
 
@@ -123,10 +134,84 @@ class RetryPolicy(BaseModel):
     """Fraction of the delay to spread randomly, so retries do not synchronise."""
 
 
-class StepDefinition(BaseModel):
-    """One node in the DAG: a block reference plus the engine semantics around it.
+class SourceNode(BaseModel):
+    """Where an input enters: a source kind, and that kind's own fields flat beside it.
 
-    The field order here is the canonical export order.
+    The kind's fields are opaque to the document format and validated against the kind's
+    config model, which is why a kind may not declare a field named ``kind``.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="allow")
+
+    kind: str = Field(pattern=SOURCE_KIND_PATTERN)
+    """What arrives here: ``endpoint`` for a request made to this instance."""
+
+    @property
+    def config(self) -> JsonMap:
+        """The kind's own fields, as the document wrote them."""
+        extra: JsonMap = dict(self.model_extra or {})
+        return extra
+
+
+#: The response headers a reply may not set, because the server writes them itself.
+REPLY_HEADERS_REFUSED: Final = frozenset({"connection", "content-length", "transfer-encoding", "upgrade"})
+
+#: The default for how long an endpoint holds its caller while it waits for a reply.
+DEFAULT_REPLY_TIMEOUT: Final = timedelta(seconds=30)
+
+
+class ReplyNode(BaseModel):
+    """What a reply answers the caller with, rendered from the run's outputs once it is ready."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    status: int | str = 200
+    """The HTTP status, or a reference to one."""
+
+    content_type: str | None = None
+    """The body's content type: JSON by default, or ``application/octet-stream`` for ``body_from``."""
+
+    headers: dict[str, str] = Field(default_factory=dict[str, str])
+    """Headers to answer with; a value may reference outputs."""
+
+    body: JsonValue = None
+    """Any JSON value, references included; a ``text/*`` content type sends a string as text."""
+
+    body_from: str | None = None
+    """A storage URI, or a reference to one, whose object is streamed back as the body."""
+
+    timeout: Duration = DEFAULT_REPLY_TIMEOUT
+    """How long the caller is held for this reply before it is answered 504, capped by the instance."""
+
+    @model_validator(mode="after")
+    def _check_reply(self) -> Self:
+        """Refuse a body given twice, a literal status out of range, and a header the server owns."""
+        if self.body is not None and self.body_from is not None:
+            raise ValueError(REPLY_BODY_TWICE.render())
+        if isinstance(self.status, int) and not REPLY_MIN_STATUS <= self.status <= REPLY_MAX_STATUS:
+            raise ValueError(REPLY_BAD_STATUS.render(status=self.status))
+        if isinstance(self.status, str) and not references_in(self.status):
+            raise ValueError(REPLY_BAD_STATUS.render(status=repr(self.status)))
+        for header in self.headers:
+            if header.lower() in REPLY_HEADERS_REFUSED:
+                raise ValueError(REPLY_BAD_HEADER.render(header=repr(header)))
+        return self
+
+
+REPLY_MIN_STATUS: Final = 200
+REPLY_MAX_STATUS: Final = 599
+
+#: What a source node takes beside ``source``; every other field set on one is refused.
+SOURCE_FIELDS: Final = frozenset({"name", "description", "source", "sample"})
+
+#: What a reply node takes beside ``reply``.
+REPLY_FIELDS: Final = frozenset({"name", "description", "reply", "depends_on", "rule"})
+
+
+class StepDefinition(BaseModel):
+    """One node in the DAG: a block and the engine semantics around it, a source, or a reply.
+
+    A step is exactly one of the three forms. The field order here is the canonical export order.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -134,8 +219,17 @@ class StepDefinition(BaseModel):
     name: str | None = None
     """A human title for this step; the map key stays the only thing that references it."""
 
-    block: str = Field(pattern=BLOCK_ID_PATTERN)
+    description: str | None = None
+    """What this step is for, in as many words as it takes."""
+
+    block: str | None = Field(default=None, pattern=BLOCK_ID_PATTERN)
     """The catalog id of the operator or sensor this step runs."""
+
+    source: SourceNode | None = None
+    """Where an input enters the pipeline: the node is settled when a run is created, its output the input."""
+
+    reply: ReplyNode | None = None
+    """What the caller an input arrived from is answered with: a leaf the server settles."""
 
     depends_on: list[StepName] = Field(default_factory=list[str])
     """Prerequisite step names; edges point from prerequisite to dependent."""
@@ -172,6 +266,44 @@ class StepDefinition(BaseModel):
 
     continue_on_failure: bool = False
     """Treat a failure as tolerated: dependents still run, the run completes with errors."""
+
+    sample: JsonValue = None
+    """A source's stand-in input, in the shape of its kind's output, which a hand run falls back to."""
+
+    @model_validator(mode="after")
+    def _one_form(self) -> Self:
+        """Refuse a step that is not exactly one form, or that sets what its form does not take."""
+        named = [form for form in ("block", "source", "reply") if getattr(self, form) is not None]
+        if len(named) != 1:
+            raise ValueError(STEP_ONE_FORM.render(named=", ".join(named) or "none of them"))
+        written = self.model_fields_set
+        if self.source is not None:
+            for field in sorted(written - SOURCE_FIELDS):
+                raise ValueError(SOURCE_FIELD_REFUSED.render(field=field))
+        elif self.reply is not None:
+            for field in sorted(written - REPLY_FIELDS):
+                raise ValueError(REPLY_FIELD_REFUSED.render(field=field))
+        if self.source is None and "sample" in written:
+            raise ValueError(SAMPLE_OUTSIDE_SOURCE.render())
+        return self
+
+    @property
+    def kind(self) -> StepKind:
+        """Which of the three forms this step takes."""
+        if self.source is not None:
+            return StepKind.SOURCE
+        if self.reply is not None:
+            return StepKind.REPLY
+        return StepKind.BLOCK
+
+    @property
+    def block_id(self) -> str:
+        """What an attempt of this step records as its block: the block, a source's kind, or ``reply``."""
+        if self.source is not None:
+            return self.source.kind
+        if self.reply is not None:
+            return REPLY_BLOCK_ID
+        return cast("str", self.block)
 
     @property
     def is_fan_out(self) -> bool:
@@ -407,6 +539,33 @@ class PipelineDefinition(BaseModel):
         """List the steps with no prerequisites."""
         return [name for name, step in self.steps.items() if not step.depends_on]
 
+    @property
+    def sources(self) -> list[str]:
+        """List the source nodes, in the order the document wrote them."""
+        return [name for name, step in self.steps.items() if step.source is not None]
+
+    @property
+    def replies(self) -> list[str]:
+        """List the reply nodes, in the order the document wrote them."""
+        return [name for name, step in self.steps.items() if step.reply is not None]
+
+    def ancestors_of(self, name: str) -> set[str]:
+        """List every step a step transitively depends on."""
+        seen: set[str] = set()
+        frontier = list(self.steps[name].depends_on) if name in self.steps else []
+        while frontier:
+            current = frontier.pop()
+            if current in seen or current not in self.steps:
+                continue
+            seen.add(current)
+            frontier.extend(self.steps[current].depends_on)
+        return seen
+
+    def replies_reached_from(self, source: str) -> list[str]:
+        """List the reply nodes an input entering at a source can reach, in document order."""
+        reached = set(self.descendants_of(source))
+        return [name for name in self.replies if name in reached]
+
     def dependents_of(self, name: str) -> list[str]:
         """List the steps that name a step as a prerequisite."""
         return [other for other, step in self.steps.items() if name in step.depends_on]
@@ -553,12 +712,23 @@ def canonical_document(definition: "Document") -> JsonMap:
     tagged: JsonMap = {"format": definition.format, "kind": definition.kind}
     tagged.update({key: value for key, value in dumped.items() if key not in tagged})
     if isinstance(definition, PipelineDefinition):
-        tagged["steps"] = {name: cast("JsonMap", tagged["steps"])[name] for name in definition.topological_order()}
+        steps = cast("JsonMap", tagged["steps"])
+        tagged["steps"] = {name: _with_source_ordered(steps[name]) for name in definition.topological_order()}
     return cast("JsonMap", _canonicalize(tagged))
 
 
+def _with_source_ordered(step: JsonValue) -> JsonValue:
+    """Write a source node's kind first and the kind's own fields after it, in a fixed order."""
+    if not isinstance(step, dict) or not isinstance(step.get("source"), dict):
+        return step
+    source = cast("JsonMap", step["source"])
+    ordered: JsonMap = {"kind": source.get("kind")}
+    ordered.update({key: _ordered_opaque(source[key]) for key in sorted(source) if key != "kind"})
+    return {key: (ordered if key == "source" else value) for key, value in step.items()}
+
+
 #: Keys whose values the format does not interpret, and which therefore get a fixed key order.
-OPAQUE_KEYS = frozenset({"params", "config", "params_from_payload"})
+OPAQUE_KEYS = frozenset({"params", "config", "params_from_payload", "sample", "body", "headers"})
 
 #: The order the well-known schema keys are written in; everything else follows, sorted.
 PREFERRED_KEYS: tuple[str, ...] = (

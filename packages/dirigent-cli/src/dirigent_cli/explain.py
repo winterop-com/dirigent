@@ -115,7 +115,7 @@ def _step_shape(
     poll, deadline, from_block = _waits(step, _entry(step, catalog))
     return StepShape(
         name=name,
-        block=step.block,
+        block=step.block_id,
         depends_on=list(step.depends_on),
         cardinality=cardinality,
         elements=elements,
@@ -159,7 +159,7 @@ def _cardinality(
 
 def _entry(step: StepDefinition, catalog: Catalog | None) -> BlockEntry | None:
     """Find what the catalog says about this step's block, where there is a catalog."""
-    return None if catalog is None else catalog.block(step.block)
+    return None if catalog is None or step.block is None else catalog.block(step.block)
 
 
 def _waits(step: StepDefinition, entry: BlockEntry | None) -> tuple[timedelta | None, timedelta | None, list[str]]:

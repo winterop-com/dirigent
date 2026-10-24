@@ -16,6 +16,7 @@ from dirigent_core.plugins import PluginHost
 from dirigent_core.secrets import SecretBox
 from dirigent_core.storage import AttemptStorage, Storage, UnknownStorageConnection, build_storage, connection_binder
 from dirigent_plugin import AnyOperator, AnySensor
+from dirigent_plugin.sources import AnySource
 
 
 class EngineServices(BaseModel):
@@ -43,6 +44,13 @@ class EngineServices(BaseModel):
     def connection_models(self) -> dict[str, type[BaseModel]]:
         """Index the contributed connection kinds by id."""
         return {name: connection.config_model for name, connection in self.host.connection_kinds.items()}
+
+    @cached_property
+    def sources(self) -> dict[str, AnySource]:
+        """Index the source kinds a document may write, by ``kind``."""
+        from dirigent_core.sources.kinds import built_in_kinds
+
+        return built_in_kinds()
 
     @cached_property
     def format_checker(self) -> FormatChecker:

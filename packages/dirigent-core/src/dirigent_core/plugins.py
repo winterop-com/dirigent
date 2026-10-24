@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any, cast
 from pluginkit import PluginManager
 from pydantic import BaseModel
 
-from dirigent_client.schemas import BlockEntry, BlockKind, Catalog, SurfaceEntry
+from dirigent_client.schemas import BlockEntry, BlockKind, Catalog, SourceEntry, SurfaceEntry
 from dirigent_common import API_VERSION, HumaneJsonSchema, JsonMap, Message, as_markdown
 from dirigent_core.errors import DomainError
 from dirigent_core.messages import (
@@ -289,6 +289,7 @@ class PluginHost:
         return Catalog(
             plugins=sorted(self.contributions),
             blocks=sorted(blocks, key=lambda entry: entry.id),
+            sources=source_entries(),
             storage_schemes=self._surfaces("storage scheme", self.storage_backends, lambda item: item.config_model),
             notifiers=self._surfaces("notifier", self.notifiers, lambda item: item.config_model),
             connection_kinds=self._surfaces(
@@ -344,3 +345,27 @@ def load_plugin_host(
         },
         manager,
     )
+
+
+#: The distribution that contributes the source kinds dirigent itself provides.
+BUILT_IN_PLUGIN = "builtin"
+
+
+def source_entries() -> list[SourceEntry]:
+    """Render every source kind as its catalog entry, in ``kind`` order."""
+    from dirigent_core.sources.kinds import built_in_kinds
+
+    return [
+        SourceEntry(
+            kind=kind,
+            plugin=BUILT_IN_PLUGIN,
+            summary=as_markdown(source.spec.summary),
+            hosting=source.spec.hosting.value,
+            replies=source.spec.replies,
+            config_schema=json_schema(source.config_model),
+            output_schema=json_schema(source.output_model),
+            secret_fields=secret_fields(source.config_model),
+            mark=source.mark,
+        )
+        for kind, source in sorted(built_in_kinds().items())
+    ]

@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import cast
 
 import yaml
+from pydantic import JsonValue
 
 from dirigent_client.enums import LogLevel, ProvenanceSource, RunPriority
 from dirigent_client.errors import DirigentError
@@ -137,6 +138,8 @@ class Pipelines(Resource):
         window: tuple[datetime, datetime] | None = None,
         log_levels: dict[str, LogLevel] | None = None,
         priority: RunPriority | None = None,
+        source: str | None = None,
+        input: JsonValue = None,
     ) -> RunAccepted:
         """Start an ad hoc run, with parameters validated against the pipeline's own schema.
 
@@ -151,9 +154,14 @@ class Pipelines(Resource):
 
         ``priority`` is how far ahead of other runs this one's attempts are claimed; omitted
         takes the pipeline's own.
+
+        ``source`` is the source a run of a pipeline with sources enters at, omitted for its only
+        one, and ``input`` is what arrives there, omitted for the source's sample.
         """
         payload = RunRequest(
             params=params or {},
+            source=source,
+            input=input,
             window_start=window[0] if window else None,
             window_end=window[1] if window else None,
             log_levels=log_levels,

@@ -5,7 +5,7 @@ from enum import StrEnum
 from typing import Any
 from uuid import UUID
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, JsonValue, field_validator, model_validator
 
 from dirigent_client.enums import DocumentKind, Importance, LogLevel, ProvenanceSource, RunPriority, RunStatus
 from dirigent_client.messages import (
@@ -141,6 +141,20 @@ class RunRequest(BaseModel):
     """Ad hoc run parameters, validated against the pipeline's own schema."""
 
     params: JsonMap = Field(default_factory=dict)
+    source: str | None = Field(
+        default=None,
+        description=(
+            "The source node a run of a pipeline with sources enters at. Omitted names the "
+            "pipeline's only source, and a pipeline with several refuses the run."
+        ),
+    )
+    input: JsonValue = Field(
+        default=None,
+        description=(
+            "What arrives at that source, in the shape of its output; what it omits the kind "
+            "fills in. Omitted takes the source's sample."
+        ),
+    )
     priority: RunPriority | None = Field(
         default=None,
         description=(

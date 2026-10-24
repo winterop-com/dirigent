@@ -13,7 +13,7 @@ from uuid import UUID
 
 import sqlalchemy as sa
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, SecretStr
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, SecretStr
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from dirigent_client.enums import AttemptStatus, LogLevel, RunStatus, TriggerKind
@@ -27,11 +27,12 @@ from dirigent_core.engine.definition import PipelineDefinition
 from dirigent_core.engine.runs import RunCreationError, RunWindow
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.engine.state import in_execution_order
-from dirigent_core.models import ArtifactRef, Connection, LogEntry, Run, RunItem, StepAttempt
+from dirigent_core.models import ArtifactRef, Connection, LogEntry, Run, RunItem, StepAttempt, utcnow
 from dirigent_core.pipelines import apply_document
 from dirigent_core.plugins import load_plugin_host
 from dirigent_core.schemas import SchemaRefused, resolve_identity, store_schema
 from dirigent_core.secrets import generate_key
+from dirigent_core.sources.entries import hand_entry
 from dirigent_core.storage import scratch_prefix
 from dirigent_core.worker import Worker
 
@@ -653,12 +654,16 @@ async def run_document(
     deadline_seconds: float = DEFAULT_DEADLINE_SECONDS,
     keep: bool = False,
     root: Path | None = None,
+    source: str | None = None,
+    given: JsonValue = None,
 ) -> AsyncIterator[LocalStarted | LogLine | StepTransition | LocalOutcome]:
     """Apply and run a document in a throwaway instance, yielding logs then the outcome.
 
     The last item yielded is always the outcome. ``also`` holds documents to apply first
     and not run, for a pipeline that composes another one. ``root`` names a directory to hold
-    the instance in and keep, so a later run reads what this one wrote.
+    the instance in and keep, so a later run reads what this one wrote. A pipeline with
+    sources is entered at ``source``, its only one when that is omitted, with ``given`` as the
+    input, or the source's sample when that is omitted.
     """
     held = prepare_root(root) if root is not None else Path(tempfile.mkdtemp(prefix="dirigent-local-"))
     leave = keep or root is not None
@@ -689,11 +694,13 @@ async def run_document(
                     )
                 version = await _current_version(session, definition.code)
                 try:
+                    entry = hand_entry(definition, services.sources, source, given, received_at=utcnow())
                     run = await create_run(
                         session,
                         services,
                         version,
                         params=params or {},
+                        entry=entry,
                         attribution=Attribution(kind=TriggerKind.USER, label="dg run --local"),
                         window=window,
                         log_levels=log_levels,

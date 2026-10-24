@@ -222,6 +222,7 @@ async def plan_apply(
         schemas=await schema_codes(session),
         blocks=services.host.blocks,
         format_checker=services.format_checker,
+        source_kinds=services.sources,
     )
     pipeline = await find_pipeline(session, definition.code)
     if not issues and pipeline is not None:
@@ -362,6 +363,7 @@ async def revalidate(
         schemas=await schema_codes(session),
         blocks=services.host.blocks,
         format_checker=services.format_checker,
+        source_kinds=services.sources,
     )
 
 

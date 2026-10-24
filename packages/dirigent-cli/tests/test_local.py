@@ -1409,3 +1409,57 @@ def test_a_process_record_follows_the_output_it_was_asked_for(capsys: pytest.Cap
     main.emit(record)
     assert LINE.match(plain(capsys.readouterr().out).splitlines()[0])
     configure(output="json")
+
+
+ECHO_BY_HAND = """
+format: dirigent/v1
+kind: pipeline
+code: local-echo
+steps:
+  ask:
+    source:
+      kind: endpoint
+      path: /echo
+      methods: [POST]
+    sample:
+      body: {said: from the sample}
+  answer:
+    depends_on: [ask]
+    reply:
+      status: 200
+      body: ${steps.ask.output.body}
+"""
+
+
+def reply_body(stdout: str) -> Any:
+    """Read the body the run's reply rendered, from the closing record."""
+    steps = {step["step"]: step for step in closing(stdout)["steps"]}
+    return steps["answer"]["output"]["body"]
+
+
+def test_a_local_run_of_a_pipeline_with_a_source_takes_its_sample(tmp_path: Path) -> None:
+    result = invoke("--json", "run", "--local", str(write(tmp_path, ECHO_BY_HAND)))
+    assert result.exit_code == 0, result.stdout
+    assert reply_body(result.stdout) == {"said": "from the sample"}
+
+
+def test_a_local_run_hands_its_source_the_input_given(tmp_path: Path) -> None:
+    given = "{body: {said: by hand}}"
+    result = invoke("--json", "run", "--local", str(write(tmp_path, ECHO_BY_HAND)), "--source", "ask", "--input", given)
+    assert result.exit_code == 0, result.stdout
+    assert reply_body(result.stdout) == {"said": "by hand"}
+
+
+def test_a_local_run_reads_its_input_from_a_file(tmp_path: Path) -> None:
+    (tmp_path / "input.json").write_text('{"body": {"said": "from a file"}}')
+    result = invoke(
+        "--json", "run", "--local", str(write(tmp_path, ECHO_BY_HAND)), "--input", f"@{tmp_path / 'input.json'}"
+    )
+    assert result.exit_code == 0, result.stdout
+    assert reply_body(result.stdout) == {"said": "from a file"}
+
+
+def test_an_input_that_is_not_json_or_yaml_is_refused(tmp_path: Path) -> None:
+    result = invoke("--json", "run", "--local", str(write(tmp_path, ECHO_BY_HAND)), "--input", "{unclosed: [")
+    assert result.exit_code != 0
+    assert "--input is not JSON or YAML" in result.stdout

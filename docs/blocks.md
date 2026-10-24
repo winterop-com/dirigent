@@ -955,7 +955,8 @@ Contributed by `block-base`. Not idempotent. Polls every 1m unless the step says
 Blocks are two of the six surfaces a plugin contributes to. Three of the other four -- storage
 backends, notifiers and connection kinds -- are listed here by id, since a document references
 them by code and never by id of any other kind. The sixth, a JSON Schema format checker, is in
-[JSON Schema](json-schema.md).
+[JSON Schema](json-schema.md). Source kinds, which a source node names as ``source.kind``, are
+listed after them; see [Source and reply](concepts.md#source-and-reply).
 
 ### Storage schemes
 
@@ -986,3 +987,39 @@ them by code and never by id of any other kind. The sixth, a JSON Schema format 
 | `slack` | `builtin` |
 | `sql` | `block-sql` |
 | `webhook` | `builtin` |
+
+### Source kinds
+
+| Kind | Hosting | Replies | Summary | Contributed by |
+| --- | --- | --- | --- | --- |
+| `endpoint` | received | yes | A request made to this instance at a route the source declares | `builtin` |
+
+#### `endpoint`
+
+**Config**
+
+| Field | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `path` | `string` | yes |  | The path template under the instance's endpoint prefix: `/customers/{id}`, or `{rest:path}` for a tail. |
+| `methods` | `"GET" or "POST" or "PUT" or "PATCH" or "DELETE"[]` |  |  | The methods answered at the path; another method at it is answered 405. |
+| `accepts` | `string[] or null` |  | `null` | The content types a body may arrive as; unset takes JSON, forms and text. |
+| `max_body` | `string or integer or null` |  | `null` | The largest body read, below the instance's own cap; one byte past it is refused 413. |
+| `auth` | `object` |  | `{"kind": "token"}` | How a caller authenticates: a token by default, or `{kind: public}` when written out. |
+| `rate` | `object` |  | `{"per_minute": 600, "burst": null}` | How fast calls are taken; one past it is answered 429 before its body is read. |
+| `max_in_flight` | `integer or null` |  | `null` | How many unsettled runs from this source may exist before a new input is refused 503. |
+
+**Input it hands on**
+
+| Field | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `method` | `string` | yes |  | The HTTP method the call was made with. |
+| `path` | `string` | yes |  | The concrete path, without the query. |
+| `query` | `object` |  |  | The query arguments as strings, with a repeated name arriving as a list. |
+| `headers` | `object of string` |  |  | The request headers, lowercased. |
+| `content_type` | `string or null` |  | `null` | The content type the body arrived under, as the header spelled it. |
+| `body_kind` | `"none" or "json" or "form" or "text"` |  | `"none"` | How the body was read. A body appears once, in `body`. |
+| `body` | `any` |  | `null` | The body, decoded the way `body_kind` says. Null when there was none. |
+| `body_bytes` | `integer` |  | `0` | How large the body was, in bytes. |
+| `route` | `string` | yes |  | The template the source declares, which the concrete path matched. |
+| `path_params` | `object of string` |  |  | What each `{name}` in the template matched, as a string. |
+| `received_at` | `string (date-time)` | yes |  | When the input arrived, or when a hand run supplied it. |

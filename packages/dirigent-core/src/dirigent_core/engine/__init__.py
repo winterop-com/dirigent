@@ -36,6 +36,7 @@ from dirigent_core.engine.references import ReferenceScope, UnknownReference, re
 from dirigent_core.engine.runs import (
     Attribution,
     EngineRuns,
+    Entry,
     FanOutError,
     Provenance,
     RunCreationError,
@@ -62,6 +63,7 @@ __all__ = [
     "KIND_PIPELINE",
     "KIND_TRIGGERS",
     "Attribution",
+    "Entry",
     "BufferedLogger",
     "ClaimedUnit",
     "ConcurrencyPolicy",

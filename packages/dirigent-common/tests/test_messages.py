@@ -48,6 +48,7 @@ OWNED: Final[dict[str, str]] = {
     "schedule": "dirigent-core",
     "webhook": "dirigent-core",
     "watch": "dirigent-core",
+    "source": "dirigent-core",
     "alert": "dirigent-core",
     "secret": "dirigent-core",
     "artifacts": "dirigent-core",

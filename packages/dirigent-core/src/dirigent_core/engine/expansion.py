@@ -51,7 +51,7 @@ def new_attempt(
         run_id=run.id,
         run_item_id=run_item_id,
         step_name=name,
-        block_id=step.block,
+        block_id=step.block_id,
         attempt=1,
         kind=AttemptKind.AUTOMATIC,
         status=AttemptStatus.QUEUED if queued else AttemptStatus.PENDING,
@@ -124,6 +124,33 @@ async def collect_outputs(session: AsyncSession, run_id: UUID, definition: Pipel
             collected[attempt.step_name] = attempt.output
     collected.update(fanned)
     return collected
+
+
+async def collect_errors(session: AsyncSession, run_id: UUID, definition: PipelineDefinition) -> dict[str, JsonMap]:
+    """Gather what each failed step failed with, which ``${steps.<name>.error.*}`` reads.
+
+    A step counts as failed when the newest try of it did; a fan-out step reads the error of
+    its first item whose newest try failed.
+    """
+    rows = await session.execute(
+        sa.select(StepAttempt, RunItem.item_index)
+        .join(RunItem, RunItem.id == StepAttempt.run_item_id, isouter=True)
+        .where(StepAttempt.run_id == run_id)
+        .order_by(StepAttempt.step_name, RunItem.item_index, StepAttempt.attempt)
+    )
+    newest: dict[tuple[str, UUID | None], StepAttempt] = {}
+    for attempt, _index in rows:
+        newest[(attempt.step_name, attempt.run_item_id)] = attempt
+    errors: dict[str, JsonMap] = {}
+    for (step_name, _), attempt in newest.items():
+        if step_name in errors or step_name not in definition.steps or attempt.status is not AttemptStatus.FAILED:
+            continue
+        errors[step_name] = {
+            "code": attempt.error_code,
+            "message": attempt.error,
+            "params": cast("JsonValue", dict(attempt.error_params or {})),
+        }
+    return errors
 
 
 async def expand_gate(

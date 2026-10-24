@@ -36,6 +36,16 @@ directory, and deletes it afterwards. No server, no Docker, no database. It is t
 apply, the same engine, and the same worker loop as a real instance, because a local run
 that executed differently would prove nothing.
 
+A pipeline with sources is entered at one of them. `--input` gives what arrives there, as
+JSON or YAML written out or `@FILE` holding either, and `--source` names the source when the
+pipeline has more than one; without `--input` the source's `sample` is taken. The same two
+flags start a stored pipeline with sources on a server, `dg run <code> --input ...`:
+
+```bash
+dg run --local examples/sources/greet-by-hand.yaml
+dg run --local examples/sources/greet-by-hand.yaml --input '{path_params: {name: Bergen}}'
+```
+
 ## Talking to a server
 
 ```bash

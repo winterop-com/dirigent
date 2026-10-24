@@ -1,0 +1,50 @@
+# A request names someone, a step shapes the greeting, and a reply answers with it.
+#
+# THE PATH CARRIES A VALUE. The route `/greet/{name}` fills `path_params.name` from the path a
+# request is made at; run by hand, the input says it outright. The endpoint kind makes a
+# partial input whole -- the method its route declares, the path its template fills, the
+# body's content type and size -- so a sample or an --input says only what matters.
+#
+# BETWEEN THE SOURCE AND THE REPLY IS AN ORDINARY PIPELINE. `shape` is a jq transform like any
+# other, reading the source's output the way any step reads an upstream one, and the reply
+# answers with what it made, under a status of its own.
+#
+#   dg run --local examples/sources/greet-by-hand.yaml
+#   dg run --local examples/sources/greet-by-hand.yaml --input '{path_params: {name: Bergen}, body: {mood: wet}}'
+#
+# A method the route does not declare is refused before any run exists:
+#
+#   dg run --local examples/sources/greet-by-hand.yaml --input '{method: GET}'
+#
+# EXPECT THIS RUN TO SUCCEED in well under a second, answering 201 with the greeting.
+
+format: dirigent/v1
+kind: pipeline
+code: greet-by-hand
+name: Greet, by hand
+description: |
+  A request names someone in its path, a jq step shapes the greeting, and a reply answers
+  201 with it. Run by hand with the source's sample, or with an input given.
+
+tags: [sources, transform, jq, references]
+
+steps:
+  ask:
+    source:
+      kind: endpoint
+      path: /greet/{name}
+      methods: [POST]
+    sample:
+      path_params: {name: Oslo}
+      body: {mood: cheerful}
+  shape:
+    block: transform.jq
+    depends_on: [ask]
+    config:
+      input: ${steps.ask.output}
+      program: '{greeting: ("hello " + .path_params.name), mood: .body.mood}'
+  answer:
+    depends_on: [shape]
+    reply:
+      status: 201
+      body: ${steps.shape.output.value}

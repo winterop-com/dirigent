@@ -1003,10 +1003,41 @@ const refused = {
         no_such_version: 'Pipeline {code} has no version {version}.',
         unknown: 'No pipeline coded {code}.',
     },
+    plugin: {
+        route_bad_parameter:
+            'The path {template} has the segment {segment}. A parameter is a whole segment: a snake_case name in braces, or that name followed by :path to take the rest of the path.',
+        route_bad_segment: 'The path {template} has the segment {segment}, which a path cannot carry.',
+        route_not_rooted: 'The path {template} does not start with a slash.',
+        route_repeated_parameter: 'The path {template} names the parameter {name} twice.',
+        route_tail_not_last:
+            'The path {template} has {segment} before its end, and a tail takes the rest of the path.',
+    },
+    reference: {
+        not_failed:
+            '{reference} cannot be resolved: step {step} did not fail, and its error is read only when it did.',
+    },
     run: {
+        entry_ambiguous: 'Pipeline {code} has the sources {sources}. Name the one this run enters at.',
+        entry_input_refused:
+            'The input for source {step} is not one its kind {kind} can make whole: {detail}',
+        entry_not_a_source:
+            'Step {step} is not a source of pipeline {code}. A run enters at one of {sources}.',
+        entry_on_no_sources: 'Pipeline {code} has no sources, so a run of it is not entered at a step.',
+        given_no_entry:
+            'Pipeline {code} starts at its sources ({sources}), so a run of it enters through one of them.',
+        not_entered: 'The input arrived at {entered}, so {step} was not entered.',
         not_retryable: 'Step {step} is {status}, and only a settled failure can be retried.',
+        reply_body_from: 'Reply {step} streams its body from {value}, and body_from names a storage URI.',
+        reply_not_retryable:
+            'Step {step} is a reply. The server settles it once, when the steps it answers from have settled.',
+        reply_refused: 'Reply {step} could not be rendered: {detail}',
+        reply_status:
+            "Reply {step} answers with {status}, and a reply's status is a whole number from 200 to 599.",
         schema_not_held:
             'No schema coded {code} exists on this instance ({held}), and this pipeline checks against it. Store that shape, or apply a version of the pipeline that does not name it.',
+        server_settled: 'Step {step} is a {kind}, which the server settles and no worker claims.',
+        source_not_retryable:
+            'Step {step} is a source, settled with the input the run was created for. Running that input again is a new run.',
         unknown_schema:
             'This run holds no shape coded {code}. It checks against the shapes its document named when it started ({available}), and takes no others while it runs.',
     },
@@ -1065,6 +1096,53 @@ const refused = {
         too_many_tails: 'You already have {maximum} streams open on this server.',
         unauthenticated: 'Authentication required. Present a bearer token or log in.',
         unknown_connection_kind: 'No connection kind {kind} is installed. Known: {known}.',
+    },
+    source: {
+        body_not_json: 'The body is not JSON: {detail}',
+        body_not_text: 'The body is not {charset} text: {detail}',
+        body_without_type: 'The body arrived with no content type, and this endpoint takes {accepted}.',
+        endpoint_accepts_refused:
+            'An endpoint reads JSON, urlencoded forms and text, and {accepts} is none of them. A file is posted as a URI in a JSON body.',
+        endpoint_method_not_declared: 'The method {method} is not one this endpoint answers ({methods}).',
+        endpoint_path_params_missing:
+            'The path template takes {names}, and path_params gives no value for it.',
+        field_refused:
+            'A source takes name, description and sample, and nothing else. {field} goes on the step after it.',
+        join_of_sources:
+            'Step {step} waits with all_success on both {first} and {second}, and a run enters at one source only, so it could never run. Join them with all_done or always.',
+        reference_error_not_upstream:
+            '{reference} reads the failure of {target}, which is not upstream of step {step}.',
+        reference_malformed_error:
+            '{reference} reads a failure, which is written as steps.<name>.error.code, .message, or .params.',
+        replace_on_held:
+            'Pipeline {code} has a {hosting} source, and concurrency: replace would cancel the run each new input creates. Use allow, skip or queue.',
+        reply_bad_header: 'A reply does not set {header}, which the server writes itself.',
+        reply_bad_status:
+            "A reply's status is a whole number from 200 to 599 or a reference to one, not {status}.",
+        reply_body_twice: 'A reply takes body or body_from, not both.',
+        reply_field_refused:
+            'A reply takes depends_on, rule, name and description, and nothing else. {field} is not one of them.',
+        reply_no_source:
+            'Reply {step} is downstream of no source that replies, so there is nobody for it to answer.',
+        reply_not_a_leaf:
+            'Step {dependent} depends on reply {step}, and a reply is a leaf: nothing waits on it.',
+        required_param_on_sources:
+            'Parameter {name} is required with no default, and a run a source creates takes the defaults. Give it a default.',
+        root_beside_sources:
+            'Step {step} depends on nothing in a pipeline with sources, so it would run on every input from every source. Make it depend on the source it belongs to.',
+        route_claimed: '{method} {template} is already answered by source {step} of pipeline {pipeline}.',
+        sample_invalid:
+            'The sample of source {step} is not an input its kind {kind} can make whole: {detail}',
+        sample_not_an_object: 'A sample is written as an object, not a {kind}.',
+        sample_outside_source: 'Only a source takes a sample.',
+        schedule_on_sources:
+            'Pipeline {code} starts at its sources, and a schedule would enter none of them. Run it from a source instead.',
+        step_one_form: 'A step is exactly one of block, source or reply, and this one writes {named}.',
+        triggers_on_sources:
+            'Pipeline {code} starts at its sources, and a {label} would start a run that enters none of them.',
+        unknown_kind: 'No source kind {kind} is available on this instance. Known: {known}.',
+        unsupported_media:
+            'This endpoint takes {accepted}, not {content_type}. A file is posted as a URI in a JSON body.',
     },
     validation: {
         extra_forbidden: 'Unknown key{suggestion}.',

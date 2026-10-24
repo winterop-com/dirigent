@@ -43,6 +43,8 @@ from dirigent_cli.messages import (
     INIT_CANCELLED,
     INIT_REFUSED,
     INIT_WAY,
+    INPUT_FILE_UNREADABLE,
+    INPUT_REFUSED,
     INSTANCE_ALREADY_HERE,
     KEEP_IS_LOCAL_ONLY,
     LOCAL_RUN_HAD_NO_OUTCOME,
@@ -322,7 +324,7 @@ def _print_graph(steps: Sequence[GraphStep], title: str = "steps") -> None:
 def graph_steps(definition: PipelineDefinition) -> list[GraphStep]:
     """Read a definition's steps in the shape the tree is drawn from."""
     return [
-        GraphStep(name=name, block=step.block, depends_on=tuple(step.depends_on), rule=step.rule.value)
+        GraphStep(name=name, block=step.block_id, depends_on=tuple(step.depends_on), rule=step.rule.value)
         for name, step in definition.steps.items()
     ]
 
@@ -1080,6 +1082,23 @@ def parse_priority(value: str | None) -> RunPriority | None:
         )
 
 
+def parse_input(value: str | None) -> Any:
+    """Read what a hand run hands its source: JSON or YAML written out, or ``@FILE`` holding either."""
+    if value is None:
+        return None
+    text = value
+    if value.startswith("@"):
+        path = Path(value[1:])
+        try:
+            text = path.read_text()
+        except OSError as error:
+            fail(INPUT_FILE_UNREADABLE, path=str(path), detail=error.strerror or str(error))
+    try:
+        return yaml.safe_load(text)
+    except yaml.YAMLError as error:
+        fail(INPUT_REFUSED, detail=str(error).splitlines()[0])
+
+
 def parse_importance(value: str | None) -> Importance | None:
     """Read the importance a rule was given, naming the vocabulary when it is not one."""
     if value is None:
@@ -1164,6 +1183,20 @@ def run_command(
             "Omitted takes the pipeline's own.",
         ),
     ] = None,
+    source: Annotated[
+        str | None,
+        typer.Option(
+            "--source",
+            help="The source step a pipeline with sources is entered at. Omitted takes its only one.",
+        ),
+    ] = None,
+    given: Annotated[
+        str | None,
+        typer.Option(
+            "--input",
+            help="What arrives at that source, as JSON or YAML, or @FILE. Omitted takes the source's sample.",
+        ),
+    ] = None,
 ) -> None:
     """Run a pipeline by code, or apply and run a document in one command.
 
@@ -1182,6 +1215,7 @@ def run_command(
     wanted = parse_priority(priority)
     if wanted is not None and local:
         fail(PRIORITY_IS_NOT_LOCAL)
+    arrives = parse_input(given)
     if local:
         _run_locally(
             state,
@@ -1197,6 +1231,8 @@ def run_command(
             strict=strict,
             keep=keep,
             root=root,
+            source=source,
+            given=arrives,
         )
         return
     with client_for(state) as dg:
@@ -1224,7 +1260,11 @@ def run_command(
             stored = dg.call(dg.pipelines.get(code))
             schema = dict((stored.document or {}).get("params") or {})
         params = parse_params(param, schema=schema, files=params_file)
-        accepted = dg.call(dg.pipelines.run(code, params=params, window=covered, log_levels=levels, priority=wanted))
+        accepted = dg.call(
+            dg.pipelines.run(
+                code, params=params, window=covered, log_levels=levels, priority=wanted, source=source, input=arrives
+            )
+        )
         if accepted.run_id is None:
             if state.json_output:
                 emit_problem(
@@ -1315,6 +1355,8 @@ def _run_locally(
     strict: bool,
     keep: bool = False,
     root: Path | None = None,
+    source: str | None = None,
+    given: Any = None,
 ) -> None:
     """Apply and run a document in a throwaway instance, streaming what it logs."""
     if state.url is not None or state.profile is not None or state.token is not None:
@@ -1344,6 +1386,8 @@ def _run_locally(
             state=state,
             keep=keep,
             root=root,
+            source=source,
+            given=given,
         )
     )
     if outcome is None:  # pragma: no cover - the generator always ends with an outcome
@@ -1384,6 +1428,8 @@ async def _stream_local(
     state: CliState,
     keep: bool = False,
     root: Path | None = None,
+    source: str | None = None,
+    given: Any = None,
 ) -> LocalOutcome | None:
     """Drive a local run, printing each transition and log line as it lands."""
     outcome: LocalOutcome | None = None
@@ -1400,6 +1446,8 @@ async def _stream_local(
             inherited=settings,
             keep=keep,
             root=root,
+            source=source,
+            given=given,
         ):
             match item:
                 case LocalStarted():

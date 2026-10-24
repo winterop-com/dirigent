@@ -137,8 +137,8 @@ def watch_issue(
         return Issue.of(WATCH_NOT_A_ROOT, code=repr(code), step=repr(step_name), depends=", ".join(step.depends_on))
     if step.is_fan_out:
         return Issue.of(WATCH_FANS_OUT, code=repr(code), step=repr(step_name))
-    if sensors is not None and step.block not in sensors:
-        return Issue.of(WATCH_NOT_A_SENSOR, code=repr(code), step=repr(step_name), block=repr(step.block))
+    if sensors is not None and step.block_id not in sensors:
+        return Issue.of(WATCH_NOT_A_SENSOR, code=repr(code), step=repr(step_name), block=repr(step.block_id))
     return None
 
 

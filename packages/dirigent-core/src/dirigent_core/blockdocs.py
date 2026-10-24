@@ -7,7 +7,7 @@ catalog disagree.
 import json
 from typing import Final, cast
 
-from dirigent_client.schemas import BlockEntry, BlockKind, Catalog, SurfaceEntry
+from dirigent_client.schemas import BlockEntry, BlockKind, Catalog, SourceEntry, SurfaceEntry
 from dirigent_common import JsonMap
 from dirigent_core.configdocs import first_paragraph, one_line
 
@@ -53,7 +53,8 @@ SURFACES_PREAMBLE: Final = """## Other surfaces
 Blocks are two of the six surfaces a plugin contributes to. Three of the other four -- storage
 backends, notifiers and connection kinds -- are listed here by id, since a document references
 them by code and never by id of any other kind. The sixth, a JSON Schema format checker, is in
-[JSON Schema](json-schema.md).
+[JSON Schema](json-schema.md). Source kinds, which a source node names as ``source.kind``, are
+listed after them; see [Source and reply](concepts.md#source-and-reply).
 """
 
 NO_DESCRIPTION: Final = "--"
@@ -73,6 +74,7 @@ def render(catalog: Catalog) -> str:
     parts.append(_surfaces("Storage schemes", "scheme", catalog.storage_schemes))
     parts.append(_surfaces("Notifiers", "id", catalog.notifiers))
     parts.append(_surfaces("Connection kinds", "id", catalog.connection_kinds))
+    parts.append(_sources(catalog.sources))
     return "\n".join(parts).rstrip() + "\n"
 
 
@@ -208,6 +210,45 @@ def _surfaces(title: str, label: str, entries: list[SurfaceEntry]) -> str:
             "",
         ]
     )
+
+
+def _sources(entries: list[SourceEntry]) -> str:
+    """Render the source kinds as a short table, and the input each one hands on."""
+    if not entries:
+        return "### Source kinds\n\n_None installed._\n"
+    rows = [
+        f"| `{entry.kind}` | {entry.hosting} | {_yes(entry.replies)} | {entry.summary} | `{entry.plugin}` |"
+        for entry in entries
+    ]
+    lines = [
+        "### Source kinds",
+        "",
+        "| Kind | Hosting | Replies | Summary | Contributed by |",
+        "| --- | --- | --- | --- | --- |",
+        *rows,
+        "",
+    ]
+    for entry in entries:
+        lines.extend(
+            [
+                f"#### `{entry.kind}`",
+                "",
+                "**Config**",
+                "",
+                _schema_table(entry.config_schema),
+                "",
+                "**Input it hands on**",
+                "",
+                _schema_table(entry.output_schema),
+                "",
+            ]
+        )
+    return "\n".join(lines)
+
+
+def _yes(flag: bool) -> str:
+    """Render a flag as a table cell reads it."""
+    return "yes" if flag else "no"
 
 
 def _anchor(block_id: str) -> str:

@@ -37,10 +37,23 @@ class AttemptStatus(StrEnum):
 
 
 class AttemptKind(StrEnum):
-    """Whether the engine created an attempt or an operator asked for it."""
+    """Whether the engine created an attempt, an operator asked for it, or an input arrived as it."""
 
     AUTOMATIC = "automatic"
     MANUAL = "manual"
+    RECEIVED = "received"
+    """A source node's attempt: written succeeded when the run is created, its output the input."""
+
+
+class StepKind(StrEnum):
+    """Which of the three forms a step takes: work on a worker, an entry, or an answer."""
+
+    BLOCK = "block"
+    SOURCE = "source"
+    """Where an input enters the pipeline; settled by the server when the run is created."""
+
+    REPLY = "reply"
+    """A leaf that answers the caller an input arrived from; settled by the server, never claimed."""
 
 
 class RunItemStatus(StrEnum):
@@ -101,6 +114,9 @@ class TriggerKind(StrEnum):
 
     WATCH = "watch"
     """A watch armed this one to wait on its sensor, and ``triggered_by_id`` names the watch."""
+
+    SOURCE = "source"
+    """An input arrived at a source node, and ``triggered_by_id`` names the source."""
 
 
 class ScheduleKind(StrEnum):
@@ -173,6 +189,15 @@ class WebhookOutcome(StrEnum):
 
     REJECTED = "rejected"
     """The delivery was refused, and the reason is on the row."""
+
+
+class BodyKind(StrEnum):
+    """How an inbound request's body was read."""
+
+    NONE = "none"
+    JSON = "json"
+    FORM = "form"
+    TEXT = "text"
 
 
 class LogLevel(StrEnum):

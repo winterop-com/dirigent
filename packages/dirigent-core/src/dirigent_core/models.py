@@ -211,6 +211,9 @@ class Run(Entity):
     )
     triggered_by_id: Mapped[UUID | None] = mapped_column(sa.Uuid)
     triggered_by_label: Mapped[str | None] = mapped_column(sa.String(200))
+    source_step: Mapped[str | None] = mapped_column(sa.String(200))
+    """The source node a run of a pipeline with sources entered at."""
+
     traceparent: Mapped[str | None] = mapped_column(sa.String(64))
     """The trace context the run was created in, which every attempt of it opens under."""
     error: Mapped[str | None] = mapped_column(sa.Text)

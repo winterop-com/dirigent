@@ -591,6 +591,7 @@ def upgrade() -> None:
         ),
         sa.Column("triggered_by_id", sa.Uuid(), nullable=True),
         sa.Column("triggered_by_label", sa.String(length=200), nullable=True),
+        sa.Column("source_step", sa.String(length=200), nullable=True),
         sa.Column("traceparent", sa.String(length=64), nullable=True),
         sa.Column("error", sa.Text(), nullable=True),
         sa.Column("error_code", sa.String(length=128), nullable=True),
