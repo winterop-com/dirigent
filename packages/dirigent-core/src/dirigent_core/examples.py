@@ -73,6 +73,37 @@ def collect(shelves: Sequence[tuple[str, Sequence[Traversable]]]) -> list[Exampl
     return sorted(entries, key=lambda one: (one.plugin, one.shelf, one.code))
 
 
+class ShelfFile(BaseModel):
+    """One file of a plugin's shelves that parses to a mapping, a document or not."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    plugin: str
+    path: str
+    """The file, relative to the shelves root."""
+
+    raw: JsonMap
+
+
+def shelf_files(shelves: Sequence[tuple[str, Sequence[Traversable]]]) -> list[ShelfFile]:
+    """Read every file under each plugin's shelves that parses to a mapping, in plugin then path order.
+
+    The catalogue keeps only documents; this keeps the connection files and the standalone
+    schemas beside them too, which is what seeding an instance from a corpus needs.
+    """
+    files: list[ShelfFile] = []
+    for plugin, roots in shelves:
+        for root in roots:
+            for path, node in _walk(root):
+                try:
+                    parsed = safe_load(node.read_text())
+                except (OSError, UnicodeDecodeError, yaml.YAMLError):
+                    continue
+                if isinstance(parsed, dict):
+                    files.append(ShelfFile(plugin=plugin, path=path, raw=cast("JsonMap", parsed)))
+    return files
+
+
 def _walk(root: Traversable) -> Iterator[tuple[str, Traversable]]:
     """Yield every readable file under a directory, deepest last, by relative path."""
     if not root.is_dir():

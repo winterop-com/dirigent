@@ -2,7 +2,9 @@
 
 The seeding goes through the API, so every apply meets the same preflight a person's apply
 meets, and a refusal is a record rather than a failure: a corpus is expected to hold
-documents an instance will not store.
+documents an instance will not store. A corpus goes in as connection files, then the
+standalone JSON Schemas beside its documents, then the documents; a document refused for
+naming something a later one supplies is applied again once the rest are in.
 """
 
 from collections.abc import AsyncIterator, Mapping, Sequence
@@ -13,8 +15,9 @@ from typing import Any, cast
 from dirigent_cli.local import ConnectionSpec
 from dirigent_client import Dirigent, DirigentError, PlanAction, ProvenanceSource, declared_label
 from dirigent_common import JsonMap
-from dirigent_core.documents import CARRIED, SUFFIXES, is_document, readable, safe_load
+from dirigent_core.documents import CARRIED, SUFFIXES, is_document, readable
 from dirigent_core.protocol import Record, make
+from dirigent_core.schemas import code_from_id
 
 __all__ = ["CARRIED", "SUFFIXES", "is_document", "readable", "seed_directories", "seed_installed", "specs"]
 
@@ -36,49 +39,117 @@ async def seed_directories(client: Dirigent, directories: Sequence[Path]) -> Asy
     The closing record's counts are read off the records the seeding emitted, so a reader of
     the stream and this summary never disagree.
     """
-    pipelines = 0
-    refused = 0
-    connections: set[str] = set()
-    async for record in _walk(client, directories):
-        kind = record["kind"]
-        if kind == "seed.applied":
-            pipelines += 1
-        elif kind == "seed.refused":
-            refused += 1
-        elif kind == "seed.connection":
-            connections.add(str(record["connection"]))
-        yield record
+    files = [(str(path), raw) for directory in directories for path, raw in readable(directory)]
+    tally = _Tally()
+    async for record in _seed(client, files):
+        yield tally.count(record)
     yield make(
         "seed.done",
         at=datetime.now(UTC),
         message="seeded",
         directories=[str(one) for one in directories],
-        pipelines=pipelines,
-        refused=refused,
-        connections=sorted(connections),
+        **tally.counts(),
     )
 
 
-async def _walk(client: Dirigent, directories: Sequence[Path]) -> AsyncIterator[Record]:
-    """Seed each directory in the order given: the connections it declares, then its documents.
+class _Tally:
+    """What a seeding did, read off the records it emitted, so a reader and the summary agree."""
 
-    A directory's own connection files go in before any of its documents, so a document that
-    names one of them passes the preflight that reads it.
+    def __init__(self) -> None:
+        """Start from nothing seeded."""
+        self.pipelines = 0
+        self.refused = 0
+        self.connections: set[str] = set()
+        self.schemas: set[str] = set()
+
+    def count(self, record: Record) -> Record:
+        """Count one record, and hand it back to be emitted."""
+        match record["kind"]:
+            case "seed.applied":
+                self.pipelines += 1
+            case "seed.refused":
+                self.refused += 1
+            case "seed.connection":
+                self.connections.add(str(record["connection"]))
+            case "seed.schema":
+                self.schemas.add(str(record["schema"]))
+            case _:
+                pass
+        return record
+
+    def counts(self) -> dict[str, Any]:
+        """The closing record's fields."""
+        return {
+            "pipelines": self.pipelines,
+            "refused": self.refused,
+            "connections": sorted(self.connections),
+            "schemas": sorted(self.schemas),
+        }
+
+
+async def _seed(client: Dirigent, files: Sequence[tuple[str, JsonMap]]) -> AsyncIterator[Record]:
+    """Seed a corpus: its connection files, its standalone schemas, then its documents.
+
+    The connections and the schemas go in before any document, so a document that names one
+    passes the preflight that reads it. A document refused in one pass is applied again in
+    the next, since what it names may be a pipeline or a schema a later document supplied, and
+    the passes end when one stores nothing new; what is still refused is reported then.
     """
-    for directory in directories:
-        files = readable(directory)
-        for path, raw in files:
-            if not is_document(raw):
-                async for record in _connections(client, specs(raw.get("connections")), str(path)):
-                    yield record
-        for path, raw in files:
-            if is_document(raw):
-                async for record in _document(client, raw, str(path)):
-                    yield record
+    for origin, raw in files:
+        if not is_document(raw):
+            async for record in _connections(client, specs(raw.get("connections")), origin):
+                yield record
+    for origin, raw in files:
+        code = _schema_file(raw, origin)
+        if code is not None:
+            yield await _standalone_schema(client, code, raw, origin)
+    waiting: list[tuple[str, JsonMap, Record]] = []
+    for origin, raw in files:
+        if is_document(raw):
+            async for record in _carried(client, raw, origin):
+                yield record
+            applied = await _apply(client, raw, origin)
+            if applied["kind"] == "seed.applied":
+                yield applied
+            else:
+                waiting.append((origin, raw, applied))
+    while waiting:
+        still: list[tuple[str, JsonMap, Record]] = []
+        for origin, raw, _refusal in waiting:
+            record = await _apply(client, raw, origin)
+            if record["kind"] == "seed.applied":
+                yield record
+            else:
+                still.append((origin, raw, record))
+        if len(still) == len(waiting):
+            break
+        waiting = still
+    for _origin, _raw, refusal in waiting:
+        yield refusal
 
 
-async def _document(client: Dirigent, raw: JsonMap, origin: str) -> AsyncIterator[Record]:
-    """Create what one document carries, then apply the document without those sections."""
+def _schema_file(raw: JsonMap, origin: str) -> str | None:
+    """Name the code a standalone JSON Schema file is stored under, or None when the file is not one.
+
+    A file that is neither a document nor a connection file and declares a string ``$id`` is a
+    schema, coded the way ``dg schema create`` codes it: from the ``$id``, else the filename.
+    """
+    if is_document(raw) or "connections" in raw or not isinstance(raw.get("$id"), str):
+        return None
+    return code_from_id(cast("str", raw["$id"])) or code_from_id(Path(origin.rpartition(":")[2]).name)
+
+
+async def _standalone_schema(client: Dirigent, code: str, body: JsonMap, origin: str) -> Record:
+    """Store one schema file, and say so, or say why the instance would not."""
+    try:
+        await _schema(client, code, body)
+    except DirigentError as error:
+        return _refused(origin, f"schema {code}: {_reason(error)}")
+    return make("seed.schema", at=datetime.now(UTC), message="schema", schema=code, origin=origin)
+
+
+async def _carried(client: Dirigent, raw: JsonMap, origin: str) -> AsyncIterator[Record]:
+    """Create the connections and the schemas one document carries."""
     async for record in _connections(client, specs(raw.get("connections")), origin):
         yield record
     for code, body in _schemas(raw).items():
@@ -86,7 +157,6 @@ async def _document(client: Dirigent, raw: JsonMap, origin: str) -> AsyncIterato
             await _schema(client, code, body)
         except DirigentError as error:
             yield _refused(origin, f"schema {code}: {_reason(error)}")
-    yield await _apply(client, raw, origin)
 
 
 def _schemas(raw: JsonMap) -> dict[str, JsonMap]:
@@ -182,37 +252,22 @@ def _reason(error: DirigentError) -> str:
 
 
 async def seed_installed(client: Dirigent) -> AsyncIterator[Record]:
-    """Apply every document of every installed corpus, the way a directory's documents go in.
+    """Seed every installed corpus the way a directory is seeded, files beside the documents included.
 
-    The catalogue is what this build ships, so nothing is named on the command line and no
-    checkout has to be present. A document is attributed to the plugin that carries it.
+    The corpus is what this build ships, so nothing is named on the command line and no
+    checkout has to be present. A file is attributed to the plugin that carries it.
     """
     from dirigent_core.plugins import load_plugin_host
 
-    pipelines = 0
-    refused = 0
-    connections: set[str] = set()
-    plugins: set[str] = set()
-    for entry in load_plugin_host().examples():
-        parsed = safe_load(entry.source)
-        if not isinstance(parsed, dict):
-            continue
-        plugins.add(entry.plugin)
-        async for record in _document(client, cast("JsonMap", parsed), f"{entry.plugin}:{entry.path}"):
-            kind = record["kind"]
-            if kind == "seed.applied":
-                pipelines += 1
-            elif kind == "seed.refused":
-                refused += 1
-            elif kind == "seed.connection":
-                connections.add(str(record["connection"]))
-            yield record
+    shipped = load_plugin_host().example_files()
+    files = [(f"{one.plugin}:{one.path}", one.raw) for one in shipped]
+    tally = _Tally()
+    async for record in _seed(client, files):
+        yield tally.count(record)
     yield make(
         "seed.done",
         at=datetime.now(UTC),
         message="seeded",
-        plugins=sorted(plugins),
-        pipelines=pipelines,
-        refused=refused,
-        connections=sorted(connections),
+        plugins=sorted({one.plugin for one in shipped if is_document(one.raw)}),
+        **tally.counts(),
     )
