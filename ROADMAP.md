@@ -69,23 +69,94 @@ stays clean, and every example stays executable.
    when item i of the grid it adopts has succeeded, rather than when all of that step has.
 2. **Input sources: a pipeline that is always listening.** A source is a pipeline's first
    node, `steps: echo: source: {kind: endpoint, path: /echo, methods: [POST]}`, and its
-   lifecycle belongs to the pipeline. It listens from the moment the pipeline is applied and
-   active until it is paused. Each input becomes a run: the input is the source node's
-   output, settled by whoever received it, and flows into the next blocks
-   (`${steps.echo.output.body}`). Several source nodes give several entries: an input enters
-   at its own node and the other entry nodes are skipped.
-   - `endpoint` is the first kind: received by dirigent's own server under `/endpoints`, in
-     the shape of Camel's REST DSL. It takes JSON, form or text up to `max_body`, and no
-     files; a caller with a file posts a URI and the pipeline fetches it. An
-     `endpoint.reply` node answers a caller that waits; without one the caller gets 202 and
-     the run id. Auth is a per-endpoint token by default and `public` only when written.
-   - Consumer kinds (Kafka, RabbitMQ) hold a subscription on a worker through a lease.
-     Watches and webhooks fold in as kinds, and packs contribute kinds through pluginkit.
-   - A reply goes through the queue and a worker. The commit that queues the run wakes an
-     idle worker (`dirigent_work`, LISTEN/NOTIFY on PostgreSQL), so the queue adds no poll
-     interval; `dirigent_sources` is already defined for the sources themselves.
-   The design round decides the node model, the source states, the reply contract, the
-   slices and a large examples shelf.
+   lifecycle belongs to the pipeline: it listens from the moment the pipeline is applied and
+   active until it is paused. Each input becomes one run, whose source node is already
+   settled with the input as its output (`${steps.echo.output.body}`). The design round:
+
+   **The node model.**
+   - A step is exactly one of `block`, `source` or `reply`. A source takes `name`,
+     `description`, `sample` and its kind's own fields, nothing else; a reply takes
+     `depends_on`, `rule`, `name`, `description` and what it answers with.
+   - Sources are roots, and in a pipeline with sources every other step descends from one:
+     a root beside them would run on every input from every source, and is refused. Several
+     sources give several entries. A run enters at one, the others are settled skipped as not
+     entered, and a step joining two sources' branches must say `all_done` or `always`, since
+     under `all_success` it could never run.
+   - A pipeline with sources carries no schedules or watches, since what they started would
+     enter no source. A run by hand (`dg run`, the trigger dialog) names the source it enters
+     at and gives an input, or falls back to the source's `sample`; a pipeline with one
+     source needs no name.
+   - Neither a source nor a reply is retried. Running an input again is a new run, and a
+     reply settles once, rendered by the server when the steps it answers from have
+     settled; it is never claimed by a worker, so a reply costs no queue hop.
+
+   **The source rows and states.** Every source node has a row, reconciled on each apply by
+   step code: its declaration follows the pipeline's current version, and what an operator
+   did to it (paused, a rotated token) and what it counted are the instance's and survive
+   the apply. A route another pipeline's source answers, one method at one template, is
+   refused at apply. A source is `listening`; `backlogged` once as many runs from it are
+   unsettled as `max_in_flight` allows, refusing new inputs 503 until one settles; `draining`
+   when it or its pipeline is paused with runs still in flight; then `paused`, its token and
+   cursor kept. A worker-held kind adds `starting` and `failing`, the listener backing off.
+   Every input has a journal row naming its outcome: `accepted`, `replied`, `refused` (with
+   the reason) or `timed_out`.
+
+   **The endpoint kind** is received by dirigent's own server under `/endpoints`, in the
+   shape of Camel's REST DSL. It declares a `path` template (`/customers/{id}`, `{rest:path}`
+   for a tail), `methods` (POST unless written), `accepts` (JSON and any `+json`, a
+   urlencoded form and text unless narrowed), `max_body` under the instance's cap, `auth`
+   (a per-source token by default, shown once at apply and rotatable, `{kind: public}` only
+   when written out), a `rate` bucket and `max_in_flight`. No files: a caller with a file
+   posts a URI and the pipeline fetches it. A request is checked in one order, each step
+   answering for itself: the instance's intake bucket, the route (404, 405), auth (401), the
+   source's bucket (429), the pipeline being active (503), the content type (415), the capped
+   read (413), the parse (400), the in-flight count (503), then the run. A 429 writes no row,
+   so a caller in a loop cannot cause writes; it is counted in memory instead.
+
+   **The reply contract.** Without a reply node the caller is answered 202 with the run it
+   started and where to read it. With one, the caller is held for the longest timeout among
+   the replies its input can reach, under the instance's cap, and the first reply to settle
+   is the answer, rendered from the run's outputs: a status (200 to 599, or a reference to
+   one), headers, a content type, and a body, or `body_from` a storage URI streamed back.
+   When no reply can answer any more, the run's failure is mapped: a step on the replying
+   path refusing the input as `rejected` answers 422, anything else 502, both as
+   problem+json naming the run. A caller still waiting when its timeout passes is answered
+   504 and the run carries on. The waiter is one batched reader per server process, woken by
+   the run's `dirigent_settled` commit rather than polling.
+
+   **Hosting.** A kind is hosted one of three ways, and the contract says which: the server
+   receives it (`endpoint`, webhooks), a worker polls it, or a worker holds it open through
+   a lease (Kafka and RabbitMQ consumers, which bring `starting` and `failing`). A received
+   kind turns a request into an input with no connection and no secret in reach, may answer
+   a handshake or heartbeat without making a run, and may refuse an input with the status
+   its caller is answered with. Packs contribute kinds through pluginkit as
+   `Contribution.sources`; `dirigent_sources` is already defined for a source's change to
+   restart whoever holds it.
+
+   **Slices,** each its own PR and each runnable:
+   1. The node model and entry: the three step kinds, the rules above, a run entered at a
+      source by hand or from its `sample`, replies settled by the server. No network yet;
+      `dg run --local` drives it.
+   2. The endpoint intake and the source rows: routes, auth and tokens, limits, the journal,
+      the 202 answer, `dg source list`, `pause`, `resume`, `rotate-token` and `call`.
+   3. Replies over the wire: the held caller, the batched waiter, and the 504, 422 and 502
+      mappings.
+   4. The contract on pluginkit, so a pack contributes a received kind, and the screens:
+      sources listed with their state and rates, one source's inputs, built to
+      `docs/ui-conventions.md`.
+   5. Worker-hosted kinds: a polled kind, then Kafka and RabbitMQ consumers held through a
+      lease, and watches and webhooks folded in as kinds.
+
+   **The examples shelf** (`shelves/sources/`), each runnable with `dg run --local` and its
+   `sample`: an echo endpoint with a reply; a form taken and answered 202; a JSON body held
+   to a schema with `validate.schema`, a bad one answered 422; a reply streaming a stored
+   file with `body_from`; two sources joined under `all_done`; an endpoint feeding
+   `transform.jq` and the dhis2 pack's import (in `dirigent-integration`); FHIR in once
+   `dirigent-fhir` lands; and a Kafka consumer once slice 5 does.
+
+   **Still open:** an `Idempotency-Key` header de-duplicating a caller's retries into one
+   run; authentication beyond tokens, which waits on the OIDC open question; and whether a
+   public endpoint needs an instance-wide switch before any pipeline may declare one.
 3. **dirigent-fhir: FHIR as a system of its own.** A general FHIR pack, not a DHIS2 one: a
    pipeline that pulls from one FHIR server and pushes to another, neither of them DHIS2, is as
    much its purpose as feeding DHIS2. It depends on the FHIR engine only, and carries no DHIS2
