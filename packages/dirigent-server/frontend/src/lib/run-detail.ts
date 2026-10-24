@@ -520,8 +520,16 @@ export interface StepView {
     strip: ItemStrip
 }
 
-/** What a step's third line says, which is the news rather than the state. */
+/**
+ * What a step's third line says, which is the news rather than the state.
+ *
+ * A STEP WHOSE ITEMS GO ONE BY ONE SAYS SO WHILE THEY WAIT. Each of its items waits for its own
+ * match rather than the whole of what it depends on, which is what the step is waiting on for as
+ * long as its newest attempt is pending; an item running, parked or settled is the news instead.
+ */
 function detailOf(latest: AttemptEvent | null, node: DagNode): string | null {
+    if (node.item_wise_parent !== null && (latest === null || latest.status === 'pending'))
+        return LABELS.runs.item_by_item_after(node.item_wise_parent)
     if (latest === null)
         return node.depends_on.length === 0 ? null : LABELS.runs.depends_on_note(node.depends_on.join(', '))
     if (latest.waiting_message !== null && latest.waiting_message !== '') return latest.waiting_message

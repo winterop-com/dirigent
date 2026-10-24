@@ -37,7 +37,7 @@ import {
     type StepView,
 } from '@/lib/run-detail'
 import { headingOf } from '@/lib/identity'
-import type { AttemptEvent, DagNode, LogEntryOut, RunDetailOut, RunOut } from '@/lib/runs'
+import type { AttemptEvent, DagNode, DagView, LogEntryOut, RunDetailOut, RunOut } from '@/lib/runs'
 import type { AttemptStatus, RunStatus } from '@/lib/status'
 
 const NOW = Date.parse('2026-03-01T12:00:00Z')
@@ -76,6 +76,7 @@ function node(over: Partial<DagNode> = {}): DagNode {
         rule: 'all_success',
         fan_out: false,
         grid_source: null,
+        item_wise_parent: null,
         items_total: 0,
         items_failed: 0,
         attempts: 0,
@@ -607,6 +608,28 @@ describe('the nodes the graph draws', () => {
         const views = stepViews(initialState(detail({ dag })), NOW)
         expect(views[0]?.detail).toBeNull()
         expect(views[1]?.detail).toBe('after fetch')
+    })
+
+    test('says a step goes item by item while its items wait', () => {
+        const paired: DagView = {
+            nodes: [
+                node({ code: 'spread', fan_out: true }),
+                node({ code: 'collect', fan_out: true, depends_on: ['spread'], item_wise_parent: 'spread' }),
+            ],
+            edges: [['spread', 'collect']],
+        }
+        const before = stepViews(initialState(detail({ dag: paired })), NOW)
+        expect(before[1]?.detail).toBe('item by item after spread')
+        const waiting = fed(
+            [attempt({ id: 'c-1', step_name: 'collect', status: 'pending', run_item_id: 'i-1' })],
+            initialState(detail({ dag: paired })),
+        )
+        expect(stepViews(waiting, NOW)[1]?.detail).toBe('item by item after spread')
+        const going = fed(
+            [attempt({ id: 'c-1', step_name: 'collect', status: 'running', run_item_id: 'i-1' })],
+            initialState(detail({ dag: paired })),
+        )
+        expect(stepViews(going, NOW)[1]?.detail).not.toBe('item by item after spread')
     })
 
     test("says the remote's own words while a step is parked on it", () => {
