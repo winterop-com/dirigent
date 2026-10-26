@@ -14,7 +14,7 @@ from pydantic import ValidationError
 from typer import _click, rich_utils
 from typer.core import TyperGroup
 
-from dirigent_cli import commands, triggers
+from dirigent_cli import commands, source_commands, triggers
 from dirigent_cli.aliases import add_alias, add_list_aliases
 from dirigent_cli.context import CliState, state_of
 from dirigent_cli.formatters import DEFAULT, names
@@ -128,6 +128,7 @@ app.add_typer(commands.connection_app, rich_help_panel=CONNECT_PANEL)
 app.add_typer(triggers.schedule_app, rich_help_panel=TRIGGER_PANEL)
 app.add_typer(triggers.webhook_app, rich_help_panel=TRIGGER_PANEL)
 app.add_typer(triggers.watch_app, rich_help_panel=TRIGGER_PANEL)
+app.add_typer(source_commands.source_app, rich_help_panel=TRIGGER_PANEL)
 app.add_typer(triggers.trigger_document_app, rich_help_panel=TRIGGER_PANEL)
 app.add_typer(triggers.alerts_app, rich_help_panel=TRIGGER_PANEL)
 app.add_typer(docker_app, rich_help_panel=PROCESS_PANEL)

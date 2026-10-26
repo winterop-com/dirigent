@@ -324,3 +324,14 @@ DATABASE_BEHIND = HEALTH.define(
 )
 
 DATABASE_OK = HEALTH.define("database.ok", "the database at {where} answers, schema {stamped}")
+
+ONE_INPUT_BODY = CLI.define("one_input_body", "a call takes one body: --json, --text or --form")
+
+TAKES_NAME_EQUALS_VALUE = CLI.define("takes_name_equals_value", "{entry} is not name=value")
+
+SOURCE_NOT_CALLABLE = CLI.define(
+    "source_not_callable",
+    "source {code} of pipeline {pipeline} is of kind {kind}, which this instance does not receive",
+)
+
+SOURCE_UNREACHABLE = CLI.define("source_unreachable", "{url} could not be called: {detail}")

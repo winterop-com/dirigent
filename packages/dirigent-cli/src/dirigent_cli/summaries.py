@@ -250,6 +250,20 @@ def _issued(record: Record) -> RenderableType | None:
     )
 
 
+def _source_token(record: Record) -> RenderableType | None:
+    """Hand over a source's minted token with where it is presented, and that it is shown once."""
+    token = record.get("token")
+    if not token:
+        return None
+    return Group(
+        "",
+        f"  [bold]{escape(str(record.get('url') or ''))}[/]",
+        f"  [bold]Authorization: Bearer {escape(str(token))}[/]",
+        "",
+        "[yellow]This is the only time the token is shown.[/] The instance stores only its hash.",
+    )
+
+
 def _files(record: Record) -> list[RenderableType]:
     """List what was written, named against the directory it was written into."""
     written = _texts(record, "files")
@@ -550,6 +564,7 @@ RENDERERS: Final[Mapping[str, Callable[[Record], RenderableType | None]]] = {
     "validation.shape": _shape,
     "error": _refusal,
     "token.issued": _issued,
+    "source.token_rotated": _source_token,
     "process": _issued,
     "project.scaffolded": _scaffolded,
     "instance.initialised": _initialised,
