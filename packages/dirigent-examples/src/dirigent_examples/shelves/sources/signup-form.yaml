@@ -1,0 +1,48 @@
+# A form posted to this instance becomes a run, and its caller is answered 202 at once.
+#
+# A SOURCE TAKES A FORM AS WELL AS JSON. `signup` narrows its endpoint to urlencoded forms, so
+# a browser's <form method=post> or `curl -d` reaches it and a JSON body is refused 415. The
+# form arrives as `${steps.signup.output.body}`, each field a string, a repeated one a list.
+#
+# NOTHING WAITS FOR THE RUN. There is no reply, so the caller is answered 202 the moment the
+# run exists, with where to read it, and `tidy` runs afterwards on a worker.
+#
+# RUN IT BY HAND, here, with no server. No --input takes the source's sample:
+#
+#   dg run --local examples/sources/signup-form.yaml
+#
+# ON A SERVER, apply it and call it with the token the apply printed:
+#
+#   dg apply examples/sources/signup-form.yaml
+#   dg source call signup-form signup --form email=ada@example.org --form name=Ada --source-token "$TOKEN"
+#   curl -d email=ada@example.org -d name=Ada -H "Authorization: Bearer $TOKEN" \
+#     http://localhost:3333/endpoints/signups
+#
+# EXPECT THIS RUN TO SUCCEED in well under a second, `tidy` holding the address lowercased.
+
+format: dirigent/v1
+kind: pipeline
+code: signup-form
+name: Signup, by form
+description: |
+  A urlencoded form posted to an endpoint becomes a run, and its caller is answered 202 with
+  where to read it; a jq step tidies what the form carried.
+
+tags: [sources, forms, transform, jq]
+
+steps:
+  signup:
+    source:
+      kind: endpoint
+      path: /signups
+      accepts: [application/x-www-form-urlencoded]
+      max_body: 4KB
+    sample:
+      content_type: application/x-www-form-urlencoded
+      body: {email: Ada@Example.org, name: Ada}
+  tidy:
+    block: transform.jq
+    depends_on: [signup]
+    config:
+      input: ${steps.signup.output.body}
+      program: '{email: (.email | ascii_downcase), name: .name}'
