@@ -33,6 +33,7 @@ from dirigent_plugin.sources import (
     Route,
     SourceAuth,
     SourceHosting,
+    SourceRate,
     SourceSpec,
     template_issues,
 )
@@ -49,16 +50,6 @@ CREDENTIAL_HEADERS: Final = frozenset({"authorization", "cookie", "proxy-authori
 DEFAULT_CHARSET: Final = "utf-8"
 
 type Method = Literal["GET", "POST", "PUT", "PATCH", "DELETE"]
-
-
-class EndpointRate(BaseModel):
-    """How fast one endpoint takes calls: a bucket refilled at ``per_minute``, holding ``burst``."""
-
-    model_config = ConfigDict(frozen=True, extra="forbid", use_attribute_docstrings=True)
-
-    per_minute: int = Field(default=600, ge=1)
-    burst: int | None = Field(default=None, ge=1)
-    """How many calls the bucket holds when it is full; ``per_minute`` when unset."""
 
 
 class EndpointConfig(BaseModel):
@@ -81,7 +72,7 @@ class EndpointConfig(BaseModel):
     auth: SourceAuth = SourceAuth()
     """How a caller authenticates: a token by default, or ``{kind: public}`` when written out."""
 
-    rate: EndpointRate = EndpointRate()
+    rate: SourceRate = SourceRate()
     """How fast calls are taken; one past it is answered 429 before its body is read."""
 
     max_in_flight: int | None = Field(default=None, ge=1)
@@ -134,6 +125,18 @@ class EndpointSource(ReceivedSource[EndpointConfig, EndpointInput]):
     def max_body(self, config: EndpointConfig) -> int | None:
         """Read at most what the source declares."""
         return config.max_body
+
+    def auth(self, config: EndpointConfig) -> SourceAuth:
+        """Take the token the instance minted, unless the source writes out public."""
+        return config.auth
+
+    def rate(self, config: EndpointConfig) -> SourceRate:
+        """Take calls as fast as the source declares."""
+        return config.rate
+
+    def max_in_flight(self, config: EndpointConfig) -> int | None:
+        """Bound the unsettled runs the way the source declares."""
+        return config.max_in_flight
 
     def check_config(self, config: EndpointConfig) -> list[Issue]:
         """Refuse a template that is not one, and a content type an endpoint cannot read."""
@@ -275,4 +278,4 @@ def _size_of(body: JsonValue, kind: object) -> int:
     return len(json.dumps(body, separators=(",", ":")).encode())
 
 
-__all__ = ["DEFAULT_ACCEPTS", "EndpointConfig", "EndpointRate", "EndpointSource"]
+__all__ = ["DEFAULT_ACCEPTS", "EndpointConfig", "EndpointSource"]

@@ -133,12 +133,8 @@ stays clean, and every example stays executable.
    `Contribution.sources`; `dirigent_sources` is already defined for a source's change to
    restart whoever holds it.
 
-   **Slices,** each its own PR and each runnable:
-   1. The node model and entry: the three step kinds, the rules above, a run entered at a
-      source by hand or from its `sample`, replies settled by the server. No network yet;
-      `dg run --local` drives it.
-   2. The endpoint intake and the source rows: routes, auth and tokens, limits, the journal,
-      the 202 answer, `dg source list`, `pause`, `resume`, `rotate-token` and `call`.
+   **Slices,** each its own PR and each runnable. The node model and entry, and the endpoint
+   intake with the source rows, have landed; what remains:
    3. Replies over the wire: the held caller, the batched waiter, and the 504, 422 and 502
       mappings.
    4. The contract on pluginkit, so a pack contributes a received kind, and the screens:

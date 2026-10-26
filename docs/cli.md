@@ -46,6 +46,15 @@ dg run --local examples/sources/greet-by-hand.yaml
 dg run --local examples/sources/greet-by-hand.yaml --input '{path_params: {name: Bergen}}'
 ```
 
+On a server, an endpoint source is also called the way its callers call it. `dg source call`
+reads the source's route, fills the template from `-p`, and presents the token given by
+`--source-token` or `DIRIGENT_SOURCE_TOKEN`, never the CLI's own credential:
+
+```bash
+dg source call greet ask -p name=Bergen --body '{"mood": "cheerful"}' --source-token "$TOKEN"
+dg source inputs greet ask      # what arrived, and the run or the refusal each became
+```
+
 ## Talking to a server
 
 ```bash
@@ -864,7 +873,7 @@ verb and whose fields are the identity of what changed:
 | `validation` | `dg validate`, `dg pipeline validate` | `code`, `document`, `problems[]` of issues, and a valid pipeline's `steps[]` |
 | `validation.shape` | `dg validate --explain` | `code`, `document`, `checked`, the totals `attempts_max`, `attempts_at_least` and `deadline_longest`, one `steps[]` row per step of what it will cost, and `warnings[]` |
 | `validated` | `dg validate` | The closing count: `documents`, `invalid` |
-| `apply` | `dg apply` | One per document: under `fields`, the plan's `action` of `create`, `update`, `unchanged` or `invalid`, the `code` it applied under, and an invalid one's issues |
+| `apply` | `dg apply` | One per document: under `fields`, the plan's `action` of `create`, `update`, `unchanged` or `invalid`, the `code` it applied under, an invalid one's issues, and `sources`: the source rows it `created`, `updated` and `removed`, and the `tokens` it minted for the new ones, each shown once |
 | `prune` | `dg apply --prune` | The reconcile: under `fields`, the pipelines `pruned`, the `trigger_documents_removed` that went with them, and `dry_run` |
 | `prune` | `dg prune` | The retention sweep, in flat fields rather than under `fields`: `total`, `dry_run`, and a count per family; a sweep that ran adds the `artifacts` it deleted from storage |
 | `backfill` | `dg backfill` | `pipeline`, `schedule`, `dry_run`, `windows_total`, `runs_created`, and `windows[]` of `window_start`, `window_end` and the `run_id` each became |
@@ -875,6 +884,11 @@ verb and whose fields are the identity of what changed:
 | `webhook.token_rotated` | `dg webhook rotate-token` | `code`, `pipeline`, `url`, and the new `token`, once |
 | `webhook.deleted` | `dg webhook delete` | `code`, `pipeline` |
 | `watch` | `dg watch list`, `dg watch show` | One per watch, under `fields`: `code`, `step`, `paused`, the `cursor` it holds, the `waiting_run_id`, and its health -- `failures`, `last_error`, `rearm_at` |
+| `source` | `dg source list`, `dg source show` | One per source, under `fields`: `pipeline`, `code`, `kind`, `state`, the `route` and `methods` it answers, its `url_path`, `auth`, `token_prefix`, `in_flight` against `max_in_flight`, and the `accepted` and `refused` counts |
+| `source.input` | `dg source inputs` | One per input, newest first, under `fields`: `outcome`, the HTTP `status` it was answered with, the `run_id` or the refusal's `code` and `reason`, `method`, `path`, `body_bytes`, `duration_ms`, `caller` |
+| `source.paused` / `.resumed` | `dg source pause`, `dg source resume` | `code`, `pipeline`, and the `state` it is in now |
+| `source.token_rotated` | `dg source rotate-token` | `code`, `pipeline`, the `url` to call, and the new `token`, once |
+| `source.called` | `dg source call` | `code`, `pipeline`, `method`, `url`, and the `status` and `body` it was answered with |
 | `watch.paused` / `.resumed` | `dg watch pause`, `dg watch resume` | `code`, `pipeline`, the `cursor` it keeps, and a resumed one's new `waiting_run_id` |
 | `alert_rule.created` / `.paused` / `.resumed` / `.deleted` | `dg alerts rules …` | `code`, `event`, the `notifier` the target resolved to, and a new one's `scope`, `connection`, `throttle`, and `template` and `body` as booleans saying whether the rule carries one |
 | `notification.queued` | `dg alerts test` | `notification_id`, `notifier`, `connection`, `subject` |
@@ -1086,6 +1100,10 @@ dg webhook create PIPELINE CODE [--map param='$.path'] [--hmac-secret S] [--rate
                                 [--name TEXT] [--description TEXT] [--priority low|normal|high]
 dg webhook list | rotate-token | deliveries | delete PIPELINE CODE
 dg watch list PIPELINE | show | pause | resume PIPELINE CODE
+dg source list [PIPELINE]
+dg source show | pause | resume | rotate-token | inputs PIPELINE SOURCE
+dg source call PIPELINE SOURCE [--body JSON|@FILE | --text BODY|@FILE | --form k=v]
+                               [-X METHOD] [-p name=value] [-q name=value] [--source-token T]
 dg trigger-document list | show CODE | delete CODE
 dg alerts rules list | pause | resume | delete CODE
 dg alerts rules create CODE --event run_failed

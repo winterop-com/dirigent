@@ -1,4 +1,4 @@
-"""``dg schedule``, ``dg webhook``, and ``dg alerts``, driven against a real server."""
+"""``dg schedule``, ``dg webhook``, ``dg source`` and ``dg alerts``, driven against a real server."""
 
 import os
 import re
@@ -822,3 +822,114 @@ def test_run_local_refuses_a_triggers_document(tmp_path: Path) -> None:
     assert result.exit_code == 1
     assert "cannot be run" in plain(result.output)
     assert "run the pipeline it names" in plain(result.output)
+
+
+ENDPOINT_DOCUMENT = """
+format: dirigent/v1
+kind: pipeline
+code: cli-echo
+steps:
+  ask:
+    source:
+      kind: endpoint
+      path: /cli-echo/{who}
+      methods: [POST]
+  answer:
+    depends_on: [ask]
+    reply:
+      status: 200
+      body: ${steps.ask.output.body}
+"""
+
+
+def apply_endpoint(tmp_path: Path) -> str:
+    """Apply the endpoint document with records, and read the token the apply minted."""
+    path = tmp_path / "echo.yaml"
+    path.write_text(ENDPOINT_DOCUMENT)
+    result = machine("apply", str(path))
+    assert result.exit_code == 0, result.output
+    applied = only(result.stdout, "apply")["fields"]
+    assert applied["sources"]["created"] == ["ask"]
+    return str(applied["sources"]["tokens"][0]["token"])
+
+
+def test_an_apply_that_creates_a_source_hands_over_its_token_once(tmp_path: Path, server: str) -> None:
+    path = tmp_path / "echo.yaml"
+    path.write_text(ENDPOINT_DOCUMENT)
+    result = invoke("apply", str(path))
+    assert result.exit_code == 0, result.output
+    text = plain(result.output)
+    assert "/endpoints/cli-echo/{who}" in text
+    assert "Authorization: Bearer" in text
+    assert "Each token is shown once." in text
+    again = machine("apply", str(path))
+    assert only(again.stdout, "apply")["fields"]["sources"]["tokens"] == [], "a reapply mints nothing"
+
+
+def test_a_source_is_called_with_its_token_and_its_journal_read_back(tmp_path: Path, server: str) -> None:
+    token = apply_endpoint(tmp_path)
+    called = machine(
+        "source",
+        "call",
+        "cli-echo",
+        "ask",
+        "-p",
+        "who=ada",
+        "-q",
+        "tag=a",
+        "--body",
+        '{"said": "hi"}',
+        "--source-token",
+        token,
+    )
+    assert called.exit_code == 0, called.output
+    answer = only(called.stdout, "source.called")
+    assert answer["status"] == 202
+    assert answer["url"].endswith("/endpoints/cli-echo/ada")
+    assert answer["body"]["run_url"].startswith("/api/v1/runs/")
+
+    refused = machine("source", "call", "cli-echo", "ask", "-p", "who=ada", "--text", "hi", "--source-token", "wrong")
+    assert refused.exit_code == 1, "a refusal exits non-zero"
+    assert only(refused.stdout, "source.called")["status"] == 401
+
+    journal = rows_of("source", "inputs", "cli-echo", "ask")
+    assert [(row["outcome"], row["status"]) for row in journal] == [("accepted", 202)]
+
+
+def test_a_form_is_called_as_a_form(tmp_path: Path, server: str) -> None:
+    token = apply_endpoint(tmp_path)
+    called = machine("source", "call", "cli-echo", "ask", "-p", "who=ada", "--form", "a=1", "--source-token", token)
+    assert called.exit_code == 0, called.output
+
+
+def test_a_call_takes_one_body_and_name_value_pairs(tmp_path: Path, server: str) -> None:
+    apply_endpoint(tmp_path)
+    twice = machine("source", "call", "cli-echo", "ask", "--body", "{}", "--text", "x")
+    assert twice.exit_code == 1
+    assert refusal(twice.stdout)["code"] == "cli.one_input_body"
+    malformed = machine("source", "call", "cli-echo", "ask", "-p", "who")
+    assert malformed.exit_code == 1
+    assert refusal(malformed.stdout)["code"] == "cli.takes_name_equals_value"
+
+
+def test_a_source_is_listed_paused_resumed_and_given_a_new_token(tmp_path: Path, server: str) -> None:
+    old = apply_endpoint(tmp_path)
+    listed = rows_of("source", "list")
+    assert [(row["pipeline"], row["code"], row["state"]) for row in listed] == [("cli-echo", "ask", "listening")]
+    assert "token" not in listed[0]
+    assert rows_of("source", "list", "cli-echo")[0]["token_prefix"] == old[:8]
+
+    paused = machine("source", "pause", "cli-echo", "ask")
+    assert only(paused.stdout, "source.paused")["state"] == "paused"
+    shown = machine("source", "show", "cli-echo", "ask")
+    assert only(shown.stdout, "source")["fields"]["state"] == "paused"
+    resumed = machine("source", "resume", "cli-echo", "ask")
+    assert only(resumed.stdout, "source.resumed")["state"] == "listening"
+
+    rotated = machine("source", "rotate-token", "cli-echo", "ask")
+    assert rotated.exit_code == 0, rotated.output
+    minted = only(rotated.stdout, "source.token_rotated")
+    assert minted["token"] != old
+    assert minted["url"].endswith("/endpoints/cli-echo/{who}")
+    rendered = invoke("source", "rotate-token", "cli-echo", "ask")
+    assert "This is the only time the token is shown." in plain(rendered.output)

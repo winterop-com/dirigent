@@ -66,7 +66,12 @@ from dirigent_client.schemas.runs import (
 from dirigent_client.schemas.schemas import SchemaIn, SchemaOut, SchemaUpdate
 from dirigent_client.schemas.sources import (
     EndpointInput,
+    InputAccepted,
     RequestFacts,
+    SourceChanges,
+    SourceInputOut,
+    SourceOut,
+    SourceTokenOut,
 )
 from dirigent_client.schemas.system import (
     CheckResult,
@@ -120,6 +125,7 @@ __all__ = [
     "DeliveryOut",
     "DiffSummary",
     "EndpointInput",
+    "InputAccepted",
     "ExampleDetail",
     "ExampleOut",
     "FiringOut",
@@ -150,6 +156,10 @@ __all__ = [
     "PruneResult",
     "Readiness",
     "RequestFacts",
+    "SourceChanges",
+    "SourceInputOut",
+    "SourceOut",
+    "SourceTokenOut",
     "Requirements",
     "RunAccepted",
     "RunDetail",

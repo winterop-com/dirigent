@@ -1098,8 +1098,11 @@ const refused = {
         unknown_connection_kind: 'No connection kind {kind} is installed. Known: {known}.',
     },
     source: {
+        backlogged:
+            'Source {code} has {in_flight} runs unsettled, as many as it allows. Send again once one settles.',
         body_not_json: 'The body is not JSON: {detail}',
         body_not_text: 'The body is not {charset} text: {detail}',
+        body_too_large: 'The body is larger than the {limit} bytes this endpoint reads.',
         body_without_type: 'The body arrived with no content type, and this endpoint takes {accepted}.',
         endpoint_accepts_refused:
             'An endpoint reads JSON, urlencoded forms and text, and {accepts} is none of them. A file is posted as a URI in a JSON body.',
@@ -1108,8 +1111,15 @@ const refused = {
             'The path template takes {names}, and path_params gives no value for it.',
         field_refused:
             'A source takes name, description and sample, and nothing else. {field} goes on the step after it.',
+        intake_rate: 'This instance takes {per_minute} calls a minute at one path.',
         join_of_sources:
             'Step {step} waits with all_success on both {first} and {second}, and a run enters at one source only, so it could never run. Join them with all_done or always.',
+        kind_missing: 'Source {code} is of kind {kind}, which is not installed on this instance.',
+        method_not_answered: '{path} answers {allowed}, not {method}.',
+        no_route: 'Nothing on this instance answers {method} {path}.',
+        paused: 'Source {code} of pipeline {pipeline} is paused.',
+        pipeline_inactive: 'Pipeline {pipeline} is deactivated, so its source {code} takes no input.',
+        rate: 'This endpoint takes {per_minute} calls a minute.',
         reference_error_not_upstream:
             '{reference} reads the failure of {target}, which is not upstream of step {step}.',
         reference_malformed_error:
@@ -1131,6 +1141,10 @@ const refused = {
         root_beside_sources:
             'Step {step} depends on nothing in a pipeline with sources, so it would run on every input from every source. Make it depend on the source it belongs to.',
         route_claimed: '{method} {template} is already answered by source {step} of pipeline {pipeline}.',
+        route_raced:
+            '{method} {template} was claimed by another pipeline while this one was applied. Apply again to see which.',
+        run_refused: 'No run could be created: {detail}',
+        run_skipped: 'A run of pipeline {pipeline} is already in flight, and its concurrency is skip.',
         sample_invalid:
             'The sample of source {step} is not an input its kind {kind} can make whole: {detail}',
         sample_not_an_object: 'A sample is written as an object, not a {kind}.',
@@ -1138,8 +1152,11 @@ const refused = {
         schedule_on_sources:
             'Pipeline {code} starts at its sources, and a schedule would enter none of them. Run it from a source instead.',
         step_one_form: 'A step is exactly one of block, source or reply, and this one writes {named}.',
+        takes_no_token: 'Source {code} of pipeline {pipeline} is {auth}, so it has no token to rotate.',
+        token_refused: 'This endpoint takes the bearer token minted for it, in an Authorization header.',
         triggers_on_sources:
             'Pipeline {code} starts at its sources, and a {label} would start a run that enters none of them.',
+        unknown: 'Pipeline {pipeline} has no source {code}.',
         unknown_kind: 'No source kind {kind} is available on this instance. Known: {known}.',
         unsupported_media:
             'This endpoint takes {accepted}, not {content_type}. A file is posted as a URI in a JSON body.',

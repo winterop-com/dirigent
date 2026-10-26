@@ -546,6 +546,71 @@ def upgrade() -> None:
         batch_op.create_index(batch_op.f("ix_watches_trigger_document_id"), ["trigger_document_id"], unique=False)
 
     op.create_table(
+        "sources",
+        sa.Column("id", sa.Uuid(), nullable=False),
+        sa.Column("pipeline_id", sa.Uuid(), nullable=False),
+        sa.Column("code", sa.String(length=200), nullable=False),
+        sa.Column("name", sa.String(length=200), nullable=True),
+        sa.Column("description", sa.Text(), nullable=True),
+        sa.Column("kind", sa.String(length=200), nullable=False),
+        sa.Column("config", sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"), nullable=False),
+        sa.Column("token_hash", sa.String(length=128), nullable=True),
+        sa.Column("token_prefix", sa.String(length=16), nullable=True),
+        sa.Column("paused", sa.Boolean(), server_default=sa.false(), nullable=False),
+        sa.Column("accepted", sa.Integer(), server_default=sa.text("0"), nullable=False),
+        sa.Column("refused", sa.Integer(), server_default=sa.text("0"), nullable=False),
+        sa.Column("last_input_at", dirigent_core.types.UtcDateTime(timezone=True), nullable=True),
+        sa.Column(
+            "created_at",
+            dirigent_core.types.UtcDateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            dirigent_core.types.UtcDateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
+        sa.ForeignKeyConstraint(
+            ["pipeline_id"], ["pipelines.id"], name=op.f("fk_sources_pipeline_id_pipelines"), ondelete="CASCADE"
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_sources")),
+        sa.UniqueConstraint("pipeline_id", "code", name=op.f("uq_sources_pipeline_id_code")),
+        sa.UniqueConstraint("token_hash", name=op.f("uq_sources_token_hash")),
+    )
+    with op.batch_alter_table("sources", schema=None) as batch_op:
+        batch_op.create_index(batch_op.f("ix_sources_pipeline_id"), ["pipeline_id"], unique=False)
+
+    op.create_table(
+        "source_routes",
+        sa.Column("id", sa.Uuid(), nullable=False),
+        sa.Column("source_id", sa.Uuid(), nullable=False),
+        sa.Column("method", sa.String(length=16), nullable=False),
+        sa.Column("template", sa.String(length=1000), nullable=False),
+        sa.Column("normalised", sa.String(length=1000), nullable=False),
+        sa.Column(
+            "created_at",
+            dirigent_core.types.UtcDateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            dirigent_core.types.UtcDateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
+        sa.ForeignKeyConstraint(
+            ["source_id"], ["sources.id"], name=op.f("fk_source_routes_source_id_sources"), ondelete="CASCADE"
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_source_routes")),
+        sa.UniqueConstraint("method", "normalised", name=op.f("uq_source_routes_method_normalised")),
+    )
+    with op.batch_alter_table("source_routes", schema=None) as batch_op:
+        batch_op.create_index(batch_op.f("ix_source_routes_source_id"), ["source_id"], unique=False)
+
+    op.create_table(
         "runs",
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("pipeline_id", sa.Uuid(), nullable=False),
@@ -640,6 +705,7 @@ def upgrade() -> None:
             "ix_runs_pipeline_id_status_created_at", ["pipeline_id", "status", "created_at"], unique=False
         )
         batch_op.create_index(batch_op.f("ix_runs_status"), ["status"], unique=False)
+        batch_op.create_index("ix_runs_triggered_by_id_status", ["triggered_by_id", "status"], unique=False)
 
     op.create_table(
         "notifications",
@@ -840,6 +906,43 @@ def upgrade() -> None:
         batch_op.create_index("ix_webhook_deliveries_webhook_id_id", ["webhook_id", "id"], unique=False)
 
     op.create_table(
+        "source_inputs",
+        sa.Column("id", sa.BigInteger().with_variant(sa.Integer(), "sqlite"), autoincrement=True, nullable=False),
+        sa.Column("source_id", sa.Uuid(), nullable=False),
+        sa.Column("run_id", sa.Uuid(), nullable=True),
+        sa.Column(
+            "outcome",
+            sa.Enum("accepted", "refused", name="input_outcome", native_enum=False, length=32),
+            nullable=False,
+        ),
+        sa.Column("status", sa.Integer(), nullable=False),
+        sa.Column("code", sa.String(length=128), nullable=True),
+        sa.Column("reason", sa.Text(), nullable=True),
+        sa.Column("params", sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"), nullable=True),
+        sa.Column("method", sa.String(length=16), nullable=False),
+        sa.Column("path", sa.String(length=2000), nullable=False),
+        sa.Column("body_bytes", sa.Integer(), server_default=sa.text("0"), nullable=False),
+        sa.Column("duration_ms", sa.Integer(), server_default=sa.text("0"), nullable=False),
+        sa.Column("caller", sa.String(length=64), nullable=True),
+        sa.Column(
+            "created_at",
+            dirigent_core.types.UtcDateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
+        sa.ForeignKeyConstraint(
+            ["run_id"], ["runs.id"], name=op.f("fk_source_inputs_run_id_runs"), ondelete="SET NULL"
+        ),
+        sa.ForeignKeyConstraint(
+            ["source_id"], ["sources.id"], name=op.f("fk_source_inputs_source_id_sources"), ondelete="CASCADE"
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_source_inputs")),
+    )
+    with op.batch_alter_table("source_inputs", schema=None) as batch_op:
+        batch_op.create_index("ix_source_inputs_created_at", ["created_at"], unique=False)
+        batch_op.create_index("ix_source_inputs_source_id_id", ["source_id", "id"], unique=False)
+
+    op.create_table(
         "step_attempts",
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("run_id", sa.Uuid(), nullable=False),
@@ -1035,6 +1138,11 @@ def downgrade() -> None:
         batch_op.drop_index("ix_webhook_deliveries_created_at")
 
     op.drop_table("webhook_deliveries")
+    with op.batch_alter_table("source_inputs", schema=None) as batch_op:
+        batch_op.drop_index("ix_source_inputs_source_id_id")
+        batch_op.drop_index("ix_source_inputs_created_at")
+
+    op.drop_table("source_inputs")
     with op.batch_alter_table("schedule_firings", schema=None) as batch_op:
         batch_op.drop_index("ix_schedule_firings_schedule_id_id")
         batch_op.drop_index("ix_schedule_firings_created_at")
@@ -1053,6 +1161,7 @@ def downgrade() -> None:
 
     op.drop_table("notifications")
     with op.batch_alter_table("runs", schema=None) as batch_op:
+        batch_op.drop_index("ix_runs_triggered_by_id_status")
         batch_op.drop_index(batch_op.f("ix_runs_status"))
         batch_op.drop_index("ix_runs_pipeline_id_status_created_at")
         batch_op.drop_index("ix_runs_finished_at")
@@ -1063,6 +1172,14 @@ def downgrade() -> None:
         batch_op.drop_index(batch_op.f("ix_watches_pipeline_id"))
 
     op.drop_table("watches")
+    with op.batch_alter_table("source_routes", schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f("ix_source_routes_source_id"))
+
+    op.drop_table("source_routes")
+    with op.batch_alter_table("sources", schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f("ix_sources_pipeline_id"))
+
+    op.drop_table("sources")
     with op.batch_alter_table("webhook_triggers", schema=None) as batch_op:
         batch_op.drop_index(batch_op.f("ix_webhook_triggers_trigger_document_id"))
         batch_op.drop_index(batch_op.f("ix_webhook_triggers_pipeline_id"))

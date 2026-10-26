@@ -166,9 +166,27 @@ A run is entered by hand with `dg run --local`, `dg run <code>`, or the API's `$
 names the source when there are several, and `--input` gives the input, in the shape of the
 source's output, which its kind makes whole -- the endpoint fills in the method its route
 declares, the path its template fills, and the body's type and size. Without `--input` the
-source's `sample` is taken. An endpoint does not yet take requests over the network, so a hand
-run holds no caller and a reply records what it would have answered. See
-`examples/sources/`.
+source's `sample` is taken. A hand run holds no caller, so a reply records what it would have
+answered. See `examples/sources/`.
+
+Every source has a row on the instance, reconciled on each apply by its step code. Its
+declaration follows the pipeline's current version; whether it is paused, its token and what it
+has counted are the instance's, and survive the apply. A source is `listening`; `backlogged`
+once as many runs from it are unsettled as its `max_in_flight` allows; `draining` when it or
+its pipeline is paused with runs still in flight; then `paused`. `dg source list` shows each one
+with its state.
+
+An `endpoint` source is called at its route under `/endpoints`: `path: /greet/{name}` answers
+`POST /endpoints/greet/Bergen`. Unless it writes `auth: {kind: public}`, its caller presents the
+token the apply minted for it as `Authorization: Bearer`; the token is shown once, in the
+apply's result, and `dg source rotate-token` replaces it. A route is answered by one source
+on the whole instance, and an apply claiming one another pipeline answers is refused. A call
+is checked in one order, each check answering for itself: the instance's rate for the path
+(429), the route (404, 405), the token (401), the source's own `rate` (429), the source and
+its pipeline taking input (503), the content type (415), the body under `max_body` (413), the
+body parsing (400), the runs in flight (503); then the run is created and the caller answered
+202 with where to read it. Every input from the source's own rate onwards is recorded,
+refusals included, and `dg source inputs` reads them.
 
 ## Block
 

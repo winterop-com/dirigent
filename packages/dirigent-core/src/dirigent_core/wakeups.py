@@ -3,8 +3,8 @@
 Three channels exist. ``dirigent_work`` fires when a transaction queues an attempt that is
 due, or brings a parked wait's next probe to now. ``dirigent_settled`` fires keyed by a run
 id when one of its attempts moves or its own status changes. ``dirigent_sources`` is for input
-sources: a change to a source row is published on it keyed by the source, so that whoever
-holds the source restarts at once. Nothing in the engine publishes on it.
+sources: a change to a source row is published on it keyed by ``<pipeline>/<source>``, so a
+server rereads the routes it answers and whoever holds the source restarts at once.
 
 Every flush is observed, so a transaction that queues an attempt or moves a run publishes
 without saying so. :func:`publish` is for a change the observer cannot see, such as a bulk
@@ -123,6 +123,11 @@ class Hub:
             with self._lock:
                 mark.signal.waiters.discard(future)
         return True
+
+    def moved(self, mark: Mark) -> bool:
+        """Report whether the topic has moved past the mark, without waiting."""
+        with self._lock:
+            return mark.signal.generation != mark.generation
 
     def deliver(self, channel: str, key: str | None = None) -> None:
         """Move a topic, and the channel's unkeyed topic with it, waking everyone on either."""

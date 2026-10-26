@@ -151,7 +151,7 @@ untouched, for the same reason they survive a self-service change.
 
 ### What is unauthenticated
 
-Four things, and they are exempt by not being mounted behind the authenticated router rather
+Five things, and they are exempt by not being mounted behind the authenticated router rather
 than by an exception list each endpoint remembers:
 
 - `GET /health` and `GET /health/ready`.
@@ -160,6 +160,8 @@ than by an exception list each endpoint remembers:
   deployment does not want the API surface published, do not expose them past your proxy.
 - `POST /hooks/{token}`, which has its own credential and its own rules. See
   [webhook hardening](#webhook-hardening).
+- Every route under `/endpoints`, which a pipeline's endpoint sources declare, each with its own
+  token unless it writes itself public. See [endpoint hardening](#endpoint-hardening).
 
 Every other route under `/api/v1` requires a principal, as a property of the router mount.
 
@@ -402,6 +404,42 @@ Note the asymmetry that follows from the two paragraphs above: a *refused* deliv
 row, a *throttled* one does not. If a sender insists it has been calling all night and the
 history is empty, check the process log for rate limiting before concluding nothing arrived.
 
+## Endpoint hardening
+
+The routes under `/endpoints` are a pipeline's endpoint sources, mounted under their own prefix
+(`DIRIGENT_ENDPOINT_PREFIX`) for the reason `/hooks` is mounted at the root: a call there
+authenticates as the source, not as a person, and has no principal to present.
+
+**A token unless public is written out.** An endpoint source takes `Authorization: Bearer`
+with the token the instance minted for it, 32 bytes from the CSPRNG, stored only as a SHA-256
+with an eight-character prefix beside it, and compared in constant time. `auth: {kind: public}`
+admits anyone, and only when the document says so. A re-apply keeps the token; `dg source
+rotate-token` replaces it at once.
+
+**The token is shown once, in the apply that created the source.** It is in the apply's
+result, which `dg apply` writes as a record. An apply run in CI that creates a source therefore
+writes that source's token into the CI log. Either create sources from a terminal, or treat a
+token first shown in a log as exposed and rotate it before giving it to a caller.
+
+**A credential never reaches a run.** The input a run is entered with carries the request's
+headers with `authorization`, `cookie`, `proxy-authorization` and `x-dirigent-signature`
+removed.
+
+**Nothing before the source's own rate writes a row.** A call is checked in one order: the
+instance's bucket for the method and path (`DIRIGENT_SOURCE_INTAKE_RATE_PER_MINUTE`, before
+anything is looked up), the route, the token, then the source's own `rate`. A refusal at any of
+those -- 429, 404, 405, 401 -- is counted in telemetry (`dirigent.source.inputs`) and logged,
+and writes nothing, so a stranger without the token, or a caller in a loop, cannot cause
+writes. From there on every refusal, and every accepted input, is recorded against the source.
+Both buckets are per process, as the webhook ones are.
+
+**The body is bounded before it is read.** The content type is checked against what the source
+`accepts` before a byte of the body is read, and reading stops one byte past the source's
+`max_body` or the instance's `DIRIGENT_SOURCE_MAX_BODY`, whichever is smaller.
+
+**A route is one source's.** Two sources answering one method at one template are refused at
+apply, across pipelines, and a unique constraint holds it when two applies race.
+
 ## Local execution and the unsafe-block allowlist
 
 Some blocks execute code on the worker. `shell.run` runs a process; `docker.run` talks to the
@@ -604,6 +642,10 @@ your seam: a proxy can publish `/hooks/*` to the internet and keep `/api/v1/*` o
 side, with no change to dirigent. Note that this only works because the split is structural.
 Do not invert it -- publishing `/api/v1` and firewalling `/hooks` gets you nothing, since
 `/api/v1` is the surface that holds the credentials.
+
+**The endpoints.** Everything under `/endpoints` is a pipeline's endpoint sources, and the
+same seam applies: a proxy can publish `/endpoints/*` to the callers outside and keep
+`/api/v1/*` inside.
 
 **The OpenAPI document, `/docs`, and `/redoc` are unauthenticated.** If the API is
 internet-facing and you would rather not publish its shape, block those three paths at the

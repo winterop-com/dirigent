@@ -13,6 +13,7 @@ from dirigent_client.schemas import HookAccepted
 from dirigent_core.ratelimit import TokenBucket
 from dirigent_core.triggers import SIGNATURE_HEADER, deliver, resolve_webhook
 from dirigent_core.triggers.webhooks import UNKNOWN_TOKEN, hash_token
+from dirigent_server.bodies import read_capped
 from dirigent_server.dependencies import ServicesDep, SessionDep
 from dirigent_server.logging import get_logger
 from dirigent_server.transactions import Transactional
@@ -81,7 +82,7 @@ async def deliver_hook(
         session,
         services,
         webhook,
-        body=await _read_body(request, limit=services.settings.webhook_max_payload),
+        body=await read_capped(request, services.settings.webhook_max_payload),
         signature=signature,
         source=request.client.host if request.client else None,
     )
@@ -94,21 +95,3 @@ def _throttled(response: Response, detail: str) -> HookAccepted:
     response.status_code = status.HTTP_429_TOO_MANY_REQUESTS
     response.headers["Retry-After"] = "60"
     return HookAccepted(outcome=WebhookOutcome.REJECTED, detail=detail)
-
-
-async def _read_body(request: Request, *, limit: int) -> bytes:
-    """Read the body, stopping one byte past the limit rather than after all of it.
-
-    ``request.body()`` buffers whatever arrives before the size can be checked, so an
-    unauthenticated caller could make the process allocate a gigabyte to be told a megabyte
-    is the maximum. What comes back goes to the ordinary refusal path, so an oversized
-    delivery is still recorded in the history.
-    """
-    chunks: list[bytes] = []
-    size = 0
-    async for chunk in request.stream():
-        chunks.append(chunk)
-        size += len(chunk)
-        if size > limit:
-            break
-    return b"".join(chunks)

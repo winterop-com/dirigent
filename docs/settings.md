@@ -57,6 +57,7 @@ environment, and the server inside one never opens the file.
 | `retention_runs` | `DIRIGENT_RETENTION_RUNS` | `null` | How long a settled run is kept, with its items, attempts, artifacts and alerts. |
 | `retention_logs` | `DIRIGENT_RETENTION_LOGS` | `null` | How long a log entry is kept, for runs too young to be pruned themselves. |
 | `retention_deliveries` | `DIRIGENT_RETENTION_DELIVERIES` | `null` | How long a webhook delivery is kept. |
+| `retention_inputs` | `DIRIGENT_RETENTION_INPUTS` | `null` | How long the record of an input that reached a source is kept. |
 | `retention_firings` | `DIRIGENT_RETENTION_FIRINGS` | `null` | How long a schedule firing is kept. |
 | `retention_notifications` | `DIRIGENT_RETENTION_NOTIFICATIONS` | `null` | How long an alert that was sent is kept, for runs too young to be pruned themselves. |
 | `retention_scratch` | `DIRIGENT_RETENTION_SCRATCH` | `true` | Whether pruning a run also deletes its artifacts from storage. |

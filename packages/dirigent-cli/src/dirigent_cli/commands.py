@@ -311,6 +311,18 @@ def _print_plan(result: ApplyResult, origin: str) -> bool:
     return True
 
 
+def _print_source_tokens(result: ApplyResult, *, base_url: str) -> None:
+    """Print each token an apply minted for a source, once, with where it is presented.
+
+    The instance stores only a token's hash; there is no second chance to read it.
+    """
+    for minted in result.sources.tokens:
+        console.print(f"\n  source [bold]{minted.code}[/]  {base_url.rstrip('/')}{minted.url_path}")
+        console.print(f"  Authorization: Bearer [bold]{minted.token}[/]")
+    if result.sources.tokens:
+        console.print("\n[yellow]Each token is shown once.[/] The instance stores only its hash.\n")
+
+
 def _print_graph(steps: Sequence[GraphStep], title: str = "steps") -> None:
     """Print a pipeline's shape: roots at the margin, each step under what it waits for."""
     lines = render_graph(steps)
@@ -404,6 +416,8 @@ def apply_command(
             raise typer.Exit(code=1)
         return
     accepted = all(_print_plan(result, origin) for result, origin in results)
+    for result, _ in results:
+        _print_source_tokens(result, base_url=dg.url)
     if pruned is not None:
         for code in pruned.pruned:
             console.print(f"{styled('deactivated'):<10} {code}  [dim](absent from the project)[/]")

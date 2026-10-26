@@ -74,6 +74,16 @@ class SourceAuth(BaseModel):
     """``token`` takes ``Authorization: Bearer`` with the token the instance minted; ``public`` admits anyone."""
 
 
+class SourceRate(BaseModel):
+    """How fast one received source takes calls: a bucket refilled at ``per_minute``, holding ``burst``."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid", use_attribute_docstrings=True)
+
+    per_minute: int = Field(default=600, ge=1)
+    burst: int | None = Field(default=None, ge=1)
+    """How many calls the bucket holds when it is full; ``per_minute`` when unset."""
+
+
 class Route(BaseModel):
     """The methods and the path template a received source answers.
 
@@ -250,6 +260,10 @@ class Source[ConfigT: BaseModel, OutputT: BaseModel](ABC):
         """List the refusals this kind makes at apply beyond its config schema, located under ``source``."""
         return []
 
+    def max_in_flight(self, config: ConfigT) -> int | None:
+        """Say how many unsettled runs from this source may exist before an input is refused, or None for no bound."""
+        return None
+
     def cursor_key(self, config: ConfigT) -> JsonMap | None:
         """Name the config that a stored cursor belongs to; a change of it resets the cursor."""
         return None
@@ -283,6 +297,14 @@ class ReceivedSource[ConfigT: BaseModel, OutputT: BaseModel](Source[ConfigT, Out
 
     def max_body(self, config: ConfigT) -> int | None:
         """Say how many bytes of body this source reads at most, or None for the instance's cap."""
+        return None
+
+    def auth(self, config: ConfigT) -> SourceAuth:
+        """Say how a caller authenticates: a token the instance mints, unless the config writes out public."""
+        return SourceAuth()
+
+    def rate(self, config: ConfigT) -> SourceRate | None:
+        """Say how fast this source takes calls, or None for the instance's intake bucket alone."""
         return None
 
     def admit(self, config: ConfigT, head: InboundRequest) -> Refusal | None:

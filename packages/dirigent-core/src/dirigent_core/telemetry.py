@@ -183,6 +183,7 @@ gauges = Gauges()
 
 _runs = _meter.create_counter("dirigent.runs", description="Runs by terminal status.")
 _steps = _meter.create_counter("dirigent.steps", description="Step attempts by terminal status.")
+_inputs = _meter.create_counter("dirigent.source.inputs", description="Calls to a source by outcome and status.")
 _step_duration = _meter.create_histogram(
     "dirigent.step.duration",
     unit="s",
@@ -229,9 +230,10 @@ def observe_heartbeat_age(options: CallbackOptions) -> Iterable[Observation]:
 
 def register_instruments() -> None:
     """Rebuild the instruments against the configured meter, once the SDK is installed."""
-    global _runs, _steps, _step_duration, _block_duration
+    global _runs, _steps, _inputs, _step_duration, _block_duration
     _runs = _meter.create_counter("dirigent.runs", description="Runs by terminal status.")
     _steps = _meter.create_counter("dirigent.steps", description="Step attempts by terminal status.")
+    _inputs = _meter.create_counter("dirigent.source.inputs", description="Calls to a source by outcome and status.")
     _step_duration = _meter.create_histogram(
         "dirigent.step.duration",
         unit="s",
@@ -278,6 +280,11 @@ def record_step(status: str, block: str, seconds: float | None = None) -> None:
     _steps.add(1, attributes)
     if seconds is not None:
         _step_duration.record(seconds, attributes)
+
+
+def record_input(outcome: str, status: int) -> None:
+    """Count one call to a source, including the refusals no journal row records."""
+    _inputs.add(1, {"dirigent.input.outcome": outcome, "http.response.status_code": status})
 
 
 def record_block_call(block: str, call: str, seconds: float) -> None:

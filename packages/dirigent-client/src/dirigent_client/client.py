@@ -16,6 +16,7 @@ from dirigent_client.resources.pipelines import Pipelines
 from dirigent_client.resources.runs import Runs
 from dirigent_client.resources.schedules import Schedules
 from dirigent_client.resources.schemas import Schemas
+from dirigent_client.resources.sources import Sources
 from dirigent_client.resources.system import System, Workers
 from dirigent_client.resources.trigger_documents import TriggerDocuments
 from dirigent_client.resources.watches import Watches
@@ -66,6 +67,7 @@ class Dirigent:
         self.schedules = Schedules(self.transport)
         self.webhooks = Webhooks(self.transport)
         self.watches = Watches(self.transport)
+        self.sources = Sources(self.transport)
         self.trigger_documents = TriggerDocuments(self.transport)
         self.alerts = Alerts(self.transport)
         self.system = System(self.transport)
@@ -110,6 +112,7 @@ class BlockingDirigent:
         self.schedules = self.client.schedules
         self.webhooks = self.client.webhooks
         self.watches = self.client.watches
+        self.sources = self.client.sources
         self.trigger_documents = self.client.trigger_documents
         self.alerts = self.client.alerts
         self.system = self.client.system

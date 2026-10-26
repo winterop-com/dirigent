@@ -15,6 +15,7 @@ from dirigent_client.messages import (
     WINDOW_RUNS_FORWARDS,
 )
 from dirigent_client.schemas.common import WireModel
+from dirigent_client.schemas.sources import SourceChanges
 from dirigent_common import EntityName, Issue, JsonMap, Message
 
 
@@ -395,3 +396,6 @@ class ApplyResult(WireModel):
     dry_run: bool = False
     triggers: Materialized = Field(default_factory=Materialized)
     """Which schedules, webhooks and watches the document's ``triggers:`` section created, changed, or retired."""
+
+    sources: SourceChanges = Field(default_factory=SourceChanges)
+    """Which source rows the apply created, changed, or retired, and the tokens it minted."""

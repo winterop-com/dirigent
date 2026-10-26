@@ -1305,6 +1305,7 @@ mean an instance running at a real cadence needs a policy.
 | `retention_runs` | Settled runs, and by cascade their items, attempts, artifact refs and alerts |
 | `retention_logs` | Log entries, for runs too young to be pruned themselves |
 | `retention_deliveries` | What arrived at a webhook |
+| `retention_inputs` | What arrived at a source, and what came of it |
 | `retention_firings` | When a schedule fired |
 | `retention_notifications` | Alerts already sent |
 | `retention_scratch` | Whether a pruned run's artifacts are deleted from storage too |
@@ -1316,6 +1317,7 @@ often, where logs are the bulk of the growth and the run record is worth keeping
 DIRIGENT_RETENTION_RUNS=90d
 DIRIGENT_RETENTION_LOGS=14d
 DIRIGENT_RETENTION_DELIVERIES=30d
+DIRIGENT_RETENTION_INPUTS=30d
 DIRIGENT_RETENTION_FIRINGS=30d
 DIRIGENT_RETENTION_NOTIFICATIONS=30d
 ```
