@@ -140,10 +140,17 @@ async def reconcile_sources(
     removed = sorted(code for code in existing if code not in wanted)
     for code in removed:
         await session.delete(existing[code])
+    kept: dict[str, set[RouteKey]] = {}
     for code, row in existing.items():
-        keep = wanted.get(code, {})
+        keep = wanted.get(code)
+        if keep is None:
+            continue
+        kept[code] = set()
         for route in held.get(row.id, []):
-            if (route.method, route.normalised) not in keep or keep[(route.method, route.normalised)] != route.template:
+            key = (route.method, route.normalised)
+            if keep.get(key) == route.template:
+                kept[code].add(key)
+            else:
                 await session.delete(route)
     await session.flush()
 
@@ -166,7 +173,7 @@ async def reconcile_sources(
         minted = _mint_if_wanted(kinds, row)
         if minted is not None:
             tokens.append(_token_out(settings, kinds, pipeline, row, minted))
-        await _claim(session, row, wanted[code], {(r.method, r.normalised) for r in held.get(row.id, [])})
+        await _claim(session, row, wanted[code], kept.get(code, set()))
 
     for code in [*created, *updated, *removed]:
         await wakeups.publish(session, wakeups.SOURCES, f"{pipeline.code}/{code}")
