@@ -444,7 +444,7 @@ The server mounts it in three pieces.
 
 Precedence is unchanged by any of it: an API route is matched first, then a real file, and the
 shell is the last resort. `/health`, `/hooks/{token}`, `/docs`, `/openapi.json` and everything
-under the API prefix are never answered with the shell, so a `fetch` that asks for something
+under the API prefix and the endpoint prefix are never answered with the shell, so a `fetch` that asks for something
 that is not there still gets a problem document rather than HTML. A write to a client route is
 not a navigation and is refused rather than served.
 
@@ -626,7 +626,8 @@ exhaustion, which is exactly why it is refused up front.
 | --- | --- | --- |
 | `DIRIGENT_HOST` | `127.0.0.1` | Address the API server binds. Set to `0.0.0.0` in a container. |
 | `DIRIGENT_PORT` | `3333` | Port the API server binds. |
-| `DIRIGENT_API_PREFIX` | `/api/v1` | Mount point of the versioned REST API. Normalised to be rooted and free of a trailing slash. `/hooks/{token}` is not under it. |
+| `DIRIGENT_API_PREFIX` | `/api/v1` | Mount point of the versioned REST API. Normalised to be rooted and free of a trailing slash. `/hooks/{token}` and the endpoint prefix are not under it. |
+| `DIRIGENT_ENDPOINT_PREFIX` | `/endpoints` | Where endpoint sources are served, outside the versioned API, so a proxy can publish it and keep `/api/v1` inside. |
 | `DIRIGENT_UI_ENABLED` | `true` | Whether the server serves the bundled web UI beside the API. `--ui/--no-ui` on `dg server` and `dg dev` is the flag form. See [the web UI](#the-web-ui). |
 | `DIRIGENT_UI_DIR` | unset | A built web UI bundle to serve instead of the one installed with the server: the `dist` directory a checkout's `make ui` produced. A server installed from git carries no bundle of its own. |
 

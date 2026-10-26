@@ -65,9 +65,7 @@ CLAUDE.md first, commit signed with conventional messages, every change ships wi
 `make test-postgres` stay green, coverage stays at or above 90, `mkdocs build --strict`
 stays clean, and every example stays executable.
 
-1. **Streaming through the DAG, stage 3: item-by-item scheduling.** Item i of a step is ready
-   when item i of the grid it adopts has succeeded, rather than when all of that step has.
-2. **Input sources: a pipeline that is always listening.** A source is a pipeline's first
+1. **Input sources: a pipeline that is always listening.** A source is a pipeline's first
    node, `steps: echo: source: {kind: endpoint, path: /echo, methods: [POST]}`, and its
    lifecycle belongs to the pipeline: it listens from the moment the pipeline is applied and
    active until it is paused. Each input becomes one run, whose source node is already
@@ -110,8 +108,9 @@ stays clean, and every example stays executable.
    posts a URI and the pipeline fetches it. A request is checked in one order, each step
    answering for itself: the instance's intake bucket, the route (404, 405), auth (401), the
    source's bucket (429), the pipeline being active (503), the content type (415), the capped
-   read (413), the parse (400), the in-flight count (503), then the run. A 429 writes no row,
-   so a caller in a loop cannot cause writes; it is counted in memory instead.
+   read (413), the parse (400), the in-flight count (503), then the run. Nothing before the
+   source's own bucket writes a row -- not a 404, 405, 401 or 429 -- so a caller without the
+   token, or in a loop, cannot cause writes; those are counted in telemetry instead.
 
    **The reply contract.** Without a reply node the caller is answered 202 with the run it
    started and where to read it. With one, the caller is held for the longest timeout among
@@ -153,7 +152,7 @@ stays clean, and every example stays executable.
    **Still open:** an `Idempotency-Key` header de-duplicating a caller's retries into one
    run; authentication beyond tokens, which waits on the OIDC open question; and whether a
    public endpoint needs an instance-wide switch before any pipeline may declare one.
-3. **dirigent-fhir: FHIR as a system of its own.** A general FHIR pack, not a DHIS2 one: a
+2. **dirigent-fhir: FHIR as a system of its own.** A general FHIR pack, not a DHIS2 one: a
    pipeline that pulls from one FHIR server and pushes to another, neither of them DHIS2, is as
    much its purpose as feeding DHIS2. It depends on the FHIR engine only, and carries no DHIS2
    dependency. Between steps a resource or a Bundle is plain FHIR JSON, as a data value set is
@@ -213,7 +212,7 @@ stays clean, and every example stays executable.
      package reader `dhis2w-fhir` has is for its own organisation-unit registry. It belongs
      beside the engine too, since validation in both repositories needs it.
    The pack depends on these by package name, not by repository.
-4. **`dirigent-full-demo`: one instance with everything, for the tutorials.** A `dg init` project at `~/dev/winterop-com/dirigent-full-demo`, beside the
+3. **`dirigent-full-demo`: one instance with everything, for the tutorials.** A `dg init` project at `~/dev/winterop-com/dirigent-full-demo`, beside the
    `dirigent-examples` folder. It is one instance that has it all:
    - every package and pack as dependencies, `dirigent-integration`'s shelves included;
    - every service the corpus teaches with, running in its compose stack: object storage
@@ -226,7 +225,7 @@ stays clean, and every example stays executable.
      green, the way the example repos do.
    It is a demo, not a product install; a real instance still installs only what it uses.
    It is built once input sources slices 1 to 3 have landed.
-5. **Adapter packs.** Every further pack takes the shape `dirigent-dhis2` set: its own
+4. **Adapter packs.** Every further pack takes the shape `dirigent-dhis2` set: its own
    repository, its own examples and tests, self-testing against `dirigent-plugin`'s main,
    wired through a connection kind, with a client written fresh or wrapping a stable one, and
    assembled by `dirigent-integration`.

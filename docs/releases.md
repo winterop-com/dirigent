@@ -16,6 +16,67 @@ tag is what publishes: `.github/workflows/release.yaml` builds every package and
 to PyPI through trusted publishing, then builds the image from that commit and pushes it as
 `<version>` and `latest`. The two sibling repositories then relock against the tag and bump.
 
+## 0.24.0
+
+Released 2026-10-26. Every package in the workspace moves to 0.24.0 together, and so do
+`dirigent-dhis2` and `dirigent-integration`.
+
+- **An endpoint source takes calls.** A pipeline whose first node is `source: {kind:
+  endpoint, path: ...}` is called at that route under `/endpoints` (`DIRIGENT_ENDPOINT_PREFIX`),
+  and each call becomes a run entered at the source, the request as its input; the caller is
+  answered 202 with the run and where to read it. Unless the source writes `auth: {kind:
+  public}`, the caller presents the token the apply minted for it as `Authorization: Bearer`.
+  The token is shown once, in the apply's result; `dg apply` prints it, and an apply that
+  creates a source in CI writes it into the CI log, so rotate a token first shown there. A
+  call is checked in one order -- the instance's rate for the path, the route (404, 405), the
+  token (401), the source's own `rate` (429), the source and its pipeline taking input (503),
+  the content type (415), `max_body` (413), the parse (400), `max_in_flight` (503) -- and
+  nothing before the source's own rate writes a row. A reply node still renders into the run
+  and is not yet sent to the caller; a held caller answered by the reply comes next.
+- **Every source has a row.** An apply reconciles one per source node by its step code: the
+  declaration follows the current version, while whether it is paused, its token and its
+  counts survive. A route is one source's on the whole instance, and an apply claiming one
+  another pipeline answers is refused. A source is `listening`, `backlogged`, `draining` or
+  `paused`. The API lists them (`/sources`, `/pipelines/{code}/sources`), pauses, resumes and
+  rotates them, and reads every input that reached one and what it became; `dg source list |
+  show | pause | resume | rotate-token | inputs | call` does the same from a shell, `call`
+  presenting the source's own token rather than the CLI's. `retention_inputs` and
+  `dg prune --inputs` bound the record of inputs.
+- **A source kind declares its limits.** `ReceivedSource` gains `auth()` and `rate()`, and
+  `Source` gains `max_in_flight()`, each with a default; the endpoint's rate model is
+  `dirigent_plugin.sources.SourceRate`.
+- **A pipeline starts at a source and answers through a reply, run by hand.** A step is a
+  block, a `source` or a `reply`. A run of a pipeline with sources enters at one of them, by
+  hand with `dg run --input` or from the source's `sample`; a reply is rendered by the server
+  once the steps it answers from have settled, and neither is ever claimed by a worker. See
+  `examples/sources/`.
+- **An adopting step's items no longer wait for the whole grid.** A step mapping over
+  another fan-out's grid (`for_each: ${steps.A.items}`) used to start only once every item of
+  A had settled. When A runs under `items: continue`, the step's rule is `all_success`, and
+  it reads nothing of the grid but its own match (`${steps.A.item.output}`), each of its items
+  now starts as soon as its own match settles, and over a late grid the step's grid is written
+  as soon as A's is. `fail_fast` grids, other rules, and a step reading A's whole `output`
+  keep the old timing. The run detail's DAG nodes carry `item_wise_parent`, the run screen's
+  graph says `item by item after <parent>`, and `dg validate --explain` marks such a step.
+- **Upgrade note.** A pipeline already using `items: continue` on a fan-out another step
+  adopts changes timing: the adopter's items run alongside the parent's, so the systems they
+  write to see them earlier and concurrently. Write `items: fail_fast` on the parent, or read
+  its `output`, to keep the old order.
+- **Seeding takes a corpus whole.** `dg dev --seed-installed` and `--seed` apply a corpus's
+  connection files and standalone JSON Schema files before its documents, and apply a refused
+  document again while a later pass still stores something, so a document naming what a later
+  one supplies goes in.
+- **A local run reports every state a step passed through,** in order, and reports the end of
+  the run on its commit rather than its next poll.
+- **`dirigent-dhis2` targets DHIS2 2.42 and 2.43, with 2.43 the default.** The examples, the
+  tutorial and the connection page move to `stable-2-43-2` and hold on 2.42 alike. Every
+  exported value carries its own period, org unit and attribute option combo on both versions,
+  copied from the set where 2.43 writes them once. An export answered with an empty body fails
+  as `dhis2.export.empty_answer` instead of succeeding with nothing, and a 2.43 conflict keeps
+  its code and its position. The pack requires `dhis2w-client>=1.33.0`.
+- **`dirigent-integration`'s nightly run follows the play demos the public list names** and
+  rehearses an export and a dry-run import against the newest stable demo of 2.42 and of 2.43.
+
 ## 0.23.4
 
 Released 2026-10-22. Every package in the workspace moves to 0.23.4 together, and so do
