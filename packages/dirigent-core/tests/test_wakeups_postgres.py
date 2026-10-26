@@ -16,12 +16,15 @@ from dirigent_client.enums import RunStatus
 from dirigent_core import wakeups
 from dirigent_core.config import Settings
 from dirigent_core.database import create_engine, create_session_factory, session_scope
+from dirigent_core.documents import load_pipeline_text
 from dirigent_core.engine import EngineServices
 from dirigent_core.engine.claim import ClaimedUnit
 from dirigent_core.engine.definition import PipelineDefinition, StepDefinition
 from dirigent_core.engine.runs import create_run, save_pipeline
 from dirigent_core.models import Base, Run, StepAttempt
+from dirigent_core.pipelines import apply_document
 from dirigent_core.plugins import PluginHost
+from dirigent_core.sources.intake import Intake
 from dirigent_core.worker import Worker
 from engineblocks import EchoOperator, EngineTestPlugin, reset_blocks
 
@@ -73,6 +76,23 @@ async def listener(pg_settings: Settings) -> AsyncIterator[wakeups.Listener]:
         assert held is not None
         await asyncio.wait_for(held.connected.wait(), timeout=PATIENCE)
         yield held
+
+
+#: A pipeline whose one source answers one route.
+ENDPOINT = """
+format: dirigent/v1
+kind: pipeline
+code: heard
+steps:
+  ask:
+    source:
+      kind: endpoint
+      path: /heard
+  answer:
+    depends_on: [ask]
+    reply:
+      status: 200
+"""
 
 
 def one_step(code: str = "woken") -> PipelineDefinition:
@@ -159,6 +179,25 @@ async def test_an_explicit_publish_is_delivered_with_its_key_on_commit(
         await wakeups.publish(session, wakeups.SOURCES, "a-source")
 
     assert await wakeups.hub.wait(mark, timeout=PATIENCE) is True
+
+
+async def test_a_server_hears_a_changed_source_before_its_routes_expire(
+    pg_sessions: async_sessionmaker[AsyncSession],
+    pg_settings: Settings,
+    pg_host: PluginHost,
+    listener: wakeups.Listener,
+) -> None:
+    services = EngineServices.build(pg_settings, pg_host)
+    intake = Intake()
+    async with pg_sessions() as session:
+        assert (await intake.routes(session)).listening == []
+    mark = wakeups.hub.mark(wakeups.SOURCES)
+    async with session_scope(pg_sessions) as session:
+        await apply_document(session, services, load_pipeline_text(ENDPOINT))
+    assert await wakeups.hub.wait(mark, timeout=PATIENCE), "the apply's commit is heard by the listener"
+    async with pg_sessions() as session:
+        routes = await intake.routes(session)
+    assert [entry.route.template for entry in routes.listening] == ["/heard"]
 
 
 async def test_two_workers_woken_by_one_notification_claim_it_once(

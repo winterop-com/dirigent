@@ -342,3 +342,17 @@ def _loaded(text: str) -> dict[str, Any]:
     """Read a document as the JSON an apply carries."""
     loaded: dict[str, Any] = yaml.safe_load(text)
     return loaded
+
+
+def test_a_form_reaches_a_source_that_takes_one_and_json_does_not(client: TestClient) -> None:
+    token = token_of(apply_document(client, echo("      accepts: [application/x-www-form-urlencoded]")))
+    taken = client.post(
+        "/endpoints/echo/ann", data={"email": "ada@example.org", "tag": ["a", "b"]}, headers=bearer(token)
+    )
+    assert taken.status_code == 202, taken.text
+    run_id = taken.json()["run_id"]
+    attempts = Page[AttemptOut].model_validate(client.get(f"{PREFIX}/runs/{run_id}/attempts").json()).items
+    entered = next(attempt for attempt in attempts if attempt.step_name == "ask").output or {}
+    assert (entered["body_kind"], entered["body"]) == ("form", {"email": "ada@example.org", "tag": ["a", "b"]})
+    refused = client.post("/endpoints/echo/ann", json={"email": "x"}, headers=bearer(token))
+    assert refused.status_code == 415, refused.text

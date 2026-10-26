@@ -325,7 +325,7 @@ DATABASE_BEHIND = HEALTH.define(
 
 DATABASE_OK = HEALTH.define("database.ok", "the database at {where} answers, schema {stamped}")
 
-ONE_INPUT_BODY = CLI.define("one_input_body", "a call takes one body: --json, --text or --form")
+ONE_INPUT_BODY = CLI.define("one_input_body", "a call takes one body: --body, --text or --form")
 
 TAKES_NAME_EQUALS_VALUE = CLI.define("takes_name_equals_value", "{entry} is not name=value")
 

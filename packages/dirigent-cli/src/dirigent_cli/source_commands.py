@@ -15,7 +15,7 @@ from dirigent_cli.output import emit_fact, emit_one, emit_records
 from dirigent_client import DEFAULT_CONNECT_TIMEOUT
 from dirigent_plugin.sources import Route
 
-#: Where ``dg source call`` reads the token a source was given when ``--token`` names none.
+#: Where ``dg source call`` reads the token a source was given when ``--source-token`` names none.
 TOKEN_ENV: Final = "DIRIGENT_SOURCE_TOKEN"
 
 #: How long a call waits for its answer: an endpoint answers once its run exists, not once it settles.
@@ -104,7 +104,7 @@ def source_call(
     ctx: typer.Context,
     pipeline: PipelineArg,
     code: SourceArg,
-    data: Annotated[str | None, typer.Option("--json", help="A JSON body, or @file to read one from a file.")] = None,
+    data: Annotated[str | None, typer.Option("--body", help="A JSON body, or @file to read one from a file.")] = None,
     text: Annotated[str | None, typer.Option("--text", help="A text body, or @file to read one from a file.")] = None,
     form: Annotated[
         list[str] | None, typer.Option("--form", help="One name=value of a urlencoded form body; repeat for more.")
@@ -117,7 +117,8 @@ def source_call(
     ] = None,
     query: Annotated[list[str] | None, typer.Option("--query", "-q", help="One name=value of the query.")] = None,
     token: Annotated[
-        str | None, typer.Option("--token", envvar=TOKEN_ENV, help="The source's token; read from the environment.")
+        str | None,
+        typer.Option("--source-token", envvar=TOKEN_ENV, help="The source's own token, not the CLI's credential."),
     ] = None,
 ) -> None:
     """Call a received source the way its callers do, and write down what it answered.
