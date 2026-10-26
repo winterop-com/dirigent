@@ -15,12 +15,13 @@ from dirigent_core.directory import apply_directory
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.plugins import PluginHost, load_plugin_host
 from dirigent_core.scheduler import Scheduler
+from dirigent_core.sources.intake import Intake
 from dirigent_core.telemetry import configure_telemetry, instrument_fastapi
 from dirigent_server.errors import install_error_handlers
 from dirigent_server.health import build_registry
 from dirigent_server.health import router as health_router
 from dirigent_server.logging import get_logger
-from dirigent_server.routes import TAGS, build_hooks_router, build_router
+from dirigent_server.routes import TAGS, build_endpoints_router, build_hooks_router, build_router
 from dirigent_server.security import install_cross_site_guard
 from dirigent_server.ui import mount_ui_assets, mount_ui_shell
 
@@ -32,7 +33,8 @@ Every endpoint under `/api/v1` requires authentication: a bearer token for autom
 the session cookie `POST /api/v1/auth/login` sets for a browser. The probes under `/health`,
 this document itself, and the playground under `/api/v1/playground` are the exceptions.
 `POST /hooks/{token}` is outside the versioned API and authenticates with its own
-per-trigger token.
+per-trigger token, and so is every route under `/endpoints`, which a pipeline's endpoint
+sources declare and which authenticates with each source's own token.
 
 The playground serves generated data and chosen behaviour to documents that need something
 to happen: it needs no credential, opens no database session, and reads no instance data.
@@ -108,12 +110,14 @@ def create_app(
     app.state.settings = resolved
     app.state.version = __version__
     app.state.services = EngineServices.build(resolved, host or load_plugin_host())
+    app.state.intake = Intake()
     install_cross_site_guard(app, resolved)
     install_error_handlers(app)
     mount_ui_assets(app, resolved)
     app.include_router(health_router)
     app.include_router(build_hooks_router())
     app.include_router(build_router(resolved), prefix=resolved.api_prefix)
+    app.include_router(build_endpoints_router(), prefix=resolved.endpoint_prefix)
     mount_ui_shell(app, resolved)
     instrument_fastapi(app)
     return app

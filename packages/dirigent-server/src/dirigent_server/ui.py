@@ -215,7 +215,7 @@ def _add_shell_fallback(app: FastAPI, settings: Settings, index: Path) -> None:
     ``/`` itself answers the refusal to any GET, navigation or not, because it is the one
     path a person and a probe both try first.
     """
-    reserved = (settings.api_prefix, *RESERVED_PREFIXES)
+    reserved = (settings.api_prefix, settings.endpoint_prefix, *RESERVED_PREFIXES)
 
     async def shell_or_404(request: Request, error: Exception) -> Response:
         at_root = request.url.path == "/" and request.method in ("GET", "HEAD")

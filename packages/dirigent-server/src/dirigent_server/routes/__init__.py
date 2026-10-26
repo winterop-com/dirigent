@@ -2,7 +2,8 @@
 
 Every business router is mounted behind :func:`require_principal`, so authentication is a
 property of the mount. Only login is exempt. Webhook intake authenticates as the trigger
-rather than as a person, so it is mounted at the application root instead.
+rather than as a person, so it is mounted at the application root instead, and endpoint
+intake, which authenticates as the source, is mounted under the endpoint prefix.
 """
 
 from fastapi import APIRouter, Depends
@@ -13,6 +14,7 @@ from dirigent_server.routes import (
     auth,
     blocks,
     connections,
+    endpoints,
     examples,
     hooks,
     labels,
@@ -21,6 +23,7 @@ from dirigent_server.routes import (
     runs,
     schema,
     schemas,
+    sources,
     system,
     trigger_documents,
     triggers,
@@ -37,6 +40,8 @@ TAGS: list[dict[str, str]] = [
     {"name": "triggers", "description": "A pipeline's schedules and inbound webhooks."},
     {"name": "alerts", "description": "Alert rules, and the queue they deliver through."},
     {"name": "hooks", "description": "Webhook intake, authenticated by its own token."},
+    {"name": "endpoints", "description": "Endpoint sources, each authenticated by its own token."},
+    {"name": "sources", "description": "Where a pipeline's inputs enter, and what has arrived."},
     {"name": "connections", "description": "Named credential records of contributed kinds."},
     {"name": "blocks", "description": "The catalog every plugin contributes to."},
     {"name": "labels", "description": "The wording every installed pack refuses in."},
@@ -70,6 +75,7 @@ def build_router(settings: Settings | None = None) -> APIRouter:
         pipelines,
         triggers,
         trigger_documents,
+        sources,
         runs,
         alerts,
         connections,
@@ -87,6 +93,13 @@ def build_router(settings: Settings | None = None) -> APIRouter:
     return router
 
 
+def build_endpoints_router() -> APIRouter:
+    """Assemble the endpoint intake, mounted under the instance's endpoint prefix."""
+    router = APIRouter(route_class=Transactional)
+    router.include_router(endpoints.router)
+    return router
+
+
 def build_hooks_router() -> APIRouter:
     """Assemble the unauthenticated webhook intake, mounted at the application root."""
     router = APIRouter(route_class=Transactional)
@@ -94,4 +107,4 @@ def build_hooks_router() -> APIRouter:
     return router
 
 
-__all__ = ["TAGS", "build_hooks_router", "build_router"]
+__all__ = ["TAGS", "build_endpoints_router", "build_hooks_router", "build_router"]
