@@ -578,6 +578,7 @@ def test_every_list_command_answers_to_a_hidden_ls() -> None:
         "schedule ls",
         "webhook ls",
         "watch ls",
+        "source ls",
         "trigger-document ls",
         "alerts rules ls",
         "admin user ls",

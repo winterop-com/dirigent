@@ -290,6 +290,9 @@ class Settings(BaseSettings):
     retention_deliveries: Duration | None = None
     """How long a webhook delivery is kept."""
 
+    retention_inputs: Duration | None = None
+    """How long the record of an input that reached a source is kept."""
+
     retention_firings: Duration | None = None
     """How long a schedule firing is kept."""
 

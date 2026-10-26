@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirigent_core.engine.claim import is_postgres
 from dirigent_core.logging import get_logger
-from dirigent_core.models import LogEntry, Notification, Run, ScheduleFiring, WebhookDelivery
+from dirigent_core.models import LogEntry, Notification, Run, ScheduleFiring, SourceInput, WebhookDelivery
 from dirigent_core.storage import Storage
 
 if TYPE_CHECKING:
@@ -40,6 +40,7 @@ BATCH: Final = 500
 FAMILIES: Final[tuple[tuple[str, type[Any], tuple[sa.ColumnElement[bool], ...]], ...]] = (
     ("logs", LogEntry, ()),
     ("deliveries", WebhookDelivery, ()),
+    ("inputs", SourceInput, ()),
     ("firings", ScheduleFiring, ()),
     # An alert that has not been sent is still owed to somebody.
     ("notifications", Notification, (Notification.sent_at.is_not(None),)),
@@ -63,6 +64,9 @@ class Policy(BaseModel):
 
     deliveries: timedelta | None = None
     """What arrived at a webhook."""
+
+    inputs: timedelta | None = None
+    """What arrived at a source."""
 
     firings: timedelta | None = None
     """When a schedule fired."""
@@ -103,6 +107,7 @@ def policy_from(settings: "Settings") -> Policy:
         runs=settings.retention_runs,
         logs=settings.retention_logs,
         deliveries=settings.retention_deliveries,
+        inputs=settings.retention_inputs,
         firings=settings.retention_firings,
         notifications=settings.retention_notifications,
         scratch=settings.retention_scratch,
@@ -112,7 +117,15 @@ def policy_from(settings: "Settings") -> Policy:
 def configured(policy: Policy) -> bool:
     """Report whether any family has an age, which is whether a sweep would do anything."""
     return any(
-        age is not None for age in (policy.runs, policy.logs, policy.deliveries, policy.firings, policy.notifications)
+        age is not None
+        for age in (
+            policy.runs,
+            policy.logs,
+            policy.deliveries,
+            policy.inputs,
+            policy.firings,
+            policy.notifications,
+        )
     )
 
 

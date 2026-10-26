@@ -9,14 +9,14 @@ import pytest
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from dirigent_client.enums import AttemptStatus, LogLevel, RunStatus, TriggerKind
+from dirigent_client.enums import AttemptStatus, InputOutcome, LogLevel, RunStatus, TriggerKind
 from dirigent_core import retention
 from dirigent_core.config import Settings
 from dirigent_core.database import session_scope
 from dirigent_core.engine import EngineServices
 from dirigent_core.engine.definition import PipelineDefinition, StepDefinition
 from dirigent_core.engine.runs import create_run, retry_step, save_pipeline
-from dirigent_core.models import LogEntry, Pipeline, PipelineVersion, Run, StepAttempt
+from dirigent_core.models import LogEntry, Pipeline, PipelineVersion, Run, Source, SourceInput, StepAttempt
 from dirigent_core.plugins import PluginHost
 from dirigent_core.scheduler import prune
 from dirigent_core.storage import Storage, build_storage, parse_uri
@@ -119,6 +119,30 @@ async def test_a_log_entry_is_pruned_on_its_own_age(session: AsyncSession) -> No
     assert swept.counts == {"logs": 1}
     assert await counted(session, Run) == 1
     assert await counted(session, LogEntry) == 1
+
+
+async def test_the_record_of_an_input_to_a_source_is_pruned_on_its_own_age(session: AsyncSession) -> None:
+    pipeline = Pipeline(id=uuid4(), code=f"p-{uuid4().hex[:8]}")
+    source = Source(id=uuid4(), pipeline_id=pipeline.id, code="ask", kind="endpoint", config={})
+    session.add_all([pipeline, source])
+    for age in (timedelta(days=40), timedelta(days=1)):
+        session.add(
+            SourceInput(
+                source_id=source.id,
+                outcome=InputOutcome.REFUSED,
+                status=503,
+                method="POST",
+                path="/ask",
+                created_at=NOW - age,
+            )
+        )
+    await session.flush()
+
+    swept = await retention.sweep(session, retention.Policy(inputs=timedelta(days=30)), now=NOW)
+
+    assert swept.counts == {"inputs": 1}
+    left = (await session.execute(sa.select(sa.func.count()).select_from(SourceInput))).scalar_one()
+    assert left == 1
 
 
 async def test_a_family_with_no_age_is_never_pruned(session: AsyncSession) -> None:
