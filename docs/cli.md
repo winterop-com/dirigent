@@ -290,8 +290,10 @@ stack's `Dockerfile`, or a dependency in `pyproject.toml` for the other two temp
 What it writes is a uv project. `pyproject.toml` depends on `dirigent-cli` at the version of
 the `dg` that scaffolded it, so `uv sync` builds the project's own environment and `uv run dg`
 is that pinned runtime rather than whatever is on the path. A `README.md` carries the
-template's commands, and a root `.gitignore` covers `.venv/`, `__pycache__/` and `.env`. A directory
-that already has a `pyproject.toml` or a `README.md` keeps its own -- the record lists those
+template's commands, `AGENTS.md` the loop a person or a coding agent works in -- find, validate,
+run locally, apply -- with `CLAUDE.md` pointing at it, and a root `.gitignore` covers `.venv/`,
+`__pycache__/` and `.env`. See [working with a coding agent](agents.md). A directory that already
+has a `pyproject.toml`, a `README.md` or either agent file keeps its own -- the record lists those
 under `skipped`, and adding `dirigent-cli` to that `pyproject.toml` is then yours to do; an
 existing root `.gitignore` gains the missing lines instead.
 
@@ -878,6 +880,7 @@ verb and whose fields are the identity of what changed:
 | `prune` | `dg prune` | The retention sweep, in flat fields rather than under `fields`: `total`, `dry_run`, and a count per family; a sweep that ran adds the `artifacts` it deleted from storage |
 | `backfill` | `dg backfill` | `pipeline`, `schedule`, `dry_run`, `windows_total`, `runs_created`, and `windows[]` of `window_start`, `window_end` and the `run_id` each became |
 | `pipeline.activated` / `.deactivated` / `.deleted` | `dg pipeline …` | `code` |
+| `pipeline.schema` | `dg pipeline schema` | the number of `blocks` composed in, and the `schema` itself, or the `path` that `-f` wrote it to |
 | `pipeline.created` | `dg pipeline new` | `code`, the `starter` it copied, the `path` it wrote, the copy's own `requires`, and the `preflight` list to work through |
 | `schedule.created` / `.paused` / `.resumed` / `.deleted` | `dg schedule …` | `code`, `pipeline`, and a live one's `clock`, `timezone`, `next_fire_at` |
 | `webhook.created` | `dg webhook create` | `code`, `pipeline`, the `url` to POST to, and the `token` itself, once |
@@ -1077,7 +1080,8 @@ dg pipeline list [--tag climate] [--tag http]   # repeat --tag to narrow: every 
 dg pipeline show CODE | versions CODE
 dg pipeline activate | deactivate | delete CODE
 dg pipeline validate CODE [--version N] | --all   # re-check what is stored against this instance
-dg blocks list [--kind operator|sensor] | show BLOCK_ID
+dg blocks list [--kind operator|sensor] [--local] | show BLOCK_ID [--local]   # --local: installed beside dg
+dg pipeline schema [-f FILE]                      # the JSON Schema a document is checked against, offline
 dg blocks new NAME [--directory DIR]      # scaffold a new block pack
 dg examples list [--tag T]... [--shelf S] [--plugin P] [--starter] [--local]
 dg examples show CODE [-f FILE] [--local] # the document, verbatim, as the shelf holds it

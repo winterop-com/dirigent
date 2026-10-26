@@ -38,6 +38,7 @@ nav:
       - The basics: basics.md
       - Tutorial: tutorial.md
       - Concepts: concepts.md
+      - With a coding agent: agents.md
   - Using it:
       - A server: server.md
       - Command line: cli.md

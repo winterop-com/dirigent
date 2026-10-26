@@ -99,6 +99,9 @@ then the three-service compose stack, an admin account, and a token.
   a run actually is.
 - **[Concepts](concepts.md)** is the vocabulary: pipeline, step, block, run, item, attempt,
   connection, trigger, artifact, and how they relate.
+- **[With a coding agent](agents.md)** is what to hand Claude Code, Codex or any model with a
+  shell: the loop it works in, the records it reads, and the schema a document is checked
+  against. [llms.txt](llms.txt) lists every page for a model to read.
 - **[The command line](cli.md)** covers profiles, projects, the parameter builder, and what a
   run looks like while it is happening.
 - **[Python](python.md)** is how to drive an instance from a program: the `dirigent-client`
