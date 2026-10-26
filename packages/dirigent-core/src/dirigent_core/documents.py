@@ -359,8 +359,8 @@ def validate_against_catalog(
     definition: Document,
     catalog: Catalog,
     *,
-    connections: Iterable[str] = (),
-    pipelines: Iterable[str] = (),
+    connections: Iterable[str] | None = (),
+    pipelines: Iterable[str] | None = (),
     check_blocks: bool = True,
     unsafe_allowed: Iterable[str] | None = None,
     storage_schemes: Iterable[str] | None = None,
@@ -372,7 +372,9 @@ def validate_against_catalog(
 ) -> list[ValidationIssue]:
     """Check a document against what this instance actually has, reporting everything at once.
 
-    ``check_blocks`` is off on the offline path, where no catalog is available to check against.
+    ``check_blocks`` is off where no catalog is available to check against. ``connections`` and
+    ``pipelines`` are what the instance holds; None means the caller does not know, as on the
+    offline path, and then neither a step's connection nor the ones ``requires`` names is checked.
     ``unsafe_allowed`` and ``storage_schemes`` are what the instance permits and what its
     backends claim; left unset, neither is checked, because a caller that does not know them
     would otherwise refuse a document the instance would have run. ``blocks`` is the live
@@ -392,11 +394,13 @@ def validate_against_catalog(
     checker = format_checker if format_checker is not None else base_format_checker()
     sensors = _sensors(catalog) if check_blocks else None
     if isinstance(definition, TriggersDefinition):
-        return _triggers_document_issues(definition, checker, target, check_target=check_blocks, sensors=sensors)
+        return _triggers_document_issues(
+            definition, checker, target, check_target=check_blocks and pipelines is not None, sensors=sensors
+        )
     # A document that brings its own connections or schemas satisfies its own references to them.
-    known = {name for name in connections} | set(definition.connections)
+    known = None if connections is None else {name for name in connections} | set(definition.connections)
     known_schemas = None if schemas is None else {name for name in schemas} | set(definition.schemas)
-    held = {name for name in pipelines}
+    held = None if pipelines is None else {name for name in pipelines}
     issues: list[ValidationIssue] = []
     if check_blocks:
         issues.extend(
@@ -626,12 +630,15 @@ def _triggers_document_issues(
 def _requirement_issues(
     definition: PipelineDefinition,
     catalog: Catalog,
-    connections: set[str],
-    pipelines: set[str],
+    connections: set[str] | None,
+    pipelines: set[str] | None,
     schemes: set[str] | None,
     schemas: set[str] | None,
 ) -> list[ValidationIssue]:
-    """Check the ``requires`` preflight first, with one complete list of what is missing."""
+    """Check the ``requires`` preflight first, with one complete list of what is missing.
+
+    A family passed as None is one the caller does not know, and is not checked.
+    """
     installed = {entry.id for entry in catalog.blocks}
     issues = [
         ValidationIssue.of(REQUIRED_BLOCK_MISSING, location=f"requires.blocks.{index}", block=repr(block))
@@ -641,12 +648,12 @@ def _requirement_issues(
     issues.extend(
         ValidationIssue.of(REQUIRED_CONNECTION_MISSING, location=f"requires.connections.{index}", code=repr(name))
         for index, name in enumerate(definition.requires.connections)
-        if name not in connections
+        if connections is not None and name not in connections
     )
     issues.extend(
         ValidationIssue.of(REQUIRED_PIPELINE_MISSING, location=f"requires.pipelines.{index}", code=repr(name))
         for index, name in enumerate(definition.requires.pipelines)
-        if name not in pipelines and name != definition.code
+        if pipelines is not None and name not in pipelines and name != definition.code
     )
     if schemes is not None:
         registered = ", ".join(sorted(schemes)) or "none are registered"
@@ -675,7 +682,7 @@ def _requirement_issues(
 def _step_block_issues(
     definition: PipelineDefinition,
     catalog: Catalog,
-    connections: set[str],
+    connections: set[str] | None,
     allowed: set[str] | None = None,
     schemes: set[str] | None = None,
     blocks: Mapping[str, Any] | None = None,
@@ -809,10 +816,10 @@ def _config_issues(step: str, config: JsonMap, schema: JsonMap) -> list[Validati
     return issues
 
 
-def _connection_issues(step: str, config: JsonMap, connections: set[str]) -> list[ValidationIssue]:
-    """Refuse a step naming a connection this instance does not hold."""
+def _connection_issues(step: str, config: JsonMap, connections: set[str] | None) -> list[ValidationIssue]:
+    """Refuse a step naming a connection this instance does not hold, when the caller knows what it holds."""
     named = config.get("connection")
-    if not isinstance(named, str) or has_reference(named) or named in connections:
+    if connections is None or not isinstance(named, str) or has_reference(named) or named in connections:
         return []
     available = ", ".join(sorted(connections)) or "this instance has no connections"
     return [

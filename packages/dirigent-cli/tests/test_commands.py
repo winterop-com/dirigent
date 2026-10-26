@@ -324,14 +324,24 @@ def test_validate_refuses_a_reference_that_will_never_resolve(tmp_path: Path, se
     assert any("undeclared parameter" in one["message"] for one in only(result.stdout, "validation")["problems"])
 
 
-def test_validate_with_a_server_checks_the_catalog(tmp_path: Path, server: str) -> None:
-    path = tmp_path / "missing.yaml"
-    path.write_text("format: dirigent/v1\ncode: missing\nsteps:\n  a: { block: nope.gone }\n")
-    assert machine("validate", str(path)).exit_code == 0, "offline validation cannot see the catalog"
-    result = machine("validate", str(path), "--server")
+def test_validate_checks_blocks_offline_and_what_the_instance_holds_with_a_server(tmp_path: Path, server: str) -> None:
+    missing = tmp_path / "missing.yaml"
+    missing.write_text("format: dirigent/v1\ncode: missing\nsteps:\n  a: { block: nope.gone }\n")
+    offline = machine("validate", str(missing))
+    assert offline.exit_code == 1, "the blocks installed beside dg are a catalog of their own"
+    assert any("no block" in one["message"] for one in only(offline.stdout, "validation")["problems"])
+
+    named = tmp_path / "named.yaml"
+    named.write_text(
+        "format: dirigent/v1\ncode: named\nsteps:\n"
+        "  a: { block: http.request, config: { connection: warehouse, path: /x } }\n"
+    )
+    assert machine("validate", str(named)).exit_code == 0, "offline, what the instance holds is unknown"
+    result = machine("validate", str(named), "--server")
     assert result.exit_code == 1
-    assert any("no block" in one["message"] for one in only(result.stdout, "validation")["problems"])
-    assert only(result.stdout, "validation")["code"] == "missing"
+    problems = only(result.stdout, "validation")["problems"]
+    assert [one["location"] for one in problems] == ["steps.a.config.connection"]
+    assert only(result.stdout, "validation")["code"] == "named"
 
 
 def test_validate_outside_a_project_and_with_no_argument_says_so() -> None:
@@ -478,7 +488,7 @@ def test_validate_explain_carries_what_each_step_will_cost(tmp_path: Path) -> No
 
     assert reported["code"] == "cli-fan-out"
     assert reported["document"] == str(path)
-    assert reported["checked"] == "document, offline"
+    assert reported["checked"] == "document and installed blocks"
     assert [step["name"] for step in reported["steps"]] == ["shape", "write_one", "manifest"]
     assert reported["steps"][0]["cardinality"] == 3
     assert reported["steps"][0]["max_attempts"] == 3
@@ -535,7 +545,7 @@ def test_validate_explain_costs_nothing_a_document_got_wrong(tmp_path: Path) -> 
 
 
 def test_validate_explain_against_a_server_fills_a_sensor_from_the_block(tmp_path: Path, server: str) -> None:
-    """Offline a sensor's cadence is whatever the document wrote; the catalog knows the rest."""
+    """A sensor's cadence is the block's own where the document wrote none, offline and against a server alike."""
     path = tmp_path / "sensor.yaml"
     path.write_text(
         "format: dirigent/v1\nkind: pipeline\ncode: cli-sensor\n"
@@ -543,8 +553,9 @@ def test_validate_explain_against_a_server_fills_a_sensor_from_the_block(tmp_pat
     )
 
     offline = only(machine("validate", "--explain", str(path)).stdout, "validation.shape")
-    assert offline["steps"][0]["deadline"] is None
-    assert offline["steps"][0]["from_block"] == []
+    assert offline["checked"] == "document and installed blocks"
+    assert offline["steps"][0]["deadline"] == "1d"
+    assert offline["steps"][0]["from_block"] == ["poll", "deadline"]
 
     reported = only(machine("validate", "--explain", "--server", str(path)).stdout, "validation.shape")
 

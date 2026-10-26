@@ -231,7 +231,7 @@ dg validate
 ```
 
 ```text
-2026-01-01T18:22:41.109+01:00 [info    ] valid                          [validation] code=regional-load document=/home/you/regional/pipelines/regional-load.yaml checked="document, offline"
+2026-01-01T18:22:41.109+01:00 [info    ] valid                          [validation] code=regional-load document=/home/you/regional/pipelines/regional-load.yaml checked="document and installed blocks"
   each step under the last one it waits for
     wait_for_window  (time.window)
       fetch_manifest  (http.request)
@@ -244,10 +244,12 @@ The tree is the graph as the document draws it: each step under the last one it 
 its block beside it, and an edge rule named when it is not the default `all_success`.
 
 `dg validate` needs no server. It checks the envelope, the key grammars, the graph -- that it
-is acyclic, that every `depends_on` names a step that exists -- and the syntax of every
-reference. That is everything checkable without knowing what blocks the target instance has.
+is acyclic, that every `depends_on` names a step that exists -- the syntax of every reference,
+and every step's config against the blocks installed beside `dg`. What it cannot know is what
+the target instance holds: its connections, its other pipelines, and what a block will hand
+back when it runs.
 
-Remember that it said `offline`. It will matter shortly.
+Remember that last one. It will matter shortly.
 
 ## 5. Plan, then apply
 
@@ -280,9 +282,9 @@ create regional-load  version 1 (/home/you/regional/pipelines/regional-load.yaml
 ```
 
 The instance now holds `regional-load` at version 1. The apply also ran the checks
-`dg validate` could not: that every block id exists in this instance's catalog, that each
-step's config validates against that block's published schema, and that every connection a
-step names by code is present.
+`dg validate` could not: that every block id exists in this instance's own catalog, which may
+hold blocks the machine you validated on does not, and that every connection a step names by
+code is present.
 
 ## 6. Run it, and watch it fail
 
@@ -359,12 +361,12 @@ output
 The same thing, for every installed block, is [the block reference](blocks.md) -- generated
 from the live catalog, so it cannot go stale.
 
-**Why validation did not catch it.** `dg validate` said `offline` and it meant it. It checked
-that `steps.fetch_manifest` names a real step, because that is in the document. It cannot check
-`.output.json_body`, because whether an output has such a field is a fact about the block's
-schema, and offline validation has no catalog. Even the server-side apply does not check it: at
-apply time nothing has produced an output yet, so the check the engine can honestly make is the
-one it makes -- at claim time, when the reference is actually resolved.
+**Why validation did not catch it.** `dg validate` checked that `steps.fetch_manifest` names a
+real step, because that is in the document, and that each step's config fits its block. It did
+not check `.output.json_body`, because what an output holds is known only once the step has
+produced one. Even the server-side apply does not check it: at apply time nothing has produced
+an output yet, so the check the engine can honestly make is the one it makes -- at claim time,
+when the reference is actually resolved.
 
 **Why it says `attempt 1` when the step allows three.** Because the error class is `rejected`,
 not `transient`. Retry is per-step policy over the block's own error classification, and the
