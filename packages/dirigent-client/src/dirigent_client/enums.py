@@ -191,6 +191,32 @@ class WebhookOutcome(StrEnum):
     """The delivery was refused, and the reason is on the row."""
 
 
+class SourceState(StrEnum):
+    """Whether a source takes inputs now, read from its row and the runs it has unsettled."""
+
+    LISTENING = "listening"
+    """It takes inputs."""
+
+    BACKLOGGED = "backlogged"
+    """As many runs from it are unsettled as ``max_in_flight`` allows; a new input is refused 503."""
+
+    DRAINING = "draining"
+    """It or its pipeline is paused, and runs it started are still unsettled."""
+
+    PAUSED = "paused"
+    """It or its pipeline is paused, and nothing it started is unsettled."""
+
+
+class InputOutcome(StrEnum):
+    """What came of one input that reached a source."""
+
+    ACCEPTED = "accepted"
+    """It became a run, and the caller was answered with where to read it."""
+
+    REFUSED = "refused"
+    """It was refused before any run existed, and the reason is on the row."""
+
+
 class BodyKind(StrEnum):
     """How an inbound request's body was read."""
 

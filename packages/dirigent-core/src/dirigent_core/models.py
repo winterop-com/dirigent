@@ -14,6 +14,7 @@ from dirigent_client.enums import (
     AttemptStatus,
     FiringOutcome,
     Importance,
+    InputOutcome,
     LogLevel,
     NotificationStatus,
     ProvenanceSource,
@@ -185,6 +186,7 @@ class Run(Entity):
     __table_args__ = (
         sa.Index("ix_runs_pipeline_id_status_created_at", "pipeline_id", "status", "created_at"),
         sa.Index("ix_runs_finished_at", "finished_at"),
+        sa.Index("ix_runs_triggered_by_id_status", "triggered_by_id", "status"),
     )
 
     pipeline_id: Mapped[UUID] = mapped_column(sa.ForeignKey("pipelines.id", ondelete="RESTRICT"), nullable=False)
@@ -542,6 +544,86 @@ class Watch(Entity):
     last_armed_at: Mapped[datetime | None] = mapped_column(Timestamp)
 
 
+class Source(Entity):
+    """A pipeline's source node as the instance holds it: its declaration, and what was done to it.
+
+    One row per source step, reconciled on every apply by step code. The declaration follows the
+    pipeline's current version; ``paused``, the token and the counts are the instance's and
+    survive an apply.
+    """
+
+    __tablename__ = "sources"
+    __table_args__ = (sa.UniqueConstraint("pipeline_id", "code"),)
+
+    pipeline_id: Mapped[UUID] = mapped_column(
+        sa.ForeignKey("pipelines.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    code: Mapped[str] = mapped_column(sa.String(200), nullable=False)
+    """The source's step key."""
+
+    name: Mapped[str | None] = mapped_column(sa.String(200))
+    description: Mapped[str | None] = mapped_column(sa.Text)
+    kind: Mapped[str] = mapped_column(sa.String(200), nullable=False)
+    config: Mapped[JsonMap] = mapped_column(JsonDocument, nullable=False, default=dict)
+    """The source's own fields, as the pipeline's current version writes them."""
+
+    token_hash: Mapped[str | None] = mapped_column(sa.String(128), unique=True)
+    """The hash of the bearer token a caller presents, or null for a source that takes none."""
+
+    token_prefix: Mapped[str | None] = mapped_column(sa.String(16))
+    """The leading characters of the token, shown in listings."""
+
+    paused: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False, server_default=sa.false())
+    accepted: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0, server_default=sa.text("0"))
+    """How many inputs became runs."""
+
+    refused: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0, server_default=sa.text("0"))
+    """How many inputs were refused once the caller was known to be let in."""
+
+    last_input_at: Mapped[datetime | None] = mapped_column(Timestamp)
+
+
+class SourceRoute(Entity):
+    """One method at one template a received source answers, unique across the instance."""
+
+    __tablename__ = "source_routes"
+    __table_args__ = (sa.UniqueConstraint("method", "normalised"),)
+
+    source_id: Mapped[UUID] = mapped_column(sa.ForeignKey("sources.id", ondelete="CASCADE"), nullable=False, index=True)
+    method: Mapped[str] = mapped_column(sa.String(16), nullable=False)
+    template: Mapped[str] = mapped_column(sa.String(1000), nullable=False)
+    normalised: Mapped[str] = mapped_column(sa.String(1000), nullable=False)
+    """The template without its parameter names, which is what two routes collide on."""
+
+
+class SourceInput(Journal):
+    """One input that reached a source, and the run or the refusal it became."""
+
+    __tablename__ = "source_inputs"
+    __table_args__ = (
+        sa.Index("ix_source_inputs_source_id_id", "source_id", "id"),
+        sa.Index("ix_source_inputs_created_at", "created_at"),
+    )
+
+    source_id: Mapped[UUID] = mapped_column(sa.ForeignKey("sources.id", ondelete="CASCADE"), nullable=False)
+    run_id: Mapped[UUID | None] = mapped_column(sa.ForeignKey("runs.id", ondelete="SET NULL"))
+    outcome: Mapped[InputOutcome] = mapped_column(string_enum(InputOutcome, "input_outcome"), nullable=False)
+    status: Mapped[int] = mapped_column(sa.Integer, nullable=False)
+    """The HTTP status the caller was answered with."""
+
+    code: Mapped[str | None] = mapped_column(sa.String(128))
+    """The refusal's message code, or null for an accepted input."""
+
+    reason: Mapped[str | None] = mapped_column(sa.Text)
+    params: Mapped[JsonMap | None] = mapped_column(JsonDocument)
+    method: Mapped[str] = mapped_column(sa.String(16), nullable=False)
+    path: Mapped[str] = mapped_column(sa.String(2000), nullable=False)
+    body_bytes: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0, server_default=sa.text("0"))
+    duration_ms: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0, server_default=sa.text("0"))
+    caller: Mapped[str | None] = mapped_column(sa.String(64))
+    """The address the request came from."""
+
+
 class AlertRule(Entity):
     """An event-to-channel binding, declared as data rather than code."""
 
@@ -725,6 +807,9 @@ ALL_TABLES = (
     WebhookTrigger,
     WebhookDelivery,
     Watch,
+    Source,
+    SourceRoute,
+    SourceInput,
     AlertRule,
     Notification,
     LogEntry,
