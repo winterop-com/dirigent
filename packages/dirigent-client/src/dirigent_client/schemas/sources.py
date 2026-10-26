@@ -1,10 +1,13 @@
 """Sources: what an input arrives as, the source rows that take inputs, and their journal."""
 
 from datetime import datetime
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
-from dirigent_client.enums import BodyKind
+from dirigent_client.enums import BodyKind, InputOutcome, SourceState
+from dirigent_client.schemas.common import WireModel
+from dirigent_common import JsonMap
 
 
 class RequestFacts(BaseModel):
@@ -52,3 +55,110 @@ class EndpointInput(RequestFacts):
 
     received_at: datetime
     """When the input arrived, or when a hand run supplied it."""
+
+
+class SourceOut(WireModel):
+    """A source as a listing shows it: what it listens to, its state, and what it has taken, never its token."""
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    id: UUID
+    pipeline: str
+    """The code of the pipeline the source belongs to."""
+
+    code: str
+    """The source's step key."""
+
+    name: str | None = None
+    description: str | None = None
+    kind: str
+    state: SourceState
+    methods: list[str] = Field(default_factory=list[str])
+    """The methods a received source answers; empty for a kind the server does not receive."""
+
+    route: str | None = None
+    """The template a received source answers, under the instance's endpoint prefix."""
+
+    url_path: str | None = None
+    """Where a received source is called: the endpoint prefix and the template."""
+
+    auth: str | None = None
+    """How a caller of a received source authenticates: ``token`` or ``public``."""
+
+    token_prefix: str | None = None
+    """The leading characters of the token, so a caller's copy can be told apart from another."""
+
+    in_flight: int = 0
+    """How many runs it started are unsettled."""
+
+    max_in_flight: int | None = None
+    """How many unsettled runs it allows before refusing an input, or null for no bound."""
+
+    accepted: int = 0
+    """How many inputs became runs."""
+
+    refused: int = 0
+    """How many inputs were refused once their caller was let in."""
+
+    last_input_at: datetime | None = None
+    created_at: datetime
+
+
+class SourceTokenOut(WireModel):
+    """A token freshly minted for a source, returned once and never readable again."""
+
+    source_id: UUID
+    pipeline: str
+    code: str
+    token: str
+    prefix: str
+    url_path: str
+    """Where the source is called, so a caller can be configured without assembling the path by hand."""
+
+
+class SourceChanges(WireModel):
+    """What applying a document did to the source rows its pipeline holds."""
+
+    created: list[str] = Field(default_factory=list[str])
+    updated: list[str] = Field(default_factory=list[str])
+    removed: list[str] = Field(default_factory=list[str])
+    tokens: list[SourceTokenOut] = Field(default_factory=list[SourceTokenOut])
+    """The tokens minted for the sources this apply created, each shown here and nowhere else again."""
+
+    @property
+    def empty(self) -> bool:
+        """Report whether the apply left every source row exactly as it was."""
+        return not (self.created or self.updated or self.removed)
+
+
+class SourceInputOut(WireModel):
+    """One input that reached a source, and the run or the refusal it became."""
+
+    id: int
+    created_at: datetime
+    outcome: InputOutcome
+    status: int
+    """The HTTP status the caller was answered with."""
+
+    run_id: UUID | None = None
+    code: str | None = None
+    """The refusal's message code, or null for an accepted input."""
+
+    reason: str | None = None
+    params: JsonMap | None = None
+    method: str
+    path: str
+    body_bytes: int = 0
+    duration_ms: int = 0
+    caller: str | None = None
+
+
+class InputAccepted(WireModel):
+    """What a caller of a source is answered with when its input became a run."""
+
+    run_id: UUID
+    status: str
+    """The status the run was created in."""
+
+    run_url: str
+    """Where the run is read, under the versioned API."""

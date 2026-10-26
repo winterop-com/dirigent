@@ -21,6 +21,7 @@ from dirigent_client.schemas import (
     Materialized,
     PipelinePlan,
     PlanAction,
+    SourceChanges,
     ValidationIssue,
 )
 from dirigent_common import JsonMap
@@ -60,6 +61,7 @@ from dirigent_core.models import (
 )
 from dirigent_core.registry import live_worker_tags
 from dirigent_core.schemas import schema_codes
+from dirigent_core.sources.rows import claimed_route_issues, reconcile_sources
 from dirigent_core.triggers.materialize import materialize_triggers, owner_issues
 from dirigent_core.triggers.watches import arm_all, follow_version, held_watch_issues, withdraw_all
 
@@ -228,6 +230,8 @@ async def plan_apply(
     if not issues and pipeline is not None:
         issues = await owner_issues(session, pipeline, definition.triggers, owner=None)
         issues.extend(await held_watch_issues(session, pipeline, definition, services.host.sensors))
+    if not issues:
+        issues = await claimed_route_issues(session, definition, services.sources)
     if issues:
         return PipelinePlan(
             code=definition.code,
@@ -305,20 +309,24 @@ async def apply_document(
         # An unchanged document still reconciles its triggers: the digest covers the
         # definition, not the instance, so a schedule deleted by hand is restored.
         triggers = Materialized()
+        sources = SourceChanges()
         if pipeline is not None and plan.action is PlanAction.UNCHANGED and not dry_run:
             triggers = await materialize_triggers(
                 session, services, pipeline, definition, pause_created=pause_schedules
             )
+            sources = await reconcile_sources(session, services.settings, services.sources, pipeline, definition)
         return ApplyResult(
             plan=plan,
             pipeline_id=pipeline.id if pipeline else None,
             version=plan.current_version if plan.action is PlanAction.UNCHANGED else None,
             dry_run=dry_run,
             triggers=triggers,
+            sources=sources,
         )
     version = await save_pipeline(session, definition, provenance=provenance)
     pipeline = await require_pipeline(session, definition.code)
     triggers = await materialize_triggers(session, services, pipeline, definition, pause_created=pause_schedules)
+    sources = await reconcile_sources(session, services.settings, services.sources, pipeline, definition)
     await follow_version(session, services, pipeline.id)
     _logger.info(
         "pipeline applied",
@@ -327,7 +335,9 @@ async def apply_document(
         action=plan.action.value,
         digest=plan.digest,
     )
-    return ApplyResult(plan=plan, pipeline_id=version.pipeline_id, version=version.version, triggers=triggers)
+    return ApplyResult(
+        plan=plan, pipeline_id=version.pipeline_id, version=version.version, triggers=triggers, sources=sources
+    )
 
 
 async def export_pipeline(session: AsyncSession, code: str, *, version: int | None = None) -> str:

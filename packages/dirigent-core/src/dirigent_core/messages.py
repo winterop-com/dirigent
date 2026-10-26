@@ -992,3 +992,49 @@ ENDPOINT_METHOD_NOT_DECLARED = SOURCE.define(
 ENDPOINT_PATH_PARAMS_MISSING = SOURCE.define(
     "endpoint_path_params_missing", "the path template takes {names}, and path_params gives no value for it"
 )
+
+NO_ROUTE = SOURCE.define("no_route", "nothing on this instance answers {method} {path}")
+
+METHOD_NOT_ANSWERED = SOURCE.define("method_not_answered", "{path} answers {allowed}, not {method}")
+
+TOKEN_REFUSED = SOURCE.define(
+    "token_refused", "this endpoint takes the bearer token minted for it, in an Authorization header"
+)
+
+INTAKE_RATE = SOURCE.define("intake_rate", "this instance takes {per_minute} calls a minute at one path")
+
+SOURCE_RATE = SOURCE.define("rate", "this endpoint takes {per_minute} calls a minute")
+
+SOURCE_PAUSED = SOURCE.define("paused", "source {code} of pipeline {pipeline} is paused")
+
+SOURCE_PIPELINE_INACTIVE = SOURCE.define(
+    "pipeline_inactive", "pipeline {pipeline} is deactivated, so its source {code} takes no input"
+)
+
+SOURCE_KIND_MISSING = SOURCE.define(
+    "kind_missing", "source {code} is of kind {kind}, which is not installed on this instance"
+)
+
+SOURCE_BODY_TOO_LARGE = SOURCE.define("body_too_large", "the body is larger than the {limit} bytes this endpoint reads")
+
+SOURCE_BACKLOGGED = SOURCE.define(
+    "backlogged",
+    "source {code} has {in_flight} runs unsettled, as many as it allows; send again once one settles",
+)
+
+SOURCE_RUN_SKIPPED = SOURCE.define(
+    "run_skipped", "a run of pipeline {pipeline} is already in flight, and its concurrency is skip"
+)
+
+SOURCE_RUN_REFUSED = SOURCE.define("run_refused", "no run could be created: {detail}")
+
+UNKNOWN_SOURCE = SOURCE.define("unknown", "pipeline {pipeline} has no source {code}")
+
+ROUTE_RACED = SOURCE.define(
+    "route_raced",
+    "{method} {template} was claimed by another pipeline while this one was applied; apply again to see which",
+)
+
+SOURCE_TAKES_NO_TOKEN = SOURCE.define(
+    "takes_no_token", "source {code} of pipeline {pipeline} is {auth}, so it has no token to rotate"
+)
