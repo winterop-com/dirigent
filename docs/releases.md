@@ -16,6 +16,34 @@ tag is what publishes: `.github/workflows/release.yaml` builds every package and
 to PyPI through trusted publishing, then builds the image from that commit and pushes it as
 `<version>` and `latest`. The two sibling repositories then relock against the tag and bump.
 
+## 0.25.0
+
+Released 2026-10-27. Every package in the workspace moves to 0.25.0 together, and so do
+`dirigent-dhis2` and `dirigent-integration`.
+
+- **`dg validate` checks every step's config offline.** Without `--server`, each step's block
+  and config are checked against the blocks installed beside `dg`, so a misspelled config key
+  is a `document.step_config_invalid` problem and an unknown block a
+  `document.step_block_missing` one, at once rather than at the apply. Connections and other
+  pipelines a document names are still checked only with `--server` or at the apply. The
+  `validation` record's `checked` reads `document and installed blocks` offline and
+  `document and catalog` with `--server`.
+- **Upgrade note.** A document using a block that is not installed beside the `dg` validating
+  it now fails offline. Install the pack, or validate with `--server` against the instance
+  that has it. Anything matching on `checked="document, offline"` reads the new value.
+- **The installed catalog reads without a server.** `dg blocks list --local` and
+  `dg blocks show BLOCK --local` read the blocks installed beside `dg`, and an unknown one is
+  refused as `cli.no_such_block`. `dg pipeline schema [-f FILE]` writes the whole document
+  format with every installed block's config as one Draft 2020-12 JSON Schema, as a
+  `pipeline.schema` record or into a file an editor's `yaml-language-server` comment names.
+- **A project carries notes for a coding agent.** `dg init` writes `AGENTS.md` -- the loop of
+  finding a starting point, validating, running locally and applying, how to read the records
+  `dg` answers with, and the rules a document most often gets wrong -- and a `CLAUDE.md` of one
+  line, `@AGENTS.md`. A project that has either keeps its own. `dg init --agents` writes the two
+  alone into a project made before.
+- **The docs teach working with a coding agent,** on a new page under Start here, and the
+  site serves `llms.txt` at its root, naming every page with what it covers.
+
 ## 0.24.0
 
 Released 2026-10-26. Every package in the workspace moves to 0.24.0 together, and so do
