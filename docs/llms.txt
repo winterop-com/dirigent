@@ -1,0 +1,50 @@
+# dirigent
+
+> A pipeline orchestrator. A pipeline is a YAML document of steps; an instance validates it against a catalog of blocks that plugins contribute, stores it as an immutable version, and runs it as a DAG on PostgreSQL. The `dg` command line checks and runs a document with no server (`dg validate`, `dg run --local`), and outside a terminal every command answers in NDJSON records, each with a `kind`.
+
+A coding agent working in a project starts from the `AGENTS.md` that `dg init` writes. The installed examples (`dg examples list --local`) are the most reliable reference: each is run by dirigent's own tests.
+
+## Start here
+
+- [Home](https://winterop-com.github.io/dirigent/): what dirigent is, the mental model, and a sixty-second run with nothing installed but `dg`
+- [Working with a coding agent](https://winterop-com.github.io/dirigent/agents/): the loop an agent works in, the records it reads, the document schema, and what to keep from it
+- [Getting started](https://winterop-com.github.io/dirigent/getting-started/): from nothing to a local run, a laptop instance, and the three-service production shape
+- [The basics](https://winterop-com.github.io/dirigent/basics/): one read, a schema gate on the answer, and a send, with a failure and a retry, step by step
+- [Tutorial](https://winterop-com.github.io/dirigent/tutorial/): one realistic pipeline built, broken, diagnosed from the terminal, fixed, scheduled and alerted on
+- [Concepts](https://winterop-com.github.io/dirigent/concepts/): every noun -- pipeline, step, block, source, reply, run, attempt, fan-out, trigger -- and what each means
+- [Screens](https://winterop-com.github.io/dirigent/screens/): what the web UI looks like with real work in it
+
+## Using it
+
+- [A server](https://winterop-com.github.io/dirigent/server/): one sequence from nothing to a pipeline running on a real instance
+- [Command line](https://winterop-com.github.io/dirigent/cli/): every `dg` command, the records each writes, and how to read a run's stream
+- [Python](https://winterop-com.github.io/dirigent/python/): the typed async SDK the CLI itself runs on
+- [JSON Schema](https://winterop-com.github.io/dirigent/json-schema/): named schemas an instance holds, and where a payload is checked against one
+
+## Blocks
+
+- [Blocks](https://winterop-com.github.io/dirigent/blocks/): every block, generated from the catalog, with the config it takes and the output it produces
+- [Playground](https://winterop-com.github.io/dirigent/playground/): generated data and chosen behaviour, for a document that needs something to happen
+- [Transforms](https://winterop-com.github.io/dirigent/transforms/): reshaping data between steps: transform, map, filter and convert
+- [jq](https://winterop-com.github.io/dirigent/jq/): the jq programs the transform blocks run
+- [Docker](https://winterop-com.github.io/dirigent/docker/): containers and compose stacks as pipeline steps
+- [Git](https://winterop-com.github.io/dirigent/git/): putting a repository into a run
+- [SQL](https://winterop-com.github.io/dirigent/sql/): reading from and writing to a database
+- [Queues](https://winterop-com.github.io/dirigent/queues/): Kafka and RabbitMQ, to start a run from a message and to send one
+- [Plugins](https://winterop-com.github.io/dirigent/plugins/): writing a pack that contributes blocks, connection kinds, storage backends and more
+
+## Running it
+
+- [Operations](https://winterop-com.github.io/dirigent/operations/): scaling, the web UI, retention, alerting, backups and what to watch
+- [Reports](https://winterop-com.github.io/dirigent/reports/): a markdown document each run renders of itself
+- [Settings](https://winterop-com.github.io/dirigent/settings/): every setting, generated from the settings model
+- [Security](https://winterop-com.github.io/dirigent/security/): authentication, roles, tokens, webhooks, endpoint sources, and what runs code
+- [Telemetry](https://winterop-com.github.io/dirigent/telemetry/): the OpenTelemetry traces, metrics and logs emitted
+
+## Optional
+
+- [Architecture](https://winterop-com.github.io/dirigent/architecture/): the packages of the workspace and what may depend on what
+- [Design](https://winterop-com.github.io/dirigent/design/): the specification the code is held to
+- [Conventions](https://winterop-com.github.io/dirigent/conventions/): the choices the codebase makes that a reader does not expect
+- [UI conventions](https://winterop-com.github.io/dirigent/ui-conventions/): how the web UI is built
+- [Releases](https://winterop-com.github.io/dirigent/releases/): what changed in each version, and what an upgrade has to know

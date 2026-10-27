@@ -1541,10 +1541,11 @@ its default disappears on export, and YAML comments do not survive a round trip,
 are not part of the model. `examples/` is hand-written for that reason.)*
 
 **Validation happens in layers.** The envelope, the key grammars, the graph, and the
-reference language are checked by the model itself, offline, with no server involved -- which
-is what `dg validate` runs. The catalog layer needs an instance: the `requires` preflight, that
-every block id exists, that each step's config validates against that block's published schema,
-and that every connection a step names by code exists. Every problem is reported at once,
+reference language are checked by the model itself, with no server involved. The catalog layer
+checks that every block id exists and that each step's config validates against that block's
+published schema; `dg validate` runs it against the blocks installed beside it, and an apply
+against the instance's own. The instance layer needs an instance: the `requires` preflight and
+every connection a step names by code. Every problem is reported at once,
 because someone importing a shared document wants one list of what to install. A config full
 of `${...}` has not got its values yet, so a value containing a reference is deferred rather
 than type-checked, which keeps the rest of the check strict.

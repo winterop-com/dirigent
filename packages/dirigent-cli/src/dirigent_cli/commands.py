@@ -1,6 +1,7 @@
 """The commands that talk to a server: definitions, execution, catalog, connections, admin."""
 
 import asyncio
+import json
 import os
 import sys
 from collections.abc import Callable, Iterator, Mapping, Sequence
@@ -58,6 +59,7 @@ from dirigent_cli.messages import (
     NO_FAILURE_TO_RETRY,
     NO_FIRST_PASSWORD,
     NO_REPORT_DOCUMENT,
+    NO_SUCH_BLOCK,
     NO_SUCH_EXAMPLE,
     NOT_A_BLOCK_KIND,
     NOT_A_PRIORITY,
@@ -122,6 +124,7 @@ from dirigent_cli.project import (
     DEFAULT_PIPELINES_DIR,
     InitChoices,
     ProjectError,
+    agent_notes,
     check_choices,
     find_project,
     scaffold,
@@ -500,10 +503,14 @@ def validate_command(
         bool, typer.Option("--explain", help="Also say what the work will cost: how wide, how many tries, how long.")
     ] = False,
 ) -> None:
-    """Check a document offline, or against a server's catalog too with --server.
+    """Check a document against the blocks installed beside dg, or against a server's with --server.
 
-    Offline, a triggers document is checked at the schema level: its clocks and its codes.
-    `--server` adds the pipeline it names and the parameters its schedules pin.
+    Offline, every step's block and config is checked against the blocks installed beside dg,
+    and a connection or pipeline a document names is not, since only an instance knows what it
+    holds; a triggers document is checked at the schema level, its clocks and its codes.
+    `--server` checks against the instance's own catalog instead, and adds the connections and
+    pipelines it holds, the pipeline a triggers document names, and the parameters its
+    schedules pin.
 
     `--explain` adds the shape of the work ahead for every pipeline document that is valid:
     the fan-out widths, the retry budgets and the waits. With `--server` too, a sensor that
@@ -525,11 +532,18 @@ def validate_command(
                 problems=[issue.model_dump(mode="json") for issue in error.problems],
             )
             failures += 1
-    catalog: Catalog | None = None
-    connections: list[str] = []
-    pipelines: list[str] = []
+    from dirigent_common import format_checker_with
+    from dirigent_core.plugins import load_plugin_host
+
+    host = load_plugin_host()
+    catalog = host.catalog()
+    blocks: Mapping[str, Any] | None = host.blocks
+    checker = format_checker_with(host.formats)
+    connections: list[str] | None = None
+    pipelines: list[str] | None = None
     targets: dict[str, TriggerTarget] = {}
     if server:
+        blocks = None
         with client_for(state) as dg:
             catalog = dg.call(dg.blocks.catalog())
             connections = [
@@ -543,10 +557,11 @@ def validate_command(
     for definition, label in parsed:
         issues = validate_against_catalog(
             definition,
-            catalog or Catalog(),
+            catalog,
             connections=connections,
             pipelines=pipelines,
-            check_blocks=catalog is not None,
+            blocks=blocks,
+            format_checker=checker,
             target=targets.get(definition.pipeline) if isinstance(definition, TriggersDefinition) else None,
         )
         if issues:
@@ -560,7 +575,7 @@ def validate_command(
             )
             failures += 1
             continue
-        checked = "document and catalog" if catalog is not None else "document, offline"
+        checked = "document and catalog" if server else "document and installed blocks"
         emit_fact(
             "validation",
             message="valid",
@@ -630,6 +645,10 @@ def init_command(
     ] = None,
     admin: Annotated[str, typer.Option(help="The first admin account's username.")] = "admin",
     password: Annotated[str | None, typer.Option(help="Its password; asked for when omitted.")] = None,
+    agents: Annotated[
+        bool,
+        typer.Option("--agents", help="Write only AGENTS.md and CLAUDE.md, into a project that already exists."),
+    ] = False,
 ) -> None:
     """Initialise a uv project and the instance it addresses, ready for `dg dev`.
 
@@ -640,7 +659,8 @@ def init_command(
     and mints it a token and a secret key, both kept in `.env`. `--template compose` writes the
     documents and a container stack instead, and initialises nothing locally: the instance is
     the containers. `--template documents` writes the documents alone, against an instance
-    somebody else runs.
+    somebody else runs. `--agents` writes a coding agent's notes alone, into a project made
+    before `dg init` wrote them, and keeps any the project already has.
     """
     import asyncio
 
@@ -649,6 +669,20 @@ def init_command(
     root = directory.resolve()
     version = cli_version()
     unasked = template is None and service is None and pack is None and pipeline is None and not workflow
+    if agents:
+        if not unasked or password is not None or admin != "admin":
+            _init_fail(INIT_REFUSED, detail="--agents writes the notes alone and takes no other option")
+        if not directory.is_dir():
+            _init_fail(INIT_REFUSED, detail=f"{directory} is not a directory; --agents writes into a project")
+        notes = agent_notes(directory)
+        emit_fact(
+            "project.scaffolded",
+            message="scaffolded",
+            directory=str(directory),
+            files=[_within(path, directory) for path in notes.files],
+            **({"skipped": [_within(path, directory) for path in notes.skipped]} if notes.skipped else {}),
+        )
+        return
     asked = unasked and sys.stdin.isatty() and sys.stdout.isatty()
     # Refusing happens before anything is written or asked for, so a run that cannot finish
     # has not half-created a project, and nobody fills a form for a command that was going
@@ -961,6 +995,29 @@ def pipeline_validate(
             stream_line(f"  {issue}")
     if any(checked.values()):
         raise typer.Exit(code=1)
+
+
+@pipeline_app.command("schema")
+def pipeline_schema(
+    file: Annotated[
+        Path | None, typer.Option("-f", "--file", help="Write the schema to this file instead of into the record.")
+    ] = None,
+) -> None:
+    """Compose the JSON Schema a document is written against, from the blocks installed beside dg.
+
+    It is the format and every installed block's config in one Draft 2020-12 schema, which an
+    editor or a language model checks a document against before anything validates it. Written
+    to a file, it is what a ``# yaml-language-server: $schema=`` comment names.
+    """
+    from dirigent_core.documentschema import document_schema
+
+    catalog = installed_catalog()
+    schema = document_schema(catalog)
+    if file is not None:
+        file.parent.mkdir(parents=True, exist_ok=True)
+        file.write_text(json.dumps(schema, indent=2) + "\n")
+        return emit_fact("pipeline.schema", message="written", path=str(file), blocks=len(catalog.blocks))
+    emit_fact("pipeline.schema", message="composed", blocks=len(catalog.blocks), schema=schema)
 
 
 @pipeline_app.command("activate")
@@ -2308,16 +2365,35 @@ def blocks_new(
     console.print("  [bold]uv sync && uv run pytest[/]")
 
 
+#: What ``--local`` means on the block commands.
+LOCAL_BLOCKS = "Read the blocks installed beside dg, instead of the instance's own."
+
+
+def installed_catalog() -> Catalog:
+    """Read the catalog every plugin installed beside this `dg` contributes, without addressing any server."""
+    from dirigent_core.plugins import load_plugin_host
+
+    return load_plugin_host().catalog()
+
+
 @blocks_app.command("list")
 def blocks_list(
     ctx: typer.Context,
     kind: Annotated[str | None, typer.Option(help="Only operators, or only sensors.")] = None,
+    local: Annotated[bool, typer.Option("--local", help=LOCAL_BLOCKS)] = False,
 ) -> None:
-    """List the blocks this instance can run."""
+    """List the blocks this instance can run, or with --local the ones installed beside dg."""
     if kind is not None and kind not in set(BlockKind):
         fail(NOT_A_BLOCK_KIND, kind=repr(kind), allowed=", ".join(sorted(BlockKind)))
-    with client_for(state_of(ctx)) as dg:
-        catalog = dg.call(dg.blocks.catalog(kind=BlockKind(kind) if kind else None))
+    wanted = BlockKind(kind) if kind else None
+    if local:
+        catalog = installed_catalog()
+        catalog = catalog.model_copy(
+            update={"blocks": [block for block in catalog.blocks if wanted is None or block.kind is wanted]}
+        )
+    else:
+        with client_for(state_of(ctx)) as dg:
+            catalog = dg.call(dg.blocks.catalog(kind=wanted))
     if state_of(ctx).json_output:
         emit_records("block", catalog.blocks)
         emit_records("storage_scheme", catalog.storage_schemes)
@@ -2338,10 +2414,17 @@ def blocks_list(
 def blocks_show(
     ctx: typer.Context,
     block_id: Annotated[str, typer.Argument(help="The block to describe.")],
+    local: Annotated[bool, typer.Option("--local", help=LOCAL_BLOCKS)] = False,
 ) -> None:
     """Show one block's config and output schemas."""
-    with client_for(state_of(ctx)) as dg:
-        entry = dg.call(dg.blocks.get(block_id))
+    if local:
+        found = [block for block in installed_catalog().blocks if block.id == block_id]
+        if not found:
+            fail(NO_SUCH_BLOCK, block=repr(block_id))
+        entry = found[0]
+    else:
+        with client_for(state_of(ctx)) as dg:
+            entry = dg.call(dg.blocks.get(block_id))
     if state_of(ctx).json_output:
         return emit_one("block", entry)
     fields(

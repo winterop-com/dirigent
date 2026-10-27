@@ -238,6 +238,8 @@ class InitForm(App[InitChoices | None]):
             ".dirigent/profiles.yaml",
             "pyproject.toml",
             "README.md",
+            "AGENTS.md",
+            "CLAUDE.md",
         ]
         if choices.stack:
             files += ["compose.yaml", "Dockerfile", ".env"]

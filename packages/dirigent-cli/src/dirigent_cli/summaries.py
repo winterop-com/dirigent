@@ -50,6 +50,7 @@ BULKY: Final = frozenset(
         "issues",
         "files",
         "token",
+        "schema",
         "preflight",
         "requires",
         "used_by",

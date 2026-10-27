@@ -243,6 +243,16 @@ the system it adapts.
 A test walks the directory on every CI run -- validation against the real catalog, the
 `requires` preflight, and a canonical round trip -- so no example can rot in silence.
 
+## With a coding agent
+
+`dg init` writes an `AGENTS.md` into every project, so an agent started there -- Claude Code,
+Codex, or any model with a shell -- knows the loop: find a starting point with
+`dg examples list --local`, look a block up with `dg blocks show BLOCK --local`, check with
+`dg validate`, and run with `dg run --local`, reading the NDJSON records every command writes
+outside a terminal. [docs/agents.md](docs/agents.md) is the page, and the published site's
+[`llms.txt`](https://winterop-com.github.io/dirigent/llms.txt) lists every page for a model to
+read.
+
 ## Workspace layout
 
 ```text

@@ -243,7 +243,7 @@ uv run dg validate pipelines/first-reading.yaml
 ```
 
 ```text
-2026-09-26T14:41:43.109+02:00 [info    ] valid                          [validation] code=first-reading document=pipelines/first-reading.yaml checked="document, offline"
+2026-09-26T14:41:43.109+02:00 [info    ] valid                          [validation] code=first-reading document=pipelines/first-reading.yaml checked="document and installed blocks"
   each step under the last one it waits for
     ask  (http.request)
 2026-09-26T14:41:43.111+02:00 [info    ] valid                          [validated] documents=1 invalid=0

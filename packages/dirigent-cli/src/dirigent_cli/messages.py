@@ -335,3 +335,7 @@ SOURCE_NOT_CALLABLE = CLI.define(
 )
 
 SOURCE_UNREACHABLE = CLI.define("source_unreachable", "{url} could not be called: {detail}")
+
+NO_SUCH_BLOCK = CLI.define(
+    "no_such_block", "no block {block} is installed beside dg; dg blocks list --local names them"
+)
