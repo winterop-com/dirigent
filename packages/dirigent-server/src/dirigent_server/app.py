@@ -17,6 +17,7 @@ from dirigent_core.plugins import PluginHost, load_plugin_host
 from dirigent_core.scheduler import Scheduler
 from dirigent_core.sources.intake import Intake
 from dirigent_core.telemetry import configure_telemetry, instrument_fastapi
+from dirigent_server.compression import install_compression
 from dirigent_server.errors import install_error_handlers
 from dirigent_server.health import build_registry
 from dirigent_server.health import router as health_router
@@ -120,6 +121,7 @@ def create_app(
     app.include_router(build_endpoints_router(), prefix=resolved.endpoint_prefix)
     mount_ui_shell(app, resolved)
     instrument_fastapi(app)
+    install_compression(app)
     return app
 
 

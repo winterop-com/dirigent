@@ -4,6 +4,7 @@ Every test builds its own application, because whether a bundle exists is decide
 application is built rather than per request.
 """
 
+import gzip
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -77,6 +78,38 @@ def test_a_hashed_asset_is_served_immutable(served: TestClient) -> None:
     response = served.get(f"/{ASSET}")
     assert response.status_code == 200
     assert response.headers["cache-control"] == IMMUTABLE
+
+
+def test_a_hashed_asset_is_answered_with_the_builds_gzip_copy(bundle: Path, served: TestClient) -> None:
+    (bundle / f"{ASSET}.gz").write_bytes(gzip.compress(b"console.log('dirigent')"))
+    response = served.get(f"/{ASSET}", headers={"Accept-Encoding": "gzip"})
+    assert response.headers["content-encoding"] == "gzip"
+    assert response.headers["content-type"].startswith("text/javascript")
+    assert response.headers["vary"] == "Accept-Encoding"
+    assert response.headers["cache-control"] == IMMUTABLE
+    assert response.text == "console.log('dirigent')"
+
+
+def test_the_brotli_copy_is_preferred_when_both_are_accepted(bundle: Path, served: TestClient) -> None:
+    (bundle / f"{ASSET}.br").write_bytes(b"brotli")
+    (bundle / f"{ASSET}.gz").write_bytes(gzip.compress(b"console.log('dirigent')"))
+    with served.stream("GET", f"/{ASSET}", headers={"Accept-Encoding": "gzip, br"}) as response:
+        assert response.headers["content-encoding"] == "br"
+        assert response.headers["content-type"].startswith("text/javascript")
+
+
+def test_a_coding_refused_with_a_zero_quality_is_not_served(bundle: Path, served: TestClient) -> None:
+    (bundle / f"{ASSET}.br").write_bytes(b"brotli")
+    (bundle / f"{ASSET}.gz").write_bytes(gzip.compress(b"console.log('dirigent')"))
+    response = served.get(f"/{ASSET}", headers={"Accept-Encoding": "br;q=0, gzip"})
+    assert response.headers["content-encoding"] == "gzip"
+
+
+def test_an_asset_with_no_compressed_copy_is_served_as_built(bundle: Path, served: TestClient) -> None:
+    (bundle / f"{ASSET}.gz").write_bytes(gzip.compress(b"console.log('dirigent')"))
+    response = served.get(f"/{ASSET}", headers={"Accept-Encoding": "identity"})
+    assert "content-encoding" not in response.headers
+    assert response.text == "console.log('dirigent')"
 
 
 def test_a_missing_asset_is_a_refusal_rather_than_the_shell(served: TestClient) -> None:
