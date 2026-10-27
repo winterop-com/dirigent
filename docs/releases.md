@@ -16,6 +16,21 @@ tag is what publishes: `.github/workflows/release.yaml` builds every package and
 to PyPI through trusted publishing, then builds the image from that commit and pushes it as
 `<version>` and `latest`. The two sibling repositories then relock against the tag and bump.
 
+## 0.25.2
+
+Released 2026-10-27. Every package in the workspace moves to 0.25.2 together, and so do
+`dirigent-dhis2` and `dirigent-integration`.
+
+- **The server compresses what it sends.** Every response over 1 KB is gzipped for a client
+  that accepts it. An SSE tail, an artifact read as opaque bytes (`application/octet-stream`,
+  parquet), and images, fonts and archives are sent as they are.
+- **The UI's assets are served from compressed copies built beside them.** The vite build
+  writes a `.br` and a `.gz` copy of every compressible file in `assets/`, and the server
+  answers a hashed asset with the best one the request's `Accept-Encoding` admits, brotli
+  first. Monaco's chunk goes over the wire at 488 KB instead of 2.4 MB, and the main
+  stylesheet at 39 KB instead of 178 KB. A bundle built before this release carries no
+  copies and is gzipped on the fly instead.
+
 ## 0.25.1
 
 Released 2026-10-27. Every package in the workspace moves to 0.25.1 together, and so do
