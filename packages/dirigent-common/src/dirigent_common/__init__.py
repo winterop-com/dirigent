@@ -5,7 +5,7 @@ more than one package has to agree on: how a document spells a duration or a siz
 name may be, and the small schemas a plugin and the API both name.
 """
 
-from dirigent_common.clients import build_client
+from dirigent_common.clients import BaseRedirect, build_client
 from dirigent_common.docstrings import as_markdown
 from dirigent_common.durations import (
     DURATION_PATTERN,
@@ -79,6 +79,7 @@ __all__ = [
     "STORAGE_URI_FORMAT",
     "STEP_NAME_MAX_LENGTH",
     "STEP_NAME_PATTERN",
+    "BaseRedirect",
     "BlockModel",
     "Catalogue",
     "Duration",

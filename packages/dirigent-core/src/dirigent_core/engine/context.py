@@ -6,7 +6,7 @@ long step is visible working and its last lines still land with the outcome.
 """
 
 import asyncio
-from collections.abc import AsyncGenerator, Mapping
+from collections.abc import AsyncGenerator, Callable, Mapping
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from fnmatch import fnmatch
@@ -21,7 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field, JsonValue, SecretStr
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirigent_client.enums import LogLevel
-from dirigent_common import JsonMap
+from dirigent_common import BaseRedirect, JsonMap
 from dirigent_core.logging import debug_kept, get_logger
 from dirigent_core.messages import RUN_UNKNOWN_CONNECTION, RUN_UNKNOWN_SCHEMA, UNKNOWN_CONNECTION_KIND
 from dirigent_core.models import Connection
@@ -33,6 +33,7 @@ from dirigent_plugin import BlockFailure, ByteSink, Capture, ConnectionRef, Erro
 #: any connection kind without importing the package that contributed it.
 BASE_URL_FIELD = "base_url"
 VERIFY_TLS_FIELD = "verify_tls"
+FOLLOW_REDIRECTS_WITH_AUTH_FIELD = "follow_redirects_with_auth"
 TIMEOUT_FIELD = "timeout"
 BEARER_FIELD = "bearer_token"
 API_TOKEN_FIELD = "api_token"
@@ -422,12 +423,18 @@ def build_http_client(config: BaseModel) -> httpx2.AsyncClient:
     password = _text(config, BASIC_PASSWORD_FIELD)
     if user:
         auth = httpx2.BasicAuth(user, password or "")
+    hooks: dict[str, list[Callable[..., Any]]] | None = (
+        {"request": [BaseRedirect(base_url, verify=bool(verify))]}
+        if base_url and getattr(config, FOLLOW_REDIRECTS_WITH_AUTH_FIELD, False) is True
+        else None
+    )
     return httpx2.AsyncClient(
         base_url=base_url,
         headers=headers,
         auth=auth,
         verify=bool(verify),
         timeout=timeout,
+        event_hooks=hooks,
     )
 
 
