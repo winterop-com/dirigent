@@ -16,6 +16,27 @@ tag is what publishes: `.github/workflows/release.yaml` builds every package and
 to PyPI through trusted publishing, then builds the image from that commit and pushes it as
 `<version>` and `latest`. The two sibling repositories then relock against the tag and bump.
 
+## 0.25.1
+
+Released 2026-10-27. Every package in the workspace moves to 0.25.1 together, and so do
+`dirigent-dhis2` and `dirigent-integration`.
+
+- **A connection can name an address that redirects.** `follow_redirects_with_auth` on an
+  `http` connection follows `base_url`'s redirects once, without the credential, and sends
+  every request to where the base landed, credential and method intact: a cross-host redirect
+  no longer drops the credential, and a 302 no longer turns a POST into a GET. The walk stops
+  before a redirect deeper under the base on the same host, which is the service sending an
+  anonymous caller to its sign-in page. `ctx.http` honours it for any connection kind that
+  names the field.
+- **`dirigent-dhis2` follows the play demos as they move.** Its `dhis2` connection gains
+  `follow_redirects_with_auth` too, and it requires `dhis2w-client>=1.33.1`, whose redirect
+  check confirms the play demos. Its shelves, tutorial and connection page name
+  `https://play.dhis2.org/2.43` and `https://play.dhis2.org/2.42`, the aliases for the newest
+  demo of each major, instead of a pinned `stable-2-4x-y` that is retired when the next patch
+  ships. The shelves on a generic `http` connection set `follow_redirects_with_auth: true`.
+- **`dirigent-integration`'s shelves name the aliases,** and a rehearsal points an alias at
+  each targeted version's demo.
+
 ## 0.25.0
 
 Released 2026-10-27. Every package in the workspace moves to 0.25.0 together, and so do
