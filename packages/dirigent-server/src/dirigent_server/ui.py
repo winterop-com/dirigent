@@ -14,15 +14,19 @@ then a real file, and the shell is the last resort.
 """
 
 from pathlib import Path
+from stat import S_ISREG
 
+import anyio.to_thread
 from fastapi import FastAPI, Request, status
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
+from starlette.datastructures import Headers
 from starlette.responses import Response
 from starlette.staticfiles import StaticFiles
 from starlette.types import Scope
 
 from dirigent_core import __version__
 from dirigent_core.config import Settings
+from dirigent_server.compression import PRECOMPRESSED, accepted_encodings
 from dirigent_server.errors import Refusal, http_error
 from dirigent_server.messages import NO_ICON
 
@@ -101,10 +105,31 @@ class UiStaticFiles(StaticFiles):
 
     async def get_response(self, path: str, scope: Scope) -> Response:
         """Answer one static file, stating how long it may be held."""
-        response = await super().get_response(path, scope)
+        response = await self._precompressed(path, scope) if self.immutable else None
+        if response is None:
+            response = await super().get_response(path, scope)
         served = 200 <= response.status_code < 400
         response.headers["cache-control"] = IMMUTABLE if self.immutable and served else REVALIDATE
         return response
+
+    async def _precompressed(self, path: str, scope: Scope) -> Response | None:
+        """The build's compressed copy of an asset, in the best coding the client accepts, if there is one.
+
+        The copy's own suffix leaves the media type that of the original, because ``mimetypes``
+        reads ``.br`` and ``.gz`` as encodings rather than types.
+        """
+        accepted = accepted_encodings(Headers(scope=scope).get("accept-encoding", ""))
+        for coding, suffix in PRECOMPRESSED:
+            if coding not in accepted and "*" not in accepted:
+                continue
+            _, stat = await anyio.to_thread.run_sync(self.lookup_path, path + suffix)
+            if stat is None or not S_ISREG(stat.st_mode):
+                continue
+            response = await super().get_response(path + suffix, scope)
+            response.headers["content-encoding"] = coding
+            response.headers["vary"] = "Accept-Encoding"
+            return response
+        return None
 
 
 def static_dir(settings: Settings) -> Path | None:
