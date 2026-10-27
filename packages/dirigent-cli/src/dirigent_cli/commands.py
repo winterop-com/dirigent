@@ -124,6 +124,7 @@ from dirigent_cli.project import (
     DEFAULT_PIPELINES_DIR,
     InitChoices,
     ProjectError,
+    agent_notes,
     check_choices,
     find_project,
     scaffold,
@@ -644,6 +645,10 @@ def init_command(
     ] = None,
     admin: Annotated[str, typer.Option(help="The first admin account's username.")] = "admin",
     password: Annotated[str | None, typer.Option(help="Its password; asked for when omitted.")] = None,
+    agents: Annotated[
+        bool,
+        typer.Option("--agents", help="Write only AGENTS.md and CLAUDE.md, into a project that already exists."),
+    ] = False,
 ) -> None:
     """Initialise a uv project and the instance it addresses, ready for `dg dev`.
 
@@ -654,7 +659,8 @@ def init_command(
     and mints it a token and a secret key, both kept in `.env`. `--template compose` writes the
     documents and a container stack instead, and initialises nothing locally: the instance is
     the containers. `--template documents` writes the documents alone, against an instance
-    somebody else runs.
+    somebody else runs. `--agents` writes a coding agent's notes alone, into a project made
+    before `dg init` wrote them, and keeps any the project already has.
     """
     import asyncio
 
@@ -663,6 +669,20 @@ def init_command(
     root = directory.resolve()
     version = cli_version()
     unasked = template is None and service is None and pack is None and pipeline is None and not workflow
+    if agents:
+        if not unasked or password is not None or admin != "admin":
+            _init_fail(INIT_REFUSED, detail="--agents writes the notes alone and takes no other option")
+        if not directory.is_dir():
+            _init_fail(INIT_REFUSED, detail=f"{directory} is not a directory; --agents writes into a project")
+        notes = agent_notes(directory)
+        emit_fact(
+            "project.scaffolded",
+            message="scaffolded",
+            directory=str(directory),
+            files=[_within(path, directory) for path in notes.files],
+            **({"skipped": [_within(path, directory) for path in notes.skipped]} if notes.skipped else {}),
+        )
+        return
     asked = unasked and sys.stdin.isatty() and sys.stdout.isatty()
     # Refusing happens before anything is written or asked for, so a run that cannot finish
     # has not half-created a project, and nobody fills a form for a command that was going

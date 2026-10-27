@@ -106,3 +106,35 @@ def _nav_pages() -> set[str]:
 def test_llms_txt_names_every_page_the_site_does_and_no_other() -> None:
     linked = set(re.findall(rf"\]\({re.escape(SITE)}([a-z-]*/?)\)", (REPO_ROOT / "docs" / "llms.txt").read_text()))
     assert linked == _nav_pages()
+
+
+def test_a_project_made_before_the_notes_gets_them_and_keeps_its_own(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "older"
+    scaffold(root, InitChoices(template="documents"), version="1.2.3")
+    (root / "AGENTS.md").unlink()
+    (root / "CLAUDE.md").write_text("ours\n")
+    monkeypatch.chdir(root)
+    result = invoke("init", "--agents")
+    assert result.exit_code == 0, result.output
+    record = only(result.stdout, "project.scaffolded")
+    assert record["files"] == ["AGENTS.md"]
+    assert record["skipped"] == ["CLAUDE.md"]
+    assert (root / "AGENTS.md").read_text().splitlines()[0] == "# Working in older"
+    assert (root / "CLAUDE.md").read_text() == "ours\n"
+
+
+@pytest.mark.parametrize("extra", [["--template", "local"], ["--workflow"], ["--pack", "dirigent-dhis2"]])
+def test_the_notes_alone_take_no_other_option(tmp_path: Path, extra: list[str]) -> None:
+    result = invoke("init", str(tmp_path), "--agents", *extra)
+    assert result.exit_code == 1
+    assert refusal(result.stdout)["code"] == "cli.init_refused"
+    assert not (tmp_path / "AGENTS.md").exists()
+
+
+def test_the_notes_are_not_written_where_there_is_no_project(tmp_path: Path) -> None:
+    result = invoke("init", str(tmp_path / "missing"), "--agents")
+    assert result.exit_code == 1
+    assert refusal(result.stdout)["code"] == "cli.init_refused"
+    assert not (tmp_path / "missing").exists()

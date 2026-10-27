@@ -979,8 +979,7 @@ def scaffold(directory: Path, choices: InitChoices, *, version: str = "0.0.0") -
     _record(directory / "pyproject.toml", pyproject_document(name, choices, version), written, skipped)
     readme = README_TEMPLATE.replace("__NAME__", name).replace("__RUN__", "\n".join(README_RUN[choices.template]))
     _record(directory / "README.md", readme, written, skipped)
-    _record(directory / "AGENTS.md", AGENTS_TEMPLATE.replace("__NAME__", name), written, skipped)
-    _record(directory / "CLAUDE.md", CLAUDE_TEMPLATE, written, skipped)
+    _record_agent_notes(directory, written, skipped)
     _merge_ignore(directory / ".gitignore", ROOT_IGNORE_TEMPLATE, written, skipped)
     if choices.workflow:
         written.append(_write(directory / ".github" / "workflows" / "dirigent.yaml", WORKFLOW_TEMPLATE))
@@ -989,6 +988,20 @@ def scaffold(directory: Path, choices: InitChoices, *, version: str = "0.0.0") -
         written.append(_write(directory / "Dockerfile", dockerfile_document(choices, version)))
         written.append(_write(directory / ".env", env_document(choices, version, _an_instance_key()), mode=0o600))
     return Scaffolded(files=written, skipped=skipped)
+
+
+def agent_notes(directory: Path) -> Scaffolded:
+    """Write a coding agent's notes into a project, leaving any it already has alone."""
+    written: list[Path] = []
+    skipped: list[Path] = []
+    _record_agent_notes(directory, written, skipped)
+    return Scaffolded(files=written, skipped=skipped)
+
+
+def _record_agent_notes(directory: Path, written: list[Path], skipped: list[Path]) -> None:
+    """Write AGENTS.md, and the CLAUDE.md that points at it, unless the project has its own."""
+    _record(directory / "AGENTS.md", AGENTS_TEMPLATE.replace("__NAME__", project_name(directory)), written, skipped)
+    _record(directory / "CLAUDE.md", CLAUDE_TEMPLATE, written, skipped)
 
 
 def write_instance_env(directory: Path, token: str) -> Path:

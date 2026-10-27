@@ -253,6 +253,7 @@ dg init hello --template compose       # the documents and a container stack to 
 dg init hello --template documents     # the documents alone, against an instance elsewhere
 dg init hello --template compose --service s3 --service docker --pack dirigent-dhis2 --workflow
 dg init hello --pipeline report-to-file --pipeline http-post-report   # open with these starters
+dg init --agents                       # only AGENTS.md and CLAUDE.md, into a project that exists
 ```
 
 At a terminal, with no `--template`, `dg init` opens one form: where the project runs, which
@@ -295,7 +296,8 @@ run locally, apply -- with `CLAUDE.md` pointing at it, and a root `.gitignore` c
 `__pycache__/` and `.env`. See [working with a coding agent](agents.md). A directory that already
 has a `pyproject.toml`, a `README.md` or either agent file keeps its own -- the record lists those
 under `skipped`, and adding `dirigent-cli` to that `pyproject.toml` is then yours to do; an
-existing root `.gitignore` gains the missing lines instead.
+existing root `.gitignore` gains the missing lines instead. `dg init --agents` writes the two
+agent files alone, for a project made before `dg init` wrote them, and takes no other option.
 
 It refuses to run over an instance that is already there: migrating and re-admining a live
 database is not what running it twice means. `--template documents` scaffolds beside one

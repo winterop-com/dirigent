@@ -16,6 +16,10 @@ dg init my-pipelines && cd my-pipelines && uv sync
 `@AGENTS.md`, so Claude Code reads the same notes every other agent reads. A project that
 already has either file keeps its own.
 
+A project made before `dg init` wrote them gets the notes with `uv run dg init --agents`, which
+writes the two files alone and leaves everything else, and any of the two the project already
+has, as it is.
+
 Start the agent in that directory and say what you want, in your own words:
 
 ```text
