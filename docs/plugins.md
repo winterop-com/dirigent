@@ -432,6 +432,7 @@ name rather than by model:
 | `api_token_scheme` | The scheme `api_token` is sent under instead of `ApiToken` |
 | `basic_username`, `basic_password` | The client's HTTP basic auth |
 | `verify_tls` | Whether certificates are verified |
+| `follow_redirects_with_auth` | When `true`, `base_url` is followed through its redirects once, without a credential, and every request is sent to where it lands |
 | `timeout` | The timeout applied to every request |
 
 `bearer_token` wins over `api_token` when a config carries both, and basic credentials win over

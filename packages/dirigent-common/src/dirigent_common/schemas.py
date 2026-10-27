@@ -60,6 +60,9 @@ class HttpConnectionConfig(BlockModel):
     verify_tls: bool = True
     """Whether certificates are verified; turning this off is a per-connection decision."""
 
+    follow_redirects_with_auth: bool = False
+    """Whether every request goes, credential and all, to where ``base_url`` redirects."""
+
     timeout: Duration = Field(default=timedelta(seconds=30), gt=timedelta(0))
     """The timeout applied to every request through this connection."""
 

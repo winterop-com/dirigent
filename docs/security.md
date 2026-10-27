@@ -684,7 +684,10 @@ Stated plainly, because a security page that lists only what exists is not much 
   What a redirect cannot do is carry a connection's credentials somewhere else: the client
   drops the `Authorization` header when the origin changes, so a service that redirects
   before authenticating has to be configured with the URL it redirects to. `follow_redirects`
-  is off by default in any case.
+  is off by default in any case. The one exception is a connection that sets
+  `follow_redirects_with_auth`: its `base_url` is followed once, without the credential, and
+  every request then goes, credential and all, to wherever it landed. Set it only on a
+  `base_url` whose redirect you trust, such as `https://play.dhis2.org/2.43`.
 - **Rate limiting on the authenticated API.** Only login and webhook intake are limited.
 - **A CSRF token.** There is none, and the defence is instead the origin check on every
   cookie-authenticated write described in [cross-site writes](#cross-site-writes), on top of

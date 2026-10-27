@@ -54,8 +54,9 @@ class HttpTarget(BlockModel):
     """Whether a 3xx is followed rather than returned as the answer.
 
     A redirect to another host arrives without the connection's credentials: the client drops
-    the ``Authorization`` header when the origin changes, so a service that redirects before
-    authenticating must be configured with the URL it redirects to.
+    the ``Authorization`` header when the origin changes. A connection whose ``base_url``
+    redirects sets ``follow_redirects_with_auth`` instead, which sends every request to where
+    the base lands.
     """
 
     @model_validator(mode="after")
