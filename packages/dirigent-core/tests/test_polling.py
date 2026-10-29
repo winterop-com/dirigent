@@ -4,12 +4,14 @@ import os
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import pytest
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from dirigent_client.enums import InputOutcome, SourceState
 from dirigent_core.database import session_scope
 from dirigent_core.documents import load_text
+from dirigent_core.engine.runs import create_run
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.models import Pipeline, Run, Source, SourceInput, StepAttempt
 from dirigent_core.pipelines import apply_document
@@ -221,3 +223,44 @@ async def test_a_source_looks_under_the_instance_root_it_names_as_artifacts(
     [outcome] = await polling.tick(sessions, services, owner=WORKER)
     assert outcome.error is None
     assert len(outcome.runs) == 1
+
+
+async def test_an_input_no_run_can_be_made_of_fails_the_poll_and_keeps_the_cursor(
+    sessions: async_sessionmaker[AsyncSession],
+    services: EngineServices,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    inbox = inbox_of(tmp_path)
+    base = datetime(2026, 1, 1, tzinfo=UTC)
+    put(inbox, "a.csv", base)
+    put(inbox, "b.csv", base + timedelta(minutes=1))
+    await apply(sessions, services, landing(inbox))
+    made = 0
+
+    async def refuse_the_second(*args: object, **kwargs: object) -> object:
+        nonlocal made
+        made += 1
+        return None if made == 2 else await create_run(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(polling, "create_run", refuse_the_second)
+    [outcome] = await polling.tick(sessions, services, owner=WORKER)
+    assert outcome.runs == []
+    assert outcome.error is not None
+    row = await the_source(sessions)
+    assert (row.cursor, row.failures, row.accepted) == (None, 1, 0), "nothing of the batch is kept"
+    assert await entered(sessions) == []
+
+    monkeypatch.undo()
+    later = datetime.now(UTC) + timedelta(hours=1)
+    [again] = await polling.tick(sessions, services, owner=WORKER, now=later)
+    assert len(again.runs) == 2, "the same inputs are offered again"
+
+
+async def test_skip_is_refused_beside_a_polled_source(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices, tmp_path: Path
+) -> None:
+    text = landing(inbox_of(tmp_path)).replace("code: landing\n", "code: landing\nconcurrency: skip\n")
+    async with session_scope(sessions) as session:
+        result = await apply_document(session, services, load_text(text), dry_run=True)
+    assert [issue.code for issue in result.plan.issues] == ["source.replace_on_held"]

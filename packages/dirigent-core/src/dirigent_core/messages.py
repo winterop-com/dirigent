@@ -936,8 +936,8 @@ REQUIRED_PARAM_ON_SOURCES = SOURCE.define(
 
 REPLACE_ON_HELD = SOURCE.define(
     "replace_on_held",
-    "pipeline {code} has a {hosting} source, and concurrency: replace would cancel the run "
-    "each new input creates; use allow, skip or queue",
+    "pipeline {code} has a {hosting} source, and concurrency: {policy} would drop an input the source "
+    "has already taken; use allow or queue",
 )
 
 ROUTE_CLAIMED = SOURCE.define(

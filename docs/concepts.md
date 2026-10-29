@@ -205,7 +205,10 @@ keeps two from polling one source at once. The source keeps a cursor, so a resta
 carries on where the last stopped; moving the `uri` starts the cursor over. A polled source is
 `starting` until its first poll succeeds, and `failing` while its polls fail, each failure
 doubling the wait before the next. `max_in_flight` bounds how many of its runs are unsettled
-before the next poll waits. Its config is resolved with `${artifacts}` in scope and nothing
+before the next poll waits. A poll is all or nothing: when a run cannot be made of one of the
+inputs it found, none of them is kept, the cursor stays, and the poll is retried after the
+backoff, so an input is never skipped. For the same reason a pipeline with a polled source
+may not say `concurrency: skip` or `replace`, which would drop an input already taken. Its config is resolved with `${artifacts}` in scope and nothing
 else, since there is no run yet.
 
 ## Block
