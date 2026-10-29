@@ -380,6 +380,11 @@ class Settings(BaseSettings):
 
     A call past it is answered 503 before its run is created."""
 
+    source_max_waiting_per_source: int = Field(default=64, ge=1)
+    """How many of those callers one source may hold, so one slow pipeline cannot take every seat.
+
+    A call past it is answered 503 before its run is created."""
+
     source_reply_poll: Duration = Field(default=timedelta(milliseconds=50), gt=timedelta(0))
     """The least time between two reads of the replies one server process's held callers wait for."""
 

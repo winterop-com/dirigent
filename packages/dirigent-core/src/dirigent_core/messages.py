@@ -1032,6 +1032,12 @@ SOURCE_WAITING_FULL = SOURCE.define(
     "waiting_full", "this server holds {waiting} callers for their replies, as many as it may; send again shortly"
 )
 
+SOURCE_WAITING_SHARE = SOURCE.define(
+    "waiting_share",
+    "this server holds {waiting} callers of source {code} for their replies, as many as one source may; "
+    "send again shortly",
+)
+
 REPLY_REJECTED = SOURCE.define("reply_rejected", "run {run} refused the input at step {step}: {detail}")
 
 REPLY_FAILED = SOURCE.define("reply_failed", "run {run} failed at step {step} before any reply answered: {detail}")

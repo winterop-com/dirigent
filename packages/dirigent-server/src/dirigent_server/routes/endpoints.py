@@ -123,7 +123,7 @@ async def _held(
     try:
         await session.commit()
     except BaseException:
-        waiter.release()
+        waiter.release(hold.source_id)
         raise
     answered = await waiter.wait(hold)
     response = await _answer(request, session, services, taken.accepted, answered, hold.timeout)

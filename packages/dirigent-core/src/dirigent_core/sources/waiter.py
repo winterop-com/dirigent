@@ -11,6 +11,7 @@ import asyncio
 import contextlib
 import time
 from collections.abc import Coroutine, Sequence
+from enum import StrEnum
 from typing import Any, Final
 from uuid import UUID
 
@@ -44,6 +45,9 @@ class Hold(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     run_id: UUID
+    source_id: UUID
+    """The source the caller called, whose share of the seats it holds."""
+
     replies: tuple[str, ...]
     path: tuple[str, ...]
     """Every step on the way to a reply, the replies included, whose failure is the caller's answer."""
@@ -86,6 +90,17 @@ class TimedOut(BaseModel):
 type Answer = Replied | Unanswered | TimedOut
 
 
+class Seating(StrEnum):
+    """What asking for a seat came to."""
+
+    SEATED = "seated"
+    SERVER_FULL = "server_full"
+    """This process holds as many callers as it may."""
+
+    SOURCE_FULL = "source_full"
+    """This process holds as many callers of the source as one source may."""
+
+
 class _Caller:
     """A held caller's hold and the future its answer is set on."""
 
@@ -98,7 +113,7 @@ class Waiter:
     """Holds callers for their replies, and reads all of their runs in one pass.
 
     Seats are reserved before a run is created, so a process never holds more callers than
-    ``source_max_waiting``.
+    ``source_max_waiting``, nor more for one source than ``source_max_waiting_per_source``.
     """
 
     def __init__(self, sessions: async_sessionmaker[AsyncSession], settings: Settings) -> None:
@@ -106,22 +121,31 @@ class Waiter:
         self.sessions = sessions
         self.settings = settings
         self.seats = 0
+        self.held_by: dict[UUID, int] = {}
         self._callers: list[_Caller] = []
         self._joined = asyncio.Event()
         self._stopping = asyncio.Event()
         self._task: asyncio.Task[None] | None = None
         self._read_at = 0.0
 
-    def reserve(self) -> bool:
-        """Take a seat for a caller about to be held; False when every seat is taken."""
+    def reserve(self, source_id: UUID) -> Seating:
+        """Take a seat for a caller of a source about to be held, or say whose limit refuses it."""
         if self.seats >= self.settings.source_max_waiting:
-            return False
+            return Seating.SERVER_FULL
+        if self.held_by.get(source_id, 0) >= self.settings.source_max_waiting_per_source:
+            return Seating.SOURCE_FULL
         self.seats += 1
-        return True
+        self.held_by[source_id] = self.held_by.get(source_id, 0) + 1
+        return Seating.SEATED
 
-    def release(self) -> None:
-        """Give a seat back, for a caller that was answered or never held."""
+    def release(self, source_id: UUID) -> None:
+        """Give a source's seat back, for a caller that was answered or never held."""
         self.seats = max(0, self.seats - 1)
+        left = self.held_by.get(source_id, 0) - 1
+        if left > 0:
+            self.held_by[source_id] = left
+        else:
+            self.held_by.pop(source_id, None)
 
     async def wait(self, hold: Hold) -> Answer:
         """Hold a caller on a seat it reserved until its run answers it or its deadline passes."""
@@ -137,7 +161,7 @@ class Waiter:
         finally:
             with contextlib.suppress(ValueError):
                 self._callers.remove(caller)
-            self.release()
+            self.release(hold.source_id)
 
     async def stop(self) -> None:
         """Stop the reader, answering nobody further."""
