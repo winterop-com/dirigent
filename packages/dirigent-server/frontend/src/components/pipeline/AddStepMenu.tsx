@@ -194,7 +194,15 @@ function AddStepMenuContent({
     }
 
     return (
-        <DropdownMenuContent className="w-80 p-0" align="start">
+        <DropdownMenuContent
+            className="w-80 p-0"
+            align="start"
+            onFocus={(event) => {
+                // The menu focuses its own list a frame after it opens, which can land after the
+                // box took the focus; the list is never where a keystroke belongs, so it goes back.
+                if (event.target.getAttribute('role') === 'menu') box.current?.focus()
+            }}
+        >
             <div className="sticky top-0 z-10 flex flex-col gap-1.5 bg-popover p-2">
                 <p className="text-xs font-semibold tracking-wide text-faint uppercase">
                     {after === null

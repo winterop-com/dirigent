@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
+
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
 import { LABELS } from '../src/lib/labels.ts'
@@ -15,6 +18,7 @@ import {
     graphZoom,
     nodeAt,
     removeSchema,
+    repositoryRoot,
     signIn,
     writeInEditor,
 } from './support.ts'
@@ -374,6 +378,43 @@ test('the source tab holds the same document, in the editor the schema is checke
     // that it arrived and is holding this document rather than an empty buffer.
     await expect(panel.locator('.monaco-editor')).toBeVisible({ timeout: 30_000 })
     await expect(panel.locator('.view-lines')).toContainText(DOCUMENT_PIPELINE)
+})
+
+/**
+ * THE SCHEMA IS CHECKED AS THE DOCUMENT IS WRITTEN. A key no pipeline takes is marked on its
+ * own line by the YAML worker, before any apply is asked for. Only a browser can say the worker
+ * started: a buffer whose worker never arrives still draws, highlights and edits, and says
+ * nothing.
+ */
+test('the source tab marks a key the schema does not take, on its line', async ({ page }) => {
+    await signIn(page)
+    await applyExample(page.request, DOCUMENT_EXAMPLE)
+
+    await page.goto(`/pipelines/${DOCUMENT_PIPELINE}`)
+    await page.locator('.react-flow__node').getByText('parse', { exact: true }).click()
+
+    const panel = page.locator('aside')
+    await panel.getByRole('tab', { name: LABELS.word.source }).click()
+    const editor = panel.getByTestId('code-editor')
+    const shipped = readFileSync(path.join(repositoryRoot, DOCUMENT_EXAMPLE), 'utf8')
+    await writeInEditor(page, editor, `${shipped.trimEnd()}\nnot_a_key: true\n`)
+
+    // The paste leaves the caret at the end, so the last lines are the ones drawn.
+    await expect
+        .poll(
+            () =>
+                editor.evaluate((node) => {
+                    const line = [...node.querySelectorAll<HTMLElement>('.view-line')].find((drawn) =>
+                        (drawn.textContent ?? '').startsWith('not_a_key'),
+                    )
+                    if (line === undefined) return false
+                    return [...node.querySelectorAll('.squiggly-warning, .squiggly-error')].some(
+                        (mark) => (mark.parentElement as HTMLElement | null)?.style.top === line.style.top,
+                    )
+                }),
+            { timeout: 15_000 },
+        )
+        .toBe(true)
 })
 
 test('validating an intact document reports no issues', async ({ page }) => {
@@ -973,7 +1014,11 @@ test('the button in the corner opens the same menu, under itself', async ({ page
 
     const menu = page.getByRole('menu')
     await expect(menu.getByText(ADD_STEP_LABEL, { exact: true })).toBeVisible()
-    await expect(page.getByLabel(SEARCH_LABEL)).toBeFocused()
+    const search = page.getByLabel(SEARCH_LABEL)
+    await expect(search).toBeFocused()
+    // The menu focuses its own list as it settles; what is typed still lands in the box.
+    await page.keyboard.type('shell')
+    await expect(search).toHaveValue('shell')
 
     // The popup hangs off the button rather than off a point, so it is over the corner it opened from.
     const anchor = await button.boundingBox()
