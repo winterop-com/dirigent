@@ -912,7 +912,7 @@ def upgrade() -> None:
         sa.Column("run_id", sa.Uuid(), nullable=True),
         sa.Column(
             "outcome",
-            sa.Enum("accepted", "refused", name="input_outcome", native_enum=False, length=32),
+            sa.Enum("accepted", "replied", "refused", "timed_out", name="input_outcome", native_enum=False, length=32),
             nullable=False,
         ),
         sa.Column("status", sa.Integer(), nullable=False),

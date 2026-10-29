@@ -1028,6 +1028,20 @@ SOURCE_RUN_SKIPPED = SOURCE.define(
 
 SOURCE_RUN_REFUSED = SOURCE.define("run_refused", "no run could be created: {detail}")
 
+SOURCE_WAITING_FULL = SOURCE.define(
+    "waiting_full", "this server holds {waiting} callers for their replies, as many as it may; send again shortly"
+)
+
+REPLY_REJECTED = SOURCE.define("reply_rejected", "run {run} refused the input at step {step}: {detail}")
+
+REPLY_FAILED = SOURCE.define("reply_failed", "run {run} failed at step {step} before any reply answered: {detail}")
+
+REPLY_UNANSWERED = SOURCE.define("reply_unanswered", "run {run} is {status}, and no reply answered")
+
+REPLY_TIMED_OUT = SOURCE.define(
+    "reply_timed_out", "no reply of run {run} answered within {timeout}; the run carries on"
+)
+
 UNKNOWN_SOURCE = SOURCE.define("unknown", "pipeline {pipeline} has no source {code}")
 
 ROUTE_RACED = SOURCE.define(

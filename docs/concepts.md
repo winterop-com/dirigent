@@ -184,9 +184,19 @@ on the whole instance, and an apply claiming one another pipeline answers is ref
 is checked in one order, each check answering for itself: the instance's rate for the path
 (429), the route (404, 405), the token (401), the source's own `rate` (429), the source and
 its pipeline taking input (503), the content type (415), the body under `max_body` (413), the
-body parsing (400), the runs in flight (503); then the run is created and the caller answered
-202 with where to read it. Every input from the source's own rate onwards is recorded,
-refusals included, and `dg source inputs` reads them.
+body parsing (400), the runs in flight (503), and, when a reply can answer, a free seat among
+the callers this server holds (503); then the run is created. Every input from the source's own
+rate onwards is recorded, refusals included, and `dg source inputs` reads them.
+
+When no reply is downstream of the source, the caller is answered 202 with where to read the
+run. When one is, the caller is held for the longest `timeout` among the replies its input can
+reach, capped by `source_reply_max`, and the first reply to settle is the answer: its status,
+headers, content type and body, or the object `body_from` names, streamed. When no reply can
+answer any more, the run's failure is the answer, as a problem naming the run: 422 when a step
+on the way to a reply refused the input as `rejected`, 502 otherwise. A caller still held when
+its timeout passes is answered 504, and the run carries on. Each server process holds its
+callers on one reader, woken when a run settles, and a held input's journal row ends
+`replied` or `timed_out`.
 
 ## Block
 

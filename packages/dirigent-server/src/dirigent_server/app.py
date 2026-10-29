@@ -16,6 +16,7 @@ from dirigent_core.engine.services import EngineServices
 from dirigent_core.plugins import PluginHost, load_plugin_host
 from dirigent_core.scheduler import Scheduler
 from dirigent_core.sources.intake import Intake
+from dirigent_core.sources.waiter import Waiter
 from dirigent_core.telemetry import configure_telemetry, instrument_fastapi
 from dirigent_server.compression import install_compression
 from dirigent_server.errors import install_error_handlers
@@ -72,6 +73,7 @@ def create_app(
         engine = create_engine(resolved)
         app.state.engine = engine
         app.state.session_factory = create_session_factory(engine)
+        app.state.waiter = Waiter(app.state.session_factory, resolved)
         app.state.health_checks = build_registry(engine)
         app.state.scheduler = None
         clock: asyncio.Task[None] | None = None
@@ -88,6 +90,7 @@ def create_app(
                 )
                 yield
         finally:
+            await app.state.waiter.stop()
             await _stop_scheduler(app, clock)
             await engine.dispose()
             _logger.info("server stopped")

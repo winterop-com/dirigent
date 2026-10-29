@@ -84,7 +84,7 @@ environment, and the server inside one never opens the file.
 | `source_intake_rate_per_minute` | `DIRIGENT_SOURCE_INTAKE_RATE_PER_MINUTE` | `600` | How fast calls to one method and path are taken, before any source is looked up. |
 | `source_reply_max` | `DIRIGENT_SOURCE_REPLY_MAX` | `"1m"` | The longest a caller is held for a reply, whatever a reply node's `timeout` says. |
 | `source_max_waiting` | `DIRIGENT_SOURCE_MAX_WAITING` | `256` | How many callers one server process holds open for their replies at once. |
-| `source_reply_poll` | `DIRIGENT_SOURCE_REPLY_POLL` | `"50ms"` | How often one server process reads the replies its held callers wait for, in one query. |
+| `source_reply_poll` | `DIRIGENT_SOURCE_REPLY_POLL` | `"50ms"` | The least time between two reads of the replies one server process's held callers wait for. |
 | `login_rate_per_minute` | `DIRIGENT_LOGIN_RATE_PER_MINUTE` | `10` | How many login attempts one address, and one username, get a minute. |
 | `alert_base_url` | `DIRIGENT_ALERT_BASE_URL` | `null` | The externally reachable base URL, so an alert can link back to the run it is about. |
 | `report_max_size` | `DIRIGENT_REPORT_MAX_SIZE` | `1048576` | A run's report document larger than this is dropped with a warning in the run's log. |
