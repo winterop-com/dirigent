@@ -12,7 +12,7 @@ from pydantic import SecretStr, ValidationError
 from sqlalchemy.engine import Connection
 
 from dirigent_block_duckdb import engine
-from dirigent_block_duckdb.engine import HTTPFS, S3StorageSettings, addresses_s3, s3_options
+from dirigent_block_duckdb.engine import HTTPFS, S3StorageSettings, addresses_s3, s3_secret
 from dirigent_block_sql.sql import (
     SqlConnectionConfig,
     SqlConnectionKind,
@@ -268,28 +268,41 @@ def test_a_statement_naming_a_bucket_is_seen_as_well_as_a_parameter() -> None:
 
 def test_the_endpoint_becomes_a_host_and_a_tls_answer() -> None:
     """The engine takes the endpoint without a scheme and asks separately whether to use TLS."""
-    plain = dict(s3_options(S3StorageSettings(endpoint_url="http://s3:9000", path_style=True)))
-    assert plain["s3_endpoint"] == "s3:9000"
-    assert plain["s3_use_ssl"] is False
-    assert plain["s3_url_style"] == "path"
+    plain = s3_secret(S3StorageSettings(endpoint_url="http://s3:9000", path_style=True))
+    assert plain["ENDPOINT"] == "s3:9000"
+    assert plain["USE_SSL"] is False
+    assert plain["URL_STYLE"] == "path"
 
-    secure = dict(s3_options(S3StorageSettings(endpoint_url="https://s3.example.org")))
-    assert secure["s3_endpoint"] == "s3.example.org"
-    assert secure["s3_use_ssl"] is True
-    assert secure["s3_url_style"] == "vhost"
+    secure = s3_secret(S3StorageSettings(endpoint_url="https://s3.example.org"))
+    assert secure["ENDPOINT"] == "s3.example.org"
+    assert secure["USE_SSL"] is True
+    assert secure["URL_STYLE"] == "vhost"
 
 
 def test_aws_itself_needs_no_endpoint_and_keeps_the_region() -> None:
-    options = dict(s3_options(S3StorageSettings(region="eu-north-1")))
-    assert "s3_endpoint" not in options
-    assert options["s3_region"] == "eu-north-1"
+    secret = s3_secret(S3StorageSettings(region="eu-north-1"))
+    assert "ENDPOINT" not in secret
+    assert secret["REGION"] == "eu-north-1"
 
 
-def test_a_credential_reaches_duckdb_and_never_the_statement() -> None:
-    """The secret is one of the values SET binds, so it is never part of a statement's text."""
-    options = s3_options(S3StorageSettings(access_key_id="a-key", secret_access_key=SecretStr("a-secret-key")))
-    assert ("s3_access_key_id", "a-key") in options
-    assert ("s3_secret_access_key", "a-secret-key") in options
+def test_the_credential_is_a_parameter_of_the_secret() -> None:
+    """The key and its secret are values the statement binds, so neither is part of its text."""
+    secret = s3_secret(S3StorageSettings(access_key_id="a-key", secret_access_key=SecretStr("a-secret-key")))
+    assert secret["KEY_ID"] == "a-key"
+    assert secret["SECRET"] == "a-secret-key"
+
+
+async def test_a_result_larger_than_max_rows_is_refused_while_it_streams(ducked: FakeContext) -> None:
+    """The refusal arrives mid-stream, and the connection it leaves open still rolls back and closes."""
+    with pytest.raises(BlockFailure) as refused:
+        await query(ducked, "SELECT range AS n FROM range(500000)", max_rows=10)
+    assert refused.value.error_class is ErrorClass.REJECTED
+    assert "max_rows" in str(refused.value)
+
+
+async def test_every_database_a_step_opens_bounds_its_io_threads(ducked: FakeContext) -> None:
+    output = await query(ducked, "SELECT current_setting('async_threads') AS threads")
+    assert output.rows == [{"threads": engine.ASYNC_THREADS}]
 
 
 async def test_a_duckdb_query_that_outlives_its_timeout_ends_the_step(ducked: FakeContext) -> None:

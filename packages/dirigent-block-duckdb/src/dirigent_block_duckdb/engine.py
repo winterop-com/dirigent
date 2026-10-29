@@ -60,6 +60,13 @@ INTERRUPT_GRACE_SECONDS: Final = 5.0
 #: The scheme duckdb reads and writes through its httpfs extension.
 S3: Final = "s3"
 
+#: The I/O threads each database a step opens may start; duckdb's own default scales with the
+#: host, and every step and every check opens a database of its own.
+ASYNC_THREADS: Final = 8
+
+#: The name of the connection's own secret for ``s3://``.
+S3_SECRET: Final = "dirigent_s3"
+
 #: The extension that gives duckdb ``s3://``. It is loaded, never installed, at run time: a
 #: step must not fetch a binary from the internet mid-run, so the image installs it at build
 #: time and a bare install does it once by hand.
@@ -163,25 +170,25 @@ def addresses_s3(values: dict[str, Any], statements: Sequence[str]) -> bool:
     return any(prefix in statement for statement in statements)
 
 
-def s3_options(config: S3StorageSettings) -> list[tuple[str, str | bool]]:
-    """The duckdb settings that point httpfs at one endpoint with one credential.
+def s3_secret(config: S3StorageSettings) -> dict[str, str | bool]:
+    """The parameters of the duckdb secret that points httpfs at one endpoint with one credential.
 
     duckdb takes the endpoint as host and port with no scheme, and asks separately whether to
-    speak TLS to it, so one ``endpoint_url`` becomes two settings.
+    speak TLS to it, so one ``endpoint_url`` becomes two parameters.
     """
-    options: list[tuple[str, str | bool]] = [("s3_region", config.region)]
+    secret: dict[str, str | bool] = {"REGION": config.region}
     if config.endpoint_url:
         split = urlsplit(config.endpoint_url)
-        options.append(("s3_endpoint", split.netloc or split.path))
-        options.append(("s3_use_ssl", split.scheme == "https"))
+        secret["ENDPOINT"] = split.netloc or split.path
+        secret["USE_SSL"] = split.scheme == "https"
     else:
-        options.append(("s3_use_ssl", config.verify_tls))
+        secret["USE_SSL"] = config.verify_tls
     if config.access_key_id:
-        options.append(("s3_access_key_id", config.access_key_id))
+        secret["KEY_ID"] = config.access_key_id
     if config.secret_access_key is not None:
-        options.append(("s3_secret_access_key", config.secret_access_key.get_secret_value()))
-    options.append(("s3_url_style", "path" if config.path_style else "vhost"))
-    return options
+        secret["SECRET"] = config.secret_access_key.get_secret_value()
+    secret["URL_STYLE"] = "path" if config.path_style else "vhost"
+    return secret
 
 
 def _is_memory(url: URL) -> bool:
@@ -199,10 +206,11 @@ def _is_run_relative(url: URL) -> bool:
 
 def _engine(settings: SqlConnectionConfig, url: URL) -> Engine:
     """Build the synchronous duckdb engine, opening the file read-only where the connection says so."""
+    config: dict[str, Any] = {"async_threads": ASYNC_THREADS}
     return create_engine(
         url,
         poolclass=NullPool,
-        connect_args={"read_only": True} if settings.read_only else {},
+        connect_args={"config": config, "read_only": True} if settings.read_only else {"config": config},
     )
 
 
@@ -261,8 +269,15 @@ def _open_s3(connection: Connection, ctx: StepContext) -> None:
         connection.execute(sqlalchemy.text(f"LOAD {HTTPFS}"))
     except sqlalchemy.exc.DatabaseError as error:
         raise BlockFailure(NO_HTTPFS, error_class=ErrorClass.REJECTED, extension=HTTPFS, scheme=S3) from error
-    for name, value in s3_options(config):
-        _set(connection, name, value)
+    # The store is placed before the secret exists; duckdb refuses to move it once it is in use.
+    _set(connection, "secret_directory", str(ctx.work / SECRET_DIR))
+    secret = s3_secret(config)
+    fields = ", ".join(f"{name} :{name.lower()}" for name in secret)
+    # Held by this connection alone and in memory only; the values are bound, never spliced.
+    connection.execute(
+        sqlalchemy.text(f"CREATE SECRET {S3_SECRET} IN connection (TYPE {S3}, {fields})"),
+        {name.lower(): value for name, value in secret.items()},
+    )
     # These statements autobegin a transaction, and the step opens its own straight after.
     # They configure the session rather than touching data, so ending this one keeps them.
     connection.commit()
@@ -297,7 +312,8 @@ def _contain(connection: Connection, ctx: StepContext, url: URL, *, s3: bool) ->
         _set(connection, "allowed_paths", [str(database), f"{database}.wal"])
     work = ctx.work
     _set(connection, "temp_directory", str(work / TEMP_DIR))
-    _set(connection, "secret_directory", str(work / SECRET_DIR))
+    if not s3:
+        _set(connection, "secret_directory", str(work / SECRET_DIR))
     _set(connection, "enable_external_access", False)
     _set(connection, "lock_configuration", True)
     connection.commit()
