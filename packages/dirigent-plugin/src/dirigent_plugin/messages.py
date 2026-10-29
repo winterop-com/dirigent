@@ -44,7 +44,8 @@ INVALID_MARK = PLUGIN.define(
 
 SOURCE_NOT_HOSTED = PLUGIN.define(
     "source_not_hosted",
-    "source kind {kind} is {hosting}, and a contributed kind is a ReceivedSource or a PolledSource of that hosting",
+    "source kind {kind} is {hosting}, and a contributed kind is the ReceivedSource, PolledSource "
+    "or HeldSource its hosting names",
 )
 
 # What a received source's path template refuses.

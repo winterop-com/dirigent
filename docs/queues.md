@@ -226,6 +226,19 @@ The queue must already exist. Neither block declares one -- a queue a pipeline i
 typo that reads as a working pipeline, so a name nobody created is **rejected** with the name in
 the message rather than waiting forever on nothing.
 
+## A topic or a queue as a pipeline's source
+
+A `kafka` or `rabbitmq` source makes each message its own run, where `kafka.consume` and
+`rabbitmq.consume` hand a batch to a run that is waiting. One worker holds the source's consumer
+under a lease and acknowledges a message only once its run is committed: a `kafka` source
+commits its `group_id`'s offsets, which is where a worker taking the source over carries on, and
+a `rabbitmq` source acks each delivery, so one never acked is handed back when the consumer
+closes. A message may therefore arrive twice and is never lost. A body that does not decode the
+way `value_format` says fails the source, and is handed over again on the next attempt; read
+such a topic or queue as `text` or `base64` to get past it. `max_in_flight` holds the consumer
+back while that many of its runs are unsettled. See
+[kafka-source-then-transform.yaml](https://github.com/winterop-com/dirigent/tree/main/packages/dirigent-examples/src/dirigent_examples/shelves/queues/kafka-source-then-transform.yaml).
+
 ## What a failure means
 
 | What happened | Class | What the engine does |

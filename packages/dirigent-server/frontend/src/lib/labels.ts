@@ -1034,7 +1034,7 @@ const refused = {
         route_tail_not_last:
             'The path {template} has {segment} before its end, and a tail takes the rest of the path.',
         source_not_hosted:
-            'Source kind {kind} is {hosting}, and a contributed kind is a ReceivedSource or a PolledSource of that hosting.',
+            'Source kind {kind} is {hosting}, and a contributed kind is the ReceivedSource, PolledSource or HeldSource its hosting names.',
     },
     reference: {
         not_failed:

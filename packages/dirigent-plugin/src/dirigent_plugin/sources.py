@@ -7,6 +7,7 @@ receives it, a worker polls it, or a worker holds it open.
 
 import re
 from abc import ABC, abstractmethod
+from contextlib import AbstractAsyncContextManager
 from datetime import datetime, timedelta
 from enum import StrEnum
 from typing import Any, ClassVar, Final, Literal, Protocol
@@ -15,7 +16,7 @@ from jsonschema import FormatChecker
 from pydantic import BaseModel, ConfigDict, Field
 
 from dirigent_common import Issue, JsonMap, Message
-from dirigent_plugin.blocks import ErrorClass, Logger, Storage, classify_default
+from dirigent_plugin.blocks import ConnectionRef, ErrorClass, Logger, Storage, classify_default
 from dirigent_plugin.messages import (
     ROUTE_BAD_PARAMETER,
     ROUTE_BAD_SEGMENT,
@@ -261,6 +262,36 @@ class PollContext(Protocol):
         ...
 
 
+class HoldContext(Protocol):
+    """What a held kind may reach while it listens: storage, and the connections the instance holds."""
+
+    @property
+    def log(self) -> Logger:
+        """Where the kind says what it is doing."""
+        ...
+
+    @property
+    def storage(self) -> Storage:
+        """Storage, every scheme configured from the connection the instance names for it."""
+        ...
+
+    def connection[C: BaseModel](self, ref: ConnectionRef, model: type[C]) -> C:
+        """Resolve a connection by code, opened and validated against the kind's own model."""
+        ...
+
+
+class Listener[OutputT: BaseModel](Protocol):
+    """One open consumer a held kind answers ``listen`` with."""
+
+    async def receive(self, limit: int, wait: timedelta) -> list[OutputT]:
+        """Take at most ``limit`` inputs, waiting no longer than ``wait`` for the first."""
+        ...
+
+    async def ack(self) -> None:
+        """Acknowledge every input received so far, once each has become a run."""
+        ...
+
+
 class Polled[OutputT: BaseModel](BaseModel):
     """What one poll found: the inputs, oldest first, and where the next poll carries on from."""
 
@@ -363,6 +394,27 @@ class PolledSource[ConfigT: BaseModel, OutputT: BaseModel](Source[ConfigT, Outpu
 
         A failure it raises is the source's: it is recorded on the row and the next poll backs
         off, from the same cursor.
+        """
+        ...
+
+
+class HeldSource[ConfigT: BaseModel, OutputT: BaseModel](Source[ConfigT, OutputT]):
+    """A kind a worker holds open under a lease: a consumer whose messages are the inputs.
+
+    The worker makes a run of each input it receives, commits them, and only then acknowledges
+    them, so an input is never lost and may, after a crash between the two, arrive twice.
+    """
+
+    def label_of(self, output: OutputT) -> str | None:
+        """Name one input in a line of the source's journal, such as where it was read from."""
+        return None
+
+    @abstractmethod
+    def listen(self, config: ConfigT, ctx: HoldContext) -> AbstractAsyncContextManager[Listener[OutputT]]:
+        """Open a consumer for as long as the worker holds the source; leaving it closes the consumer.
+
+        A failure it raises, opening or receiving, is the source's: it is recorded on the row,
+        the lease is let go, and the source is taken up again after a backoff.
         """
         ...
 

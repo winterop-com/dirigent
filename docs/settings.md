@@ -87,8 +87,10 @@ environment, and the server inside one never opens the file.
 | `source_max_waiting_per_source` | `DIRIGENT_SOURCE_MAX_WAITING_PER_SOURCE` | `64` | How many of those callers one source may hold, so one slow pipeline cannot take every seat. |
 | `source_reply_poll` | `DIRIGENT_SOURCE_REPLY_POLL` | `"50ms"` | The least time between two reads of the replies one server process's held callers wait for. |
 | `source_poll_tick` | `DIRIGENT_SOURCE_POLL_TICK` | `"5s"` | How often a worker looks for polled sources that are due. |
-| `source_poll_lease` | `DIRIGENT_SOURCE_POLL_LEASE` | `"5m"` | How long a worker holds a polled source while it polls; another may take it once this passes. |
+| `source_poll_lease` | `DIRIGENT_SOURCE_POLL_LEASE` | `"5m"` | How long a worker holds a worker-hosted source without renewing; another may take it once this passes. |
 | `source_poll_batch` | `DIRIGENT_SOURCE_POLL_BATCH` | `100` | The most inputs one poll may hand over, before the source's own `max_in_flight`. |
+| `source_held_max` | `DIRIGENT_SOURCE_HELD_MAX` | `16` | How many held sources, such as queue consumers, one worker keeps open at once. |
+| `source_hold_wait` | `DIRIGENT_SOURCE_HOLD_WAIT` | `"1s"` | How long a held source's consumer waits for a message before the worker checks on it. |
 | `source_backoff` | `DIRIGENT_SOURCE_BACKOFF` | `"30s"` | How long a polled source waits after a failed poll; later failures double it. |
 | `source_backoff_max` | `DIRIGENT_SOURCE_BACKOFF_MAX` | `"30m"` | The longest a polled source backs off, however many polls in a row have failed. |
 | `login_rate_per_minute` | `DIRIGENT_LOGIN_RATE_PER_MINUTE` | `10` | How many login attempts one address, and one username, get a minute. |

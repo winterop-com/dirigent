@@ -26,7 +26,7 @@ from dirigent_core.logging import get_logger
 from dirigent_core.messages import ROUTE_CLAIMED, ROUTE_RACED, SOURCE_TAKES_NO_TOKEN, UNKNOWN_SOURCE
 from dirigent_core.models import Pipeline, Run, Source, SourceInput, SourceRoute, utcnow
 from dirigent_core.sources.rules import declared_routes, source_config
-from dirigent_plugin.sources import AnySource, PolledSource, ReceivedSource, Route
+from dirigent_plugin.sources import AnySource, HeldSource, PolledSource, ReceivedSource, Route
 
 _logger = get_logger("sources")
 
@@ -196,8 +196,31 @@ def polled(kinds: Mapping[str, AnySource], row: Source) -> tuple[PolledSource[An
         return None
 
 
+def held(kinds: Mapping[str, AnySource], row: Source) -> tuple[HeldSource[Any, Any], BaseModel] | None:
+    """Read a row as a held kind and its validated config, or None for any other row."""
+    kind = kinds.get(row.kind)
+    if not isinstance(kind, HeldSource):
+        return None
+    try:
+        return kind, source_config(kind, row.config)
+    except ValidationError:
+        return None
+
+
+def worker_hosted(kinds: Mapping[str, AnySource], row: Source) -> bool:
+    """Say whether a worker polls or holds this source, rather than the server receiving it."""
+    return isinstance(kinds.get(row.kind), PolledSource | HeldSource)
+
+
 def _schedule_poll(kinds: Mapping[str, AnySource], row: Source, *, redeclared: bool) -> None:
-    """Due a polled source now when it is new or redeclared, and reset a cursor its config no longer owns."""
+    """Due a worker-hosted source now when it is new or redeclared, and reset a cursor its config no longer owns.
+
+    For a held source the due time is when a worker may take it up, which a failure pushes back.
+    """
+    if held(kinds, row) is not None:
+        if redeclared or row.next_poll_at is None:
+            row.next_poll_at = utcnow()
+        return
     found = polled(kinds, row)
     if found is None:
         row.next_poll_at = None
@@ -364,7 +387,7 @@ def source_out(
     found = received(kinds, row)
     route = found[0].route(found[1]) if found else None
     bound = max_in_flight(kinds, row)
-    is_polled = polled(kinds, row) is not None
+    is_polled = worker_hosted(kinds, row)
     return SourceOut(
         id=row.id,
         pipeline=pipeline.code,

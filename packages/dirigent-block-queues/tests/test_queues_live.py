@@ -33,9 +33,10 @@ from dirigent_block_queues.rabbitmq import (
     RabbitConsumeConfig,
     RabbitConsumeSensor,
 )
+from dirigent_block_queues.sources import KafkaSource, KafkaSourceConfig, RabbitSource, RabbitSourceConfig
 from dirigent_block_storage.storage import StorageReadConfig, StorageReadOperator, StorageReadOutput
 from dirigent_plugin import BlockFailure, ConnectionKind, ErrorClass, NotYet
-from dirigent_testing import FakeContext, FakeStorage
+from dirigent_testing import FakeContext, FakeStorage, RecordingLogger
 
 pytestmark = pytest.mark.queues
 
@@ -405,3 +406,68 @@ async def test_a_rabbitmq_health_check_opens_a_channel() -> None:
     report = await RabbitConnectionKind().check(rabbit_connection())
 
     assert report.healthy is True
+
+
+# -- the held source kinds -----------------------------------------------------
+
+
+class LiveHold:
+    """A hold context resolving the lane's own connections, as a worker's would resolve stored ones."""
+
+    def __init__(self, storage: FakeStorage, **connections: BaseModel) -> None:
+        """Hold the storage and the connections by code."""
+        self.connections = connections
+        self.log = RecordingLogger()
+        self.storage = storage
+
+    def connection[C: BaseModel](self, ref: str, model: type[C]) -> C:
+        """Resolve a connection by code into the kind's own model."""
+        return model.model_validate(self.connections[ref].model_dump())
+
+
+async def received(listener: Any, want: int) -> list[Any]:
+    """Receive until ``want`` inputs have arrived, or the lane's patience runs out."""
+    taken: list[Any] = []
+    deadline = asyncio.get_running_loop().time() + 30
+    while len(taken) < want and asyncio.get_running_loop().time() < deadline:
+        taken.extend(await listener.receive(want - len(taken), timedelta(seconds=2)))
+    return taken
+
+
+async def test_a_kafka_source_carries_on_from_what_its_group_committed(topic: str, storage: FakeStorage) -> None:
+    await publish(topic, [b'{"id": 1}', b'{"id": 2}'])
+    config = KafkaSourceConfig(connection="cluster", topic=topic, group_id=f"g-{topic}", start="earliest")
+    hold = LiveHold(storage, cluster=kafka_connection())
+    async with KafkaSource().listen(config, hold) as listener:
+        first = await received(listener, 2)
+        assert [message.value for message in first] == [{"id": 1}, {"id": 2}]
+        await listener.ack()
+    await publish(topic, [b'{"id": 3}'])
+    async with KafkaSource().listen(config, hold) as listener:
+        after = await received(listener, 1)
+    assert [message.value for message in after] == [{"id": 3}], "what was committed is not read again"
+
+
+async def test_a_kafka_message_never_acknowledged_is_read_again(topic: str, storage: FakeStorage) -> None:
+    await publish(topic, [b'{"id": 1}'])
+    config = KafkaSourceConfig(connection="cluster", topic=topic, group_id=f"g-{topic}", start="earliest")
+    hold = LiveHold(storage, cluster=kafka_connection())
+    async with KafkaSource().listen(config, hold) as listener:
+        assert len(await received(listener, 1)) == 1
+    async with KafkaSource().listen(config, hold) as listener:
+        again = await received(listener, 1)
+    assert [message.value for message in again] == [{"id": 1}]
+
+
+async def test_a_rabbit_delivery_is_handed_back_until_acked(queue: str, storage: FakeStorage) -> None:
+    await enqueue(queue, [b'{"id": 1}', b'{"id": 2}'])
+    config = RabbitSourceConfig(connection="broker", queue=queue)
+    hold = LiveHold(storage, broker=rabbit_connection())
+    async with RabbitSource().listen(config, hold) as listener:
+        assert len(await received(listener, 2)) == 2
+    async with RabbitSource().listen(config, hold) as listener:
+        again = await received(listener, 2)
+        assert [message.body for message in again] == [{"id": 1}, {"id": 2}]
+        await listener.ack()
+    async with RabbitSource().listen(config, hold) as listener:
+        assert await listener.receive(2, timedelta(seconds=2)) == [], "what was acked is gone"
