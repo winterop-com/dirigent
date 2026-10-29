@@ -438,10 +438,10 @@ test('a pinned parameters block stands off the light panel it is drawn on', asyn
             return Array.from(context.getImageData(0, 0, 1, 1).data.slice(0, 3))
         }
         // The block's box is the nearest element inside the panel that draws an edge.
-        const panel = element.closest('[role="tabpanel"]')
+        const tab = element.closest('[role="tabpanel"]')
         let box: Element = element
         while (
-            box !== panel &&
+            box !== tab &&
             box.parentElement !== null &&
             Number.parseFloat(getComputedStyle(box).borderTopWidth) < 1
         ) {

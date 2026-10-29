@@ -1705,8 +1705,8 @@ const editor = {
          * deciding for other people's pipelines.
          */
         update_used_by: {
-            one: (pipelines: string) => `That is ${pipelines}.`,
-            many: (pipelines: string) => `Those are ${pipelines}.`,
+            one: (names: string) => `That is ${names}.`,
+            many: (names: string) => `Those are ${names}.`,
         },
         /** Why a credential is never taken out of a document, whatever fields it declares. */
         connection_note:
@@ -2676,7 +2676,7 @@ const examples = {
         /** A count and the noun it is counted in. */
         counted: (count: string, noun: string) => `${count} ${noun}`,
         /** The counts, and how many of them are not here. */
-        missing: (counted: string, missing: string) => `${counted}, ${missing} missing`,
+        missing: (tally: string, missing: string) => `${tally}, ${missing} missing`,
         /** How each kind is counted, singular and plural. Keyed by `Need`. */
         count: {
             connection: {
@@ -2820,8 +2820,8 @@ const schemas = {
      * before it is pressed rather than after.
      */
     in_use: {
-        one: (pipelines: string) => `${pipelines} names this shape, so it cannot be removed.`,
-        many: (pipelines: string) => `${pipelines} name this shape, so it cannot be removed.`,
+        one: (names: string) => `${names} names this shape, so it cannot be removed.`,
+        many: (names: string) => `${names} name this shape, so it cannot be removed.`,
     },
 } as const
 

@@ -80,6 +80,9 @@ export function CarriedOffer({
     // the same. One at a time: two open rows would be two half-made things with one Apply
     // behind them.
     const [opened, setOpened] = useState<string | null>(null)
+    const shut = () => {
+        setOpened(null)
+    }
 
     return (
         <section className="min-w-0 space-y-2">
@@ -94,9 +97,6 @@ export function CarriedOffer({
                         {items.map((item) => {
                             const row = rowKey(item)
                             const standing = opened === row
-                            const shut = () => {
-                                setOpened(null)
-                            }
                             return (
                                 <OfferRow
                                     key={row}

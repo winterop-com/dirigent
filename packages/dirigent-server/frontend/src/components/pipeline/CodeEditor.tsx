@@ -519,7 +519,7 @@ export function CodeEditor({
             created.dispose()
             // Two panes may read one buffer -- a config field and its window -- so the model
             // is disposed by whichever editor leaves it last, never from under the other.
-            const held = monaco.editor.getEditors().some((editor) => editor.getModel() === model)
+            const held = monaco.editor.getEditors().some((other) => other.getModel() === model)
             if (held) return
             model.dispose()
             if (metaSchemaBuffers.delete(uri.toString())) stateMetaSchemas()

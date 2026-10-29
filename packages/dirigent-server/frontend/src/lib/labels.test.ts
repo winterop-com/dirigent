@@ -29,7 +29,7 @@ describe('the label catalogue', () => {
     it('holds every section of LABELS', () => {
         expect(labels.length).toBeGreaterThan(Object.keys(LABELS).length)
         const sections = new Set(labels.map(([code]) => code.split('.')[0]))
-        expect([...sections].sort()).toEqual(Object.keys(LABELS).sort())
+        expect([...sections].toSorted()).toEqual(Object.keys(LABELS).toSorted())
     })
 
     it.each(labels)('%s is typed as a code', (code) => {
