@@ -108,12 +108,14 @@ def test_the_examples_directory_is_where_the_test_expects_it() -> None:
 @pytest.mark.parametrize("path", PIPELINES, ids=ids(PIPELINES))
 def test_an_example_validates_against_the_real_catalog(path: Path) -> None:
     definition = load_text(path.read_text())
+    host = load_plugin_host()
     issues = validate_against_catalog(
         definition,
-        load_plugin_host().catalog(),
+        host.catalog(),
         connections=EXAMPLE_CONNECTIONS,
         pipelines=EXAMPLE_PIPELINES,
         schemas=EXAMPLE_SCHEMAS,
+        source_kinds=host.sources,
     )
     assert issues == [], "\n".join(str(issue) for issue in issues)
 
