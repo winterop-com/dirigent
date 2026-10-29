@@ -14,6 +14,20 @@ import { asJson, formatInstant, formatRelative, shortId } from '@/lib/format'
 import { headingOf, type Addressable } from '@/lib/identity'
 import { LABELS } from '@/lib/labels'
 import {
+    authLine,
+    inputId,
+    inputView,
+    isPaused,
+    readSourceInputs,
+    rotateSourceToken,
+    routeLine,
+    setSourcePaused,
+    shownToken,
+    stateView,
+    type SourceInputOut,
+    type SourceOut,
+} from '@/lib/sources'
+import {
     deliveryView,
     firingView,
     hookPath,
@@ -264,6 +278,152 @@ export function WebhookPanel({
     )
 }
 
+export function SourcePanel({
+    source,
+    pipelineName,
+    onChanged,
+    onMinted,
+}: {
+    source: SourceOut
+    pipelineName: string | null
+    /** Called with what a verb answered, so the row behind updates without a re-read. */
+    onChanged: (row: SourceOut) => void
+    /** Called with a token that is readable exactly once, which the screen shows and forgets. */
+    onMinted: (token: WebhookTokenOut) => void
+}) {
+    const [busy, setBusy] = useState(false)
+
+    const read = useCallback(
+        (after: string | null) => readSourceInputs(source.pipeline, source.code, after),
+        [source.pipeline, source.code],
+    )
+    const { state, more } = usePaged(read, inputId)
+
+    const write = useMayWrite()
+    const view = stateView(source)
+    const route = routeLine(source)
+    const auth = authLine(source)
+    const paused = isPaused(source)
+
+    function act<T>(work: Promise<T>, taken: (answer: T) => void): void {
+        setBusy(true)
+        void work.then(taken, sayRefusal).finally(() => {
+            setBusy(false)
+        })
+    }
+
+    return (
+        <div className="space-y-4 p-4">
+            <Head
+                thing={source}
+                pipeline={source.pipeline}
+                pipelineName={pipelineName}
+                description={source.description}
+            >
+                <span className="flex items-center gap-1.5 text-xs">
+                    <Dot tone={view.tone} />
+                    {view.label}
+                </span>
+            </Head>
+
+            <dl className="space-y-1.5">
+                <Fact label={LABELS.word.kind.label}>
+                    <span className="font-mono">{source.kind}</span>
+                </Fact>
+                {route !== null && (
+                    <Fact label={LABELS.triggers.source.route}>
+                        <span className="font-mono break-all">{route}</span>
+                    </Fact>
+                )}
+                {auth !== null && (
+                    <Fact label={LABELS.triggers.source.auth}>
+                        <span className="font-mono">{auth}</span>
+                    </Fact>
+                )}
+                <Fact label={LABELS.word.in_flight.heading}>
+                    <span className="font-mono">
+                        {source.max_in_flight === null
+                            ? String(source.in_flight)
+                            : LABELS.triggers.source.bounded(
+                                  String(source.in_flight),
+                                  String(source.max_in_flight),
+                              )}
+                    </span>
+                </Fact>
+                <Fact label={LABELS.triggers.source.taken}>
+                    <span className="font-mono">
+                        {LABELS.triggers.source.accepted(String(source.accepted))}
+                        {source.refused > 0 && (
+                            <span className="text-muted-foreground">
+                                {' · '}
+                                {LABELS.triggers.source.refused(String(source.refused))}
+                            </span>
+                        )}
+                    </span>
+                </Fact>
+                <Fact label={LABELS.triggers.source.last_input}>
+                    {source.last_input_at === null ? (
+                        <span className="text-faint">{LABELS.word.never}</span>
+                    ) : (
+                        <span title={formatInstant(source.last_input_at)}>
+                            {formatRelative(source.last_input_at)}
+                        </span>
+                    )}
+                </Fact>
+            </dl>
+
+            <div className="flex flex-wrap items-center gap-2">
+                <Refusable why={write.why}>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={busy || !write.may}
+                        title={write.why}
+                        onClick={() => {
+                            act(setSourcePaused(source.pipeline, source.code, !paused), onChanged)
+                        }}
+                    >
+                        {paused ? LABELS.action.resume : LABELS.action.pause}
+                    </Button>
+                </Refusable>
+                {source.auth === 'token' && (
+                    <Refusable why={write.why}>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={busy || !write.may}
+                            title={write.why}
+                            onClick={() => {
+                                act(rotateSourceToken(source.pipeline, source.code), (token) => {
+                                    onMinted(shownToken(token))
+                                    onChanged({ ...source, token_prefix: token.prefix })
+                                })
+                            }}
+                        >
+                            {LABELS.triggers.source.rotate}
+                        </Button>
+                    </Refusable>
+                )}
+            </div>
+            {source.auth === 'token' && (
+                <p className="text-xs text-faint">{LABELS.triggers.source.rotate_warning}</p>
+            )}
+
+            <History
+                title={LABELS.triggers.source.inputs}
+                empty={LABELS.triggers.source.nothing_received}
+                loading={!state.read}
+                rows={state.rows}
+                keyOf={inputId}
+                next={state.next}
+                reading={state.reading}
+                onMore={more}
+                render={(input) => <Received input={input} />}
+            />
+        </div>
+    )
+}
+
 export function WatchPanel({
     pipeline,
     pipelineName,
@@ -504,6 +664,37 @@ function Delivery({ delivery }: { delivery: DeliveryOut }) {
             </span>
             {view.reason !== null && (
                 <p className="text-xs break-words text-muted-foreground">{view.reason}</p>
+            )}
+        </div>
+    )
+}
+
+/** One input: what came of it, the status its caller was answered, and the run or the reason. */
+function Received({ input }: { input: SourceInputOut }) {
+    const view = inputView(input)
+    return (
+        <div className="space-y-0.5">
+            <span className="flex items-center gap-2 text-xs">
+                <Dot tone={view.tone} />
+                <span>{view.label}</span>
+                <span className="font-mono text-muted-foreground">{input.status}</span>
+                <span className="text-faint" title={formatInstant(input.created_at)}>
+                    {formatRelative(input.created_at)}
+                </span>
+                {view.runId !== null && (
+                    <Link className="font-mono text-primary-ink hover:underline" to={`/runs/${view.runId}`}>
+                        {shortId(view.runId)}
+                    </Link>
+                )}
+            </span>
+            <p
+                className="truncate font-mono text-xs text-faint"
+                title={LABELS.triggers.source.called(input.method, input.path)}
+            >
+                {LABELS.triggers.source.called(input.method, input.path)}
+            </p>
+            {input.reason !== null && (
+                <p className="text-xs break-words text-muted-foreground">{input.reason}</p>
             )}
         </div>
     )
