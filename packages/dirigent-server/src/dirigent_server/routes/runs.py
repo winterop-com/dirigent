@@ -76,6 +76,13 @@ FOLLOW_MAX_INTERVAL_SECONDS = 5.0
 FOLLOW_BACKOFF = 1.5
 FOLLOW_MAX_SECONDS = 3600.0
 
+#: The longest a stream goes without sending anything; a proxy may close a connection idle
+#: for longer, and a run can sit quiet for most of an hour.
+KEEPALIVE_SECONDS = 15.0
+
+#: An SSE comment, which ``EventSource`` reads past without dispatching anything.
+KEEPALIVE = ": ping\n\n"
+
 #: Each open tail is a database connection's worth of periodic queries against the pool
 #: every request shares.
 MAX_TAILS_PER_PRINCIPAL = 8
@@ -572,18 +579,24 @@ async def _tail(
         cursor = after
         waited = 0.0
         interval = FOLLOW_INTERVAL_SECONDS
+        spoke = time.monotonic()
         while waited < FOLLOW_MAX_SECONDS:
             moved = wakeups.settled_mark(run_id)
             page, settled = await asyncio.shield(_tail_read(sessions, run_id, cursor, step))
             for entry in page.items:
                 yield f"id: {entry.id}\nevent: log\ndata: {entry.model_dump_json()}\n\n"
                 cursor = entry.id
+            if page.items:
+                spoke = time.monotonic()
             if page.next is not None:
                 interval = FOLLOW_INTERVAL_SECONDS
                 continue
             if settled:
                 yield "event: end\ndata: {}\n\n"
                 return
+            if time.monotonic() - spoke >= KEEPALIVE_SECONDS:
+                yield KEEPALIVE
+                spoke = time.monotonic()
             waited, interval = await quiet_wait(moved, waited, interval)
         yield "event: expired\ndata: {}\n\n"
 
@@ -759,6 +772,7 @@ async def _story(
         drained = False
         waited = 0.0
         interval = FOLLOW_INTERVAL_SECONDS
+        spoke = time.monotonic()
         while waited < FOLLOW_MAX_SECONDS:
             changed = wakeups.settled_mark(run_id)
             # Shielded for the same reason _tail_read is: a disconnect lands between polls,
@@ -773,6 +787,7 @@ async def _story(
             if rendered is not None and not settled and _run_fingerprint(rendered) != reported_run:
                 reported_run = _run_fingerprint(rendered)
                 yield f"event: run\ndata: {rendered.model_dump_json()}\n\n"
+                spoke = time.monotonic()
             moved = [row for row in attempts if reported.get(row.id) != _fingerprint(row)]
             reported.update({row.id: _fingerprint(row) for row in moved})
             transitions = [
@@ -791,6 +806,8 @@ async def _story(
             ]
             for payload in _in_order(transitions, entries):
                 yield payload
+            if transitions or entries:
+                spoke = time.monotonic()
             if page.items:
                 cursor = page.items[-1].id
             if page.next is not None:
@@ -804,6 +821,9 @@ async def _story(
                     return
                 drained = True
                 continue
+            if time.monotonic() - spoke >= KEEPALIVE_SECONDS:
+                yield KEEPALIVE
+                spoke = time.monotonic()
             waited, interval = await quiet_wait(changed, waited, interval)
         yield "event: expired\ndata: {}\n\n"
 

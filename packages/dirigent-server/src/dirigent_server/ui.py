@@ -127,7 +127,7 @@ class UiStaticFiles(StaticFiles):
                 continue
             response = await super().get_response(path + suffix, scope)
             response.headers["content-encoding"] = coding
-            response.headers["vary"] = "Accept-Encoding"
+            response.headers.add_vary_header("Accept-Encoding")
             return response
         return None
 
