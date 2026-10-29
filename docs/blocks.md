@@ -993,6 +993,7 @@ format checker, is in [JSON Schema](json-schema.md).
 | Kind | Hosting | Replies | Summary | Contributed by |
 | --- | --- | --- | --- | --- |
 | `endpoint` | received | yes | A request made to this instance at a route the source declares | `builtin` |
+| `storage` | polled | no | An object that appears under a storage prefix, or matching a glob | `builtin` |
 
 #### `endpoint`
 
@@ -1023,3 +1024,23 @@ format checker, is in [JSON Schema](json-schema.md).
 | `route` | `string` | yes |  | The template the source declares, which the concrete path matched. |
 | `path_params` | `object of string` |  |  | What each `{name}` in the template matched, as a string. |
 | `received_at` | `string (date-time)` | yes |  | When the input arrived, or when a hand run supplied it. |
+
+#### `storage`
+
+**Config**
+
+| Field | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `uri` | `string` | yes |  | A prefix such as `s3://landing/incoming/`, or a glob such as `file:///data/in/*.csv`. |
+| `poll` | `string (humane-duration)` |  | `"1m"` | How long a worker waits between two looks. |
+| `max_in_flight` | `integer or null` |  | `null` | How many unsettled runs from this source may exist before the next look waits for one to settle. |
+
+**Input it hands on**
+
+| Field | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `uri` | `string` | yes |  | Where the object is, which a step reads it from. |
+| `size_bytes` | `integer` |  | `0` | -- |
+| `modified_at` | `string (date-time)` | yes |  | -- |
+| `content_type` | `string or null` |  | `null` | -- |
+| `received_at` | `string (date-time)` | yes |  | When the worker found it, or when a hand run supplied it. |

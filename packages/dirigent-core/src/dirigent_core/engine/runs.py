@@ -121,8 +121,8 @@ class Entry(BaseModel):
 
     step: str
     output: JsonMap
-    via: Literal["request", "hand"] = "request"
-    """Whether the input arrived as a request, or was supplied by whoever started the run."""
+    via: Literal["request", "poll", "hand"] = "request"
+    """How the input arrived: a request, a worker's poll, or by hand from whoever started the run."""
 
     note: str | None = None
     """The one line the entered source logs, such as ``received POST /endpoints/echo 312 bytes``."""

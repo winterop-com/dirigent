@@ -560,6 +560,14 @@ def upgrade() -> None:
         sa.Column("accepted", sa.Integer(), server_default=sa.text("0"), nullable=False),
         sa.Column("refused", sa.Integer(), server_default=sa.text("0"), nullable=False),
         sa.Column("last_input_at", dirigent_core.types.UtcDateTime(timezone=True), nullable=True),
+        sa.Column("next_poll_at", dirigent_core.types.UtcDateTime(timezone=True), nullable=True),
+        sa.Column("polled_at", dirigent_core.types.UtcDateTime(timezone=True), nullable=True),
+        sa.Column("cursor", sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"), nullable=True),
+        sa.Column("cursor_for", sa.String(length=71), nullable=True),
+        sa.Column("lease_owner", sa.String(length=200), nullable=True),
+        sa.Column("lease_expires_at", dirigent_core.types.UtcDateTime(timezone=True), nullable=True),
+        sa.Column("failures", sa.Integer(), server_default=sa.text("0"), nullable=False),
+        sa.Column("last_error", sa.Text(), nullable=True),
         sa.Column(
             "created_at",
             dirigent_core.types.UtcDateTime(timezone=True),
@@ -580,6 +588,7 @@ def upgrade() -> None:
         sa.UniqueConstraint("token_hash", name=op.f("uq_sources_token_hash")),
     )
     with op.batch_alter_table("sources", schema=None) as batch_op:
+        batch_op.create_index(batch_op.f("ix_sources_next_poll_at"), ["next_poll_at"], unique=False)
         batch_op.create_index(batch_op.f("ix_sources_pipeline_id"), ["pipeline_id"], unique=False)
 
     op.create_table(
@@ -915,12 +924,13 @@ def upgrade() -> None:
             sa.Enum("accepted", "replied", "refused", "timed_out", name="input_outcome", native_enum=False, length=32),
             nullable=False,
         ),
-        sa.Column("status", sa.Integer(), nullable=False),
+        sa.Column("status", sa.Integer(), nullable=True),
         sa.Column("code", sa.String(length=128), nullable=True),
         sa.Column("reason", sa.Text(), nullable=True),
         sa.Column("params", sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"), nullable=True),
-        sa.Column("method", sa.String(length=16), nullable=False),
-        sa.Column("path", sa.String(length=2000), nullable=False),
+        sa.Column("method", sa.String(length=16), nullable=True),
+        sa.Column("path", sa.String(length=2000), nullable=True),
+        sa.Column("label", sa.String(length=2000), nullable=True),
         sa.Column("body_bytes", sa.Integer(), server_default=sa.text("0"), nullable=False),
         sa.Column("duration_ms", sa.Integer(), server_default=sa.text("0"), nullable=False),
         sa.Column("caller", sa.String(length=64), nullable=True),

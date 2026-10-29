@@ -194,8 +194,14 @@ class WebhookOutcome(StrEnum):
 class SourceState(StrEnum):
     """Whether a source takes inputs now, read from its row and the runs it has unsettled."""
 
+    STARTING = "starting"
+    """A worker has yet to poll it successfully for the first time."""
+
     LISTENING = "listening"
     """It takes inputs."""
+
+    FAILING = "failing"
+    """Its last polls failed, and the next one waits out a backoff."""
 
     BACKLOGGED = "backlogged"
     """As many runs from it are unsettled as ``max_in_flight`` allows; a new input is refused 503."""

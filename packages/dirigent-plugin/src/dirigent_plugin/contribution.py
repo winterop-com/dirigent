@@ -14,8 +14,8 @@ from dirigent_plugin.blocks import (
     StorageBackend,
     mark_refusal,
 )
-from dirigent_plugin.messages import DUPLICATE_ID, SOURCE_NOT_RECEIVED, UNSUPPORTED_API_VERSION
-from dirigent_plugin.sources import AnySource, ReceivedSource, SourceHosting
+from dirigent_plugin.messages import DUPLICATE_ID, SOURCE_NOT_HOSTED, UNSUPPORTED_API_VERSION
+from dirigent_plugin.sources import AnySource, PolledSource, ReceivedSource, SourceHosting
 
 
 class Contribution(BaseModel):
@@ -80,11 +80,13 @@ class Contribution(BaseModel):
 
     @model_validator(mode="after")
     def _check_sources(self) -> "Contribution":
-        """Reject a source kind the server does not receive itself."""
+        """Reject a source kind whose class is not the one its hosting names, or that nothing hosts."""
+        hosted = {SourceHosting.RECEIVED: ReceivedSource, SourceHosting.POLLED: PolledSource}
         for source in self.sources:
-            if source.spec.hosting is not SourceHosting.RECEIVED or not isinstance(source, ReceivedSource):
+            contract = hosted.get(source.spec.hosting)
+            if contract is None or not isinstance(source, contract):
                 raise ValueError(
-                    SOURCE_NOT_RECEIVED.render(kind=repr(source.spec.kind), hosting=source.spec.hosting.value)
+                    SOURCE_NOT_HOSTED.render(kind=repr(source.spec.kind), hosting=source.spec.hosting.value)
                 )
         return self
 

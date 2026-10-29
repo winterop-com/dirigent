@@ -388,6 +388,21 @@ class Settings(BaseSettings):
     source_reply_poll: Duration = Field(default=timedelta(milliseconds=50), gt=timedelta(0))
     """The least time between two reads of the replies one server process's held callers wait for."""
 
+    source_poll_tick: Duration = Field(default=timedelta(seconds=5), gt=timedelta(0))
+    """How often a worker looks for polled sources that are due."""
+
+    source_poll_lease: Duration = Field(default=timedelta(minutes=5), gt=timedelta(0))
+    """How long a worker holds a polled source while it polls; another may take it once this passes."""
+
+    source_poll_batch: int = Field(default=100, ge=1)
+    """The most inputs one poll may hand over, before the source's own ``max_in_flight``."""
+
+    source_backoff: Duration = Field(default=timedelta(seconds=30), gt=timedelta(0))
+    """How long a polled source waits after a failed poll; later failures double it."""
+
+    source_backoff_max: Duration = Field(default=timedelta(minutes=30), gt=timedelta(0))
+    """The longest a polled source backs off, however many polls in a row have failed."""
+
     login_rate_per_minute: int = Field(default=10, ge=1)
     """How many login attempts one address, and one username, get a minute.
 

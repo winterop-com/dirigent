@@ -15,7 +15,7 @@ from jsonschema import FormatChecker
 from pydantic import BaseModel, ConfigDict, Field
 
 from dirigent_common import Issue, JsonMap, Message
-from dirigent_plugin.blocks import ErrorClass, Logger, classify_default
+from dirigent_plugin.blocks import ErrorClass, Logger, Storage, classify_default
 from dirigent_plugin.messages import (
     ROUTE_BAD_PARAMETER,
     ROUTE_BAD_SEGMENT,
@@ -247,6 +247,30 @@ class ReceiveContext(Protocol):
         ...
 
 
+class PollContext(Protocol):
+    """What a polled kind may reach while it asks for new inputs: storage bound as the instance configures it."""
+
+    @property
+    def log(self) -> Logger:
+        """Where the kind says what it found."""
+        ...
+
+    @property
+    def storage(self) -> Storage:
+        """Storage, every scheme configured from the connection the instance names for it."""
+        ...
+
+
+class Polled[OutputT: BaseModel](BaseModel):
+    """What one poll found: the inputs, oldest first, and where the next poll carries on from."""
+
+    model_config = ConfigDict(frozen=True)
+
+    inputs: list[OutputT] = Field(default_factory=list[OutputT])
+    cursor: JsonMap | None = None
+    """Stored once every input became a run, and handed to the next poll."""
+
+
 class Source[ConfigT: BaseModel, OutputT: BaseModel](ABC):
     """One source kind: its config, its output, and what it refuses at apply."""
 
@@ -321,5 +345,29 @@ class ReceivedSource[ConfigT: BaseModel, OutputT: BaseModel](Source[ConfigT, Out
         """
         ...
 
+
+class PolledSource[ConfigT: BaseModel, OutputT: BaseModel](Source[ConfigT, OutputT]):
+    """A kind a worker asks on a cadence, carrying a cursor from one poll to the next."""
+
+    def poll_every(self, config: ConfigT) -> timedelta:
+        """Say how long a worker waits between two polls of this source."""
+        return self.spec.default_poll or DEFAULT_POLL
+
+    def label_of(self, output: OutputT) -> str | None:
+        """Name one input in a line of the source's journal, such as the object it found."""
+        return None
+
+    @abstractmethod
+    async def poll(self, config: ConfigT, cursor: JsonMap | None, ctx: PollContext, limit: int) -> Polled[OutputT]:
+        """Find what is new since the cursor, at most ``limit`` inputs, oldest first.
+
+        A failure it raises is the source's: it is recorded on the row and the next poll backs
+        off, from the same cursor.
+        """
+        ...
+
+
+#: How long a worker waits between two polls of a kind whose spec names no cadence.
+DEFAULT_POLL: Final = timedelta(minutes=1)
 
 type AnySource = Source[Any, Any]

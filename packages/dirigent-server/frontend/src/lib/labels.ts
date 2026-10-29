@@ -583,7 +583,11 @@ const state = {
     },
     /** Whether a source takes inputs now. `SourceState` in dirigent_client.enums. */
     source: {
+        /** Polled, and no poll has succeeded yet. */
+        starting: 'starting',
         listening: 'listening',
+        /** Its last polls failed, and the next one waits out a backoff. */
+        failing: 'failing',
         /** As many of its runs are unsettled as it allows, so a new input is refused. */
         backlogged: 'backlogged',
         /** Paused, with runs it started still unsettled. */
@@ -1029,8 +1033,8 @@ const refused = {
         route_repeated_parameter: 'The path {template} names the parameter {name} twice.',
         route_tail_not_last:
             'The path {template} has {segment} before its end, and a tail takes the rest of the path.',
-        source_not_received:
-            'Source kind {kind} is {hosting}, and a contributed kind is received by the server: a ReceivedSource.',
+        source_not_hosted:
+            'Source kind {kind} is {hosting}, and a contributed kind is a ReceivedSource or a PolledSource of that hosting.',
     },
     reference: {
         not_failed:
@@ -2473,8 +2477,11 @@ const triggers = {
      */
     source: {
         empty: 'No sources. A pipeline declares one as its first step.',
-        /** Where a received source is called: its methods and its path. */
-        route: 'Route',
+        /** What a source listens to, which is its route or where it polls. */
+        listens: 'Listens to',
+        /** When a worker next polls a polled source. */
+        next_poll: 'Next poll',
+        last_error: 'Last error',
         /** How its caller authenticates. */
         auth: 'Auth',
         /** A token, shown by the prefix that tells one copy from another. */
@@ -2497,8 +2504,6 @@ const triggers = {
             refused: 'refused',
             timed_out: 'timed out',
         },
-        /** One input's method and path, as it arrived. */
-        called: (method: string, path: string) => `${method} ${path}`,
     },
 
     /** A trigger's own history at the foot of its panel, one page at a time. */

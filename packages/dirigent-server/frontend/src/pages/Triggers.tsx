@@ -17,7 +17,7 @@ import { LABELS } from '@/lib/labels'
 import { closePanel, fillPanel, openPanel } from '@/lib/panels'
 import { LIST_GROUP, registerActions } from '@/lib/palette'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
-import { readSourcePage, routeLine, sourceId, stateView, type SourceOut } from '@/lib/sources'
+import { listensTo, readSourcePage, sourceId, stateView, type SourceOut } from '@/lib/sources'
 import { cn } from '@/lib/utils'
 import {
     deliveryView,
@@ -395,17 +395,17 @@ const SOURCE_COLUMNS: Column<SourceOut>[] = [
         cell: (row) => <PipelineRef code={row.pipeline} name={null} />,
     },
     {
-        id: 'route',
-        header: LABELS.triggers.source.route,
+        id: 'listens',
+        header: LABELS.triggers.source.listens,
         kind: 'prose',
         className: 'font-mono text-xs',
         cell: (row) => {
-            const route = routeLine(row)
-            return route === null ? (
+            const listens = listensTo(row)
+            return listens === null ? (
                 <span className="text-muted-foreground">{row.kind}</span>
             ) : (
-                <span className="block truncate" title={route}>
-                    {route}
+                <span className="block truncate" title={listens}>
+                    {listens}
                 </span>
             )
         },

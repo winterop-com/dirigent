@@ -581,6 +581,26 @@ class Source(Entity):
     """How many inputs were refused once the caller was known to be let in."""
 
     last_input_at: Mapped[datetime | None] = mapped_column(Timestamp)
+    next_poll_at: Mapped[datetime | None] = mapped_column(Timestamp, index=True)
+    """When a worker next polls a polled source, or null for a kind that is not polled."""
+
+    polled_at: Mapped[datetime | None] = mapped_column(Timestamp)
+    """When a poll last succeeded."""
+
+    cursor: Mapped[JsonMap | None] = mapped_column(JsonDocument)
+    """Where the next poll carries on from, as the kind last answered it."""
+
+    cursor_for: Mapped[str | None] = mapped_column(sa.String(71))
+    """The digest of the config the cursor belongs to; a different one resets the cursor."""
+
+    lease_owner: Mapped[str | None] = mapped_column(sa.String(200))
+    """The worker polling the source now."""
+
+    lease_expires_at: Mapped[datetime | None] = mapped_column(Timestamp)
+    failures: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0, server_default=sa.text("0"))
+    """How many polls in a row have failed."""
+
+    last_error: Mapped[str | None] = mapped_column(sa.Text)
 
 
 class SourceRoute(Entity):
@@ -608,16 +628,18 @@ class SourceInput(Journal):
     source_id: Mapped[UUID] = mapped_column(sa.ForeignKey("sources.id", ondelete="CASCADE"), nullable=False)
     run_id: Mapped[UUID | None] = mapped_column(sa.ForeignKey("runs.id", ondelete="SET NULL"))
     outcome: Mapped[InputOutcome] = mapped_column(string_enum(InputOutcome, "input_outcome"), nullable=False)
-    status: Mapped[int] = mapped_column(sa.Integer, nullable=False)
-    """The HTTP status the caller was answered with."""
+    status: Mapped[int | None] = mapped_column(sa.Integer)
+    """The HTTP status the caller was answered with, or null for an input a worker polled."""
 
     code: Mapped[str | None] = mapped_column(sa.String(128))
     """The refusal's message code, or null for an accepted input."""
 
     reason: Mapped[str | None] = mapped_column(sa.Text)
     params: Mapped[JsonMap | None] = mapped_column(JsonDocument)
-    method: Mapped[str] = mapped_column(sa.String(16), nullable=False)
-    path: Mapped[str] = mapped_column(sa.String(2000), nullable=False)
+    method: Mapped[str | None] = mapped_column(sa.String(16))
+    path: Mapped[str | None] = mapped_column(sa.String(2000))
+    label: Mapped[str | None] = mapped_column(sa.String(2000))
+    """What a polled kind names the input, such as the object it found."""
     body_bytes: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0, server_default=sa.text("0"))
     duration_ms: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0, server_default=sa.text("0"))
     caller: Mapped[str | None] = mapped_column(sa.String(64))

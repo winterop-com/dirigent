@@ -198,6 +198,16 @@ its timeout passes is answered 504, and the run carries on. Each server process 
 callers on one reader, woken when a run settles, and a held input's journal row ends
 `replied` or `timed_out`.
 
+A `storage` source is polled rather than called: a worker lists its `uri`, a prefix or a glob,
+every `poll`, and each object newer than the last one it handed over becomes one run,
+`${steps.<source>.output.uri}` naming it. Every worker polls, and a lease on the source's row
+keeps two from polling one source at once. The source keeps a cursor, so a restarted worker
+carries on where the last stopped; moving the `uri` starts the cursor over. A polled source is
+`starting` until its first poll succeeds, and `failing` while its polls fail, each failure
+doubling the wait before the next. `max_in_flight` bounds how many of its runs are unsettled
+before the next poll waits. Its config is resolved with `${artifacts}` in scope and nothing
+else, since there is no run yet.
+
 ## Block
 
 The collective term for the pluggable things a step can be: **operators** and **sensors**.

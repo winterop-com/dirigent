@@ -1,10 +1,11 @@
 """The source kinds this instance knows, keyed by the ``kind`` a document writes."""
 
 from dirigent_core.sources.endpoint import EndpointSource
+from dirigent_core.sources.storage import StorageSource
 from dirigent_plugin.sources import AnySource, ReceivedSource
 
 #: The kinds dirigent itself provides.
-BUILT_IN: tuple[AnySource, ...] = (EndpointSource(),)
+BUILT_IN: tuple[AnySource, ...] = (EndpointSource(), StorageSource())
 
 
 def built_in_kinds() -> dict[str, AnySource]:
