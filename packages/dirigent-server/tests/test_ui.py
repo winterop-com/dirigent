@@ -170,7 +170,7 @@ def test_the_probes_and_the_api_are_untouched_by_the_bundle(served: TestClient) 
     assert served.get("/health/ready").json()["status"] == "healthy"
     assert served.get("/api/v1/system/info").json()["name"] == "dirigent"
     assert served.get("/api/v1/pipelines").json()["items"] == []
-    assert served.post("/hooks/not-a-token", json={}).status_code == 404
+    assert served.post("/endpoints/not-a-route", json={}).status_code == 404
 
 
 def test_the_bundle_reads_this_instance_from_the_config_document(served: TestClient) -> None:
@@ -204,7 +204,7 @@ def test_an_unbuilt_bundle_leaves_every_route_as_it_was(unbuilt: TestClient) -> 
     assert unbuilt.get("/api/v1/pipelines").json()["items"] == []
     assert unbuilt.get("/api/v1/nonexistent").json()["status"] == 404
     assert unbuilt.get("/assets/app-abc123.js").json()["status"] == 404
-    assert unbuilt.post("/hooks/not-a-token", json={}).status_code == 404
+    assert unbuilt.post("/endpoints/not-a-route", json={}).status_code == 404
 
 
 def test_an_unbuilt_bundle_refuses_a_navigation_the_way_it_refuses_the_root(unbuilt: TestClient) -> None:

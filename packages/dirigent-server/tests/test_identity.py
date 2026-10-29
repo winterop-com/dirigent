@@ -50,7 +50,7 @@ def test_no_path_addresses_a_coded_entity_by_name(client: TestClient) -> None:
     assert offenders == [], f"these paths still address an entity by name: {offenders}"
 
 
-@pytest.mark.parametrize("component", ["PipelineOut", "ConnectionOut", "ScheduleOut", "WebhookOut", "AlertRuleOut"])
+@pytest.mark.parametrize("component", ["PipelineOut", "ConnectionOut", "ScheduleOut", "SourceOut", "AlertRuleOut"])
 def test_every_coded_entity_publishes_a_code_and_an_optional_name(client: TestClient, component: str) -> None:
     """The key is required; the human name is not, because most rows will never carry one."""
     schema = schemas(client)[component]

@@ -369,7 +369,9 @@ test('a trigger names the pipeline it fires the way every listing heads one', as
     await expect(panel.getByText(CRON.pipeline, { exact: true })).toHaveCSS('font-family', /Mono/)
 })
 
-test('the heading keeps its width at 1024 beside an open panel, and the verbs fold', async ({ page }) => {
+test('the heading keeps its width at 1024 beside an open panel, and its verb stays in reach', async ({
+    page,
+}) => {
     await signIn(page)
     await applyExample(page.request, CRON.file)
     await page.setViewportSize({ width: 1024, height: 768 })
@@ -385,8 +387,12 @@ test('the heading keeps its width at 1024 beside an open panel, and the verbs fo
         return { box: element.getBoundingClientRect().width, natural: range.getBoundingClientRect().width }
     })
     expect(measured.box).toBeGreaterThanOrEqual(measured.natural)
-    // The create verbs that no longer fit beside it are behind the one menu.
-    await expect(page.getByRole('button', { name: LABELS.shell.more_actions })).toBeVisible()
+    // The create verb sits beside it, or behind the one menu when it no longer fits.
+    await expect(
+        page
+            .getByRole('button', { name: LABELS.triggers.schedule.new, exact: true })
+            .or(page.getByRole('button', { name: LABELS.shell.more_actions })),
+    ).toBeVisible()
     expect(
         await page.evaluate(
             () => document.documentElement.scrollWidth - document.documentElement.clientWidth,

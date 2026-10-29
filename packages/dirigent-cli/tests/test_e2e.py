@@ -488,11 +488,7 @@ def test_a_document_declares_its_clocks_and_its_pipeline_runs_for_real(project: 
         env=env,
     )
     assert started.returncode == 0, started.stdout + started.stderr
-    run_id = next(
-        str(json.loads(line)["fields"]["run_id"])
-        for line in started.stdout.splitlines()
-        if line.strip() and "run_id" in json.loads(line).get("fields", {})
-    )
+    run_id = next(str(json.loads(line)["run_id"]) for line in started.stdout.splitlines() if '"run_id"' in line)
     finished = settled(run_id, project=project, env=env)
     assert finished["status"] == "succeeded", finished["error"]
     assert finished["params"] == {"day": "2026-03-14", "environment": "production"}
