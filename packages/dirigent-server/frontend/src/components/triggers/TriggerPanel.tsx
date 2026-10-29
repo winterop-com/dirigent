@@ -341,7 +341,7 @@ export function SourcePanel({
                     </Fact>
                 )}
                 <Fact label={LABELS.word.in_flight.heading}>
-                    <span className="font-mono">
+                    <span>
                         {source.max_in_flight === null
                             ? String(source.in_flight)
                             : LABELS.triggers.source.bounded(
@@ -351,7 +351,7 @@ export function SourcePanel({
                     </span>
                 </Fact>
                 <Fact label={LABELS.triggers.source.taken}>
-                    <span className="font-mono">
+                    <span>
                         {LABELS.triggers.source.accepted(String(source.accepted))}
                         {source.refused > 0 && (
                             <span className="text-muted-foreground">
