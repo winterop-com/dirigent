@@ -187,3 +187,21 @@ def test_a_server_holding_as_many_callers_as_it_may_refuses_the_next_503(setting
             work_one(client)
             assert sent.result(timeout=10).status_code == 200
         assert [entry.outcome for entry in inputs(client, "worked")] == ["refused", "replied"]
+
+
+def test_one_source_holds_no_more_than_its_share_and_leaves_the_rest_for_others(
+    settings: Settings, admin_token: str
+) -> None:
+    narrow = settings.model_copy(update={"source_max_waiting_per_source": 1})
+    with TestClient(create_app(narrow), headers={"Authorization": f"Bearer {admin_token}"}) as client:
+        apply_document(client, worked())
+        apply_document(client, answered_at_once("      body: ${steps.ask.output.body}\n"))
+        with ThreadPoolExecutor(1) as pool:
+            sent = held_until_accepted(client, pool, "worked", {"n": 1})
+            refused = client.post("/endpoints/worked", json={"n": 2}, headers={"Authorization": ""})
+            assert refused.status_code == 503, refused.text
+            assert refused.json()["code"] == "source.waiting_share"
+            other = client.post("/endpoints/now", json={"ok": True}, headers={"Authorization": ""})
+            assert other.status_code == 200, "another source still has its seats"
+            work_one(client)
+            assert sent.result(timeout=10).status_code == 200

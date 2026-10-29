@@ -1168,6 +1168,8 @@ const refused = {
             'This endpoint takes {accepted}, not {content_type}. A file is posted as a URI in a JSON body.',
         waiting_full:
             'This server holds {waiting} callers for their replies, as many as it may. Send again shortly.',
+        waiting_share:
+            'This server holds {waiting} callers of source {code} for their replies, as many as one source may. Send again shortly.',
     },
     validation: {
         extra_forbidden: 'Unknown key{suggestion}.',

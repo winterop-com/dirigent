@@ -9,7 +9,7 @@ from dirigent_plugin import ErrorClass
 
 RUN = uuid4()
 
-HOLD = Hold(run_id=RUN, replies=("answer",), path=("shape", "check", "answer"), timeout=30.0)
+HOLD = Hold(run_id=RUN, source_id=uuid4(), replies=("answer",), path=("shape", "check", "answer"), timeout=30.0)
 
 
 def attempt(step: str, status: AttemptStatus, *, number: int = 1, **fields: object) -> StepAttempt:

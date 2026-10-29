@@ -43,13 +43,14 @@ from dirigent_core.messages import (
     SOURCE_RUN_REFUSED,
     SOURCE_RUN_SKIPPED,
     SOURCE_WAITING_FULL,
+    SOURCE_WAITING_SHARE,
     TOKEN_REFUSED,
 )
 from dirigent_core.models import Pipeline, PipelineVersion, Source, SourceInput, SourceRoute, utcnow
 from dirigent_core.ratelimit import TokenBucket
 from dirigent_core.sources.rows import AnyReceived, endpoint_path, in_flight, received
 from dirigent_core.sources.rules import source_config
-from dirigent_core.sources.waiter import Hold, Waiter
+from dirigent_core.sources.waiter import Hold, Seating, Waiter
 from dirigent_plugin.blocks import Logger
 from dirigent_plugin.sources import Ignore, InboundRequest, Refusal, Route
 
@@ -298,19 +299,27 @@ async def _enter(
     version = found.scalar_one()
     timeout, replies, path = _reply_reach(services, version, row.code)
     held = waiter is not None and bool(replies)
-    if held and waiter is not None and not waiter.reserve():
-        return await journal.refuse(Refusal.of(SOURCE_WAITING_FULL, status=503, waiting=waiter.seats))
+    if held and waiter is not None:
+        seating = waiter.reserve(row.id)
+        if seating is Seating.SERVER_FULL:
+            return await journal.refuse(Refusal.of(SOURCE_WAITING_FULL, status=503, waiting=waiter.seats))
+        if seating is Seating.SOURCE_FULL:
+            return await journal.refuse(
+                Refusal.of(SOURCE_WAITING_SHARE, status=503, code=repr(row.code), waiting=waiter.held_by[row.id])
+            )
     try:
         taken = await _create(session, services, journal, pipeline, row, version, output, call)
     except BaseException:
         if held and waiter is not None:
-            waiter.release()
+            waiter.release(row.id)
         raise
     if not isinstance(taken, Accepted) or not held:
         if held and waiter is not None:
-            waiter.release()
+            waiter.release(row.id)
         return taken
-    hold = Hold(run_id=taken.accepted.run_id, replies=tuple(replies), path=tuple(path), timeout=timeout)
+    hold = Hold(
+        run_id=taken.accepted.run_id, source_id=row.id, replies=tuple(replies), path=tuple(path), timeout=timeout
+    )
     return taken.model_copy(update={"hold": hold})
 
 
