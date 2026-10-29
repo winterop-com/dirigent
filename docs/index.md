@@ -111,7 +111,7 @@ then the three-service compose stack, an admin account, and a token.
   than a table has its own page: [transforms](transforms.md) and [jq](jq.md),
   [docker](docker.md), [git](git.md), [SQL](sql.md), [queues](queues.md), and
   [JSON Schema](json-schema.md).
-- **[Plugins](plugins.md)** is how to contribute to that catalog: the six surfaces a package
+- **[Plugins](plugins.md)** is how to contribute to that catalog: the seven surfaces a package
   can extend, and what a block author writes.
 - **[Operations](operations.md)** is for whoever has to run this: deployment shapes, the
   `DIRIGENT_*` settings that need operational context, scaling, migrations, backups, health

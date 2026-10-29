@@ -320,6 +320,5 @@ def test_a_mark_that_is_not_path_data_is_reported() -> None:
     Injected.mark = '"/><script>alert(1)</script>'
 
     assert assert_contribution_conforms(contribution) == [
-        "the mark connection kind 'injected' declares is not SVG path data: "
-        "it carries '\"()/<>ipr', which path data does not"
+        "the mark that kind 'injected' declares is not SVG path data: it carries '\"()/<>ipr', which path data does not"
     ]

@@ -48,9 +48,7 @@ class EngineServices(BaseModel):
     @cached_property
     def sources(self) -> dict[str, AnySource]:
         """Index the source kinds a document may write, by ``kind``."""
-        from dirigent_core.sources.kinds import built_in_kinds
-
-        return built_in_kinds()
+        return self.host.sources
 
     @cached_property
     def format_checker(self) -> FormatChecker:

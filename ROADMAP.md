@@ -133,10 +133,10 @@ stays clean, and every example stays executable.
    restart whoever holds it.
 
    **Slices,** each its own PR and each runnable. The node model and entry, the endpoint
-   intake with the source rows, and replies over the wire (the held caller, the batched
-   waiter, and the 504, 422 and 502 mappings) have landed; what remains:
-   4. The contract on pluginkit, so a pack contributes a received kind, and the screens:
-      sources listed with their state and rates, one source's inputs, built to
+   intake with the source rows, replies over the wire (the held caller, the batched waiter,
+   and the 504, 422 and 502 mappings), and the contract on pluginkit, so a pack contributes a
+   received kind, have landed; what remains:
+   4. The screens: sources listed with their state and rates, one source's inputs, built to
       `docs/ui-conventions.md`.
    5. Worker-hosted kinds: a polled kind, then Kafka and RabbitMQ consumers held through a
       lease, and watches and webhooks folded in as kinds.

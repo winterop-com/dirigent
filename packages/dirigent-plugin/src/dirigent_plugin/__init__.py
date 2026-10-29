@@ -16,7 +16,6 @@ from dirigent_plugin.blocks import (
     ConnectionKind,
     ConnectionRef,
     ContainerResult,
-    Contribution,
     ErrorClass,
     FormatCheck,
     Logger,
@@ -45,10 +44,10 @@ from dirigent_plugin.blocks import (
     StorageBackend,
     classify_default,
     mark_refusal,
-    merge_contributions,
     reference_fields,
     shell_string_fields,
 )
+from dirigent_plugin.contribution import Contribution, merge_contributions
 from dirigent_plugin.markers import (
     ENTRY_POINT_GROUP,
     PROJECT_NAME,

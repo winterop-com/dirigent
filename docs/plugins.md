@@ -69,6 +69,14 @@ with no change to dirigent, no config file, and no registry to edit. Uninstall a
   check. `HealthReport.healthy` has three values, not two: `True`, `False`, and `None` for a
   check that ran and could not verify anything, which is what a kind answers rather than
   claiming either outcome
+- `sources` -- a kind of [source](concepts.md#source-and-reply) a pipeline's first node may
+  be, keyed by the `kind` a document writes under `source`. A contributed kind is a
+  `ReceivedSource`: the server answers its `route` under `/endpoints`, checks the head with
+  `admit`, and hands `receive` the read request, which answers with an input, `Ignore` for a
+  sign of life such as a handshake (answered 204, no run), or a `Refusal` carrying the status
+  its caller gets. `receive` runs in the server process with no connection and no secret in
+  reach. `endpoint` is dirigent's own kind, and a pack cannot take its name.
+  `dirigent_testing.receive_request` takes a request through a kind the way the intake does.
 - `storage_backends` -- a scheme a `<scheme>://` URI writes bytes to
 - `notifiers` -- where an alert is sent
 - `formats` -- a JSON Schema format checker by name, so a schema that writes `format: <name>`
