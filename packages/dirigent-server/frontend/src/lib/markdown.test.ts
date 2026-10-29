@@ -22,7 +22,9 @@ function blockText(block: Block): string {
         case 'code':
             return block.text
         case 'list':
-            return block.items.map(inlineText).join('\n')
+            return block.items
+                .map((item) => [inlineText(item.runs), ...item.blocks.map(blockText)].join('\n'))
+                .join('\n')
         case 'quote':
             return textIn(block.children)
         case 'table':
@@ -61,7 +63,10 @@ function blockKinds(block: Block): string[] {
         case 'heading':
             return [block.kind, ...inlineKinds(block.children)]
         case 'list':
-            return [block.kind, ...block.items.flatMap(inlineKinds)]
+            return [
+                block.kind,
+                ...block.items.flatMap((item) => [...inlineKinds(item.runs), ...kindsIn(item.blocks)]),
+            ]
         case 'quote':
             return [block.kind, ...kindsIn(block.children)]
         case 'table':
@@ -216,10 +221,52 @@ describe('the subset a description is read as', () => {
             {
                 kind: 'list',
                 ordered: false,
-                items: [[{ kind: 'text', text: 'one' }], [{ kind: 'text', text: 'two' }]],
+                items: [
+                    { runs: [{ kind: 'text', text: 'one' }], blocks: [] },
+                    { runs: [{ kind: 'text', text: 'two' }], blocks: [] },
+                ],
             },
         ])
         expect(readMarkdown('1. first\n2. second')[0]).toMatchObject({ kind: 'list', ordered: true })
+    })
+
+    test('a nested list is a list inside its item, not its source run into the line', () => {
+        expect(readMarkdown('- reshape\n  - `transform.jq` for one value\n  - `map.jq`\n- load')).toEqual([
+            {
+                kind: 'list',
+                ordered: false,
+                items: [
+                    {
+                        runs: [{ kind: 'text', text: 'reshape' }],
+                        blocks: [
+                            {
+                                kind: 'list',
+                                ordered: false,
+                                items: [
+                                    {
+                                        runs: [
+                                            { kind: 'code', text: 'transform.jq' },
+                                            { kind: 'text', text: ' for one value' },
+                                        ],
+                                        blocks: [],
+                                    },
+                                    { runs: [{ kind: 'code', text: 'map.jq' }], blocks: [] },
+                                ],
+                            },
+                        ],
+                    },
+                    { runs: [{ kind: 'text', text: 'load' }], blocks: [] },
+                ],
+            },
+        ])
+    })
+
+    test('a fenced block indented under an item stays a fenced block', () => {
+        const [list] = readMarkdown('- apply it\n\n  ```bash\n  dg apply x.yaml\n  ```')
+        expect(list).toMatchObject({
+            kind: 'list',
+            items: [{ blocks: [{ kind: 'code', text: 'dg apply x.yaml', language: 'bash' }] }],
+        })
     })
 
     test('a blockquote holds blocks of its own', () => {
