@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 
-import { readInline, readMarkdown, type Align, type Block, type Inline } from '@/lib/markdown'
+import { readInline, readMarkdown, type Align, type Block, type Inline, type ListItem } from '@/lib/markdown'
 import { cn } from '@/lib/utils'
 
 /**
@@ -79,7 +79,7 @@ function draw(block: Block, index: number): ReactNode {
                     {items(block.items)}
                 </ol>
             ) : (
-                <ul key={index} className="list-disc space-y-0.5 pl-5">
+                <ul key={index} className="list-disc space-y-0.5 pl-5 [&_ul]:list-[circle]">
                     {items(block.items)}
                 </ul>
             )
@@ -118,9 +118,14 @@ function draw(block: Block, index: number): ReactNode {
  * A markdown tree carries no ids and is rebuilt whole whenever the text changes, so a node's
  * position is the only thing there is to key on.
  */
-function items(rows: readonly Inline[][]): ReactNode {
-    // oxlint-disable-next-line react/no-array-index-key
-    return rows.map((row, index) => <li key={index}>{runs(row)}</li>)
+function items(rows: readonly ListItem[]): ReactNode {
+    return rows.map((row, index) => (
+        // oxlint-disable-next-line react/no-array-index-key
+        <li key={index} className="space-y-0.5">
+            {runs(row.runs)}
+            {row.blocks.map((one, at) => draw(one, at))}
+        </li>
+    ))
 }
 
 /**

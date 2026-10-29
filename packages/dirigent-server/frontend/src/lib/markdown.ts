@@ -30,6 +30,18 @@ export type Inline =
     | { kind: 'link'; href: string; children: Inline[] }
     | { kind: 'break' }
 
+/**
+ * One item of a list: the words it opens with, then whatever it holds below them.
+ *
+ * A nested list is a block inside an item, and so is a fenced block or a second paragraph
+ * indented under one. They are read as blocks, so a list two levels deep is drawn two levels
+ * deep rather than as its own source run into its parent's line.
+ */
+export interface ListItem {
+    runs: Inline[]
+    blocks: Block[]
+}
+
 /** How a column is set, which the row of dashes under the heading declares. */
 export type Align = 'left' | 'center' | 'right' | null
 
@@ -38,7 +50,7 @@ export type Block =
     | { kind: 'paragraph'; children: Inline[] }
     | { kind: 'heading'; level: number; children: Inline[] }
     | { kind: 'code'; text: string; language: string | null }
-    | { kind: 'list'; ordered: boolean; items: Inline[][] }
+    | { kind: 'list'; ordered: boolean; items: ListItem[] }
     | { kind: 'quote'; children: Block[] }
     | { kind: 'table'; align: Align[]; header: Inline[][]; rows: Inline[][][] }
     | { kind: 'rule' }
@@ -117,7 +129,7 @@ function blockOf(token: Token): Block[] {
                 {
                     kind: 'list',
                     ordered: list.ordered,
-                    items: list.items.map((item) => inlinesOf(item.tokens)),
+                    items: list.items.map(itemOf),
                 },
             ]
         }
@@ -134,6 +146,18 @@ function blockOf(token: Token): Block[] {
         default:
             // Raw markup, and anything a later marked learns to lex: its own source, as words.
             return [{ kind: 'paragraph', children: [words(token.raw)] }]
+    }
+}
+
+function itemOf(item: Tokens.ListItem): ListItem {
+    const [first, ...rest] = item.tokens
+    if (first === undefined || (first.type !== 'text' && first.type !== 'paragraph')) {
+        return { runs: [], blocks: blocksOf(item.tokens) }
+    }
+    const carried = (first as Tokens.Text).tokens
+    return {
+        runs: carried === undefined ? [words(first.raw)] : inlinesOf(carried),
+        blocks: blocksOf(rest),
     }
 }
 
