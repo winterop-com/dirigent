@@ -24,6 +24,7 @@ from dirigent_client.schemas import InputAccepted
 from dirigent_common import JsonMap
 from dirigent_core import telemetry, wakeups
 from dirigent_core.auth import hash_token
+from dirigent_core.engine.definition import load_definition
 from dirigent_core.engine.runs import Attribution, Entry, create_run
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.engine.state import lock_pipeline
@@ -41,12 +42,14 @@ from dirigent_core.messages import (
     SOURCE_RATE,
     SOURCE_RUN_REFUSED,
     SOURCE_RUN_SKIPPED,
+    SOURCE_WAITING_FULL,
     TOKEN_REFUSED,
 )
 from dirigent_core.models import Pipeline, PipelineVersion, Source, SourceInput, SourceRoute, utcnow
 from dirigent_core.ratelimit import TokenBucket
 from dirigent_core.sources.rows import AnyReceived, endpoint_path, in_flight, received
 from dirigent_core.sources.rules import source_config
+from dirigent_core.sources.waiter import Hold, Waiter
 from dirigent_plugin.blocks import Logger
 from dirigent_plugin.sources import Ignore, InboundRequest, Refusal, Route
 
@@ -61,7 +64,20 @@ _logger = get_logger("intake")
 type ReadBody = Callable[[int], Awaitable[bytes]]
 """Read a request's body, stopping one byte past the limit it is given."""
 
-type Taken = InputAccepted | Refusal | Ignore
+
+class Accepted(BaseModel):
+    """An input that became a run, and the hold its caller is kept on when a reply may answer it."""
+
+    model_config = ConfigDict(frozen=True)
+
+    accepted: InputAccepted
+    input_id: int
+    """The journal row, which the caller's answer settles once it is held."""
+
+    hold: Hold | None = None
+
+
+type Taken = Accepted | Refusal | Ignore
 
 
 class Listening(BaseModel):
@@ -160,8 +176,19 @@ class Intake:
             self._read_at = moment
         return table
 
-    async def take(self, session: AsyncSession, services: EngineServices, call: Call, read: ReadBody) -> Taken:
-        """Answer one call: a run accepted, a refusal with the status it is answered with, or a sign of life."""
+    async def take(
+        self,
+        session: AsyncSession,
+        services: EngineServices,
+        call: Call,
+        read: ReadBody,
+        waiter: Waiter | None = None,
+    ) -> Taken:
+        """Answer one call: a run accepted, a refusal with the status it is answered with, or a sign of life.
+
+        With a waiter, an input that can reach a reply takes one of its seats, which the caller
+        of this method gives back once it has waited on the hold.
+        """
         started = time.monotonic()
         received_at = utcnow()
         settings = services.settings
@@ -237,7 +264,9 @@ class Intake:
             return made
         if isinstance(made, Refusal):
             return await journal.refuse(made)
-        return await _enter(session, services, journal, source, pipeline, row, made.model_dump(mode="json"), call)
+        return await _enter(
+            session, services, journal, source, pipeline, row, made.model_dump(mode="json"), call, waiter
+        )
 
 
 async def _enter(
@@ -249,8 +278,9 @@ async def _enter(
     row: Source,
     output: JsonMap,
     call: Call,
+    waiter: Waiter | None,
 ) -> Taken:
-    """Bound the runs in flight, then create the run the input enters."""
+    """Bound the runs in flight and the callers held, then create the run the input enters."""
     bound = source.max_in_flight(source_config(source, row.config))
     if bound is not None:
         # Run creation takes this lock too, so two calls cannot both count one slot free.
@@ -266,6 +296,48 @@ async def _enter(
         )
     )
     version = found.scalar_one()
+    timeout, replies, path = _reply_reach(services, version, row.code)
+    held = waiter is not None and bool(replies)
+    if held and waiter is not None and not waiter.reserve():
+        return await journal.refuse(Refusal.of(SOURCE_WAITING_FULL, status=503, waiting=waiter.seats))
+    try:
+        taken = await _create(session, services, journal, pipeline, row, version, output, call)
+    except BaseException:
+        if held and waiter is not None:
+            waiter.release()
+        raise
+    if not isinstance(taken, Accepted) or not held:
+        if held and waiter is not None:
+            waiter.release()
+        return taken
+    hold = Hold(run_id=taken.accepted.run_id, replies=tuple(replies), path=tuple(path), timeout=timeout)
+    return taken.model_copy(update={"hold": hold})
+
+
+def _reply_reach(services: EngineServices, version: PipelineVersion, source: str) -> tuple[float, list[str], list[str]]:
+    """Name the replies an input at a source can reach, the steps leading to them, and how long it is held."""
+    definition = load_definition(version.document)
+    replies = definition.replies_reached_from(source)
+    if not replies:
+        return 0.0, [], []
+    reach = set(definition.descendants_of(source))
+    leading = {step for reply in replies for step in definition.ancestors_of(reply) if step in reach}
+    path = [name for name in definition.steps if name in leading or name in replies]
+    longest = max(node.timeout for reply in replies if (node := definition.steps[reply].reply) is not None)
+    return min(longest, services.settings.source_reply_max).total_seconds(), replies, path
+
+
+async def _create(
+    session: AsyncSession,
+    services: EngineServices,
+    journal: "_Journal",
+    pipeline: Pipeline,
+    row: Source,
+    version: PipelineVersion,
+    output: JsonMap,
+    call: Call,
+) -> Taken:
+    """Create the run an input enters, and journal it as accepted or refused."""
     entry = Entry(
         step=row.code,
         output=output,
@@ -285,9 +357,10 @@ async def _enter(
         return await journal.refuse(Refusal.of(SOURCE_RUN_REFUSED, status=error.status, detail=str(error)))
     if run is None:
         return await journal.refuse(Refusal.of(SOURCE_RUN_SKIPPED, status=409, pipeline=repr(pipeline.code)))
-    return await journal.accept(
-        InputAccepted(run_id=run.id, status=run.status.value, run_url=f"{services.settings.api_prefix}/runs/{run.id}")
+    accepted = InputAccepted(
+        run_id=run.id, status=run.status.value, run_url=f"{services.settings.api_prefix}/runs/{run.id}"
     )
+    return Accepted(accepted=accepted, input_id=await journal.accept(accepted))
 
 
 class _Journal:
@@ -307,34 +380,34 @@ class _Journal:
         _logger.info("input refused", source=self.row.code, status=refusal.status, code=refusal.code)
         return refusal
 
-    async def accept(self, accepted: InputAccepted) -> InputAccepted:
-        """Record an input that became a run, and hand the answer back."""
-        await self._write(InputOutcome.ACCEPTED, 202, run_id=accepted.run_id)
+    async def accept(self, accepted: InputAccepted) -> int:
+        """Record an input that became a run, and hand back its journal row."""
+        written = await self._write(InputOutcome.ACCEPTED, 202, run_id=accepted.run_id)
         _logger.info("input accepted", source=self.row.code, run_id=str(accepted.run_id))
-        return accepted
+        return written
 
     async def _write(
         self, outcome: InputOutcome, status: int, *, refusal: Refusal | None = None, run_id: UUID | None = None
-    ) -> None:
+    ) -> int:
         """Append the journal row and move the row's counts in one statement, so no count is lost."""
         moment = utcnow()
-        self.session.add(
-            SourceInput(
-                source_id=self.row.id,
-                run_id=run_id,
-                created_at=moment,
-                outcome=outcome,
-                status=status,
-                code=refusal.code if refusal else None,
-                reason=refusal.message if refusal else None,
-                params=refusal.params if refusal else None,
-                method=self.call.method,
-                path=self.call.path,
-                body_bytes=self.body_bytes,
-                duration_ms=round((time.monotonic() - self.started) * 1000),
-                caller=self.call.caller,
-            )
+        journal = SourceInput(
+            source_id=self.row.id,
+            run_id=run_id,
+            created_at=moment,
+            outcome=outcome,
+            status=status,
+            code=refusal.code if refusal else None,
+            reason=refusal.message if refusal else None,
+            params=refusal.params if refusal else None,
+            method=self.call.method,
+            path=self.call.path,
+            body_bytes=self.body_bytes,
+            duration_ms=round((time.monotonic() - self.started) * 1000),
+            caller=self.call.caller,
         )
+        self.session.add(journal)
+        await self.session.flush()
         counted = Source.accepted if outcome is InputOutcome.ACCEPTED else Source.refused
         await self.session.execute(
             sa.update(Source)
@@ -343,6 +416,20 @@ class _Journal:
             .execution_options(synchronize_session=False)
         )
         telemetry.record_input(outcome.value, status)
+        return journal.id
+
+
+async def settle_input(
+    session: AsyncSession, input_id: int, outcome: InputOutcome, status: int, started: float
+) -> None:
+    """Write what a held caller was answered with onto its journal row, and how long it was held."""
+    await session.execute(
+        sa.update(SourceInput)
+        .where(SourceInput.id == input_id)
+        .values(outcome=outcome, status=status, duration_ms=round((time.monotonic() - started) * 1000))
+        .execution_options(synchronize_session=False)
+    )
+    telemetry.record_input(outcome.value, status)
 
 
 class _ReceiveContext(BaseModel):
@@ -413,4 +500,15 @@ def lowered(headers: Iterable[tuple[str, str]]) -> dict[str, str]:
     return joined
 
 
-__all__ = ["Call", "Ignore", "Intake", "Refusal", "RouteTable", "Taken", "lowered", "read_routes"]
+__all__ = [
+    "Accepted",
+    "Call",
+    "Ignore",
+    "Intake",
+    "Refusal",
+    "RouteTable",
+    "Taken",
+    "lowered",
+    "read_routes",
+    "settle_input",
+]

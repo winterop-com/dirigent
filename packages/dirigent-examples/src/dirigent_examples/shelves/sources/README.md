@@ -13,5 +13,5 @@ renders from the run's outputs to answer whoever sent it.
 Each runs by hand: `dg run --local` takes the source's `sample`, and `--input` gives one
 instead (`--source` names which source when a pipeline has several). Applied to a server, an
 endpoint is called at its route under `/endpoints` with the token the apply printed, and
-`dg source call` does that for you. A reply that holds its caller until it answers comes next;
-until then every caller is answered 202.
+`dg source call` does that for you. A caller of a pipeline with a reply is held until the reply
+answers; one with none is answered 202.

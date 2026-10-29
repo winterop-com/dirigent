@@ -96,7 +96,7 @@ def test_an_apply_mints_a_token_once_and_a_reapply_keeps_it(client: TestClient) 
     assert again["sources"]["tokens"] == [], "a source keeps the token it was given"
     assert again["sources"]["updated"] == ["ask"]
     called = client.post("/endpoints/echo/ann", json={"said": "hi"}, headers=bearer(token))
-    assert called.status_code == 202, called.text
+    assert called.status_code == 200, called.text
 
 
 def test_a_call_becomes_a_run_entered_at_the_source_with_the_request_as_its_input(client: TestClient) -> None:
@@ -106,13 +106,13 @@ def test_a_call_becomes_a_run_entered_at_the_source_with_the_request_as_its_inpu
         json={"said": "hi"},
         headers={**bearer(token), "X-Request-Id": "r-1"},
     )
-    assert called.status_code == 202, called.text
-    body = called.json()
-    assert called.headers["location"] == body["run_url"] == f"{PREFIX}/runs/{body['run_id']}"
-    run = client.get(f"{PREFIX}/runs/{body['run_id']}").json()["run"]
+    assert called.status_code == 200, called.text
+    assert called.json() == {"said": "hi"}, "the reply is the answer"
+    run_id = inputs(client, "echo")[0].run_id
+    run = client.get(f"{PREFIX}/runs/{run_id}").json()["run"]
     assert run["status"] == "succeeded"
     assert run["triggered_by_kind"] == "source"
-    attempts = Page[AttemptOut].model_validate(client.get(f"{PREFIX}/runs/{body['run_id']}/attempts").json()).items
+    attempts = Page[AttemptOut].model_validate(client.get(f"{PREFIX}/runs/{run_id}/attempts").json()).items
     entered = next(attempt for attempt in attempts if attempt.step_name == "ask")
     output = entered.output or {}
     assert output["path_params"] == {"who": "ann"}
@@ -141,7 +141,7 @@ def test_a_public_source_takes_a_call_with_no_token(client: TestClient) -> None:
     applied = apply_document(client, echo("      auth: {kind: public}"))
     assert applied["sources"]["tokens"] == [], "a public source is given no token"
     called = client.post("/endpoints/echo/ann", json={}, headers={"Authorization": ""})
-    assert called.status_code == 202, called.text
+    assert called.status_code == 200, called.text
 
 
 def test_a_path_nothing_answers_is_404_and_a_method_its_source_does_not_answer_is_405(client: TestClient) -> None:
@@ -162,7 +162,7 @@ def test_the_most_literal_template_answers_first(client: TestClient) -> None:
         echo("      auth: {kind: public}").replace("code: echo", "code: echo-new").replace("/echo/{who}", "/echo/new"),
     )
     called = client.post("/endpoints/echo/new", json={}, headers={"Authorization": ""})
-    assert called.status_code == 202, called.text
+    assert called.status_code == 200, called.text
     assert [entry.path for entry in inputs(client, "echo-new")] == ["/echo/new"]
     assert inputs(client, "echo") == []
 
@@ -200,7 +200,7 @@ def test_a_paused_source_is_refused_503_until_it_is_resumed(client: TestClient) 
     assert reapplied["sources"]["updated"] == ["ask"]
     assert source(client, "echo").state == "paused", "an apply keeps what an operator did"
     client.post(f"{PREFIX}/pipelines/echo/sources/ask/$resume")
-    assert client.post("/endpoints/echo/ann", json={}, headers=bearer(token)).status_code == 202
+    assert client.post("/endpoints/echo/ann", json={}, headers=bearer(token)).status_code == 200
     counted = source(client, "echo")
     assert (counted.accepted, counted.refused) == (1, 1)
 
@@ -220,7 +220,7 @@ def test_a_rotated_token_replaces_the_old_one_at_once(client: TestClient) -> Non
     assert rotated.status_code == 200, rotated.text
     new = rotated.json()["token"]
     assert client.post("/endpoints/echo/ann", json={}, headers=bearer(old)).status_code == 401
-    assert client.post("/endpoints/echo/ann", json={}, headers=bearer(new)).status_code == 202
+    assert client.post("/endpoints/echo/ann", json={}, headers=bearer(new)).status_code == 200
     assert source(client, "echo").token_prefix == new[:8]
 
 
@@ -233,12 +233,12 @@ def test_a_public_source_has_no_token_to_rotate(client: TestClient) -> None:
 
 def test_a_source_past_its_rate_is_answered_429_and_writes_no_row(client: TestClient) -> None:
     token = token_of(apply_document(client, echo("      rate: {per_minute: 1}")))
-    assert client.post("/endpoints/echo/ann", json={}, headers=bearer(token)).status_code == 202
+    assert client.post("/endpoints/echo/ann", json={}, headers=bearer(token)).status_code == 200
     throttled = client.post("/endpoints/echo/ann", json={}, headers=bearer(token))
     assert throttled.status_code == 429, throttled.text
     assert throttled.json()["code"] == "source.rate"
     assert throttled.headers["retry-after"] == "60"
-    assert [entry.status for entry in inputs(client, "echo")] == [202]
+    assert [(entry.outcome, entry.status) for entry in inputs(client, "echo")] == [("replied", 200)]
 
 
 def test_a_source_with_as_many_runs_in_flight_as_it_allows_is_backlogged(client: TestClient) -> None:
@@ -299,7 +299,7 @@ def test_a_removed_source_stops_answering(client: TestClient) -> None:
     apply_document(client, echo().replace("/echo/{who}", "/moved/{who}"))
     gone = client.post("/endpoints/echo/ann", json={}, headers=bearer(token))
     assert gone.status_code == 404, gone.text
-    assert client.post("/endpoints/moved/ann", json={}, headers=bearer(token)).status_code == 202
+    assert client.post("/endpoints/moved/ann", json={}, headers=bearer(token)).status_code == 200
 
 
 def test_every_source_is_listed_with_its_route_and_never_its_token(client: TestClient) -> None:
@@ -349,8 +349,8 @@ def test_a_form_reaches_a_source_that_takes_one_and_json_does_not(client: TestCl
     taken = client.post(
         "/endpoints/echo/ann", data={"email": "ada@example.org", "tag": ["a", "b"]}, headers=bearer(token)
     )
-    assert taken.status_code == 202, taken.text
-    run_id = taken.json()["run_id"]
+    assert taken.status_code == 200, taken.text
+    run_id = inputs(client, "echo")[0].run_id
     attempts = Page[AttemptOut].model_validate(client.get(f"{PREFIX}/runs/{run_id}/attempts").json()).items
     entered = next(attempt for attempt in attempts if attempt.step_name == "ask").output or {}
     assert (entered["body_kind"], entered["body"]) == ("form", {"email": "ada@example.org", "tag": ["a", "b"]})

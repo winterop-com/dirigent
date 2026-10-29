@@ -18,8 +18,8 @@ from dirigent_plugin.sources import Route
 #: Where ``dg source call`` reads the token a source was given when ``--source-token`` names none.
 TOKEN_ENV: Final = "DIRIGENT_SOURCE_TOKEN"
 
-#: How long a call waits for its answer: an endpoint answers once its run exists, not once it settles.
-CALL_TIMEOUT: Final = httpx2.Timeout(30.0, connect=DEFAULT_CONNECT_TIMEOUT)
+#: How long a call waits for its answer, past the longest an instance holds a caller by default.
+CALL_TIMEOUT: Final = httpx2.Timeout(90.0, connect=DEFAULT_CONNECT_TIMEOUT)
 
 source_app = typer.Typer(
     name="source",

@@ -884,16 +884,16 @@ def test_a_source_is_called_with_its_token_and_its_journal_read_back(tmp_path: P
     )
     assert called.exit_code == 0, called.output
     answer = only(called.stdout, "source.called")
-    assert answer["status"] == 202
+    assert answer["status"] == 200
     assert answer["url"].endswith("/endpoints/cli-echo/ada")
-    assert answer["body"]["run_url"].startswith("/api/v1/runs/")
+    assert answer["body"] == {"said": "hi"}, "the reply is the answer"
 
     refused = machine("source", "call", "cli-echo", "ask", "-p", "who=ada", "--text", "hi", "--source-token", "wrong")
     assert refused.exit_code == 1, "a refusal exits non-zero"
     assert only(refused.stdout, "source.called")["status"] == 401
 
     journal = rows_of("source", "inputs", "cli-echo", "ask")
-    assert [(row["outcome"], row["status"]) for row in journal] == [("accepted", 202)]
+    assert [(row["outcome"], row["status"]) for row in journal] == [("replied", 200)]
 
 
 def test_a_form_is_called_as_a_form(tmp_path: Path, server: str) -> None:

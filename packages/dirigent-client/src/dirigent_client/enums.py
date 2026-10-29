@@ -211,10 +211,16 @@ class InputOutcome(StrEnum):
     """What came of one input that reached a source."""
 
     ACCEPTED = "accepted"
-    """It became a run, and the caller was answered with where to read it."""
+    """It became a run, and the caller was answered with where to read it, or is held for its reply."""
+
+    REPLIED = "replied"
+    """It became a run whose answer the caller was held for: a reply, or the run's failure."""
 
     REFUSED = "refused"
     """It was refused before any run existed, and the reason is on the row."""
+
+    TIMED_OUT = "timed_out"
+    """It became a run the caller was held for, and no answer came before the caller's timeout."""
 
 
 class BodyKind(StrEnum):

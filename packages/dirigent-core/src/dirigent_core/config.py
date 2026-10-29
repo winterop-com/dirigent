@@ -381,7 +381,7 @@ class Settings(BaseSettings):
     A call past it is answered 503 before its run is created."""
 
     source_reply_poll: Duration = Field(default=timedelta(milliseconds=50), gt=timedelta(0))
-    """How often one server process reads the replies its held callers wait for, in one query."""
+    """The least time between two reads of the replies one server process's held callers wait for."""
 
     login_rate_per_minute: int = Field(default=10, ge=1)
     """How many login attempts one address, and one username, get a minute.
