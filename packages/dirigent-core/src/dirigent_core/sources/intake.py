@@ -2,11 +2,13 @@
 
 Each check answers for itself, in this order: the instance's bucket for the method and path,
 the route (404, 405), the token (401), the source's own bucket (429), the source and its
-pipeline taking input (503), the content type (415), the capped read (413), the parse (400),
-the runs in flight (503), then the run. Nothing before the source's own bucket writes a row,
-so a caller without a token, or in a loop, causes no writes; those are counted in telemetry.
+pipeline taking input (503), the content type (415), the capped read (413), the signature of a
+signed source (401), the parse (400), the runs in flight (503), then the run. Nothing before
+the source's own bucket writes a row, so a caller without a token, or in a loop, causes no
+writes; those are counted in telemetry, and so is a signature that does not match.
 """
 
+import hashlib
 import hmac
 import math
 import time
@@ -42,17 +44,19 @@ from dirigent_core.messages import (
     SOURCE_RATE,
     SOURCE_RUN_REFUSED,
     SOURCE_RUN_SKIPPED,
+    SOURCE_SIGNATURE_MISMATCH,
+    SOURCE_SIGNATURE_REQUIRED,
     SOURCE_WAITING_FULL,
     SOURCE_WAITING_SHARE,
     TOKEN_REFUSED,
 )
 from dirigent_core.models import Pipeline, PipelineVersion, Source, SourceInput, SourceRoute, utcnow
 from dirigent_core.ratelimit import TokenBucket
-from dirigent_core.sources.rows import AnyReceived, endpoint_path, in_flight, received
+from dirigent_core.sources.rows import AnyReceived, endpoint_path, in_flight, open_signing_secret, received
 from dirigent_core.sources.rules import source_config
 from dirigent_core.sources.waiter import Hold, Seating, Waiter
 from dirigent_plugin.blocks import Logger
-from dirigent_plugin.sources import Ignore, InboundRequest, Refusal, Route
+from dirigent_plugin.sources import Ignore, InboundRequest, Refusal, Route, SourceAuth
 
 #: How long a process answers from the routes it read before reading them again, a notification or not.
 ROUTES_TTL_SECONDS: Final = 5.0
@@ -220,7 +224,8 @@ class Intake:
         if kind is None:
             return _counted(Refusal.of(SOURCE_KIND_MISSING, status=503, code=repr(row.code), kind=repr(row.kind)))
         source, config = kind
-        if source.auth(config).kind == "token" and not _presents(row, call.headers):
+        auth = source.auth(config)
+        if auth.kind == "token" and not _presents(row, call.headers):
             return _counted(
                 Refusal.of(TOKEN_REFUSED, status=401, headers={"WWW-Authenticate": 'Bearer realm="dirigent"'})
             )
@@ -259,6 +264,10 @@ class Intake:
         journal.body_bytes = len(body)
         if len(body) > most:
             return await journal.refuse(Refusal.of(SOURCE_BODY_TOO_LARGE, status=413, limit=most))
+        if auth.kind == "hmac":
+            unsigned = _unsigned(services, row, auth, call.headers, body)
+            if unsigned is not None:
+                return _counted(unsigned)
         made = await source.receive(config, head.model_copy(update={"body": body}), _ReceiveContext(services=services))
         if isinstance(made, Ignore):
             telemetry.record_input("ignored", 204)
@@ -493,6 +502,25 @@ def _presents(row: Source, headers: Mapping[str, str]) -> bool:
     if scheme.lower() != BEARER or not credential.strip():
         return False
     return hmac.compare_digest(hash_token(credential.strip()), row.token_hash)
+
+
+def _unsigned(
+    services: EngineServices, row: Source, auth: SourceAuth, headers: Mapping[str, str], body: bytes
+) -> Refusal | None:
+    """Refuse a body whose signature is missing or is not this source's secret's, in constant time.
+
+    Both sides are compared as bytes, since the header is the caller's and one character outside
+    ASCII would otherwise raise rather than refuse.
+    """
+    presented = headers.get(auth.header.lower())
+    if not presented:
+        return Refusal.of(SOURCE_SIGNATURE_REQUIRED, status=401, header=auth.header)
+    secret = open_signing_secret(services.secrets, row)
+    offered = presented.strip().removeprefix("sha256=")
+    expected = hmac.new(secret or b"", body, hashlib.sha256).hexdigest().encode("ascii")
+    if secret is None or not hmac.compare_digest(expected, offered.encode("utf-8", "surrogateescape")):
+        return Refusal.of(SOURCE_SIGNATURE_MISMATCH, status=401)
+    return None
 
 
 def _retry_after(per_minute: int) -> dict[str, str]:

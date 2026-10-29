@@ -130,7 +130,7 @@ async def test_a_route_claimed_between_plan_and_write_is_refused(
     with pytest.raises(RouteRaced):
         async with session_scope(sessions) as session:
             pipeline = await require_pipeline(session, "second")
-            await reconcile_sources(session, services.settings, services.sources, pipeline, second)
+            await reconcile_sources(session, services.settings, services.sources, services.secrets, pipeline, second)
 
 
 async def test_a_server_rereads_its_routes_once_a_source_changes(

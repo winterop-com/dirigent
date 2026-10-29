@@ -1,7 +1,7 @@
 """A pipeline's sources: what each listens to, its state, what has arrived, and what an operator does to it.
 
-The instance keeps only the hash of a source's token, so the token is readable exactly once:
-when an apply mints it, or when it is rotated.
+The instance keeps only the hash of a source's token, and a signing secret sealed with its own
+key, so either is readable exactly once: when an apply mints it, or when it is rotated.
 """
 
 from collections.abc import Sequence
@@ -9,7 +9,7 @@ from collections.abc import Sequence
 from fastapi import APIRouter
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dirigent_client.schemas import Page, SourceInputOut, SourceOut, SourceTokenOut
+from dirigent_client.schemas import Page, SetSecretRequest, SourceInputOut, SourceOut, SourceTokenOut
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.models import Pipeline, Source
 from dirigent_core.pipelines import require_pipeline
@@ -21,6 +21,7 @@ from dirigent_core.sources.rows import (
     require_source,
     rotate_source_token,
     set_paused,
+    set_signing_secret,
     source_out,
 )
 from dirigent_server.dependencies import ServicesDep, SessionDep
@@ -112,16 +113,38 @@ async def resume(
 @router.post(
     "/pipelines/{code}/sources/{source}/$rotate-token",
     operation_id="rotateSourceToken",
-    summary="Rotate a source's token",
+    summary="Rotate a source's token or signing secret",
     response_model=SourceTokenOut,
 )
 async def rotate(
     code: str, source: str, session: SessionDep, services: ServicesDep, principal: OperatorDep
 ) -> SourceTokenOut:
-    """Mint a new token and forget the old one immediately; every caller has to be given it."""
+    """Mint a new token or signing secret and forget the old one immediately; every caller has to be given it."""
     pipeline = await require_pipeline(session, code)
     row = await require_source(session, pipeline, source)
-    return await rotate_source_token(session, services.settings, services.sources, pipeline, row)
+    return await rotate_source_token(session, services.settings, services.sources, services.secrets, pipeline, row)
+
+
+@router.post(
+    "/pipelines/{code}/sources/{source}/$set-secret",
+    operation_id="setSourceSecret",
+    summary="Set a signed source's signing secret",
+    response_model=SourceOut,
+)
+async def set_secret(
+    code: str,
+    source: str,
+    payload: SetSecretRequest,
+    session: SessionDep,
+    services: ServicesDep,
+    principal: OperatorDep,
+) -> SourceOut:
+    """Replace an ``hmac`` source's signing secret with one its sender issued, such as a provider's own."""
+    pipeline = await require_pipeline(session, code)
+    row = await require_source(session, pipeline, source)
+    secret = payload.secret.get_secret_value()
+    await set_signing_secret(session, services.sources, services.secrets, pipeline, row, secret)
+    return await _one(session, services, row, pipeline)
 
 
 @router.get(

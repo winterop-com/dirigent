@@ -1055,6 +1055,18 @@ ROUTE_RACED = SOURCE.define(
     "{method} {template} was claimed by another pipeline while this one was applied; apply again to see which",
 )
 
+SOURCE_SIGNATURE_REQUIRED = SOURCE.define(
+    "signature_required", "this endpoint takes a signature of the body in a {header} header"
+)
+
+SOURCE_SIGNATURE_MISMATCH = SOURCE.define("signature_mismatch", "the signature does not match the body")
+
+SOURCE_NOT_SIGNED = SOURCE.define(
+    "not_signed", "source {code} of pipeline {pipeline} is {auth}, so it has no signing secret to set"
+)
+
+SOURCE_EMPTY_SECRET = SOURCE.define("empty_secret", "an empty signing secret is not a secret")
+
 SOURCE_TAKES_NO_TOKEN = SOURCE.define(
     "takes_no_token", "source {code} of pipeline {pipeline} is {auth}, so it has no token to rotate"
 )

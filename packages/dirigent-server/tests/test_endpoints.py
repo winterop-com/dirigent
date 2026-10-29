@@ -1,5 +1,7 @@
 """A call under /endpoints: each check in its order, what it answers, and what it writes down."""
 
+import hashlib
+import hmac
 from typing import Any
 
 import pytest
@@ -356,3 +358,64 @@ def test_a_form_reaches_a_source_that_takes_one_and_json_does_not(client: TestCl
     assert (entered["body_kind"], entered["body"]) == ("form", {"email": "ada@example.org", "tag": ["a", "b"]})
     refused = client.post("/endpoints/echo/ann", json={"email": "x"}, headers=bearer(token))
     assert refused.status_code == 415, refused.text
+
+
+def signed(secret: str, body: bytes) -> dict[str, str]:
+    """Sign a body the way a sender holding the source's secret does."""
+    digest = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+    return {"X-Dirigent-Signature": f"sha256={digest}", "Content-Type": "application/json", "Authorization": ""}
+
+
+def test_a_signed_source_takes_a_body_signed_with_its_secret_and_refuses_any_other(client: TestClient) -> None:
+    applied = apply_document(client, held("      auth: {kind: hmac}"))
+    [minted] = applied["sources"]["tokens"]
+    assert (minted["auth"], minted["header"]) == ("hmac", "X-Dirigent-Signature")
+    secret = minted["token"]
+    body = b'{"order": 1}'
+
+    unsigned = client.post(
+        "/endpoints/held", content=body, headers={"Content-Type": "application/json", "Authorization": ""}
+    )
+    assert unsigned.status_code == 401, unsigned.text
+    assert unsigned.json()["code"] == "source.signature_required"
+    forged = client.post("/endpoints/held", content=body, headers=signed("not the secret", body))
+    assert forged.status_code == 401, forged.text
+    assert forged.json()["code"] == "source.signature_mismatch"
+    assert inputs(client, "held") == [], "a caller who cannot sign causes no writes"
+
+    taken = client.post("/endpoints/held", content=body, headers=signed(secret, body))
+    assert taken.status_code == 202, taken.text
+
+
+def test_a_signing_secret_is_rotated_or_replaced_with_the_senders_own(client: TestClient) -> None:
+    secret = apply_document(client, held("      auth: {kind: hmac}"))["sources"]["tokens"][0]["token"]
+    body = b"{}"
+    rotated = client.post(f"{PREFIX}/pipelines/held/sources/ask/$rotate-token")
+    assert rotated.status_code == 200, rotated.text
+    fresh = rotated.json()["token"]
+    assert client.post("/endpoints/held", content=body, headers=signed(secret, body)).status_code == 401
+    assert client.post("/endpoints/held", content=body, headers=signed(fresh, body)).status_code == 202
+
+    replaced = client.post(
+        f"{PREFIX}/pipelines/held/sources/ask/$set-secret", json={"secret": "whsec_from_the_provider"}
+    )
+    assert replaced.status_code == 200, replaced.text
+    assert "whsec_from_the_provider" not in replaced.text
+    assert (
+        client.post("/endpoints/held", content=body, headers=signed("whsec_from_the_provider", body)).status_code == 202
+    )
+
+
+def test_a_source_that_does_not_sign_has_no_secret_to_set(client: TestClient) -> None:
+    apply_document(client, held())
+    refused = client.post(f"{PREFIX}/pipelines/held/sources/ask/$set-secret", json={"secret": "anything"})
+    assert refused.status_code == 409, refused.text
+    assert refused.json()["code"] == "source.not_signed"
+
+
+def test_moving_a_source_from_a_token_to_signing_drops_the_token(client: TestClient) -> None:
+    token = token_of(apply_document(client, held()))
+    applied = apply_document(client, held("      auth: {kind: hmac}"))
+    assert [entry["auth"] for entry in applied["sources"]["tokens"]] == ["hmac"]
+    refused = client.post("/endpoints/held", json={}, headers=bearer(token))
+    assert refused.status_code == 401, "the old token opens nothing"

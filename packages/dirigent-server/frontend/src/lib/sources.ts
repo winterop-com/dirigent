@@ -37,6 +37,8 @@ export interface SourceOut {
     url_path: string | null
     auth: string | null
     token_prefix: string | null
+    /** For an `hmac` source, the header a caller's signature of the body arrives in. */
+    signature_header: string | null
     in_flight: number
     max_in_flight: number | null
     accepted: number
@@ -76,6 +78,8 @@ export interface SourceTokenOut {
     source_id: string
     pipeline: string
     code: string
+    auth: string
+    header: string | null
     token: string
     prefix: string
     url_path: string
@@ -181,11 +185,20 @@ export function inputLine(input: Pick<SourceInputOut, 'method' | 'path' | 'label
 }
 
 /** How a caller authenticates, in the words the panel uses, or null for a kind with no caller. */
-export function authLine(source: Pick<SourceOut, 'auth' | 'token_prefix'>): string | null {
+export function authLine(
+    source: Pick<SourceOut, 'auth' | 'token_prefix' | 'signature_header'>,
+): string | null {
     if (source.auth === 'public') return LABELS.triggers.source.public
     if (source.auth === 'token' && source.token_prefix !== null)
         return LABELS.triggers.source.token(source.token_prefix)
+    if (source.auth === 'hmac' && source.signature_header !== null)
+        return LABELS.triggers.source.signed(source.signature_header, source.token_prefix ?? '')
     return null
+}
+
+/** Whether a source's callers present a credential the instance minted, which can be rotated. */
+export function rotatable(source: Pick<SourceOut, 'auth'>): boolean {
+    return source.auth === 'token' || source.auth === 'hmac'
 }
 
 /** What one input amounted to: the word, the tone, and the run it started. */

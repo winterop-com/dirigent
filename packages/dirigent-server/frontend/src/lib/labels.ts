@@ -1133,6 +1133,7 @@ const refused = {
         endpoint_method_not_declared: 'The method {method} is not one this endpoint answers ({methods}).',
         endpoint_path_params_missing:
             'The path template takes {names}, and path_params gives no value for it.',
+        empty_secret: 'An empty signing secret is not a secret.',
         field_refused:
             'A source takes name, description and sample, and nothing else. {field} goes on the step after it.',
         intake_rate: 'This instance takes {per_minute} calls a minute at one path.',
@@ -1141,6 +1142,7 @@ const refused = {
         kind_missing: 'Source {code} is of kind {kind}, which is not installed on this instance.',
         method_not_answered: '{path} answers {allowed}, not {method}.',
         no_route: 'Nothing on this instance answers {method} {path}.',
+        not_signed: 'Source {code} of pipeline {pipeline} is {auth}, so it has no signing secret to set.',
         paused: 'Source {code} of pipeline {pipeline} is paused.',
         pipeline_inactive: 'Pipeline {pipeline} is deactivated, so its source {code} takes no input.',
         rate: 'This endpoint takes {per_minute} calls a minute.',
@@ -1179,6 +1181,8 @@ const refused = {
         sample_outside_source: 'Only a source takes a sample.',
         schedule_on_sources:
             'Pipeline {code} starts at its sources, and a schedule would enter none of them. Run it from a source instead.',
+        signature_mismatch: 'The signature does not match the body.',
+        signature_required: 'This endpoint takes a signature of the body in a {header} header.',
         step_one_form: 'A step is exactly one of block, source or reply, and this one writes {named}.',
         takes_no_token: 'Source {code} of pipeline {pipeline} is {auth}, so it has no token to rotate.',
         token_refused: 'This endpoint takes the bearer token minted for it, in an Authorization header.',
@@ -2486,6 +2490,9 @@ const triggers = {
         auth: 'Auth',
         /** A token, shown by the prefix that tells one copy from another. */
         token: (prefix: string) => `token ${prefix}…`,
+        /** A signed source: the header its signature arrives in, and which secret signs it. */
+        signed: (header: string, prefix: string) => `signed in ${header}, secret ${prefix}…`,
+        rotate_secret: 'Rotate secret',
         public: 'public',
         /** What it has taken: inputs that became runs, and inputs refused. */
         taken: 'Received',

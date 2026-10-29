@@ -571,7 +571,13 @@ class Source(Entity):
     """The hash of the bearer token a caller presents, or null for a source that takes none."""
 
     token_prefix: Mapped[str | None] = mapped_column(sa.String(16))
-    """The leading characters of the token, shown in listings."""
+    """The leading characters of the token or the signing secret, shown in listings."""
+
+    signing_secret: Mapped[bytes | None] = mapped_column(sa.LargeBinary)
+    """The secret an ``hmac`` source's callers sign with, sealed with the instance key."""
+
+    signing_key_id: Mapped[str | None] = mapped_column(sa.String(64))
+    """Which instance key sealed the signing secret."""
 
     paused: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False, server_default=sa.false())
     accepted: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0, server_default=sa.text("0"))

@@ -71,8 +71,13 @@ class SourceAuth(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid", use_attribute_docstrings=True)
 
-    kind: Literal["token", "public"] = "token"
-    """``token`` takes ``Authorization: Bearer`` with the token the instance minted; ``public`` admits anyone."""
+    kind: Literal["token", "hmac", "public"] = "token"
+    """``token`` takes ``Authorization: Bearer`` with the token the instance minted; ``hmac`` takes a
+    signature of the body, made with the source's signing secret; ``public`` admits anyone."""
+
+    header: str = Field(default="X-Dirigent-Signature", min_length=1)
+    """For ``hmac``, the header the signature arrives in: the hex HMAC-SHA256 of the raw body,
+    with or without a leading ``sha256=``."""
 
 
 class SourceRate(BaseModel):

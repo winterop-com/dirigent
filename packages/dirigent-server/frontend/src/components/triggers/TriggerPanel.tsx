@@ -19,6 +19,7 @@ import {
     inputView,
     isPaused,
     readSourceInputs,
+    rotatable,
     rotateSourceToken,
     inputLine,
     listensTo,
@@ -401,7 +402,7 @@ export function SourcePanel({
                         {paused ? LABELS.action.resume : LABELS.action.pause}
                     </Button>
                 </Refusable>
-                {source.auth === 'token' && (
+                {rotatable(source) && (
                     <Refusable why={write.why}>
                         <Button
                             variant="outline"
@@ -415,14 +416,14 @@ export function SourcePanel({
                                 })
                             }}
                         >
-                            {LABELS.triggers.rotate}
+                            {source.auth === 'hmac'
+                                ? LABELS.triggers.source.rotate_secret
+                                : LABELS.triggers.rotate}
                         </Button>
                     </Refusable>
                 )}
             </div>
-            {source.auth === 'token' && (
-                <p className="text-xs text-faint">{LABELS.triggers.rotate_warning}</p>
-            )}
+            {rotatable(source) && <p className="text-xs text-faint">{LABELS.triggers.rotate_warning}</p>}
 
             <History
                 title={LABELS.triggers.source.inputs}

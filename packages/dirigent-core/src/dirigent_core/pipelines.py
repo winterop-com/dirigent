@@ -314,7 +314,9 @@ async def apply_document(
             triggers = await materialize_triggers(
                 session, services, pipeline, definition, pause_created=pause_schedules
             )
-            sources = await reconcile_sources(session, services.settings, services.sources, pipeline, definition)
+            sources = await reconcile_sources(
+                session, services.settings, services.sources, services.secrets, pipeline, definition
+            )
         return ApplyResult(
             plan=plan,
             pipeline_id=pipeline.id if pipeline else None,
@@ -326,7 +328,9 @@ async def apply_document(
     version = await save_pipeline(session, definition, provenance=provenance)
     pipeline = await require_pipeline(session, definition.code)
     triggers = await materialize_triggers(session, services, pipeline, definition, pause_created=pause_schedules)
-    sources = await reconcile_sources(session, services.settings, services.sources, pipeline, definition)
+    sources = await reconcile_sources(
+        session, services.settings, services.sources, services.secrets, pipeline, definition
+    )
     await follow_version(session, services, pipeline.id)
     _logger.info(
         "pipeline applied",

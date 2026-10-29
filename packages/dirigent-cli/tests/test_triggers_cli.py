@@ -861,7 +861,7 @@ def test_an_apply_that_creates_a_source_hands_over_its_token_once(tmp_path: Path
     text = plain(result.output)
     assert "/endpoints/cli-echo/{who}" in text
     assert "Authorization: Bearer" in text
-    assert "Each token is shown once." in text
+    assert "Each token and signing secret is shown once." in text
     again = machine("apply", str(path))
     assert only(again.stdout, "apply")["fields"]["sources"]["tokens"] == [], "a reapply mints nothing"
 
@@ -932,4 +932,19 @@ def test_a_source_is_listed_paused_resumed_and_given_a_new_token(tmp_path: Path,
     assert minted["token"] != old
     assert minted["url"].endswith("/endpoints/cli-echo/{who}")
     rendered = invoke("source", "rotate-token", "cli-echo", "ask")
-    assert "This is the only time the token is shown." in plain(rendered.output)
+    assert "This is the only time it is shown." in plain(rendered.output)
+
+
+def test_a_signed_source_is_called_with_a_body_signed_by_its_secret(tmp_path: Path, server: str) -> None:
+    path = tmp_path / "signed.yaml"
+    path.write_text(ENDPOINT_DOCUMENT.replace("methods: [POST]", "methods: [POST]\n      auth: {kind: hmac}"))
+    applied = machine("apply", str(path))
+    assert applied.exit_code == 0, applied.output
+    [minted] = only(applied.stdout, "apply")["fields"]["sources"]["tokens"]
+    assert minted["auth"] == "hmac"
+    args = ["source", "call", "cli-echo", "ask", "-p", "who=ada", "--body", '{"said": "hi"}']
+    unsigned = machine(*args)
+    assert only(unsigned.stdout, "source.called")["status"] == 401
+    called = machine(*args, "--signing-secret", minted["token"])
+    assert called.exit_code == 0, called.output
+    assert only(called.stdout, "source.called")["status"] == 200
