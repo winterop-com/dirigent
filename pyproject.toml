@@ -151,6 +151,7 @@ reportMissingTypeStubs = false
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 testpaths = ["packages"]
 addopts = "-q --color=yes --strict-markers -m 'not postgres and not s3 and not docker and not queues and not load'"
 filterwarnings = [
@@ -195,7 +196,7 @@ dev = [
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
     "pytest-cov>=7.1.0",
-    "ruff>=0.16.5",
+    "ruff>=0.17.3",
     "testcontainers[postgres]>=4.14.0",
     "opentelemetry-sdk>=1.44.0",
     "types-pyyaml>=6.0.12.20260815",
