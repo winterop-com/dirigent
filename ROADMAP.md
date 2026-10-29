@@ -368,6 +368,12 @@ stays clean, and every example stays executable.
   favicon, the README banner, and a dark-background variant, and `docs/assets/logo.png` and
   `banner.png` keep their names so nothing needs rewiring.
 
+- **A typography and component pass on the web UI.** The fonts, and some of the UI's elements,
+  are not good enough yet. Wanted: a pass over the type itself (the faces, their sizes and
+  weights, and where mono is used) and over the components that read weakest, settled in
+  `docs/ui-conventions.md` first and then applied across every screen, reviewed with the
+  `ui-review` skill in both palettes. Which elements need it is still to be listed.
+
 - **Reusable step groups.** Blocks are the unit below a pipeline and `pipeline.run` composes
   above it, but a repeated five-step idiom has nowhere to live except duplication or its own
   pipeline. Wanted: a named group of steps a document can include with parameters, without
