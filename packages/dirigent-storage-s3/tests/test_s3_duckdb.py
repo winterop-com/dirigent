@@ -99,6 +99,23 @@ async def test_the_object_is_really_in_the_bucket_and_not_on_the_worker(
     assert not list(ctx.work.rglob("*.parquet")), "nothing was staged on the worker's own disk"
 
 
+async def test_a_document_reading_the_bucket_cannot_read_its_credential(ctx: FakeContext) -> None:
+    """The credential is the connection's own secret, redacted, rather than a setting any statement reads."""
+    target = f"{ctx.scratch}/readable.parquet"
+    await write(ctx, "COPY (SELECT 1 AS n) TO :target (FORMAT parquet)", params={"target": target})
+
+    output = await read(
+        ctx,
+        "SELECT n, current_setting('s3_secret_access_key') AS setting,"
+        " (SELECT secret_string FROM duckdb_secrets()) AS secret FROM read_parquet(:source)",
+        params={"source": target},
+    )
+
+    assert output.rows[0]["n"] == 1
+    assert SECRET_KEY not in str(output.rows)
+    assert "secret=redacted" in output.rows[0]["secret"]
+
+
 async def test_a_bucket_uri_is_refused_when_no_connection_is_bound_to_the_scheme(ctx: FakeContext) -> None:
     """The credential comes from the scheme binding, so a missing one is named rather than guessed."""
     ctx.storage_connections.clear()

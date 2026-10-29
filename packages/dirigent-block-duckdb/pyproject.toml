@@ -14,7 +14,7 @@ dependencies = [
     "dirigent-block-sql==0.25.2",
     "dirigent-common==0.25.2",
     "dirigent-plugin==0.25.2",
-    "duckdb>=1.4.0",
+    "duckdb>=2.0.0",
     "duckdb-engine>=0.17.0",
 ]
 

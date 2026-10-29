@@ -1056,7 +1056,7 @@ requires-dist = [
     { name = "dirigent-block-sql", editable = "packages/dirigent-block-sql" },
     { name = "dirigent-common", editable = "packages/dirigent-common" },
     { name = "dirigent-plugin", editable = "packages/dirigent-plugin" },
-    { name = "duckdb", specifier = ">=1.4.0" },
+    { name = "duckdb", specifier = ">=2.0.0" },
     { name = "duckdb-engine", specifier = ">=0.17.0" },
 ]
 
