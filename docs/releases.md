@@ -16,6 +16,35 @@ tag is what publishes: `.github/workflows/release.yaml` builds every package and
 to PyPI through trusted publishing, then builds the image from that commit and pushes it as
 `<version>` and `latest`. The two sibling repositories then relock against the tag and bump.
 
+## 0.26.0
+
+Released 2026-10-29. Every package in the workspace moves to 0.26.0 together, and so do
+`dirigent-dhis2` and `dirigent-integration`.
+
+- **A pipeline's own SQL could read the instance's S3 secret key.** The duckdb block gave
+  httpfs its credential as plain settings, and a setting is readable by any statement on the
+  connection: `SELECT current_setting('s3_secret_access_key')` in a document answered the key,
+  into the step's output. Every release from 0.9.0 to 0.25.2 is affected. The
+  credential is now a duckdb connection secret (`CREATE SECRET ... IN connection`), held by
+  that connection alone, in memory, with every value bound, and redacted wherever it is
+  listed. An instance where people who should not hold the S3 key can apply documents should
+  rotate it after upgrading: a key already read stays valid.
+- **duckdb 2.** The duckdb block requires `duckdb>=2.0.0`. duckdb 2 refuses a call on a
+  connection still busy with another, so a query that outlives its timeout now waits for the
+  interrupted statement to return before the connection is rolled back and closed. A
+  statement that ignores the interrupt is left behind after five seconds, the step fails on
+  its timeout as before, and the connection closes once the statement returns. Each database
+  a step opens bounds its I/O threads at eight; duckdb 2's default scales with the host.
+- **A quiet run's stream stays open.** `$logs?follow=sse` and `$events` send a `: ping`
+  comment when fifteen seconds pass with nothing sent, so a proxy that closes idle connections
+  no longer cuts a tail on a run that is quiet for a long time. An SSE client reads past a
+  comment; the UI and `dg` already do.
+- **Dependencies.** Every Python and UI dependency is on its newest release: among them
+  FastAPI 0.162 (Starlette 1.10), pydantic 2.14, SQLAlchemy 2.1.6, pyarrow 26, ruff 0.17,
+  react-router 8, vitest 5, and monaco-editor 0.57. The editor keeps typing on monaco's
+  textarea rather than its experimental edit context, and builds monaco-yaml's worker against
+  monaco's new module layout.
+
 ## 0.25.2
 
 Released 2026-10-27. Every package in the workspace moves to 0.25.2 together, and so do
