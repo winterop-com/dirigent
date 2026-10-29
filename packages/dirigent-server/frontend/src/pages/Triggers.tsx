@@ -8,7 +8,7 @@ import { PageHeader, PageState } from '@/components/PageState'
 import { PipelineRef } from '@/components/PipelineRef'
 import { Chip, Clock, Dot, NextFire, OwnerChip, WatchState } from '@/components/triggers/marks'
 import { MintedToken, NewSchedule, NewWebhook } from '@/components/triggers/NewTrigger'
-import { SchedulePanel, WatchPanel, WebhookPanel } from '@/components/triggers/TriggerPanel'
+import { SchedulePanel, SourcePanel, WatchPanel, WebhookPanel } from '@/components/triggers/TriggerPanel'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { usePaged } from '@/hooks/use-paged'
 import { formatInstant, formatRelative } from '@/lib/format'
@@ -17,6 +17,7 @@ import { LABELS } from '@/lib/labels'
 import { closePanel, fillPanel, openPanel } from '@/lib/panels'
 import { LIST_GROUP, registerActions } from '@/lib/palette'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
+import { readSourcePage, routeLine, sourceId, stateView, type SourceOut } from '@/lib/sources'
 import { cn } from '@/lib/utils'
 import {
     deliveryView,
@@ -38,8 +39,11 @@ import {
 } from '@/lib/triggers'
 
 /**
- * Everything that fires a pipeline without a person: the clocks, the inbound endpoints, and the
- * watches that keep a run waiting on a sensor.
+ * Everything that fires a pipeline without a person: the sources a pipeline listens on, the
+ * clocks, the inbound endpoints, and the watches that keep a run waiting on a sensor.
+ *
+ * SOURCES ARE READ ON THEIR OWN CURSOR. `/sources` lists every source on the instance, so that
+ * section pages by itself; the three trigger sections share the pipelines walk below.
  *
  * THREE SECTIONS, ONE WALK. This API has no listing of every schedule on the instance -- a
  * trigger hangs off the pipeline it fires -- so the screen walks pipelines and reads the
@@ -60,6 +64,15 @@ export function Triggers() {
     const [fresher, setFresher] = useState<Record<string, TriggerRow>>({})
 
     const { state, more, reload } = usePaged(readTriggerPage, triggerId)
+    const listed = usePaged(readSourcePage, sourceId)
+    const reloadSources = listed.reload
+    const [chosenSource, setChosenSource] = useState<string | null>(null)
+    const [fresherSources, setFresherSources] = useState<Record<string, SourceOut>>({})
+    const sources = useMemo(
+        () => listed.state.rows.map((row) => fresherSources[sourceId(row)] ?? row),
+        [fresherSources, listed.state.rows],
+    )
+    const openSource = sources.find((row) => sourceId(row) === chosenSource) ?? null
 
     const rows = useMemo(() => state.rows.map((row) => fresher[triggerId(row)] ?? row), [fresher, state.rows])
     const schedules = useMemo(() => rows.filter(isSchedule), [rows])
@@ -77,6 +90,32 @@ export function Triggers() {
         setScreenStatus({ note: null, tone: 'quiet', identifier: null })
         return clearScreenStatus
     }, [])
+
+    useEffect(() => {
+        if (openSource === null) return
+        return fillPanel(
+            [
+                {
+                    id: 'source',
+                    label: LABELS.word.input_source.label,
+                    render: () => (
+                        <SourcePanel
+                            source={openSource}
+                            pipelineName={null}
+                            onChanged={(row: SourceOut) => {
+                                setFresherSources((current) => ({
+                                    ...current,
+                                    [sourceId(row)]: row,
+                                }))
+                            }}
+                            onMinted={setMinted}
+                        />
+                    ),
+                },
+            ],
+            { screen: 'triggers' },
+        )
+    }, [openSource])
 
     useEffect(() => {
         if (open === null) return
@@ -168,19 +207,30 @@ export function Triggers() {
                 screen: true,
                 icon: RefreshCw,
                 keywords: ['refresh', 'reload'],
-                run: reload,
+                run: () => {
+                    reload()
+                    reloadSources()
+                },
             },
         ])
-    }, [mayWrite, reload])
+    }, [mayWrite, reload, reloadSources])
 
     const select = (row: TriggerRow) => {
+        setChosenSource(null)
         setChosen(triggerId(row))
         openPanel()
     }
 
-    /** What taking the open row back means here, whichever of the three listings it is in. */
+    const selectSource = (row: SourceOut) => {
+        setChosen(null)
+        setChosenSource(sourceId(row))
+        openPanel()
+    }
+
+    /** What taking the open row back means here, whichever of the four listings it is in. */
     const unchoose = () => {
         setChosen(null)
+        setChosenSource(null)
         closePanel()
     }
 
@@ -214,12 +264,32 @@ export function Triggers() {
             />
 
             <PageState
-                loading={!state.read}
-                problem={state.problem}
-                empty={rows.length === 0}
+                loading={!state.read || !listed.state.read}
+                problem={state.problem ?? listed.state.problem}
+                empty={rows.length === 0 && sources.length === 0}
                 emptyMessage={LABELS.triggers.empty}
             >
                 <div className="space-y-6">
+                    <section className="space-y-2">
+                        <h2 className="text-sm font-semibold">{LABELS.word.input_source.heading}</h2>
+                        {sources.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">{LABELS.triggers.source.empty}</p>
+                        ) : (
+                            <ListTable
+                                columns={sourceColumns(sources)}
+                                rows={sources}
+                                rowKey={sourceId}
+                                reading={listed.state.reading}
+                                next={listed.state.next}
+                                onMore={listed.more}
+                                noun={LABELS.word.input_source.count}
+                                onSelect={selectSource}
+                                selected={(row) => sourceId(row) === chosenSource}
+                                onClose={unchoose}
+                            />
+                        )}
+                    </section>
+
                     <section className="space-y-2">
                         <h2 className="text-sm font-semibold">{LABELS.word.schedule.heading}</h2>
                         {schedules.length === 0 ? (
@@ -309,6 +379,83 @@ export function Triggers() {
             )}
         </>
     )
+}
+
+const SOURCE_COLUMNS: Column<SourceOut>[] = [
+    {
+        id: 'source',
+        header: LABELS.word.input_source.label,
+        kind: 'title',
+        cell: (row) => <Titled thing={row}>{null}</Titled>,
+    },
+    {
+        id: 'pipeline',
+        header: LABELS.word.pipeline.label,
+        kind: 'prose',
+        cell: (row) => <PipelineRef code={row.pipeline} name={null} />,
+    },
+    {
+        id: 'route',
+        header: LABELS.triggers.source.route,
+        kind: 'prose',
+        className: 'font-mono text-xs',
+        cell: (row) => {
+            const route = routeLine(row)
+            return route === null ? (
+                <span className="text-muted-foreground">{row.kind}</span>
+            ) : (
+                <span className="block truncate" title={route}>
+                    {route}
+                </span>
+            )
+        },
+    },
+    {
+        id: 'state',
+        header: LABELS.word.state,
+        className: 'text-xs',
+        cell: (row) => {
+            const view = stateView(row)
+            return (
+                <span className="flex items-center gap-2">
+                    <Dot tone={view.tone} />
+                    {view.label}
+                </span>
+            )
+        },
+    },
+    {
+        id: 'in_flight',
+        header: LABELS.word.in_flight.heading,
+        className: 'text-right font-mono text-xs',
+        cell: (row) =>
+            row.in_flight === 0 && row.max_in_flight === null ? null : (
+                <span className="text-muted-foreground">
+                    {row.max_in_flight === null
+                        ? String(row.in_flight)
+                        : LABELS.triggers.source.bounded(String(row.in_flight), String(row.max_in_flight))}
+                </span>
+            ),
+    },
+    {
+        id: 'last',
+        header: LABELS.triggers.source.last_input,
+        className: 'text-xs',
+        cell: (row) =>
+            row.last_input_at === null ? (
+                <span className="text-faint">{LABELS.word.never}</span>
+            ) : (
+                <span className="text-muted-foreground" title={formatInstant(row.last_input_at)}>
+                    {formatRelative(row.last_input_at)}
+                </span>
+            ),
+    },
+]
+
+/** The source columns, leaving out In flight where no row has a run in flight or a bound on them. */
+function sourceColumns(rows: readonly SourceOut[]): Column<SourceOut>[] {
+    if (rows.some((row) => row.in_flight > 0 || row.max_in_flight !== null)) return SOURCE_COLUMNS
+    return SOURCE_COLUMNS.filter((column) => column.id !== 'in_flight')
 }
 
 const isSchedule = (row: TriggerRow): row is ScheduleRow => row.kind === 'schedule'

@@ -289,6 +289,15 @@ const word = {
             many: 'watches',
         },
     },
+    /** Where an input enters a pipeline: its first step, listening. */
+    input_source: {
+        label: 'Source',
+        heading: 'Sources',
+        count: {
+            one: 'source',
+            many: 'sources',
+        },
+    },
     /** One time a schedule went off. Not the verb: what the scheduler decided is an outcome. */
     firing: {
         /** The column of what a schedule last did, and the panel's fact for the same moment. */
@@ -571,6 +580,15 @@ const state = {
         degraded: 'degraded',
         unhealthy: 'unhealthy',
         offline: 'offline',
+    },
+    /** Whether a source takes inputs now. `SourceState` in dirigent_client.enums. */
+    source: {
+        listening: 'listening',
+        /** As many of its runs are unsettled as it allows, so a new input is refused. */
+        backlogged: 'backlogged',
+        /** Paused, with runs it started still unsettled. */
+        draining: 'draining',
+        paused: 'paused',
     },
     /** Whether a thing fires at all. */
     armed: {
@@ -2310,6 +2328,10 @@ const triggers = {
     managed: 'managed',
     /** The window title over a trigger's pinned parameters. */
     pinned_title: (code: string) => `${code} · pinned parameters`,
+    /** Minting a new token for a webhook or a source, and what that costs. */
+    rotate: 'Rotate token',
+    rotate_warning:
+        'Rotating creates a new token and forgets the old one immediately. Every caller has to be updated.',
 
     /** The clocks. */
     schedule: {
@@ -2390,10 +2412,6 @@ const triggers = {
             skipped: 'skipped',
             rejected: 'rejected',
         },
-        /** Minting a new token, and what that costs. */
-        rotate: 'Rotate token',
-        rotate_warning:
-            'Rotating creates a new token and forgets the old one immediately. Every caller has to be updated.',
         /** The window title over a webhook's payload mapping. */
         mapping_title: (code: string) => `${code} · payload mapping`,
         /** The panel's history of what has arrived. */
@@ -2447,6 +2465,40 @@ const triggers = {
         arming: 'arming',
         /** The window title over where the watch has read up to. */
         cursor_title: (code: string) => `${code} · cursor`,
+    },
+
+    /**
+     * The sources. A source is a pipeline's first step, so only a document declares one: what
+     * this block holds is the listing, the panel, and the words an input came out in.
+     */
+    source: {
+        empty: 'No sources. A pipeline declares one as its first step.',
+        /** Where a received source is called: its methods and its path. */
+        route: 'Route',
+        /** How its caller authenticates. */
+        auth: 'Auth',
+        /** A token, shown by the prefix that tells one copy from another. */
+        token: (prefix: string) => `token ${prefix}…`,
+        public: 'public',
+        /** What it has taken: inputs that became runs, and inputs refused. */
+        taken: 'Received',
+        accepted: (count: string) => `${count} accepted`,
+        refused: (count: string) => `${count} refused`,
+        /** Its runs unsettled, against the bound it holds them to. */
+        bounded: (count: string, bound: string) => `${count} of ${bound}`,
+        last_input: 'Last input',
+        /** Its journal at the foot of the panel. */
+        inputs: 'Inputs',
+        nothing_received: 'Nothing has arrived.',
+        /** What came of one input. Keyed by `InputOutcome` on the wire. */
+        outcome: {
+            accepted: 'accepted',
+            replied: 'replied',
+            refused: 'refused',
+            timed_out: 'timed out',
+        },
+        /** One input's method and path, as it arrived. */
+        called: (method: string, path: string) => `${method} ${path}`,
     },
 
     /** A trigger's own history at the foot of its panel, one page at a time. */
