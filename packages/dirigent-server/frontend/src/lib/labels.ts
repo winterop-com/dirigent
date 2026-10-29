@@ -1149,7 +1149,7 @@ const refused = {
         reference_malformed_error:
             '{reference} reads a failure, which is written as steps.<name>.error.code, .message, or .params.',
         replace_on_held:
-            'Pipeline {code} has a {hosting} source, and concurrency: replace would cancel the run each new input creates. Use allow, skip or queue.',
+            'Pipeline {code} has a {hosting} source, and concurrency: {policy} would drop an input the source has already taken. Use allow or queue.',
         reply_bad_header: 'A reply does not set {header}, which the server writes itself.',
         reply_bad_status:
             "A reply's status is a whole number from 200 to 599 or a reference to one, not {status}.",

@@ -13,7 +13,7 @@ there is no run yet, so a reference to one fails the poll.
 
 import time
 from datetime import datetime, timedelta
-from typing import Any, Final, cast
+from typing import Any, Final, Literal, cast
 from uuid import UUID
 
 import sqlalchemy as sa
@@ -159,89 +159,96 @@ async def _settle(
     owner: str,
     started: float,
 ) -> PollOutcome:
-    """Make a run of each input, store the cursor, and due the next poll, in one transaction."""
+    """Make a run of every input, store the cursor, and due the next poll, all in one transaction.
+
+    An input no run can be made of fails the whole poll: nothing is committed, the cursor stays
+    where it was, and the next poll offers the same inputs again after a backoff.
+    """
     moment = utcnow()
     runs: list[UUID] = []
-    async with session_scope(sessions) as session:
-        await lock_pipeline(session, claimed.pipeline_id)
-        row = await session.get(Source, claimed.source_id, populate_existing=True)
-        pipeline = await session.get(Pipeline, claimed.pipeline_id)
-        if row is None or pipeline is None or row.lease_owner != owner:
-            return PollOutcome(source_id=claimed.source_id, runs=[])
-        version = await _current_version(session, pipeline)
-        took = round((time.monotonic() - started) * 1000)
-        for output in answer.inputs[: claimed.room]:
-            made = output.model_dump(mode="json")
-            label = kind.label_of(output)
-            run_id = await _enter(session, services, row, pipeline, version, made, label=label, duration_ms=took)
-            if run_id is not None:
-                runs.append(run_id)
-        row.cursor = answer.cursor
-        row.polled_at = moment
-        row.failures = 0
-        row.last_error = None
-        row.next_poll_at = moment + kind.poll_every(kind.config_model.model_validate(row.config))
-        row.lease_owner = None
-        row.lease_expires_at = None
+    try:
+        async with session_scope(sessions) as session:
+            await lock_pipeline(session, claimed.pipeline_id)
+            row = await session.get(Source, claimed.source_id, populate_existing=True)
+            pipeline = await session.get(Pipeline, claimed.pipeline_id)
+            if row is None or pipeline is None or row.lease_owner != owner:
+                return PollOutcome(source_id=claimed.source_id, runs=[])
+            took = round((time.monotonic() - started) * 1000)
+            for output in answer.inputs[: claimed.room]:
+                runs.append(
+                    await enter_input(
+                        session,
+                        services,
+                        row,
+                        pipeline,
+                        output.model_dump(mode="json"),
+                        via="poll",
+                        label=kind.label_of(output),
+                        duration_ms=took,
+                    )
+                )
+            row.cursor = answer.cursor
+            row.polled_at = moment
+            row.failures = 0
+            row.last_error = None
+            row.next_poll_at = moment + kind.poll_every(kind.config_model.model_validate(row.config))
+            row.lease_owner = None
+            row.lease_expires_at = None
+    except InputRefused as refused:
+        return await _failed(sessions, services, claimed, owner=owner, error=str(refused))
     if runs:
         _logger.info("source polled", source=str(claimed.source_id), runs=len(runs))
     return PollOutcome(source_id=claimed.source_id, runs=runs)
 
 
-async def _enter(
+class InputRefused(Exception):
+    """No run could be made of an input a worker took, which fails the whole batch it came in."""
+
+
+async def enter_input(
     session: AsyncSession,
     services: EngineServices,
     row: Source,
     pipeline: Pipeline,
-    version: PipelineVersion | None,
     output: JsonMap,
     *,
+    via: Literal["poll"],
     label: str | None,
     duration_ms: int,
-) -> UUID | None:
-    """Create the run one input enters, and journal it as accepted or refused."""
-    refusal: str | None = None
-    code: str | None = None
-    run = None
+) -> UUID:
+    """Create the run one input a worker took enters, and journal it, or raise when none can be made."""
+    version = await _current_version(session, pipeline)
     if version is None:
-        code, refusal = SOURCE_RUN_REFUSED.code, SOURCE_RUN_REFUSED.render(detail="the pipeline has no version")
-    else:
-        entry = Entry(step=row.code, output=output, via="poll", note=f"polled {label}" if label else "polled")
-        try:
-            async with session.begin_nested():
-                run = await create_run(
-                    session,
-                    services,
-                    version,
-                    attribution=Attribution(kind=TriggerKind.SOURCE, id=row.id, label=f"source {row.code}"),
-                    entry=entry,
-                )
-        except DomainError as error:
-            code, refusal = SOURCE_RUN_REFUSED.code, SOURCE_RUN_REFUSED.render(detail=str(error))
-        if run is None and refusal is None:
-            code = SOURCE_RUN_SKIPPED.code
-            refusal = SOURCE_RUN_SKIPPED.render(pipeline=repr(pipeline.code))
-    outcome = InputOutcome.ACCEPTED if run is not None else InputOutcome.REFUSED
+        raise InputRefused(SOURCE_RUN_REFUSED.render(detail="the pipeline has no version"))
+    entry = Entry(step=row.code, output=output, via=via, note=f"{via} {label}" if label else None)
+    try:
+        async with session.begin_nested():
+            run = await create_run(
+                session,
+                services,
+                version,
+                attribution=Attribution(kind=TriggerKind.SOURCE, id=row.id, label=f"source {row.code}"),
+                entry=entry,
+            )
+    except DomainError as error:
+        raise InputRefused(SOURCE_RUN_REFUSED.render(detail=str(error))) from error
+    if run is None:
+        raise InputRefused(SOURCE_RUN_SKIPPED.render(pipeline=repr(pipeline.code)))
     moment = utcnow()
     session.add(
         SourceInput(
             source_id=row.id,
-            run_id=run.id if run is not None else None,
+            run_id=run.id,
             created_at=moment,
-            outcome=outcome,
-            code=code,
-            reason=refusal,
+            outcome=InputOutcome.ACCEPTED,
             label=label,
             duration_ms=duration_ms,
         )
     )
-    if run is not None:
-        row.accepted += 1
-    else:
-        row.refused += 1
+    row.accepted += 1
     row.last_input_at = moment
-    telemetry.record_input(outcome.value, None)
-    return run.id if run is not None else None
+    telemetry.record_input(InputOutcome.ACCEPTED.value, None)
+    return run.id
 
 
 async def _failed(

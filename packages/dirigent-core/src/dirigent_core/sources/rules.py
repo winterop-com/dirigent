@@ -237,8 +237,8 @@ def _param_issues(definition: PipelineDefinition) -> list[ValidationIssue]:
 
 
 def _concurrency_issues(definition: PipelineDefinition, kinds: Mapping[str, AnySource]) -> list[ValidationIssue]:
-    """Refuse ``concurrency: replace`` beside a source a worker polls or holds."""
-    if definition.concurrency is not ConcurrencyPolicy.REPLACE:
+    """Refuse ``replace`` and ``skip`` beside a source a worker polls or holds: either drops an input it took."""
+    if definition.concurrency not in {ConcurrencyPolicy.REPLACE, ConcurrencyPolicy.SKIP}:
         return []
     for name in definition.sources:
         node = definition.steps[name].source
@@ -246,7 +246,11 @@ def _concurrency_issues(definition: PipelineDefinition, kinds: Mapping[str, AnyS
         if kind is not None and kind.spec.hosting is not SourceHosting.RECEIVED:
             return [
                 ValidationIssue.of(
-                    REPLACE_ON_HELD, location="concurrency", code=repr(definition.code), hosting=kind.spec.hosting.value
+                    REPLACE_ON_HELD,
+                    location="concurrency",
+                    code=repr(definition.code),
+                    hosting=kind.spec.hosting.value,
+                    policy=definition.concurrency.value,
                 )
             ]
     return []
