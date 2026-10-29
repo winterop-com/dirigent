@@ -16,7 +16,7 @@ reachable beside the run's directories.
 
 import asyncio
 from collections.abc import AsyncGenerator, AsyncIterator, Callable, Sequence
-from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from contextlib import AbstractAsyncContextManager, asynccontextmanager, suppress
 from pathlib import Path
 from typing import Any, ClassVar, Final
 from urllib.parse import urlsplit
@@ -401,11 +401,18 @@ class _Threaded:
         await asyncio.to_thread(self.connection.close)
 
     async def _call[T](self, work: Callable[[], T]) -> T:
-        """Run one blocking call in a thread, interrupting duckdb when the wait is cancelled."""
+        """Run one blocking call in a thread, interrupting duckdb when the wait is cancelled.
+
+        A cancelled wait holds on until the interrupted call has returned: the connection refuses
+        any other call while one is still running, and the rollback that follows is one.
+        """
+        pending = asyncio.ensure_future(asyncio.to_thread(work))
         try:
-            return await asyncio.to_thread(work)
+            return await asyncio.shield(pending)
         except asyncio.CancelledError:
             self.raw.interrupt()
+            with suppress(Exception):
+                await pending
             raise
         except sqlalchemy.exc.DatabaseError as error:
             refusal = _refusal(error, self.roots)
