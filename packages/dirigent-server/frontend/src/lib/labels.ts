@@ -2328,6 +2328,10 @@ const triggers = {
     managed: 'managed',
     /** The window title over a trigger's pinned parameters. */
     pinned_title: (code: string) => `${code} · pinned parameters`,
+    /** Minting a new token for a webhook or a source, and what that costs. */
+    rotate: 'Rotate token',
+    rotate_warning:
+        'Rotating creates a new token and forgets the old one immediately. Every caller has to be updated.',
 
     /** The clocks. */
     schedule: {
@@ -2408,10 +2412,6 @@ const triggers = {
             skipped: 'skipped',
             rejected: 'rejected',
         },
-        /** Minting a new token, and what that costs. */
-        rotate: 'Rotate token',
-        rotate_warning:
-            'Rotating creates a new token and forgets the old one immediately. Every caller has to be updated.',
         /** The window title over a webhook's payload mapping. */
         mapping_title: (code: string) => `${code} · payload mapping`,
         /** The panel's history of what has arrived. */
@@ -2481,7 +2481,7 @@ const triggers = {
         token: (prefix: string) => `token ${prefix}…`,
         public: 'public',
         /** What it has taken: inputs that became runs, and inputs refused. */
-        taken: 'Inputs',
+        taken: 'Received',
         accepted: (count: string) => `${count} accepted`,
         refused: (count: string) => `${count} refused`,
         /** Its runs unsettled, against the bound it holds them to. */
@@ -2499,9 +2499,6 @@ const triggers = {
         },
         /** One input's method and path, as it arrived. */
         called: (method: string, path: string) => `${method} ${path}`,
-        rotate: 'Rotate token',
-        rotate_warning:
-            'Rotating creates a new token and forgets the old one immediately. Every caller has to be updated.',
     },
 
     /** A trigger's own history at the foot of its panel, one page at a time. */

@@ -257,11 +257,11 @@ export function WebhookPanel({
                             act(rotateWebhookToken(pipeline, webhook.code), onMinted)
                         }}
                     >
-                        {LABELS.triggers.webhook.rotate}
+                        {LABELS.triggers.rotate}
                     </Button>
                 </Refusable>
             </div>
-            <p className="text-xs text-faint">{LABELS.triggers.webhook.rotate_warning}</p>
+            <p className="text-xs text-faint">{LABELS.triggers.rotate_warning}</p>
 
             <History
                 title={LABELS.triggers.webhook.deliveries}
@@ -400,13 +400,13 @@ export function SourcePanel({
                                 })
                             }}
                         >
-                            {LABELS.triggers.source.rotate}
+                            {LABELS.triggers.rotate}
                         </Button>
                     </Refusable>
                 )}
             </div>
             {source.auth === 'token' && (
-                <p className="text-xs text-faint">{LABELS.triggers.source.rotate_warning}</p>
+                <p className="text-xs text-faint">{LABELS.triggers.rotate_warning}</p>
             )}
 
             <History
