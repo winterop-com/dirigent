@@ -21,7 +21,6 @@ from dirigent_core.engine.services import EngineServices
 from dirigent_core.messages import REPLY_FAILED, REPLY_REJECTED, REPLY_TIMED_OUT, REPLY_UNANSWERED
 from dirigent_core.sources.intake import Accepted, Call, Ignore, Intake, Refusal, lowered, settle_input
 from dirigent_core.sources.waiter import Answer, Replied, TimedOut, Unanswered, Waiter
-from dirigent_plugin import ErrorClass
 from dirigent_server.bodies import read_capped
 from dirigent_server.dependencies import ServicesDep, SessionDep
 from dirigent_server.errors import answer, render
@@ -174,7 +173,7 @@ def _unanswered(request: Request, answered: Unanswered, run: str, where: dict[st
             status=state,
         )
     detail = answered.error or "no error was recorded"
-    message = REPLY_REJECTED if answered.error_class is ErrorClass.REJECTED else REPLY_FAILED
+    message = REPLY_REJECTED if answered.refused else REPLY_FAILED
     code = 422 if message is REPLY_REJECTED else 502
     rendered = message.render(run=run, step=repr(answered.step), detail=detail)
     return _problem(request, code, message.code, rendered, where, run=run, step=repr(answered.step), detail=detail)

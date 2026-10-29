@@ -71,6 +71,11 @@ class Unanswered(BaseModel):
     error: str | None = None
     error_class: ErrorClass | None = None
 
+    @property
+    def refused(self) -> bool:
+        """Say whether the failing step refused the input, which is no fault of the run."""
+        return self.error_class is ErrorClass.REJECTED
+
 
 class TimedOut(BaseModel):
     """The caller's deadline passed with no answer."""
