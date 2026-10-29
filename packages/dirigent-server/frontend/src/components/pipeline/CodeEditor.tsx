@@ -1,5 +1,6 @@
 import * as monaco from 'monaco-editor/editor/editor.api'
 import editorWorker from 'monaco-editor/editor/editor.worker?worker'
+import { createWebWorker as createWorkerByLabel } from 'monaco-editor/internal/common/workers'
 import { jsonDefaults } from 'monaco-editor/languages/features/json/register'
 import jsonWorker from 'monaco-editor/languages/features/json/json.worker?worker'
 import { configureMonacoYaml, type MonacoYaml } from 'monaco-yaml'
@@ -13,8 +14,6 @@ import { highlightLine } from '@/lib/preferences'
 import { cn } from '@/lib/utils'
 
 import metaSchema from './json-schema-2020-12.json'
-
-import 'monaco-editor/editor/contrib/suggest/browser/suggestController'
 
 import 'monaco-editor/languages/definitions/shell/register'
 import 'monaco-editor/languages/definitions/sql/register'
@@ -59,9 +58,10 @@ import 'monaco-editor/languages/definitions/yaml/register'
  * every language it ships; what is wanted is the editor plus YAML, shell, twig and SQL, so the
  * api entry and those four contributions are imported by path and the rest are never fetched. A
  * language `LANGUAGES` names but nothing imported tokenises as plain text and says nothing. The
- * api entry brings no editor contributions with it either, so the one a schema-checked buffer
- * cannot do without -- the suggest controller, which is the widget a completion is offered in --
- * is imported by path beside them.
+ * api entry brings no editor contributions with it either. Monaco's worker helper module carries
+ * all of them, and it is imported here rather than reached first through the JSON language,
+ * which loads it lazily: a contribution registered after the first editor is built finds none
+ * of the services it needs, and that editor has no quick fixes, code lenses or inlay hints.
  */
 
 /** Which worker each language runs in. `self` carries this: monaco reads it off the global. */
@@ -391,6 +391,18 @@ function modelUri(path: string, buffer: Buffer): string {
     return `inmemory://dirigent/${path}.${buffer.extension}`
 }
 
+/**
+ * Monaco as monaco-yaml is given it, with `createWebWorker` taking a worker by label.
+ *
+ * Monaco's own `createWebWorker` takes the worker itself, and monaco-yaml names one by label
+ * and create data, so without this its worker never starts and a document is edited with no
+ * schema, folding or outline. Monaco's languages start theirs through the same helper.
+ */
+const yamlMonaco = {
+    ...monaco,
+    editor: { ...monaco.editor, createWebWorker: createWorkerByLabel },
+} as unknown as typeof monaco
+
 /** There may only be one configured instance of monaco-yaml at a time. */
 let configured: MonacoYaml | null = null
 
@@ -406,7 +418,11 @@ function useSchema(schema: JsonMap | null | undefined): void {
         const schemas =
             schema === null ? [] : [{ uri: 'inmemory://dirigent/schema.json', fileMatch: ['*'], schema }]
         if (configured === null) {
-            configured = configureMonacoYaml(monaco, { enableSchemaRequest: false, validate: true, schemas })
+            configured = configureMonacoYaml(yamlMonaco, {
+                enableSchemaRequest: false,
+                validate: true,
+                schemas,
+            })
             return
         }
         void configured.update({ schemas })
