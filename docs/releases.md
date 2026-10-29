@@ -16,6 +16,28 @@ tag is what publishes: `.github/workflows/release.yaml` builds every package and
 to PyPI through trusted publishing, then builds the image from that commit and pushes it as
 `<version>` and `latest`. The two sibling repositories then relock against the tag and bump.
 
+## 0.26.1
+
+Released 2026-10-29. Every package in the workspace moves to 0.26.1 together, and so do
+`dirigent-dhis2` and `dirigent-integration`.
+
+- **The pipeline document's YAML editor checks against the schema again.** Since 0.26.0 the
+  Source tab's language worker never started: monaco 0.57 takes a worker where monaco-yaml
+  still names one by label, so a document was edited with no schema validation, folding,
+  outline or links. monaco-yaml is now handed monaco's own label-based worker helper, the one
+  its JSON language uses.
+- **Every editor gets its quick fixes, code lenses and inlay hints.** The JSON language loaded
+  monaco's editor contributions lazily, after the first editor had built its services, so
+  those contributions failed on that editor with `depends on UNKNOWN service` in the console.
+  They are now loaded with the editor.
+- **The add-step menu's search keeps the focus.** The menu moved the focus to its own list a
+  moment after opening, so what was typed next could miss the search box. It stays in the box.
+- **The UI lints clean, and a new lint warning fails the gate.** `bun run lint` runs oxlint
+  with `--deny-warnings`. The Examples, Pipelines, Runs and Blocks screens no longer republish
+  their status line on every render.
+- **The follow-stream tests read in one thread.** The server's SSE tests read a frame, move
+  the run, and read on, rather than racing a background reader.
+
 ## 0.26.0
 
 Released 2026-10-29. Every package in the workspace moves to 0.26.0 together, and so do
