@@ -16,7 +16,7 @@ reachable beside the run's directories.
 
 import asyncio
 from collections.abc import AsyncGenerator, AsyncIterator, Callable, Sequence
-from contextlib import AbstractAsyncContextManager, asynccontextmanager, suppress
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from pathlib import Path
 from typing import Any, ClassVar, Final
 from urllib.parse import urlsplit
@@ -53,6 +53,9 @@ from dirigent_plugin import BlockFailure, ErrorClass, StepContext
 #: The storage schemes a parameter naming one is refused for: duckdb would open them itself,
 #: and no backend here holds the credentials to give it. ``s3://`` is the one that is wired up.
 REMOTE_STORAGE: Final = frozenset({"gs", "azure"})
+
+#: How long a cancelled call is given to return once duckdb is interrupted, before it is left behind.
+INTERRUPT_GRACE_SECONDS: Final = 5.0
 
 #: The scheme duckdb reads and writes through its httpfs extension.
 S3: Final = "s3"
@@ -374,6 +377,7 @@ class _Threaded:
         self.connection = connection
         self.raw: Any = connection.connection.driver_connection
         self.roots = roots
+        self.abandoned: asyncio.Future[Any] | None = None
 
     async def execute(self, statement: TextClause, parameters: dict[str, Any] | None = None, /) -> Any:
         """Run one statement and hand back its result, rowcount included."""
@@ -392,27 +396,47 @@ class _Threaded:
         try:
             yield
         except BaseException:
-            await asyncio.to_thread(transaction.rollback)
+            if not self.busy:
+                await asyncio.to_thread(transaction.rollback)
             raise
         await asyncio.to_thread(transaction.commit)
 
+    @property
+    def busy(self) -> bool:
+        """Whether a call left behind is still running, which every other call would be refused for."""
+        return self.abandoned is not None and not self.abandoned.done()
+
     async def close(self) -> None:
-        """Close the connection in a thread, as everything else on it is done."""
-        await asyncio.to_thread(self.connection.close)
+        """Close the connection in a thread, or once a call left behind has returned."""
+        if not self.busy:
+            await asyncio.to_thread(self.connection.close)
+            return
+        assert self.abandoned is not None
+        loop = asyncio.get_running_loop()
+
+        def close_after(call: asyncio.Future[Any]) -> None:
+            call.exception()
+            loop.run_in_executor(None, self.connection.close)
+
+        self.abandoned.add_done_callback(close_after)
 
     async def _call[T](self, work: Callable[[], T]) -> T:
         """Run one blocking call in a thread, interrupting duckdb when the wait is cancelled.
 
         A cancelled wait holds on until the interrupted call has returned: the connection refuses
-        any other call while one is still running, and the rollback that follows is one.
+        any other call while one is still running, and the rollback that follows is one. A call
+        that has not returned within the grace is left behind, and the connection closes after it.
         """
         pending = asyncio.ensure_future(asyncio.to_thread(work))
         try:
             return await asyncio.shield(pending)
         except asyncio.CancelledError:
             self.raw.interrupt()
-            with suppress(Exception):
-                await pending
+            await asyncio.wait({pending}, timeout=INTERRUPT_GRACE_SECONDS)
+            if pending.done():
+                pending.exception()
+            else:
+                self.abandoned = pending
             raise
         except sqlalchemy.exc.DatabaseError as error:
             refusal = _refusal(error, self.roots)
