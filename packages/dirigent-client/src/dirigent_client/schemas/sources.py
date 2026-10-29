@@ -101,6 +101,17 @@ class SourceOut(WireModel):
     """How many inputs were refused once their caller was let in."""
 
     last_input_at: datetime | None = None
+    summary: str | None = None
+    """What the source listens to, in one line its kind writes, such as the prefix it polls."""
+
+    polled_at: datetime | None = None
+    """When a poll of a polled source last succeeded."""
+
+    next_poll_at: datetime | None = None
+    failures: int = 0
+    """How many polls in a row have failed."""
+
+    last_error: str | None = None
     created_at: datetime
 
 
@@ -137,8 +148,8 @@ class SourceInputOut(WireModel):
     id: int
     created_at: datetime
     outcome: InputOutcome
-    status: int
-    """The HTTP status the caller was answered with."""
+    status: int | None = None
+    """The HTTP status the caller was answered with, or null for an input a worker polled."""
 
     run_id: UUID | None = None
     code: str | None = None
@@ -146,8 +157,11 @@ class SourceInputOut(WireModel):
 
     reason: str | None = None
     params: JsonMap | None = None
-    method: str
-    path: str
+    method: str | None = None
+    path: str | None = None
+    label: str | None = None
+    """What a polled kind names the input, such as the object it found."""
+
     body_bytes: int = 0
     duration_ms: int = 0
     caller: str | None = None

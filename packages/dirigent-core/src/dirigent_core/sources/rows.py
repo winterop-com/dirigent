@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dirigent_client.enums import SourceState, TriggerKind
 from dirigent_client.schemas import SourceChanges, SourceInputOut, SourceOut, SourceTokenOut, ValidationIssue
 from dirigent_core import wakeups
+from dirigent_core.artifacts import canonical_json, digest_of
 from dirigent_core.auth import PREFIX_LENGTH, hash_token, mint_secret
 from dirigent_core.config import Settings
 from dirigent_core.engine.definition import PipelineDefinition
@@ -23,9 +24,9 @@ from dirigent_core.engine.runs import ACTIVE_RUN_STATUSES
 from dirigent_core.errors import DomainError
 from dirigent_core.logging import get_logger
 from dirigent_core.messages import ROUTE_CLAIMED, ROUTE_RACED, SOURCE_TAKES_NO_TOKEN, UNKNOWN_SOURCE
-from dirigent_core.models import Pipeline, Run, Source, SourceInput, SourceRoute
+from dirigent_core.models import Pipeline, Run, Source, SourceInput, SourceRoute, utcnow
 from dirigent_core.sources.rules import declared_routes, source_config
-from dirigent_plugin.sources import AnySource, ReceivedSource, Route
+from dirigent_plugin.sources import AnySource, PolledSource, ReceivedSource, Route
 
 _logger = get_logger("sources")
 
@@ -169,6 +170,7 @@ async def reconcile_sources(
         elif (row.name, row.description, row.kind, row.config) != declared:
             updated.append(code)
         row.name, row.description, row.kind, row.config = declared
+        _schedule_poll(kinds, row, redeclared=code in created or code in updated)
         await session.flush()
         minted = _mint_if_wanted(kinds, row)
         if minted is not None:
@@ -181,6 +183,33 @@ async def reconcile_sources(
     if not changes.empty:
         _logger.info("sources reconciled", pipeline=pipeline.code, created=created, updated=updated, removed=removed)
     return changes
+
+
+def polled(kinds: Mapping[str, AnySource], row: Source) -> tuple[PolledSource[Any, Any], BaseModel] | None:
+    """Read a row as a polled kind and its validated config, or None for any other row."""
+    kind = kinds.get(row.kind)
+    if not isinstance(kind, PolledSource):
+        return None
+    try:
+        return kind, source_config(kind, row.config)
+    except ValidationError:
+        return None
+
+
+def _schedule_poll(kinds: Mapping[str, AnySource], row: Source, *, redeclared: bool) -> None:
+    """Due a polled source now when it is new or redeclared, and reset a cursor its config no longer owns."""
+    found = polled(kinds, row)
+    if found is None:
+        row.next_poll_at = None
+        return
+    kind, config = found
+    key = kind.cursor_key(config)
+    owner = None if key is None else digest_of(canonical_json(key))
+    if row.cursor_for != owner:
+        row.cursor = None
+        row.cursor_for = owner
+    if redeclared or row.next_poll_at is None:
+        row.next_poll_at = utcnow()
 
 
 def _wanted_routes(definition: PipelineDefinition, kinds: Mapping[str, AnySource], name: str) -> dict[RouteKey, str]:
@@ -302,10 +331,16 @@ async def in_flight(session: AsyncSession, source_ids: Sequence[UUID]) -> dict[U
     return {source_id: count for source_id, count in rows if source_id is not None}
 
 
-def state_of(row: Source, *, pipeline_active: bool, unsettled: int, bound: int | None) -> SourceState:
+def state_of(
+    row: Source, *, pipeline_active: bool, unsettled: int, bound: int | None, is_polled: bool = False
+) -> SourceState:
     """Read whether a source takes inputs now, from its row and the runs it has unsettled."""
     if row.paused or not pipeline_active:
         return SourceState.DRAINING if unsettled else SourceState.PAUSED
+    if is_polled and row.failures > 0:
+        return SourceState.FAILING
+    if is_polled and row.polled_at is None:
+        return SourceState.STARTING
     if bound is not None and unsettled >= bound:
         return SourceState.BACKLOGGED
     return SourceState.LISTENING
@@ -329,6 +364,7 @@ def source_out(
     found = received(kinds, row)
     route = found[0].route(found[1]) if found else None
     bound = max_in_flight(kinds, row)
+    is_polled = polled(kinds, row) is not None
     return SourceOut(
         id=row.id,
         pipeline=pipeline.code,
@@ -336,7 +372,7 @@ def source_out(
         name=row.name,
         description=row.description,
         kind=row.kind,
-        state=state_of(row, pipeline_active=pipeline.active, unsettled=unsettled, bound=bound),
+        state=state_of(row, pipeline_active=pipeline.active, unsettled=unsettled, bound=bound, is_polled=is_polled),
         methods=list(route.methods) if route else [],
         route=route.template if route else None,
         url_path=endpoint_path(settings, route.template) if route else None,
@@ -347,13 +383,31 @@ def source_out(
         accepted=row.accepted,
         refused=row.refused,
         last_input_at=row.last_input_at,
+        summary=summary_of(kinds, row),
+        polled_at=row.polled_at,
+        next_poll_at=row.next_poll_at if is_polled else None,
+        failures=row.failures,
+        last_error=row.last_error,
         created_at=row.created_at,
     )
+
+
+def summary_of(kinds: Mapping[str, AnySource], row: Source) -> str | None:
+    """Say in one line what a source listens to, as its kind writes it."""
+    kind = kinds.get(row.kind)
+    if kind is None:
+        return None
+    try:
+        return kind.summary_of(source_config(kind, row.config))
+    except ValidationError:
+        return None
 
 
 async def set_paused(session: AsyncSession, pipeline: Pipeline, row: Source, *, paused: bool) -> Source:
     """Pause or resume a source, keeping its token and its counts."""
     row.paused = paused
+    if not paused and row.next_poll_at is not None:
+        row.next_poll_at = utcnow()
     await session.flush()
     await wakeups.publish(session, wakeups.SOURCES, f"{pipeline.code}/{row.code}")
     _logger.info("source paused" if paused else "source resumed", pipeline=pipeline.code, source=row.code)
@@ -401,6 +455,7 @@ def input_out(row: SourceInput) -> SourceInputOut:
         params=row.params,
         method=row.method,
         path=row.path,
+        label=row.label,
         body_bytes=row.body_bytes,
         duration_ms=row.duration_ms,
         caller=row.caller,

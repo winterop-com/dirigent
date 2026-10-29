@@ -282,9 +282,12 @@ def record_step(status: str, block: str, seconds: float | None = None) -> None:
         _step_duration.record(seconds, attributes)
 
 
-def record_input(outcome: str, status: int) -> None:
-    """Count one call to a source, including the refusals no journal row records."""
-    _inputs.add(1, {"dirigent.input.outcome": outcome, "http.response.status_code": status})
+def record_input(outcome: str, status: int | None) -> None:
+    """Count one input to a source, including the refusals no journal row records; a polled one has no status."""
+    attributes: dict[str, str | int] = {"dirigent.input.outcome": outcome}
+    if status is not None:
+        attributes["http.response.status_code"] = status
+    _inputs.add(1, attributes)
 
 
 def record_block_call(block: str, call: str, seconds: float) -> None:

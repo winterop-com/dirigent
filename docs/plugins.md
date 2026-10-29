@@ -71,7 +71,11 @@ with no change to dirigent, no config file, and no registry to edit. Uninstall a
   claiming either outcome
 - `sources` -- a kind of [source](concepts.md#source-and-reply) a pipeline's first node may
   be, keyed by the `kind` a document writes under `source`. A contributed kind is a
-  `ReceivedSource`: the server answers its `route` under `/endpoints`, checks the head with
+  `PolledSource` or a `ReceivedSource`. A `PolledSource` answers `poll(config, cursor, ctx,
+  limit)` with the inputs it found, oldest first, and the cursor the next poll carries on
+  from; a worker calls it every `poll_every(config)`, with the instance's storage on `ctx`,
+  and a poll that raises is recorded on the source and backed off from the same cursor. For a
+  `ReceivedSource` the server answers its `route` under `/endpoints`, checks the head with
   `admit`, and hands `receive` the read request, which answers with an input, `Ignore` for a
   sign of life such as a handshake (answered 204, no run), or a `Refusal` carrying the status
   its caller gets. `receive` runs in the server process with no connection and no secret in

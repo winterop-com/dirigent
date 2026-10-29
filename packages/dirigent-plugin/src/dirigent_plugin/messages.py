@@ -42,9 +42,9 @@ INVALID_MARK = PLUGIN.define(
     "the mark that kind {kind} declares is not SVG path data: {detail}",
 )
 
-SOURCE_NOT_RECEIVED = PLUGIN.define(
-    "source_not_received",
-    "source kind {kind} is {hosting}, and a contributed kind is received by the server: a ReceivedSource",
+SOURCE_NOT_HOSTED = PLUGIN.define(
+    "source_not_hosted",
+    "source kind {kind} is {hosting}, and a contributed kind is a ReceivedSource or a PolledSource of that hosting",
 )
 
 # What a received source's path template refuses.

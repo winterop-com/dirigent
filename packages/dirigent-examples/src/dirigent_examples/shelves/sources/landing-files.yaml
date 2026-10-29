@@ -1,0 +1,48 @@
+# Every CSV that lands under a prefix becomes one run, found by a worker that looks every minute.
+#
+# A STORAGE SOURCE IS POLLED, NOT CALLED. Nobody sends `arrived` anything: a worker lists the
+# location on the source's cadence and hands over each object newer than the last one it handed
+# over, oldest first, as `${steps.arrived.output.uri}`. The cursor lives on the source's row, so
+# a restarted worker carries on where the last one stopped, and an object is never handed over
+# twice.
+#
+# MAX_IN_FLIGHT KEEPS A BACKLOG FROM BECOMING A FLOOD. Drop a thousand files at once and the
+# worker hands over two at a time, waiting for a run to settle before it takes the next.
+#
+# RUN IT BY HAND, here, with no server and no worker. No --input takes the source's sample:
+#
+#   dg run --local examples/sources/landing-files.yaml
+#
+# ON A SERVER, apply it and copy a CSV under the prefix; the next poll starts a run for it:
+#
+#   dg apply examples/sources/landing-files.yaml
+#   dg source list landing-files
+#
+# EXPECT THIS RUN TO SUCCEED in well under a second, `describe` naming the sample's object.
+
+format: dirigent/v1
+kind: pipeline
+code: landing-files
+name: Landing files
+description: |
+  Each CSV that appears under the landing prefix becomes one run, found by a worker's poll;
+  a jq step says what arrived and how large it is.
+
+tags: [sources, storage, transform, jq]
+
+steps:
+  arrived:
+    source:
+      kind: storage
+      uri: ${artifacts}/landing/*.csv
+      poll: 1m
+      max_in_flight: 2
+    sample:
+      uri: file:///landing/orders-2026-01-01.csv
+      size_bytes: 2048
+  describe:
+    block: transform.jq
+    depends_on: [arrived]
+    config:
+      input: ${steps.arrived.output}
+      program: '{object: .uri, kilobytes: (.size_bytes / 1024)}'

@@ -14,7 +14,7 @@ import { PAGE } from '@/lib/paging'
 import type { OutcomeTone, WebhookTokenOut } from '@/lib/triggers'
 
 /** Whether a source takes inputs now. `SourceState`. */
-export type SourceState = 'listening' | 'backlogged' | 'draining' | 'paused'
+export type SourceState = 'starting' | 'listening' | 'failing' | 'backlogged' | 'draining' | 'paused'
 
 /** What came of one input that reached a source. `InputOutcome`. */
 export type InputOutcome = 'accepted' | 'replied' | 'refused' | 'timed_out'
@@ -42,6 +42,12 @@ export interface SourceOut {
     accepted: number
     refused: number
     last_input_at: string | null
+    /** What the source listens to, in one line its kind writes, such as the prefix it polls. */
+    summary: string | null
+    polled_at: string | null
+    next_poll_at: string | null
+    failures: number
+    last_error: string | null
     created_at: string
 }
 
@@ -50,14 +56,16 @@ export interface SourceInputOut {
     id: number
     created_at: string
     outcome: InputOutcome
-    /** The HTTP status the caller was answered with. */
-    status: number
+    /** The HTTP status the caller was answered with, or null for an input a worker polled. */
+    status: number | null
     run_id: string | null
     code: string | null
     reason: string | null
     params: JsonMap | null
-    method: string
-    path: string
+    method: string | null
+    path: string | null
+    /** What a polled kind names the input, such as the object it found. */
+    label: string | null
     body_bytes: number
     duration_ms: number
     caller: string | null
@@ -147,7 +155,9 @@ export function stateView(source: Pick<SourceOut, 'state'>): {
 }
 
 const STATE_TONES: Record<SourceState, OutcomeTone> = {
+    starting: 'quiet',
     listening: 'good',
+    failing: 'critical',
     backlogged: 'warn',
     draining: 'warn',
     paused: 'quiet',
@@ -157,6 +167,17 @@ const STATE_TONES: Record<SourceState, OutcomeTone> = {
 export function routeLine(source: Pick<SourceOut, 'methods' | 'url_path'>): string | null {
     if (source.url_path === null || source.methods.length === 0) return null
     return `${source.methods.join(', ')} ${source.url_path}`
+}
+
+/** What a source listens to, as one line: the route it answers, or what its kind says it polls. */
+export function listensTo(source: Pick<SourceOut, 'methods' | 'url_path' | 'summary'>): string | null {
+    return routeLine(source) ?? source.summary
+}
+
+/** What one input was: the request it arrived as, or what a polled kind named it. */
+export function inputLine(input: Pick<SourceInputOut, 'method' | 'path' | 'label'>): string | null {
+    if (input.method !== null && input.path !== null) return `${input.method} ${input.path}`
+    return input.label
 }
 
 /** How a caller authenticates, in the words the panel uses, or null for a kind with no caller. */
@@ -173,7 +194,7 @@ export function inputView(input: SourceInputOut): {
     tone: OutcomeTone
     runId: string | null
 } {
-    const failed = input.status >= 400
+    const failed = input.status !== null && input.status >= 400
     const tone: OutcomeTone =
         input.outcome === 'refused' || input.outcome === 'timed_out' ? 'critical' : failed ? 'warn' : 'good'
     return {

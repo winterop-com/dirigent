@@ -136,9 +136,11 @@ stays clean, and every example stays executable.
    intake with the source rows, replies over the wire (the held caller, the batched waiter,
    and the 504, 422 and 502 mappings), the contract on pluginkit, so a pack contributes a
    received kind, and the screens (sources in the triggers screen with their state, one
-   source's inputs in its panel) have landed; what remains:
-   5. Worker-hosted kinds: a polled kind, then Kafka and RabbitMQ consumers held through a
-      lease, and watches and webhooks folded in as kinds.
+   source's inputs in its panel), and polled kinds (the `PolledSource` contract, every worker
+   polling due sources under a lease, and the built-in `storage` kind) have landed; what
+   remains:
+   5. Kafka and RabbitMQ consumers held through a lease, and watches and webhooks folded in as
+      kinds.
 
    **The examples shelf** (`shelves/sources/`), each runnable with `dg run --local` and its
    `sample`: an echo endpoint with a reply; a form taken and answered 202; a JSON body held

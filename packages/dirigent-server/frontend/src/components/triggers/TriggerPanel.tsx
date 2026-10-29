@@ -20,7 +20,8 @@ import {
     isPaused,
     readSourceInputs,
     rotateSourceToken,
-    routeLine,
+    inputLine,
+    listensTo,
     setSourcePaused,
     shownToken,
     stateView,
@@ -301,7 +302,7 @@ export function SourcePanel({
 
     const write = useMayWrite()
     const view = stateView(source)
-    const route = routeLine(source)
+    const listens = listensTo(source)
     const auth = authLine(source)
     const paused = isPaused(source)
 
@@ -330,9 +331,21 @@ export function SourcePanel({
                 <Fact label={LABELS.word.kind.label}>
                     <span className="font-mono">{source.kind}</span>
                 </Fact>
-                {route !== null && (
-                    <Fact label={LABELS.triggers.source.route}>
-                        <span className="font-mono break-all">{route}</span>
+                {listens !== null && (
+                    <Fact label={LABELS.triggers.source.listens}>
+                        <span className="font-mono break-all">{listens}</span>
+                    </Fact>
+                )}
+                {source.next_poll_at !== null && !paused && (
+                    <Fact label={LABELS.triggers.source.next_poll}>
+                        <span title={formatInstant(source.next_poll_at)}>
+                            {formatRelative(source.next_poll_at)}
+                        </span>
+                    </Fact>
+                )}
+                {source.last_error !== null && (
+                    <Fact label={LABELS.triggers.source.last_error}>
+                        <span className="break-words text-muted-foreground">{source.last_error}</span>
                     </Fact>
                 )}
                 {auth !== null && (
@@ -350,17 +363,19 @@ export function SourcePanel({
                               )}
                     </span>
                 </Fact>
-                <Fact label={LABELS.triggers.source.taken}>
-                    <span>
-                        {LABELS.triggers.source.accepted(String(source.accepted))}
-                        {source.refused > 0 && (
-                            <span className="text-muted-foreground">
-                                {' · '}
-                                {LABELS.triggers.source.refused(String(source.refused))}
-                            </span>
-                        )}
-                    </span>
-                </Fact>
+                {source.accepted + source.refused > 0 && (
+                    <Fact label={LABELS.triggers.source.taken}>
+                        <span>
+                            {LABELS.triggers.source.accepted(String(source.accepted))}
+                            {source.refused > 0 && (
+                                <span className="text-muted-foreground">
+                                    {' · '}
+                                    {LABELS.triggers.source.refused(String(source.refused))}
+                                </span>
+                            )}
+                        </span>
+                    </Fact>
+                )}
                 <Fact label={LABELS.triggers.source.last_input}>
                     {source.last_input_at === null ? (
                         <span className="text-faint">{LABELS.word.never}</span>
@@ -672,12 +687,15 @@ function Delivery({ delivery }: { delivery: DeliveryOut }) {
 /** One input: what came of it, the status its caller was answered, and the run or the reason. */
 function Received({ input }: { input: SourceInputOut }) {
     const view = inputView(input)
+    const line = inputLine(input)
     return (
         <div className="space-y-0.5">
             <span className="flex items-center gap-2 text-xs">
                 <Dot tone={view.tone} />
                 <span>{view.label}</span>
-                <span className="font-mono text-muted-foreground">{input.status}</span>
+                {input.status !== null && (
+                    <span className="font-mono text-muted-foreground">{input.status}</span>
+                )}
                 <span className="text-faint" title={formatInstant(input.created_at)}>
                     {formatRelative(input.created_at)}
                 </span>
@@ -687,12 +705,11 @@ function Received({ input }: { input: SourceInputOut }) {
                     </Link>
                 )}
             </span>
-            <p
-                className="truncate font-mono text-xs text-faint"
-                title={LABELS.triggers.source.called(input.method, input.path)}
-            >
-                {LABELS.triggers.source.called(input.method, input.path)}
-            </p>
+            {line !== null && (
+                <p className="truncate font-mono text-xs text-faint" title={line}>
+                    {line}
+                </p>
+            )}
             {input.reason !== null && (
                 <p className="text-xs break-words text-muted-foreground">{input.reason}</p>
             )}

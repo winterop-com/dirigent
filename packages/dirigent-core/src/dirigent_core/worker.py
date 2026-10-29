@@ -30,6 +30,7 @@ from dirigent_core.engine.services import EngineServices
 from dirigent_core.logging import get_logger, log_context
 from dirigent_core.models import StepAttempt, utcnow
 from dirigent_core.models import Worker as WorkerRow
+from dirigent_core.sources import polling
 
 #: How long a stopping worker lets its background loops finish the pass they are in.
 GRACEFUL_STOP_SECONDS = 5.0
@@ -109,6 +110,7 @@ class Worker:
         if self.sweeper:
             background.append(asyncio.create_task(self._sweep_loop()))
             background.append(asyncio.create_task(self._work_loop()))
+            background.append(asyncio.create_task(self._poll_loop()))
         background.extend(asyncio.create_task(self._chore_loop(chore)) for chore in self.chores)
         try:
             async with wakeups.listening(self.settings.database_url):
@@ -287,6 +289,15 @@ class Worker:
                 sent = 0
             if not sent:
                 await self._pause(self.settings.claim_idle.total_seconds())
+
+    async def _poll_loop(self) -> None:
+        """Poll the polled sources that are due, on their own tick, until the worker halts."""
+        while not self._halting.is_set():
+            try:
+                await polling.tick(self.sessions, self.services, owner=self.name)
+            except Exception as error:  # a source's own failure is on its row; this is the tick's
+                _logger.warning("source poll tick failed", worker=self.name, error=str(error))
+            await self._pause(self.settings.source_poll_tick.total_seconds())
 
     async def _observe_levels(self, session: AsyncSession) -> None:
         """Read the levels an operator watches, on the sweeper's cadence."""

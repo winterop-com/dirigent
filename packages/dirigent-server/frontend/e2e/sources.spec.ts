@@ -53,7 +53,7 @@ test('a source called over the wire is listed with its route, and its panel read
     // The route cell, rather than the row's middle: one of its cells is a link to the pipeline.
     await row.getByText('POST /endpoints/e2e-source-echo', { exact: true }).click()
     const panel = page.getByRole('tabpanel')
-    await expect(panel).toContainText(LABELS.triggers.source.route)
+    await expect(panel).toContainText(LABELS.triggers.source.listens)
     await expect(panel).toContainText(LABELS.triggers.source.outcome.replied)
     await expect(panel).toContainText(LABELS.triggers.source.outcome.refused)
     await expect(panel).toContainText('415')
