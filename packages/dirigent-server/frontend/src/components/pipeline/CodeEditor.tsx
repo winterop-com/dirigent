@@ -1,6 +1,7 @@
-import * as monaco from 'monaco-editor/esm/vs/editor/editor.api'
-import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker'
-import jsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker'
+import * as monaco from 'monaco-editor/editor/editor.api'
+import editorWorker from 'monaco-editor/editor/editor.worker?worker'
+import { jsonDefaults } from 'monaco-editor/languages/features/json/register'
+import jsonWorker from 'monaco-editor/languages/features/json/json.worker?worker'
 import { configureMonacoYaml, type MonacoYaml } from 'monaco-yaml'
 import yamlWorker from 'monaco-yaml/yaml.worker?worker'
 import { useTheme } from 'next-themes'
@@ -13,13 +14,12 @@ import { cn } from '@/lib/utils'
 
 import metaSchema from './json-schema-2020-12.json'
 
-import 'monaco-editor/esm/vs/editor/contrib/suggest/browser/suggestController'
+import 'monaco-editor/editor/contrib/suggest/browser/suggestController'
 
-import 'monaco-editor/esm/vs/basic-languages/shell/shell.contribution'
-import 'monaco-editor/esm/vs/basic-languages/sql/sql.contribution'
-import 'monaco-editor/esm/vs/basic-languages/twig/twig.contribution'
-import 'monaco-editor/esm/vs/basic-languages/yaml/yaml.contribution'
-import 'monaco-editor/esm/vs/language/json/monaco.contribution'
+import 'monaco-editor/languages/definitions/shell/register'
+import 'monaco-editor/languages/definitions/sql/register'
+import 'monaco-editor/languages/definitions/twig/register'
+import 'monaco-editor/languages/definitions/yaml/register'
 
 /**
  * The editor every piece of source in this app is written in: a pipeline document, and a config
@@ -433,8 +433,8 @@ const metaSchemaBuffers = new Set<string>()
  * over -- a buffer of plain JSON is read exactly as it was before any schema buffer opened.
  */
 function stateMetaSchemas(): void {
-    const held = monaco.languages.json.jsonDefaults.diagnosticsOptions
-    monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
+    const held = jsonDefaults.diagnosticsOptions
+    jsonDefaults.setDiagnosticsOptions({
         ...held,
         validate: true,
         enableSchemaRequest: false,
@@ -505,6 +505,9 @@ export function CodeEditor({
             ariaLabel: label,
             placeholder,
             readOnly,
+            // Input goes through monaco's textarea, which carries the field's label; the
+            // experimental edit context takes focus on an element the label does not name.
+            editContext: false,
         })
         editor.current = created
         const watch = model.onDidChangeContent(() => {

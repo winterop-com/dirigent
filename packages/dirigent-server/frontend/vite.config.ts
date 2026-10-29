@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import { readdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { promisify } from 'node:util'
@@ -46,7 +47,8 @@ const gzipped = promisify(gzip)
 /**
  * Writes a `.br` and a `.gz` copy beside every compressible file in `dist/assets`, which the
  * server answers with when a request accepts that coding. Both at their highest level: the
- * cost is paid once per build, never per request.
+ * cost is paid once per build, never per request. A worker is bundled in a build of its own,
+ * which closes before `dist/assets` is written; that close finds nothing and does nothing.
  */
 function precompress(): Plugin {
     return {
@@ -54,6 +56,7 @@ function precompress(): Plugin {
         apply: 'build',
         async closeBundle() {
             const assets = path.resolve(import.meta.dirname, 'dist', 'assets')
+            if (!existsSync(assets)) return
             const names = await readdir(assets, { recursive: true })
             await Promise.all(
                 names
@@ -83,7 +86,17 @@ export default defineConfig({
     base: '/',
     plugins: [react(), tailwindcss(), precompress()],
     resolve: {
-        alias: { '@': path.resolve(import.meta.dirname, './src') },
+        alias: [
+            { find: '@', replacement: path.resolve(import.meta.dirname, './src') },
+            /*
+             * monaco-yaml's worker imports monaco's worker by its path before 0.57, which the
+             * package no longer exports; this names the same module where it lives now.
+             */
+            {
+                find: 'monaco-editor/esm/vs/editor/editor.worker.js',
+                replacement: 'monaco-editor/editor/editor.worker.js',
+            },
+        ],
     },
     server: { proxy },
     build: {
