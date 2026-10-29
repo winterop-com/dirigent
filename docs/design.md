@@ -1258,7 +1258,9 @@ entry, and a `run` for every state the run itself is found in -- on connect, and
 time its status, start, end or error changes -- the last of them terminal and followed by the
 `end` sentinel that closes the stream. `end` means the run settled and nothing else: a stream
 that reaches the server's wall-clock limit with the run still going closes with `expired`, which
-a client reopens from its cursor rather than reading as the end of the story. Each cycle sends
+a client reopens from its cursor rather than reading as the end of the story. A stream that has
+sent nothing for fifteen seconds sends a `: ping` comment, which an SSE client reads past, so a
+proxy does not close a tail on a run that is quiet for a long time. Each cycle sends
 its log entries in ascending id, because that is the position a client resumes from and lines are
 buffered per attempt and written when it settles, so two attempts running at once commit
 theirs out of timestamp order; a transition is placed ahead of the first entry written no

@@ -2559,6 +2559,22 @@ def test_a_stream_that_reaches_the_wall_clock_limit_says_expired_rather_than_end
     assert [name for name, _ in tail] == ["expired"]
 
 
+def test_a_quiet_stream_sends_a_keepalive_comment_rather_than_nothing(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A proxy closes a connection that is idle too long, and a running run can be quiet for most of an hour."""
+    from dirigent_server.routes import runs as runs_route
+
+    monkeypatch.setattr(runs_route, "KEEPALIVE_SECONDS", 0.0)
+    monkeypatch.setattr(runs_route, "FOLLOW_MAX_SECONDS", 0.2)
+    run_id = started_run(client)
+    for path, params in ((f"{PREFIX}/runs/{run_id}/$events", {}), (f"{PREFIX}/runs/{run_id}/$logs", {"follow": "sse"})):
+        with client.stream("GET", path, params=params) as response:
+            lines = list(response.iter_lines())
+        assert ": ping" in lines, path
+        assert lines.index(": ping") < lines.index("event: expired"), path
+
+
 def test_a_quiet_log_stream_widens_its_poll_interval_to_the_ceiling() -> None:
     from dirigent_server.routes.runs import FOLLOW_INTERVAL_SECONDS, FOLLOW_MAX_INTERVAL_SECONDS, next_interval
 
