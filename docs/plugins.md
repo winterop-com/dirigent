@@ -71,7 +71,11 @@ with no change to dirigent, no config file, and no registry to edit. Uninstall a
   claiming either outcome
 - `sources` -- a kind of [source](concepts.md#source-and-reply) a pipeline's first node may
   be, keyed by the `kind` a document writes under `source`. A contributed kind is a
-  `PolledSource` or a `ReceivedSource`. A `PolledSource` answers `poll(config, cursor, ctx,
+  `PolledSource`, a `HeldSource` or a `ReceivedSource`. A `HeldSource` answers
+  `listen(config, ctx)` with an async context manager around a consumer whose `receive(limit,
+  wait)` hands over inputs and whose `ack()` acknowledges every input received so far; the
+  worker calls `ack()` only once those inputs are runs, and `ctx.connection(ref, model)`
+  resolves the connection the consumer reaches its broker through. A `PolledSource` answers `poll(config, cursor, ctx,
   limit)` with the inputs it found, oldest first, and the cursor the next poll carries on
   from; a worker calls it every `poll_every(config)`, with the instance's storage on `ctx`,
   and a poll that raises is recorded on the source and backed off from the same cursor. For a

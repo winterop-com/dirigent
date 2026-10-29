@@ -993,6 +993,8 @@ format checker, is in [JSON Schema](json-schema.md).
 | Kind | Hosting | Replies | Summary | Contributed by |
 | --- | --- | --- | --- | --- |
 | `endpoint` | received | yes | A request made to this instance at a route the source declares | `builtin` |
+| `kafka` | held | no | A message on a Kafka topic | `block-queues` |
+| `rabbitmq` | held | no | A message on a RabbitMQ queue | `block-queues` |
 | `storage` | polled | no | An object that appears under a storage prefix, or matching a glob | `builtin` |
 
 #### `endpoint`
@@ -1024,6 +1026,56 @@ format checker, is in [JSON Schema](json-schema.md).
 | `route` | `string` | yes |  | The template the source declares, which the concrete path matched. |
 | `path_params` | `object of string` |  |  | What each `{name}` in the template matched, as a string. |
 | `received_at` | `string (date-time)` | yes |  | When the input arrived, or when a hand run supplied it. |
+
+#### `kafka`
+
+**Config**
+
+| Field | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `connection` | `string` | yes |  | The `kafka` connection naming the cluster and holding its credential. |
+| `topic` | `string` | yes |  | The topic to consume. |
+| `group_id` | `string` | yes |  | The consumer group. Its offsets are committed once each message has become a run, which is where a worker that takes the source over carries on from. |
+| `start` | `"latest" or "earliest"` |  | `"latest"` | Where a group with no committed offsets begins: at what arrives next, or at the oldest record kept. |
+| `key_format` | `"json" or "text" or "base64"` |  | `"base64"` | How a message key is decoded. |
+| `value_format` | `"json" or "text" or "base64"` |  | `"json"` | How a message value is decoded. |
+| `max_in_flight` | `integer or null` |  | `null` | How many unsettled runs from this source may exist before the consumer waits for one to settle. |
+
+**Input it hands on**
+
+| Field | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `topic` | `string` | yes |  | -- |
+| `partition` | `integer` |  | `0` | -- |
+| `offset` | `integer` |  | `0` | -- |
+| `key` | `any` |  | `null` | -- |
+| `value` | `any` |  | `null` | -- |
+| `timestamp` | `string (date-time)` | yes |  | When the broker recorded the message. |
+| `headers` | `object of string` |  |  | -- |
+| `received_at` | `string (date-time)` | yes |  | When the worker took it, or when a hand run supplied it. |
+
+#### `rabbitmq`
+
+**Config**
+
+| Field | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `connection` | `string` | yes |  | The `rabbitmq` connection naming the broker and holding its password. |
+| `queue` | `string` | yes |  | The queue to consume. It must already exist: the source declares nothing. |
+| `value_format` | `"json" or "text" or "base64"` |  | `"json"` | How a message body is decoded. |
+| `max_in_flight` | `integer or null` |  | `null` | How many unsettled runs from this source may exist before the consumer waits for one to settle. |
+
+**Input it hands on**
+
+| Field | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `queue` | `string` | yes |  | -- |
+| `routing_key` | `string or null` |  | `null` | -- |
+| `exchange` | `string or null` |  | `null` | -- |
+| `body` | `any` |  | `null` | -- |
+| `headers` | `object` |  |  | -- |
+| `timestamp` | `string (date-time) or null` |  | `null` | When the publisher stamped the message, when it stamped one at all. |
+| `received_at` | `string (date-time)` | yes |  | When the worker took it, or when a hand run supplied it. |
 
 #### `storage`
 

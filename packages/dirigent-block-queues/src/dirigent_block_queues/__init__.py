@@ -3,6 +3,7 @@
 from dirigent_block_queues.kafka import KafkaConnectionKind, KafkaConsumeSensor, KafkaProduceOperator
 from dirigent_block_queues.messages import QUEUES
 from dirigent_block_queues.rabbitmq import RabbitConnectionKind, RabbitConsumeSensor, RabbitPublishOperator
+from dirigent_block_queues.sources import KafkaSource, RabbitSource
 from dirigent_plugin import Contribution, extension
 
 
@@ -11,11 +12,12 @@ class QueuesBlocks:
 
     @extension
     def contribute(self) -> Contribution:
-        """Contribute both brokers' blocks and the connection kinds they are addressed through."""
+        """Contribute both brokers' blocks, their source kinds, and the connection kinds they are addressed through."""
         return Contribution(
             operators=[KafkaProduceOperator(), RabbitPublishOperator()],
             sensors=[KafkaConsumeSensor(), RabbitConsumeSensor()],
             connection_kinds=[KafkaConnectionKind(), RabbitConnectionKind()],
+            sources=[KafkaSource(), RabbitSource()],
             labels=[QUEUES],
         )
 
@@ -26,9 +28,11 @@ __all__ = [
     "KafkaConnectionKind",
     "KafkaConsumeSensor",
     "KafkaProduceOperator",
+    "KafkaSource",
     "QueuesBlocks",
     "RabbitConnectionKind",
     "RabbitConsumeSensor",
     "RabbitPublishOperator",
+    "RabbitSource",
     "plugin",
 ]

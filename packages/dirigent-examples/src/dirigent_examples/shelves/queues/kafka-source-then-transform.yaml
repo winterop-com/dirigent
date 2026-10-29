@@ -1,0 +1,64 @@
+# Every message on a topic becomes its own run, taken by a worker that keeps a consumer open.
+#
+# NEEDS A BROKER, and a topic to read:
+#   docker compose -f infra/compose.queues.yaml up -d --wait
+#   docker exec -it dirigent-queues-redpanda-1 rpk topic create orders
+#   dg connection create kafka orders-topic --set bootstrap_servers='["127.0.0.1:9092"]'
+#   dg apply examples/queues/kafka-source-then-transform.yaml
+# Then produce to the topic, and each message is a run of its own:
+#   docker exec -it dirigent-queues-redpanda-1 \
+#     rpk topic produce orders --format '%v\n'   # then type JSON lines and press ctrl-d
+#   dg source list kafka-source-then-transform
+#
+# RUN IT BY HAND once the connection exists; no broker is reached, and no --input takes the
+# source's sample:
+#   dg run --local examples/queues/kafka-source-then-transform.yaml
+#
+# A SOURCE, NOT A SENSOR. kafka-watch-then-transform.yaml keeps one run waiting on the topic and
+# hands a batch to it; here the topic is the pipeline's entrance, so each message enters a run
+# of its own at `order` and `${steps.order.output.value}` is that one message. One worker holds
+# the consumer under a lease; if it dies, another takes the source over once the lease runs out.
+#
+# THE GROUP HOLDS THE PLACE. A source commits its group's offsets once each message it took has
+# become a run, never before, so a worker that dies between the two leaves the message for the
+# next one: a message may arrive twice, and is never lost. A step that must not act twice on a
+# message makes itself idempotent; this one only reshapes, so it does not care.
+#
+# max_in_flight KEEPS A BACKLOG FROM BECOMING A FLOOD: with four runs unsettled, the consumer
+# waits for one to settle before it takes the next message.
+
+format: dirigent/v1
+kind: pipeline
+code: kafka-source-then-transform
+name: A run for every message on a Kafka topic
+description: |
+  A kafka source turns each message on the orders topic into its own run, committing the
+  group's offsets once the run exists; a jq step reshapes the one order the run carries.
+
+tags: [queues, kafka, sources, transform]
+
+requires:
+  blocks:
+    - transform.jq
+  connections:
+    - orders-topic
+
+steps:
+  order:
+    source:
+      kind: kafka
+      connection: orders-topic
+      topic: orders
+      group_id: dirigent-orders
+      start: earliest
+      value_format: json
+      max_in_flight: 4
+    sample:
+      value: {id: 1042, sku: TEA-01, qty: 3}
+
+  shape:
+    block: transform.jq
+    depends_on: [order]
+    config:
+      input: ${steps.order.output}
+      program: '{order: .value.id, sku: .value.sku, quantity: .value.qty, read_at: "\(.topic)/\(.partition)@\(.offset)"}'

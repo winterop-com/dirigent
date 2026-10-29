@@ -212,7 +212,7 @@ async def enter_input(
     pipeline: Pipeline,
     output: JsonMap,
     *,
-    via: Literal["poll"],
+    via: Literal["poll", "hold"],
     label: str | None,
     duration_ms: int,
 ) -> UUID:

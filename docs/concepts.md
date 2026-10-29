@@ -211,6 +211,14 @@ backoff, so an input is never skipped. For the same reason a pipeline with a pol
 may not say `concurrency: skip` or `replace`, which would drop an input already taken. Its config is resolved with `${artifacts}` in scope and nothing
 else, since there is no run yet.
 
+A `kafka` or `rabbitmq` source, from the queues pack, is held rather than polled: one worker
+keeps a consumer open on its topic or queue under a lease it renews, and each message becomes
+one run. A message is acknowledged -- a Kafka group's offsets committed, a RabbitMQ delivery
+acked -- only after its run is committed, so a message is never lost and may, after a crash
+between the two, arrive twice. A worker that dies lets its lease run out, and another takes the
+source over. Pausing, redeclaring or removing the source closes its consumer at once. Each
+worker holds at most `source_held_max` sources.
+
 ## Block
 
 The collective term for the pluggable things a step can be: **operators** and **sensors**.

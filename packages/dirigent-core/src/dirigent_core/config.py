@@ -392,10 +392,16 @@ class Settings(BaseSettings):
     """How often a worker looks for polled sources that are due."""
 
     source_poll_lease: Duration = Field(default=timedelta(minutes=5), gt=timedelta(0))
-    """How long a worker holds a polled source while it polls; another may take it once this passes."""
+    """How long a worker holds a worker-hosted source without renewing; another may take it once this passes."""
 
     source_poll_batch: int = Field(default=100, ge=1)
     """The most inputs one poll may hand over, before the source's own ``max_in_flight``."""
+
+    source_held_max: int = Field(default=16, ge=1)
+    """How many held sources, such as queue consumers, one worker keeps open at once."""
+
+    source_hold_wait: Duration = Field(default=timedelta(seconds=1), gt=timedelta(0))
+    """How long a held source's consumer waits for a message before the worker checks on it."""
 
     source_backoff: Duration = Field(default=timedelta(seconds=30), gt=timedelta(0))
     """How long a polled source waits after a failed poll; later failures double it."""

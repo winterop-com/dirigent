@@ -30,7 +30,7 @@ from dirigent_core.engine.services import EngineServices
 from dirigent_core.logging import get_logger, log_context
 from dirigent_core.models import StepAttempt, utcnow
 from dirigent_core.models import Worker as WorkerRow
-from dirigent_core.sources import polling
+from dirigent_core.sources import holding, polling
 
 #: How long a stopping worker lets its background loops finish the pass they are in.
 GRACEFUL_STOP_SECONDS = 5.0
@@ -111,6 +111,7 @@ class Worker:
             background.append(asyncio.create_task(self._sweep_loop()))
             background.append(asyncio.create_task(self._work_loop()))
             background.append(asyncio.create_task(self._poll_loop()))
+            background.append(asyncio.create_task(self._hold_loop()))
         background.extend(asyncio.create_task(self._chore_loop(chore)) for chore in self.chores)
         try:
             async with wakeups.listening(self.settings.database_url):
@@ -298,6 +299,19 @@ class Worker:
             except Exception as error:  # a source's own failure is on its row; this is the tick's
                 _logger.warning("source poll tick failed", worker=self.name, error=str(error))
             await self._pause(self.settings.source_poll_tick.total_seconds())
+
+    async def _hold_loop(self) -> None:
+        """Take up the held sources nobody holds, on the poll tick, and let every one go when the worker halts."""
+        holder = holding.Holder(self.sessions, self.services, owner=self.name)
+        try:
+            while not self._halting.is_set():
+                try:
+                    await holder.tick()
+                except Exception as error:  # a source's own failure is on its row; this is the tick's
+                    _logger.warning("source hold tick failed", worker=self.name, error=str(error))
+                await self._pause(self.settings.source_poll_tick.total_seconds())
+        finally:
+            await holder.stop()
 
     async def _observe_levels(self, session: AsyncSession) -> None:
         """Read the levels an operator watches, on the sweeper's cadence."""

@@ -44,7 +44,7 @@ frontend changes.
 | Storage backends | Scheme registration plus `open_read` / `open_write` / `stat` / `list` / `delete` over URIs, streamed | `file://` in core, `s3://` as the first backend package |
 | Notifiers | `config_model` plus `async send(message, config)` | `log`, `webhook`; Slack and email as packages |
 | Connection kinds | `config_model` (secret fields marked) plus `async check(config) -> HealthReport` | generic HTTP connection |
-| Source kinds | `spec` (kind, hosting, whether a reply answers it), `config_model`, `output_model`, plus, for a `ReceivedSource`, `route(config)`, `admit(config, head)` and `async receive(config, request, ctx) -> Output \| Ignore \| Refusal`, or for a `PolledSource`, `poll_every(config)` and `async poll(config, cursor, ctx, limit) -> Polled` | `endpoint`, `storage` |
+| Source kinds | `spec` (kind, hosting, whether a reply answers it), `config_model`, `output_model`, plus, for a `ReceivedSource`, `route(config)`, `admit(config, head)` and `async receive(config, request, ctx) -> Output \| Ignore \| Refusal`, for a `PolledSource`, `poll_every(config)` and `async poll(config, cursor, ctx, limit) -> Polled`, or for a `HeldSource`, `listen(config, ctx)` around a consumer's `receive` and `ack` | `endpoint`, `storage`; `kafka` and `rabbitmq` in the queues pack |
 | Formats | A `formats` map of name to `Callable[[object], bool]`, joined into the checker every schema validation asserts `format` against; a format no installed pack contributes passes unchecked | none in core; `dirigent-dhis2` contributes `dhis2-uid`, `dhis2-period` and `dhis2-code` |
 
 Every block an instance actually has, with the config it takes and the output it produces, is
