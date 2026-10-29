@@ -52,7 +52,6 @@ test('a run reads as its graph, its steps, and the state it settled in', async (
     // rather than one per region.
     for (const step of STEPS) {
         // Each assertion waits on the same canvas; running them together would race the retries.
-        // oxlint-disable-next-line no-await-in-loop
         await expect(page.locator('.react-flow__node').getByText(step, { exact: true })).toBeVisible()
     }
     await expect(page.locator('.react-flow__node')).toHaveCount(STEPS.length)
@@ -468,9 +467,7 @@ test("a step output's window button covers none of its text, however long its li
 
     for (const step of ['one', 'many']) {
         // Each step replaces what the one before it put in the panel.
-        // oxlint-disable-next-line no-await-in-loop
         await page.locator(`.react-flow__node[data-id="${step}"]`).click()
-        // oxlint-disable-next-line no-await-in-loop
         expect(await textUnderTheButton(page, step), `${step}: text under the button`).toBe(0)
     }
 })

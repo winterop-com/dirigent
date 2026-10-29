@@ -180,6 +180,11 @@ const COUNTED: readonly (readonly [Need, string, string])[] = [
     ['worker', COUNT.worker.one, COUNT.worker.many],
 ]
 
+/** Whether a holding names this one, or null where the holding could not be read. */
+function holds(names: readonly string[] | null, name: string): boolean | null {
+    return names === null ? null : names.includes(name)
+}
+
 /**
  * Everything a document needs, in the order the summary counts them, checked where it can be.
  *
@@ -189,25 +194,23 @@ const COUNTED: readonly (readonly [Need, string, string])[] = [
  * apply -- so each is stated and none is called missing.
  */
 export function requirementsOf(requires: Requirements, holdings: Holdings): Requirement[] {
-    const held = (names: readonly string[] | null, name: string): boolean | null =>
-        names === null ? null : names.includes(name)
     return [
         ...requires.connections.map((name) => ({
             kind: 'connection' as const,
             name,
-            met: held(holdings.connections, name),
+            met: holds(holdings.connections, name),
         })),
         ...requires.schemas.map((name) => ({
             kind: 'schema' as const,
             name,
-            met: held(holdings.schemas, name),
+            met: holds(holdings.schemas, name),
         })),
         ...requires.pipelines.map((name) => ({ kind: 'pipeline' as const, name, met: null })),
         ...requires.storage.map((name) => ({ kind: 'storage' as const, name, met: null })),
         ...requires.blocks.map((name) => ({
             kind: 'block' as const,
             name,
-            met: held(holdings.blocks, name),
+            met: holds(holdings.blocks, name),
         })),
         ...requires.workers.map((name) => ({ kind: 'worker' as const, name, met: null })),
     ]

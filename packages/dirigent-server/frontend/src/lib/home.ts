@@ -66,6 +66,26 @@ function inState(page: Page<RunOut>, status: RunStatus): number {
     return page.items.filter((run) => run.status === status).length
 }
 
+/** A tile counted out of an unwindowed read of one status, or null until that read lands. */
+function live(
+    status: RunStatus,
+    label: string,
+    tone: TileTone,
+    note: string,
+    page: Page<RunOut> | null,
+): Tile | null {
+    if (page === null) return null
+    const count = page.items.length
+    return {
+        id: status,
+        label,
+        value: partOf(count, page),
+        note: count === 0 ? '' : note,
+        tone: toneOf(count, tone),
+        to: runsLink({ ...EVERY_RUN, status }),
+    }
+}
+
 /**
  * The six numbers the screen opens with: the last day by outcome, and what is going right now.
  *
@@ -92,24 +112,6 @@ export function statTiles(
             note: '',
             tone: toneOf(count, tone),
             to: runsLink({ ...EVERY_RUN, status, since: DAY }),
-        }
-    }
-    const live = (
-        status: RunStatus,
-        label: string,
-        tone: TileTone,
-        note: string,
-        page: Page<RunOut> | null,
-    ) => {
-        if (page === null) return null
-        const count = page.items.length
-        return {
-            id: status,
-            label,
-            value: partOf(count, page),
-            note: count === 0 ? '' : note,
-            tone: toneOf(count, tone),
-            to: runsLink({ ...EVERY_RUN, status }),
         }
     }
     const allRuns = (): Tile | null => {
@@ -234,8 +236,8 @@ export function tallest(buckets: readonly HourBucket[]): number {
 
 /** What the chart amounts to, for the reader who is hearing it rather than seeing it. */
 export function chartSummary(buckets: readonly HourBucket[]): string {
-    const settled = (pick: (bucket: HourBucket) => number) =>
-        buckets.reduce((sum, bucket) => sum + pick(bucket), 0)
+    const settled = (measure: (bucket: HourBucket) => number) =>
+        buckets.reduce((sum, bucket) => sum + measure(bucket), 0)
     const total = settled((bucket) => bucket.total)
     if (total === 0) return LABELS.dashboard.chart.summary_empty
     const counted = LABELS.dashboard.counted

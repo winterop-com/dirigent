@@ -12,11 +12,30 @@
     },
     "rules": {
         "eqeqeq": "error",
-        "no-console": ["warn", { "allow": ["warn", "error"] }],
+        "no-console": [
+            "warn",
+            {
+                "allow": ["warn", "error"]
+            }
+        ],
         "typescript/no-explicit-any": "error",
         "react/rules-of-hooks": "error",
         "react/exhaustive-deps": "warn",
         "react/react-in-jsx-scope": "off"
     },
-    "ignorePatterns": ["node_modules", "dist", "src/components/ui"]
+    "ignorePatterns": ["node_modules", "dist", "src/components/ui"],
+    "overrides": [
+        {
+            "files": ["e2e/**", "shots-src/**", "docs-shots-src/**", "*.config.ts"],
+            "rules": {
+                "no-await-in-loop": "off"
+            }
+        },
+        {
+            "files": ["e2e/**", "shots-src/**", "docs-shots-src/**", "**/*.test.ts", "**/*.test.tsx"],
+            "rules": {
+                "unicorn/consistent-function-scoping": "off"
+            }
+        }
+    ]
 }

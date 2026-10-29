@@ -128,8 +128,8 @@ function items(rows: readonly Inline[][]): ReactNode {
  * ids and is rebuilt whole whenever the text changes.
  */
 function bodyRows(body: readonly Inline[][][], align: readonly Align[]): ReactNode {
-    // oxlint-disable-next-line react/no-array-index-key
     return body.map((row, at) => (
+        // oxlint-disable-next-line react/no-array-index-key
         <tr key={at} className={ROW}>
             {bodyCells(row, align)}
         </tr>
@@ -137,8 +137,8 @@ function bodyRows(body: readonly Inline[][][], align: readonly Align[]): ReactNo
 }
 
 function headCells(row: readonly Inline[][], align: readonly Align[]): ReactNode {
-    // oxlint-disable-next-line react/no-array-index-key
     return row.map((cell, at) => (
+        // oxlint-disable-next-line react/no-array-index-key
         <th key={at} className={cn(HEAD, setting(align[at]))}>
             {runs(cell)}
         </th>
@@ -146,8 +146,8 @@ function headCells(row: readonly Inline[][], align: readonly Align[]): ReactNode
 }
 
 function bodyCells(row: readonly Inline[][], align: readonly Align[]): ReactNode {
-    // oxlint-disable-next-line react/no-array-index-key
     return row.map((cell, at) => (
+        // oxlint-disable-next-line react/no-array-index-key
         <td key={at} className={cn(CELL, setting(align[at]))}>
             {runs(cell)}
         </td>

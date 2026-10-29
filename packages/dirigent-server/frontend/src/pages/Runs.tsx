@@ -85,7 +85,7 @@ export function Runs() {
     useEffect(() => {
         setScreenStatus({ note: null, tone: 'quiet', identifier: null })
         return clearScreenStatus
-    }, [filters])
+    }, [])
 
     useEffect(() => {
         return registerActions([

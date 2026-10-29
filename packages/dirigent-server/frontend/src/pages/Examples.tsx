@@ -130,7 +130,7 @@ export function Examples() {
     useEffect(() => {
         setScreenStatus({ note: null, tone: 'quiet', identifier: null })
         return clearScreenStatus
-    }, [rows.length])
+    }, [])
 
     useEffect(() => {
         return registerActions([

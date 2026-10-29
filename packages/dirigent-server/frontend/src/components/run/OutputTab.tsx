@@ -43,6 +43,7 @@ export function OutputTab({ state, runId }: { state: RunDetailState; runId: stri
         return () => {
             cancelled = true
         }
+        // oxlint-disable-next-line react/exhaustive-effect-dependencies
     }, [runId, settled])
 
     const report = artifacts === null ? null : reportArtifact(artifacts)

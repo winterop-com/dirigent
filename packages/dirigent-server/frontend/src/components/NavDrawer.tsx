@@ -91,6 +91,7 @@ export function NavDrawer({
     }, [onClose])
     useEffect(() => {
         closeRef.current()
+        // oxlint-disable-next-line react/exhaustive-effect-dependencies
     }, [pathname])
 
     return (

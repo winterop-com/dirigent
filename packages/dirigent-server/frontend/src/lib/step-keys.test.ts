@@ -30,8 +30,8 @@ function document(): JsonMap {
     }
 }
 
-function stepIn(document: JsonMap, step: string): JsonMap {
-    return (document.steps as Record<string, JsonMap>)[step]
+function stepIn(source: JsonMap, step: string): JsonMap {
+    return (source.steps as Record<string, JsonMap>)[step]
 }
 
 describe('the fields', () => {

@@ -180,7 +180,6 @@ test('the stored document reads as its graph, and a step reads as its own config
     // THE GRAPH IS THE DOCUMENT: every step it declares is a node.
     for (const step of STEPS) {
         // Each assertion waits on the same canvas; running them together would race the retries.
-        // oxlint-disable-next-line no-await-in-loop
         await expect(page.locator('.react-flow__node').getByText(step, { exact: true })).toBeVisible()
     }
     await expect(page.locator('.react-flow__node')).toHaveCount(STEPS.length)

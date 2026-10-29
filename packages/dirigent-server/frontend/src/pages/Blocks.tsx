@@ -112,7 +112,7 @@ export function Blocks() {
         if (!read) return
         setScreenStatus({ note: null, tone: 'quiet', identifier: null })
         return clearScreenStatus
-    }, [blocks, read, value])
+    }, [read])
 
     useEffect(() => {
         if (open !== null) {

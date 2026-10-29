@@ -155,7 +155,7 @@ export function Pipelines() {
     useEffect(() => {
         setScreenStatus({ note: null, tone: 'quiet', identifier: null })
         return clearScreenStatus
-    }, [state.rows.length])
+    }, [])
 
     useEffect(() => {
         return registerActions([

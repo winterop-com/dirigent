@@ -278,13 +278,13 @@ export function itemTries(attempts: readonly AttemptEvent[]): ItemTries[] {
     }
     const built: ItemTries[] = []
     for (const [id, group] of groups) {
-        const tries = [...group].sort((left, right) => right.attempt - left.attempt)
+        const tries = group.toSorted((left, right) => right.attempt - left.attempt)
         const latest = tries[0]
         if (latest === undefined) continue
         built.push({ id, key: latest.item ?? latest.step_name, index: latest.item_index, tries, latest })
     }
     // Stable, so elements the wire gave no index keep the order they were first seen in.
-    return built.sort((left, right) => (left.index ?? 0) - (right.index ?? 0))
+    return built.toSorted((left, right) => (left.index ?? 0) - (right.index ?? 0))
 }
 
 /**
