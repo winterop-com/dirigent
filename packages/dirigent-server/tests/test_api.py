@@ -4,7 +4,7 @@ import asyncio
 import json
 import threading
 import uuid
-from collections.abc import Awaitable, Callable, Iterator, Sequence
+from collections.abc import Awaitable, Callable, Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, ClassVar, cast
@@ -2162,44 +2162,26 @@ type StoryRead = tuple[list[StepAttempt], Any, Page[LogEntryOut], RunOut | None,
 
 
 class Polls:
-    """What a follow stream's polls have read, which is what a writer moves a run between."""
+    """The run states a story stream's polls have read, counted even where a poll sends nothing."""
 
     def __init__(self) -> None:
         """Start with nothing read, and a condition every writer waits on."""
         self._runs: list[RunStatus] = []
-        self._attempts: list[tuple[str, AttemptStatus]] = []
-        self._logs: list[str] = []
         self._polled = threading.Condition()
 
-    def read(
-        self,
-        run: RunStatus | None = None,
-        attempts: Sequence[tuple[str, AttemptStatus]] = (),
-        logs: Sequence[str] = (),
-    ) -> None:
+    def read(self, run: RunStatus | None) -> None:
         """Record what one poll read, and wake every writer waiting on it."""
         with self._polled:
             if run is not None:
                 self._runs.append(run)
-            self._attempts.extend(attempts)
-            self._logs.extend(logs)
             self._polled.notify_all()
 
     def saw_run(self, status: RunStatus, times: int = 1) -> None:
         """Wait until this many polls have read the run in this state."""
-        self._until(lambda: self._runs.count(status) >= times, f"the run {status.value}, {times} time(s)")
-
-    def saw_attempt(self, step: str, status: AttemptStatus) -> None:
-        """Wait until a poll has read this step's attempt in this state."""
-        self._until(lambda: (step, status) in self._attempts, f"{step} {status.value}")
-
-    def saw_log(self, message: str) -> None:
-        """Wait until a poll has picked up this line."""
-        self._until(lambda: message in self._logs, f"the line {message!r}")
-
-    def _until(self, enough: Callable[[], bool], wanted: str) -> None:
         with self._polled:
-            assert self._polled.wait_for(enough, timeout=PATIENCE), f"no poll of the stream read {wanted}"
+            assert self._polled.wait_for(lambda: self._runs.count(status) >= times, timeout=PATIENCE), (
+                f"no poll of the stream read the run {status.value}, {times} time(s)"
+            )
 
 
 def watching[**P, T](read: Callable[P, Awaitable[T]], seen: Callable[[T], None]) -> Callable[P, Awaitable[T]]:
@@ -2214,30 +2196,27 @@ def watching[**P, T](read: Callable[P, Awaitable[T]], seen: Callable[[T], None])
 
 
 @pytest.fixture
-def polls(monkeypatch: pytest.MonkeyPatch) -> Polls:
-    """Poll the follow streams fast, and report what every poll of one read."""
+def fast_follow(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Poll the follow streams fast, and end one that waits longer than a test is patient."""
     from dirigent_server.routes import runs as runs_route
 
     monkeypatch.setattr(runs_route, "FOLLOW_INTERVAL_SECONDS", INTERVAL)
     monkeypatch.setattr(runs_route, "FOLLOW_MAX_SECONDS", PATIENCE * 2)
+
+
+@pytest.fixture
+def polls(fast_follow: None, monkeypatch: pytest.MonkeyPatch) -> Polls:
+    """Report the run every poll of the story stream read, which a quiet poll sends no frame for."""
+    from dirigent_server.routes import runs as runs_route
+
     watched = Polls()
 
     def story(found: StoryRead) -> None:
-        attempts, _, page, run, _ = found
-        watched.read(
-            run=None if run is None else run.status,
-            attempts=[(row.step_name, row.status) for row in attempts],
-            logs=[entry.message for entry in page.items],
-        )
-
-    def tail(found: tuple[Page[LogEntryOut], bool]) -> None:
-        page, _ = found
-        watched.read(logs=[entry.message for entry in page.items])
+        _, _, _, run, _ = found
+        watched.read(None if run is None else run.status)
 
     story_read = runs_route._story_read  # pyright: ignore[reportPrivateUsage] - the poll a writer waits on
-    tail_read = runs_route._tail_read  # pyright: ignore[reportPrivateUsage] - the same read, for the log tail
     monkeypatch.setattr(runs_route, "_story_read", watching(story_read, story))
-    monkeypatch.setattr(runs_route, "_tail_read", watching(tail_read, tail))
     return watched
 
 
@@ -2257,21 +2236,11 @@ def rows_written(client: TestClient, *statements: sa.Executable) -> None:
     asyncio.run(apply())
 
 
-def sse_events(lines: Iterator[str]) -> list[tuple[str, dict[str, Any]]]:
-    """Read every event off a server-sent-event stream, each as its name and its payload."""
-    found: list[tuple[str, dict[str, Any]]] = []
-    name = ""
-    for line in lines:
-        if line.startswith("event: "):
-            name = line.removeprefix("event: ")
-        elif line.startswith("data: "):
-            found.append((name, json.loads(line.removeprefix("data: "))))
-    return found
+type Frame = tuple[str, str | None, dict[str, Any]]
 
 
-def sse_frames(lines: Iterator[str]) -> list[tuple[str, str | None, dict[str, Any]]]:
-    """Read every event off a stream as its name, the id it carried, and its payload."""
-    found: list[tuple[str, str | None, dict[str, Any]]] = []
+def sse_stream(lines: Iterator[str]) -> Iterator[Frame]:
+    """Each event off a stream as it arrives: its name, the id it carried, and its payload."""
     name = ""
     ident: str | None = None
     for line in lines:
@@ -2280,9 +2249,27 @@ def sse_frames(lines: Iterator[str]) -> list[tuple[str, str | None, dict[str, An
         elif line.startswith("id: "):
             ident = line.removeprefix("id: ")
         elif line.startswith("data: "):
-            found.append((name, ident, json.loads(line.removeprefix("data: "))))
+            yield name, ident, json.loads(line.removeprefix("data: "))
             ident = None
-    return found
+
+
+def sse_events(lines: Iterator[str]) -> list[tuple[str, dict[str, Any]]]:
+    """Read every event off a server-sent-event stream, each as its name and its payload."""
+    return [(name, data) for name, _, data in sse_stream(lines)]
+
+
+def sse_frames(lines: Iterator[str]) -> list[Frame]:
+    """Read every event off a stream as its name, the id it carried, and its payload."""
+    return list(sse_stream(lines))
+
+
+def read_until(frames: Iterator[Frame], read: list[Frame], wanted: Callable[[str, dict[str, Any]], bool]) -> None:
+    """Read frames into ``read`` up to and including the first one wanted, which has to arrive."""
+    for frame in frames:
+        read.append(frame)
+        if wanted(frame[0], frame[2]):
+            return
+    raise AssertionError("the stream ended before the frame a test waited for")
 
 
 def log_row(run_id: UUID, attempt: UUID, message: str, when: datetime) -> sa.Executable:
@@ -2309,7 +2296,7 @@ def started_run(client: TestClient) -> UUID:
     return UUID(client.post(f"{PREFIX}/pipelines/api-demo/$run", json={"params": {}}).json()["run_id"])
 
 
-def test_the_event_stream_tells_the_run_story_in_order(client: TestClient, polls: Polls) -> None:
+def test_the_event_stream_tells_the_run_story_in_order(client: TestClient, fast_follow: None) -> None:
     """One stream carries the attempts as they move, the lines they wrote, and how it ended."""
     run_id = started_run(client)
     greet = attempt_id(client, run_id, "greet")
@@ -2319,9 +2306,13 @@ def test_the_event_stream_tells_the_run_story_in_order(client: TestClient, polls
         sa.update(StepAttempt).where(StepAttempt.id == greet).values(status=AttemptStatus.RUNNING, started_at=began),
     )
 
-    def finish() -> None:
-        """Move the run on once a poll has read the attempt running, the state it moves from."""
-        polls.saw_attempt("greet", AttemptStatus.RUNNING)
+    read: list[Frame] = []
+    with client.stream("GET", f"{PREFIX}/runs/{run_id}/$events") as response:
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("text/event-stream")
+        frames = sse_stream(response.iter_lines())
+        # The run moves on once the stream has told the attempt running, the state it moves from.
+        read_until(frames, read, lambda name, data: name == "attempt" and data["status"] == "running")
         rows_written(
             client,
             sa.insert(LogEntry).values(
@@ -2339,17 +2330,9 @@ def test_the_event_stream_tells_the_run_story_in_order(client: TestClient, polls
             .where(Run.id == run_id)
             .values(status=RunStatus.SUCCEEDED, finished_at=began + timedelta(seconds=2)),
         )
+        read.extend(frames)
 
-    writer = threading.Thread(target=finish)
-    writer.start()
-    try:
-        with client.stream("GET", f"{PREFIX}/runs/{run_id}/$events") as response:
-            assert response.status_code == 200
-            assert response.headers["content-type"].startswith("text/event-stream")
-            story = sse_events(response.iter_lines())
-    finally:
-        writer.join()
-
+    story = [(name, data) for name, _, data in read]
     assert [name for name, _ in story] == ["run", "attempt", "attempt", "log", "attempt", "run", "end"]
     moved = [data["status"] for name, data in story if name == "attempt" and data["step_name"] == "greet"]
     assert moved == ["running", "succeeded"], "the state it was found in, then the state it moved to"
@@ -2358,33 +2341,30 @@ def test_the_event_stream_tells_the_run_story_in_order(client: TestClient, polls
     assert story[5][1]["status"] == "succeeded"
 
 
-def test_the_event_stream_reports_a_run_that_started_before_it_settles(client: TestClient, polls: Polls) -> None:
+def test_the_event_stream_reports_a_run_that_started_before_it_settles(client: TestClient, fast_follow: None) -> None:
     """A watcher learns that a run is running when it starts, not when it ends."""
     run_id = started_run(client)
     began = datetime(2026, 1, 1, tzinfo=UTC)
 
-    def move() -> None:
-        """Claim the run, then settle it, each once a poll has read the state before it."""
-        polls.saw_run(RunStatus.QUEUED)
+    read: list[Frame] = []
+    with client.stream("GET", f"{PREFIX}/runs/{run_id}/$events") as response:
+        frames = sse_stream(response.iter_lines())
+        # Claim the run, then settle it, each once the stream has told the state before it.
+        read_until(frames, read, lambda name, data: name == "run" and data["status"] == "queued")
         rows_written(
             client,
             sa.update(Run).where(Run.id == run_id).values(status=RunStatus.RUNNING, started_at=began),
         )
-        polls.saw_run(RunStatus.RUNNING)
+        read_until(frames, read, lambda name, data: name == "run" and data["status"] == "running")
         rows_written(
             client,
             sa.update(Run)
             .where(Run.id == run_id)
             .values(status=RunStatus.SUCCEEDED, finished_at=began + timedelta(seconds=2)),
         )
+        read.extend(frames)
 
-    writer = threading.Thread(target=move)
-    writer.start()
-    try:
-        with client.stream("GET", f"{PREFIX}/runs/{run_id}/$events") as response:
-            story = sse_events(response.iter_lines())
-    finally:
-        writer.join()
+    story = [(name, data) for name, _, data in read]
 
     runs = [data for name, data in story if name == "run"]
     assert [data["status"] for data in runs] == ["queued", "running", "succeeded"]
@@ -2501,7 +2481,7 @@ def test_log_entries_reach_the_event_stream_in_id_order(client: TestClient) -> N
 
 
 def test_a_line_flushed_while_a_step_runs_reaches_the_stream_before_its_outcome(
-    client: TestClient, polls: Polls
+    client: TestClient, fast_follow: None
 ) -> None:
     """A worker flushes a running attempt's log, and a watcher reads it before the step ends."""
     run_id = started_run(client)
@@ -2512,11 +2492,13 @@ def test_a_line_flushed_while_a_step_runs_reaches_the_stream_before_its_outcome(
         sa.update(StepAttempt).where(StepAttempt.id == greet).values(status=AttemptStatus.RUNNING, started_at=began),
     )
 
-    def work() -> None:
-        """Flush a line mid-attempt, and settle the step once a poll has carried the line."""
-        polls.saw_attempt("greet", AttemptStatus.RUNNING)
+    read: list[Frame] = []
+    with client.stream("GET", f"{PREFIX}/runs/{run_id}/$events") as response:
+        frames = sse_stream(response.iter_lines())
+        # Flush a line mid-attempt, and settle the step once the stream has carried the line.
+        read_until(frames, read, lambda name, data: name == "attempt" and data["status"] == "running")
         rows_written(client, log_row(run_id, greet, "still working", began + timedelta(seconds=1)))
-        polls.saw_log("still working")
+        read_until(frames, read, lambda name, data: name == "log" and data["message"] == "still working")
         rows_written(
             client,
             sa.update(StepAttempt)
@@ -2526,14 +2508,9 @@ def test_a_line_flushed_while_a_step_runs_reaches_the_stream_before_its_outcome(
             .where(Run.id == run_id)
             .values(status=RunStatus.SUCCEEDED, finished_at=began + timedelta(seconds=9)),
         )
+        read.extend(frames)
 
-    worker = threading.Thread(target=work)
-    worker.start()
-    try:
-        with client.stream("GET", f"{PREFIX}/runs/{run_id}/$events") as response:
-            story = sse_events(response.iter_lines())
-    finally:
-        worker.join()
+    story = [(name, data) for name, _, data in read]
 
     logged = next(index for index, (name, _) in enumerate(story) if name == "log")
     settled = next(
@@ -3076,16 +3053,18 @@ def test_a_version_cursor_walks_a_pipelines_history(client: TestClient) -> None:
     assert second["next"] is None
 
 
-def test_a_reconnect_resumes_the_log_tail_from_the_last_event_id(client: TestClient, polls: Polls) -> None:
+def test_a_reconnect_resumes_the_log_tail_from_the_last_event_id(client: TestClient, fast_follow: None) -> None:
     """A browser resends the id it last saw; the tail continues past it rather than from the top."""
     run_id = started_run(client)
     greet = attempt_id(client, run_id, "greet")
     began = datetime(2026, 1, 1, tzinfo=UTC)
     rows_written(client, log_row(run_id, greet, "first", began), log_row(run_id, greet, "second", began))
 
-    def settle() -> None:
-        """Land one more line and end the run once the tail has carried the two before it."""
-        polls.saw_log("second")
+    delivered: list[Frame] = []
+    with client.stream("GET", f"{PREFIX}/runs/{run_id}/$logs", params={"follow": "sse"}) as response:
+        frames = sse_stream(response.iter_lines())
+        # Land one more line and end the run once the tail has carried the two before it.
+        read_until(frames, delivered, lambda name, data: name == "log" and data["message"] == "second")
         rows_written(
             client,
             log_row(run_id, greet, "third", began + timedelta(seconds=1)),
@@ -3093,14 +3072,7 @@ def test_a_reconnect_resumes_the_log_tail_from_the_last_event_id(client: TestCli
             .where(Run.id == run_id)
             .values(status=RunStatus.SUCCEEDED, finished_at=began + timedelta(seconds=2)),
         )
-
-    writer = threading.Thread(target=settle)
-    writer.start()
-    try:
-        with client.stream("GET", f"{PREFIX}/runs/{run_id}/$logs", params={"follow": "sse"}) as response:
-            delivered = sse_frames(response.iter_lines())
-    finally:
-        writer.join()
+        delivered.extend(frames)
 
     logs = [(ident, data["message"]) for name, ident, data in delivered if name == "log"]
     assert [message for _, message in logs] == ["first", "second", "third"]
