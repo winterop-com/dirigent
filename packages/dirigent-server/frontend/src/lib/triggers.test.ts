@@ -2,19 +2,14 @@ import { describe, expect, test } from 'vitest'
 
 import {
     clockOf,
-    deliveryView,
     firingView,
-    hookPath,
     nextFireView,
     oneTimeView,
-    signing,
     triggerId,
     watchView,
-    type DeliveryOut,
     type FiringOut,
     type ScheduleOut,
     type WatchOut,
-    type WebhookOut,
 } from '@/lib/triggers'
 
 const SCHEDULE: ScheduleOut = {
@@ -37,23 +32,6 @@ const SCHEDULE: ScheduleOut = {
     created_at: '2026-03-01T00:00:00Z',
 }
 
-const WEBHOOK: WebhookOut = {
-    id: '22222222-2222-7222-8222-222222222222',
-    code: 'upstream-publish',
-    name: null,
-    description: null,
-    token_prefix: 'dgh_abcd',
-    params_from_payload: { day: '$.published.date' },
-    signed: true,
-    active: true,
-    managed: true,
-    trigger_document: null,
-    rate_limit_per_minute: 60,
-    priority: null,
-    last_delivery_at: '2026-03-01T04:00:00Z',
-    created_at: '2026-03-01T00:00:00Z',
-}
-
 function firing(over: Partial<FiringOut>): FiringOut {
     return {
         id: 1,
@@ -63,19 +41,6 @@ function firing(over: Partial<FiringOut>): FiringOut {
         misfired: false,
         run_id: null,
         detail: null,
-        ...over,
-    }
-}
-
-function delivery(over: Partial<DeliveryOut>): DeliveryOut {
-    return {
-        id: 1,
-        created_at: '2026-03-01T04:00:00Z',
-        outcome: 'accepted',
-        run_id: null,
-        reason: null,
-        mapped_params: null,
-        source: null,
         ...over,
     }
 }
@@ -192,38 +157,6 @@ describe('what one firing came to', () => {
     })
 })
 
-describe('what one delivery came to', () => {
-    test('an accepted delivery carries the run it started', () => {
-        const view = deliveryView(delivery({ run_id: 'run-2' }))
-        expect(view.tone).toBe('good')
-        expect(view.runId).toBe('run-2')
-    })
-
-    test('a refusal is critical and carries the reason it was refused with', () => {
-        const view = deliveryView(delivery({ outcome: 'rejected', reason: 'signature did not verify' }))
-        expect(view.tone).toBe('critical')
-        expect(view.reason).toBe('signature did not verify')
-        expect(view.runId).toBeNull()
-    })
-
-    test('a delivery the concurrency policy dropped is quiet', () => {
-        expect(
-            deliveryView(delivery({ outcome: 'skipped', reason: 'one run is already in flight' })).tone,
-        ).toBe('quiet')
-    })
-})
-
-describe('what a webhook shows of itself', () => {
-    test('shows the prefix and never the rest of the token', () => {
-        expect(hookPath(WEBHOOK)).toBe('/hooks/dgh_abcd…')
-    })
-
-    test('says whether a delivery has to prove who sent it', () => {
-        expect(signing(WEBHOOK)).toBe('HMAC')
-        expect(signing({ signed: false })).toBe('unsigned')
-    })
-})
-
 const WATCH: WatchOut = {
     id: '33333333-3333-7333-8333-333333333333',
     code: 'follow',
@@ -269,13 +202,8 @@ describe('what a watch is doing', () => {
 })
 
 describe('the rows of every kind in one listing', () => {
-    test('a watch is never the same row as a schedule or a webhook', () => {
-        expect(triggerId({ kind: 'watch', pipeline: 'p', pipelineName: null, watch: WATCH })).toBe(
-            `watch:${WATCH.id}`,
-        )
-    })
-
-    test('a schedule and a webhook are never the same row', () => {
+    test('a schedule and a watch sharing an id are never the same row', () => {
+        const id = SCHEDULE.id
         expect(
             triggerId({
                 kind: 'schedule',
@@ -284,9 +212,9 @@ describe('the rows of every kind in one listing', () => {
                 schedule: SCHEDULE,
                 latest: null,
             }),
-        ).toBe(`schedule:${SCHEDULE.id}`)
-        expect(
-            triggerId({ kind: 'webhook', pipeline: 'p', pipelineName: null, webhook: WEBHOOK, latest: null }),
-        ).toBe(`webhook:${WEBHOOK.id}`)
+        ).toBe(`schedule:${id}`)
+        expect(triggerId({ kind: 'watch', pipeline: 'p', pipelineName: null, watch: { ...WATCH, id } })).toBe(
+            `watch:${id}`,
+        )
     })
 })

@@ -287,9 +287,6 @@ class Settings(BaseSettings):
     retention_logs: Duration | None = None
     """How long a log entry is kept, for runs too young to be pruned themselves."""
 
-    retention_deliveries: Duration | None = None
-    """How long a webhook delivery is kept."""
-
     retention_inputs: Duration | None = None
     """How long the record of an input that reached a source is kept."""
 
@@ -349,14 +346,6 @@ class Settings(BaseSettings):
 
     notification_lease: Duration = Field(default=timedelta(seconds=60), ge=timedelta(seconds=5))
     """How long a claimed notification's lease is valid before another worker may take it."""
-
-    webhook_max_payload: Size = Field(default=1_048_576, ge=1)
-    """The largest body the webhook intake will read; reading stops one byte past it."""
-
-    webhook_intake_rate_per_minute: int = Field(default=120, ge=1)
-    """How fast one *offered* token may deliver, before anything is looked up.
-
-    A real webhook's own ``rate_limit_per_minute`` applies on top of this."""
 
     endpoint_prefix: str = "/endpoints"
     """Where endpoint sources are served, outside the versioned API.

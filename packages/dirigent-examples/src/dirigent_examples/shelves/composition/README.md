@@ -15,4 +15,4 @@ dg run --local examples/composition/composition-parent.yaml --also-apply example
 | --- | --- |
 | [composition-child.yaml](composition-child.yaml) | The reusable unit: callable on its own, or by whatever composes it. |
 | [composition-parent.yaml](composition-parent.yaml) | `pipeline.run` per region: one child waited for, one fired and left to finish alone. |
-| [chained-instances.yaml](chained-instances.yaml) | Across the boundary: the result handed to another dirigent instance as a signed webhook, because the next stage is theirs. |
+| [chained-instances.yaml](chained-instances.yaml) | Across the boundary: the result handed to another dirigent instance as a signed POST to its endpoint, because the next stage is theirs. |

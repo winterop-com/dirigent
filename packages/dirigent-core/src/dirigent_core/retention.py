@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirigent_core.engine.claim import is_postgres
 from dirigent_core.logging import get_logger
-from dirigent_core.models import LogEntry, Notification, Run, ScheduleFiring, SourceInput, WebhookDelivery
+from dirigent_core.models import LogEntry, Notification, Run, ScheduleFiring, SourceInput
 from dirigent_core.storage import Storage
 
 if TYPE_CHECKING:
@@ -39,7 +39,6 @@ BATCH: Final = 500
 #: rather than on when they were created, and their artifacts go before their rows.
 FAMILIES: Final[tuple[tuple[str, type[Any], tuple[sa.ColumnElement[bool], ...]], ...]] = (
     ("logs", LogEntry, ()),
-    ("deliveries", WebhookDelivery, ()),
     ("inputs", SourceInput, ()),
     ("firings", ScheduleFiring, ()),
     # An alert that has not been sent is still owed to somebody.
@@ -61,9 +60,6 @@ class Policy(BaseModel):
 
     logs: timedelta | None = None
     """Log entries of runs too young to prune, which is what makes a shorter age useful."""
-
-    deliveries: timedelta | None = None
-    """What arrived at a webhook."""
 
     inputs: timedelta | None = None
     """What arrived at a source."""
@@ -106,7 +102,6 @@ def policy_from(settings: "Settings") -> Policy:
     return Policy(
         runs=settings.retention_runs,
         logs=settings.retention_logs,
-        deliveries=settings.retention_deliveries,
         inputs=settings.retention_inputs,
         firings=settings.retention_firings,
         notifications=settings.retention_notifications,
@@ -121,7 +116,6 @@ def configured(policy: Policy) -> bool:
         for age in (
             policy.runs,
             policy.logs,
-            policy.deliveries,
             policy.inputs,
             policy.firings,
             policy.notifications,

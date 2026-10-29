@@ -27,7 +27,7 @@ import pytest
 from dirigent_cli.messages import WORKER_NEVER_REGISTERED, WORKER_SILENT
 from dirigent_cli.output import ALERT_EVENTS, CONNECTION_HEALTH, IMPORTANCE_FLOOR, RUNS_IN_FLIGHT
 from dirigent_cli.summaries import IN_FLIGHT_KEEPS_ITS_SHAPE, SCHEMA_REACHES
-from dirigent_client.enums import AlertEvent, FiringOutcome, WebhookOutcome
+from dirigent_client.enums import AlertEvent, FiringOutcome
 from dirigent_client.schemas.alerts import TEST_SUBJECT
 from dirigent_core.messages import DOCUMENT_EMPTY, PIPELINE_IN_USE
 from dirigent_server.messages import FORBIDDEN
@@ -184,12 +184,6 @@ def test_a_worker_nobody_has_heard_from_is_silent_on_both_sides() -> None:
 def test_every_firing_outcome_has_a_word_the_web_ui_can_draw(outcome: FiringOutcome) -> None:
     """The schedules table drew the wire's value raw, so no review and no translation reached it."""
     assert said(f"triggers.schedule.outcome.{outcome.value}")
-
-
-@pytest.mark.parametrize("outcome", list(WebhookOutcome))
-def test_every_delivery_outcome_has_a_word_the_web_ui_can_draw(outcome: WebhookOutcome) -> None:
-    """The same fault on the webhook panel, and the same answer."""
-    assert said(f"triggers.webhook.outcome.{outcome.value}")
 
 
 def test_changing_a_stored_schema_reaches_its_readers_in_one_wording() -> None:

@@ -36,9 +36,6 @@ triggers:
   schedules:
     - code: ops-nightly
       cron: "0 4 * * *"
-  webhooks:
-    - code: ops-kick
-      params_from_payload: { day: "$.run.date" }
 """
 
 
@@ -84,7 +81,6 @@ def test_reading_one_carries_the_document_and_the_rows_it_owns(client: TestClien
     assert detail.status_code == 200, detail.text
     body = detail.json()
     assert body["schedules"] == ["ops-nightly"]
-    assert body["webhooks"] == ["ops-kick"]
     assert body["document"]["kind"] == "triggers"
     assert body["digest"].startswith("sha256:")
 
@@ -102,15 +98,6 @@ def test_a_schedule_says_which_document_declares_it(client: TestClient) -> None:
     assert owners == {"inline-nightly": None, "ops-nightly": "fleet-clocks"}
 
 
-def test_a_webhook_says_which_document_declares_it(client: TestClient) -> None:
-    stand_up(client)
-
-    row = client.get(f"{PREFIX}/pipelines/batch-fleet/triggers/webhooks/ops-kick").json()
-
-    assert row["trigger_document"] == "fleet-clocks"
-    assert row["managed"] is True
-
-
 def test_deleting_one_removes_its_rows_and_leaves_the_pipelines_own(client: TestClient) -> None:
     stand_up(client)
 
@@ -119,7 +106,6 @@ def test_deleting_one_removes_its_rows_and_leaves_the_pipelines_own(client: Test
     assert removed.status_code == 204, removed.text
     rows = client.get(f"{PREFIX}/pipelines/batch-fleet/triggers/schedules").json()["items"]
     assert [row["code"] for row in rows] == ["inline-nightly"]
-    assert client.get(f"{PREFIX}/pipelines/batch-fleet/triggers/webhooks").json()["items"] == []
 
 
 def test_deleting_an_unknown_one_is_a_404(client: TestClient) -> None:

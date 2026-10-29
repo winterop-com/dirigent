@@ -19,14 +19,12 @@ from dirigent_core.logging import (
     BRIDGED_LOGGERS,
     PACKAGE_LOGGER,
     GrammarRenderer,
-    RedactAccessPath,
     bind_context,
     clear_context,
     configure_logging,
     get_logger,
     log_context,
     own_handlers,
-    redact_path,
     unbind_context,
 )
 
@@ -140,51 +138,13 @@ def test_the_package_logger_names_its_children(caplog: pytest.LogCaptureFixture)
     assert unnamed["logger"] == "dirigent"
 
 
-def test_the_access_log_never_prints_a_webhook_token(caplog: pytest.LogCaptureFixture) -> None:
-    """A delivery's path *is* its credential, so uvicorn's access line must not carry it."""
-    configure_logging("INFO", "json")
-    access = logging.getLogger("uvicorn.access")
-    with caplog.at_level(logging.INFO, logger="uvicorn.access"):
-        access.info(
-            '%s - "%s %s HTTP/%s" %d',
-            "127.0.0.1:51000",
-            "POST",
-            "/hooks/wht_thisisthesecret",
-            "1.1",
-            201,
-        )
-    line = _capture(caplog)[0]
-    assert "thisisthesecret" not in line
-    assert "/hooks/{token}" in line
-
-
 def test_the_access_log_keeps_a_path_that_is_not_a_credential(caplog: pytest.LogCaptureFixture) -> None:
-    """Only credential-bearing paths are scrubbed; a run id in a log line is the point."""
+    """A run id in a log line is the point of the line."""
     configure_logging("INFO", "json")
     access = logging.getLogger("uvicorn.access")
     with caplog.at_level(logging.INFO, logger="uvicorn.access"):
         access.info('%s - "%s %s HTTP/%s" %d', "127.0.0.1:51000", "GET", "/api/v1/runs/abc", "1.1", 200)
     assert "/api/v1/runs/abc" in _capture(caplog)[0]
-
-
-def test_configuring_twice_does_not_stack_the_access_log_scrubber() -> None:
-    configure_logging("INFO", "json")
-    configure_logging("INFO", "json")
-    access = logging.getLogger("uvicorn.access")
-    assert len([f for f in access.filters if isinstance(f, RedactAccessPath)]) == 1
-
-
-@pytest.mark.parametrize(
-    ("path", "expected"),
-    [
-        ("/hooks/abc123", "/hooks/{token}"),
-        ("/hooks/", "/hooks/{token}"),
-        ("/api/v1/pipelines/demo", "/api/v1/pipelines/demo"),
-        ("/health/ready", "/health/ready"),
-    ],
-)
-def test_redacting_a_path_touches_only_the_credential_bearing_ones(path: str, expected: str) -> None:
-    assert redact_path(path) == expected
 
 
 #: What the buffer tests give an attempt to log, and the gate they watch, both small

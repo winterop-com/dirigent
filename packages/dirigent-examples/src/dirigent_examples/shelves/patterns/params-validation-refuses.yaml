@@ -21,7 +21,7 @@
 #                      catches an unknown -p by name before it sends anything, naming what
 #                      the pipeline does declare; this keyword is what catches the same typo
 #                      arriving from the API, from a schedule's pinned params, or from a
-#                      webhook's mapped payload.
+#                      parent's pipeline.run.
 #
 # WHAT IS NOT CHECKED HERE: format. A format keyword asserts only where the validator is given
 # a checker for it, and parameter validation is not given one -- so day below is documentation
@@ -50,9 +50,9 @@
 #   dg run --local examples/patterns/params-validation-refuses.yaml -p tenant=          # refused, minLength
 #
 # The same schema refuses the same values whoever is asking: the CLI, the API, a schedule's
-# pinned params, and a webhook's mapped payload all land in one validate call. That is what
-# makes a webhook safe to expose -- a caller cannot reach a parameter the mapping does not
-# name, and cannot get a value past the schema even for one it does.
+# pinned params, and a parent's pipeline.run all land in one validate call. A caller from
+# outside never reaches parameters at all: an endpoint's caller hands over a body, which a
+# step reads as the source's output, so nothing it sends can choose a parameter.
 
 format: dirigent/v1
 kind: pipeline

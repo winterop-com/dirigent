@@ -91,8 +91,8 @@ def test_a_cross_site_read_is_not_a_write(browser: TestClient) -> None:
     assert browser.get(f"{PREFIX}/pipelines", headers={"Origin": ELSEWHERE}).status_code == 200
 
 
-def test_webhook_intake_is_not_guarded_by_the_cookie(anonymous: TestClient) -> None:
-    response = anonymous.post("/hooks/not-a-token", json={}, headers={"Origin": ELSEWHERE})
+def test_endpoint_intake_is_not_guarded_by_the_cookie(anonymous: TestClient) -> None:
+    response = anonymous.post("/endpoints/nobody-here", json={}, headers={"Origin": ELSEWHERE})
     assert response.status_code == 404
 
 

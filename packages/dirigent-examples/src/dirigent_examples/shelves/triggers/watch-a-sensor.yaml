@@ -1,7 +1,7 @@
 # A sensor made a continuous source: one run always waiting on it, the next armed the moment
 # it succeeds.
 #
-# A schedule starts a run at a moment and a webhook when somebody calls. A watch starts one
+# A schedule starts a run at a moment and an endpoint source when somebody calls. A watch starts one
 # whenever the last one has what it was waiting for: it keeps exactly one run of this pipeline
 # waiting on the `arrive` step, and the transaction that settles that step's success arms the
 # next run. The run that succeeded carries on downstream while the next one waits, so the runs

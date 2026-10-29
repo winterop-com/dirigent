@@ -13,7 +13,6 @@ from dirigent_client.schemas import Problem
 from dirigent_common import Issue, JsonMap, Message, validation_issues
 from dirigent_core import __version__
 from dirigent_core.errors import DomainError
-from dirigent_core.logging import redact_path
 from dirigent_server.logging import get_logger
 from dirigent_server.messages import HTTP_ERROR, INTERNAL, REQUEST_INVALID
 
@@ -68,8 +67,8 @@ def render(
 
 
 def _where(request: Request) -> str:
-    """Name the path that was asked for, never including a credential from it."""
-    return redact_path(request.url.path)
+    """Name the path that was asked for."""
+    return request.url.path
 
 
 def answer(problem: Problem) -> JSONResponse:

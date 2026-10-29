@@ -176,7 +176,7 @@ Worth reading before you run it:
   sentence.
 
 - **`params` is JSON Schema.** It drives the CLI's parameter builder, the run form the UI
-  renders, and the validation a webhook's mapped payload has to satisfy. `day` is required;
+  renders, and the validation a schedule's pinned parameters have to satisfy. `day` is required;
   `regions` has a default.
 
   Note the quotes around the region names. These three need none, but a document is read with

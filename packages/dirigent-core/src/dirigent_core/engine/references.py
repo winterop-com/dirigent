@@ -144,8 +144,8 @@ def resolve_config(config: JsonMap, scope: ReferenceScope, *, shell_fields: Coll
     substituted value never reaches the shell's parser: each reference is rewritten to a
     variable of the engine's own, and the values are collected in ``shell_variables`` for the
     block to set in the command's environment. The metacharacters the pipeline author typed
-    keep their meaning, and a parameter that arrived in a webhook payload is never shell
-    source, however the author quoted the reference.
+    keep their meaning, and a value that arrived in a caller's input is never shell source,
+    however the author quoted the reference.
     """
     variables: dict[str, str] = {}
     resolved = {
@@ -214,7 +214,7 @@ def _resolve_shell(value: JsonValue, scope: ReferenceScope, variables: dict[str,
     Each reference becomes a reference to a variable the engine invents, and its value is
     recorded in ``variables`` under that name for the block to set in the command's
     environment. A variable's value is text a shell expands and never re-reads, so what a
-    webhook payload carries cannot become shell source however the author wrote the
+    caller's input carries cannot become shell source however the author wrote the
     reference; what the quoting below decides is only whether that text stays one word.
 
     A shell string is always text, so the whole-reference shortcut does not apply: a command

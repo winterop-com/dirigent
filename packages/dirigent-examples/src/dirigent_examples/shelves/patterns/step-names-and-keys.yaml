@@ -22,8 +22,8 @@
 # otherwise, with the key always on the page in mono and never drawn twice.
 #
 # The same quartet, in the same shape, everywhere: the pipeline's code is its filename here
-# (the corpus test insists on it), a schedule's code addresses it, a webhook's code addresses
-# it, and a connection's code is what a document names instead of carrying a credential.
+# (the corpus test insists on it), a schedule's code addresses it, a source's step key
+# addresses it, and a connection's code is what a document names instead of carrying a credential.
 #
 # Hop by hop:
 #

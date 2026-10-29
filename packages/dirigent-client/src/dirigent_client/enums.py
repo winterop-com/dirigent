@@ -103,7 +103,6 @@ class TriggerKind(StrEnum):
 
     ADHOC = "adhoc"
     SCHEDULE = "schedule"
-    WEBHOOK = "webhook"
     API_TOKEN = "api_token"
     USER = "user"
     PIPELINE = "pipeline"
@@ -178,19 +177,6 @@ class FiringOutcome(StrEnum):
     """The run could not be created at all, and the reason is on the row."""
 
 
-class WebhookOutcome(StrEnum):
-    """What the intake endpoint did with one delivery."""
-
-    ACCEPTED = "accepted"
-    """The payload mapped, validated, and started a run."""
-
-    SKIPPED = "skipped"
-    """The payload was good, but the pipeline's concurrency policy dropped the run."""
-
-    REJECTED = "rejected"
-    """The delivery was refused, and the reason is on the row."""
-
-
 class SourceState(StrEnum):
     """Whether a source takes inputs now, read from its row and the runs it has unsettled."""
 
@@ -252,7 +238,7 @@ class DocumentKind(StrEnum):
 
     PIPELINE = "pipeline"
     TRIGGERS = "triggers"
-    """Clocks and webhooks for a pipeline defined somewhere else."""
+    """Clocks and watches for a pipeline defined somewhere else."""
 
 
 class ProvenanceSource(StrEnum):

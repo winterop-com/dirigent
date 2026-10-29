@@ -14,7 +14,6 @@ from tests_support import DOCUMENT, apply_document
 PREFIX = "/api/v1"
 SCHEDULES = f"{PREFIX}/pipelines/api-demo/triggers/schedules"
 PREVIEW = f"{PREFIX}/schedules/$preview"
-WEBHOOKS = f"{PREFIX}/pipelines/api-demo/triggers/webhooks"
 
 #: Both must stay far enough ahead that the embedded scheduler cannot fire them mid-test.
 NIGHTLY = "0 3 * * *"
@@ -40,14 +39,6 @@ def instant(value: str) -> datetime:
 def create_schedule(client: TestClient, **payload: Any) -> dict[str, Any]:
     """Declare one schedule and return the row the API answered with."""
     response = client.post(SCHEDULES, json=payload)
-    assert response.status_code == 201, response.text
-    body: dict[str, Any] = response.json()
-    return body
-
-
-def create_webhook(client: TestClient, **payload: Any) -> dict[str, Any]:
-    """Declare one webhook and return the minted token."""
-    response = client.post(WEBHOOKS, json=payload)
     assert response.status_code == 201, response.text
     body: dict[str, Any] = response.json()
     return body
@@ -321,105 +312,6 @@ def test_a_deleted_schedule_is_gone(client: TestClient) -> None:
     assert client.get(SCHEDULES).json()["items"] == []
 
 
-def test_a_minted_webhook_shows_its_token_once_and_the_path_to_present_it_at(client: TestClient) -> None:
-    apply_document(client, DOCUMENT)
-    minted = create_webhook(client, code="from-github", params_from_payload={"greeting": "$.message.text"})
-    token = minted["token"]
-    assert token
-    assert minted["prefix"] == token[:8]
-    assert minted["url_path"] == f"/hooks/{token}"
-    assert minted["code"] == "from-github"
-
-
-def test_a_listing_shows_a_prefix_and_never_the_token(client: TestClient) -> None:
-    apply_document(client, DOCUMENT)
-    minted = create_webhook(client, code="from-github", hmac_secret="a shared secret", rate_limit_per_minute=10)
-    listing = client.get(WEBHOOKS)
-    assert listing.status_code == 200
-    assert minted["token"] not in listing.text, "the instance keeps only the hash and must never echo the token"
-    assert "a shared secret" not in listing.text
-    row = listing.json()["items"][0]
-    assert row["token_prefix"] == minted["prefix"]
-    assert "token" not in row
-    assert row["signed"] is True
-    assert row["active"] is True
-    assert row["rate_limit_per_minute"] == 10
-    assert row["last_delivery_at"] is None
-
-
-def test_two_webhooks_on_one_pipeline_may_not_share_a_code(client: TestClient) -> None:
-    apply_document(client, DOCUMENT)
-    create_webhook(client, code="from-github")
-    again = client.post(WEBHOOKS, json={"code": "from-github"})
-    assert again.status_code == 409
-    assert "already has a webhook coded 'from-github'" in again.json()["detail"]
-
-
-def test_a_mapping_no_delivery_could_satisfy_is_refused_when_the_webhook_is_declared(
-    client: TestClient,
-) -> None:
-    """Every problem at once, so a caller fixes the mapping in one round trip."""
-    apply_document(client, DOCUMENT)
-    refused = client.post(
-        WEBHOOKS,
-        json={"code": "from-github", "params_from_payload": {"greeting": "$.message..text", "nonsense": "$.a"}},
-    )
-    assert refused.status_code == 422
-    detail = refused.json()["detail"]
-    assert "'$.message..text' is not a payload path: an empty segment" in detail
-    assert "'nonsense' is not a parameter this pipeline declares (greeting)" in detail
-    assert client.get(WEBHOOKS).json()["items"] == []
-
-
-def test_a_mapping_the_pipeline_declares_is_accepted(client: TestClient) -> None:
-    apply_document(client, DOCUMENT)
-    create_webhook(client, code="from-github", params_from_payload={"greeting": "$.message.0.text"})
-    assert client.get(WEBHOOKS).json()["items"][0]["params_from_payload"] == {"greeting": "$.message.0.text"}
-
-
-def test_a_webhook_on_a_pipeline_that_does_not_exist_is_a_404(client: TestClient) -> None:
-    response = client.post(f"{PREFIX}/pipelines/nobody-home/triggers/webhooks", json={"code": "x"})
-    assert response.status_code == 404
-
-
-def test_rotating_a_token_mints_a_different_one(client: TestClient) -> None:
-    apply_document(client, DOCUMENT)
-    minted = create_webhook(client, code="from-github")
-    rotated = client.post(f"{WEBHOOKS}/from-github/$rotate-token")
-    assert rotated.status_code == 200
-    assert rotated.json()["token"] != minted["token"]
-    assert rotated.json()["url_path"] == f"/hooks/{rotated.json()['token']}"
-    assert client.get(WEBHOOKS).json()["items"][0]["token_prefix"] == rotated.json()["prefix"]
-    assert client.post(f"{WEBHOOKS}/nobody/$rotate-token").status_code == 404
-
-
-def test_a_webhook_can_be_disabled_and_enabled_without_losing_its_token(client: TestClient) -> None:
-    apply_document(client, DOCUMENT)
-    minted = create_webhook(client, code="from-github")
-    disabled = client.post(f"{WEBHOOKS}/from-github/$disable")
-    assert disabled.status_code == 200
-    assert disabled.json()["active"] is False
-    assert disabled.json()["token_prefix"] == minted["prefix"]
-    assert client.post(f"{WEBHOOKS}/from-github/$enable").json()["active"] is True
-
-
-def test_a_webhook_that_has_received_nothing_has_an_empty_delivery_history(client: TestClient) -> None:
-    apply_document(client, DOCUMENT)
-    create_webhook(client, code="from-github")
-    deliveries = client.get(f"{WEBHOOKS}/from-github/deliveries")
-    assert deliveries.status_code == 200
-    assert deliveries.json()["items"] == []
-    assert client.get(f"{WEBHOOKS}/nobody/deliveries").status_code == 404
-
-
-def test_a_deleted_webhook_is_gone(client: TestClient) -> None:
-    apply_document(client, DOCUMENT)
-    create_webhook(client, code="from-github")
-    assert client.delete(f"{WEBHOOKS}/from-github").status_code == 204
-    assert client.get(WEBHOOKS).json()["items"] == []
-    assert client.delete(f"{WEBHOOKS}/from-github").status_code == 404
-
-
 def test_every_trigger_route_refuses_an_anonymous_request(anonymous: TestClient) -> None:
     for method, path in [
         ("get", "/triggers/schedules"),
@@ -429,13 +321,6 @@ def test_every_trigger_route_refuses_an_anonymous_request(anonymous: TestClient)
         ("post", "/triggers/schedules/nightly/$resume"),
         ("get", "/triggers/schedules/nightly/firings"),
         ("delete", "/triggers/schedules/nightly"),
-        ("get", "/triggers/webhooks"),
-        ("post", "/triggers/webhooks"),
-        ("post", "/triggers/webhooks/from-github/$rotate-token"),
-        ("post", "/triggers/webhooks/from-github/$disable"),
-        ("post", "/triggers/webhooks/from-github/$enable"),
-        ("get", "/triggers/webhooks/from-github/deliveries"),
-        ("delete", "/triggers/webhooks/from-github"),
     ]:
         response = anonymous.request(method, f"{PREFIX}/pipelines/api-demo{path}", json={})
         assert response.status_code == 401, f"{method} {path} let an anonymous request through"

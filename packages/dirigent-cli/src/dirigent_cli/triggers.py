@@ -1,4 +1,4 @@
-"""The trigger and alerting command groups: schedules, webhooks, watches, and alert rules."""
+"""The trigger and alerting command groups: schedules, watches, and alert rules."""
 
 from pathlib import Path
 from typing import Annotated, Any, cast
@@ -9,7 +9,6 @@ from dirigent_cli.commands import paged, parse_importance, parse_log_levels, par
 from dirigent_cli.context import Session, client_for, state_of
 from dirigent_cli.messages import (
     AT_TAKES_AN_INSTANT,
-    MAP_TAKES_A_PATH,
     NOT_AN_ALERT_EVENT,
     ONE_BODY,
     ONE_CLOCK,
@@ -28,13 +27,12 @@ from dirigent_cli.output import (
     throttle_note,
     watching,
 )
-from dirigent_client import LOG_NOTIFIER, TEST_SUBJECT, AlertEvent, AlertScope, WebhookTokenOut
+from dirigent_client import LOG_NOTIFIER, TEST_SUBJECT, AlertEvent, AlertScope
 from dirigent_common import Message
 
 schedule_app = typer.Typer(
     name="schedule", help="A pipeline's clocks: cron, interval, or one-time.", no_args_is_help=True
 )
-webhook_app = typer.Typer(name="webhook", help="Inbound webhooks and their delivery history.", no_args_is_help=True)
 watch_app = typer.Typer(
     name="watch",
     help="Sensors kept waiting: one run always waiting on each, the next armed on success.",
@@ -305,168 +303,6 @@ def watch_resume(
     )
 
 
-def _print_token(minted: WebhookTokenOut, *, base_url: str) -> None:
-    """Print a minted token once, with the URL already assembled.
-
-    The instance stores only the token's hash; there is no second chance to read it.
-    """
-    console.print(f"\n  POST  [bold]{base_url.rstrip('/')}{minted.url_path}[/]")
-    console.print(f"  Token [bold]{minted.token}[/]")
-    console.print("\n[yellow]This token is shown once.[/] The instance stores only its hash.\n")
-
-
-@webhook_app.command("create")
-def webhook_create(
-    ctx: typer.Context,
-    pipeline: Annotated[str, typer.Argument(help="The pipeline this webhook starts.")],
-    code: Annotated[str, typer.Argument(help="What to call it; unique within the pipeline.")],
-    name: Annotated[str | None, typer.Option("--name", help="A human title for this webhook.")] = None,
-    description: Annotated[str | None, typer.Option("--description", help="What this webhook is for.")] = None,
-    map_value: Annotated[
-        list[str] | None,
-        typer.Option("--map", help="param=$.path.into.payload, repeatable."),
-    ] = None,
-    hmac_secret: Annotated[
-        str | None,
-        typer.Option("--hmac-secret", help="Require an X-Dirigent-Signature over the raw body."),
-    ] = None,
-    rate_limit: Annotated[int, typer.Option("--rate-limit", help="Deliveries a minute this token may make.")] = 60,
-    priority: Annotated[
-        str | None,
-        typer.Option(
-            "--priority",
-            help="How far ahead of other runs an accepted delivery's run is claimed: low, normal, or high. "
-            "Omitted takes the pipeline's own.",
-        ),
-    ] = None,
-) -> None:
-    """Declare a webhook and print its token once, with the URL to POST to."""
-    mapping: dict[str, str] = {}
-    for entry in map_value or []:
-        if "=" not in entry:
-            _fail(MAP_TAKES_A_PATH, entry=repr(entry))
-        key, path = entry.split("=", 1)
-        mapping[key.strip()] = path.strip()
-    with client_for(state_of(ctx)) as dg:
-        minted = dg.call(
-            dg.webhooks.create(
-                pipeline,
-                code,
-                name=name,
-                description=description,
-                params_from_payload=mapping,
-                hmac_secret=hmac_secret,
-                rate_limit_per_minute=rate_limit,
-                priority=parse_priority(priority),
-            )
-        )
-        base = dg.url
-    if state_of(ctx).json_output:
-        return emit_fact(
-            "webhook.created",
-            message="created",
-            code=minted.code,
-            pipeline=pipeline,
-            url=f"{base.rstrip('/')}{minted.url_path}",
-            token=minted.token,
-        )
-    console.print(f"[green]created[/] webhook [bold]{minted.code}[/] on {pipeline}")
-    _print_token(minted, base_url=base)
-
-
-@webhook_app.command("list")
-def webhook_list(
-    ctx: typer.Context,
-    pipeline: Annotated[str, typer.Argument(help="The pipeline whose webhooks to list.")],
-) -> None:
-    """List a pipeline's webhooks, with their mapping but never their tokens."""
-    with client_for(state_of(ctx)) as dg:
-        rows = list(paged(lambda after, size: dg.call(dg.webhooks.list(pipeline, after=after, limit=size)), None))
-    if state_of(ctx).json_output:
-        return emit_records("webhook", rows)
-    table(
-        f"webhooks of {pipeline}",
-        ["code", "name", "token", "signed", "active", "limit/min", "maps", "last delivery"],
-        [
-            [
-                row.code,
-                row.name or "-",
-                f"{row.token_prefix}...",
-                render_bool(row.signed),
-                render_bool(row.active),
-                str(row.rate_limit_per_minute),
-                ", ".join(sorted(row.params_from_payload)) or "-",
-                moment(row.last_delivery_at),
-            ]
-            for row in rows
-        ],
-    )
-
-
-@webhook_app.command("rotate-token")
-def webhook_rotate(
-    ctx: typer.Context,
-    pipeline: Annotated[str, typer.Argument()],
-    code: Annotated[str, typer.Argument()],
-) -> None:
-    """Mint a new token and forget the old one; every caller has to be updated."""
-    with client_for(state_of(ctx)) as dg:
-        minted = dg.call(dg.webhooks.rotate_token(pipeline, code))
-        base = dg.url
-    if state_of(ctx).json_output:
-        return emit_fact(
-            "webhook.token_rotated",
-            message="rotated",
-            code=code,
-            pipeline=pipeline,
-            url=f"{base.rstrip('/')}{minted.url_path}",
-            token=minted.token,
-        )
-    console.print(f"[green]rotated[/] the token of webhook [bold]{code}[/]; the previous one no longer works")
-    _print_token(minted, base_url=base)
-
-
-@webhook_app.command("deliveries")
-def webhook_deliveries(
-    ctx: typer.Context,
-    pipeline: Annotated[str, typer.Argument()],
-    code: Annotated[str, typer.Argument()],
-) -> None:
-    """Show what has arrived at a webhook, refusals included."""
-    with client_for(state_of(ctx)) as dg:
-        rows = list(
-            paged(lambda after, size: dg.call(dg.webhooks.deliveries(pipeline, code, after=after, limit=size)), None)
-        )
-    if state_of(ctx).json_output:
-        return emit_records("delivery", rows)
-    table(
-        f"deliveries to {code}",
-        ["received", "outcome", "run", "from", "detail"],
-        [
-            [
-                moment(row.created_at),
-                styled(row.outcome.value),
-                str(row.run_id or "-")[:8],
-                row.source or "-",
-                row.reason or "-",
-            ]
-            for row in rows
-        ],
-    )
-
-
-@webhook_app.command("delete")
-def webhook_delete(
-    ctx: typer.Context,
-    pipeline: Annotated[str, typer.Argument()],
-    code: Annotated[str, typer.Argument()],
-) -> None:
-    """Remove a webhook, its token, and its delivery history."""
-    with client_for(state_of(ctx)) as dg:
-        dg.call(dg.webhooks.delete(pipeline, code))
-    emit_fact("webhook.deleted", message="deleted", code=code, pipeline=pipeline)
-
-
 @alerts_rules_app.command("list")
 def alerts_rules_list(
     ctx: typer.Context,
@@ -680,7 +516,7 @@ def trigger_document_show(
     ctx: typer.Context,
     code: Annotated[str, typer.Argument(help="The triggers document to read.")],
 ) -> None:
-    """Show one triggers document and the schedules, webhooks and watches it owns."""
+    """Show one triggers document and the schedules and watches it owns."""
     with client_for(state_of(ctx)) as dg:
         detail = dg.call(dg.trigger_documents.get(code))
     if state_of(ctx).json_output:
@@ -689,7 +525,6 @@ def trigger_document_show(
     console.print(f"  pipeline  [bold]{detail.pipeline}[/]")
     console.print(f"  digest    [dim]{detail.digest}[/]")
     console.print(f"  schedules {', '.join(detail.schedules) or '-'}")
-    console.print(f"  webhooks  {', '.join(detail.webhooks) or '-'}")
     console.print(f"  watches   {', '.join(detail.watches) or '-'}")
     if detail.description:
         console.print(f"\n{detail.description}")
@@ -700,7 +535,7 @@ def trigger_document_delete(
     ctx: typer.Context,
     code: Annotated[str, typer.Argument(help="The triggers document to remove.")],
 ) -> None:
-    """Remove a triggers document and every schedule and webhook it declared."""
+    """Remove a triggers document and every schedule and watch it declared."""
     with client_for(state_of(ctx)) as dg:
         dg.call(dg.trigger_documents.delete(code))
     emit_fact(
@@ -708,7 +543,6 @@ def trigger_document_delete(
         message="deleted",
         code=code,
         schedules="deleted",
-        webhooks="deleted",
         watches="deleted",
     )
 

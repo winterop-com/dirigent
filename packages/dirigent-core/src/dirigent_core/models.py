@@ -25,7 +25,6 @@ from dirigent_client.enums import (
     TokenKind,
     TriggerKind,
     UserRole,
-    WebhookOutcome,
     WorkerStatus,
 )
 from dirigent_common import JsonList, JsonMap
@@ -81,7 +80,7 @@ class Journal(Base):
 class Pipeline(Entity):
     """A coded definition with immutable versions; the code is the only portable identity.
 
-    Deleting the row takes its versions, schedules, webhooks and alert rules with it, and
+    Deleting the row takes its versions, schedules, sources and alert rules with it, and
     the code becomes free again.
     """
 
@@ -348,7 +347,7 @@ class StepAttempt(Entity):
 
 
 class TriggerDocument(Entity):
-    """A ``kind: triggers`` document: clocks and webhooks for a pipeline defined elsewhere.
+    """A ``kind: triggers`` document: clocks and watches for a pipeline defined elsewhere.
 
     It has no versions. The digest is what makes an unchanged re-apply cheap, and the rows it
     owns name it, so a reconcile of one owner never reaches another's. Deleting it, or the
@@ -433,69 +432,6 @@ class ScheduleFiring(Journal):
     """Whether this firing was late past the misfire grace, and therefore fired once and advanced."""
 
     detail: Mapped[str | None] = mapped_column(sa.Text)
-
-
-class WebhookTrigger(Entity):
-    """An inbound endpoint: a hashed token, an optional HMAC secret, and a strict payload mapping."""
-
-    __tablename__ = "webhook_triggers"
-    __table_args__ = (sa.UniqueConstraint("pipeline_id", "code"),)
-
-    pipeline_id: Mapped[UUID] = mapped_column(
-        sa.ForeignKey("pipelines.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    code: Mapped[str] = mapped_column(sa.String(200), nullable=False)
-    name: Mapped[str | None] = mapped_column(sa.String(200))
-    description: Mapped[str | None] = mapped_column(sa.Text)
-    token_hash: Mapped[str] = mapped_column(sa.String(128), nullable=False, unique=True)
-    token_prefix: Mapped[str] = mapped_column(sa.String(16), nullable=False, default="", server_default="")
-    """The leading characters of the token, shown in listings."""
-
-    hmac_secret: Mapped[bytes | None] = mapped_column(sa.LargeBinary)
-    """The signing secret, sealed by the instance key exactly as a connection's secrets are.
-
-    What is stored is the ciphertext of ``{"hmac_secret": "..."}``, and the key that sealed it
-    is named in :attr:`hmac_secret_key_id`."""
-
-    hmac_secret_key_id: Mapped[str | None] = mapped_column(sa.String(100))
-    """Which key sealed :attr:`hmac_secret`, mirroring ``connections.secret_key_id``."""
-
-    params_from_payload: Mapped[JsonMap] = mapped_column(JsonDocument, nullable=False, default=dict)
-    priority: Mapped[RunPriority | None] = mapped_column(string_enum(RunPriority, "run_priority"))
-    """The priority every accepted delivery's run carries, or null to take the pipeline's own."""
-    managed: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False, server_default=sa.false())
-    """Whether a document's ``triggers:`` section owns this row, and may therefore remove it."""
-
-    trigger_document_id: Mapped[UUID | None] = mapped_column(
-        sa.ForeignKey("trigger_documents.id", ondelete="CASCADE"), index=True
-    )
-    """Which triggers document owns this row, or null when the pipeline's own document does."""
-
-    active: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=True, server_default=sa.true())
-    rate_limit_per_minute: Mapped[int] = mapped_column(
-        sa.Integer, nullable=False, default=60, server_default=sa.text("60")
-    )
-    last_delivery_at: Mapped[datetime | None] = mapped_column(Timestamp)
-
-
-class WebhookDelivery(Journal):
-    """One inbound call: what arrived, what it mapped to, and the run or the refusal it produced."""
-
-    __tablename__ = "webhook_deliveries"
-    __table_args__ = (
-        sa.Index("ix_webhook_deliveries_webhook_id_id", "webhook_id", "id"),
-        sa.Index("ix_webhook_deliveries_created_at", "created_at"),
-    )
-
-    webhook_id: Mapped[UUID] = mapped_column(sa.ForeignKey("webhook_triggers.id", ondelete="CASCADE"), nullable=False)
-    run_id: Mapped[UUID | None] = mapped_column(sa.ForeignKey("runs.id", ondelete="SET NULL"))
-    outcome: Mapped[WebhookOutcome] = mapped_column(string_enum(WebhookOutcome, "webhook_outcome"), nullable=False)
-    reason: Mapped[str | None] = mapped_column(sa.Text)
-    payload: Mapped[JsonMap | None] = mapped_column(JsonDocument)
-    """What arrived, truncated to a readable size."""
-
-    mapped_params: Mapped[JsonMap | None] = mapped_column(JsonDocument)
-    source: Mapped[str | None] = mapped_column(sa.String(64))
 
 
 class Watch(Entity):
@@ -832,8 +768,6 @@ ALL_TABLES = (
     TriggerDocument,
     Schedule,
     ScheduleFiring,
-    WebhookTrigger,
-    WebhookDelivery,
     Watch,
     Source,
     SourceRoute,

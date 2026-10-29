@@ -24,44 +24,35 @@ import {
     inputLine,
     listensTo,
     setSourcePaused,
-    shownToken,
     stateView,
     type SourceInputOut,
     type SourceOut,
+    type SourceTokenOut,
 } from '@/lib/sources'
 import {
-    deliveryView,
     firingView,
-    hookPath,
     nextFireView,
-    readDeliveries,
     readFirings,
-    rotateWebhookToken,
     setSchedulePaused,
     setWatchPaused,
-    setWebhookActive,
-    signing,
     watchView,
-    type DeliveryOut,
     type FiringOut,
     type ScheduleOut,
     type WatchOut,
-    type WebhookOut,
-    type WebhookTokenOut,
 } from '@/lib/triggers'
 
 /**
  * One trigger beside the listing: what it is, and what it has actually done.
  *
- * THE HISTORY IS A CURSOR WALK LIKE ANY OTHER. Firings and deliveries page by an integer
+ * THE HISTORY IS A CURSOR WALK LIKE ANY OTHER. Firings and inputs page by an integer
  * cursor, newest first, so the panel reads one page and asks for the next when somebody wants
  * it -- the same `usePaged` the listings use, and for the same reason: there is no total to
  * state and no page to jump to.
  *
- * WHAT IS EDITABLE HERE IS WHAT DOES NOT LIVE IN THE DOCUMENT. Whether a schedule or a watch is
- * paused and whether a webhook accepts deliveries are operational state the instance owns, so
- * each is a verb here even on a managed trigger; the clock, the mapping and the watched step
- * came from a document and change by applying one.
+ * WHAT IS EDITABLE HERE IS WHAT DOES NOT LIVE IN THE DOCUMENT. Whether a schedule, a watch or a
+ * source is paused is operational state the instance owns, so it is a verb here even on a
+ * managed trigger; the clock and the watched step came from a document and change by applying
+ * one.
  */
 export function SchedulePanel({
     pipeline,
@@ -162,124 +153,6 @@ export function SchedulePanel({
     )
 }
 
-export function WebhookPanel({
-    pipeline,
-    pipelineName,
-    webhook,
-    onChanged,
-    onMinted,
-}: {
-    pipeline: string
-    pipelineName: string | null
-    webhook: WebhookOut
-    onChanged: (row: WebhookOut) => void
-    /** Called with a token that is readable exactly once, which the screen shows and forgets. */
-    onMinted: (token: WebhookTokenOut) => void
-}) {
-    const [busy, setBusy] = useState(false)
-
-    const read = useCallback(
-        (after: string | null) => readDeliveries(pipeline, webhook.code, after),
-        [pipeline, webhook.code],
-    )
-    const { state, more } = usePaged(read, deliveryId)
-
-    const write = useMayWrite()
-
-    /** Carry out one verb, leaving the row as it was and saying so if the server would not. */
-    function act<T>(work: Promise<T>, taken: (answer: T) => void): void {
-        setBusy(true)
-        void work.then(taken, sayRefusal).finally(() => {
-            setBusy(false)
-        })
-    }
-
-    return (
-        <div className="space-y-4 p-4">
-            <Head
-                thing={webhook}
-                pipeline={pipeline}
-                pipelineName={pipelineName}
-                description={webhook.description}
-            >
-                <OwnerChip managed={webhook.managed} document={webhook.trigger_document} />
-                {!webhook.active && <Chip>{LABELS.state.armed.disabled}</Chip>}
-            </Head>
-
-            <dl className="space-y-1.5">
-                <Fact label={LABELS.word.endpoint}>
-                    <span className="font-mono">{LABELS.triggers.webhook.post(hookPath(webhook))}</span>
-                </Fact>
-                <Fact label={LABELS.word.signature}>{signing(webhook)}</Fact>
-                <Fact label={LABELS.word.rate_limit.label}>
-                    {LABELS.word.rate_limit.value(String(webhook.rate_limit_per_minute))}
-                </Fact>
-                <Fact label={LABELS.triggers.webhook.last_delivery}>
-                    {webhook.last_delivery_at === null ? (
-                        <span className="text-faint">{LABELS.word.never}</span>
-                    ) : (
-                        <span title={formatInstant(webhook.last_delivery_at)}>
-                            {formatRelative(webhook.last_delivery_at)}
-                        </span>
-                    )}
-                </Fact>
-                {Object.keys(webhook.params_from_payload).length > 0 && (
-                    <Fact label={LABELS.word.payload_mapping}>
-                        <div className="mt-1">
-                            <JsonBlock
-                                title={LABELS.triggers.webhook.mapping_title(webhook.code)}
-                                text={asJson(webhook.params_from_payload)}
-                            />
-                        </div>
-                    </Fact>
-                )}
-            </dl>
-
-            <div className="flex flex-wrap items-center gap-2">
-                <Refusable why={write.why}>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={busy || !write.may}
-                        title={write.why}
-                        onClick={() => {
-                            act(setWebhookActive(pipeline, webhook.code, !webhook.active), onChanged)
-                        }}
-                    >
-                        {webhook.active ? LABELS.action.disable : LABELS.action.enable}
-                    </Button>
-                </Refusable>
-                <Refusable why={write.why}>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={busy || !write.may}
-                        title={write.why}
-                        onClick={() => {
-                            act(rotateWebhookToken(pipeline, webhook.code), onMinted)
-                        }}
-                    >
-                        {LABELS.triggers.rotate}
-                    </Button>
-                </Refusable>
-            </div>
-            <p className="text-xs text-faint">{LABELS.triggers.rotate_warning}</p>
-
-            <History
-                title={LABELS.triggers.webhook.deliveries}
-                empty={LABELS.triggers.webhook.nothing_delivered}
-                loading={!state.read}
-                rows={state.rows}
-                keyOf={deliveryId}
-                next={state.next}
-                reading={state.reading}
-                onMore={more}
-                render={(delivery) => <Delivery delivery={delivery} />}
-            />
-        </div>
-    )
-}
-
 export function SourcePanel({
     source,
     pipelineName,
@@ -291,7 +164,7 @@ export function SourcePanel({
     /** Called with what a verb answered, so the row behind updates without a re-read. */
     onChanged: (row: SourceOut) => void
     /** Called with a token that is readable exactly once, which the screen shows and forgets. */
-    onMinted: (token: WebhookTokenOut) => void
+    onMinted: (token: SourceTokenOut) => void
 }) {
     const [busy, setBusy] = useState(false)
 
@@ -411,7 +284,7 @@ export function SourcePanel({
                             title={write.why}
                             onClick={() => {
                                 act(rotateSourceToken(source.pipeline, source.code), (token) => {
-                                    onMinted(shownToken(token))
+                                    onMinted(token)
                                     onChanged({ ...source, token_prefix: token.prefix })
                                 })
                             }}
@@ -539,7 +412,6 @@ export function WatchPanel({
 }
 
 const firingId = (row: FiringOut) => String(row.id)
-const deliveryId = (row: DeliveryOut) => String(row.id)
 
 /** One trigger's title over its code, the pipeline it fires, and whatever it is wearing. */
 function Head({
@@ -651,35 +523,6 @@ function Firing({ firing }: { firing: FiringOut }) {
             </span>
             {view.detail !== null && (
                 <p className="text-xs break-words text-muted-foreground">{view.detail}</p>
-            )}
-        </div>
-    )
-}
-
-/** One delivery: what it was made of, and the run it started or the reason it started none. */
-function Delivery({ delivery }: { delivery: DeliveryOut }) {
-    const view = deliveryView(delivery)
-    return (
-        <div className="space-y-0.5">
-            <span className="flex items-center gap-2 text-xs">
-                <Dot tone={view.tone} />
-                <span>{view.label}</span>
-                <span className="text-faint" title={formatInstant(delivery.created_at)}>
-                    {formatRelative(delivery.created_at)}
-                </span>
-                {view.runId !== null && (
-                    <Link className="font-mono text-primary-ink hover:underline" to={`/runs/${view.runId}`}>
-                        {shortId(view.runId)}
-                    </Link>
-                )}
-                {delivery.source !== null && (
-                    <span className="truncate text-faint">
-                        {LABELS.triggers.webhook.from(delivery.source)}
-                    </span>
-                )}
-            </span>
-            {view.reason !== null && (
-                <p className="text-xs break-words text-muted-foreground">{view.reason}</p>
             )}
         </div>
     )

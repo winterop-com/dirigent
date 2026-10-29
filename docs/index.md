@@ -130,7 +130,7 @@ then the three-service compose stack, an admin account, and a token.
 What an instance holds today: the execution engine, the plugin host and its catalog,
 URI-addressed storage, envelope-encrypted connection secrets, the `dirigent/v1` document format
 with `dg apply` / `dg export`, the authenticated REST surface, the web UI the server ships,
-the scheduler with its advisory lock and misfire policy, webhook intake, alert rules delivered
+the scheduler with its advisory lock and misfire policy, endpoint and polled sources, alert rules delivered
 through a retried notification queue, `dirigent-storage-s3`, the built-in block families
 ([HTTP, storage, shell, docker, git, sql, the queues, the clocks, schema validation, reports and
 the transform verbs](blocks.md)), and OpenTelemetry instrumentation.

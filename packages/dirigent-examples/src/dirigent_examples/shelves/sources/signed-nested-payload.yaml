@@ -1,0 +1,96 @@
+# A signed notification from upstream becomes a run, and only the fields it names reach a step.
+#
+# THE SIGNATURE IS THE CREDENTIAL. `published` says `auth: {kind: hmac}`, so its caller presents
+# no token: it signs the raw body with HMAC-SHA256 under a secret the two sides share, and sends
+# `sha256=<hex>` in X-Dirigent-Signature. The apply mints that secret and shows it once, and
+# `dg source rotate-token` replaces it. A sender that issues its own secret, the way a provider
+# does, has it set instead with `dg source set-secret`, and a sender that insists on its own
+# header is met with `header:`, such as `header: X-Hub-Signature-256`. An unsigned or wrongly
+# signed call is refused 401 before any run exists. A `webhook.post` step with `sign_with`, on
+# this instance or another, produces exactly the signature this source verifies.
+#
+# NAME THE FIELDS, AND THE REST NEVER ARRIVES. The whole body is the source's output, but no
+# step reads it whole: `pick` reaches into it by path -- `.published.date` two levels down,
+# `.source.system.name` three -- and hands on those four fields and nothing else. A caller who
+# adds a field, or fifty, changes nothing a later step sees, and `environment` is not in the
+# body at all: it is the pipeline's to decide, so no call can choose it.
+#
+# BOUND WHAT YOU TAKE. `pick` refuses a row count that is not a whole number in range, so a
+# call cannot claim anything; on an instance, a `validate.schema` gate against a schema made
+# with `dg schema create` does the same declaratively.
+#
+# RUN IT BY HAND, here, with no server. No --input takes the source's sample:
+#
+#   dg run --local examples/sources/signed-nested-payload.yaml
+#
+# ON A SERVER, apply it, keep the signing secret the apply printed, and call it signed:
+#
+#   dg apply examples/sources/signed-nested-payload.yaml
+#   dg source call signed-nested-payload published --signing-secret "$SECRET" --body '{
+#     "published": {"date": "2026-01-01", "dataset": {"code": "cases"}},
+#     "source": {"system": {"name": "warehouse"}},
+#     "counts": {"rows": 4120},
+#     "anything_else": "ignored"
+#   }'
+#
+# Or as any sender would, signing the exact bytes it sends:
+#
+#   BODY='{"published": {"date": "2026-01-01", "dataset": {"code": "cases"}}, "source": {"system": {"name": "warehouse"}}, "counts": {"rows": 4120}}'
+#   SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$SECRET" | sed 's/^.* //')
+#   curl -H 'Content-Type: application/json' -H "X-Dirigent-Signature: sha256=$SIG" \
+#     --data-binary "$BODY" http://localhost:3333/endpoints/published
+#
+# EXPECT THIS RUN TO SUCCEED in well under a second, `receipt` naming the dataset, the day and
+# the system, with environment staging.
+
+format: dirigent/v1
+kind: pipeline
+code: signed-nested-payload
+name: Signed, from a nested payload
+description: |
+  An endpoint takes a body signed with HMAC-SHA256 under a secret the instance minted or the
+  sender issued, and a jq step picks the named fields out of the nested body, so nothing the
+  pipeline does not read reaches a step.
+
+  The signing secret stays on the instance; none of it belongs in git.
+
+tags: [sources, transform, jq, credential]
+
+steps:
+  published:
+    source:
+      kind: endpoint
+      path: /published
+      max_body: 16KB
+      auth:
+        kind: hmac
+    sample:
+      body:
+        published: {date: "2026-01-01", dataset: {code: cases}}
+        source: {system: {name: warehouse}}
+        counts: {rows: 4120}
+        anything_else: ignored
+  pick:
+    block: transform.jq
+    depends_on: [published]
+    config:
+      input: ${steps.published.output.body}
+      # One path per field; depth costs nothing, and a field no path names goes no further.
+      program: |
+        if (.counts.rows | type) != "number" or .counts.rows < 0 or .counts.rows > 10000000
+          or .counts.rows != (.counts.rows | floor)
+        then error("counts.rows must be a whole number from 0 to 10000000")
+        else {
+          day: .published.date,
+          dataset: .published.dataset.code,
+          source: .source.system.name,
+          rows: .counts.rows
+        }
+        end
+  receipt:
+    block: transform.jq
+    depends_on: [pick]
+    config:
+      input: ${steps.pick.output.value}
+      program: |
+        {ingested: "\(.dataset) for \(.day) from \(.source)", rows, environment: "staging"}

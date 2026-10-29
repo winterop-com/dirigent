@@ -1,10 +1,10 @@
 # A signed outbound delivery, and where the secret on each side of it lives.
 #
-# webhook.post is the sending half of the webhook story; webhook-mapping-nested-payload.yaml
-# is the receiving half. sign_with names the connection whose hmac_secret signs the body, and
-# the block presents the result as X-Dirigent-Signature -- computed exactly the way dirigent's
-# own /hooks/{token} verifies one, so a dirigent instance can be the receiver on the other end
-# with nothing in between.
+# webhook.post is the sending half of a signed delivery; sources/signed-nested-payload.yaml is
+# the receiving half. sign_with names the connection whose hmac_secret signs the body, and the
+# block presents the result as X-Dirigent-Signature: sha256=<hex> -- computed exactly the way
+# an endpoint source with `auth: {kind: hmac}` verifies one, so a dirigent instance can be the
+# receiver on the other end with nothing in between.
 #
 # THREE THINGS ARE WORTH BEING PRECISE ABOUT:
 #
@@ -20,15 +20,17 @@
 #     right -- a server refuses a document that embeds a credential, because applying it would
 #     store the secret in every version of the pipeline.
 #
-# THE INBOUND DIRECTION IS AN INSTANCE SETTING, NOT A DOCUMENT ONE. A webhook a document
-# declares carries only its code and its payload mapping; whether deliveries to it must be
-# signed, and with what secret, is set where the token is minted:
+# ON THE RECEIVING INSTANCE, THE DOCUMENT SAYS SIGNED AND THE INSTANCE HOLDS THE SECRET. The
+# receiver is an endpoint source declaring `auth: {kind: hmac}`, and its secret is never in its
+# document either: its apply mints one and shows it once, to be copied into this side's
+# hmac_secret, or this side's secret is given to it instead:
 #
-#   dg webhook create <pipeline> <code> --hmac-secret "$SECRET" --map day='$.date'
+#   dg source set-secret <pipeline> <source> --secret "$SECRET"
 #
-# An unsigned delivery to a webhook that requires a signature is answered 401 with "this
-# webhook requires a X-Dirigent-Signature header", and a wrong one is answered 401 too, after
-# a constant-time comparison.
+# The target is that source's route under /endpoints, such as /endpoints/published. An unsigned
+# delivery to it is answered 401 with "this endpoint takes a signature of the body in a
+# X-Dirigent-Signature header", and a wrong one is answered 401 too, after a constant-time
+# comparison.
 #
 # Hop by hop:
 #
@@ -60,11 +62,11 @@ code: webhook-signed
 name: A signed webhook delivery
 description: |
   `webhook.post` with `sign_with` presents `X-Dirigent-Signature` over the exact bytes it
-  sends, computed the way dirigent's own inbound `/hooks/{token}` verifies one.
+  sends, computed the way an `endpoint` source with `auth: {kind: hmac}` verifies one.
 
-  The secret lives on a connection, never in the document. Requiring a signature on an
-  **inbound** webhook is an instance setting made when the token is minted, not something
-  `dirigent/v1` can say.
+  The secret lives on a connection, never in the document. On the receiving instance the
+  source's document says it is signed, and its secret is minted at apply or set with
+  `dg source set-secret`, never written in `dirigent/v1`.
 
 tags: [patterns, transform, webhook, credential]
 

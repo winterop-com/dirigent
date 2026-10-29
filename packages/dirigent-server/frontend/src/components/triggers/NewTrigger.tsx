@@ -17,7 +17,6 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/components/ui/input-group'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
@@ -34,25 +33,17 @@ import type { RunPriority } from '@/lib/runs'
 import { fieldsOf, maySubmit, validateFields, withUnreadable, type FieldDescriptor } from '@/lib/schema-form'
 import {
     browserZone,
-    generatedSecret,
     given,
     INHERITED,
-    mappedPaths,
     PRIORITIES,
     readValues,
     unreadySchedule,
-    unreadyWebhook,
     writeValues,
     zoneOffset,
     zonesOffered,
 } from '@/lib/trigger-form'
-import {
-    createSchedule,
-    createWebhook,
-    previewSchedule,
-    type ScheduleIn,
-    type WebhookTokenOut,
-} from '@/lib/triggers'
+import type { SourceTokenOut } from '@/lib/sources'
+import { createSchedule, previewSchedule, type ScheduleIn } from '@/lib/triggers'
 
 /** Which clock a new schedule is declared with. Exactly one, which is what the core accepts. */
 type Clock = 'cron' | 'interval' | 'at'
@@ -271,241 +262,6 @@ export function NewSchedule({
     )
 }
 
-/** What a rate limit defaults to, which is what `WebhookIn` defaults to. */
-const RATE_LIMIT = 60
-
-/**
- * Declare one webhook on a pipeline, and read its token back exactly once.
- *
- * THE TOKEN IS ANSWERED HERE AND NOWHERE ELSE AGAIN. The instance keeps only its hash, so
- * `POST .../webhooks` answering a token is the one moment it is readable; the dialog that
- * shows it is the reader's only chance to copy it, and rotating is what replaces one that
- * was lost.
- *
- * THE MAPPING IS THE PIPELINE'S OWN PARAMETERS, ONE ROW EACH. A payload reaches a run only
- * through a parameter the pipeline declares, so the rows are the parameters and what somebody
- * writes against each is the path into the payload -- rather than a box of JSON in which a
- * parameter that does not exist looks exactly like one that does.
- */
-export function NewWebhook({
-    open,
-    onOpenChange,
-    onMinted,
-}: {
-    open: boolean
-    onOpenChange: (open: boolean) => void
-    /** Called with the minted token, which the screen shows once and then forgets. */
-    onMinted: (token: WebhookTokenOut) => void
-}) {
-    const pipelines = usePipelines(open)
-    const [pipeline, setPipeline] = useState('')
-    const [code, setCode] = useState('')
-    const [named, setNamed] = useState('')
-    const [description, setDescription] = useState('')
-    const [paths, setPaths] = useState<Record<string, string>>({})
-    const [secret, setSecret] = useState('')
-    const [rate, setRate] = useState(String(RATE_LIMIT))
-    const [priority, setPriority] = useState<string>(INHERITED)
-    const [problem, setProblem] = useState<Problem | null>(null)
-    const [busy, setBusy] = useState(false)
-
-    const chosen = useChosenPipeline(pipeline)
-
-    const send = () => {
-        setBusy(true)
-        setProblem(null)
-        void createWebhook(pipeline, {
-            code: code.trim(),
-            name: given(named),
-            description: given(description),
-            params_from_payload: mappedPaths(paths),
-            hmac_secret: secret === '' ? null : secret,
-            rate_limit_per_minute: Number(rate) || RATE_LIMIT,
-            priority: priority === INHERITED ? null : (priority as RunPriority),
-        })
-            .then(
-                (token) => {
-                    onMinted(token)
-                    setCode('')
-                    setNamed('')
-                    setDescription('')
-                    setSecret('')
-                    setPaths({})
-                    onOpenChange(false)
-                },
-                (error: unknown) => {
-                    setProblem(refusalOf(error))
-                },
-            )
-            .finally(() => {
-                setBusy(false)
-            })
-    }
-
-    const write = useMayWrite()
-    const shut = firstShut(write.why, unreadyWebhook(pipeline, code))
-
-    return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent
-                className="flex max-h-[calc(100vh-4rem)] flex-col sm:max-w-xl"
-                showCloseButton={false}
-            >
-                <DialogHeader>
-                    <DialogTitle>{LABELS.triggers.webhook.new}</DialogTitle>
-                </DialogHeader>
-
-                {/* The body scrolls and the footer does not: a form this long outgrows a short
-                    screen, and Create is what somebody reaches for. */}
-                <div className="-mx-1 min-h-0 flex-1 space-y-4 overflow-y-auto px-1">
-                    <div className="space-y-2">
-                        <Label htmlFor="webhook-pipeline">{LABELS.word.pipeline.label}</Label>
-                        <Picker
-                            id="webhook-pipeline"
-                            label={LABELS.word.pipeline.label}
-                            value={pipeline}
-                            options={pipelines}
-                            placeholder={LABELS.triggers.dialog.pipeline_hint}
-                            onChange={(picked) => {
-                                setPipeline(picked)
-                                setPaths({})
-                            }}
-                        />
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                        <Field
-                            id="webhook-code"
-                            label={LABELS.word.code}
-                            value={code}
-                            onChange={setCode}
-                            placeholder={LABELS.triggers.webhook.dialog.code_hint}
-                            mono
-                        />
-                        <Field
-                            id="webhook-name"
-                            label={LABELS.word.name.label}
-                            value={named}
-                            onChange={setNamed}
-                        />
-                    </div>
-
-                    <Field
-                        id="webhook-description"
-                        label={LABELS.word.description}
-                        value={description}
-                        onChange={setDescription}
-                        placeholder={LABELS.triggers.webhook.dialog.description_hint}
-                    />
-
-                    <div className="space-y-2">
-                        <Label>{LABELS.word.payload_mapping}</Label>
-                        <div className="rounded-md border border-border p-3">
-                            {chosen.fields.length === 0 ? (
-                                <p className="text-sm text-muted-foreground">
-                                    {pipeline === ''
-                                        ? LABELS.triggers.dialog.no_pipeline
-                                        : LABELS.triggers.dialog.no_params}
-                                </p>
-                            ) : (
-                                <div className="space-y-3">
-                                    {chosen.fields.map((field) => (
-                                        <div key={field.name} className="grid grid-cols-2 items-start gap-3">
-                                            <div className="space-y-0.5">
-                                                <Label
-                                                    htmlFor={`mapping-${field.name}`}
-                                                    className="font-mono text-sm"
-                                                >
-                                                    {field.name}
-                                                </Label>
-                                                {field.required && (
-                                                    <p className="text-xs text-primary-ink">
-                                                        {LABELS.triggers.webhook.dialog.required}
-                                                    </p>
-                                                )}
-                                            </div>
-                                            <Input
-                                                id={`mapping-${field.name}`}
-                                                className="font-mono"
-                                                spellCheck={false}
-                                                placeholder={LABELS.triggers.webhook.dialog.path_hint}
-                                                value={paths[field.name] ?? ''}
-                                                onChange={(event) => {
-                                                    setPaths((held) => ({
-                                                        ...held,
-                                                        [field.name]: event.target.value,
-                                                    }))
-                                                }}
-                                            />
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                        <p className="text-xs text-faint">{LABELS.triggers.webhook.dialog.mapping_note}</p>
-                    </div>
-
-                    <div className="space-y-2">
-                        <Label htmlFor="webhook-secret">{LABELS.triggers.webhook.dialog.secret}</Label>
-                        <InputGroup className="bg-field dark:bg-field">
-                            <InputGroupInput
-                                id="webhook-secret"
-                                type="password"
-                                autoComplete="new-password"
-                                value={secret}
-                                onChange={(event) => {
-                                    setSecret(event.target.value)
-                                }}
-                                placeholder={LABELS.triggers.webhook.dialog.secret_hint}
-                            />
-                            <InputGroupAddon align="inline-end">
-                                <InputGroupButton
-                                    onClick={() => {
-                                        setSecret(generatedSecret())
-                                    }}
-                                >
-                                    {LABELS.action.generate}
-                                </InputGroupButton>
-                            </InputGroupAddon>
-                        </InputGroup>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                        <Field
-                            id="webhook-rate"
-                            label={LABELS.word.rate_limit.label}
-                            value={rate}
-                            onChange={setRate}
-                            placeholder={String(RATE_LIMIT)}
-                            mono
-                        />
-                        <PriorityField
-                            id="webhook-priority"
-                            value={priority}
-                            pipeline={chosen.priority}
-                            onChange={setPriority}
-                        />
-                    </div>
-
-                    {problem !== null && <Refusal problem={problem} />}
-                </div>
-
-                <DialogFooter>
-                    <p className="mr-auto self-center text-xs text-muted-foreground">
-                        {LABELS.triggers.webhook.dialog.token_once}
-                    </p>
-                    <DialogClose render={<Button variant="ghost" />}>{LABELS.action.close}</DialogClose>
-                    <Refusable why={shut}>
-                        <Button disabled={busy || shut !== undefined} title={shut} onClick={send}>
-                            {busy ? LABELS.action.create.busy : LABELS.action.create.verb}
-                        </Button>
-                    </Refusable>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
-    )
-}
-
 /**
  * A token, the one time it is readable.
  *
@@ -513,7 +269,7 @@ export function NewWebhook({
  * being available to anybody who did not copy it, and the only way back is a rotation, which
  * makes a different one and invalidates this.
  */
-export function MintedToken({ token, onClose }: { token: WebhookTokenOut; onClose: () => void }) {
+export function MintedToken({ token, onClose }: { token: SourceTokenOut; onClose: () => void }) {
     const [copied, setCopied] = useState(false)
 
     const copy = () => {
@@ -537,12 +293,16 @@ export function MintedToken({ token, onClose }: { token: WebhookTokenOut; onClos
         >
             <DialogContent className="sm:max-w-xl" showCloseButton={false}>
                 <DialogHeader>
-                    <DialogTitle>{LABELS.triggers.webhook.token.title(token.code)}</DialogTitle>
-                    <DialogDescription>{LABELS.triggers.webhook.token.note}</DialogDescription>
+                    <DialogTitle>
+                        {token.auth === 'hmac'
+                            ? LABELS.triggers.token.secret_title(token.code)
+                            : LABELS.triggers.token.title(token.code)}
+                    </DialogTitle>
+                    <DialogDescription>{LABELS.triggers.token.note}</DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-2 rounded-lg border border-border bg-secondary/40 p-3">
-                    <p className="font-mono text-xs break-all" data-testid="webhook-token">
+                    <p className="font-mono text-xs break-all" data-testid="minted-token">
                         {token.token}
                     </p>
                     <Button variant="outline" size="sm" onClick={copy}>
@@ -552,8 +312,24 @@ export function MintedToken({ token, onClose }: { token: WebhookTokenOut; onClos
                 </div>
 
                 <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">{LABELS.triggers.webhook.token.url}</p>
+                    <p className="text-xs text-muted-foreground">{LABELS.triggers.token.url}</p>
                     <p className="font-mono text-xs break-all">{token.url_path}</p>
+                </div>
+
+                <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">{LABELS.triggers.token.how}</p>
+                    {token.auth === 'hmac' && token.header !== null ? (
+                        <>
+                            <p className="font-mono text-xs break-all">
+                                {LABELS.triggers.token.signed_header(token.header)}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                                {LABELS.triggers.token.signed_note}
+                            </p>
+                        </>
+                    ) : (
+                        <p className="font-mono text-xs break-all">{LABELS.triggers.token.bearer}</p>
+                    )}
                 </div>
 
                 <DialogFooter>
@@ -896,7 +672,7 @@ function Priority({ chosen, pipeline }: { chosen: string; pipeline: RunPriority 
     )
 }
 
-/** One labelled box, which is most of both dialogs. */
+/** One labelled box, which is most of the dialog. */
 function Field({
     id,
     label,

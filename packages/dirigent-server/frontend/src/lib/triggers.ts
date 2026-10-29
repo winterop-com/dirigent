@@ -5,7 +5,7 @@
  * `dirigent_client.schemas.triggers` member for member.
  *
  * A TRIGGER BELONGS TO A PIPELINE, AND SO DOES ITS ADDRESS. This API has no listing of every
- * schedule on the instance: schedules, webhooks and watches hang off `/pipelines/{code}/triggers/...`.
+ * schedule on the instance: schedules and watches hang off `/pipelines/{code}/triggers/...`.
  * So the screen's walk is a walk over pipelines -- one page of pipelines, then the triggers of
  * the ones the listing already counted at least one of -- and the cursor it carries is the
  * pipelines cursor. A pipeline the listing says has no triggers of any kind is not asked
@@ -27,9 +27,6 @@ export type ScheduleKind = 'cron' | 'interval' | 'one_time'
 
 /** What one scheduler tick decided about one due schedule. `FiringOutcome`. */
 export type FiringOutcome = 'fired' | 'queued' | 'replaced' | 'skipped' | 'failed'
-
-/** What the intake endpoint did with one delivery. `WebhookOutcome`. */
-export type WebhookOutcome = 'accepted' | 'skipped' | 'rejected'
 
 /** A schedule as a listing shows it. `ScheduleOut`. */
 export interface ScheduleOut {
@@ -66,49 +63,6 @@ export interface FiringOut {
     misfired: boolean
     run_id: string | null
     detail: string | null
-}
-
-/** A webhook as a listing shows it: everything about it except the token. `WebhookOut`. */
-export interface WebhookOut {
-    id: string
-    /** The key this webhook is addressed by, under the pipeline it fires. */
-    code: string
-    /** What to call it on screen, when somebody gave it something to be called. */
-    name: string | null
-    description: string | null
-    token_prefix: string
-    params_from_payload: Record<string, string>
-    signed: boolean
-    active: boolean
-    managed: boolean
-    /** The triggers document that declares this row, or null when the pipeline's own does. */
-    trigger_document: string | null
-    rate_limit_per_minute: number
-    /** The priority every accepted delivery's run carries, or null for the pipeline's own. */
-    priority: RunPriority | null
-    last_delivery_at: string | null
-    created_at: string
-}
-
-/** A freshly minted webhook token, answered once and never readable again. `WebhookTokenOut`. */
-export interface WebhookTokenOut {
-    webhook_id: string
-    code: string
-    token: string
-    prefix: string
-    /** Where to POST, so a caller is configured without assembling the path by hand. */
-    url_path: string
-}
-
-/** One inbound delivery, and what came of it. `DeliveryOut`. */
-export interface DeliveryOut {
-    id: number
-    created_at: string
-    outcome: WebhookOutcome
-    run_id: string | null
-    reason: string | null
-    mapped_params: JsonMap | null
-    source: string | null
 }
 
 /** A watch as a listing shows it: what it waits on, and how its waits are going. `WatchOut`. */
@@ -152,17 +106,6 @@ export interface ScheduleRow {
     latest: FiringOut | null
 }
 
-/** One webhook, with the pipeline it fires and the last delivery it took. */
-export interface WebhookRow {
-    kind: 'webhook'
-    pipeline: string
-    /** What that pipeline is called, which heads the reference to it. */
-    pipelineName: string | null
-    webhook: WebhookOut
-    /** The newest delivery, or nothing for a webhook nothing has been sent to. */
-    latest: DeliveryOut | null
-}
-
 /** One watch, with the pipeline it keeps a run of waiting. */
 export interface WatchRow {
     kind: 'watch'
@@ -173,15 +116,13 @@ export interface WatchRow {
 }
 
 /** One row of the triggers screen, which holds every kind in one walk. */
-export type TriggerRow = ScheduleRow | WebhookRow | WatchRow
+export type TriggerRow = ScheduleRow | WatchRow
 
 /** What one row is keyed by, which has to separate rows of different kinds that share an id. */
 export function triggerId(row: TriggerRow): string {
     switch (row.kind) {
         case 'schedule':
             return `schedule:${row.schedule.id}`
-        case 'webhook':
-            return `webhook:${row.webhook.id}`
         case 'watch':
             return `watch:${row.watch.id}`
     }
@@ -194,11 +135,6 @@ const triggersPath = (pipeline: string) => `/pipelines/${encodeURIComponent(pipe
 /** Read one page of a pipeline's schedules. */
 export function readSchedules(pipeline: string, after: string | null): Promise<Page<ScheduleOut>> {
     return apiJson<Page<ScheduleOut>>(`${triggersPath(pipeline)}/schedules${cursor(after)}`)
-}
-
-/** Read one page of a pipeline's webhooks. */
-export function readWebhooks(pipeline: string, after: string | null): Promise<Page<WebhookOut>> {
-    return apiJson<Page<WebhookOut>>(`${triggersPath(pipeline)}/webhooks${cursor(after)}`)
 }
 
 /** Read one page of a pipeline's watches. */
@@ -215,18 +151,6 @@ export function readFirings(
 ): Promise<Page<FiringOut>> {
     return apiJson<Page<FiringOut>>(
         `${triggersPath(pipeline)}/schedules/${encodeURIComponent(schedule)}/firings${cursor(after, limit)}`,
-    )
-}
-
-/** Read what has arrived at a webhook, newest first, refusals included. */
-export function readDeliveries(
-    pipeline: string,
-    webhook: string,
-    after: string | null,
-    limit = PAGE,
-): Promise<Page<DeliveryOut>> {
-    return apiJson<Page<DeliveryOut>>(
-        `${triggersPath(pipeline)}/webhooks/${encodeURIComponent(webhook)}/deliveries${cursor(after, limit)}`,
     )
 }
 
@@ -256,24 +180,6 @@ export function setWatchPaused(pipeline: string, watch: string, paused: boolean)
     })
 }
 
-/** Refuse deliveries, or accept them again, on the token that was already issued. */
-export function setWebhookActive(pipeline: string, webhook: string, active: boolean): Promise<WebhookOut> {
-    const verb = active ? '$enable' : '$disable'
-    return apiJson<WebhookOut>(`${triggersPath(pipeline)}/webhooks/${encodeURIComponent(webhook)}/${verb}`, {
-        method: 'POST',
-    })
-}
-
-/** Mint a new token and forget the old one immediately; every caller has to be updated. */
-export function rotateWebhookToken(pipeline: string, webhook: string): Promise<WebhookTokenOut> {
-    return apiJson<WebhookTokenOut>(
-        `${triggersPath(pipeline)}/webhooks/${encodeURIComponent(webhook)}/$rotate-token`,
-        {
-            method: 'POST',
-        },
-    )
-}
-
 /** A schedule as a caller declares it: exactly one clock, in its own timezone. `ScheduleIn`. */
 export interface ScheduleIn {
     code: string
@@ -291,18 +197,6 @@ export interface ScheduleIn {
 /** Declare a schedule on a pipeline and compute when it first fires. */
 export function createSchedule(pipeline: string, payload: ScheduleIn): Promise<ScheduleOut> {
     return apiSend<ScheduleOut>(`${triggersPath(pipeline)}/schedules`, 'POST', payload)
-}
-
-/** A webhook as a caller declares it; the token is never supplied, only minted. `WebhookIn`. */
-export interface WebhookIn {
-    code: string
-    name?: string | null
-    description?: string | null
-    params_from_payload: Record<string, string>
-    hmac_secret: string | null
-    rate_limit_per_minute: number
-    /** The priority every accepted delivery's run carries. Omitted takes the pipeline's own. */
-    priority?: RunPriority | null
 }
 
 /** A clock as it is being written, for reading back what it would fire. `SchedulePreviewRequest`. */
@@ -329,30 +223,23 @@ export function previewSchedule(clock: SchedulePreviewRequest): Promise<Schedule
     return apiSend<SchedulePreview>('/schedules/$preview', 'POST', clock)
 }
 
-/** Declare a webhook and read back its token, which is answered here and nowhere else again. */
-export function createWebhook(pipeline: string, payload: WebhookIn): Promise<WebhookTokenOut> {
-    return apiSend<WebhookTokenOut>(`${triggersPath(pipeline)}/webhooks`, 'POST', payload)
-}
-
 /**
  * One page of the triggers listing: a page of pipelines, and the triggers of the ones that have any.
  *
- * The newest firing and the newest delivery are read for the rows that have one, because a
- * listing that said only when a schedule last fired would not say whether that firing started
- * anything.
+ * The newest firing is read for the schedules that have one, because a listing that said only
+ * when a schedule last fired would not say whether that firing started anything.
  */
 export async function readTriggerPage(after: string | null): Promise<Page<TriggerRow>> {
     const pipelines = await readPipelines(after)
-    const carrying = pipelines.items.filter((row) => row.schedules > 0 || row.webhooks > 0 || row.watches > 0)
+    const carrying = pipelines.items.filter((row) => row.schedules > 0 || row.watches > 0)
     const found = await Promise.all(carrying.map(triggersOf))
     return { items: found.flat(), next: pipelines.next }
 }
 
 /** Every trigger of one pipeline, with the last thing each of them did. */
 async function triggersOf(pipeline: PipelineOut): Promise<TriggerRow[]> {
-    const [schedules, webhooks, watches] = await Promise.all([
+    const [schedules, watches] = await Promise.all([
         pipeline.schedules > 0 ? readSchedules(pipeline.code, null) : empty<ScheduleOut>(),
-        pipeline.webhooks > 0 ? readWebhooks(pipeline.code, null) : empty<WebhookOut>(),
         pipeline.watches > 0 ? readWatches(pipeline.code, null) : empty<WatchOut>(),
     ])
     const scheduleRows = await Promise.all(
@@ -370,22 +257,13 @@ async function triggersOf(pipeline: PipelineOut): Promise<TriggerRow[]> {
             }
         }),
     )
-    const webhookRows = await Promise.all(
-        webhooks.items.map(async (webhook): Promise<WebhookRow> => {
-            const latest =
-                webhook.last_delivery_at === null
-                    ? null
-                    : await newest(readDeliveries(pipeline.code, webhook.code, null, 1))
-            return { kind: 'webhook', pipeline: pipeline.code, pipelineName: pipeline.name, webhook, latest }
-        }),
-    )
     const watchRows = watches.items.map((watch): WatchRow => ({
         kind: 'watch',
         pipeline: pipeline.code,
         pipelineName: pipeline.name,
         watch,
     }))
-    return [...scheduleRows, ...webhookRows, ...watchRows]
+    return [...scheduleRows, ...watchRows]
 }
 
 /** A listing that was never asked for. */
@@ -526,40 +404,6 @@ const TONES: Record<FiringOutcome, OutcomeTone> = {
     replaced: 'quiet',
     skipped: 'quiet',
     failed: 'critical',
-}
-
-/** What the last-delivery cell draws. */
-export interface DeliveryView {
-    tone: OutcomeTone
-    label: string
-    runId: string | null
-    /** Why a delivery was refused or dropped, which is the muted half of the cell. */
-    reason: string | null
-}
-
-/** What one delivery amounts to on screen: the run it started, or why it started none. */
-export function deliveryView(delivery: DeliveryOut): DeliveryView {
-    const tone: OutcomeTone =
-        delivery.outcome === 'accepted' ? 'good' : delivery.outcome === 'rejected' ? 'critical' : 'quiet'
-    return {
-        tone,
-        label: DELIVERY_WORDS[delivery.outcome],
-        runId: delivery.run_id,
-        reason: delivery.reason,
-    }
-}
-
-/** What each outcome is called, keyed by the wire's own value. `FIRING_WORDS`' reason. */
-const DELIVERY_WORDS: Record<WebhookOutcome, string> = LABELS.triggers.webhook.outcome
-
-/** How much of a webhook's token a listing may show, which is the prefix and nothing after it. */
-export function hookPath(webhook: Pick<WebhookOut, 'token_prefix'>): string {
-    return `/hooks/${webhook.token_prefix}…`
-}
-
-/** Whether a webhook proves who sent a delivery, in the words the column uses. */
-export function signing(webhook: Pick<WebhookOut, 'signed'>): string {
-    return webhook.signed ? LABELS.triggers.webhook.signed : LABELS.triggers.webhook.unsigned
 }
 
 /** How a watch's waits are going, in the one reading the listing and the panel both draw. */

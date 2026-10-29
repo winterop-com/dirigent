@@ -18,7 +18,7 @@ from opentelemetry.trace import Span, SpanKind, Status, StatusCode
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 
 from dirigent_core.config import Settings
-from dirigent_core.logging import get_logger, redact_path
+from dirigent_core.logging import get_logger
 
 SCOPE: Final = "dirigent"
 
@@ -387,13 +387,8 @@ def instrument_fastapi(app: Any) -> None:
     """Give every HTTP request a span, without depending on an instrumentation package."""
 
     async def span_per_request(request: Any, call_next: Callable[[Any], Any]) -> Any:
-        """Wrap one request in a span named after its route.
-
-        The span is named and attributed from a redacted path, never the raw one: a delivery
-        to ``POST /hooks/<token>`` carries its whole credential in the path, and a span name
-        travels to every trace viewer the operator has.
-        """
-        path = redact_path(request.url.path)
+        """Wrap one request in a span named after its path."""
+        path = request.url.path
         with _tracer.start_as_current_span(
             f"{request.method} {path}",
             kind=SpanKind.SERVER,

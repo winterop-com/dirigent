@@ -91,7 +91,7 @@ Each process installs the SDK for itself, from the same environment.
 
 | Process | Installs the SDK | Therefore exports |
 | --- | --- | --- |
-| `dg server` | yes, in the application factory | HTTP request spans, and the `run` span of every run an API call or a webhook delivery creates -- the embedded scheduler's firings included |
+| `dg server` | yes, in the application factory | HTTP request spans, and the `run` span of every run an API call or an endpoint call creates -- the embedded scheduler's firings included |
 | `dg dev` | yes -- it builds the same application | everything on this page: HTTP spans, `run` spans, step and block spans, every metric |
 | `dg worker` | yes, at start-up | step and block spans, every metric |
 | `dg scheduler` | yes, at start-up | the `run` span of every run a firing creates; the tick itself opens no span |
@@ -131,12 +131,10 @@ and in `dg runs report`.
 **Notifier delivery is not a span**, despite reading like one: an alert's path from a settled
 run to a delivered message is visible in `dg alerts queue` and in the process log.
 
-**Request paths are redacted before they become span names.** A delivery to
-`POST /hooks/<token>` carries its whole credential in the path, and a span name travels to
-every trace viewer an organisation has, so the segment becomes `/hooks/{token}` before it is
-used as a name or as the `url.path` attribute. Once the request has been routed, the name is
-upgraded to the route template, which is both safer still and the cardinality the semantic
-conventions ask for.
+**A request span is named for its route.** It opens as the method and the path, and once the
+request has been routed the name is upgraded to the route template -- for an endpoint source,
+the route it declares, such as `/endpoints/greet/{name}` -- which is the cardinality the
+semantic conventions ask for.
 
 **FastAPI is instrumented by a middleware dirigent owns**, not by
 `opentelemetry-instrumentation-fastapi`. That is a deliberate trade: the official package
@@ -214,7 +212,7 @@ Where that trace begins follows from where the run was created:
 | How the run started | The `run` span's parent | The trace |
 | --- | --- | --- |
 | `dg run`, or `POST /pipelines/{code}/$run` | the request span | the trace of that HTTP request |
-| A webhook delivery to `POST /hooks/{token}` | the request span | the trace of that delivery |
+| A call to an endpoint source, `POST /endpoints/...` | the request span | the trace of that call |
 | A schedule firing | nothing -- the scheduler's tick opens no span | a trace of its own, rooted at the `run` span |
 | `pipeline.run` starting a child pipeline | the parent step's attempt span | the parent run's trace, so a child run is a subtree of it |
 

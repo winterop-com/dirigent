@@ -419,3 +419,17 @@ def test_moving_a_source_from_a_token_to_signing_drops_the_token(client: TestCli
     assert [entry["auth"] for entry in applied["sources"]["tokens"]] == ["hmac"]
     refused = client.post("/endpoints/held", json={}, headers=bearer(token))
     assert refused.status_code == 401, "the old token opens nothing"
+
+
+def test_a_signature_in_the_sources_own_header_never_reaches_the_input(client: TestClient) -> None:
+    applied = apply_document(client, held("      auth: {kind: hmac, header: X-Hub-Signature-256}"))
+    secret = applied["sources"]["tokens"][0]["token"]
+    body = b'{"order": 1}'
+    digest = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+    headers = {"X-Hub-Signature-256": f"sha256={digest}", "Content-Type": "application/json", "Authorization": ""}
+    taken = client.post("/endpoints/held", content=body, headers=headers)
+    assert taken.status_code == 202, taken.text
+    run_id = taken.json()["run_id"]
+    attempts = Page[AttemptOut].model_validate(client.get(f"{PREFIX}/runs/{run_id}/attempts").json()).items
+    entered = next(attempt for attempt in attempts if attempt.step_name == "ask").output or {}
+    assert "x-hub-signature-256" not in entered["headers"]

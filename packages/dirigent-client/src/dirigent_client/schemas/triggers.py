@@ -1,9 +1,9 @@
-"""A pipeline's persisted triggers: its schedules, its inbound webhooks, and its watches."""
+"""A pipeline's persisted triggers: its schedules and its watches."""
 
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field, SecretStr, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 from dirigent_client.enums import (
     FiringOutcome,
@@ -11,7 +11,6 @@ from dirigent_client.enums import (
     ProvenanceSource,
     RunPriority,
     ScheduleKind,
-    WebhookOutcome,
 )
 from dirigent_client.messages import (
     EMPTY_LOG_LEVEL_PATTERN,
@@ -112,48 +111,6 @@ class FiringOut(WireModel):
     detail: str | None = None
 
 
-class WebhookIn(BaseModel):
-    """A webhook as a caller declares it; the token is never supplied, only minted."""
-
-    code: EntityName
-    name: str | None = None
-    description: str | None = None
-    params_from_payload: dict[str, str] = Field(default_factory=dict[str, str])
-    hmac_secret: SecretStr | None = Field(default=None, min_length=1)
-    """The signing secret, or null for an unsigned webhook; an empty string is neither."""
-
-    rate_limit_per_minute: int = Field(default=60, ge=1)
-    priority: RunPriority | None = Field(
-        default=None,
-        description="The priority every accepted delivery's run carries. Omitted takes the pipeline's own.",
-    )
-
-
-class WebhookOut(WireModel):
-    """A webhook as a listing shows it: everything about it except the token."""
-
-    id: UUID
-    code: str
-    name: str | None = None
-    description: str | None = None
-    token_prefix: str
-    params_from_payload: dict[str, str] = Field(default_factory=dict[str, str])
-    signed: bool
-    """Whether this webhook requires an HMAC signature; the secret itself never leaves."""
-
-    active: bool
-    managed: bool
-    trigger_document: str | None = None
-    """The triggers document that declares this row, or null when the pipeline's own does."""
-
-    rate_limit_per_minute: int
-    priority: RunPriority | None = None
-    """The priority every accepted delivery's run carries, or null when it takes the pipeline's own."""
-
-    last_delivery_at: datetime | None = None
-    created_at: datetime
-
-
 class WatchOut(WireModel):
     """A watch as a listing shows it: what it waits on, and how its last run of waiting went."""
 
@@ -213,36 +170,4 @@ class TriggerDocumentDetail(TriggerDocumentOut):
 
     document: JsonMap
     schedules: list[str] = Field(default_factory=list[str])
-    webhooks: list[str] = Field(default_factory=list[str])
     watches: list[str] = Field(default_factory=list[str])
-
-
-class WebhookTokenOut(WireModel):
-    """A freshly minted webhook token, returned once and never readable again."""
-
-    webhook_id: UUID
-    code: str
-    token: str
-    prefix: str
-    url_path: str
-    """Where to POST, so a caller can be configured without assembling the path by hand."""
-
-
-class HookAccepted(WireModel):
-    """What an accepted delivery answers with: the run it started, or why it started none."""
-
-    run_id: UUID | None = None
-    outcome: WebhookOutcome
-    detail: str | None = None
-
-
-class DeliveryOut(WireModel):
-    """One inbound delivery, and what came of it."""
-
-    id: int
-    created_at: datetime
-    outcome: WebhookOutcome
-    run_id: UUID | None = None
-    reason: str | None = None
-    mapped_params: JsonMap | None = None
-    source: str | None = None

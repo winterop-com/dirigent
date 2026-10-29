@@ -111,8 +111,6 @@ const action = {
     recheck: 'Recheck',
     /** Read again what is already on screen. */
     refresh: 'Refresh',
-    /** Mint a value the person should not have to invent. */
-    generate: 'Generate',
     /** Put a value on the clipboard, and say so once it is there. */
     copy: {
         verb: 'Copy',
@@ -121,9 +119,6 @@ const action = {
     /** Hold what a thing fires or delivers, and let it go again. */
     pause: 'Pause',
     resume: 'Resume',
-    /** Answer what arrives, or answer nothing. */
-    enable: 'Enable',
-    disable: 'Disable',
     /** Let an account sign in, or stop it. */
     activate: 'Activate',
     deactivate: 'Deactivate',
@@ -269,16 +264,6 @@ const word = {
             many: 'schedules',
         },
     },
-    /** An inbound endpoint that fires a pipeline. */
-    webhook: {
-        label: 'Webhook',
-        heading: 'Webhooks',
-        term: 'webhook',
-        count: {
-            one: 'webhook',
-            many: 'webhooks',
-        },
-    },
     /** A step that waits for an external condition. */
     watch: {
         label: 'Watch',
@@ -408,15 +393,6 @@ const word = {
     timezone: 'Timezone',
     /** Which clock a schedule keeps. */
     clock: 'Clock',
-    /** Where a webhook is posted to. */
-    endpoint: 'Endpoint',
-    /** Whether a webhook's payload is signed. */
-    signature: 'Signature',
-    /** How much a webhook may be posted: the label, and the number wherever it is drawn. */
-    rate_limit: {
-        label: 'Rate limit',
-        value: (count: string) => `${count} a minute`,
-    },
     /** What a rule listens for. */
     event: 'Event',
     /** How wide a rule's reach is. */
@@ -448,8 +424,6 @@ const word = {
     cursor: 'Cursor',
     /** The values a trigger always passes. */
     pinned_parameters: 'Pinned parameters',
-    /** How a webhook's payload becomes parameters. */
-    payload_mapping: 'Payload mapping',
     /** How this instance is deployed. */
     environment: {
         label: 'Environment',
@@ -598,8 +572,6 @@ const state = {
     armed: {
         /** A schedule that will not fire until somebody resumes it. */
         paused: 'paused',
-        /** A webhook or a rule that answers nothing. */
-        disabled: 'disabled',
         /** A rule that is listening. */
         active: 'active',
         /** A rule that is switched off. */
@@ -1203,12 +1175,6 @@ const refused = {
     watch: {
         unknown: 'Pipeline {pipeline} has no watch coded {code}.',
     },
-    webhook: {
-        duplicate: 'Pipeline {pipeline} already has a webhook coded {code}.',
-        name_undeclared: '{name} is not a parameter this pipeline declares. Declared: {declared}.',
-        path_empty_segment: '{path} is not a payload path: it has an empty segment.',
-        unknown: 'Pipeline {pipeline} has no webhook coded {code}.',
-    },
 } as const
 
 /**
@@ -1801,9 +1767,6 @@ const editor = {
             schedules_created: 'schedules created',
             schedules_updated: 'schedules updated',
             schedules_removed: 'schedules removed',
-            webhooks_created: 'webhooks created',
-            webhooks_updated: 'webhooks updated',
-            webhooks_removed: 'webhooks removed',
             watches_created: 'watches created',
             watches_updated: 'watches updated',
             watches_removed: 'watches removed',
@@ -2101,7 +2064,7 @@ const runs = {
     /** Which step a run died in, drawn in front of the refusal itself. */
     failed_at: (step: string) => `at ${step}`,
     empty_filtered: 'No run matches these filters.',
-    empty: 'No runs. A pipeline is run from its own page, or by a schedule or a webhook.',
+    empty: 'No runs. A pipeline is run from its own page, or by a source or a schedule.',
     /** The two priorities that are not the one every other run has. */
     priority_high: 'high priority',
     priority_low: 'low priority',
@@ -2317,14 +2280,13 @@ const terminal = {
 /**
  * What the triggers screen says.
  *
- * THREE KINDS, THREE PARALLEL BLOCKS. The screen lists schedules, webhooks and watches under
- * three headings, opens a panel per kind and offers a dialog for the two a person may declare,
- * so the vocabulary is grouped by kind rather than by surface: everything a schedule says is
- * under `schedule`, and the gaps between the blocks are the differences between the kinds.
+ * ONE BLOCK PER KIND. The screen lists sources, schedules and watches under three headings,
+ * opens a panel per kind and offers a dialog for the one a person may declare, so the vocabulary
+ * is grouped by kind rather than by surface: everything a schedule says is under `schedule`, and
+ * the gaps between the blocks are the differences between the kinds.
  *
  * WHAT IS NOT HERE. The nouns the whole product labels things with -- Pipeline, Clock, Timezone,
- * Next, Endpoint, Signature, Rate limit, Step, Cursor, Pinned parameters, Payload mapping, and
- * each kind's own heading and count -- are `word`; the chips a trigger wears are `state.armed`;
+ * Next, Step, Cursor, Pinned parameters, and each kind's own heading and count -- are `word`; the chips a trigger wears are `state.armed`;
  * and the verbs its panel offers are `action`. Only this screen's own words are here.
  */
 const triggers = {
@@ -2336,10 +2298,10 @@ const triggers = {
     managed: 'managed',
     /** The window title over a trigger's pinned parameters. */
     pinned_title: (code: string) => `${code} · pinned parameters`,
-    /** Minting a new token for a webhook or a source, and what that costs. */
+    /** Minting a new token for a source, and what that costs. */
     rotate: 'Rotate token',
     rotate_warning:
-        'Rotating creates a new token and forgets the old one immediately. Every caller has to be updated.',
+        'Rotating replaces the credential and forgets the old one immediately. Every caller has to be updated.',
 
     /** The clocks. */
     schedule: {
@@ -2402,57 +2364,19 @@ const triggers = {
         },
     },
 
-    /** The inbound endpoints. */
-    webhook: {
-        /** The header button, the palette row, and the dialog's own title. */
-        new: 'New webhook',
-        empty: 'No webhooks. A document declares one under its triggers key.',
-        /** Where a caller posts, as the listing cell and the panel fact both spell it. */
-        post: (path: string) => `POST ${path}`,
-        /** Whether a delivery is proved to have come from who it says. */
-        signed: 'HMAC',
-        unsigned: 'unsigned',
-        /** When something last arrived: the listing's column and the panel's fact. */
-        last_delivery: 'Last delivery',
-        /** How one delivery came out. Keyed by `WebhookOutcome` on the wire. */
-        outcome: {
-            accepted: 'accepted',
-            skipped: 'skipped',
-            rejected: 'rejected',
-        },
-        /** The window title over a webhook's payload mapping. */
-        mapping_title: (code: string) => `${code} · payload mapping`,
-        /** The panel's history of what has arrived. */
-        deliveries: 'Deliveries',
-        /** That history, for a webhook nothing has been sent to. */
-        nothing_delivered: 'Nothing delivered.',
-        /** Who sent one delivery, where the delivery says. */
-        from: (source: string) => `from ${source}`,
-        /** The dialog that declares one. */
-        dialog: {
-            code_hint: 'upstream-publish',
-            description_hint: 'What sends to this endpoint',
-            /** A parameter the pipeline will not run without, under its name in the mapping. */
-            required: 'required',
-            /** What is typed against each parameter: a path into the payload. */
-            path_hint: '$.',
-            mapping_note:
-                'One JSONPath per parameter the pipeline declares. Anything else in the payload is ignored.',
-            secret: 'Signing secret',
-            secret_hint: 'Leave empty for an unsigned endpoint',
-            /** Said beside Create, because the token is answered once and never again. */
-            token_once: 'Its token is shown once, after Create.',
-            /** Why Create is shut. */
-            no_pipeline: 'Choose a pipeline.',
-            no_code: 'Enter a code.',
-        },
-        /** The one moment a minted token is readable. */
-        token: {
-            title: (code: string) => `The token for ${code}`,
-            note: 'This instance keeps only its hash. This is the only time it can be read; rotating the webhook is how a lost token is replaced.',
-            /** Over the path a caller is configured with. */
-            url: 'Where to POST',
-        },
+    /** The one moment a minted token or signing secret is readable. */
+    token: {
+        title: (code: string) => `The token for ${code}`,
+        secret_title: (code: string) => `The signing secret for ${code}`,
+        note: 'This is the only time it can be read. Rotating is how a lost one is replaced.',
+        /** Over the path a caller is configured with. */
+        url: 'Where to call',
+        /** Over how a caller presents it. */
+        how: 'How a caller presents it',
+        bearer: 'Authorization: Bearer <token>',
+        /** The header a signed caller sends, and what its value is. */
+        signed_header: (header: string) => `${header}: sha256=<signature>`,
+        signed_note: 'The signature is the hex HMAC-SHA256 of the request body, keyed with this secret.',
     },
 
     /**

@@ -110,7 +110,7 @@ async def prune_absent(
     directory may take away. Deactivation pauses nothing retroactively beyond what
     deactivation always means, and history survives untouched. A triggers document has no
     history worth keeping, so it is deleted instead, and the cascade takes the schedules and
-    webhooks it owned -- never the pipeline's own inline ones. A schema is never pruned.
+    watches it owned -- never the pipeline's own inline ones. A schema is never pruned.
     """
     rows = await session.execute(
         sa.select(Pipeline.code)

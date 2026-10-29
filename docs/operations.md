@@ -397,7 +397,7 @@ a directory that carries both converges in one pass: a `kind: triggers` document
 while the pipeline it names is absent, and applying the pipeline first is what makes it
 present. A triggers document the directory no longer holds is *deleted* rather than
 deactivated -- it has no history worth keeping -- and the delete takes the schedules and
-webhooks it declared with it, never the pipeline's own inline ones and never a hand-made row.
+watches it declared with it, never the pipeline's own inline ones and never a hand-made row.
 The same narrowing applies: only a triggers document a directory apply wrote is ever pruned.
 
 Standing an instance up by hand is still one command for the whole directory:
@@ -443,7 +443,7 @@ The server mounts it in three pieces.
 | everything else a GET or HEAD reaches | `index.html`, because the UI routes on clean paths and `/runs/<id>` is a route inside the bundle rather than a file | `no-cache` |
 
 Precedence is unchanged by any of it: an API route is matched first, then a real file, and the
-shell is the last resort. `/health`, `/hooks/{token}`, `/docs`, `/openapi.json` and everything
+shell is the last resort. `/health`, `/docs`, `/openapi.json` and everything
 under the API prefix and the endpoint prefix are never answered with the shell, so a `fetch` that asks for something
 that is not there still gets a problem document rather than HTML. A write to a client route is
 not a navigation and is refused rather than served.
@@ -626,7 +626,7 @@ exhaustion, which is exactly why it is refused up front.
 | --- | --- | --- |
 | `DIRIGENT_HOST` | `127.0.0.1` | Address the API server binds. Set to `0.0.0.0` in a container. |
 | `DIRIGENT_PORT` | `3333` | Port the API server binds. |
-| `DIRIGENT_API_PREFIX` | `/api/v1` | Mount point of the versioned REST API. Normalised to be rooted and free of a trailing slash. `/hooks/{token}` and the endpoint prefix are not under it. |
+| `DIRIGENT_API_PREFIX` | `/api/v1` | Mount point of the versioned REST API. Normalised to be rooted and free of a trailing slash. The endpoint prefix is not under it. |
 | `DIRIGENT_ENDPOINT_PREFIX` | `/endpoints` | Where endpoint sources are served, outside the versioned API, so a proxy can publish it and keep `/api/v1` inside. |
 | `DIRIGENT_UI_ENABLED` | `true` | Whether the server serves the bundled web UI beside the API. `--ui/--no-ui` on `dg server` and `dg dev` is the flag form. See [the web UI](#the-web-ui). |
 | `DIRIGENT_UI_DIR` | unset | A built web UI bundle to serve instead of the one installed with the server: the `dist` directory a checkout's `make ui` produced. A server installed from git carries no bundle of its own. |
@@ -658,7 +658,7 @@ the stack is complete out of the box; see
 
 | Setting | Default | What it means |
 | --- | --- | --- |
-| `DIRIGENT_SECRET_KEY` | unset | The envelope key for connection secrets and webhook signing secrets. Required before any secret can be stored or read. A Fernet key is used as-is; anything else is hashed into one. |
+| `DIRIGENT_SECRET_KEY` | unset | The envelope key for connection secrets and endpoint signing secrets. Required before any secret can be stored or read. A Fernet key is used as-is; anything else is hashed into one. |
 | `DIRIGENT_BOOTSTRAP_ADMIN_PASSWORD` | unset | Creates the first admin unattended when the server starts against a database with no accounts. One-way: it does nothing once any account exists, so leaving it set on every deploy cannot reset a live instance's password. |
 
 ### Workers
@@ -699,12 +699,12 @@ the stack is complete out of the box; see
 | `DIRIGENT_REPORT_MAX_SIZE` | `1mb` | A run's report document larger than this is dropped with a warning in the run's log. The cap is enforced as the text is generated, so a runaway template stops at it rather than after it has built the whole document. |
 | `DIRIGENT_REPORT_RENDER_TIMEOUT` | `5s` | How long a report template may take to render before it is dropped with a warning. Rendering happens on the worker that settles the run, inside the transaction that settles it. |
 
-### Webhook intake and login
+### Endpoint intake and login
 
 | Setting | Default | What it means |
 | --- | --- | --- |
-| `DIRIGENT_WEBHOOK_MAX_PAYLOAD` | `1mb` | The largest body the webhook intake will read. Reading stops one byte past it rather than buffering an unbounded body in order to measure it. |
-| `DIRIGENT_WEBHOOK_INTAKE_RATE_PER_MINUTE` | `120` | How fast one *offered* token may deliver, checked before anything is looked up. A real webhook's own `rate_limit_per_minute` applies on top, which is why the default here is the looser of the two. Per process, so behind N replicas the effective limit is N times this. |
+| `DIRIGENT_SOURCE_MAX_BODY` | `1mb` | The largest body any endpoint source reads, whatever its own `max_body` says. Reading stops one byte past it rather than buffering an unbounded body in order to measure it. |
+| `DIRIGENT_SOURCE_INTAKE_RATE_PER_MINUTE` | `600` | How fast calls to one method and path are taken, checked before any source is looked up. A source's own `rate` applies on top. Per process, so behind N replicas the effective limit is N times this. |
 | `DIRIGENT_LOGIN_RATE_PER_MINUTE` | `10` | Login attempts allowed per minute, per address *and* per username. Argon2id is deliberately expensive and login is unauthenticated, so without a limit anyone on the network can turn a few hundred requests a second into the whole instance's CPU. |
 
 ## Database and migrations
@@ -742,7 +742,7 @@ There is no supported migration path from a SQLite instance to a PostgreSQL one.
 ## Backup and restore
 
 **The database is the system of record.** Definitions, every version of them, all run history,
-connections and their sealed secrets, tokens, schedules, webhooks, and log entries are all
+connections and their sealed secrets, tokens, schedules, sources, and log entries are all
 rows. What a dump of it does not hold is the artifact bytes those rows name, so the state is
 two halves: back them up together, restore them together, and know what each one alone leaves.
 
@@ -993,11 +993,6 @@ runtime collects a container's output.
 At DEBUG, three libraries are floored at INFO -- `aiosqlite`, `asyncio`, and `httpcore2` --
 because they log once per cursor operation or socket read and would bury everything else.
 `dg --debug-all` lifts the floor, and sets the level, when you actually want the firehose.
-
-**Credential-bearing paths are scrubbed.** A `POST /hooks/<token>` delivery carries its whole
-credential in the URL path, and uvicorn's access log formats that path verbatim. A filter
-rewrites the segment to `/hooks/{token}` before the record is emitted, keeping the line but not
-the secret. The intake endpoint's own logging records `hash_token(token)[:8]` instead.
 
 ### Process logs are not run logs
 
@@ -1305,7 +1300,6 @@ mean an instance running at a real cadence needs a policy.
 | --- | --- |
 | `retention_runs` | Settled runs, and by cascade their items, attempts, artifact refs and alerts |
 | `retention_logs` | Log entries, for runs too young to be pruned themselves |
-| `retention_deliveries` | What arrived at a webhook |
 | `retention_inputs` | What arrived at a source, and what came of it |
 | `retention_firings` | When a schedule fired |
 | `retention_notifications` | Alerts already sent |
@@ -1317,7 +1311,6 @@ often, where logs are the bulk of the growth and the run record is worth keeping
 ```bash
 DIRIGENT_RETENTION_RUNS=90d
 DIRIGENT_RETENTION_LOGS=14d
-DIRIGENT_RETENTION_DELIVERIES=30d
 DIRIGENT_RETENTION_INPUTS=30d
 DIRIGENT_RETENTION_FIRINGS=30d
 DIRIGENT_RETENTION_NOTIFICATIONS=30d
@@ -1411,7 +1404,7 @@ See [security](security.md#rotation-honestly).
 the whole instance, so any operator can run any pipeline and read any run.
 See [security](security.md#what-authorizes).
 
-**Rate limiter buckets are per process.** Both the webhook intake limit and the login limit
+**Rate limiter buckets are per process.** Both the endpoint intake limits and the login limit
 live in process memory, so behind N API replicas the effective limit is N times the configured
 one. This is a deliberate trade -- the alternative is a database write per refusal, which is
 what a caller hammering the endpoint would be trying to cause -- but size your limits knowing

@@ -11,7 +11,7 @@ from dirigent_core.documents import DocumentError, load_text
 from dirigent_core.engine import Provenance
 from dirigent_core.engine.definition import TriggersDefinition
 from dirigent_core.engine.services import EngineServices
-from dirigent_core.models import Schedule, TriggerDocument, WebhookTrigger
+from dirigent_core.models import Schedule, TriggerDocument
 from dirigent_core.pipelines import apply_document, delete_pipeline, find_pipeline, set_active
 from dirigent_core.trigger_documents import (
     delete_absent_trigger_documents,
@@ -55,9 +55,6 @@ triggers:
     - code: ops-nightly
       cron: "0 4 * * *"
       params: { day: "2026-02-02" }
-  webhooks:
-    - code: ops-kick
-      params_from_payload: { day: "$.run.date" }
 """
 
 
@@ -99,7 +96,6 @@ def test_a_triggers_document_declares_a_pipeline_and_its_clocks() -> None:
     assert definition.kind == "triggers"
     assert definition.pipeline == "batch-fleet"
     assert [spec.code for spec in definition.triggers.schedules] == ["ops-nightly"]
-    assert [spec.code for spec in definition.triggers.webhooks] == ["ops-kick"]
 
 
 def test_an_empty_triggers_section_is_a_document_that_retires_everything() -> None:
@@ -157,7 +153,6 @@ async def test_applying_one_creates_the_document_and_its_rows(
     assert result.plan.pipeline == "batch-fleet"
     assert result.version is None
     assert result.triggers.schedules_created == ["ops-nightly"]
-    assert result.triggers.webhooks_created == ["ops-kick"]
     assert await codes(sessions) == {"inline-nightly": None, "ops-nightly": "fleet-clocks"}
 
 
@@ -205,7 +200,6 @@ async def test_a_changed_document_updates_and_retires_what_it_stopped_declaring(
 
     assert changed.plan.action is PlanAction.UPDATE
     assert changed.triggers.schedules_updated == ["ops-nightly"]
-    assert changed.triggers.webhooks_removed == ["ops-kick"]
     assert await codes(sessions) == {"inline-nightly": None, "ops-nightly": "fleet-clocks"}
 
 
@@ -274,23 +268,6 @@ async def test_pinned_parameters_are_checked_against_the_pipelines_current_versi
 
     assert result.plan.action is PlanAction.INVALID
     assert [issue.location for issue in result.plan.issues] == ["triggers.schedules[0].params"]
-
-
-async def test_a_webhook_mapping_is_checked_against_the_pipelines_current_version(
-    sessions: async_sessionmaker[AsyncSession], services: EngineServices
-) -> None:
-    await apply(sessions, services, PIPELINE)
-
-    result = await apply(
-        sessions,
-        services,
-        "format: dirigent/v1\nkind: triggers\ncode: fleet-clocks\npipeline: batch-fleet\n"
-        "triggers:\n  webhooks:\n    - { code: ops-kick, params_from_payload: { nonsense: '$.a' } }\n",
-    )
-
-    assert result.plan.action is PlanAction.INVALID
-    assert [issue.location for issue in result.plan.issues] == ["triggers.webhooks[0].params_from_payload"]
-    assert result.plan.issues[0].message == "'nonsense' is not a parameter this pipeline declares (day)"
 
 
 # Ownership.
@@ -409,7 +386,7 @@ async def test_reading_one_lists_the_rows_it_owns(
     async with session_scope(sessions) as session:
         rows = await list_trigger_documents(session)
         assert [row.code for row in rows] == ["fleet-clocks"]
-        assert await owned_codes(session, rows[0].id) == (["ops-nightly"], ["ops-kick"], [])
+        assert await owned_codes(session, rows[0].id) == (["ops-nightly"], [])
 
 
 async def test_deleting_one_takes_its_rows_and_leaves_the_pipelines_own(
@@ -424,8 +401,6 @@ async def test_deleting_one_takes_its_rows_and_leaves_the_pipelines_own(
         await delete_trigger_document(session, services, row)
 
     assert await codes(sessions) == {"inline-nightly": None}
-    async with session_scope(sessions) as session:
-        assert (await session.execute(sa.select(WebhookTrigger))).scalars().all() == []
 
 
 async def test_deleting_the_pipeline_takes_its_triggers_documents_with_it(

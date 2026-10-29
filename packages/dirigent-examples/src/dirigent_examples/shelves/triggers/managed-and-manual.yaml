@@ -1,9 +1,9 @@
 # What an apply materialises, and what it deliberately leaves alone.
 #
 # The triggers: section is the declaration, and only the declaration. Applying this creates
-# the schedules and the webhook if they are absent and brings them up to date if they are
-# not; it never touches whether a schedule is paused, when it last fired, or what the
-# webhook's token is. Those are facts about one instance, so they stay in it.
+# the schedules if they are absent and brings them up to date if they are not; it never
+# touches whether a schedule is paused or when it last fired. Those are facts about one
+# instance, so they stay in it.
 #
 # A schedule the document declares is managed: the instance owns it on the document's
 # behalf, and an apply that stops mentioning it removes it. A schedule somebody created by
@@ -12,9 +12,6 @@
 # makes people stop applying documents at all. Both kinds show up in dg schedule list, which
 # says which is which.
 #
-# The token is minted server-side and shown once. It is not in this file, it will not be in
-# an export, and there is nowhere in dirigent/v1 to write one.
-#
 # Try it against a running instance:
 #
 #   dg apply examples/triggers/managed-and-manual.yaml
@@ -22,9 +19,6 @@
 #   dg schedule create managed-and-manual by-hand --cron '0 7 * * 1' -p day=2026-01-01
 #   dg schedule list managed-and-manual          # the hand-made one is not managed
 #   dg apply examples/triggers/managed-and-manual.yaml   # a no-op, and by-hand survives it
-#   dg webhook create managed-and-manual manual --map day='$.date'  # prints URL and token
-#   curl -X POST "$DG_URL/hooks/$TOKEN" -d '{"date": "2026-01-01"}'
-#   dg webhook deliveries managed-and-manual from-upstream
 #
 # The steps run jq and nothing else, so there is no allowlist entry to make first. Locally,
 # with no server at all:
@@ -35,9 +29,9 @@ format: dirigent/v1
 kind: pipeline
 code: managed-and-manual
 name: Managed beside manual
-description: Two document-managed schedules and a webhook, and what an apply leaves untouched.
+description: Two document-managed schedules, and what an apply leaves untouched.
 
-tags: [triggers, transform, webhook, schedule, starter]
+tags: [triggers, transform, schedule, starter]
 
 concurrency: skip
 
@@ -51,7 +45,7 @@ params:
     day:
       type: string
       format: date
-      description: The day being loaded, which the schedule pins and the webhook maps.
+      description: The day being loaded, which each schedule pins.
       default: "2026-01-01"
     environment:
       type: string
@@ -98,12 +92,3 @@ triggers:
       params:
         day: "2026-01-01"
         environment: staging
-
-  webhooks:
-    # A strict payload-to-parameter mapping. Anything the payload carries that is not named
-    # here is ignored, and what is named is validated against params above like any other
-    # run's parameters -- so a caller cannot smuggle configuration in.
-    - code: from-upstream
-      params_from_payload:
-        day: "$.published.date"
-        environment: "$.target.environment"

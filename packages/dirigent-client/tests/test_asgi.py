@@ -171,7 +171,7 @@ async def test_a_pipeline_this_instance_does_not_hold_is_a_not_found(dg: Dirigen
     assert raised.value.problem.instance == "/api/v1/pipelines/no-such-pipeline"
 
 
-async def test_a_schedule_and_a_webhook_round_trip_through_the_client(dg: Dirigent) -> None:
+async def test_a_schedule_round_trips_through_the_client(dg: Dirigent) -> None:
     await dg.pipelines.apply(DOCUMENT)
     schedule = await dg.schedules.create("sdk-demo", "nightly", cron="0 5 * * *", timezone="Europe/Oslo")
     assert schedule.next_fire_at is not None
@@ -179,13 +179,6 @@ async def test_a_schedule_and_a_webhook_round_trip_through_the_client(dg: Dirige
     assert (await dg.schedules.resume("sdk-demo", "nightly")).paused is False
     assert (await dg.schedules.firings("sdk-demo", "nightly")).items == []
 
-    minted = await dg.webhooks.create("sdk-demo", "inbound", params_from_payload={"greeting": "$.text"})
-    assert minted.url_path.startswith("/hooks/")
-    assert [row.code for row in (await dg.webhooks.list("sdk-demo")).items] == ["inbound"]
-    rotated = await dg.webhooks.rotate_token("sdk-demo", "inbound")
-    assert rotated.token != minted.token
-    assert (await dg.webhooks.disable("sdk-demo", "inbound")).active is False
-    await dg.webhooks.delete("sdk-demo", "inbound")
     await dg.schedules.delete("sdk-demo", "nightly")
     assert (await dg.schedules.list("sdk-demo")).items == []
 

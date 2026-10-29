@@ -367,8 +367,8 @@ dg run --local --schema examples/schemas/ou-record.json \
 ```
 
 A pipeline's own `params` schema is the other place a payload is validated: the parameters of
-every run, whoever asked for it -- the API, the CLI, a schedule's pins, a backfill, a mapped
-webhook payload -- are checked against it before the run is created, and against the same
+every run, whoever asked for it -- the API, the CLI, a schedule's pins, a backfill, a parent's
+`pipeline.run` -- are checked against it before the run is created, and against the same
 assembled checker a gate uses. So a parameter declared `format: date` refuses `2026-13-40` at
 the door rather than carrying it into the first step, and a parameter declared
 `format: acme-site-id` asserts on an instance where that pack is installed and passes on

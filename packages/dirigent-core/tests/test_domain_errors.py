@@ -23,7 +23,6 @@ OWNED_PREFIXES = frozenset(
         "schedule",
         "schema",
         "secret",
-        "webhook",
     }
 )
 
@@ -42,7 +41,6 @@ MODULES = (
     "dirigent_core.storage",
     "dirigent_core.triggers.backfill",
     "dirigent_core.triggers.schedules",
-    "dirigent_core.triggers.webhooks",
 )
 
 REFUSAL_STATUSES = frozenset({403, 404, 409, 422})

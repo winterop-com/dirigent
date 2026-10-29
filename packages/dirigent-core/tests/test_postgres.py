@@ -56,7 +56,6 @@ from dirigent_core.models import (
     RunItem,
     Schedule,
     StepAttempt,
-    WebhookTrigger,
     utcnow,
 )
 from dirigent_core.models import Worker as WorkerRow
@@ -222,7 +221,6 @@ async def test_the_pipeline_listing_counts_and_last_run_fold_the_same_way_on_pos
     pipeline_id = older.pipeline_id
     async with session_scope(pg_sessions) as session:
         session.add(Schedule(pipeline_id=pipeline_id, code="nightly", kind=ScheduleKind.CRON, cron="0 3 * * *"))
-        session.add(WebhookTrigger(pipeline_id=pipeline_id, code="inbound", token_hash="a" * 64))
         await session.execute(
             sa.update(StepAttempt).where(StepAttempt.run_id == older.id).values(status=AttemptStatus.FAILED)
         )
@@ -248,7 +246,7 @@ async def test_the_pipeline_listing_counts_and_last_run_fold_the_same_way_on_pos
         counts = await listing_counts(session, [pipeline_id])
         latest = await last_runs(session, [pipeline_id])
 
-    assert counts[pipeline_id] == PipelineCounts(active_runs=0, schedules=1, webhooks=1)
+    assert counts[pipeline_id] == PipelineCounts(active_runs=0, schedules=1)
     assert latest[pipeline_id].id == newer.id, "the newest run, which is the greatest uuid7"
     assert latest[pipeline_id].status is RunStatus.FAILED
     assert latest[pipeline_id].failed_step == "publish", "that run's own failure, not the older run's"

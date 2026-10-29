@@ -326,7 +326,7 @@ cp .env.example .env
 
 Two values in `.env` have no safe default.
 
-**`DIRIGENT_SECRET_KEY`** is the envelope key that connection secrets and webhook signing
+**`DIRIGENT_SECRET_KEY`** is the envelope key that connection secrets and endpoint signing
 secrets are encrypted with. Generate one:
 
 ```bash

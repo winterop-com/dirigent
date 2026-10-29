@@ -7,9 +7,8 @@ import { apiPrefix, applyDocument, applyExample, signIn } from './support.ts'
  * The two screens that show what an instance is wired to, against a real one.
  *
  * WHAT THESE SPECS ARE FOR is the half a Node test cannot reach: that a credential's row says
- * what it is and never a word of what it holds, that pressing Check really opens the credential
- * and really moves the row, and that a token minted in the browser is readable in the dialog
- * that mints it and nowhere afterwards.
+ * what it is and never a word of what it holds, and that pressing Check really opens the
+ * credential and really moves the row.
  *
  * THE CHECK REACHES THIS INSTANCE. The connection points at the server this suite already
  * runs, so a health check is a real request over a real credential with no external network
@@ -25,13 +24,6 @@ const CRON = {
     title: 'Nightly, Oslo time',
     // What the pipeline itself is called, which is how the picker heads its row.
     pipelineTitle: 'Nightly load',
-}
-const HOOK = {
-    file: 'examples/triggers/webhook-trigger.yaml',
-    pipeline: 'webhook-trigger',
-    webhook: 'upstream-publish',
-    // The document names the pipeline, so the picker heads its row by the name.
-    pipelineTitle: 'Started by a webhook',
 }
 
 /** What a secret is drawn as. `DOTS` in lib/connections. */
@@ -246,10 +238,9 @@ test('a connection is minted through the form its own kind publishes', async ({ 
     await expect(panel.getByLabel('base_url')).toHaveValue(baseURL ?? '')
 })
 
-test('a schedule shows its clock and its zone, and a webhook shows its prefix', async ({ page }) => {
+test('a schedule shows its clock and its zone', async ({ page }) => {
     await signIn(page)
     await applyExample(page.request, CRON.file)
-    await applyExample(page.request, HOOK.file)
 
     await page.goto('/triggers')
 
@@ -263,15 +254,10 @@ test('a schedule shows its clock and its zone, and a webhook shows its prefix', 
     // The next firing is an instant like any other: read relatively, and ahead of now.
     await expect(schedule.getByTestId('next-fire')).toHaveText(/^in \d+[mhd]$/)
 
-    const webhook = rowOf(page, HOOK.webhook)
-    await expect(webhook).toContainText('POST /hooks/')
-    await expect(webhook).toContainText(LABELS.triggers.webhook.unsigned)
-    await expect(webhook).toContainText(LABELS.word.rate_limit.value('60'))
-
     // The foot counts what has been read, and there is no page number anywhere on the screen. How
     // many rows this instance holds is not this spec's business, but the sentence beside that
     // number is: it has to be the one the catalogue spells for the number actually on screen.
-    for (const noun of [LABELS.word.schedule.count, LABELS.word.webhook.count]) {
+    for (const noun of [LABELS.word.schedule.count]) {
         const foot = page.getByText(new RegExp(`^\\d+ (${noun.one}|${noun.many})$`))
         await expect(foot).toBeVisible()
         const said = await foot.innerText()
@@ -359,14 +345,12 @@ test('a watch shows the run it has waiting, and pausing it leaves none', async (
 test('a trigger names the pipeline it fires the way every listing heads one', async ({ page }) => {
     await signIn(page)
     await applyExample(page.request, CRON.file)
-    await applyExample(page.request, HOOK.file)
     await applyDocument(page.request, WATCHED)
 
     await page.goto('/triggers')
     // A pipeline with a name is headed by it, with its code under it in mono.
     for (const [row, title, code] of [
         [rowOf(page, CRON.title), CRON.pipelineTitle, CRON.pipeline],
-        [rowOf(page, HOOK.webhook), HOOK.pipelineTitle, HOOK.pipeline],
     ] as const) {
         const ref = row.getByTestId('pipeline-ref')
         await expect(ref.getByRole('link')).toHaveText(title)
@@ -460,46 +444,6 @@ test('a pinned parameters block stands off the light panel it is drawn on', asyn
     })
     expect(apart.width).toBeGreaterThanOrEqual(1)
     expect(apart.distance).toBeGreaterThanOrEqual(24)
-})
-
-test('a webhook minted in the browser shows its token once and never again', async ({ page }) => {
-    await signIn(page)
-    await applyExample(page.request, HOOK.file)
-
-    await page.goto('/triggers')
-    await page.getByRole('button', { name: LABELS.triggers.webhook.new, exact: true }).click()
-
-    const code = `minted-${String(Date.now())}`
-    const dialog = page.getByRole('dialog')
-    await pick(page, 'Pipeline', HOOK.pipeline, HOOK.pipelineTitle)
-    await dialog.getByLabel(LABELS.word.code, { exact: true }).fill(code)
-
-    // The mapping is the pipeline's own parameters, one row each, and a path is written
-    // against the one the payload carries.
-    await expect(dialog.getByLabel(LABELS.word.environment.term, { exact: true })).toBeVisible()
-    await dialog.getByLabel('day', { exact: true }).fill('$.published.date')
-
-    await dialog.getByRole('button', { name: LABELS.action.create.verb }).click()
-
-    // The token is readable exactly here: the instance keeps only its hash.
-    const token = page.getByTestId('webhook-token')
-    await expect(token).toBeVisible()
-    const minted = (await token.textContent()) ?? ''
-    expect(minted.length).toBeGreaterThan(8)
-    await expect(page.getByRole('dialog')).toContainText('/hooks/')
-
-    await page.getByRole('button', { name: LABELS.action.done }).click()
-    await expect(page.getByTestId('webhook-token')).toHaveCount(0)
-
-    // The listing has the webhook, with only the prefix of the token that was minted.
-    const row = rowOf(page, code)
-    await expect(row).toContainText('POST /hooks/')
-    await expect(page.locator('body')).not.toContainText(minted)
-
-    // The row a parameter was left empty on is not in the declaration at all.
-    const prefix = await apiPrefix(page.request)
-    const read = await page.request.get(`${prefix}/pipelines/${HOOK.pipeline}/triggers/webhooks/${code}`)
-    expect((await read.json()).params_from_payload).toEqual({ day: '$.published.date' })
 })
 
 test('a schedule is created by picking its pipeline and reading its clock back', async ({ page }) => {

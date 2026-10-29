@@ -47,6 +47,14 @@ ATTEMPT = {
     "kind": "manual",
     "status": "queued",
 }
+SOURCE = {
+    "id": ID,
+    "pipeline": "demo",
+    "code": "ask",
+    "kind": "endpoint",
+    "state": "listening",
+    "created_at": WHEN,
+}
 SCHEDULE = {
     "id": ID,
     "code": "nightly",
@@ -56,23 +64,6 @@ SCHEDULE = {
     "paused": False,
     "managed": False,
     "created_at": WHEN,
-}
-WEBHOOK = {
-    "id": ID,
-    "code": "inbound",
-    "token_prefix": "dgw_abc",
-    "signed": False,
-    "active": True,
-    "managed": False,
-    "rate_limit_per_minute": 60,
-    "created_at": WHEN,
-}
-WEBHOOK_TOKEN = {
-    "webhook_id": ID,
-    "code": "inbound",
-    "token": "dgw_abc123",
-    "prefix": "dgw_abc",
-    "url_path": "/hooks/x",
 }
 CONNECTION = {
     "id": ID,
@@ -147,15 +138,7 @@ PAYLOADS: dict[str, Any] = {
         "items": [{"id": 1, "scheduled_for": WHEN, "created_at": WHEN, "outcome": "fired", "misfired": False}],
         "next": None,
     },
-    "/pipelines/demo/triggers/webhooks": {"items": [WEBHOOK], "next": None},
-    "/pipelines/demo/triggers/webhooks/inbound": WEBHOOK,
-    "/pipelines/demo/triggers/webhooks/inbound/$rotate-token": WEBHOOK_TOKEN,
-    "/pipelines/demo/triggers/webhooks/inbound/$enable": WEBHOOK,
-    "/pipelines/demo/triggers/webhooks/inbound/$disable": WEBHOOK,
-    "/pipelines/demo/triggers/webhooks/inbound/deliveries": {
-        "items": [{"id": 1, "created_at": WHEN, "outcome": "accepted"}],
-        "next": None,
-    },
+    "/pipelines/demo/sources/ask/$set-secret": SOURCE,
     "/alert-rules": {"items": [ALERT_RULE], "next": None},
     "/alert-rules/on-failure": ALERT_RULE,
     "/alert-rules/$test": {"notification_id": ID, "notifier": "log"},
@@ -230,7 +213,6 @@ PAYLOADS: dict[str, Any] = {
 CREATED: dict[str, Any] = {
     "/connections": CONNECTION,
     "/pipelines/demo/triggers/schedules": SCHEDULE,
-    "/pipelines/demo/triggers/webhooks": WEBHOOK_TOKEN,
     "/alert-rules": ALERT_RULE,
     "/users": USER,
     "/tokens": {"id": ID, "name": "ci", "username": "tester", "prefix": "dgt_abc", "token": "dgt_abc123"},
@@ -326,49 +308,6 @@ ACCESSORS: list[tuple[str, Callable[[Dirigent], Awaitable[object]], str, str]] =
         lambda dg: dg.schedules.delete("demo", "nightly"),
         "DELETE",
         "/pipelines/demo/triggers/schedules/nightly",
-    ),
-    ("webhooks.list", lambda dg: dg.webhooks.list("demo"), "GET", "/pipelines/demo/triggers/webhooks"),
-    (
-        "webhooks.get",
-        lambda dg: dg.webhooks.get("demo", "inbound"),
-        "GET",
-        "/pipelines/demo/triggers/webhooks/inbound",
-    ),
-    (
-        "webhooks.create",
-        lambda dg: dg.webhooks.create("demo", "inbound", hmac_secret="shh"),
-        "POST",
-        "/pipelines/demo/triggers/webhooks",
-    ),
-    (
-        "webhooks.rotate_token",
-        lambda dg: dg.webhooks.rotate_token("demo", "inbound"),
-        "POST",
-        "/pipelines/demo/triggers/webhooks/inbound/$rotate-token",
-    ),
-    (
-        "webhooks.enable",
-        lambda dg: dg.webhooks.enable("demo", "inbound"),
-        "POST",
-        "/pipelines/demo/triggers/webhooks/inbound/$enable",
-    ),
-    (
-        "webhooks.disable",
-        lambda dg: dg.webhooks.disable("demo", "inbound"),
-        "POST",
-        "/pipelines/demo/triggers/webhooks/inbound/$disable",
-    ),
-    (
-        "webhooks.deliveries",
-        lambda dg: dg.webhooks.deliveries("demo", "inbound"),
-        "GET",
-        "/pipelines/demo/triggers/webhooks/inbound/deliveries",
-    ),
-    (
-        "webhooks.delete",
-        lambda dg: dg.webhooks.delete("demo", "inbound"),
-        "DELETE",
-        "/pipelines/demo/triggers/webhooks/inbound",
     ),
     ("alerts.rules", lambda dg: dg.alerts.rules(), "GET", "/alert-rules"),
     (
@@ -503,8 +442,8 @@ async def test_a_secret_travels_as_its_value_rather_than_as_its_mask() -> None:
     async with client_of(recorder) as dg:
         await dg.auth.login("tester", "a password")
         assert recorder.last[3] == {"username": "tester", "password": "a password"}
-        await dg.webhooks.create("demo", "inbound", hmac_secret="shh")
-        assert recorder.last[3]["hmac_secret"] == "shh"
+        await dg.sources.set_secret("demo", "ask", "shh")
+        assert recorder.last[3] == {"secret": "shh"}
         await dg.admin.users.create("new", "another password", role=UserRole.ADMIN)
         assert recorder.last[3]["password"] == "another password"
 

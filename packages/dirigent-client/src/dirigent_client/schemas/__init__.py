@@ -84,9 +84,7 @@ from dirigent_client.schemas.system import (
     WorkerOut,
 )
 from dirigent_client.schemas.triggers import (
-    DeliveryOut,
     FiringOut,
-    HookAccepted,
     ScheduleIn,
     ScheduleOut,
     SchedulePreview,
@@ -94,9 +92,6 @@ from dirigent_client.schemas.triggers import (
     TriggerDocumentDetail,
     TriggerDocumentOut,
     WatchOut,
-    WebhookIn,
-    WebhookOut,
-    WebhookTokenOut,
 )
 from dirigent_common import JsonList, JsonMap
 
@@ -123,7 +118,6 @@ __all__ = [
     "ConnectionUpdate",
     "DagNode",
     "DagView",
-    "DeliveryOut",
     "DiffSummary",
     "EndpointInput",
     "InputAccepted",
@@ -131,7 +125,6 @@ __all__ = [
     "ExampleOut",
     "FiringOut",
     "Health",
-    "HookAccepted",
     "Identity",
     "IssuedTokenOut",
     "ItemOut",
@@ -193,8 +186,5 @@ __all__ = [
     "UserUpdate",
     "ValidationIssue",
     "WatchOut",
-    "WebhookIn",
-    "WebhookOut",
-    "WebhookTokenOut",
     "WorkerOut",
 ]

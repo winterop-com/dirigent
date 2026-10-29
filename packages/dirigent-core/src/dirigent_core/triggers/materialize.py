@@ -1,7 +1,7 @@
 """Turning a document's ``triggers:`` section into rows, on every apply.
 
-A declaration travels; operational state -- paused, last fired, a webhook's token and its
-deliveries, a watch's cursor and the run it has waiting -- stays on the instance and is never
+A declaration travels; operational state -- paused, last fired, a watch's cursor and the run
+it has waiting -- stays on the instance and is never
 touched by an apply. Only a row marked
 ``managed`` may be created, redeclared, or removed here; a hand-created one is left alone.
 
@@ -21,7 +21,7 @@ from dirigent_core.engine.definition import Document, TriggerSpecs
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.logging import get_logger
 from dirigent_core.messages import TRIGGER_OWNED_ELSEWHERE
-from dirigent_core.models import Pipeline, Schedule, TriggerDocument, Watch, WebhookTrigger
+from dirigent_core.models import Pipeline, Schedule, TriggerDocument, Watch
 from dirigent_core.triggers.schedules import (
     ScheduleRequest,
     create_schedule,
@@ -32,11 +32,6 @@ from dirigent_core.triggers.watches import (
     create_watch,
     delete_watch,
     update_watch,
-)
-from dirigent_core.triggers.webhooks import (
-    WebhookRequest,
-    create_webhook,
-    update_webhook,
 )
 
 _logger = get_logger("triggers")
@@ -62,18 +57,16 @@ async def materialize_triggers(
     """
     specs = definition.triggers
     schedules = await _reconcile_schedules(session, pipeline, specs, now=now, pause_created=pause_created, owner=owner)
-    webhooks = await _reconcile_webhooks(session, pipeline, specs, owner=owner)
     watches = await _reconcile_watches(
         session, services, pipeline, specs, now=now, pause_created=pause_created, owner=owner
     )
-    result = Materialized(**schedules, **webhooks, **watches)
+    result = Materialized(**schedules, **watches)
     if not result.empty:
         _logger.info(
             "triggers materialized",
             pipeline=pipeline.code,
             document=definition.code,
             schedules=len(specs.schedules),
-            webhooks=len(specs.webhooks),
             watches=len(specs.watches),
         )
     return result
@@ -133,57 +126,6 @@ def _schedule_differs(schedule: Schedule, request: ScheduleRequest) -> bool:
         or schedule.timezone != request.timezone
         or schedule.params != dict(request.params)
         or schedule.priority != request.priority
-    )
-
-
-async def _reconcile_webhooks(
-    session: AsyncSession,
-    pipeline: Pipeline,
-    specs: TriggerSpecs,
-    *,
-    owner: UUID | None,
-) -> dict[str, list[str]]:
-    """Create, redeclare, and retire the webhooks one owner declares, keeping minted tokens.
-
-    A webhook that already exists keeps its token through an apply, so an unrelated edit is
-    never a breaking change for whoever is calling it.
-    """
-    rows = await session.execute(sa.select(WebhookTrigger).where(WebhookTrigger.pipeline_id == pipeline.id))
-    existing = {row.code: row for row in rows.scalars() if row.trigger_document_id == owner}
-    declared = {spec.code: spec for spec in specs.webhooks}
-    created: list[str] = []
-    updated: list[str] = []
-
-    for code, spec in declared.items():
-        request = WebhookRequest.from_spec(spec)
-        current = existing.get(code)
-        if current is None:
-            minted = await create_webhook(session, pipeline, request)
-            webhook = await session.get(WebhookTrigger, minted.webhook_id)
-            if webhook is not None:  # pragma: no branch - it was just inserted
-                webhook.managed = True
-                webhook.trigger_document_id = owner
-            created.append(code)
-            continue
-        current.managed = True
-        if _webhook_differs(current, request):
-            await update_webhook(session, current, request)
-            updated.append(code)
-
-    removed = [code for code, row in existing.items() if row.managed and code not in declared]
-    for code in removed:
-        await session.delete(existing[code])
-    await session.flush()
-    return {"webhooks_created": created, "webhooks_updated": updated, "webhooks_removed": sorted(removed)}
-
-
-def _webhook_differs(webhook: WebhookTrigger, request: WebhookRequest) -> bool:
-    """Report whether a declaration says anything different from the row that holds it."""
-    return (
-        webhook.name != request.name
-        or webhook.description != request.description
-        or webhook.params_from_payload != dict(request.params_from_payload)
-        or webhook.priority != request.priority
     )
 
 
@@ -254,17 +196,14 @@ async def owner_issues(
     """
     documents = {row.id: row.code for row in (await session.execute(sa.select(TriggerDocument))).scalars()}
     schedules = await session.execute(sa.select(Schedule).where(Schedule.pipeline_id == pipeline.id))
-    webhooks = await session.execute(sa.select(WebhookTrigger).where(WebhookTrigger.pipeline_id == pipeline.id))
     watches = await session.execute(sa.select(Watch).where(Watch.pipeline_id == pipeline.id))
-    held: dict[str, dict[str, Schedule | WebhookTrigger | Watch]] = {
+    held: dict[str, dict[str, Schedule | Watch]] = {
         "schedule": {row.code: row for row in schedules.scalars()},
-        "webhook": {row.code: row for row in webhooks.scalars()},
         "watch": {row.code: row for row in watches.scalars()},
     }
     issues: list[ValidationIssue] = []
     for label, section, declared in (
         ("schedule", "schedules", [spec.code for spec in specs.schedules]),
-        ("webhook", "webhooks", [spec.code for spec in specs.webhooks]),
         ("watch", "watches", [spec.code for spec in specs.watches]),
     ):
         for index, code in enumerate(declared):
@@ -284,7 +223,7 @@ async def owner_issues(
     return issues
 
 
-def _owner_of(row: Schedule | WebhookTrigger | Watch, documents: dict[UUID, str]) -> str:
+def _owner_of(row: Schedule | Watch, documents: dict[UUID, str]) -> str:
     """Name whoever declared a row, in the words the refusal is read in."""
     if row.trigger_document_id is not None:
         return f"the triggers document {documents.get(row.trigger_document_id, '?')!r}"

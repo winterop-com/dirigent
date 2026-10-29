@@ -11,7 +11,7 @@
 import { apiJson, type JsonMap, type Page } from '@/lib/api'
 import { LABELS } from '@/lib/labels'
 import { PAGE } from '@/lib/paging'
-import type { OutcomeTone, WebhookTokenOut } from '@/lib/triggers'
+import type { OutcomeTone } from '@/lib/triggers'
 
 /** Whether a source takes inputs now. `SourceState`. */
 export type SourceState = 'starting' | 'listening' | 'failing' | 'backlogged' | 'draining' | 'paused'
@@ -119,17 +119,6 @@ export function setSourcePaused(pipeline: string, code: string, paused: boolean)
 /** Mint a new token for a source, forgetting the old one at once. */
 export function rotateSourceToken(pipeline: string, code: string): Promise<SourceTokenOut> {
     return apiJson<SourceTokenOut>(`${sourcePath(pipeline, code)}/$rotate-token`, { method: 'POST' })
-}
-
-/** The token as the dialog that shows a token once reads it. */
-export function shownToken(token: SourceTokenOut): WebhookTokenOut {
-    return {
-        webhook_id: token.source_id,
-        code: token.code,
-        token: token.token,
-        prefix: token.prefix,
-        url_path: token.url_path,
-    }
 }
 
 function sourcePath(pipeline: string, code: string): string {

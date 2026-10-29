@@ -140,8 +140,9 @@ stays clean, and every example stays executable.
    polling due sources under a lease, and the built-in `storage` kind), and held kinds (the
    `HeldSource` contract, each consumer held by one worker under a renewed lease and
    acknowledged only once its runs are committed, and the `kafka` and `rabbitmq` kinds in the
-   queues pack) have landed; what remains:
-   5. Watches and webhooks folded in as kinds.
+   queues pack), and webhooks folded in (inbound webhook triggers removed, an endpoint taking
+   a signed body with `auth: {kind: hmac}` in their place) have landed; what remains:
+   5. Watches folded in as a `sensor` kind a worker polls.
 
    **The examples shelf** (`shelves/sources/`), each runnable with `dg run --local` and its
    `sample`: an echo endpoint with a reply; a form taken and answered 202; a JSON body held
