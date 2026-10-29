@@ -1011,6 +1011,8 @@ const refused = {
         route_repeated_parameter: 'The path {template} names the parameter {name} twice.',
         route_tail_not_last:
             'The path {template} has {segment} before its end, and a tail takes the rest of the path.',
+        source_not_received:
+            'Source kind {kind} is {hosting}, and a contributed kind is received by the server: a ReceivedSource.',
     },
     reference: {
         not_failed:

@@ -35,6 +35,7 @@ from dirigent_plugin import (
     markers,
 )
 from dirigent_plugin.markers import contribute
+from dirigent_plugin.sources import AnySource
 
 if TYPE_CHECKING:
     from dirigent_core.examples import ExampleEntry, ShelfFile
@@ -141,11 +142,21 @@ class PluginHost:
         self.storage_backends: dict[str, StorageBackend] = {}
         self.notifiers: dict[str, Notifier] = {}
         self.connection_kinds: dict[str, ConnectionKind] = {}
+        self.sources: dict[str, AnySource] = {}
         self.formats: dict[str, FormatCheck] = {}
         self.labels: dict[str, Message] = {}
         self.origins: dict[str, str] = {}
+        self._index_built_in_sources()
         for plugin, contribution in self.contributions.items():
             self._index(plugin, contribution)
+
+    def _index_built_in_sources(self) -> None:
+        """Claim the source kinds dirigent itself provides, before any plugin may."""
+        from dirigent_core.sources.kinds import BUILT_IN
+
+        for source in BUILT_IN:
+            self._claim("source kind", source.spec.kind, BUILT_IN_PLUGIN)
+            self.sources[source.spec.kind] = source
 
     def _index(self, plugin: str, contribution: Contribution) -> None:
         """Fold one plugin's contribution into the host's indexes."""
@@ -166,6 +177,9 @@ class PluginHost:
         for connection_kind in contribution.connection_kinds:
             self._claim("connection kind", connection_kind.id, plugin)
             self.connection_kinds[connection_kind.id] = connection_kind
+        for source in contribution.sources:
+            self._claim("source kind", source.spec.kind, plugin)
+            self.sources[source.spec.kind] = source
         for format_name, check in contribution.formats.items():
             self._claim("format", format_name, plugin)
             self.formats[format_name] = check
@@ -289,7 +303,7 @@ class PluginHost:
         return Catalog(
             plugins=sorted(self.contributions),
             blocks=sorted(blocks, key=lambda entry: entry.id),
-            sources=source_entries(),
+            sources=self._source_entries(),
             storage_schemes=self._surfaces("storage scheme", self.storage_backends, lambda item: item.config_model),
             notifiers=self._surfaces("notifier", self.notifiers, lambda item: item.config_model),
             connection_kinds=self._surfaces(
@@ -299,6 +313,23 @@ class PluginHost:
                 mark=lambda item: item.mark,
             ),
         )
+
+    def _source_entries(self) -> list[SourceEntry]:
+        """Render every source kind as its catalog entry, in ``kind`` order."""
+        return [
+            SourceEntry(
+                kind=kind,
+                plugin=self.owner_of("source kind", kind),
+                summary=as_markdown(source.spec.summary),
+                hosting=source.spec.hosting.value,
+                replies=source.spec.replies,
+                config_schema=json_schema(source.config_model),
+                output_schema=json_schema(source.output_model),
+                secret_fields=secret_fields(source.config_model),
+                mark=source.mark,
+            )
+            for kind, source in sorted(self.sources.items())
+        ]
 
     def _surfaces[T](
         self,
@@ -349,23 +380,3 @@ def load_plugin_host(
 
 #: The distribution that contributes the source kinds dirigent itself provides.
 BUILT_IN_PLUGIN = "builtin"
-
-
-def source_entries() -> list[SourceEntry]:
-    """Render every source kind as its catalog entry, in ``kind`` order."""
-    from dirigent_core.sources.kinds import built_in_kinds
-
-    return [
-        SourceEntry(
-            kind=kind,
-            plugin=BUILT_IN_PLUGIN,
-            summary=as_markdown(source.spec.summary),
-            hosting=source.spec.hosting.value,
-            replies=source.spec.replies,
-            config_schema=json_schema(source.config_model),
-            output_schema=json_schema(source.output_model),
-            secret_fields=secret_fields(source.config_model),
-            mark=source.mark,
-        )
-        for kind, source in sorted(built_in_kinds().items())
-    ]

@@ -50,11 +50,11 @@ Two properties are worth reading before a block is used:
 
 SURFACES_PREAMBLE: Final = """## Other surfaces
 
-Blocks are two of the six surfaces a plugin contributes to. Three of the other four -- storage
-backends, notifiers and connection kinds -- are listed here by id, since a document references
-them by code and never by id of any other kind. The sixth, a JSON Schema format checker, is in
-[JSON Schema](json-schema.md). Source kinds, which a source node names as ``source.kind``, are
-listed after them; see [Source and reply](concepts.md#source-and-reply).
+Blocks are two of the seven surfaces a plugin contributes to. Storage backends, notifiers and
+connection kinds are listed here by id, since a document references them by code and never by
+id of any other kind. Source kinds, which a source node names as ``source.kind``, are listed
+after them; see [Source and reply](concepts.md#source-and-reply). The seventh, a JSON Schema
+format checker, is in [JSON Schema](json-schema.md).
 """
 
 NO_DESCRIPTION: Final = "--"

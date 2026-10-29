@@ -19,7 +19,7 @@ import yaml
 from jsonschema import Draft202012Validator
 from jsonschema import ValidationError as SchemaValidationError
 from jsonschema.validators import extend as extend_validator  # pyright: ignore[reportUnknownVariableType]
-from pydantic import JsonValue
+from pydantic import BaseModel, JsonValue
 
 from dirigent_common import BlockModel, HumaneJsonSchema, JsonMap
 from dirigent_plugin import AnyOperator, AnySensor, Contribution, mark_refusal
@@ -191,10 +191,11 @@ def assert_contribution_conforms(contribution: Contribution) -> list[str]:
     A ``Contribution`` already rejects colliding ids when it is built, and a block id is a
     pattern that forbids an empty one, so a valid contribution passes those. This adds the
     check the contract cannot make on its own: that every operator's and sensor's
-    ``config_model`` and ``output_model`` is a :class:`BlockModel`. A connection kind's ``mark``
-    is checked through :func:`dirigent_plugin.mark_refusal`, which is what registration holds
-    it to, so a pack reads the same refusal here as it would at startup; a kind that declares
-    none passes. An empty list means the contribution conforms.
+    ``config_model`` and ``output_model`` is a :class:`BlockModel`, and every source kind's is a
+    pydantic model. A connection or source kind's ``mark`` is checked through
+    :func:`dirigent_plugin.mark_refusal`, which is what registration holds it to, so a pack
+    reads the same refusal here as it would at startup; a kind that declares none passes. An
+    empty list means the contribution conforms.
     """
     issues: list[str] = []
     seen: set[str] = set()
@@ -212,6 +213,15 @@ def assert_contribution_conforms(contribution: Contribution) -> list[str]:
                 issues.append(f"{block_id or label} {role} is not a BlockModel")
     for connection in contribution.connection_kinds:
         refusal = mark_refusal(connection.id, connection.mark)
+        if refusal is not None:
+            issues.append(refusal)
+    for source in contribution.sources:
+        kind = source.spec.kind
+        for role in ("config_model", "output_model"):
+            model = getattr(source, role, None)
+            if not (isinstance(model, type) and issubclass(model, BaseModel)):
+                issues.append(f"source kind {kind} {role} is not a pydantic model")
+        refusal = mark_refusal(kind, source.mark)
         if refusal is not None:
             issues.append(refusal)
     return issues

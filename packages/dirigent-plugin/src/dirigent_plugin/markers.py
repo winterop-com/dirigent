@@ -9,7 +9,7 @@ from pluginkit import Extension, ExtensionPoint
 from dirigent_common import Formatter
 
 if TYPE_CHECKING:
-    from dirigent_plugin.blocks import Contribution
+    from dirigent_plugin.contribution import Contribution
 
 PROJECT_NAME = "dirigent"
 
@@ -22,7 +22,7 @@ extension = Extension(PROJECT_NAME)
 
 @extension_point
 def contribute() -> "Contribution":
-    """Collect everything a plugin adds across the five surfaces, once at host startup."""
+    """Collect everything a plugin adds across every surface, once at host startup."""
     raise NotImplementedError("an extension point is a declaration; call it via PluginManager.caller(...)")
 
 

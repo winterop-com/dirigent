@@ -12,24 +12,20 @@ from uuid import UUID
 
 import httpx2
 from jsonschema import FormatChecker
-from pydantic import BaseModel, ConfigDict, Field, GetJsonSchemaHandler, JsonValue, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, GetJsonSchemaHandler, JsonValue, model_validator
 from pydantic.json_schema import JsonSchemaValue, SkipJsonSchema
 from pydantic_core import CoreSchema
 
 from dirigent_common import (
-    API_VERSION,
     SHELL_MEDIA_TYPE,
     BlockModel,
-    Catalogue,
     HealthReport,
     Issue,
     JsonMap,
     Message,
 )
 from dirigent_plugin.messages import (
-    DUPLICATE_ID,
     INVALID_MARK,
-    UNSUPPORTED_API_VERSION,
 )
 
 type RunId = UUID
@@ -875,7 +871,7 @@ _PATH_DATA: Final = re.compile(r"^[MmZzLlHhVvCcSsQqTtAaEe0-9,.+\-\s]+$")
 
 
 def mark_refusal(kind: str, mark: str | None) -> str | None:
-    """Say why a connection kind may not wear the mark it declares, or ``None`` when it may.
+    """Say why a connection or source kind may not wear the mark it declares, or ``None`` when it may.
 
     A mark reaches a browser as the ``d`` of one path, so anything that is not path data is
     refused here rather than drawn: non-empty, ASCII, path-data characters only, and at most
@@ -923,89 +919,3 @@ class ConnectionKind(ABC):
 
 type AnyOperator = Operator[Any, Any]
 type AnySensor = Sensor[Any, Any]
-
-
-class Contribution(BaseModel):
-    """Everything one plugin adds, across all seven surfaces, gathered by the host at startup."""
-
-    model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
-
-    api_version: int = Field(default=API_VERSION, ge=1)
-    operators: list[AnyOperator] = Field(default_factory=list[AnyOperator])
-    sensors: list[AnySensor] = Field(default_factory=list[AnySensor])
-    storage_backends: list[StorageBackend] = Field(default_factory=list[StorageBackend])
-    notifiers: list[Notifier] = Field(default_factory=list[Notifier])
-    connection_kinds: list[ConnectionKind] = Field(default_factory=list[ConnectionKind])
-    formats: dict[str, FormatCheck] = Field(default_factory=dict[str, FormatCheck])
-    """JSON Schema format checkers this plugin adds, by format name. A schema that writes
-    ``format: <name>`` then asserts wherever the contributing pack is installed, and stays a
-    passing annotation on an instance without it."""
-
-    labels: list[Catalogue] = Field(default_factory=list[Catalogue])
-    """The message catalogues this plugin refuses out of, so a surface can render its codes.
-
-    A pack's refusal reaches a browser under the pack's own code, and the browser holds no table
-    for it. Contributing the catalogue is what puts one there: the host serves every code and its
-    template, and a renderer that knows the code says its own sentence rather than repeating the
-    English this process happened to mint."""
-
-    @field_validator("api_version")
-    @classmethod
-    def _check_api_version(cls, value: int) -> int:
-        """Reject a contribution written against a different revision of this contract."""
-        if value != API_VERSION:
-            raise ValueError(UNSUPPORTED_API_VERSION.render(version=value, host_version=API_VERSION))
-        return value
-
-    @model_validator(mode="after")
-    def _check_ids(self) -> "Contribution":
-        """Reject a contribution whose blocks or surfaces collide on an id."""
-        _require_unique("block id", [*(op.spec.id for op in self.operators), *(se.spec.id for se in self.sensors)])
-        _require_unique("storage scheme", [backend.scheme for backend in self.storage_backends])
-        _require_unique("notifier id", [notifier.id for notifier in self.notifiers])
-        _require_unique("connection kind id", [connection.id for connection in self.connection_kinds])
-        _require_unique("format", list(self.formats))
-        _require_unique("label prefix", [catalogue.prefix for catalogue in self.labels])
-        return self
-
-    @model_validator(mode="after")
-    def _check_marks(self) -> "Contribution":
-        """Reject a connection kind whose declared mark is not path data a browser may draw."""
-        for connection in self.connection_kinds:
-            refusal = mark_refusal(connection.id, connection.mark)
-            if refusal is not None:
-                raise ValueError(refusal)
-        return self
-
-    def block_ids(self) -> list[str]:
-        """List every operator and sensor id this contribution registers."""
-        return [*(operator.spec.id for operator in self.operators), *(sensor.spec.id for sensor in self.sensors)]
-
-
-def _require_unique(label: str, values: list[str]) -> None:
-    """Raise when a list of contributed ids contains a duplicate."""
-    seen: set[str] = set()
-    for value in values:
-        if value in seen:
-            raise ValueError(DUPLICATE_ID.render(label=label, value=repr(value)))
-        seen.add(value)
-
-
-def merge_contributions(contributions: list[Contribution]) -> Contribution:
-    """Merge every plugin's contribution into the single catalog the host dispatches from."""
-    merged: dict[str, list[Any]] = {
-        "operators": [],
-        "sensors": [],
-        "storage_backends": [],
-        "notifiers": [],
-        "connection_kinds": [],
-        "labels": [],
-    }
-    for contribution in contributions:
-        for surface, collected in merged.items():
-            collected.extend(getattr(contribution, surface))
-    formats: dict[str, FormatCheck] = {}
-    _require_unique("format", [name for contribution in contributions for name in contribution.formats])
-    for contribution in contributions:
-        formats.update(contribution.formats)
-    return Contribution(api_version=API_VERSION, formats=formats, **merged)

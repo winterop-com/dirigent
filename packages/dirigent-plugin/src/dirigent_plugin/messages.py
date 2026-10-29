@@ -39,7 +39,12 @@ DUPLICATE_ID = PLUGIN.define("duplicate_id", "duplicate {label} {value} in contr
 
 INVALID_MARK = PLUGIN.define(
     "invalid_mark",
-    "the mark connection kind {kind} declares is not SVG path data: {detail}",
+    "the mark that kind {kind} declares is not SVG path data: {detail}",
+)
+
+SOURCE_NOT_RECEIVED = PLUGIN.define(
+    "source_not_received",
+    "source kind {kind} is {hosting}, and a contributed kind is received by the server: a ReceivedSource",
 )
 
 # What a received source's path template refuses.

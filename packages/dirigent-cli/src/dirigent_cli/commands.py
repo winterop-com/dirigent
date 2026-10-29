@@ -563,6 +563,7 @@ def validate_command(
             blocks=blocks,
             format_checker=checker,
             target=targets.get(definition.pipeline) if isinstance(definition, TriggersDefinition) else None,
+            source_kinds=host.sources,
         )
         if issues:
             emit_fact(

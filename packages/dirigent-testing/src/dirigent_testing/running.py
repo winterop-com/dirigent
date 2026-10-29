@@ -3,10 +3,13 @@
 from collections.abc import Mapping
 from typing import Any
 
+from jsonschema import FormatChecker
 from pydantic import BaseModel
 
-from dirigent_plugin import AnyOperator, AnySensor, NotYet, Operator, StepContext
-from dirigent_testing.doubles import FakeContext
+from dirigent_common.formats import base_format_checker
+from dirigent_plugin import AnyOperator, AnySensor, Logger, NotYet, Operator, StepContext
+from dirigent_plugin.sources import Ignore, InboundRequest, ReceivedSource, Refusal
+from dirigent_testing.doubles import FakeContext, RecordingLogger
 
 
 async def call_block(
@@ -40,3 +43,39 @@ def carry_cursor(sensor: AnySensor, answer: BaseModel, ctx: FakeContext) -> None
         return
     resumed = sensor.resume_cursor(answer)
     ctx.cursor = dict(resumed) if resumed is not None else None
+
+
+class FakeReceiveContext:
+    """What a received kind may reach while it turns a request into an input, with its log kept."""
+
+    def __init__(self, format_checker: FormatChecker | None = None) -> None:
+        """Start with an empty log and the base format checker unless one is given."""
+        self.logger = RecordingLogger()
+        self._format_checker = format_checker or base_format_checker()
+
+    @property
+    def log(self) -> Logger:
+        """Where the kind says what it did with the request."""
+        return self.logger
+
+    @property
+    def format_checker(self) -> FormatChecker:
+        """The checker the kind's input is held to."""
+        return self._format_checker
+
+
+async def receive_request(
+    source: ReceivedSource[Any, Any],
+    config: Mapping[str, Any],
+    request: InboundRequest,
+    ctx: FakeReceiveContext | None = None,
+) -> BaseModel | Ignore | Refusal:
+    """Validate the config, then take a request the way the intake does: its head, then its body.
+
+    A refusal on the head alone is answered before the body is read, as the server answers it.
+    """
+    validated = source.config_model.model_validate(config)
+    refused = source.admit(validated, request)
+    if refused is not None:
+        return refused
+    return await source.receive(validated, request, ctx or FakeReceiveContext())

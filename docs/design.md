@@ -29,9 +29,9 @@ primitive, because nearly every interesting external system works that way: publ
 then probe until it is ready. Each adapter tells the engine how its system probes; the
 engine owns when, and what happens on timeout, loss, or failure.
 
-## 2. The six plugin surfaces
+## 2. The seven plugin surfaces
 
-One plugin mechanism (pluginkit, with entry-point discovery) serves six surfaces. A plugin
+One plugin mechanism (pluginkit, with entry-point discovery) serves seven surfaces. A plugin
 package may contribute to any or all of them. Every contribution publishes Pydantic models,
 which the server converts to JSON Schema and serves as a catalog; that catalog is what the
 UI renders as forms, so a newly installed plugin surfaces in the pipeline builder with zero
@@ -44,6 +44,7 @@ frontend changes.
 | Storage backends | Scheme registration plus `open_read` / `open_write` / `stat` / `list` / `delete` over URIs, streamed | `file://` in core, `s3://` as the first backend package |
 | Notifiers | `config_model` plus `async send(message, config)` | `log`, `webhook`; Slack and email as packages |
 | Connection kinds | `config_model` (secret fields marked) plus `async check(config) -> HealthReport` | generic HTTP connection |
+| Source kinds | A `ReceivedSource`: `spec` (kind, hosting, whether a reply answers it), `config_model`, `output_model`, plus `route(config)`, `admit(config, head)` and `async receive(config, request, ctx) -> Output \| Ignore \| Refusal` | `endpoint` |
 | Formats | A `formats` map of name to `Callable[[object], bool]`, joined into the checker every schema validation asserts `format` against; a format no installed pack contributes passes unchecked | none in core; `dirigent-dhis2` contributes `dhis2-uid`, `dhis2-period` and `dhis2-code` |
 
 Every block an instance actually has, with the config it takes and the output it produces, is
@@ -71,7 +72,7 @@ itself, and reads config models straight off the contributed objects, so a block
 what a method call costs.
 
 An "adapter" is a plugin package contributing a connection kind plus a family of operators
-and sensors for one external system -- the same six surfaces every other plugin uses, aimed
+and sensors for one external system -- the same seven surfaces every other plugin uses, aimed
 at one product. The core never learns the name of any external product.
 
 ### Block semantics, precisely
@@ -1875,7 +1876,7 @@ Engine and plugin terms:
 | Lost-job policy | Deadline plus fail-after-N-consecutive-`GONE`-probes: a remote system that forgot its job produces a failed step and an alert, never a hang. |
 | Error class | Block-assigned failure category driving retry: `rejected` is never retried, and `transient` and `unknown` both spend the step's retry budget. |
 | Catalog | The server's merged view of every plugin contribution, served at `/api/v1/blocks` and consumed by the UI to render forms. |
-| Contribution | What one plugin adds across the six surfaces, returned by its `contribute()` hook under the `dirigent.plugins.v1` entry-point group. |
+| Contribution | What one plugin adds across the seven surfaces, returned by its `contribute()` hook under the `dirigent.plugins.v1` entry-point group. |
 | Scratch space | Run-scoped URI prefix on the default storage backend for intermediate artifacts. Swept with the run it belongs to, once `retention_runs` is set. |
 | `triggered_by` | A kind plus a foreign key on every run, naming what started it: `adhoc`, `user`, `api_token`, `schedule`, `webhook`, `backfill`, or `pipeline` -- the last pointing at the run whose step started this one. Attribution as data, not free text. |
 
