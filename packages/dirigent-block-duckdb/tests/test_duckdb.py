@@ -1,11 +1,17 @@
 """Tests for the duckdb engine: the blocks over files, and the run's directories around them."""
 
+import asyncio
+import threading
 from datetime import timedelta
 from pathlib import Path
+from types import SimpleNamespace
+from typing import cast
 
 import pytest
 from pydantic import SecretStr, ValidationError
+from sqlalchemy.engine import Connection
 
+from dirigent_block_duckdb import engine
 from dirigent_block_duckdb.engine import HTTPFS, S3StorageSettings, addresses_s3, s3_options
 from dirigent_block_sql.sql import (
     SqlConnectionConfig,
@@ -293,6 +299,29 @@ async def test_a_duckdb_query_that_outlives_its_timeout_ends_the_step(ducked: Fa
             "SELECT COUNT(*) AS n FROM range(100000000000) WHERE random() < 0.5",
             timeout=timedelta(milliseconds=100),
         )
+
+
+async def test_a_call_that_ignores_the_interrupt_is_left_behind_and_closes_the_connection_after(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(engine, "INTERRUPT_GRACE_SECONDS", 0.05)
+    release = threading.Event()
+    closed = threading.Event()
+    connection = SimpleNamespace(
+        connection=SimpleNamespace(driver_connection=SimpleNamespace(interrupt=lambda: None)),
+        close=closed.set,
+    )
+    threaded = engine._Threaded(cast(Connection, connection), [])  # pyright: ignore[reportPrivateUsage] - the connection under test
+
+    with pytest.raises(TimeoutError):
+        async with asyncio.timeout(0.05):
+            await threaded._call(release.wait)  # pyright: ignore[reportPrivateUsage] - the call under test
+    assert threaded.busy
+    await threaded.close()
+    assert not closed.is_set()
+
+    release.set()
+    assert await asyncio.to_thread(closed.wait, 5)
 
 
 async def test_a_check_opens_the_duckdb_file_and_asks_it_for_a_one(tmp_path: Path) -> None:
