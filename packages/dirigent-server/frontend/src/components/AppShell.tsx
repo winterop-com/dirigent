@@ -38,7 +38,8 @@ import { authStore, refreshIdentity, signOut } from '@/lib/auth'
 import { LABELS } from '@/lib/labels'
 import { loadKindMarks } from '@/lib/marks'
 import { loadContributedWording } from '@/lib/wording'
-import { entriesFor, LOGIN_PATH } from '@/lib/nav'
+import { ICONS } from '@/lib/icons'
+import { DESIGN_PATH, entriesFor, LOGIN_PATH } from '@/lib/nav'
 import {
     APPEARANCE_GROUP,
     GO_GROUP,
@@ -209,6 +210,16 @@ export function AppShell() {
                 keywords: ['keys', 'chords', 'help'],
                 run: () => {
                     setShortcutsOpen(true)
+                },
+            },
+            {
+                id: 'view:design',
+                title: LABELS.screen.design.name,
+                group: VIEW_GROUP,
+                icon: ICONS.design,
+                keywords: ['components', 'gallery', 'tokens', DESIGN_PATH],
+                run: () => {
+                    void navigate(DESIGN_PATH)
                 },
             },
             ...MODES.map((mode) => ({

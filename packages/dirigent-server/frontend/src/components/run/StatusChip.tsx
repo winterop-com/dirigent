@@ -13,7 +13,16 @@ const LIVE: ReadonlySet<string> = new Set(['running', 'queued', 'waiting', 'send
  * status string indexes, so a run's status in a heading and a step's status on the graph cannot
  * drift apart. Nothing here decides a colour.
  */
-export function StatusChip({ status, className }: { status: string; className?: string }) {
+export function StatusChip({
+    status,
+    label,
+    className,
+}: {
+    status: string
+    /** A word other than the state's own, where the screen names the state in its own terms. */
+    label?: string
+    className?: string
+}) {
     const live = LIVE.has(status)
     return (
         <span
@@ -23,7 +32,7 @@ export function StatusChip({ status, className }: { status: string; className?: 
             style={statusTokens(status) as CSSProperties}
         >
             <span className="status-dot" aria-hidden />
-            {statusLabel(status)}
+            {label ?? statusLabel(status)}
         </span>
     )
 }
