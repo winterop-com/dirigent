@@ -579,7 +579,7 @@ Contributed by `block-sql`. Not idempotent.
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `connection` | `string` | yes |  | The `sql` connection naming the database and holding its password. A connection marked `read_only` is refused: this block writes. |
-| `statements` | `string[]` | yes |  | The statements, run in order inside one transaction. They all commit or none of them does, so a migration, an insert and the index it needs are one step and not three. |
+| `statements` | `string[]` | yes |  | The statements, run in order inside one transaction. They all commit or none of them does, so a migration, an insert and the index it needs are one step and not three. A reference here is refused: it belongs in `params`. |
 | `params` | `object` |  |  | Values bound by name, written `:name`, and shared by every statement. |
 | `timeout` | `string (humane-duration)` |  | `"5m"` | How long the whole transaction may run. |
 

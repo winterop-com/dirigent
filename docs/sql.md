@@ -93,7 +93,9 @@ steps:
 A `${...}` reference resolves into a **value in `params`**, and never into the SQL. That is the
 whole rule, and it is what makes a pipeline safe to hand to somebody who writes documents but
 not code: a parameter that reads as `'; DROP TABLE reading --` is compared against the `site`
-column and matches nothing.
+column and matches nothing. A reference in `sql` or in `statements` is refused when the document
+is applied (`document.step_reference_in_sql`), and again when the step starts
+(`reference.in_sql`). `$${...}` stays the literal text `${...}`.
 
 It also means a table or a column name cannot come from a parameter, because those are not
 values. A pipeline that needs to read two tables writes two steps.

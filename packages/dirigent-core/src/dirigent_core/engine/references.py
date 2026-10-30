@@ -46,6 +46,7 @@ from dirigent_core.messages import (
     NOT_FAILED,
     NOT_PAIRED,
     SHELL_ARITHMETIC,
+    SQL_REFERENCE,
     UNKNOWN_NAMESPACE,
 )
 from dirigent_plugin import SHELL_VARIABLE_PREFIX, SHELL_VARIABLES_FIELD
@@ -146,7 +147,9 @@ def resolve(value: JsonValue, scope: ReferenceScope) -> JsonValue:
             return value
 
 
-def resolve_config(config: JsonMap, scope: ReferenceScope, *, shell_fields: Collection[str] = ()) -> JsonMap:
+def resolve_config(
+    config: JsonMap, scope: ReferenceScope, *, shell_fields: Collection[str] = (), sql_fields: Collection[str] = ()
+) -> JsonMap:
     """Resolve a step's whole config map, which is what the engine hands a block.
 
     ``shell_fields`` names the config keys the block marked with
@@ -156,7 +159,13 @@ def resolve_config(config: JsonMap, scope: ReferenceScope, *, shell_fields: Coll
     block to set in the command's environment. The metacharacters the pipeline author typed
     keep their meaning, and a value that arrived in a caller's input is never shell source,
     however the author quoted the reference.
+
+    ``sql_fields`` names the config keys a block publishes as SQL. A reference in one is refused
+    rather than resolved, because a value reaches SQL only as a bound parameter.
     """
+    for key in sql_fields:
+        for reference in references_in(config.get(key)):
+            raise UnknownReference(SQL_REFERENCE, reference=reference, field=key)
     variables: dict[str, str] = {}
     resolved = {
         key: (_resolve_shell(value, scope, variables) if key in shell_fields else resolve(value, scope))

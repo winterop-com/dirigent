@@ -85,6 +85,7 @@ from dirigent_plugin import (
     ProbeStatus,
     RemoteHandle,
     shell_string_fields,
+    sql_string_fields,
 )
 
 DEFAULT_PROBE_INTERVAL = timedelta(seconds=30)
@@ -307,7 +308,12 @@ class Engine:
         )
         try:
             block = self.services.block(attempt.block_id)
-            config = resolve_config(step.config, scope, shell_fields=shell_string_fields(block.config_model))
+            config = resolve_config(
+                step.config,
+                scope,
+                shell_fields=shell_string_fields(block.config_model),
+                sql_fields=sql_string_fields(block.config_model),
+            )
             block.config_model.model_validate(config)
             _logger.debug(
                 "references resolved",
