@@ -1496,6 +1496,26 @@ means, and one of the two will be the one with the credential in it.
 The step panel's engine groups are the same gesture at rest: the row is the group's own summary,
 and its fields open under it rather than in a pane of their own.
 
+**An account's tokens are listed under its row.** A token authenticates as one account, so it is
+filed there rather than in a second table with an Account column. A chevron at the head of the row
+opens and shuts it, with a tooltip saying which; pressing the rest of the row still opens the
+account's panel, and several accounts may stand open. What opens is the same `ListTable` every
+listing is, inset under the row and reading `GET /users/{username}/tokens` when it is opened and
+not before. It keeps a cursor of its own and is capped at 24rem with its heading stuck, so an
+account holding hundreds does not push every other account off the page. A closed row says how many
+live tokens it holds, from one read of `GET /tokens`, and says nothing at all where that read did
+not reach the end, because a number off part of a listing is not a count. An account with none
+draws `No tokens.`{ .label } when opened. **`New token`{ .label } is on the row**, so a token is never made for the
+wrong account, and the row opens to show what it made.
+
+**A token row is its name, the three times it has, and Revoke.** There is no Prefix column: the name
+is what a token is known by. The prefix is drawn beside the name only when two live tokens of one
+account share that name, which is the one time the name stops telling them apart, and its tooltip
+says what it is. The expiry is a chip beside the name, only where a token has one; `Last used`{ .label } and
+`Created`{ .label } are columns. **Revoking asks first, and says when it takes more than one.** The API revokes
+by name, so two live tokens sharing a name go together, and the confirm says so rather than
+implying that the row pressed is the only one.
+
 ## A control only ever claims what the situation supports
 
 Three faults are one fault: a button labelled with its mechanism rather than its outcome, a
@@ -2030,7 +2050,8 @@ one fewer as stale, so the change that moves a screen onto the system shrinks th
 On a screen whose heading names the noun, the primary create button says `New` alone: the screen
 supplies the object. The full name stays on the control's `aria-label`, on the palette action,
 which is offered from every screen and so needs the noun, and on whatever the button opens. A
-screen offering more than one create -- Users and tokens, Triggers -- keeps the noun on each
-button, because `New` alone would not say which.
+screen offering more than one create -- Triggers -- keeps the noun on each button, because `New`
+alone would not say which. A create that belongs to one row is on that row and names its noun:
+`New token`{ .label }, on the account it is for.
 
 

@@ -12,6 +12,7 @@ import {
     signInAs,
     signOut,
     startRun,
+    apiPrefix,
     openSettings,
 } from './support.ts'
 
@@ -141,10 +142,12 @@ test('an account is made, and then turned off', async ({ page }) => {
 
     await expect(rowOf(page, username)).toBeVisible()
     await expect(rowOf(page, username)).toContainText('viewer')
-    await expect(rowOf(page, username)).toContainText(LABELS.state.armed.active)
+
+    // A column saying `active` of every row is no column: only what is not active says so.
+    await expect(rowOf(page, username)).not.toContainText(LABELS.state.armed.deactivated)
 
     // The row's actions are in the panel, which selecting it opens.
-    await page.getByRole('button', { name: username, exact: true }).click()
+    await rowOf(page, username).click()
     const panel = page.getByRole('tabpanel')
 
     // The panel heads the account the way every panel in this app heads a thing: with no name
@@ -167,7 +170,7 @@ test('the last admin cannot deactivate itself, and is told so where it asked', a
     await signIn(page)
     await page.goto('/admin/users')
 
-    await page.getByRole('button', { name: DEV_USERNAME, exact: true }).click()
+    await rowOf(page, DEV_USERNAME).click()
     await page.getByRole('button', { name: LABELS.action.deactivate }).click()
 
     // The refusal is the server's own sentence, rendered beside the button that asked for it
@@ -176,7 +179,7 @@ test('the last admin cannot deactivate itself, and is told so where it asked', a
     await expect(page.getByText('the only active admin')).toBeVisible()
 
     // And nothing changed: the account is still active and still an admin.
-    await expect(rowOf(page, DEV_USERNAME)).toContainText(LABELS.state.armed.active)
+    await expect(rowOf(page, DEV_USERNAME)).not.toContainText(LABELS.state.armed.deactivated)
     await expect(rowOf(page, DEV_USERNAME)).toContainText('admin')
 })
 
@@ -354,17 +357,21 @@ test('a password is reset from the panel, and the account signs in with the new 
     await signInAs(page, username, changed)
 })
 
-test('a token is minted for another account, and the tokens table says whose it is', async ({ page }) => {
+test('a token is made on its account, listed under it, and revoked after a question', async ({ page }) => {
     await signIn(page)
     const username = someone()
     const token = `tok-${username}`
 
     await page.goto('/admin/users')
+    await expect(page.getByRole('heading', { name: LABELS.screen.users.name, exact: true })).toBeVisible()
     await createAccount(page, username)
     await expect(rowOf(page, username)).toBeVisible()
-    await page.getByRole('button', { name: username, exact: true }).click()
 
-    await page.getByRole('tabpanel').getByRole('button', { name: LABELS.users.new_token }).click()
+    // An account with none says so when it is opened.
+    await page.getByRole('button', { name: LABELS.users.show_tokens(username) }).click()
+    await expect(page.getByText(LABELS.users.tokens_empty, { exact: true })).toBeVisible()
+
+    await page.getByRole('button', { name: LABELS.users.new_token_for(username) }).click()
     const dialog = page.getByRole('dialog')
     await expect(dialog).toContainText(LABELS.users.token_scope_for(username))
     await dialog.getByLabel(LABELS.word.name.label).fill(token)
@@ -374,14 +381,78 @@ test('a token is minted for another account, and the tokens table says whose it 
     await expect(dialog).toContainText(username)
     await dialog.getByRole('button', { name: LABELS.action.done }).click()
 
-    // The row in the tokens table carries the account, which is what makes revoking one honest.
-    await expect(tokenRowOf(page, token)).toContainText(username)
+    // It stands under its account, its row says how many, and there is no Prefix anywhere.
+    await expect(tokenRowOf(page, token)).toBeVisible()
+    await expect(rowOf(page, username)).toContainText('1 token')
+    await expect(page.getByRole('main')).not.toContainText('Prefix')
 
-    // Revoking reaches that account's token: the row stays, says so, and offers no second press.
+    // Revoking asks first, and the row stays, says so, and offers no second press.
     await tokenRowOf(page, token)
         .getByRole('button', { name: `Revoke ${token}` })
         .click()
-    await expect(page.getByRole('main').getByRole('alert')).toHaveCount(0)
+    const asking = page.getByRole('dialog', { name: LABELS.users.revoke_title })
+    await expect(asking).toContainText(token)
+    await asking.getByRole('button', { name: LABELS.action.revoke, exact: true }).click()
+    await expect(asking).toHaveCount(0)
     await expect(tokenRowOf(page, token)).toContainText(LABELS.state.armed.revoked)
     await expect(tokenRowOf(page, token).getByRole('button', { name: `Revoke ${token}` })).toHaveCount(0)
+})
+
+test('two live tokens sharing a name show their prefix, and revoking says it takes both', async ({
+    page,
+}) => {
+    await signIn(page)
+    const username = someone()
+    const prefix = await apiPrefix(page.request)
+    const name = 'shared-name'
+
+    await page.goto('/admin/users')
+    await createAccount(page, username)
+    await expect(rowOf(page, username)).toBeVisible()
+    const first = await page.request.post(`${prefix}/users/${username}/tokens`, { data: { name } })
+    const second = await page.request.post(`${prefix}/users/${username}/tokens`, { data: { name } })
+    expect(first.ok() && second.ok()).toBe(true)
+    const heads = [(await first.json()) as { prefix: string }, (await second.json()) as { prefix: string }]
+
+    await page.getByRole('button', { name: LABELS.users.show_tokens(username) }).click()
+    for (const head of heads) {
+        await expect(page.getByText(LABELS.users.token_prefix(head.prefix), { exact: true })).toBeVisible()
+    }
+
+    await tokenRowOf(page, name)
+        .first()
+        .getByRole('button', { name: `Revoke ${name}` })
+        .click()
+    const asking = page.getByRole('dialog', { name: LABELS.users.revoke_title })
+    await expect(asking).toContainText(LABELS.users.revoke_consequence_shared('2'))
+})
+
+test('an account holding many tokens walks them in a box of its own', async ({ page }) => {
+    await signIn(page)
+    const username = someone()
+    const prefix = await apiPrefix(page.request)
+
+    await page.goto('/admin/users')
+    await createAccount(page, username)
+    await expect(rowOf(page, username)).toBeVisible()
+    for (let at = 0; at < 60; at += 1) {
+        const made = await page.request.post(`${prefix}/users/${username}/tokens`, {
+            data: { name: `many-${String(at).padStart(2, '0')}` },
+        })
+        expect(made.ok()).toBe(true)
+    }
+
+    await page.getByRole('button', { name: LABELS.users.show_tokens(username) }).click()
+    await expect(tokenRowOf(page, 'many-00')).toBeVisible()
+
+    // The list holds its height, so the accounts around it stay where they were.
+    const box = page.locator('[data-account-tokens]')
+    const height = (await box.boundingBox())?.height ?? 0
+    expect(height).toBeLessThanOrEqual(384)
+
+    // Scrolling to the foot of the box reads the next page.
+    await box.locator('.list-scroll').evaluate((scroller) => {
+        scroller.scrollTop = scroller.scrollHeight
+    })
+    await expect(box).toContainText('60 tokens')
 })

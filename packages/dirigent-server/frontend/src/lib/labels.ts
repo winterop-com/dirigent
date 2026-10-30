@@ -316,7 +316,6 @@ const word = {
     /** A person's record. */
     account: {
         label: 'Account',
-        heading: 'Accounts',
         count: {
             one: 'account',
             many: 'accounts',
@@ -324,7 +323,6 @@ const word = {
     },
     /** What an automation signs in with in place of a password. */
     token: {
-        heading: 'Tokens',
         count: {
             one: 'token',
             many: 'tokens',
@@ -339,7 +337,6 @@ const word = {
     /** What an account signs in with. */
     password: 'Password',
     /** The leading characters a token is recognised by. */
-    prefix: 'Prefix',
     /** Which plugin contributed the thing. */
     plugin: {
         label: 'Plugin',
@@ -683,11 +680,10 @@ const screen = {
         name: 'Overview',
         hint: 'This instance, at a glance',
     },
-    /** Accounts and the tokens they mint. The heading is not the name. */
+    /** Accounts and the tokens under them. */
     users: {
         name: 'Users',
         hint: 'Accounts and automation tokens',
-        heading: 'Users and tokens',
     },
     /** The nodes that claim work. */
     workers: {
@@ -2881,9 +2877,9 @@ const schemas = {
 const users = {
     /** The palette row that opens the new-account dialog. */
     new_user_action: 'Create an account',
-    /** The palette row that opens the new-token dialog. */
-    new_token_action: 'Mint an automation token',
-    /** The palette row that reads both listings again. */
+    /** The palette row that opens the new-token dialog, for the account that is signed in. */
+    new_token_action: 'Create an automation token',
+    /** The palette row that reads the listing again. */
     reload_action: 'Read the accounts listing again',
 
     /** The button above the listing, and the title of the dialog it opens. */
@@ -2906,16 +2902,35 @@ const users = {
     },
     /** The panel's button, and the title of the dialog it opens. */
     reset_password: 'Reset password',
-    /** The button above the tokens listing, in the panel, and the title of the dialog they open. */
+    /** The button on an account's row, and the title of the dialog it opens. */
     new_token: 'New token',
+    /** That button's accessible name, which names the account the row does not repeat. */
+    new_token_for: (username: string) => `New token for ${username}`,
 
-    /** Under that heading: that a signed-in session is not one of these. */
-    tokens_hint: 'A session is never listed here.',
+    /** The chevron at the head of an account's row. */
+    show_tokens: (username: string) => `Show the tokens of ${username}`,
+    hide_tokens: (username: string) => `Hide the tokens of ${username}`,
+    /** How many live tokens a shut row holds. */
+    tokens_held: {
+        one: (many: string) => `${many} token`,
+        many: (many: string) => `${many} tokens`,
+    },
     tokens_empty: 'No tokens.',
     last_used_column: 'Last used',
-    expires_column: 'Expires',
+    /** The chip beside a token's name, where it has an expiry. */
+    token_expires: (when: string) => `expires ${when}`,
+    token_expired: (when: string) => `expired ${when}`,
+    /** Beside the name, only where two live tokens of one account share it. */
+    token_prefix: (prefix: string) => `${prefix}…`,
+    token_prefix_tip: 'The start of the secret. Shown because two live tokens share this name.',
     /** The accessible name of a row's revoke button, which the row itself does not repeat. */
     revoke_row: (token: string) => `Revoke ${token}`,
+    /** The question before a revoke. */
+    revoke_title: 'Revoke token',
+    revoke_consequence: 'Anything presenting it is refused from now on. This cannot be undone.',
+    /** The same, where the name is shared: the API revokes by name, so they go together. */
+    revoke_consequence_shared: (many: string) =>
+        `The ${many} live tokens with this name are revoked together, because a token is revoked by its name. Anything presenting them is refused from now on. This cannot be undone.`,
 
     /** Under the new-account dialog's title. */
     new_account_hint: 'The password is what it signs in with the first time.',

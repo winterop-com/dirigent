@@ -2,10 +2,14 @@ import { KeyRound, RefreshCw, UserPlus } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { ApiChip } from '@/components/ApiChip'
+import { AccountTokens } from '@/components/admin/AccountTokens'
 import { AdminOnly } from '@/components/admin/AdminOnly'
 import { CreateToken } from '@/components/admin/CreateToken'
 import { CreateUser } from '@/components/admin/CreateUser'
 import { ResetPassword } from '@/components/admin/ResetPassword'
+import { Chip } from '@/components/ds/Chip'
+import { EntityHeading } from '@/components/ds/EntityHeading'
+import { IconButton } from '@/components/ds/IconButton'
 import { Instant } from '@/components/Instant'
 import { ListTable, type Column } from '@/components/list/ListTable'
 import { PageHeader } from '@/components/ds/PageHeader'
@@ -16,28 +20,29 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { usePaged } from '@/hooks/use-paged'
+import { useRead } from '@/hooks/use-read'
+import { useStore } from '@/hooks/use-store'
 import { ApiError, type Problem } from '@/lib/api'
-import type { UserRole } from '@/lib/auth'
+import { authStore, type UserRole } from '@/lib/auth'
 import { formatInstant, formatRelative } from '@/lib/format'
-import { LABELS } from '@/lib/labels'
+import { ICONS } from '@/lib/icons'
+import { counted, LABELS } from '@/lib/labels'
 import { ADMIN_GROUP, registerActions } from '@/lib/palette'
 import { closePanel, fillPanel, openPanel } from '@/lib/panels'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
 import {
     accountHeading,
-    readTokens,
+    readTokenCensus,
     readUsers,
-    revokeToken,
     ROLE_HINTS,
     setUserActive,
+    tokenCounts,
     updateUser,
     USER_ROLES,
-    type TokenOut,
     type UserOut,
 } from '@/lib/users'
 
 const userId = (user: UserOut) => user.id
-const tokenId = (token: TokenOut) => token.id
 
 /** What the panel is editing, before it is sent. */
 interface Draft {
@@ -47,7 +52,7 @@ interface Draft {
 }
 
 /**
- * Local accounts and the tokens automation authenticates with.
+ * Local accounts, with the tokens automation authenticates as each of them under its row.
  *
  * THE LAST-ADMIN GUARD IS THE SERVER'S AND IS RENDERED, NOT PRE-EMPTED. Demoting or
  * deactivating the only active admin is refused with 409 and a sentence naming the account, and
@@ -78,19 +83,43 @@ function Users() {
     const [minting, setMinting] = useState(false)
     const [mintingFor, setMintingFor] = useState<string | null>(null)
     const [resetting, setResetting] = useState<string | null>(null)
-    const [tokenRefusal, setTokenRefusal] = useState<Problem | null>(null)
+    // Which accounts stand open, and how many times each one's tokens have changed from outside.
+    const [opened, setOpened] = useState<ReadonlySet<string>>(() => new Set())
+    const [revisions, setRevisions] = useState<Readonly<Record<string, number>>>({})
+    const self = useStore(authStore).identity?.username ?? null
 
     const users = usePaged(
         useCallback((after: string | null) => readUsers(after), []),
         userId,
     )
-    const tokens = usePaged(
-        useCallback((after: string | null) => readTokens(after), []),
-        tokenId,
-    )
+    const census = useRead(useCallback(() => readTokenCensus(), []))
 
     const { reload: reloadUsers } = users
-    const { reload: reloadTokens } = tokens
+    const { again: readCensusAgain } = census
+
+    const counts = useMemo(
+        () => (census.value === null ? null : tokenCounts(census.value, Date.now())),
+        [census.value],
+    )
+
+    const toggleTokens = useCallback((username: string) => {
+        setOpened((current) => {
+            const next = new Set(current)
+            if (next.has(username)) next.delete(username)
+            else next.add(username)
+            return next
+        })
+    }, [])
+
+    /** A token was made for this account: its row opens, and its list and the counts read again. */
+    const madeFor = useCallback(
+        (username: string) => {
+            setOpened((current) => new Set(current).add(username))
+            setRevisions((current) => ({ ...current, [username]: (current[username] ?? 0) + 1 }))
+            readCensusAgain()
+        },
+        [readCensusAgain],
+    )
 
     const choose = useCallback((user: UserOut) => {
         setChosen(user)
@@ -163,9 +192,6 @@ function Users() {
                             onResetPassword={() => {
                                 setResetting(chosen.username)
                             }}
-                            onMintToken={() => {
-                                setMintingFor(chosen.username)
-                            }}
                         />
                     ),
                 },
@@ -207,114 +233,76 @@ function Users() {
                 keywords: ['refresh', 'reload'],
                 run: () => {
                     reloadUsers()
-                    reloadTokens()
+                    readCensusAgain()
                 },
             },
         ])
-    }, [reloadTokens, reloadUsers])
+    }, [readCensusAgain, reloadUsers])
 
-    const columns = useMemo(() => userColumns(choose), [choose])
-    const tokenColumns = useMemo(
-        () =>
-            tokenRows((token) => {
-                setTokenRefusal(null)
-                void revokeToken(token.username, token.name).then(
-                    () => {
-                        reloadTokens()
-                    },
-                    (error: unknown) => {
-                        setTokenRefusal(error instanceof ApiError ? error.problem : null)
-                    },
-                )
-            }),
-        [reloadTokens],
+    const columns = useMemo(
+        () => userColumns(opened, counts, toggleTokens, setMintingFor),
+        [counts, opened, toggleTokens],
     )
 
     return (
         <>
             <PageHeader
-                title={LABELS.screen.users.heading}
+                title={LABELS.screen.users.name}
                 aside={
                     <>
                         <ApiChip tag="users" />
                         <Button
                             size="sm"
+                            aria-label={LABELS.users.new_account}
                             onClick={() => {
                                 setMaking(true)
                             }}
                         >
                             <UserPlus aria-hidden />
-                            {LABELS.users.new_account}
+                            {LABELS.action.new}
                         </Button>
                     </>
                 }
             />
 
-            <section className="space-y-2">
-                <h2 className="text-sm font-semibold">{LABELS.word.account.heading}</h2>
-                <PageState
-                    loading={!users.state.read}
-                    problem={users.state.problem}
-                    empty={users.state.rows.length === 0}
-                    emptyMessage={LABELS.users.accounts_empty}
-                >
-                    <ListTable
-                        columns={columns}
-                        rows={users.state.rows}
-                        rowKey={userId}
-                        onSelect={choose}
-                        selected={(user) => chosen !== null && user.id === chosen.id}
-                        onClose={unchoose}
-                        rowClassName={(user) => (user.active ? undefined : 'opacity-60')}
-                        reading={users.state.reading}
-                        next={users.state.next}
-                        onMore={users.more}
-                        noun={LABELS.word.account.count}
-                    />
-                </PageState>
-            </section>
-
-            <section className="mt-8 space-y-2">
-                <div className="flex items-center justify-between gap-4">
-                    <div className="space-y-1">
-                        <h2 className="text-sm font-semibold">{LABELS.word.token.heading}</h2>
-                        <p className="text-sm text-muted-foreground">{LABELS.users.tokens_hint}</p>
-                    </div>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                            setMinting(true)
-                        }}
-                    >
-                        <KeyRound aria-hidden />
-                        {LABELS.users.new_token}
-                    </Button>
-                </div>
-
-                {tokenRefusal !== null && <Refusal problem={tokenRefusal} />}
-
-                <PageState
-                    loading={!tokens.state.read}
-                    problem={tokens.state.problem}
-                    empty={tokens.state.rows.length === 0}
-                    emptyMessage={LABELS.users.tokens_empty}
-                >
-                    <ListTable
-                        columns={tokenColumns}
-                        rows={tokens.state.rows}
-                        rowKey={tokenId}
-                        rowClassName={(token) => (token.revoked_at === null ? undefined : 'opacity-60')}
-                        reading={tokens.state.reading}
-                        next={tokens.state.next}
-                        onMore={tokens.more}
-                        noun={LABELS.word.token.count}
-                    />
-                </PageState>
-            </section>
+            <PageState
+                loading={!users.state.read}
+                problem={users.state.problem}
+                empty={users.state.rows.length === 0}
+                emptyMessage={LABELS.users.accounts_empty}
+            >
+                <ListTable
+                    columns={columns}
+                    rows={users.state.rows}
+                    rowKey={userId}
+                    onSelect={choose}
+                    selected={(user) => chosen !== null && user.id === chosen.id}
+                    onClose={unchoose}
+                    rowClassName={(user) => (user.active ? undefined : 'opacity-60')}
+                    reading={users.state.reading}
+                    next={users.state.next}
+                    onMore={users.more}
+                    noun={LABELS.word.account.count}
+                    under={(user) =>
+                        opened.has(user.username) ? (
+                            <AccountTokens
+                                username={user.username}
+                                revision={revisions[user.username] ?? 0}
+                                onChanged={readCensusAgain}
+                            />
+                        ) : null
+                    }
+                />
+            </PageState>
 
             <CreateUser open={making} onOpenChange={setMaking} onCreated={reloadUsers} />
-            <CreateToken open={minting} onOpenChange={setMinting} onCreated={reloadTokens} />
+            <CreateToken
+                open={minting}
+                onOpenChange={setMinting}
+                onCreated={() => {
+                    if (self !== null) madeFor(self)
+                }}
+            />
             {mintingFor !== null && (
                 <CreateToken
                     open
@@ -322,7 +310,9 @@ function Users() {
                     onOpenChange={(next) => {
                         if (!next) setMintingFor(null)
                     }}
-                    onCreated={reloadTokens}
+                    onCreated={() => {
+                        madeFor(mintingFor)
+                    }}
                 />
             )}
             {resetting !== null && (
@@ -339,43 +329,61 @@ function Users() {
     )
 }
 
-/** The account columns, given what selecting a row does. */
-function userColumns(choose: (user: UserOut) => void): Column<UserOut>[] {
+/** The account columns, given which rows stand open and what the row's two controls do. */
+function userColumns(
+    opened: ReadonlySet<string>,
+    counts: ReadonlyMap<string, number> | null,
+    toggle: (username: string) => void,
+    mint: (username: string) => void,
+): Column<UserOut>[] {
     return [
         {
-            id: 'username',
-            header: LABELS.word.username,
-            cell: (user) => (
-                <button
-                    type="button"
-                    className="text-left text-sm font-medium underline-offset-4 hover:text-primary-ink hover:underline"
-                    onClick={() => {
-                        choose(user)
-                    }}
-                >
-                    {user.username}
-                </button>
-            ),
-        },
-        {
-            id: 'name',
-            header: LABELS.word.name.label,
-            cell: (user) => (user.name === null ? null : <span className="text-sm">{user.name}</span>),
+            id: 'account',
+            header: LABELS.word.account.label,
+            kind: 'title',
+            cell: (user) => {
+                const open = opened.has(user.username)
+                const held = counts?.get(user.username) ?? 0
+                return (
+                    <span className="flex min-w-0 items-center gap-2">
+                        <IconButton
+                            icon={ICONS.expand}
+                            size="sm"
+                            label={
+                                open
+                                    ? LABELS.users.hide_tokens(user.username)
+                                    : LABELS.users.show_tokens(user.username)
+                            }
+                            aria-expanded={open}
+                            className={open ? 'shrink-0 [&_svg]:rotate-90' : 'shrink-0'}
+                            onClick={(event) => {
+                                // The row opens the panel; this control does one thing and not both.
+                                event.stopPropagation()
+                                toggle(user.username)
+                            }}
+                        />
+                        <EntityHeading
+                            variant="row-inline"
+                            thing={{ code: user.username, name: user.name }}
+                            chips={
+                                user.active ? undefined : (
+                                    <Chip tone="dashed">{LABELS.state.armed.deactivated}</Chip>
+                                )
+                            }
+                        />
+                        {held > 0 && (
+                            <span className="shrink-0 text-xs whitespace-nowrap text-faint">
+                                {counted(held, LABELS.users.tokens_held)(String(held))}
+                            </span>
+                        )}
+                    </span>
+                )
+            },
         },
         {
             id: 'role',
             header: LABELS.word.role,
-            cell: (user) => <Badge variant="outline">{user.role}</Badge>,
-        },
-        {
-            id: 'active',
-            header: LABELS.word.state,
-            cell: (user) =>
-                user.active ? (
-                    <span className="text-xs text-good">{LABELS.state.armed.active}</span>
-                ) : (
-                    <span className="text-xs text-muted-foreground">{LABELS.state.armed.deactivated}</span>
-                ),
+            cell: (user) => <Chip>{user.role}</Chip>,
         },
         {
             id: 'seen',
@@ -397,81 +405,24 @@ function userColumns(choose: (user: UserOut) => void): Column<UserOut>[] {
                 </span>
             ),
         },
-    ]
-}
-
-/** The token columns, given what revoking one does. */
-function tokenRows(revoke: (token: TokenOut) => void): Column<TokenOut>[] {
-    return [
         {
-            id: 'account',
-            header: LABELS.word.account.label,
-            className: 'font-mono text-xs',
-            cell: (token) => <span>{token.username}</span>,
-        },
-        {
-            id: 'name',
-            header: LABELS.word.name.label,
-            cell: (token) => <span className="text-sm font-medium">{token.name}</span>,
-        },
-        {
-            id: 'prefix',
-            header: LABELS.word.prefix,
-            className: 'font-mono text-xs',
-            cell: (token) => <span className="text-muted-foreground">{token.prefix}</span>,
-        },
-        {
-            id: 'created',
-            header: LABELS.word.created.label,
-            className: 'text-xs',
-            cell: (token) => (
-                <span className="text-muted-foreground" title={formatInstant(token.created_at)}>
-                    {formatRelative(token.created_at)}
-                </span>
-            ),
-        },
-        {
-            id: 'used',
-            header: LABELS.users.last_used_column,
-            className: 'text-xs',
-            cell: (token) => (
-                <span className="text-muted-foreground" title={formatInstant(token.last_used_at)}>
-                    {token.last_used_at === null ? LABELS.word.never : formatRelative(token.last_used_at)}
-                </span>
-            ),
-        },
-        {
-            id: 'expires',
-            header: LABELS.users.expires_column,
-            className: 'text-xs',
-            cell: (token) => (
-                <span className="text-muted-foreground" title={formatInstant(token.expires_at)}>
-                    {token.expires_at === null ? LABELS.word.never : formatRelative(token.expires_at)}
-                </span>
-            ),
-        },
-        {
-            id: 'revoke',
+            id: 'token',
             header: '',
             className: 'text-right',
-            cell: (token) =>
-                token.revoked_at === null ? (
-                    <Button
-                        variant="ghost"
-                        size="xs"
-                        className="destructive-action"
-                        aria-label={LABELS.users.revoke_row(token.name)}
-                        onClick={() => {
-                            revoke(token)
-                        }}
-                    >
-                        {LABELS.action.revoke}
-                    </Button>
-                ) : (
-                    <span className="text-xs text-muted-foreground" title={formatInstant(token.revoked_at)}>
-                        {LABELS.state.armed.revoked}
-                    </span>
-                ),
+            cell: (user) => (
+                <Button
+                    variant="outline"
+                    size="xs"
+                    aria-label={LABELS.users.new_token_for(user.username)}
+                    onClick={(event) => {
+                        event.stopPropagation()
+                        mint(user.username)
+                    }}
+                >
+                    <ICONS.token aria-hidden />
+                    {LABELS.users.new_token}
+                </Button>
+            ),
         },
     ]
 }
@@ -482,9 +433,8 @@ function tokenRows(revoke: (token: TokenOut) => void): Column<TokenOut>[] {
  * THE USERNAME IS THE CODE, so the heading is the same one every other panel in this app draws
  * -- the name where there is one, the username in mono either way, and the id beside it.
  *
- * ITS VERBS ARE THE NAME, THE EMAIL, THE ROLE, WHETHER IT IS SWITCHED ON, A PASSWORD RESET AND
- * A TOKEN. The tokens themselves are not drawn here: the table below the listing carries every
- * token this instance holds with the account it authenticates as.
+ * ITS VERBS ARE THE NAME, THE EMAIL, THE ROLE, WHETHER IT IS SWITCHED ON AND A PASSWORD RESET.
+ * Its tokens are not here: they stand under its row in the listing, with `New token` on that row.
  *
  * A FACT IS A FACT AND A CONTROL IS A VERB. What the account signs in as, when it was made and
  * when it was last seen are read, and nothing else here is drawn as a control.
@@ -498,7 +448,6 @@ function AccountPanel({
     onSave,
     onActive,
     onResetPassword,
-    onMintToken,
 }: {
     user: UserOut
     draft: Draft
@@ -509,7 +458,6 @@ function AccountPanel({
     onSave: () => void
     onActive: (active: boolean) => void
     onResetPassword: () => void
-    onMintToken: () => void
 }) {
     const changed =
         (user.name ?? '') !== draft.name || (user.email ?? '') !== draft.email || user.role !== draft.role
@@ -617,9 +565,6 @@ function AccountPanel({
             <div className="flex flex-wrap gap-2">
                 <Button variant="outline" size="sm" disabled={busy} onClick={onResetPassword}>
                     {LABELS.users.reset_password}
-                </Button>
-                <Button variant="outline" size="sm" disabled={busy} onClick={onMintToken}>
-                    {LABELS.users.new_token}
                 </Button>
             </div>
         </div>

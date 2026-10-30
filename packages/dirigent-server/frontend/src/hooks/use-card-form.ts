@@ -100,6 +100,8 @@ function past(element: Element): number {
 function columnsOf(box: HTMLElement, held: Columns): Columns {
     let need = held.need
     for (const cell of box.querySelectorAll<HTMLElement>(`[${TITLE_CELL}]`)) {
+        // A listing standing under one of this listing's rows measures its own columns.
+        if (cell.closest('.list-scroll') !== box) continue
         const over = past(cell)
         const width = cell.getBoundingClientRect().width
         // A cell that runs past its room needs that much more; one that does not, on the layout
