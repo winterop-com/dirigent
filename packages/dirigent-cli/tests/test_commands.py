@@ -313,6 +313,38 @@ def test_validate_reports_a_broken_document_with_its_problems(tmp_path: Path) ->
     assert closing(result.stdout)["invalid"] == 1
 
 
+def test_validate_reads_every_document_under_a_directory_and_skips_what_is_not_one(tmp_path: Path) -> None:
+    shelf = tmp_path / "shelf"
+    (shelf / "nested").mkdir(parents=True)
+    good = (
+        "format: dirigent/v1\nkind: pipeline\ncode: {code}\n"
+        "steps:\n  greet:\n    block: value.const\n    config: {{value: hi}}\n"
+    )
+    (shelf / "first.yaml").write_text(good.format(code="first"))
+    (shelf / "nested" / "second.yaml").write_text(good.format(code="second"))
+    (shelf / "nested" / "broken.yaml").write_text("format: dirigent/v1\ncode: 'Not A Name'\nsteps: {}\n")
+    (shelf / "connections.yaml").write_text("playground:\n  kind: http\n")
+    (shelf / "README.md").write_text("# not a document\n")
+
+    result = machine("validate", str(shelf))
+
+    assert result.exit_code == 1
+    verdicts = {
+        Path(str(record["document"])).name: record["message"]
+        for record in of_kind(records(result.stdout), "validation")
+    }
+    assert verdicts == {"first.yaml": "valid", "second.yaml": "valid", "broken.yaml": "invalid"}
+    closed = closing(result.stdout)
+    assert (closed["documents"], closed["invalid"], closed["skipped"]) == (3, 1, 1)
+
+
+def test_validate_refuses_a_directory_with_no_documents_in_it(tmp_path: Path) -> None:
+    (tmp_path / "notes.yaml").write_text("just: notes\n")
+    result = machine("validate", str(tmp_path))
+    assert result.exit_code != 0
+    assert refusal(result.stdout)["code"] == "cli.project_is_empty"
+
+
 def test_validate_refuses_a_reference_that_will_never_resolve(tmp_path: Path, server: str) -> None:
     path = tmp_path / "refs.yaml"
     path.write_text(
