@@ -16,7 +16,7 @@ stack and a failed drive step leave behind, which in both cases is nothing.
 
 | File | What it teaches |
 | --- | --- |
-| [docker-hello.yaml](docker-hello.yaml) | One command in one container: the image pulled first, no network, the streams collected. |
+| [docker-hello.yaml](docker-hello.yaml) | Run a command in a container, with no network and the image pulled first. |
 | [docker-ticker.yaml](docker-ticker.yaml) | The live log: a container talking while it works, each probe appending what arrived since the last one. |
 | [docker-compose-stack.yaml](docker-compose-stack.yaml) | A whole stack: `docker.compose.up` brings it up, a `docker.run` step joins its network, and `docker.compose.down` with `rule: all_done` tears it down on any outcome. |
 | [docker-compose-database.yaml](docker-compose-database.yaml) | A database driven for real: `wait: true` turns a healthcheck into a gate, a `psql` container writes and reads rows, and the volumes go with the teardown. |

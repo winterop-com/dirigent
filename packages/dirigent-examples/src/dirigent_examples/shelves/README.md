@@ -103,7 +103,7 @@ Not every one of them succeeds, and that is the point of three of them:
 | `failure/retry-budget.yaml` | `failed` | A command that always exits 1, given three attempts to prove it |
 | `failure/step-timeout.yaml` | `failed` | A thirty-second sleep against a two-second budget, so it fails in about two |
 | `graph/skip-diamond.yaml` | `succeeded` | Green, with one step skipped: the handler had nothing to handle |
-| `showcase/one-region-refuses.yaml` | `completed_with_errors` | One region's export answers 500 until its retry budget is spent; the other seven load |
+| `showcase/one-region-refuses.yaml` | `completed_with_errors` | One region's export fails every attempt and is given up on; the other seven load |
 
 `dg run --local` applies and runs the document in a throwaway SQLite instance that is
 deleted afterwards -- no server, no Docker, no database. When a step fails it prints the
