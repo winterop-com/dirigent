@@ -132,10 +132,17 @@ USER dirigent
 RUN python -c "import duckdb; duckdb.connect().execute('INSTALL httpfs')"
 
 # Packs to add to the stock image without a Dockerfile of its own: a whitespace-separated list
-# of pip requirement specifiers -- `dirigent-dhis2`, `dirigent-dhis2==<version>`,
-# `dirigent-block-parquet` -- resolved from PyPI and installed into the venv the workspace already
-# occupies. Empty by default, and the layer is then a no-op.
+# of pinned requirements -- `dirigent-dhis2==<version>`, `dirigent-block-parquet==<version>` --
+# resolved from PyPI and installed into the venv the workspace already occupies. Anything else is
+# refused. Empty by default, and the layer is then a no-op.
 ARG DIRIGENT_PACKS=""
+RUN set -f; \
+    for spec in $DIRIGENT_PACKS; do \
+        printf '%s\n' "$spec" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._-]*(\[[A-Za-z0-9._,-]+\])?==[0-9][A-Za-z0-9.!+_-]*$' || { \
+            echo "DIRIGENT_PACKS: $spec is not pinned; write it as name==version, such as dirigent-dhis2==1.2.3" >&2; \
+            exit 1; \
+        }; \
+    done
 RUN if [ -n "$DIRIGENT_PACKS" ]; then uv pip install --no-cache $DIRIGENT_PACKS; fi
 
 EXPOSE 3333
