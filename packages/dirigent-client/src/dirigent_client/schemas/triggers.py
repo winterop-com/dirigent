@@ -1,4 +1,4 @@
-"""A pipeline's persisted triggers: its schedules and its watches."""
+"""A pipeline's persisted triggers: its schedules."""
 
 from datetime import datetime
 from uuid import UUID
@@ -111,42 +111,6 @@ class FiringOut(WireModel):
     detail: str | None = None
 
 
-class WatchOut(WireModel):
-    """A watch as a listing shows it: what it waits on, and how its last run of waiting went."""
-
-    id: UUID
-    code: str
-    name: str | None = None
-    description: str | None = None
-    step: str
-    """The root sensor step every run it arms waits on."""
-
-    params: JsonMap = Field(default_factory=dict)
-    paused: bool
-    managed: bool
-    trigger_document: str | None = None
-    """The triggers document that declares this row, or null when the pipeline's own does."""
-
-    cursor: JsonMap | None = None
-    """Where the last successful poke of the watched step left off, which the next run starts from."""
-
-    waiting_run_id: UUID | None = None
-    """The run waiting on the sensor now, or null between one run and the next."""
-
-    failures: int = 0
-    """How many waits in a row have ended without the sensor succeeding."""
-
-    last_error: str | None = None
-    """Why the last wait ended without the sensor succeeding, or null once one has succeeded since."""
-
-    last_error_at: datetime | None = None
-    rearm_at: datetime | None = None
-    """When a watch backing off after a failure arms its next run."""
-
-    last_armed_at: datetime | None = None
-    created_at: datetime
-
-
 class TriggerDocumentOut(WireModel):
     """A ``kind: triggers`` document as a listing shows it."""
 
@@ -170,4 +134,3 @@ class TriggerDocumentDetail(TriggerDocumentOut):
 
     document: JsonMap
     schedules: list[str] = Field(default_factory=list[str])
-    watches: list[str] = Field(default_factory=list[str])

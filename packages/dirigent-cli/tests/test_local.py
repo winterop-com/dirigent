@@ -609,7 +609,7 @@ LATE_FAN_OUT_EXAMPLES = [
         {"probe": ["succeeded", "failed", "succeeded"], "publish": ["succeeded"] * 2, "tally": ["succeeded"]},
     ),
     (
-        "triggers/watch-fan-out-per-message.yaml",
+        "sources/sensor-fan-out-per-message.yaml",
         "succeeded",
         {"arrive": ["succeeded"], "handle": ["succeeded"] * 3, "ack": ["succeeded"]},
     ),

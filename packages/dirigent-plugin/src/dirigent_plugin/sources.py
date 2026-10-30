@@ -306,6 +306,9 @@ class Polled[OutputT: BaseModel](BaseModel):
     cursor: JsonMap | None = None
     """Stored once every input became a run, and handed to the next poll."""
 
+    next_poll_in: timedelta | None = None
+    """How long until the next poll, or None for the source's own cadence."""
+
 
 class Source[ConfigT: BaseModel, OutputT: BaseModel](ABC):
     """One source kind: its config, its output, and what it refuses at apply."""

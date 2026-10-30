@@ -811,7 +811,7 @@ Contributed by `block-queues`. Not idempotent. Polls every 30s unless the step s
 | `connection` | `string` | yes |  | The `kafka` connection naming the cluster and holding its credential. |
 | `topic` | `string` | yes |  | The topic to read. |
 | `group_id` | `string or null` |  | `null` | The consumer group to commit through, or unset to track offsets in the cursor alone. |
-| `start` | `"latest" or "earliest"` |  | `"latest"` | Where a poke with no cursor begins: at whatever arrives next, or at the oldest record the broker still holds. It applies to the first poke of an attempt only, and under a watch to the first run's only; after that the cursor says where to read from. |
+| `start` | `"latest" or "earliest"` |  | `"latest"` | Where a poke with no cursor begins: at whatever arrives next, or at the oldest record the broker still holds. It applies to the first poke of an attempt only, and under a `sensor` source to its first poke only; after that the cursor says where to read from. |
 | `min_messages` | `integer` |  | `1` | How many messages a batch needs before the sensor succeeds. Below it the poke parks, keeping the offsets it read so the next poke carries on from there. |
 | `max_messages` | `integer` |  | `100` | The most messages one poke takes, which bounds the output a step carries. |
 | `poll_timeout` | `string (humane-duration)` |  | `"5s"` | How long one poke waits on the broker before answering with what it has, such as `5s`. |
@@ -844,7 +844,7 @@ Contributed by `block-base`. Not idempotent. Polls every 2s unless the step says
 | `drift` | `"none" or "strings" or "missing" or "extra"` |  | `"none"` | How the records depart from the field map, for a document teaching a schema gate. |
 | `payload` | `string or integer or null` |  | `null` | Return filler of this size beside the records, to push an output over a threshold. |
 | `after_pokes` | `integer` |  | `1` | How many pokes park before the batch arrives; zero lets the first poke carry it. |
-| `after` | `string (humane-duration)` |  | `"0s"` | How long the wait lasts, measured from when the attempt started, such as `10s`. |
+| `after` | `string (humane-duration)` |  | `"0s"` | How long the wait lasts, such as `10s`: from the attempt's start, or under a `sensor` source from its last success. |
 
 **Output**
 
@@ -852,7 +852,7 @@ Contributed by `block-base`. Not idempotent. Polls every 2s unless the step says
 | --- | --- | --- | --- | --- |
 | `messages` | `object[]` | yes |  | The messages the batch holds, in the order they were generated. |
 | `count` | `integer` | yes |  | How many messages the batch holds. |
-| `next_offset` | `integer` | yes |  | The offset the next batch starts at, which a watch hands the next run it arms. |
+| `next_offset` | `integer` | yes |  | The offset the next batch starts at, which a `sensor` source hands the next wait. |
 | `pokes` | `integer` | yes |  | How many pokes the step took, the one that carried the batch included. |
 | `waited_ms` | `integer` | yes |  | How long the wait lasted, from the attempt's start to the batch, in milliseconds. |
 | `seed` | `integer` | yes |  | The seed the records came from. Sending it back reproduces them exactly. |
@@ -995,6 +995,7 @@ format checker, is in [JSON Schema](json-schema.md).
 | `endpoint` | received | yes | A request made to this instance at a route the source declares | `builtin` |
 | `kafka` | held | no | A message on a Kafka topic | `block-queues` |
 | `rabbitmq` | held | no | A message on a RabbitMQ queue | `block-queues` |
+| `sensor` | polled | no | A sensor poked outside any run, each success starting one | `builtin` |
 | `storage` | polled | no | An object that appears under a storage prefix, or matching a glob | `builtin` |
 
 #### `endpoint`
@@ -1076,6 +1077,21 @@ format checker, is in [JSON Schema](json-schema.md).
 | `headers` | `object` |  |  | -- |
 | `timestamp` | `string (date-time) or null` |  | `null` | When the publisher stamped the message, when it stamped one at all. |
 | `received_at` | `string (date-time)` | yes |  | When the worker took it, or when a hand run supplied it. |
+
+#### `sensor`
+
+**Config**
+
+| Field | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `block` | `string` | yes |  | The sensor's block id, such as `kafka.consume`. |
+| `config` | `object` |  |  | The sensor's own config, as a step running it would write it. |
+| `poll` | `string (humane-duration) or null` |  | `null` | How long a worker waits between two pokes, or the sensor's own default. |
+| `max_in_flight` | `integer or null` |  | `null` | How many unsettled runs from this source may exist before the next poke waits for one to settle. |
+
+**Input it hands on**
+
+_No fields._
 
 #### `storage`
 

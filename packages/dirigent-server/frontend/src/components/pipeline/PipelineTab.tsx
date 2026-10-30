@@ -68,7 +68,6 @@ export function PipelineTab({
     const named = connectionsNamed(document)
     const triggers = mapAt(document, 'triggers')
     const schedules = mapsIn(triggers, 'schedules')
-    const watches = mapsIn(triggers, 'watches')
 
     return (
         <div className="flex flex-col gap-4 p-4">
@@ -203,7 +202,7 @@ export function PipelineTab({
             </Section>
 
             <Section title={LABELS.word.trigger.heading}>
-                {schedules.length === 0 && watches.length === 0 ? (
+                {schedules.length === 0 ? (
                     <p className="text-xs text-muted-foreground">{LABELS.editor.pipeline_pane.no_triggers}</p>
                 ) : (
                     <ul className="space-y-0.5 text-xs text-muted-foreground">
@@ -212,14 +211,6 @@ export function PipelineTab({
                                 {LABELS.word.schedule.term}{' '}
                                 <span className="font-mono">{stringAt(schedule, 'code') ?? '--'}</span>{' '}
                                 {clockOf(schedule)}
-                            </li>
-                        ))}
-                        {watches.map((watch, index) => (
-                            <li key={`watch-${String(index)}`}>
-                                {LABELS.word.watch.term}{' '}
-                                <span className="font-mono">{stringAt(watch, 'code') ?? '--'}</span>{' '}
-                                {LABELS.editor.pipeline_pane.watch_on}{' '}
-                                <span className="font-mono">{stringAt(watch, 'step') ?? '--'}</span>
                             </li>
                         ))}
                     </ul>

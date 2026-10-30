@@ -109,8 +109,8 @@ async def prune_absent(
     The narrowing is by the CURRENT version's provenance: what a directory applied last, a
     directory may take away. Deactivation pauses nothing retroactively beyond what
     deactivation always means, and history survives untouched. A triggers document has no
-    history worth keeping, so it is deleted instead, and the cascade takes the schedules and
-    watches it owned -- never the pipeline's own inline ones. A schema is never pruned.
+    history worth keeping, so it is deleted instead, and the cascade takes the schedules
+    it owned -- never the pipeline's own inline ones. A schema is never pruned.
     """
     rows = await session.execute(
         sa.select(Pipeline.code)
@@ -132,7 +132,7 @@ async def prune_absent(
     documents = await delete_absent_trigger_documents(session, services, keep, dry_run=dry_run)
     if not dry_run:
         for code in absent:
-            await set_active(session, services, code, active=False)
+            await set_active(session, code, active=False)
     return PruneResult(pruned=absent, trigger_documents_removed=documents, dry_run=dry_run)
 
 

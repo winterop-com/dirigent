@@ -1,6 +1,6 @@
 """A fan-out over a step's output: one gate at creation, the grid written when the step is ready."""
 
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -11,20 +11,21 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from dirigent_client.enums import AttemptStatus, RunItemStatus, RunStatus
 from dirigent_core.config import Settings
 from dirigent_core.database import session_scope
+from dirigent_core.documents import load_text
 from dirigent_core.engine import EngineServices
 from dirigent_core.engine.definition import (
     ConcurrencyPolicy,
     ItemPolicy,
     PipelineDefinition,
     StepDefinition,
-    TriggerSpecs,
-    WatchSpec,
 )
 from dirigent_core.engine.executor import Engine
 from dirigent_core.engine.runs import EngineRuns, FanOutError, RunCreationError, cancel_run, retry_step
 from dirigent_core.engine.state import StepOutcome, build_step_states, load_attempts
 from dirigent_core.models import LogEntry, Run, RunItem, StepAttempt
+from dirigent_core.pipelines import apply_document
 from dirigent_core.plugins import PluginHost
+from dirigent_core.sources import polling
 from engineblocks import EchoOperator
 from test_engine import drain, reload, start, statuses, steps
 
@@ -424,35 +425,35 @@ async def test_a_snapshot_counts_the_gate_as_one_unit_and_then_each_item(
     assert (after.total_steps, after.finished_steps) == (4, 1)
 
 
-# -- a watch ----------------------------------------------------------------------
+# -- a sensor source ---------------------------------------------------------------
 
 
-async def test_a_watch_armed_run_fans_out_over_its_sensors_batch(
+async def test_each_batch_a_sensor_source_hands_over_fans_out_in_its_own_run(
     engine: Engine, sessions: Any, services: EngineServices
 ) -> None:
-    from test_watches import apply, pump, watch_runs
+    document = """
+format: dirigent/v1
+kind: pipeline
+code: tail-and-spread
+steps:
+  tail:
+    source: {kind: sensor, block: test.stream, config: {batch: 3}, poll: 1s}
+  load:
+    block: test.echo
+    depends_on: [tail]
+    for_each: ${steps.tail.output.offsets}
+    config:
+      value: offset ${item}
+"""
+    async with session_scope(sessions) as session:
+        await apply_document(session, services, load_text(document))
+    moment = datetime.now(UTC)
+    for _ in range(4):
+        await polling.tick(sessions, services, owner="worker-under-test", now=moment)
+        moment += timedelta(seconds=2)
+    await drain(engine, start_at=moment)
 
-    definition = PipelineDefinition(
-        code="tail-and-spread",
-        steps=steps(
-            tail=StepDefinition(block="test.stream", config={"batch": 3}, poll=timedelta(seconds=1)),
-            load=StepDefinition(
-                block="test.echo",
-                depends_on=["tail"],
-                for_each="${steps.tail.output.offsets}",
-                config={"value": "offset ${item}"},
-            ),
-        ),
-        triggers=TriggerSpecs(watches=[WatchSpec(code="follow", step="tail")]),
-    )
-    await apply(sessions, services, definition)
-
-    async def two_batches_expanded() -> bool:
-        armed = await watch_runs(sessions)
-        return len(armed) >= 2 and len(await items_of(sessions, armed[1].id, "load")) == 3
-
-    await pump(engine, two_batches_expanded)
-
-    first, second = (await watch_runs(sessions))[:2]
+    async with sessions() as session:
+        first, second = (await session.execute(sa.select(Run).order_by(Run.created_at, Run.id))).scalars().all()
     assert [item.item_key for item in await items_of(sessions, first.id, "load")] == ["0", "1", "2"]
     assert [item.item_key for item in await items_of(sessions, second.id, "load")] == ["3", "4", "5"]

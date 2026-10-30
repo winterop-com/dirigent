@@ -447,7 +447,7 @@ class StreamOutput(BaseModel):
 class StreamSensor(Sensor[StreamConfig, StreamOutput]):
     """Tails a notional stream: parks, then takes a batch from where its cursor stands.
 
-    A key in ``failing`` makes every poke of it fail, so a test can break a watch's sensor and
+    A key in ``failing`` makes every poke of it fail, so a test can break a source's sensor and
     mend it again without editing the document.
     """
 
@@ -455,6 +455,7 @@ class StreamSensor(Sensor[StreamConfig, StreamOutput]):
         id="test.stream",
         summary="Tail a stream, keeping its place.",
         default_poll=timedelta(seconds=1),
+        source=True,
     )
     config_model = StreamConfig
     output_model = StreamOutput
@@ -479,6 +480,22 @@ class StreamSensor(Sensor[StreamConfig, StreamOutput]):
     def resume_cursor(self, output: StreamOutput) -> dict[str, JsonValue] | None:
         """Read on from where the batch ended."""
         return {"offset": output.next_offset}
+
+
+class ScratchConfig(BaseModel):
+    """Nothing to configure."""
+
+
+class ScratchSensor(Sensor[ScratchConfig, StreamOutput]):
+    """Claims a source may poke it, then reads the run's scratch all the same."""
+
+    spec = SensorSpec(id="test.scratch", summary="Read the run's scratch.", source=True)
+    config_model = ScratchConfig
+    output_model = StreamOutput
+
+    async def poke(self, config: ScratchConfig, ctx: StepContext) -> StreamOutput | NotYet:
+        """Read the scratch prefix, which only a run has."""
+        return NotYet(message=ctx.scratch)
 
 
 CASES = ("upper", "lower")
@@ -541,5 +558,5 @@ class EngineTestPlugin:
                 StoringOperator(),
                 UnsafeOperator(),
             ],
-            sensors=[TickSensor(), CursorSensor(), StreamSensor()],
+            sensors=[TickSensor(), CursorSensor(), StreamSensor(), ScratchSensor()],
         )

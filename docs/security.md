@@ -211,7 +211,7 @@ may, and an operator everything a viewer may.
   it reports what a stored version would fail on and writes nothing. Anything else that writes
   is a `403`.
 - An **operator** may in addition change pipelines and runs: apply, prune, activate, deactivate,
-  run, backfill, cancel, retry, every schedule, watch and source operation, deleting a triggers
+  run, backfill, cancel, retry, every schedule and source operation, deleting a triggers
   document with the rows it owns, alert rules, and the notifier test.
 - An **admin** may in addition hand out authority. That set is exact:
 

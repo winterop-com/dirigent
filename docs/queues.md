@@ -50,7 +50,7 @@ Three rules govern it, and they are the same three for every sensor:
   behind, and the next poke reads the same ground again. A poke must tolerate that, and these
   two do.
 - **It lives only as long as the waiting attempt.** A poke that succeeds ends the step, and
-  only a [watch](concepts.md#watches) carries the cursor past it. What a downstream step needs
+  only a [`sensor` source](concepts.md#source-and-reply) carries the cursor past it. What a downstream step needs
   is in the output -- `kafka.consume` puts the offsets it ended at there for exactly that reason.
 
 At-least-once is not a shortcut here; it is the only thing achievable. Exactly-once would need
@@ -120,7 +120,7 @@ on rather than starting over.
 
 `start` decides where a poke with no cursor begins -- `latest` (the default) at whatever
 arrives next, `earliest` at the oldest record the broker still holds. It applies to the first
-poke of an attempt only, and under a watch to the first run's only; after that the cursor
+poke of an attempt only, and under a `sensor` source to its first poke ever; after that the cursor
 answers the question. A first poke that read
 nothing still writes down the place it began, so a message arriving between two pokes is read
 by the second rather than seeked past.
@@ -128,7 +128,7 @@ by the second rather than seeked past.
 `group_id` is the one real choice.
 
 **Left unset**, the sensor tracks offsets itself and commits nothing to the broker. The offsets
-live on the waiting attempt, and under a watch on the watch, so two pipelines reading one topic
+live on the waiting attempt, and under a `sensor` source on the source, so two pipelines reading one topic
 each see every message, and a topic can be read without arranging anything on the cluster.
 
 **Set**, the broker keeps the group's offsets too, and the commit happens in the poke that
@@ -147,15 +147,16 @@ the step as **rejected**, not retried: reading it again will not make it parse.
 The output carries the batch, its `count`, and the `cursor` it ended at -- the next offset to
 read per partition, one past the last message taken.
 
-**Watched, a topic is a stream.** A [watch](concepts.md#watches) on a `kafka.consume` step keeps
-one run waiting on the topic and arms the next the moment a batch is taken, starting it from the
-offsets that batch ended at. Run after run reads the topic on without a gap and without a
-consumer group, while each finished batch carries on through the rest of the pipeline. A
-`group_id` set beside it still commits what each batch took; the watch's cursor is what the next
-run reads from.
-[`examples/queues/kafka-watch-then-transform.yaml`](https://github.com/winterop-com/dirigent/tree/main/examples/queues/kafka-watch-then-transform.yaml)
-is the shape. `rabbitmq.consume` needs no cursor across runs, because the broker's
-acknowledgements already say what has been taken.
+**Poked by a source, a topic is a stream of batches.** A
+[`sensor` source](concepts.md#source-and-reply) naming `kafka.consume` pokes it outside any run,
+and each batch it takes becomes one run, the next wait reading on from the offsets that batch
+ended at, without a gap and without a consumer group. A `group_id` set beside it still commits
+what each batch took; the source's cursor is what the next wait reads from. The usual way to
+make a topic a pipeline's entrance is the held `kafka` source, which keeps a consumer open and
+makes each message its own run:
+[`examples/queues/kafka-source-then-transform.yaml`](https://github.com/winterop-com/dirigent/tree/main/examples/queues/kafka-source-then-transform.yaml).
+The sensor source is for a batch per run. `rabbitmq.consume` cannot be poked by a source; the
+held `rabbitmq` source is that queue's entrance.
 
 ## `kafka.produce`: what a publish promises
 

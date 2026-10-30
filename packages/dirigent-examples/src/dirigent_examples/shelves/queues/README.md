@@ -42,7 +42,6 @@ On the compose stack the brokers are the `infra/compose.brokers.yaml` overlay in
 | File | What it teaches |
 | --- | --- |
 | [kafka-consume-then-transform.yaml](kafka-consume-then-transform.yaml) | Waiting on a topic: `min_messages` and `max_messages`, why the cursor rather than a consumer group holds the offsets, and the batch read by a downstream transform. |
-| [kafka-watch-then-transform.yaml](kafka-watch-then-transform.yaml) | A topic read as a stream: a watch keeps one run waiting on `kafka.consume` and starts the next from where each batch ended, with no consumer group, while every batch is reshaped in the run that took it. |
 | [kafka-source-then-transform.yaml](kafka-source-then-transform.yaml) | A topic as a pipeline's entrance: a `kafka` source makes each message its own run, commits the group's offsets once the run exists, and bounds the backlog with `max_in_flight`. |
 | [kafka-produce-then-consume.yaml](kafka-produce-then-consume.yaml) | Publishing: the two shapes an element of `records` may take, where a message key comes from, what `acks: all` and an idempotent producer do and do not promise, and why this one consumes from `earliest`. |
 | [report-to-kafka.yaml](report-to-kafka.yaml) | Publishing a rendered page: `report.render` hands its text on, and `kafka.produce` puts it on the topic as one keyed record. |
@@ -58,5 +57,6 @@ the state there. It replaces rather than merges, it is stored by the transaction
 attempt -- which makes advancing it at-least-once, so a poke may read the same ground twice --
 and it lives only as long as the waiting attempt, because a poke that succeeds ends the step.
 Anything a later step needs is in the output, which is why `kafka.consume` reports the offsets
-it ended at there. A watch is the one thing that carries a cursor past a success: it stores
-where the batch ended and starts its next run there.
+it ended at there. A `sensor` source is the one thing that carries a cursor past a success: it
+pokes `kafka.consume` outside any run, stores where each batch ended, and starts its next wait
+there.

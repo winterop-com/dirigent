@@ -76,9 +76,6 @@ class PipelineOut(WireModel):
     schedules: int = 0
     """How many clocks fire this pipeline."""
 
-    watches: int = 0
-    """How many watches keep a run of this pipeline waiting on a sensor."""
-
     last_run: LastRun | None = None
     """How the newest run of this pipeline went, or nothing when it has never run."""
 
@@ -113,7 +110,7 @@ class ApplyRequest(BaseModel):
     source_ref: str | None = Field(default=None, description="The file path or URL the document came from.")
     pause_schedules: bool = Field(
         default=False,
-        description="Create the schedules and watches this apply brings into being already paused.",
+        description="Create the schedules this apply brings into being already paused.",
     )
 
 
@@ -333,21 +330,11 @@ class Materialized(WireModel):
     schedules_created: list[str] = Field(default_factory=list[str])
     schedules_updated: list[str] = Field(default_factory=list[str])
     schedules_removed: list[str] = Field(default_factory=list[str])
-    watches_created: list[str] = Field(default_factory=list[str])
-    watches_updated: list[str] = Field(default_factory=list[str])
-    watches_removed: list[str] = Field(default_factory=list[str])
 
     @property
     def empty(self) -> bool:
         """Report whether the apply left every trigger exactly as it was."""
-        return not (
-            self.schedules_created
-            or self.schedules_updated
-            or self.schedules_removed
-            or self.watches_created
-            or self.watches_updated
-            or self.watches_removed
-        )
+        return not (self.schedules_created or self.schedules_updated or self.schedules_removed)
 
 
 class PipelinePlan(WireModel):
@@ -386,7 +373,7 @@ class ApplyResult(WireModel):
     version: int | None = None
     dry_run: bool = False
     triggers: Materialized = Field(default_factory=Materialized)
-    """Which schedules and watches the document's ``triggers:`` section created, changed, or retired."""
+    """Which schedules the document's ``triggers:`` section created, changed, or retired."""
 
     sources: SourceChanges = Field(default_factory=SourceChanges)
     """Which source rows the apply created, changed, or retired, and the tokens it minted."""

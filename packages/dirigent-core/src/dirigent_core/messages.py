@@ -234,41 +234,6 @@ SCHEDULE_REFUSED = DOCUMENT.define("schedule_refused", "{detail}")
 
 SCHEDULE_PARAMS_REFUSED = DOCUMENT.define("schedule_params_refused", "{detail}")
 
-WATCH_PARAMS_REFUSED = DOCUMENT.define("watch_params_refused", "{detail}")
-
-WATCH_UNKNOWN_STEP = DOCUMENT.define(
-    "watch_unknown_step",
-    "watch {code} waits on step {step}, which the pipeline does not have ({available})",
-)
-
-WATCH_NOT_A_ROOT = DOCUMENT.define(
-    "watch_not_a_root",
-    "watch {code} waits on step {step}, which depends on {depends}; a watch waits on a root step, one "
-    "that depends on nothing",
-)
-
-WATCH_NOT_A_SENSOR = DOCUMENT.define(
-    "watch_not_a_sensor",
-    "watch {code} waits on step {step}, whose block {block} is not a sensor; a watch waits on a sensor, "
-    "such as playground.arrive or kafka.consume",
-)
-
-WATCH_REPLACE_POLICY = DOCUMENT.define(
-    "watch_replace_policy",
-    "watch {code} is on a pipeline whose concurrency is replace, which cancels the run a batch just "
-    "arrived in whenever the next run is armed; use allow or queue",
-)
-
-WATCH_WOULD_BREAK = DOCUMENT.define(
-    "watch_would_break",
-    "this version would break watch {code}, which {owner} declares: {detail}",
-)
-
-WATCH_FANS_OUT = DOCUMENT.define(
-    "watch_fans_out",
-    "watch {code} waits on step {step}, which fans out; a watch waits on one sensor, so drop its for_each",
-)
-
 TARGET_PIPELINE_MISSING = DOCUMENT.define(
     "target_pipeline_missing",
     "no pipeline coded {code} exists on this instance; apply it before the document that schedules it",
@@ -481,38 +446,6 @@ BACKFILL_TOO_MANY = SCHEDULE.define(
     "a backfill creates at most {cap} runs, and {code} over {start}..{end} enumerates {counted}; narrow the interval",
 )
 
-WATCH = Catalogue("watch")
-
-DUPLICATE_WATCH = WATCH.define("duplicate", "pipeline {pipeline} already has a watch coded {code}")
-
-UNKNOWN_WATCH = WATCH.define("unknown", "pipeline {pipeline} has no watch coded {code}")
-
-WATCH_UNARMABLE = WATCH.define(
-    "unarmable",
-    "watch {code} cannot arm a run of version {version} of the pipeline: {detail}; apply a document "
-    "it can watch, or retire the watch",
-)
-
-WATCH_ARM_REFUSED = WATCH.define("arm_refused", "the watch could not arm a run: {detail}")
-
-WATCH_WAIT_FAILED = WATCH.define("wait_failed", "step {step} failed in run {run}: {detail}")
-
-WATCH_WAIT_CANCELLED = WATCH.define("wait_cancelled", "run {run} was cancelled while it waited: {reason}")
-
-WATCH_RUN_GONE = WATCH.define("run_gone", "run {run}, which the watch had waiting, no longer exists")
-
-WATCH_MOVED = WATCH.define("moved", "its watch moved to another step")
-
-WATCH_RETIRED = WATCH.define("retired", "its watch was retired")
-
-WATCH_PAUSED = WATCH.define("paused", "its watch was paused")
-
-WATCH_PIPELINE_REAPPLIED = WATCH.define("pipeline_reapplied", "a new version of its pipeline was applied")
-
-WATCH_PIPELINE_DEACTIVATED = WATCH.define("pipeline_deactivated", "its pipeline was deactivated")
-
-WATCH_PIPELINE_DELETED = WATCH.define("pipeline_deleted", "its pipeline was deleted")
-
 ALERT = Catalogue("alert")
 
 DUPLICATE_RULE = ALERT.define("duplicate_rule", "an alert rule coded {code} already exists")
@@ -692,12 +625,6 @@ NOT_RETRYABLE = RUN.define("not_retryable", "step {step} is {status}, and only a
 
 RUN_VERSION_GONE = RUN.define("version_gone", "run {run} pins a pipeline version that is gone")
 
-RETRY_WATCH_MOVED_ON = RUN.define(
-    "retry_watch_moved_on",
-    "step {step} of run {run} is what watch {watch} waited on, and the watch has moved past this run; "
-    "retrying it would read again what the watch's next run reads",
-)
-
 RETRY_CONCURRENCY = RUN.define(
     "retry_concurrency",
     "another run of pipeline {code} is in flight; retry once it has finished",
@@ -853,11 +780,6 @@ SCHEDULE_ON_SOURCES = SOURCE.define(
     "pipeline {code} starts at its sources, and a schedule would enter none of them; run it from a source instead",
 )
 
-TRIGGERS_ON_SOURCES = SOURCE.define(
-    "triggers_on_sources",
-    "pipeline {code} starts at its sources, and a {label} would start a run that enters none of them",
-)
-
 REQUIRED_PARAM_ON_SOURCES = SOURCE.define(
     "required_param_on_sources",
     "parameter {name} is required with no default, and a run a source creates takes the defaults; give it a default",
@@ -956,6 +878,19 @@ SOURCE_RUN_SKIPPED = SOURCE.define(
 )
 
 SOURCE_RUN_REFUSED = SOURCE.define("run_refused", "no run could be created: {detail}")
+
+SENSOR_UNKNOWN = SOURCE.define(
+    "sensor_unknown", "no sensor {block} is installed on this instance (the sensors a source pokes: {known})"
+)
+
+SENSOR_NOT_A_SOURCE = SOURCE.define(
+    "sensor_not_a_source",
+    "{block} is not a sensor a source pokes outside a run (those installed: {known})",
+)
+
+SENSOR_OUTSIDE_RUN = SOURCE.define(
+    "sensor_outside_run", "{block} read {what}, which a sensor poked by a source has no run to give"
+)
 
 SOURCE_WAITING_FULL = SOURCE.define(
     "waiting_full", "this server holds {waiting} callers for their replies, as many as it may; send again shortly"

@@ -91,7 +91,6 @@ from dirigent_client.schemas.triggers import (
     SchedulePreviewRequest,
     TriggerDocumentDetail,
     TriggerDocumentOut,
-    WatchOut,
 )
 from dirigent_common import JsonList, JsonMap
 
@@ -185,6 +184,5 @@ __all__ = [
     "UserOut",
     "UserUpdate",
     "ValidationIssue",
-    "WatchOut",
     "WorkerOut",
 ]

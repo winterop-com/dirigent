@@ -5,8 +5,8 @@ run the way a clock or a POST does: each poke reads what has arrived since the l
 succeeds the moment there is enough, handing the batch downstream as its output.
 
 The place a poke has read to is the sensor's cursor. Without a ``group_id`` that is the whole
-of the bookkeeping -- the offsets live in the attempt row, and under a watch in the watch that
-hands them to its next run, so nothing is committed to the broker and two pipelines over one
+of the bookkeeping -- the offsets live in the attempt row, and under a ``sensor`` source in the
+source's cursor, so nothing is committed to the broker and two pipelines over one
 topic never take each other's messages.
 With a ``group_id`` the broker keeps the group's offsets too, and the commit happens in the
 poke that succeeds rather than in one that parks, so a batch too small to act on is read
@@ -269,8 +269,8 @@ class KafkaConsumeConfig(BlockModel):
 
     start: Literal["latest", "earliest"] = "latest"
     """Where a poke with no cursor begins: at whatever arrives next, or at the oldest record
-    the broker still holds. It applies to the first poke of an attempt only, and under a watch
-    to the first run's only; after that the cursor says where to read from."""
+    the broker still holds. It applies to the first poke of an attempt only, and under a
+    ``sensor`` source to its first poke only; after that the cursor says where to read from."""
 
     min_messages: int = Field(default=1, ge=1)
     """How many messages a batch needs before the sensor succeeds. Below it the poke parks,
@@ -350,6 +350,7 @@ class KafkaConsumeSensor(Sensor[KafkaConsumeConfig, KafkaConsumeOutput]):
         id="kafka.consume",
         summary="Wait for messages on a Kafka topic.",
         default_poll=timedelta(seconds=30),
+        source=True,
     )
     config_model: ClassVar[type[BaseModel]] = KafkaConsumeConfig
     output_model: ClassVar[type[BaseModel]] = KafkaConsumeOutput

@@ -1,4 +1,4 @@
-"""Persisted triggers: schedules, watches, and what an apply does to them."""
+"""Persisted triggers: schedules, and what an apply does to them."""
 
 from dirigent_core.triggers.backfill import (
     BACKFILL_CAP,
@@ -34,34 +34,8 @@ from dirigent_core.triggers.schedules import (
     update_schedule,
     window_for,
 )
-from dirigent_core.triggers.watches import (
-    Armed,
-    DuplicateWatch,
-    UnknownWatch,
-    WatchError,
-    WatchRequest,
-    create_watch,
-    delete_watch,
-    find_watch,
-    list_watches,
-    update_watch,
-    watch_issue,
-)
-from dirigent_core.triggers.watches import set_paused as set_watch_paused
 
 __all__ = [
-    "set_watch_paused",
-    "watch_issue",
-    "update_watch",
-    "list_watches",
-    "find_watch",
-    "delete_watch",
-    "create_watch",
-    "WatchRequest",
-    "WatchError",
-    "UnknownWatch",
-    "DuplicateWatch",
-    "Armed",
     "BACKFILL_CAP",
     "PREVIEW_FIRINGS",
     "Advance",

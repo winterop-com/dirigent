@@ -99,7 +99,7 @@ export function noted<T>(state: Paged<T>): Paged<T> {
  * there is more, and the foot says so beside the count.
  *
  * THE NOUN ARRIVES IN BOTH NUMBERS, and which one is drawn is `counted`'s decision. A foot
- * cannot reach the singular from the plural: the rule that turns watches into a watch turns
+ * cannot reach the singular from the plural: the rule that turns schedules into a schedule turns
  * entries into an entrie, and a language with three plural forms has no such rule at all.
  */
 export function rowsRead(count: number, noun: Counted<string>, more: boolean): string {

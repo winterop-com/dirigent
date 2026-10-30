@@ -1,8 +1,7 @@
 """Turning a document's ``triggers:`` section into rows, on every apply.
 
-A declaration travels; operational state -- paused, last fired, a watch's cursor and the run
-it has waiting -- stays on the instance and is never
-touched by an apply. Only a row marked
+A declaration travels; operational state -- paused, last fired -- stays on the instance and is
+never touched by an apply. Only a row marked
 ``managed`` may be created, redeclared, or removed here; a hand-created one is left alone.
 
 A reconcile reaches only the rows of its own owner: ``trigger_document_id`` is null for the
@@ -18,20 +17,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirigent_client.schemas import Materialized, ValidationIssue
 from dirigent_core.engine.definition import Document, TriggerSpecs
-from dirigent_core.engine.services import EngineServices
 from dirigent_core.logging import get_logger
 from dirigent_core.messages import TRIGGER_OWNED_ELSEWHERE
-from dirigent_core.models import Pipeline, Schedule, TriggerDocument, Watch
+from dirigent_core.models import Pipeline, Schedule, TriggerDocument
 from dirigent_core.triggers.schedules import (
     ScheduleRequest,
     create_schedule,
     update_schedule,
-)
-from dirigent_core.triggers.watches import (
-    WatchRequest,
-    create_watch,
-    delete_watch,
-    update_watch,
 )
 
 _logger = get_logger("triggers")
@@ -39,7 +31,6 @@ _logger = get_logger("triggers")
 
 async def materialize_triggers(
     session: AsyncSession,
-    services: EngineServices,
     pipeline: Pipeline,
     definition: Document,
     *,
@@ -49,25 +40,20 @@ async def materialize_triggers(
 ) -> Materialized:
     """Reconcile the triggers one owner declares with what the instance holds for it.
 
-    ``pause_created`` governs only the schedules and watches this reconciliation creates. One
+    ``pause_created`` governs only the schedules this reconciliation creates. One
     the instance already holds keeps whatever it is: paused is operational state, so a
     redeclared trigger is neither re-paused nor resumed here. ``owner`` is the triggers
     document whose rows these are, or None for the ones the pipeline's own document declares.
-    A watch created unpaused arms its first run in this same transaction.
     """
     specs = definition.triggers
     schedules = await _reconcile_schedules(session, pipeline, specs, now=now, pause_created=pause_created, owner=owner)
-    watches = await _reconcile_watches(
-        session, services, pipeline, specs, now=now, pause_created=pause_created, owner=owner
-    )
-    result = Materialized(**schedules, **watches)
+    result = Materialized(**schedules)
     if not result.empty:
         _logger.info(
             "triggers materialized",
             pipeline=pipeline.code,
             document=definition.code,
             schedules=len(specs.schedules),
-            watches=len(specs.watches),
         )
     return result
 
@@ -129,59 +115,6 @@ def _schedule_differs(schedule: Schedule, request: ScheduleRequest) -> bool:
     )
 
 
-async def _reconcile_watches(
-    session: AsyncSession,
-    services: EngineServices,
-    pipeline: Pipeline,
-    specs: TriggerSpecs,
-    *,
-    now: datetime | None,
-    pause_created: bool,
-    owner: UUID | None,
-) -> dict[str, list[str]]:
-    """Create, redeclare, and retire the watches one owner declares, matching by code.
-
-    A retired watch takes the run it had waiting with it, cancelled.
-    """
-    rows = await session.execute(sa.select(Watch).where(Watch.pipeline_id == pipeline.id))
-    existing = {row.code: row for row in rows.scalars() if row.trigger_document_id == owner}
-    declared = {spec.code: spec for spec in specs.watches}
-    created: list[str] = []
-    updated: list[str] = []
-
-    for code, spec in declared.items():
-        request = WatchRequest.from_spec(spec)
-        current = existing.get(code)
-        if current is None:
-            watch = await create_watch(
-                session, services, pipeline, request, paused=spec.paused or pause_created, now=now
-            )
-            watch.managed = True
-            watch.trigger_document_id = owner
-            created.append(code)
-            continue
-        current.managed = True
-        if _watch_differs(current, request):
-            await update_watch(session, services, current, request, now=now)
-            updated.append(code)
-
-    removed = [code for code, row in existing.items() if row.managed and code not in declared]
-    for code in removed:
-        await delete_watch(session, services, existing[code], now=now)
-    await session.flush()
-    return {"watches_created": created, "watches_updated": updated, "watches_removed": sorted(removed)}
-
-
-def _watch_differs(watch: Watch, request: WatchRequest) -> bool:
-    """Report whether a declaration says anything different from the row that holds it."""
-    return (
-        watch.name != request.name
-        or watch.description != request.description
-        or watch.step != request.step
-        or watch.params != dict(request.params)
-    )
-
-
 async def owner_issues(
     session: AsyncSession,
     pipeline: Pipeline,
@@ -196,34 +129,26 @@ async def owner_issues(
     """
     documents = {row.id: row.code for row in (await session.execute(sa.select(TriggerDocument))).scalars()}
     schedules = await session.execute(sa.select(Schedule).where(Schedule.pipeline_id == pipeline.id))
-    watches = await session.execute(sa.select(Watch).where(Watch.pipeline_id == pipeline.id))
-    held: dict[str, dict[str, Schedule | Watch]] = {
-        "schedule": {row.code: row for row in schedules.scalars()},
-        "watch": {row.code: row for row in watches.scalars()},
-    }
+    held = {row.code: row for row in schedules.scalars()}
     issues: list[ValidationIssue] = []
-    for label, section, declared in (
-        ("schedule", "schedules", [spec.code for spec in specs.schedules]),
-        ("watch", "watches", [spec.code for spec in specs.watches]),
-    ):
-        for index, code in enumerate(declared):
-            row = held[label].get(code)
-            if row is None or row.trigger_document_id == owner:
-                continue
-            issues.append(
-                ValidationIssue.of(
-                    TRIGGER_OWNED_ELSEWHERE,
-                    location=f"triggers.{section}[{index}].code",
-                    label=label,
-                    code=repr(code),
-                    pipeline=repr(pipeline.code),
-                    owner=_owner_of(row, documents),
-                )
+    for index, spec in enumerate(specs.schedules):
+        row = held.get(spec.code)
+        if row is None or row.trigger_document_id == owner:
+            continue
+        issues.append(
+            ValidationIssue.of(
+                TRIGGER_OWNED_ELSEWHERE,
+                location=f"triggers.schedules[{index}].code",
+                label="schedule",
+                code=repr(spec.code),
+                pipeline=repr(pipeline.code),
+                owner=_owner_of(row, documents),
             )
+        )
     return issues
 
 
-def _owner_of(row: Schedule | Watch, documents: dict[UUID, str]) -> str:
+def _owner_of(row: Schedule, documents: dict[UUID, str]) -> str:
     """Name whoever declared a row, in the words the refusal is read in."""
     if row.trigger_document_id is not None:
         return f"the triggers document {documents.get(row.trigger_document_id, '?')!r}"

@@ -44,7 +44,7 @@ class RunOut(WireModel):
     parent_run_id: UUID | None = None
     """The run whose step started this one, when a step of another run did."""
     triggered_by_id: UUID | None = None
-    """What started the run: the source, schedule, watch, token or user, as its id."""
+    """What started the run: the source, schedule, token or user, as its id."""
 
     triggered_by_label: str | None = None
     source: str | None = None

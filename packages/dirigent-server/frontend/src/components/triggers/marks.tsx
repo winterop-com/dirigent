@@ -1,18 +1,8 @@
 import type { CSSProperties, ReactNode } from 'react'
-import { Link } from 'react-router'
 
 import { Instant } from '@/components/Instant'
-import { shortId } from '@/lib/format'
 import { LABELS } from '@/lib/labels'
-import {
-    clockOf,
-    nextFireView,
-    oneTimeView,
-    watchView,
-    type OutcomeTone,
-    type ScheduleOut,
-    type WatchOut,
-} from '@/lib/triggers'
+import { clockOf, nextFireView, oneTimeView, type OutcomeTone, type ScheduleOut } from '@/lib/triggers'
 
 /**
  * The small things the triggers screen and its panel both draw of a trigger.
@@ -88,33 +78,6 @@ export function NextFire({ schedule }: { schedule: ScheduleOut }) {
         <span data-testid="next-fire">
             {next.kind === 'none' && <span className="text-faint">{LABELS.triggers.schedule.none_due}</span>}
             {next.kind === 'due' && <Instant className="text-muted-foreground" at={next.at} />}
-        </span>
-    )
-}
-
-/** What a watch is doing: the run it has waiting, or why it has none; a paused one wears its chip instead. */
-export function WatchState({ watch }: { watch: WatchOut }) {
-    const view = watchView(watch)
-    return (
-        <span className="flex items-center gap-2 text-xs">
-            <Dot tone={view.tone} />
-            {view.kind === 'waiting' && (
-                <Link
-                    className="font-mono text-primary-ink hover:underline"
-                    to={`/runs/${view.runId}`}
-                    onClick={(event) => {
-                        event.stopPropagation()
-                    }}
-                >
-                    {shortId(view.runId)}
-                </Link>
-            )}
-            {view.kind === 'backing-off' && (
-                <span className="flex items-baseline gap-1.5 text-muted-foreground">
-                    {LABELS.triggers.watch.backing_off_until} <Instant at={view.until} />
-                </span>
-            )}
-            {view.kind === 'arming' && <span className="text-faint">{LABELS.triggers.watch.arming}</span>}
         </span>
     )
 }

@@ -576,7 +576,6 @@ def test_every_list_command_answers_to_a_hidden_ls() -> None:
         "examples ls",
         "connection ls",
         "schedule ls",
-        "watch ls",
         "source ls",
         "trigger-document ls",
         "alerts rules ls",

@@ -651,7 +651,7 @@ is the row's, singular where there is one of it, and a listing with a cursor lef
 number along a foot reads as a total, and a keyset walk has no total to state. **The noun reaches
 the foot in both numbers**, as the `{one, many}` pair its `count` entry holds, and `ListTable`'s
 `noun` prop takes that pair rather than a word: a foot handed one plural would have to reach the
-singular by rule, and the rule that makes a watch out of watches makes an entrie out of entries.
+singular by rule, and the rule that makes a batch out of batches makes an entrie out of entries.
 
 ## A graph is a shape, and each screen reduces its own to it
 
@@ -1820,8 +1820,8 @@ which is the one thing this catalogue exists to keep out. `Started` beside `star
 beside a per-screen `blocks`, are that rule not yet applied.
 
 **A counted surface holds both numbers, so `count` is a `{one, many}` pair.** A foot counts rows
-and a row may be one of them, so the entry spells the singular as well: `count: {one: 'watch',
-many: 'watches'}`, and `counted` picks. A word that also stands alone in a sentence is written
+and a row may be one of them, so the entry spells the singular as well: `count: {one: 'schedule',
+many: 'schedules'}`, and `counted` picks. A word that also stands alone in a sentence is written
 again under `term`, because that is a surface of its own -- the two hold the same string in
 English and need not in a language that declines a counted noun, which is exactly the difference
 a shared entry would hide.

@@ -6,7 +6,7 @@ import { JsonBlock } from '@/components/JsonBlock'
 import { PipelineRef } from '@/components/PipelineRef'
 import { Refusable } from '@/components/Refusable'
 import { sayRefusal } from '@/components/Refusal'
-import { Chip, Clock, Dot, NextFire, OwnerChip, WatchState } from '@/components/triggers/marks'
+import { Chip, Clock, Dot, NextFire, OwnerChip } from '@/components/triggers/marks'
 import { Button } from '@/components/ui/button'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { usePaged } from '@/hooks/use-paged'
@@ -34,11 +34,8 @@ import {
     nextFireView,
     readFirings,
     setSchedulePaused,
-    setWatchPaused,
-    watchView,
     type FiringOut,
     type ScheduleOut,
-    type WatchOut,
 } from '@/lib/triggers'
 
 /**
@@ -49,10 +46,9 @@ import {
  * it -- the same `usePaged` the listings use, and for the same reason: there is no total to
  * state and no page to jump to.
  *
- * WHAT IS EDITABLE HERE IS WHAT DOES NOT LIVE IN THE DOCUMENT. Whether a schedule, a watch or a
- * source is paused is operational state the instance owns, so it is a verb here even on a
- * managed trigger; the clock and the watched step came from a document and change by applying
- * one.
+ * WHAT IS EDITABLE HERE IS WHAT DOES NOT LIVE IN THE DOCUMENT. Whether a schedule or a source
+ * is paused is operational state the instance owns, so it is a verb here even on a managed
+ * trigger; the clock came from a document and changes by applying one.
  */
 export function SchedulePanel({
     pipeline,
@@ -309,104 +305,6 @@ export function SourcePanel({
                 onMore={more}
                 render={(input) => <Received input={input} />}
             />
-        </div>
-    )
-}
-
-export function WatchPanel({
-    pipeline,
-    pipelineName,
-    watch,
-    onChanged,
-}: {
-    pipeline: string
-    pipelineName: string | null
-    watch: WatchOut
-    /** Called with what a verb answered, so the row behind updates without a re-read. */
-    onChanged: (row: WatchOut) => void
-}) {
-    const [busy, setBusy] = useState(false)
-    const write = useMayWrite()
-
-    const toggle = () => {
-        setBusy(true)
-        void setWatchPaused(pipeline, watch.code, !watch.paused)
-            .then(onChanged, sayRefusal)
-            .finally(() => {
-                setBusy(false)
-            })
-    }
-
-    return (
-        <div className="space-y-4 p-4">
-            <Head
-                thing={watch}
-                pipeline={pipeline}
-                pipelineName={pipelineName}
-                description={watch.description}
-            >
-                <OwnerChip managed={watch.managed} document={watch.trigger_document} />
-                {watch.paused && <Chip>{LABELS.state.armed.paused}</Chip>}
-            </Head>
-
-            <dl className="space-y-1.5">
-                <Fact label={LABELS.word.step.label}>
-                    <span className="font-mono">{watch.step}</span>
-                </Fact>
-                {watchView(watch).kind !== 'paused' && (
-                    <Fact label={LABELS.triggers.watch.waiting}>
-                        <WatchState watch={watch} />
-                    </Fact>
-                )}
-                {watch.failures > 0 && (
-                    <Fact label={LABELS.triggers.watch.failures}>{String(watch.failures)}</Fact>
-                )}
-                {watch.last_error !== null && (
-                    <Fact label={LABELS.triggers.watch.last_error}>
-                        <span className="break-words text-critical">{watch.last_error}</span>
-                        {watch.last_error_at !== null && (
-                            <span
-                                className="ml-2 text-xs text-faint"
-                                title={formatInstant(watch.last_error_at)}
-                            >
-                                {formatRelative(watch.last_error_at)}
-                            </span>
-                        )}
-                    </Fact>
-                )}
-                {watch.cursor !== null && (
-                    <Fact label={LABELS.word.cursor}>
-                        <div className="mt-1">
-                            <JsonBlock
-                                title={LABELS.triggers.watch.cursor_title(watch.code)}
-                                text={asJson(watch.cursor)}
-                            />
-                        </div>
-                    </Fact>
-                )}
-                {Object.keys(watch.params).length > 0 && (
-                    <Fact label={LABELS.word.pinned_parameters}>
-                        <div className="mt-1">
-                            <JsonBlock
-                                title={LABELS.triggers.pinned_title(watch.code)}
-                                text={asJson(watch.params)}
-                            />
-                        </div>
-                    </Fact>
-                )}
-            </dl>
-
-            <Refusable why={write.why}>
-                <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={busy || !write.may}
-                    title={write.why}
-                    onClick={toggle}
-                >
-                    {watch.paused ? LABELS.action.resume : LABELS.action.pause}
-                </Button>
-            </Refusable>
         </div>
     )
 }

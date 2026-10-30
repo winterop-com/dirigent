@@ -151,7 +151,7 @@ const action = {
  * from another: capitalising in code compiles English's own rule into the app.
  *
  * A COUNTED SURFACE HOLDS BOTH NUMBERS. `count` is a `{one, many}` pair, so a foot counting one
- * row says "1 watch" because the word is written there and not because anything took the plural
+ * row says "1 schedule" because the word is written there and not because anything took the plural
  * apart. A word that also stands alone in a sentence is written again under `term`, which is a
  * surface of its own: the two are the same string in English and need not be in another
  * language.
@@ -262,16 +262,6 @@ const word = {
         count: {
             one: 'schedule',
             many: 'schedules',
-        },
-    },
-    /** A step that waits for an external condition. */
-    watch: {
-        label: 'Watch',
-        heading: 'Watches',
-        term: 'watch',
-        count: {
-            one: 'watch',
-            many: 'watches',
         },
     },
     /** Where an input enters a pipeline: its first step, listening. */
@@ -420,8 +410,6 @@ const word = {
     start: 'Start',
     /** The end of a span. */
     end: 'End',
-    /** Where a watch has read up to. */
-    cursor: 'Cursor',
     /** The values a trigger always passes. */
     pinned_parameters: 'Pinned parameters',
     /** How this instance is deployed. */
@@ -1153,13 +1141,15 @@ const refused = {
         sample_outside_source: 'Only a source takes a sample.',
         schedule_on_sources:
             'Pipeline {code} starts at its sources, and a schedule would enter none of them. Run it from a source instead.',
+        sensor_not_a_source:
+            '{block} is not a sensor a source can poke outside a run. Those that are: {known}.',
+        sensor_outside_run: '{block} read {what}, which a sensor poked by a source has no run to give.',
+        sensor_unknown: 'No sensor {block} is installed on this instance. Those a source can poke: {known}.',
         signature_mismatch: 'The signature does not match the body.',
         signature_required: 'This endpoint takes a signature of the body in a {header} header.',
         step_one_form: 'A step is exactly one of block, source or reply, and this one writes {named}.',
         takes_no_token: 'Source {code} of pipeline {pipeline} is {auth}, so it has no token to rotate.',
         token_refused: 'This endpoint takes the bearer token minted for it, in an Authorization header.',
-        triggers_on_sources:
-            'Pipeline {code} starts at its sources, and a {label} would start a run that enters none of them.',
         unknown: 'Pipeline {pipeline} has no source {code}.',
         unknown_kind: 'No source kind {kind} is available on this instance. Known: {known}.',
         unsupported_media:
@@ -1171,9 +1161,6 @@ const refused = {
     },
     validation: {
         extra_forbidden: 'Unknown key{suggestion}.',
-    },
-    watch: {
-        unknown: 'Pipeline {pipeline} has no watch coded {code}.',
     },
 } as const
 
@@ -1352,13 +1339,11 @@ const pipelines = {
         explained: 'deactivated: its schedules are paused and it cannot be run',
     },
     /**
-     * What fires a pipeline on its own, which is what the glyphs in the column are titled with.
+     * What fires a pipeline on its own, which is what the glyph in the column is titled with.
      *
-     * The three kinds are counted in `word`, singular and plural: this holds only the joining.
+     * The schedules are counted in `word`, singular and plural: this holds only the none.
      */
     trigger_summary: {
-        /** The last count, joined to the ones before it. */
-        and: (counts: string, last: string) => `${counts} and ${last}`,
         none: 'nothing fires this on its own',
     },
     /** How the newest run of a pipeline reads in the listing. */
@@ -1575,8 +1560,6 @@ const editor = {
             `${thing} is not installed on this instance, so applying and running this document will fail`,
         no_triggers:
             'Nothing fires this pipeline on its own. A document declares them under its triggers key.',
-        /** Between a watch and the step it watches. */
-        watch_on: 'on',
         /** A schedule declaring none of the keys that would say when it fires. */
         no_clock: 'no clock',
         recent_runs: 'Recent runs',
@@ -1767,9 +1750,6 @@ const editor = {
             schedules_created: 'schedules created',
             schedules_updated: 'schedules updated',
             schedules_removed: 'schedules removed',
-            watches_created: 'watches created',
-            watches_updated: 'watches updated',
-            watches_removed: 'watches removed',
         },
         /** One line of that: what happened, and the triggers it happened to. */
         change_line: (what: string, names: string) => `${what}: ${names}`,
@@ -2280,13 +2260,13 @@ const terminal = {
 /**
  * What the triggers screen says.
  *
- * ONE BLOCK PER KIND. The screen lists sources, schedules and watches under three headings,
- * opens a panel per kind and offers a dialog for the one a person may declare, so the vocabulary
- * is grouped by kind rather than by surface: everything a schedule says is under `schedule`, and
+ * ONE BLOCK PER KIND. The screen lists sources and schedules under two headings, opens a
+ * panel per kind and offers a dialog for the one a person may declare, so the vocabulary is
+ * grouped by kind rather than by surface: everything a schedule says is under `schedule`, and
  * the gaps between the blocks are the differences between the kinds.
  *
  * WHAT IS NOT HERE. The nouns the whole product labels things with -- Pipeline, Clock, Timezone,
- * Next, Step, Cursor, Pinned parameters, and each kind's own heading and count -- are `word`; the chips a trigger wears are `state.armed`;
+ * Next, Step, Pinned parameters, and each kind's own heading and count -- are `word`; the chips a trigger wears are `state.armed`;
  * and the verbs its panel offers are `action`. Only this screen's own words are here.
  */
 const triggers = {
@@ -2377,26 +2357,6 @@ const triggers = {
         /** The header a signed caller sends, and what its value is. */
         signed_header: (header: string) => `${header}: sha256=<signature>`,
         signed_note: 'The signature is the hex HMAC-SHA256 of the request body, keyed with this secret.',
-    },
-
-    /**
-     * The sensors. A watch is only ever declared by a document, so there is no dialog and no
-     * New: what this block holds is the listing, the panel, and the words a wait is in.
-     */
-    watch: {
-        empty: 'No watches. A document declares one under its triggers key.',
-        /** What the watch has waiting on its sensor now. */
-        waiting: 'Waiting',
-        /** Why the last wait ended without the sensor succeeding. */
-        last_error: 'Last error',
-        /** How many waits in a row have ended that way. */
-        failures: 'Failures in a row',
-        /** A watch held back after a failure, said in front of the instant it arms at. */
-        backing_off_until: 'backing off until',
-        /** Nothing waiting and nothing holding it back: the next tick arms it. */
-        arming: 'arming',
-        /** The window title over where the watch has read up to. */
-        cursor_title: (code: string) => `${code} · cursor`,
     },
 
     /**

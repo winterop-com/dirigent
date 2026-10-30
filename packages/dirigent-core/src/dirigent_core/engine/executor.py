@@ -19,7 +19,7 @@ import sqlalchemy as sa
 from pydantic import BaseModel, ConfigDict, JsonValue, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from dirigent_client.enums import AttemptKind, AttemptStatus, LogLevel, RunStatus, TriggerKind
+from dirigent_client.enums import AttemptKind, AttemptStatus, LogLevel, RunStatus
 from dirigent_common import Issue, JsonMap, format_duration, raised_detail
 from dirigent_core import telemetry, wakeups
 from dirigent_core.artifacts import persist_output
@@ -54,7 +54,7 @@ from dirigent_core.engine.runs import (
     promote_queued_run,
 )
 from dirigent_core.engine.services import EngineServices
-from dirigent_core.engine.state import advance, lock_pipeline, lock_run
+from dirigent_core.engine.state import advance, lock_run
 from dirigent_core.ids import uuid7
 from dirigent_core.logging import get_logger, log_context
 from dirigent_core.messages import (
@@ -109,9 +109,6 @@ class Produced(BaseModel):
     output: JsonMap
     fetched: bool = False
     """True when a fetch returned this output and nothing has committed it yet."""
-
-    cursor: JsonMap | None = None
-    """Where a sensor's successful poke left off, stored on the attempt for a watch to carry on from."""
 
 
 class Submitted(BaseModel):
@@ -478,7 +475,7 @@ class Engine:
             async with asyncio.timeout(unit.step.timeout.total_seconds() if unit.step.timeout else None):
                 if sensor is not None:
                     with self._timed(unit.block_id, "poke"):
-                        return _read_poke(sensor, await sensor.poke(config, context))
+                        return _read_poke(await sensor.poke(config, context))
                 if operator is None:  # pragma: no cover - the host resolved it above
                     return Errored(failure=Failure.rejected(BLOCK_NOT_INSTALLED, block=repr(unit.block_id)))
                 return await self._call_operator(operator, config, context, unit)
@@ -712,12 +709,7 @@ class Engine:
             # that inserted a log row first would hold a share lock on the run and then have
             # to upgrade it, which is how two workers finishing at once deadlock. The lock
             # also orders this transaction against the claim and the lease sweeper, which
-            # is what makes the lease check below a fence rather than a guess. A run a watch
-            # armed may re-arm or end its watch's wait here, which takes the pipeline's lock,
-            # so that lock is taken first: pipeline then run, the order a pause and a cancel
-            # take them in.
-            if run.triggered_by_kind is TriggerKind.WATCH:
-                await lock_pipeline(session, run.pipeline_id)
+            # is what makes the lease check below a fence rather than a guess.
             await lock_run(session, run.id)
             attempt = await session.get(StepAttempt, unit.attempt_id)
             if attempt is None:  # pragma: no cover - foreign keys prevent this
@@ -739,13 +731,8 @@ class Engine:
 
             output_bytes: int | None = None
             match result:
-                case Produced(output=output, cursor=cursor):
-                    output_bytes = await self._succeed(session, storage, attempt, output, now, cursor=cursor)
-                    # Imported here rather than at module scope: the watches import the run
-                    # machinery this module is imported by.
-                    from dirigent_core.triggers.watches import rearm_after_success
-
-                    await rearm_after_success(session, self.services, run, attempt, now=now)
+                case Produced(output=output):
+                    output_bytes = await self._succeed(session, storage, attempt, output, now)
                 case Submitted(handle=handle, next_poll_in=interval):
                     _park(attempt, now, interval or probe_interval(self._poll_for(unit), 0))
                     attempt.remote_handle = handle.model_dump(mode="json")
@@ -800,9 +787,6 @@ class Engine:
                 report_artifact_id=rendered.artifact_id,
             )
             await promote_queued_run(session, self.services, run.pipeline_id)
-            from dirigent_core.triggers.watches import note_settled
-
-            await note_settled(session, self.services, run, now=now)
             await wakeups.hasten_parent(session, run, now)
             telemetry.record_run(status.value, definition.code)
         return status
@@ -832,14 +816,8 @@ class Engine:
         attempt: StepAttempt,
         output: JsonMap,
         now: datetime,
-        *,
-        cursor: JsonMap | None = None,
     ) -> int | None:
-        """Persist an output as an artifact reference, mark the attempt succeeded, and size it.
-
-        ``cursor`` replaces whatever the attempt's last park held: it is where the success left
-        off, which a watch reads when it arms its next run.
-        """
+        """Persist an output as an artifact reference, mark the attempt succeeded, and size it."""
         reference = await persist_output(
             session,
             storage,
@@ -856,7 +834,7 @@ class Engine:
         attempt.error_class = None
         attempt.waiting_message = None
         attempt.waiting_progress = None
-        attempt.poke_cursor = cursor
+        attempt.poke_cursor = None
         _release(attempt)
         return reference.size_bytes
 
@@ -971,10 +949,7 @@ class Engine:
         *,
         allow_retry: bool = True,
     ) -> None:
-        """Fail an attempt, and schedule the next one when the retry policy earns it.
-
-        The retry of a run a watch armed starts from the cursor the failed attempt held.
-        """
+        """Fail an attempt, and schedule the next one when the retry policy earns it."""
         attempt.status = AttemptStatus.FAILED
         attempt.finished_at = now
         attempt.error = failure.message
@@ -1009,7 +984,6 @@ class Engine:
                 status=AttemptStatus.QUEUED,
                 available_at=now + delay,
                 deadline_at=attempt.deadline_at,
-                poke_cursor=attempt.poke_cursor if run.triggered_by_kind is TriggerKind.WATCH else None,
             )
         )
         _logger.info(
@@ -1192,11 +1166,8 @@ def _note_waiting(session: AsyncSession, attempt: StepAttempt, message: str | No
     attempt.waiting_progress = progress
 
 
-def _read_poke(sensor: AnySensor, observed: BaseModel | NotYet) -> CallResult:
-    """Turn a sensor's return value into an outcome; NotYet is not a failure.
-
-    A success carries where the sensor says it left off, which is what a watch resumes from.
-    """
+def _read_poke(observed: BaseModel | NotYet) -> CallResult:
+    """Turn a sensor's return value into an outcome; NotYet is not a failure."""
     if isinstance(observed, NotYet):
         return Waiting(
             next_poll_in=observed.next_poll_in,
@@ -1204,7 +1175,7 @@ def _read_poke(sensor: AnySensor, observed: BaseModel | NotYet) -> CallResult:
             progress=observed.progress,
             cursor=observed.cursor,
         )
-    return Produced(output=observed.model_dump(mode="json"), cursor=sensor.resume_cursor(observed))
+    return Produced(output=observed.model_dump(mode="json"))
 
 
 async def collect_item_outputs(

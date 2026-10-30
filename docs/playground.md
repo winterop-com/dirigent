@@ -298,7 +298,7 @@ Two knobs are the sensor's own, and they decide only when the parking stops:
 | Knob | Default | What it does |
 | --- | --- | --- |
 | `after_pokes` | `1` | How many pokes park before the batch arrives. `0` lets the first poke carry it. |
-| `after` | `0s` | How long the wait lasts, measured from when the attempt started. |
+| `after` | `0s` | How long the wait lasts, measured from when the attempt started, or under a `sensor` source from when the source began waiting. |
 
 Both are floors, so the batch arrives on the first poke that has cleared them both. Set
 neither and the default is one park and then the batch, which is the smallest thing that shows
@@ -309,8 +309,7 @@ are a 2s poll and a 10 minute deadline.
 A sensor's word for "nothing yet" is `NotYet`, which is not a failure, and in a document the
 two would read as one thing: a poke that parks and a poke that fails both leave the step
 unsettled. They are not one thing to the engine -- a park keeps the attempt and a failure ends
-it -- and the difference shows up in the cursor, which lives on the attempt row: outside a
-watch, a failed poke that earns a retry starts the next attempt with no cursor and parks the
+it -- and the difference shows up in the cursor, which lives on the attempt row: in a step, a failed poke that earns a retry starts the next attempt with no cursor and parks the
 whole wait again from zero. That is a real lesson about sensors, and it is not the lesson about retry classification;
 a document that wants the classes wants the node, which is one step and one attempt number.
 
@@ -341,14 +340,14 @@ What it does not have is what the playground has nothing to put in: no topic, no
 key, no headers, and no broker offsets to commit. `timestamp` is when the batch arrived, and
 `next_offset` is where the next batch starts.
 
-### Watched, it is a stream
+### As a source, it is a stream
 
-Under a [watch](concepts.md#watches), `playground.arrive` is a source that never runs dry: one
-run always waits on it, and the moment a batch arrives the next run is armed and starts its
-offsets where this batch's ended. Three runs of three rows carry offsets 0 to 8 between them,
-with nothing to connect to, so the run list filling and the graph lighting up batch after batch
-is what watching a topic looks like, offline:
-[`examples/triggers/watch-a-sensor.yaml`](https://github.com/winterop-com/dirigent/tree/main/examples/triggers/watch-a-sensor.yaml).
+Named by a [`sensor` source](concepts.md#source-and-reply), `playground.arrive` is a source that
+never runs dry: a worker pokes it outside any run, each batch that arrives becomes one run, and
+the next wait starts its offsets where this batch's ended. Three runs of three rows carry
+offsets 0 to 8 between them, with nothing to connect to, so the run list filling and the graph
+lighting up batch after batch is what consuming a topic looks like, offline:
+[`examples/sources/sensor-arrivals.yaml`](https://github.com/winterop-com/dirigent/tree/main/examples/sources/sensor-arrivals.yaml).
 
 ### A readiness wait, offline
 

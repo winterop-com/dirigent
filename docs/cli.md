@@ -735,7 +735,7 @@ rather than being able to change what a parser reads the record by.
 | `process` | A long-running process starts, when it is ready, when `dg dev --wipe-state` clears its state, and when the process that started `dg dev` goes | `process`, and for `dg dev` the `api`, `docs`, `state`, `admin`, `token` and `migrated` it would otherwise have printed; a `state cleared` carries the `state` it deleted and the `hint` that keeps it, and a `parent gone` the `parent` pid that went |
 | `seed.connection` | `dg dev --seed` creates a connection a file or a document declares | `connection`, `connection_kind`, `action` of `created` or `updated`, and the `origin` file it was read from |
 | `seed.schema` | `dg dev --seed` stores a standalone JSON Schema file | `schema`, the code it is stored under, and the `origin` file it was read from |
-| `seed.applied` | `dg dev --seed` stores one document | `document`, `pipeline`, `action`, and the `schedules_paused` and `watches_paused` this apply brought into being |
+| `seed.applied` | `dg dev --seed` stores one document | `document`, `pipeline`, `action`, and the `schedules_paused` this apply brought into being |
 | `seed.refused` | `dg dev --seed` meets something the instance will not take | `document` and the `reason` it gave |
 | `seed.done` | `dg dev --seed` finishes | The `directories` it walked, or with `--seed-installed` the `plugins`, and the `pipelines`, `refused`, `connections` and `schemas` it ended with |
 
@@ -897,14 +897,12 @@ verb and whose fields are the identity of what changed:
 | `pipeline.schema` | `dg pipeline schema` | the number of `blocks` composed in, and the `schema` itself, or the `path` that `-f` wrote it to |
 | `pipeline.created` | `dg pipeline new` | `code`, the `starter` it copied, the `path` it wrote, the copy's own `requires`, and the `preflight` list to work through |
 | `schedule.created` / `.paused` / `.resumed` / `.deleted` | `dg schedule …` | `code`, `pipeline`, and a live one's `clock`, `timezone`, `next_fire_at` |
-| `watch` | `dg watch list`, `dg watch show` | One per watch, under `fields`: `code`, `step`, `paused`, the `cursor` it holds, the `waiting_run_id`, and its health -- `failures`, `last_error`, `rearm_at` |
 | `source` | `dg source list`, `dg source show` | One per source, under `fields`: `pipeline`, `code`, `kind`, `state`, the `route` and `methods` it answers, its `url_path`, `auth`, `token_prefix`, `in_flight` against `max_in_flight`, and the `accepted` and `refused` counts |
 | `source.input` | `dg source inputs` | One per input, newest first, under `fields`: `outcome`, the HTTP `status` it was answered with, the `run_id` or the refusal's `code` and `reason`, `method`, `path`, `body_bytes`, `duration_ms`, `caller` |
 | `source.paused` / `.resumed` | `dg source pause`, `dg source resume` | `code`, `pipeline`, and the `state` it is in now |
 | `source.token_rotated` | `dg source rotate-token` | `code`, `pipeline`, the `url` to call, its `auth` and, for a signed source, the signature `header`, and the new `token` or signing secret, once |
 | `source.secret_set` | `dg source set-secret` | `code`, `pipeline`, and the `prefix` of the secret it now holds |
 | `source.called` | `dg source call` | `code`, `pipeline`, `method`, `url`, and the `status` and `body` it was answered with |
-| `watch.paused` / `.resumed` | `dg watch pause`, `dg watch resume` | `code`, `pipeline`, the `cursor` it keeps, and a resumed one's new `waiting_run_id` |
 | `alert_rule.created` / `.paused` / `.resumed` / `.deleted` | `dg alerts rules …` | `code`, `event`, the `notifier` the target resolved to, and a new one's `scope`, `connection`, `throttle`, and `template` and `body` as booleans saying whether the rule carries one |
 | `notification.queued` | `dg alerts test` | `notification_id`, `notifier`, `connection`, `subject` |
 | `notification.retried` | `dg alerts retry` | `notification_id`, `notifier`, `subject`, `attempt`, `available_at` |
@@ -916,7 +914,7 @@ verb and whose fields are the identity of what changed:
 | `schema.created` | `dg schema create` | `code`, `name` |
 | `schema.updated` | `dg schema update` | `code`, `name` as it now stands, `changed[]` naming which of `name`, `description` and `body` the request said anything about, and `used_by[]`, the stored pipelines that validate against the shape from their next attempt |
 | `schema.deleted` | `dg schema delete` | `code` |
-| `trigger_document.deleted` | `dg trigger-document delete` | `code`, and that its `schedules` and `watches` went with it |
+| `trigger_document.deleted` | `dg trigger-document delete` | `code`, and that its `schedules` went with it |
 | `token.revoked` | `dg admin token revoke` | `code`, and `username` when `--user` named one |
 | `token.issued` | `dg auth login`, `dg admin token create` | `username`, the token's `name`, and the `token` itself, once; a login adds the `url`, a mint the `prefix` |
 | `pipeline.exported` | `dg export` | `code`, the `version` asked for, the `document` it exported, and the `path` when `-f` wrote it |
@@ -1112,7 +1110,6 @@ dg schedule create PIPELINE CODE --cron "0 5 * * *" [--tz UTC] [-p k=v] [-P FILE
                                 [--name TEXT] [--description TEXT] [--priority low|normal|high]
 dg schedule create PIPELINE CODE --interval 1h | --at 2026-01-01T05:00:00Z
 dg schedule list | pause | resume | firings | delete PIPELINE CODE
-dg watch list PIPELINE | show | pause | resume PIPELINE CODE
 dg source list [PIPELINE]
 dg source show | pause | resume | rotate-token | inputs PIPELINE SOURCE
 dg source set-secret PIPELINE SOURCE [--secret S]
@@ -1292,25 +1289,15 @@ inactive, so apply the pipeline first -- a whole-project `dg apply` does that fo
 ```bash
 dg apply clocks.yaml                        # says which pipeline it schedules
 dg trigger-document list                    # every clock file, and what each one fires
-dg trigger-document show fleet-clocks       # the schedules and watches it owns
+dg trigger-document show fleet-clocks       # the schedules it owns
 dg trigger-document delete fleet-clocks     # the document and its rows; the pipeline stays
 ```
 
 `dg schedule list` says which document declares each row, so a clock a document owns is never
 mistaken for one somebody added by hand.
 
-A watch is declared only by a document, so `dg watch` has no `create`: it reads and steers
-what an apply made. `list` and `show` write a `watch` record per row, carrying the step it
-waits on, the run it has waiting, the cursor it holds and its health -- `failures`,
-`last_error`, and `rearm_at` while it backs off. `pause` cancels the waiting run and writes
-`watch.paused`; `resume` arms a run from the stored cursor and writes `watch.resumed` naming it.
-
-```bash
-dg watch list tailing
-dg watch pause tailing follow
-dg watch resume tailing follow
-``` `dg run --local` refuses a triggers document: it
-declares clocks for a pipeline and has nothing to run itself.
+`dg run --local` refuses a triggers document: it declares clocks for a pipeline and has
+nothing to run itself.
 
 ## Priority, when one run cannot wait
 

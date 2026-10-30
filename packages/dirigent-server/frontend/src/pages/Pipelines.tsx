@@ -1,4 +1,4 @@
-import { BookOpen, ChevronDown, Clock, Eye, FilePlus2, Plus, RefreshCw } from 'lucide-react'
+import { BookOpen, ChevronDown, Clock, FilePlus2, Plus, RefreshCw } from 'lucide-react'
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 
@@ -459,23 +459,13 @@ function pipelineColumns(onTag: (tag: string) => void): Column<PipelineOut>[] {
             id: 'triggers',
             header: LABELS.word.trigger.heading,
             cell: (row) =>
-                row.schedules === 0 && row.watches === 0 ? null : (
+                row.schedules === 0 ? null : (
                     <span
-                        className="flex items-center gap-3 text-xs text-muted-foreground"
+                        className="flex items-center gap-1 text-xs text-muted-foreground"
                         title={triggerSummary(row)}
                     >
-                        {row.schedules > 0 && (
-                            <span className="flex items-center gap-1">
-                                <Clock className="size-3" aria-hidden />
-                                {String(row.schedules)}
-                            </span>
-                        )}
-                        {row.watches > 0 && (
-                            <span className="flex items-center gap-1">
-                                <Eye className="size-3" aria-hidden />
-                                {String(row.watches)}
-                            </span>
-                        )}
+                        <Clock className="size-3" aria-hidden />
+                        {String(row.schedules)}
                     </span>
                 ),
         },

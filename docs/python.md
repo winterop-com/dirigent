@@ -62,7 +62,6 @@ One per API resource, and the method names are the CLI's verbs.
 | `dg.pipelines` | `list`, `get`, `apply`, `prune`, `versions`, `export`, `validate`, `activate`, `deactivate`, `delete`, `run`, `backfill` |
 | `dg.runs` | `list`, `get`, `items`, `attempts`, `artifacts`, `artifact_text`, `cancel`, `retry`, `logs`, `report`, `report_document`, `wait`, `follow_logs`, `events` |
 | `dg.schedules` | `list`, `get`, `create`, `update`, `pause`, `resume`, `firings`, `delete` |
-| `dg.watches` | `list`, `get`, `pause`, `resume` |
 | `dg.sources` | `list`, `get`, `pause`, `resume`, `rotate_token`, `set_secret`, `inputs` |
 | `dg.trigger_documents` | `list`, `get`, `delete` |
 | `dg.alerts` | `rules`, `create_rule`, `update_rule`, `set_rule_paused`, `delete_rule`, `test`, `notifications`, `notification`, `retry` |
