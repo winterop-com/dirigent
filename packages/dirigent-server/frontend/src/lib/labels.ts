@@ -1005,6 +1005,8 @@ const refused = {
         carried_schemas:
             'This document carries its own schemas ({named}), which an instance will not store. Create them on the instance and let the document name them under requires.schemas.',
         no_format: 'The document declares no format. Add format: {format}.',
+        step_shell_unreadable:
+            '{field} holds a reference, and its quoting cannot be read past {opener} on line {line}, so where a value lands in it is not known. Close it or write it another way, or pass the value through argv.',
         step_reference_in_sql:
             '{reference} is inside {field}, and a value reaches SQL only as a bound parameter. Write a placeholder such as :name there, and give the reference to params.',
         step_schema_interpolated:
@@ -1048,6 +1050,8 @@ const refused = {
             '{reference} cannot be resolved: step {step} did not fail, and its error is read only when it did.',
         shell_arithmetic:
             '{reference} is inside shell arithmetic, which evaluates its value as an expression, so it must resolve to an integer. Declare the parameter as an integer, or keep the value out of arithmetic.',
+        shell_unreadable:
+            "{reference} cannot be placed, because the command's quoting cannot be read past {opener} on line {line}. Close it or write it another way, or pass the value through argv.",
     },
     run: {
         connection_wrong_kind:

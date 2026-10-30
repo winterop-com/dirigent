@@ -300,6 +300,12 @@ STEP_REFERENCE_IN_SQL = DOCUMENT.define(
     "write :name there and give the reference to params",
 )
 
+STEP_SHELL_UNREADABLE = DOCUMENT.define(
+    "step_shell_unreadable",
+    "{field} holds a reference, and its quoting cannot be read past {opener} on line {line}, so where a "
+    "value lands in it is not known; close it or write it another way, or pass the value through argv",
+)
+
 STEP_UNSAFE_BLOCK = DOCUMENT.define(
     "step_unsafe_block",
     "block {block} executes code on the worker and DIRIGENT_ENABLED_UNSAFE_BLOCKS "
@@ -565,6 +571,12 @@ NOT_FAILED = _unresolved("not_failed", "step {step} did not fail, and its error 
 SHELL_ARITHMETIC = _unresolved(
     "shell_arithmetic",
     "it is inside shell arithmetic, which evaluates a value as an expression, and it is not an integer",
+)
+
+SHELL_UNREADABLE = _unresolved(
+    "shell_unreadable",
+    "the command's quoting cannot be read past {opener} on line {line}, so where a value lands in it "
+    "is not known; close it or write it another way, or pass the value through argv, which involves no shell",
 )
 
 SQL_REFERENCE = _unresolved(
