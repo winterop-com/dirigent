@@ -250,7 +250,7 @@ export function NewSchedule({
                 </div>
 
                 <DialogFooter>
-                    <DialogClose render={<Button variant="ghost" />}>{LABELS.action.close}</DialogClose>
+                    <DialogClose render={<Button variant="ghost" />}>{LABELS.action.cancel}</DialogClose>
                     <Refusable why={shut}>
                         <Button disabled={busy || shut !== undefined} title={shut} onClick={send}>
                             {busy ? LABELS.action.create.busy : LABELS.action.create.verb}
@@ -291,7 +291,7 @@ export function MintedToken({ token, onClose }: { token: SourceTokenOut; onClose
                 if (!next) onClose()
             }}
         >
-            <DialogContent className="sm:max-w-xl" showCloseButton={false}>
+            <DialogContent className="sm:max-w-xl">
                 <DialogHeader>
                     <DialogTitle>
                         {token.auth === 'hmac'
@@ -331,10 +331,6 @@ export function MintedToken({ token, onClose }: { token: SourceTokenOut; onClose
                         <p className="font-mono text-xs break-all">{LABELS.triggers.token.bearer}</p>
                     )}
                 </div>
-
-                <DialogFooter>
-                    <Button onClick={onClose}>{LABELS.action.done}</Button>
-                </DialogFooter>
             </DialogContent>
         </Dialog>
     )

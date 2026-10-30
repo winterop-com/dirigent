@@ -20,6 +20,7 @@ import {
     fitOptionsFor,
     MAX_ZOOM,
     MIN_ZOOM,
+    startOfOverflow,
     revealPoint,
     steppedZoom,
     viewMoved,
@@ -319,10 +320,14 @@ function FitToGraph({ nodes, moved }: { nodes: Node[]; moved: boolean }) {
  *
  * The bounds are applied after the fit as well as passed to it: a fit reads its own bounds from
  * the canvas, and neither a pipeline of two boxes magnified to fill it nor one of fifty shrunk
- * until its labels are grey lines is a reading of the shape.
+ * until its labels are grey lines is a reading of the shape. What does not fit at the floor hangs
+ * off the far edges, with the graph's start on the canvas.
  */
 export async function fitCapped(flow: ReturnType<typeof useReactFlow>): Promise<void> {
     await flow.fitView(fitOptionsFor())
     const held = fittedZoom(flow.getZoom())
     if (held !== flow.getZoom()) await flow.zoomTo(held, { duration: 0 })
+    const view = flow.getViewport()
+    const placed = startOfOverflow(view, flow.getNodesBounds(flow.getNodes()))
+    if (placed.x !== view.x || placed.y !== view.y) await flow.setViewport(placed, { duration: 0 })
 }

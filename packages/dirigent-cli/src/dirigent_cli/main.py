@@ -60,6 +60,7 @@ from dirigent_core.config import (
     Settings,
     drop_secret_key_variable,
     get_settings,
+    keep_same_user_out,
     redacted_url,
     reset_settings_cache,
 )
@@ -760,6 +761,7 @@ def server(
         os.environ[UI_ENV] = "true" if ui else "false"
         reset_settings_cache()
     settings = get_settings()
+    keep_same_user_out()
     _process_logging(_level(ctx, settings), cap_foreign=_cap_foreign(ctx))
     if settings.is_sqlite and settings.scheduler_enabled:
         refuse(
@@ -963,6 +965,7 @@ def dev(
     state = ctx.find_object(CliState)
     settings = get_settings()
     drop_secret_key_variable()
+    keep_same_user_out()
     # A developer convenience starts its own logging at WARNING and -v is what asks for more,
     # while a named DIRIGENT_LOG_LEVEL still wins.
     _process_logging(
@@ -1345,6 +1348,7 @@ def worker(
 
     settings = get_settings()
     drop_secret_key_variable()
+    keep_same_user_out()
     _process_logging(_level(ctx, settings), cap_foreign=_cap_foreign(ctx))
     configure_telemetry(settings)
     if settings.is_sqlite:
@@ -1381,6 +1385,7 @@ def scheduler_command(ctx: typer.Context) -> None:
     import asyncio
 
     settings = get_settings()
+    keep_same_user_out()
     _process_logging(_level(ctx, settings), cap_foreign=_cap_foreign(ctx))
     configure_telemetry(settings)
     if settings.is_sqlite:

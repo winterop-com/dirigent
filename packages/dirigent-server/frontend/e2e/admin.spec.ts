@@ -2,12 +2,9 @@ import { expect, test, type Page } from '@playwright/test'
 
 import { LABELS } from '../src/lib/labels.ts'
 import {
-    applyDocument,
     applyExample,
     DEV_USERNAME,
     ranToCompletion,
-    ranToFailure,
-    refusedDocument,
     signIn,
     signInAs,
     signOut,
@@ -19,10 +16,9 @@ import {
 /**
  * The admin section and the settings dialog, against a real instance.
  *
- * WHAT THESE SPECS ARE FOR is the half a Node test cannot reach: that the dashboard's tiles are
- * composed out of listings a real server answered, that the last-admin guard is the server's and
- * its sentence reaches the screen unchanged, and that a setting written in the dialog moves what
- * is already rendered behind it.
+ * WHAT THESE SPECS ARE FOR is the half a Node test cannot reach: that the last-admin guard is the
+ * server's and its sentence reaches the screen unchanged, and that a setting written in the dialog
+ * moves what is already rendered behind it.
  *
  * THE INSTANCE'S ONLY ADMIN IS `dg dev`'s OWN. Every account this file makes is a viewer, so the
  * development admin stays the only active one and the guard has something to guard.
@@ -30,25 +26,9 @@ import {
 
 const EXAMPLE = { file: 'examples/transform/std-convert-fan-out.yaml', code: 'std-convert-fan-out' }
 
-/** A pipeline whose one call this instance answers, with an answer the step does not accept. */
-const REFUSED = 'admin-spec-refused'
-
 /** A username no other run of this suite will have used. */
 function someone(): string {
     return `spec-${String(Date.now())}`
-}
-
-/**
- * The tile whose label is this, on the dashboard.
- *
- * Scoped to the content column: the rail carries a link called Workers too, and a tile is not
- * the navigation entry that happens to share its name.
- */
-function tile(page: Page, label: string) {
-    return page
-        .getByRole('main')
-        .locator('a')
-        .filter({ has: page.getByText(label, { exact: true }) })
 }
 
 /** The accounts table row for one username. */
@@ -82,55 +62,18 @@ async function createAccount(page: Page, username: string, email?: string): Prom
     await dialog.getByRole('button', { name: LABELS.action.create.verb, exact: true }).click()
 }
 
-test('the dashboard composes its tiles out of the listings behind them', async ({ page }) => {
-    await signIn(page)
-    await applyExample(page.request, EXAMPLE.file)
-    const runId = await startRun(page.request, EXAMPLE.code)
-    await ranToCompletion(page.request, runId)
-
-    await page.goto('/admin')
-
-    // The window tile counted the run this spec just made, and links to the screen that lists it.
-    await expect(tile(page, 'Last 24 hours')).toBeVisible()
-    await expect(tile(page, 'Last 24 hours')).toHaveAttribute('href', '/runs')
-    await expect(tile(page, 'Last 24 hours')).not.toContainText('Nothing has run')
-
-    // Each of the other four states its own fact and links to the screen that explains it.
-    await expect(tile(page, LABELS.word.in_flight.heading)).toBeVisible()
-    await expect(tile(page, 'Workers')).toHaveAttribute('href', '/admin/workers')
-    await expect(tile(page, 'Connections')).toHaveAttribute('href', '/connections')
-    await expect(tile(page, 'Schedules')).toHaveAttribute('href', '/triggers')
-
-    // The workers table is on the dashboard whether or not anything has registered.
-    await expect(page.getByRole('heading', { name: LABELS.screen.workers.name })).toBeVisible()
-
-    // The status bar spends no words on whose screen this is: being here is the proof.
-    await expect(page.getByText('admin only')).toHaveCount(0)
-})
-
-test('a tile counts the states that occurred and spends no clause on the ones that did not', async ({
+test('there is no admin overview: the heading is a word, and the bare address is nowhere', async ({
     page,
-    baseURL,
 }) => {
     await signIn(page)
-    await applyDocument(page.request, refusedDocument(baseURL ?? '', REFUSED))
-    const runId = await startRun(page.request, REFUSED)
-    await ranToFailure(page.request, runId)
+    await page.goto('/admin/users')
+    await expect(page.getByRole('link', { name: LABELS.screen.admin, exact: true })).toHaveCount(0)
+    await expect(
+        page.getByRole('complementary').getByText(LABELS.screen.admin, { exact: true }),
+    ).toBeVisible()
 
     await page.goto('/admin')
-
-    // The day has a failure in it and nothing that finished with errors, so the tile names the
-    // one and says nothing whatever about the other.
-    await expect(tile(page, 'Last 24 hours')).toContainText('failed')
-    await expect(tile(page, 'Last 24 hours')).not.toContainText('0 finished with errors')
-
-    // Nothing is in flight once it has settled, and that is one sentence about an idle
-    // instance rather than a pair of zeroes.
-    await expect(tile(page, LABELS.word.in_flight.heading)).toContainText(LABELS.dashboard.nothing_in_flight)
-    await expect(tile(page, LABELS.word.in_flight.heading)).not.toContainText('0 running')
-
-    // The run that failed is in the table the tiles sit above.
-    await expect(page.getByRole('main').getByRole('row').filter({ hasText: 'failed' }).first()).toBeVisible()
+    await expect(page.getByRole('main')).toContainText(LABELS.screen.nowhere)
 })
 
 test('an account is made, and then turned off', async ({ page }) => {
@@ -162,7 +105,16 @@ test('an account is made, and then turned off', async ({ page }) => {
     await expect(panel).toContainText(LABELS.word.created.label)
     await expect(panel).toContainText(LABELS.users.never_signed_in)
 
+    // It asks first, and nothing has happened until it is answered.
     await panel.getByRole('button', { name: LABELS.action.deactivate }).click()
+    const asking = page.getByRole('dialog', { name: `Deactivate ${username}?` })
+    await asking.getByRole('button', { name: LABELS.action.cancel }).click()
+    await expect(asking).toHaveCount(0)
+    await expect(rowOf(page, username)).not.toContainText('deactivated')
+
+    await panel.getByRole('button', { name: LABELS.action.deactivate }).click()
+    await asking.getByRole('button', { name: LABELS.action.deactivate, exact: true }).click()
+    await expect(asking).toHaveCount(0)
     await expect(rowOf(page, username)).toContainText('deactivated')
 
     // And the panel says so of itself, rather than leaving the button label to imply it.
@@ -175,11 +127,13 @@ test('the last admin cannot deactivate itself, and is told so where it asked', a
 
     await rowOf(page, DEV_USERNAME).click()
     await page.getByRole('button', { name: LABELS.action.deactivate }).click()
+    const asking = page.getByRole('dialog', { name: `Deactivate ${DEV_USERNAME}?` })
+    await asking.getByRole('button', { name: LABELS.action.deactivate, exact: true }).click()
 
-    // The refusal is the server's own sentence, rendered beside the button that asked for it
-    // rather than as a toast that outlives the screen. Its status phrase is not a heading: it
-    // would say "Conflict" of every refusal this screen can make.
-    await expect(page.getByText('the only active admin')).toBeVisible()
+    // The refusal is the server's own sentence, one line in the question that asked for it rather
+    // than a toast that outlives the screen, and the question stays open on it.
+    await expect(asking.getByText('the only active admin')).toBeVisible()
+    await asking.getByRole('button', { name: LABELS.action.cancel }).click()
 
     // And nothing changed: the account is still active and still an admin.
     await expect(rowOf(page, DEV_USERNAME)).not.toContainText(LABELS.state.armed.deactivated)
@@ -382,7 +336,7 @@ test('a token is made on its account, listed under it, and revoked after a quest
 
     // The secret is shown once, beside the account it authenticates as.
     await expect(dialog).toContainText(username)
-    await dialog.getByRole('button', { name: LABELS.action.done }).click()
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click()
 
     // It stands under its account, its row says how many, and there is no Prefix anywhere.
     await expect(tokenRowOf(page, token)).toBeVisible()

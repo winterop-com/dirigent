@@ -335,12 +335,10 @@ export const FIT_MAX_ZOOM = 1
 /**
  * How far a fit is allowed to zoom out.
  *
- * A NODE IS NEVER DRAWN BELOW A SIZE ITS TEXT CAN BE READ AT. A fit answers the whole shape by
- * scaling it, and past a point what that answers with is a diagram of grey boxes -- the 13px
- * title is under ten pixels by a quarter of its size. A graph too big to fit at this zoom is
- * shown at this zoom and panned to, which is the reading that is worth having.
+ * A NODE IS NEVER DRAWN BELOW A SIZE ITS TEXT CAN BE READ AT: a 13px title stays at 10.4px and an
+ * 11px word at 8.8px. A graph too big to fit at this zoom is shown at this zoom and panned to.
  */
-export const FIT_MIN_ZOOM = 0.55
+export const FIT_MIN_ZOOM = 0.8
 
 /** How far one press of a zoom control moves, as a factor on the zoom. */
 export const ZOOM_STEP = 1.5
@@ -357,6 +355,43 @@ export function fitOptionsFor(): { padding: number; minZoom: number; maxZoom: nu
 /** The zoom a fit settles at, which is what it asked for held inside the two bounds. */
 export function fittedZoom(zoom: number): number {
     return Math.min(FIT_MAX_ZOOM, Math.max(FIT_MIN_ZOOM, zoom))
+}
+
+/** How far from the canvas's edge a graph past the floor starts, in pixels. */
+export const OVERFLOW_MARGIN = 24
+
+/** A pan and a zoom, as React Flow holds them. */
+export interface GraphView {
+    x: number
+    y: number
+    zoom: number
+}
+
+/** The box a graph's nodes take up, in the graph's own coordinates. */
+export interface GraphBounds {
+    x: number
+    y: number
+    width: number
+    height: number
+}
+
+/**
+ * Where a fitted view stands once what does not fit has been hung off the far edges.
+ *
+ * A fit centres the graph, so the canvas's own size is read back from where it put the centre. An
+ * axis the graph fits on stays centred; on one it does not, the graph's start stands at the margin.
+ */
+export function startOfOverflow(view: GraphView, bounds: GraphBounds): GraphView {
+    const place = (at: number, start: number, length: number): number => {
+        const drawn = length * view.zoom
+        const canvas = 2 * at + 2 * start * view.zoom + drawn
+        return drawn <= canvas ? at : OVERFLOW_MARGIN - start * view.zoom
+    }
+    return {
+        x: place(view.x, bounds.x, bounds.width),
+        y: place(view.y, bounds.y, bounds.height),
+        zoom: view.zoom,
+    }
 }
 
 /** Where one press of a zoom control lands, held inside what the canvas allows. */

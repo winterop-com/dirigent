@@ -14,30 +14,6 @@ const TONES: Record<TileTone, string> = {
 }
 
 /**
- * One number, the sentence under it, and the screen it stands for.
- *
- * THE SENTENCE IS CLAMPED, AND THE WHOLE OF IT IS THE TITLE. A note carries what an external
- * system said when it refused, which is a sentence of no length this app decides, and a row of
- * tiles is one grid row -- so one connection with a long refusal on it grows all of them. Two
- * lines is what every note this app writes itself fits in.
- */
-export function TileCard({ tile }: { tile: Tile }) {
-    return (
-        <Card className="p-0 transition-colors hover:bg-accent/40">
-            <CardContent className="p-0">
-                <Link to={tile.to} className="block space-y-1 p-3 outline-none focus-visible:underline">
-                    <p className="text-xs text-muted-foreground">{tile.label}</p>
-                    <p className={`text-base font-semibold ${TONES[tile.tone]}`}>{tile.value}</p>
-                    <p className="line-clamp-2 text-xs text-muted-foreground" title={tile.note}>
-                        {tile.note}
-                    </p>
-                </Link>
-            </CardContent>
-        </Card>
-    )
-}
-
-/**
  * One number at display size, what it counts above it, and the rows it counted below.
  *
  * THE NUMBER WEARS THE ONE NAMED SIZE OUTSIDE THE TYPE SCALE. `text-stat` is declared once in

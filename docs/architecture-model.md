@@ -26,7 +26,7 @@ graph LR
     2["Operator / admin<br/>[Person]<br/>Runs the processes, holds connections, users, tokens and schedules, and watches health and alerts."]
     3["AI agent<br/>[Person]<br/>A coding agent operating an instance through dirigent-mcp, bounded by the role of its token."]
     4["dirigent-dhis2<br/>[Software System]<br/>Adapter pack (winterop-com/dirigent-dhis2): the dhis2 connection kind, DHIS2 formats, and blocks for jobs, imports, metadata, tracker and analytics."]
-    5["dirigent-contrib<br/>[Software System]<br/>Block packs for outside systems (winterop-com/dirigent-contrib), one package per system."]
+    5["dirigent-contrib<br/>[Software System]<br/>Block packs for outside systems (winterop-com/dirigent-contrib), one package with a subpackage per system."]
     8["DHIS2<br/>[Software System]<br/>Health information system. Source and destination of data values, metadata, tracker data and analytics."]
     9["Chap<br/>[Software System]<br/>Climate-and-health modelling platform (chap-core). Datasets, backtests and predictions over HTTP."]
 
@@ -154,7 +154,7 @@ graph TB
     13["Alert channels<br/>[Software System]<br/>SMTP, Slack and webhook receivers an alert rule delivers through."]
     14["HTTP APIs<br/>[Software System]<br/>Any HTTP service an http.request step reaches, or that calls an endpoint source."]
     4["dirigent-dhis2<br/>[Software System]<br/>Adapter pack (winterop-com/dirigent-dhis2): the dhis2 connection kind, DHIS2 formats, and blocks for jobs, imports, metadata, tracker and analytics."]
-    5["dirigent-contrib<br/>[Software System]<br/>Block packs for outside systems (winterop-com/dirigent-contrib), one package per system."]
+    5["dirigent-contrib<br/>[Software System]<br/>Block packs for outside systems (winterop-com/dirigent-contrib), one package with a subpackage per system."]
 
     subgraph 15 ["Dirigent"]
 

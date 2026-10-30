@@ -240,6 +240,9 @@ def reference_fields(schema: JsonMap, kind: str) -> set[str]:
     return named
 
 
+#: The schema keywords that say a value takes one or all of several shapes.
+_UNION_KEYWORDS: Final = ("anyOf", "oneOf", "allOf")
+
 #: What the engine names the variables it substitutes a shell string's references out into.
 SHELL_VARIABLE_PREFIX: Final = "DIRIGENT_V"
 
@@ -278,37 +281,122 @@ def shell_string_fields(model: type[BaseModel]) -> frozenset[str]:
     )
 
 
-def sql_fields_of(schema: JsonMap) -> frozenset[str]:
-    """Name the fields a config schema publishes as SQL: a string, an optional one, or a list of them.
-
-    A reference in one of these is refused, so a value only ever reaches SQL as a bound
-    parameter. Only the config's own top-level fields are read, the keys a step writes.
-    """
+def shell_fields_of(schema: JsonMap) -> frozenset[str]:
+    """Name the fields a config schema publishes as a shell string, or an optional one."""
     properties = schema.get("properties")
     if not isinstance(properties, dict):
         return frozenset()
     return frozenset(
         str(name)
         for name, declared in cast("dict[str, Any]", properties).items()
-        if isinstance(declared, dict) and _holds_sql(cast("dict[str, Any]", declared))
+        if isinstance(declared, dict) and _publishes_shell(cast("dict[str, Any]", declared))
     )
 
 
-def _holds_sql(shape: dict[str, Any]) -> bool:
-    """Whether a field's schema, its union branches or its list items carry the SQL media type."""
+def _publishes_shell(shape: dict[str, Any]) -> bool:
+    """Whether a field's schema or a branch of its union carries the shell media type."""
+    options = cast("list[dict[str, Any]]", shape.get("anyOf") or [])
+    return shape.get("contentMediaType") == SHELL_MEDIA_TYPE or any(_publishes_shell(option) for option in options)
+
+
+def sql_values_of(config: JsonMap, schema: JsonMap) -> dict[str, JsonValue]:
+    """Find what a config holds where its schema publishes SQL, by dotted location.
+
+    A reference in one of these is refused, so a value only ever reaches SQL as a bound
+    parameter. The walk follows the config through the schema's objects, lists, maps, unions and
+    named definitions, so a pack's nested field is found wherever it sits. A string standing in
+    for a shape with SQL anywhere under it counts too, because a whole reference there would
+    resolve to the object or the list holding the statement.
+    """
+    held = schema.get("$defs")
+    pool = cast("dict[str, Any]", held) if isinstance(held, dict) else {}
+    found: dict[str, JsonValue] = {}
+    _collect_sql(config, schema, pool, "", found)
+    return found
+
+
+def _collect_sql(value: Any, shape: dict[str, Any], pool: dict[str, Any], where: str, found: dict[str, Any]) -> None:
+    """Record every value under ``value`` at a place ``shape`` publishes as SQL."""
+    published = shape.get("contentMediaType") == SQL_MEDIA_TYPE
+    if where and (published or (isinstance(value, str) and _holds_sql(shape, pool))):
+        found[where] = value
+    target = _pointed_at(shape, pool)
+    if target is not None:
+        _collect_sql(value, target, pool, where, found)
+    for keyword in _UNION_KEYWORDS:
+        for option in cast("list[Any]", shape.get(keyword) or []):
+            if isinstance(option, dict):
+                _collect_sql(value, cast("dict[str, Any]", option), pool, where, found)
+    if isinstance(value, dict):
+        for key, element in cast("dict[str, Any]", value).items():
+            child = _property_shape(shape, str(key))
+            if child is not None:
+                _collect_sql(element, child, pool, _extended(where, str(key)), found)
+    elif isinstance(value, list):
+        elements: list[Any] = value  # pyright: ignore[reportUnknownVariableType]
+        for index, element in enumerate(elements):
+            child = _item_shape(shape, index)
+            if child is not None:
+                _collect_sql(element, child, pool, _extended(where, str(index)), found)
+
+
+def _extended(where: str, part: str) -> str:
+    """Add one step to a dotted location."""
+    return f"{where}.{part}" if where else part
+
+
+def _property_shape(shape: dict[str, Any], key: str) -> dict[str, Any] | None:
+    """The shape one key of an object takes, from its own property or the rest of the map."""
+    properties = shape.get("properties")
+    declared = cast("dict[str, Any]", properties).get(key) if isinstance(properties, dict) else None
+    if isinstance(declared, dict):
+        return cast("dict[str, Any]", declared)
+    patterns = shape.get("patternProperties")
+    if isinstance(patterns, dict):
+        for pattern, matched in cast("dict[str, Any]", patterns).items():
+            if isinstance(matched, dict) and re.search(pattern, key):
+                return cast("dict[str, Any]", matched)
+    rest = shape.get("additionalProperties")
+    return cast("dict[str, Any]", rest) if isinstance(rest, dict) else None
+
+
+def _item_shape(shape: dict[str, Any], index: int) -> dict[str, Any] | None:
+    """The shape one position of a list takes, from its own place in a tuple or the items."""
+    positions = shape.get("prefixItems")
+    if isinstance(positions, list):
+        places: list[Any] = positions  # pyright: ignore[reportUnknownVariableType]
+        if index < len(places):
+            return cast("dict[str, Any]", places[index]) if isinstance(places[index], dict) else None
+    items = shape.get("items")
+    return cast("dict[str, Any]", items) if isinstance(items, dict) else None
+
+
+def _holds_sql(shape: dict[str, Any], pool: dict[str, Any], seen: frozenset[int] = frozenset()) -> bool:
+    """Whether a shape publishes SQL itself or anywhere under it, across definitions that recurse."""
+    if id(shape) in seen:
+        return False
     if shape.get("contentMediaType") == SQL_MEDIA_TYPE:
         return True
-    options = cast("list[dict[str, Any]]", shape.get("anyOf") or [])
-    items = shape.get("items")
-    return any(_holds_sql(option) for option in options) or (
-        isinstance(items, dict) and _holds_sql(cast("dict[str, Any]", items))
-    )
+    walked = seen | {id(shape)}
+    below: list[Any] = []
+    target = _pointed_at(shape, pool)
+    if target is not None:
+        below.append(target)
+    for keyword in (*_UNION_KEYWORDS, "prefixItems"):
+        below.extend(cast("list[Any]", shape.get(keyword) or []))
+    for keyword in ("properties", "patternProperties"):
+        held = shape.get(keyword)
+        if isinstance(held, dict):
+            below.extend(cast("dict[str, Any]", held).values())
+    for keyword in ("items", "additionalProperties"):
+        below.append(shape.get(keyword))
+    return any(isinstance(one, dict) and _holds_sql(cast("dict[str, Any]", one), pool, walked) for one in below)
 
 
 @functools.cache
-def sql_string_fields(model: type[BaseModel]) -> frozenset[str]:
-    """List the config fields a model publishes as SQL, by the schema the catalog publishes."""
-    return sql_fields_of(model.model_json_schema(mode="serialization", schema_generator=HumaneJsonSchema))
+def published_config_schema(model: type[BaseModel]) -> JsonMap:
+    """The schema the catalog publishes for a config model, which SQL fields are read from."""
+    return model.model_json_schema(mode="serialization", schema_generator=HumaneJsonSchema)
 
 
 class RemoteHandle(BaseModel):

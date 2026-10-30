@@ -133,6 +133,29 @@ export async function removeSchema(request: APIRequestContext, code: string): Pr
     expect(removed.ok(), await removed.text()).toBe(true)
 }
 
+/**
+ * Take a connection off the instance, with whatever would refuse it.
+ *
+ * `DELETE /connections/{code}` is refused while a pipeline's current version or an alert rule names
+ * the code, and a single read of it says which. A code the instance has not got is nothing to remove.
+ */
+export async function removeConnection(request: APIRequestContext, code: string): Promise<void> {
+    const prefix = await apiPrefix(request)
+    const read = await request.get(`${prefix}/connections/${encodeURIComponent(code)}`)
+    if (!read.ok()) return
+    const held = (await read.json()) as {
+        used_by: { pipelines: { pipeline: string }[]; alert_rules: string[] }
+    }
+    for (const one of held.used_by.pipelines) {
+        await request.delete(`${prefix}/pipelines/${encodeURIComponent(one.pipeline)}`)
+    }
+    for (const rule of held.used_by.alert_rules) {
+        await request.delete(`${prefix}/alert-rules/${encodeURIComponent(rule)}`)
+    }
+    const removed = await request.delete(`${prefix}/connections/${encodeURIComponent(code)}`)
+    expect(removed.ok(), await removed.text()).toBe(true)
+}
+
 /** Apply one of this repository's examples to the instance under test. */
 export async function applyExample(request: APIRequestContext, reference: string): Promise<void> {
     const prefix = await apiPrefix(request)

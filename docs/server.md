@@ -23,7 +23,8 @@ instead, that is [`dg init` and `dg dev`](getting-started.md), and it needs none
 cp .env.example .env
 ```
 
-Two values in it have no safe default.
+Four values in it have no safe default, and the stack refuses to start without the three it cannot
+run without.
 
 **`DIRIGENT_SECRET_KEY`** encrypts connection secrets and endpoint signing secrets:
 
@@ -36,6 +37,19 @@ what is already stored. Back it up somewhere that is not beside the database bac
 
 **`DIRIGENT_BOOTSTRAP_ADMIN_PASSWORD`** is the password the first admin gets. Set it to
 something you choose; the account is created on the first start and named `admin`.
+
+**`POSTGRES_PASSWORD`** and **`S3_SECRET_KEY`** are the database's password and the artifact
+bucket's secret. Nothing outside the stack needs them, so generate both:
+
+```bash
+openssl rand -hex 24
+```
+
+The password goes into the database URL, which is why it is hex. A database keeps the password
+it was created with: on a stack that started before these were required, set `POSTGRES_PASSWORD`
+to the old default, `dirigent`, to keep it running, then change it with `ALTER USER` and the
+`.env` together. A stack on another database still sets `POSTGRES_PASSWORD`, because compose reads
+the whole file whichever services start.
 
 ## 2. Bring the stack up
 

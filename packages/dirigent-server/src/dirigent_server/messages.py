@@ -48,6 +48,11 @@ NO_CONNECTION = SERVER.define("no_connection", "no connection coded {code}")
 
 CONNECTION_EXISTS = SERVER.define("connection_exists", "a connection coded {code} exists")
 
+CONNECTION_IN_USE = SERVER.define(
+    "connection_in_use",
+    "connection {code} cannot be removed while {users} name it; they must stop naming it first",
+)
+
 CONNECTION_REFERENCED = SERVER.define(
     "connection_referenced",
     "connection {code} is still referenced; delete what uses it first",

@@ -91,7 +91,7 @@ export function ApplyDialog({
         void applyPipeline(document, true).then(
             (result: ApplyResult) => {
                 if (cancelled) return
-                setView(planView(result.plan))
+                setView(planView(result))
                 onPlan?.(result.plan)
             },
             (error: unknown) => {
@@ -237,7 +237,7 @@ export function ApplyDialog({
                     return
                 }
                 const result = await applyPipeline(lifted, false)
-                const read = planView(result.plan)
+                const read = planView(result)
                 if (!read.applicable) {
                     // The lift wrote nothing new: the instance is already at this document,
                     // which is an outcome to report rather than a dialog to keep open.
@@ -264,12 +264,11 @@ export function ApplyDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            {/* ONE DISMISSAL, ONE CONTROL. The footer always carries the way out -- `Cancel`
-                beside a confirm, `Close` where there is nothing to confirm -- so the corner's
-                own is not drawn as well. */}
+            {/* ONE DISMISSAL, ONE CONTROL. `Cancel` beside a confirm and no corner close; where
+                there is nothing to confirm, the corner close and no footer. */}
             <DialogContent
                 className="flex max-h-[calc(100vh-4rem)] flex-col sm:max-w-lg"
-                showCloseButton={false}
+                showCloseButton={!asks}
             >
                 <DialogHeader>
                     <DialogTitle>
@@ -319,13 +318,11 @@ export function ApplyDialog({
                     {view !== null && <PlanReading view={view} />}
                 </div>
 
-                {/* A DIALOG THAT ONLY TELLS HAS ONE CONTROL, AND IT SAYS DISMISSAL. There is
-                    nothing to cancel where there was never a second path. */}
-                <DialogFooter>
-                    <Button variant="outline" onClick={() => onOpenChange(false)}>
-                        {asks ? LABELS.action.cancel : LABELS.action.close}
-                    </Button>
-                    {asks && (
+                {asks && (
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => onOpenChange(false)}>
+                            {LABELS.action.cancel}
+                        </Button>
                         <Confirm
                             // The offer is checked against what this instance holds, and nothing
                             // is pressed on the strength of a read that has not landed. A plain
@@ -334,8 +331,8 @@ export function ApplyDialog({
                             busy={applying}
                             onApply={carried ? goForward : apply}
                         />
-                    )}
-                </DialogFooter>
+                    </DialogFooter>
+                )}
             </DialogContent>
         </Dialog>
     )

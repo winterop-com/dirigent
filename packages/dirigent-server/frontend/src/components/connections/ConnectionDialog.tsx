@@ -11,18 +11,27 @@ import { ConfirmDialog } from '@/components/ds/ConfirmDialog'
 import { DialogShell } from '@/components/ds/DialogShell'
 import { EntityHeading } from '@/components/ds/EntityHeading'
 import { Fact, FactList } from '@/components/ds/FactList'
+import { TextLink } from '@/components/ds/TextLink'
 import { Button } from '@/components/ui/button'
 import { useConnectionEdit } from '@/hooks/use-connection-edit'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { useRead } from '@/hooks/use-read'
 import { useStore } from '@/hooks/use-store'
-import { readAlertRules, rulesUsing } from '@/lib/alerting'
 import { type JsonMap, type Problem } from '@/lib/api'
-import { deleteConnection, healthOf, settingFacts, type ConnectionOut } from '@/lib/connections'
+import {
+    deleteConnection,
+    healthOf,
+    isUsed,
+    readConnection,
+    settingFacts,
+    usersSaid,
+    type ConnectionOut,
+    type ConnectionUsers,
+} from '@/lib/connections'
 import { separatelyUpdated } from '@/lib/format'
 import { kindGlyph } from '@/lib/glyphs'
 import { ICONS } from '@/lib/icons'
-import { LABELS } from '@/lib/labels'
+import { counted, LABELS } from '@/lib/labels'
 import { kindMarks } from '@/lib/marks'
 import { refusalOf } from '@/lib/refusal'
 import { cn } from '@/lib/utils'
@@ -62,12 +71,12 @@ export function ConnectionDialog({
     const [refused, setRefused] = useState<Problem | null>(null)
     const editButton = useRef<HTMLButtonElement>(null)
 
-    // What is known to use it is read as the question opens, and a read that fails leaves the
-    // server to say.
-    const asking = useRead(
-        useCallback(() => (deleting ? readAlertRules(null) : Promise.resolve(null)), [deleting]),
-    )
-    const usedBy = rulesUsing(asking.value?.items ?? [], connection.code)
+    // Read as the dialog opens and again as the question does. A read that fails leaves the server
+    // to say.
+    const asking = useRead(useCallback(() => readConnection(connection.code), [connection.code]))
+    const { again: askAgain } = asking
+    const usedBy = asking.value?.used_by ?? null
+    const used = usedBy !== null && isUsed(usedBy)
 
     const heading = (
         <EntityHeading
@@ -143,6 +152,7 @@ export function ConnectionDialog({
                                 title={write.why}
                                 onClick={() => {
                                     setRefused(null)
+                                    askAgain()
                                     setDeleting(true)
                                 }}
                             >
@@ -185,7 +195,7 @@ export function ConnectionDialog({
                         </>
                     }
                 >
-                    <ConnectionFacts connection={connection} schema={schema} />
+                    <ConnectionFacts connection={connection} schema={schema} users={usedBy} />
                 </DialogShell>
             )}
 
@@ -194,14 +204,8 @@ export function ConnectionDialog({
                 onOpenChange={setDeleting}
                 ask={LABELS.connections.delete_ask}
                 code={connection.code}
-                note={usedBy.length > 0 ? LABELS.connections.used_by(usedBy.join(', ')) : undefined}
-                why={
-                    usedBy.length > 0
-                        ? LABELS.connections.in_use
-                        : asking.read
-                          ? undefined
-                          : LABELS.shell.reading
-                }
+                note={used ? LABELS.connections.used_by(usersSaid(usedBy)) : undefined}
+                why={used ? LABELS.connections.in_use : asking.reading ? LABELS.shell.reading : undefined}
                 verb={LABELS.action.delete.verb}
                 busy={removing}
                 busyVerb={LABELS.action.delete.busy}
@@ -213,7 +217,16 @@ export function ConnectionDialog({
 }
 
 /** What the dialog reads first: what it says about itself, how it is, and what it holds. */
-function ConnectionFacts({ connection, schema }: { connection: ConnectionOut; schema: JsonMap | null }) {
+function ConnectionFacts({
+    connection,
+    schema,
+    users,
+}: {
+    connection: ConnectionOut
+    schema: JsonMap | null
+    /** What uses it, or nothing until that has been read. */
+    users: ConnectionUsers | null
+}) {
     const view = healthOf(connection)
     const facts = useMemo(() => settingFacts(connection, schema), [connection, schema])
     return (
@@ -244,6 +257,11 @@ function ConnectionFacts({ connection, schema }: { connection: ConnectionOut; sc
                         )}
                     </Fact>
                 ))}
+                {users !== null && isUsed(users) && (
+                    <Fact term={LABELS.connections.used_by_term}>
+                        <UsedBy users={users} />
+                    </Fact>
+                )}
                 <Fact term={LABELS.word.created.label}>
                     <Instant at={connection.created_at} />
                 </Fact>
@@ -254,5 +272,39 @@ function ConnectionFacts({ connection, schema }: { connection: ConnectionOut; sc
                 )}
             </FactList>
         </>
+    )
+}
+
+/** One line per thing using the credential: its code, a link where it has a screen, and what it is. */
+function UsedBy({ users }: { users: ConnectionUsers }) {
+    const said = LABELS.connections.users
+    return (
+        <ul className="flex min-w-0 flex-col gap-1 text-xs">
+            {users.pipelines.map((one) => (
+                <li key={one.pipeline} className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+                    <TextLink variant="data" to={`/pipelines/${encodeURIComponent(one.pipeline)}`}>
+                        {one.pipeline}
+                    </TextLink>
+                    <span className="text-muted-foreground">{counted(1, said.pipeline)}</span>
+                    <span className="min-w-0 font-mono break-words text-muted-foreground">
+                        {[...one.steps, ...one.sources].join(', ')}
+                    </span>
+                </li>
+            ))}
+            {users.alert_rules.map((code) => (
+                <li key={code} className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+                    <TextLink variant="data" to="/admin/alerting">
+                        {code}
+                    </TextLink>
+                    <span className="text-muted-foreground">{counted(1, said.alert_rule)}</span>
+                </li>
+            ))}
+            {users.storage_schemes.map((scheme) => (
+                <li key={scheme} className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+                    <span className="font-mono">{scheme}</span>
+                    <span className="text-muted-foreground">{counted(1, said.storage_scheme)}</span>
+                </li>
+            ))}
+        </ul>
     )
 }

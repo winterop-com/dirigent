@@ -461,8 +461,87 @@ def test_a_connection_a_rule_delivers_through_may_not_be_deleted(client: TestCli
     assert declared.status_code == 201
     refused = client.delete(f"{PREFIX}/connections/ops-webhook")
     assert refused.status_code == 409
-    assert "still referenced" in refused.json()["detail"]
-    assert client.get(f"{PREFIX}/connections/ops-webhook").status_code == 200
+    assert refused.json()["code"] == "server.connection_in_use"
+    assert "alert rule page-ops" in refused.json()["detail"]
+    read = client.get(f"{PREFIX}/connections/ops-webhook")
+    assert read.status_code == 200
+    assert read.json()["used_by"]["alert_rules"] == ["page-ops"]
+
+
+def _pipeline_naming(code: str, connection: str | None, *, requires: list[str] | None = None) -> dict[str, Any]:
+    """A pipeline whose one step names a connection, or names none."""
+    config: dict[str, Any] = (
+        {"url": "https://example.org"} if connection is None else {"connection": connection, "path": "/"}
+    )
+    return {
+        "format": "dirigent/v1",
+        "kind": "pipeline",
+        "code": code,
+        "requires": {"connections": requires or []},
+        "steps": {"fetch": {"block": "http.request", "config": config}},
+    }
+
+
+def _ops_api(client: TestClient) -> None:
+    made = client.post(
+        f"{PREFIX}/connections",
+        json={"code": "ops-api", "kind": "http", "config": {"base_url": "https://ops.example.org"}},
+    )
+    assert made.status_code == 201, made.text
+
+
+def test_a_connection_a_pipeline_names_may_not_be_deleted(client: TestClient) -> None:
+    """The bug this holds off: the delete went through and the pipeline's next run failed."""
+    _ops_api(client)
+    document = _pipeline_naming("nightly", "ops-api")
+    assert client.post(f"{PREFIX}/pipelines/$apply", json={"document": document}).status_code == 200
+
+    refused = client.delete(f"{PREFIX}/connections/ops-api")
+    assert refused.status_code == 409, refused.text
+    problem = refused.json()
+    assert problem["code"] == "server.connection_in_use"
+    assert "pipeline nightly" in problem["detail"]
+    use = {"pipeline": "nightly", "steps": ["fetch"], "sources": []}
+    assert problem["params"]["used_by"]["pipelines"] == [use]
+    assert client.get(f"{PREFIX}/connections/ops-api").json()["used_by"]["pipelines"] == [use]
+
+
+def test_a_connection_only_requires_names_may_not_be_deleted_either(client: TestClient) -> None:
+    _ops_api(client)
+    document = _pipeline_naming("nightly", None, requires=["ops-api"])
+    assert client.post(f"{PREFIX}/pipelines/$apply", json={"document": document}).status_code == 200
+    assert client.delete(f"{PREFIX}/connections/ops-api").status_code == 409
+    assert client.get(f"{PREFIX}/connections/ops-api").json()["used_by"]["pipelines"] == [
+        {"pipeline": "nightly", "steps": [], "sources": []}
+    ]
+
+
+def test_a_connection_only_a_past_version_named_is_removable(client: TestClient) -> None:
+    _ops_api(client)
+    named = _pipeline_naming("nightly", "ops-api")
+    assert client.post(f"{PREFIX}/pipelines/$apply", json={"document": named}).status_code == 200
+    moved_on = _pipeline_naming("nightly", None)
+    assert client.post(f"{PREFIX}/pipelines/$apply", json={"document": moved_on}).status_code == 200
+    assert client.get(f"{PREFIX}/connections/ops-api").json()["used_by"]["pipelines"] == []
+    assert client.delete(f"{PREFIX}/connections/ops-api").status_code == 204
+
+
+def test_a_connection_is_free_again_once_its_pipeline_is_gone(client: TestClient) -> None:
+    _ops_api(client)
+    document = _pipeline_naming("nightly", "ops-api")
+    assert client.post(f"{PREFIX}/pipelines/$apply", json={"document": document}).status_code == 200
+    assert client.delete(f"{PREFIX}/pipelines/nightly").status_code == 204
+    assert client.delete(f"{PREFIX}/connections/ops-api").status_code == 204
+
+
+def test_a_listing_row_does_not_carry_what_uses_a_connection(client: TestClient) -> None:
+    _ops_api(client)
+    assert "used_by" not in client.get(f"{PREFIX}/connections").json()["items"][0]
+    assert client.get(f"{PREFIX}/connections/ops-api").json()["used_by"] == {
+        "pipelines": [],
+        "alert_rules": [],
+        "storage_schemes": [],
+    }
 
 
 def test_a_rule_delivers_through_the_notifier_its_connections_kind_names(client: TestClient) -> None:

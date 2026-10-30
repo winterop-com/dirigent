@@ -179,6 +179,7 @@ from dirigent_client.schemas import TokenLifetime
 from dirigent_common import Issue, JsonMap, Message, bounded_load
 from dirigent_core import migrations
 from dirigent_core.config import STATE_DIR, Settings
+from dirigent_core.connections import said
 from dirigent_core.documents import (
     DocumentError,
     TriggerTarget,
@@ -979,9 +980,9 @@ def pipeline_validate(
 ) -> None:
     """Re-check what the instance already holds against what it has now.
 
-    An instance drifts -- a plugin uninstalled, a connection deleted, the allowlist tightened
-    -- and a pipeline that applied cleanly then fails when it next runs. This is the check
-    apply makes, run again on demand.
+    An instance drifts -- a plugin uninstalled, the allowlist tightened -- and a pipeline that
+    applied cleanly then fails when it next runs. This is the check apply makes, run again on
+    demand.
     """
     state = state_of(ctx)
     if every and (code is not None or version is not None):
@@ -2679,7 +2680,13 @@ def connection_show(
         return emit_one("connection", row)
     fields(
         f"connection {escape(code)}",
-        {"name": row.name or "-", "kind": row.kind, "description": row.description or "-", **row.config},
+        {
+            "name": row.name or "-",
+            "kind": row.kind,
+            "description": row.description or "-",
+            **row.config,
+            "used by": said(row.used_by) or "-",
+        },
     )
 
 
@@ -2705,7 +2712,7 @@ def connection_check(ctx: typer.Context, code: Annotated[str, typer.Argument()])
 
 @connection_app.command("delete")
 def connection_delete(ctx: typer.Context, code: Annotated[str, typer.Argument()]) -> None:
-    """Remove a credential record."""
+    """Remove a credential record, refused while a pipeline, a rule or a storage scheme uses it."""
     with client_for(state_of(ctx)) as dg:
         dg.call(dg.connections.delete(code))
     emit_fact("connection.deleted", message="deleted", code=code)
