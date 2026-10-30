@@ -198,6 +198,7 @@ export function Triggers() {
                     {
                         id: 'schedule',
                         label: LABELS.triggers.schedule.new,
+                        variant: 'default',
                         icon: CalendarPlus,
                         disabled: !write.may,
                         why: write.why,

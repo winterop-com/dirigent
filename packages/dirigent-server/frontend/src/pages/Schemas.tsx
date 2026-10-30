@@ -18,7 +18,7 @@ import { LABELS } from '@/lib/labels'
 import { LIST_GROUP, registerActions } from '@/lib/palette'
 import { closePanel, fillPanel, openPanel } from '@/lib/panels'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
-import { readSchema, readSchemas, schemasNote, type SchemaOut } from '@/lib/schemas'
+import { readSchema, readSchemas, type SchemaOut } from '@/lib/schemas'
 import { cn } from '@/lib/utils'
 
 const schemaId = (row: SchemaOut) => row.code
@@ -81,14 +81,9 @@ export function Schemas() {
     }, [chosen])
 
     useEffect(() => {
-        const note = schemasNote(rows)
-        if (note === null) {
-            clearScreenStatus()
-            return
-        }
-        setScreenStatus({ note, tone: 'quiet', identifier: null })
+        setScreenStatus({ note: null, tone: 'quiet', identifier: null })
         return clearScreenStatus
-    }, [rows])
+    }, [])
 
     useEffect(() => {
         if (open === null) return

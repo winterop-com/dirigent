@@ -1702,7 +1702,8 @@ to right, and the height nothing was using carries the rest.
 **The zoom controls are this app's.** React Flow's own step by a fixed twenty percent, which on a
 graph read at half size is four presses to nothing, and its fit button fits with the library's
 options rather than the ones both canvases share. `ZOOM_STEP` is one press either way, and the
-fit button is `fitCapped`, the same one every other fit goes through.
+fit button is `fitCapped`, the same one every other fit goes through. A canvas with nothing on it
+has nothing to zoom, so it draws none of them, only the control the screen adds.
 
 ## The canvas edits
 
@@ -2127,7 +2128,7 @@ On a screen whose heading names the noun, the primary create button says `New` a
 supplies the object. The full name stays on the control's `aria-label`, on the palette action,
 which is offered from every screen and so needs the noun, and on whatever the button opens. A
 screen offering more than one create -- Triggers -- keeps the noun on each button, because `New`
-alone would not say which. A create that belongs to one row is on that row and names its noun:
+alone would not say which. The create is the strip's primary either way, and wears the fill. A create that belongs to one row is on that row and names its noun:
 `New token`{ .label }, on the account it is for.
 
 

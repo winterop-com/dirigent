@@ -278,6 +278,17 @@ test('a connection opens a form whose secret box is empty and whose kind is fixe
     await expect(dialog.getByLabel('base_url')).toHaveValue(baseURL ?? '')
 })
 
+test('the API chip stands with the verbs, and the create is the primary', async ({ page }) => {
+    await signIn(page)
+    await page.goto('/triggers')
+    const create = page.getByRole('button', { name: LABELS.triggers.schedule.new })
+    await expect(create).toBeVisible()
+    const chip = page.getByRole('main').getByRole('link', { name: /API/ })
+    const [from, to] = await Promise.all([chip.boundingBox(), create.boundingBox()])
+    expect((to?.x ?? 0) - ((from?.x ?? 0) + (from?.width ?? 0))).toBeLessThan(20)
+    await expect(create).toHaveClass(/bg-primary/)
+})
+
 test('a column heading is a label, whatever face its cells are in', async ({ page }) => {
     await signIn(page)
     await page.goto('/blocks')

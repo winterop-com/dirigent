@@ -270,6 +270,7 @@ function classOf(attempt: AttemptEvent): string | null {
 /** One try, on a rail in its own state's hue. */
 function AttemptRow({ attempt }: { attempt: AttemptEvent }) {
     const classified = classOf(attempt)
+    const took = elapsedBetween(attempt.started_at, attempt.finished_at)
     return (
         <li
             className="status-rail row-hover rounded-r-sm"
@@ -281,9 +282,7 @@ function AttemptRow({ attempt }: { attempt: AttemptEvent }) {
                     {LABELS.runs.attempt_number(String(attempt.attempt))}
                     {attempt.kind === 'manual' && LABELS.runs.attempt_asked_for}
                 </span>
-                <span className="ml-auto text-xs text-faint">
-                    {formatDuration(elapsedBetween(attempt.started_at, attempt.finished_at))}
-                </span>
+                {took !== null && <span className="ml-auto text-xs text-faint">{formatDuration(took)}</span>}
             </div>
             {attempt.item !== null && (
                 <p className="font-mono text-xs text-muted-foreground">

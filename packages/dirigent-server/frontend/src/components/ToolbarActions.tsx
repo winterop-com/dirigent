@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useState, type ReactNode } from 'react'
 
 import { SplitButton, type SplitItem } from '@/components/ds/SplitButton'
 import { Refusable } from '@/components/Refusable'
@@ -56,9 +56,12 @@ export interface ToolbarAction {
  */
 export function ToolbarActions({
     actions,
+    lead,
     measured = false,
 }: {
     actions: readonly ToolbarAction[]
+    /** What stands before the verbs and is measured with them. It never folds into the menu. */
+    lead?: ReactNode
     /** Fold whenever the buttons do not fit the room this toolbar is given, not only below `md`. */
     measured?: boolean
 }) {
@@ -95,6 +98,7 @@ export function ToolbarActions({
 
     const strip = folded ? (
         <div className="flex shrink-0 items-center gap-2">
+            {lead}
             {rest.length > 0 && (
                 <DropdownMenu>
                     <DropdownMenuTrigger
@@ -128,6 +132,7 @@ export function ToolbarActions({
         </div>
     ) : (
         <div className="flex shrink-0 items-center gap-2">
+            {lead}
             {actions.map((action) => (
                 <ActionButton key={action.id} action={action} />
             ))}

@@ -253,6 +253,7 @@ function Alerting() {
                         id: 'rule',
                         label: LABELS.alerting.new_rule.button,
                         icon: BellPlus,
+                        variant: 'default',
                         disabled: !write.may,
                         why: write.why,
                         onClick: () => {
