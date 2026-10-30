@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import json
 from collections.abc import AsyncGenerator
+from datetime import timedelta
 
 import httpx2
 import pytest
@@ -194,6 +195,20 @@ async def test_a_receiver_with_an_unusual_success_code_is_declared_rather_than_g
     output = await WebhookPostOperator().execute(config, ctx.as_context())
     assert isinstance(output, WebhookPostOutput)
     assert output.status == 302
+
+
+async def test_a_post_without_an_override_inherits_the_connections_timeout(ctx: FakeContext) -> None:
+    """An unset override must not become "no timeout": a receiver that never answers would hold a worker."""
+    handler = wired(ctx)
+    await WebhookPostOperator().execute(WebhookPostConfig(connection="peer", path="/x"), ctx.as_context())
+    assert handler.requests[0].extensions["timeout"] == {"connect": 5.0, "read": 5.0, "write": 5.0, "pool": 5.0}
+
+
+async def test_a_configured_timeout_overrides_the_connections_on_a_post(ctx: FakeContext) -> None:
+    handler = wired(ctx)
+    config = WebhookPostConfig(connection="peer", path="/x", timeout=timedelta(seconds=2.5))
+    await WebhookPostOperator().execute(config, ctx.as_context())
+    assert handler.requests[0].extensions["timeout"] == {"connect": 2.5, "read": 2.5, "write": 2.5, "pool": 2.5}
 
 
 def test_the_block_is_not_idempotent_and_runs_nothing_on_the_worker() -> None:

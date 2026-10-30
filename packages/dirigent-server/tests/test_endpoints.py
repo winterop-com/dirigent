@@ -387,6 +387,21 @@ def test_a_signed_source_takes_a_body_signed_with_its_secret_and_refuses_any_oth
     assert taken.status_code == 202, taken.text
 
 
+def test_a_caller_who_cannot_sign_spends_no_rate_and_writes_no_row(client: TestClient) -> None:
+    applied = apply_document(client, held("      auth: {kind: hmac}\n      rate: {per_minute: 1}"))
+    secret = applied["sources"]["tokens"][0]["token"]
+    body = b'{"order": 1}'
+    for _ in range(3):
+        forged = client.post("/endpoints/held", content=body, headers=signed("not the secret", body))
+        assert forged.status_code == 401, forged.text
+    assert client.post("/endpoints/held", content=body, headers=signed(secret, body)).status_code == 202
+
+    client.post(f"{PREFIX}/pipelines/held/sources/ask/$pause")
+    forged = client.post("/endpoints/held", content=b"x" * 10, headers=signed("not the secret", b"x" * 10))
+    assert forged.status_code == 401, "the signature is checked before the source's state is"
+    assert [entry.status for entry in inputs(client, "held")] == [202]
+
+
 def test_a_signing_secret_is_rotated_or_replaced_with_the_senders_own(client: TestClient) -> None:
     secret = apply_document(client, held("      auth: {kind: hmac}"))["sources"]["tokens"][0]["token"]
     body = b"{}"
@@ -404,6 +419,30 @@ def test_a_signing_secret_is_rotated_or_replaced_with_the_senders_own(client: Te
     assert (
         client.post("/endpoints/held", content=body, headers=signed("whsec_from_the_provider", body)).status_code == 202
     )
+
+
+def test_a_signing_secret_is_listed_by_a_hash_and_none_of_it_in_clear(client: TestClient) -> None:
+    minted = apply_document(client, held("      auth: {kind: hmac}"))["sources"]["tokens"][0]
+    secret = minted["token"]
+    assert minted["prefix"] is None
+    assert minted["fingerprint"] == hashlib.sha256(secret.encode()).hexdigest()[:12]
+    listed = source(client, "held")
+    assert listed.token_prefix is None
+    assert listed.secret_fingerprint == minted["fingerprint"]
+
+    issued = "whsec_from_the_provider"
+    replaced = client.post(f"{PREFIX}/pipelines/held/sources/ask/$set-secret", json={"secret": issued})
+    assert replaced.status_code == 200, replaced.text
+    assert issued[:8] not in replaced.text
+    assert replaced.json()["secret_fingerprint"] == hashlib.sha256(issued.encode()).hexdigest()[:12]
+
+
+def test_moving_a_signed_source_to_a_token_drops_the_fingerprint(client: TestClient) -> None:
+    apply_document(client, held("      auth: {kind: hmac}"))
+    token = token_of(apply_document(client, held()))
+    listed = source(client, "held")
+    assert listed.secret_fingerprint is None
+    assert listed.token_prefix == token[:8]
 
 
 def test_a_source_that_does_not_sign_has_no_secret_to_set(client: TestClient) -> None:

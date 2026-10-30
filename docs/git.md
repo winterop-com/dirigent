@@ -25,6 +25,15 @@ inherits no worker environment a document names, and has no way to reach the hos
 own network call. "Can edit pipelines" therefore does not become "can run code on the worker",
 which is the boundary the unsafe allowlist exists to hold.
 
+That claim depends on what git reads, because git's configuration can name commands to run: a
+hook directory, an ssh command, a credential helper, a transport. So git reads no configuration
+a step could have written. `HOME` and `XDG_CONFIG_HOME` are an empty directory private to the
+step, not the run's shared work directory, `GIT_CONFIG_GLOBAL` is `/dev/null`, and
+`GIT_CONFIG_NOSYSTEM` is on. A `.gitconfig` in the work directory is just a file. A checkout
+already standing at the target is read for its commit but never used to reach the remote, so
+the `.git/config` inside it does not choose what happens on the network. Transports stay at
+git's own defaults: `ext::` is refused, and a submodule cannot use `file://`.
+
 It still needs the worker to have `git` on its `PATH`, and `ssh` too for an ssh remote. The
 worker image (`infra/Dockerfile`) installs both; a worker without them fails the step with a
 sentence saying so rather than a stack trace.

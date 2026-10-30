@@ -99,6 +99,17 @@ YAML_KEY_NOT_A_STRING = BASE.define(
 
 YAML_UNSPELLABLE = BASE.define("yaml_unspellable", "the YAML value at {path} is {described}")
 
+YAML_ALIASES_EXPAND_TOO_FAR = BASE.define(
+    "yaml_aliases_expand_too_far",
+    "the YAML document's aliases would add more than {limit} values once each is written out, "
+    "and JSON has no aliases; write the repeated parts out in the source, or repeat them less",
+)
+
+YAML_ALIAS_CYCLE = BASE.define(
+    "yaml_alias_cycle",
+    "the YAML document holds an alias inside the node it names, and JSON cannot spell a value that contains itself",
+)
+
 XML_HAS_A_DOCTYPE = BASE.define(
     "xml_has_a_doctype",
     "the input carries a <!DOCTYPE declaration, and convert.std reads XML without a DTD, "

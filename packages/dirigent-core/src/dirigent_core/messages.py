@@ -540,6 +540,11 @@ NO_FIELD = _unresolved("no_field", "{walked} has no {part} ({available})")
 
 NOT_FAILED = _unresolved("not_failed", "step {step} did not fail, and its error is read only when it did")
 
+SHELL_ARITHMETIC = _unresolved(
+    "shell_arithmetic",
+    "it is inside shell arithmetic, which evaluates a value as an expression, and it is not an integer",
+)
+
 RUN = Catalogue("run")
 
 RUN_UNKNOWN_CONNECTION = RUN.define("unknown_connection", "no connection coded {ref} ({available})")

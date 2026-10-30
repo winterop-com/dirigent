@@ -374,6 +374,41 @@ async def test_a_yaml_value_json_cannot_spell_is_refused_naming_its_path(
     assert refusal in raised.value.message
 
 
+def alias_bomb(levels: int) -> str:
+    """A YAML document whose every level repeats the one below it nine times."""
+    lines = ["l0: &l0 [x, x, x, x, x, x, x, x, x]"]
+    lines += [f"l{level}: &l{level} [{', '.join([f'*l{level - 1}'] * 9)}]" for level in range(1, levels + 1)]
+    return "\n".join(lines) + "\n"
+
+
+@pytest.mark.parametrize("target", ["json", "ndjson"])
+async def test_yaml_whose_aliases_expand_past_the_limit_is_refused_before_it_is_built(
+    ctx: FakeContext, target: str
+) -> None:
+    with pytest.raises(BlockFailure) as raised:
+        await convert(ctx, alias_bomb(9), "yaml", target)
+
+    assert raised.value.error_class is ErrorClass.REJECTED
+    assert "aliases would add more than 100,000 values" in raised.value.message
+
+
+async def test_a_few_aliases_still_convert_written_out_in_place(ctx: FakeContext) -> None:
+    source = "base: &base {region: east}\nst-1: *base\nst-2: {<<: *base, region: west}\n"
+
+    assert json.loads(await convert(ctx, source, "yaml", "json")) == {
+        "base": {"region": "east"},
+        "st-1": {"region": "east"},
+        "st-2": {"region": "west"},
+    }
+
+
+async def test_yaml_that_contains_itself_is_refused(ctx: FakeContext) -> None:
+    with pytest.raises(BlockFailure) as raised:
+        await convert(ctx, "loop: &loop [*loop]\n", "yaml", "json")
+
+    assert "contains itself" in raised.value.message
+
+
 async def test_yaml_that_is_not_yaml_at_all_is_refused_where_the_loader_stops(ctx: FakeContext) -> None:
     with pytest.raises(BlockFailure) as raised:
         await convert(ctx, "a: [1, 2\nb: 3\n", "yaml", "json")

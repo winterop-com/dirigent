@@ -19,6 +19,7 @@ from dirigent_block_sql.sql import (
     SqlQueryConfig,
     SqlQueryOperator,
     SqlQueryOutput,
+    classify,
     spelled_row,
 )
 from dirigent_common import SQL_MEDIA_TYPE, JsonMap
@@ -338,3 +339,24 @@ async def test_a_run_relative_database_lands_in_the_work_directory(ctx: FakeCont
     ctx.scratch_uri = "s3://bucket/runs/one"
     await query(ctx, "SELECT 1")
     assert list(ctx.work.rglob("*.db")), "the database was made under the run's work directory"
+
+
+@pytest.mark.parametrize(
+    "statement",
+    ["ATTACH DATABASE :path AS other", "VACUUM INTO :path"],
+)
+async def test_a_statement_cannot_reach_a_database_file_its_connection_does_not_name(
+    local_ctx: FakeContext, tmp_path: Path, statement: str
+) -> None:
+    other = tmp_path / "other.db"
+    connect(local_ctx)
+    with pytest.raises(Exception, match="not authorized|authorization denied") as raised:
+        await execute(local_ctx, statement, path=str(other))
+    assert classify(raised.value) is ErrorClass.REJECTED
+    assert not other.exists()
+
+
+async def test_a_query_cannot_attach_another_database_either(local_ctx: FakeContext, tmp_path: Path) -> None:
+    connect(local_ctx)
+    with pytest.raises(Exception, match="not authorized|authorization denied"):
+        await query(local_ctx, "ATTACH DATABASE :path AS other", params={"path": str(tmp_path / "other.db")})

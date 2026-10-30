@@ -221,7 +221,9 @@ is both directions in one run.
 **A parameter that is a storage URI becomes a path.** On a duckdb connection, and on no other,
 a `file://` value in `params` is resolved to the path duckdb opens. The run's own directories
 are the boundary: a URI outside them is refused, so a query reads and writes the files of the
-run it belongs to and nothing else on the worker.
+run it belongs to and nothing else on the worker. The path is held to them with every `..`
+collapsed and every symlink followed, before the directory a `COPY ... TO` needs is made, so a
+refused parameter leaves nothing behind on the worker.
 
 **The boundary is duckdb's own, not a check on the parameters.** A session is opened, given the
 run's work directory and its local scratch space as its `allowed_directories`, and then closed
@@ -324,6 +326,12 @@ for itself belongs. That directory is local to the worker that made it, so a lat
 reading the database must run on the same worker, and a connection like that cannot be checked
 outside a run because outside a run there is nothing there yet. An absolute path
 (`sqlite+aiosqlite:////var/lib/data.db`) is used as written.
+
+**A SQLite session reaches the one file its URL names.** A statement cannot `ATTACH` or `DETACH`
+another database, and cannot `VACUUM INTO` a new one: sqlite's own authorizer refuses all three
+on every session, so a step on a sqlite connection never opens another file on the worker,
+the instance's own database included. A pipeline that needs two databases uses two
+connections.
 
 Another dialect is a driver away: install its async driver on the worker and write it in the
 URL. Nothing in these blocks is PostgreSQL-specific beyond the two rows above, and a dialect

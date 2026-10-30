@@ -281,7 +281,11 @@ export function SourcePanel({
                             onClick={() => {
                                 act(rotateSourceToken(source.pipeline, source.code), (token) => {
                                     onMinted(token)
-                                    onChanged({ ...source, token_prefix: token.prefix })
+                                    onChanged({
+                                        ...source,
+                                        token_prefix: token.prefix,
+                                        secret_fingerprint: token.fingerprint,
+                                    })
                                 })
                             }}
                         >

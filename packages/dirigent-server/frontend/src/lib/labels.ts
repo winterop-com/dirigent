@@ -1005,6 +1005,8 @@ const refused = {
     reference: {
         not_failed:
             '{reference} cannot be resolved: step {step} did not fail, and its error is read only when it did.',
+        shell_arithmetic:
+            '{reference} is inside shell arithmetic, which evaluates its value as an expression, so it must resolve to an integer. Declare the parameter as an integer, or keep the value out of arithmetic.',
     },
     run: {
         entry_ambiguous: 'Pipeline {code} has the sources {sources}. Name the one this run enters at.',
@@ -2390,7 +2392,7 @@ const triggers = {
         /** A token, shown by the prefix that tells one copy from another. */
         token: (prefix: string) => `token ${prefix}…`,
         /** A signed source: the header its signature arrives in, and which secret signs it. */
-        signed: (header: string, prefix: string) => `signed in ${header}, secret ${prefix}…`,
+        signed: (header: string, fingerprint: string) => `signed in ${header}, secret fingerprint ${fingerprint}`,
         rotate_secret: 'Rotate secret',
         public: 'public',
         /** What it has taken: inputs that became runs, and inputs refused. */
