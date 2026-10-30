@@ -544,6 +544,26 @@ Four exit codes, across every command:
 Code 3 is what separates "this pipeline is broken" from "this invocation is broken" in CI,
 which is the distinction a job needs to decide whether to page anyone.
 
+### Running a run again
+
+`dg runs rerun RUN_ID` creates a new run of a settled run's pipeline with the parameters, window,
+log levels and priority the original ran with. A run that entered at a source enters the new one
+at the same source with the same input, the entered attempt's output, which is how a dead letter
+is replayed once whatever refused it is fixed:
+
+```bash
+dg runs rerun RUN_ID                 # the version the original pinned
+dg runs rerun RUN_ID --current       # the pipeline's current version, same parameters and input
+dg runs rerun RUN_ID --watch         # and follow it, as dg run --watch does
+```
+
+The new run is attributed to the original: its `triggered_by_kind` is `rerun` and its
+`triggered_by_id` the original's id. A run still queued or running is refused with
+`run.rerun_in_flight`, a deactivated pipeline as `dg run` refuses one, and the pipeline's
+`concurrency` decides the new run exactly as it decides any other, so `skip` answers that it
+was skipped. The command needs an operator, as `dg runs cancel` does; the same call is
+`POST /api/v1/runs/{id}/$rerun`, `dg.runs.rerun()` in the Python client, and `rerun_run` over MCP.
+
 ### The report a run wrote for itself
 
 `dg runs report RUN_ID` summarises a run from live queries: what each step amounted to, and
@@ -728,7 +748,7 @@ rather than being able to change what a parser reads the record by.
 
 | Event | Written when | Fields |
 | --- | --- | --- |
-| `run` | A run starts, and when it settles | `pipeline`, `run_id`, `local`, and `priority` where one was asked for. The closing one adds `exit_code`, `error` and the per-step `steps` and `failures` summaries in JSON; a watched run's also carries `pipeline_version`, `triggered_by`, `duration_ms`, `items_total`, `items_failed` and `priority`, and a kept `--local` run's its `scratch` and `kept_at` |
+| `run` | A run starts, and when it settles | `pipeline`, `run_id`, `local`, `priority` where one was asked for, and `rerun_of` when `dg runs rerun` started it. The closing one adds `exit_code`, `error` and the per-step `steps` and `failures` summaries in JSON; a watched run's also carries `pipeline_version`, `triggered_by`, `duration_ms`, `items_total`, `items_failed` and `priority`, and a kept `--local` run's its `scratch` and `kept_at` |
 | `step` | An attempt changes state; the message is the new status | `block`, `attempt`, `duration_ms` once it has settled |
 | `log` | A block writes a line | Whatever the block bound to it |
 | `output` | A step settles, from `-v` up; the message is its status | The output's own fields, or `artifact` and `bytes` when it went to storage |
@@ -1078,6 +1098,7 @@ dg runs show | cancel | report | profile RUN_ID
 dg runs report RUN_ID [--markdown]      # the document the run rendered, when it declares `report:`
 dg runs logs RUN_ID [--follow] [--step NAME]
 dg runs retry RUN_ID --step NAME [--failed-items]
+dg runs rerun RUN_ID [--current] [--watch]   # a new run with the same parameters and source input
 dg format [console|compact] [-f FILE]   # render an NDJSON stream; reads stdin by default
 
 # Define

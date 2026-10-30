@@ -1,9 +1,10 @@
 """Runs: the listing row, the detail with its DAG view model, log pages, and the report."""
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 from dirigent_client.enums import (
     AttemptKind,
@@ -265,3 +266,15 @@ class RunReport(WireModel):
     """The dotted code of the refusal this run ended with."""
     error_params: JsonMap | None = None
     """The specifics that refusal rendered, for a re-render in another language."""
+
+
+class RerunRequest(BaseModel):
+    """How a settled run is run again: on the version it pinned, or on its pipeline's current one."""
+
+    version: Literal["pinned", "current"] = Field(
+        default="pinned",
+        description=(
+            "pinned runs the version the original ran; current runs the pipeline's current "
+            "version, with the same parameters and input."
+        ),
+    )

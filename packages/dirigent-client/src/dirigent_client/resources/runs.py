@@ -12,7 +12,7 @@ import httpx2
 
 from dirigent_client.enums import AttemptStatus, RunStatus
 from dirigent_client.errors import TransportError, WaitTimeout
-from dirigent_client.resources.base import Resource, query
+from dirigent_client.resources.base import Resource, query, request_body
 from dirigent_client.schemas import (
     ArtifactOut,
     AttemptEvent,
@@ -20,6 +20,8 @@ from dirigent_client.schemas import (
     ItemOut,
     LogEntryOut,
     Page,
+    RerunRequest,
+    RunAccepted,
     RunDetail,
     RunOut,
     RunReport,
@@ -124,6 +126,15 @@ class Runs(Resource):
     async def cancel(self, run_id: UUID | str) -> RunOut:
         """Stop what has not started, and tell the remote about what has."""
         return await self._one(RunOut, "POST", f"/runs/{run_id}/$cancel")
+
+    async def rerun(self, run_id: UUID | str, *, current: bool = False) -> RunAccepted:
+        """Run a settled run again, with its parameters and, at a source, its input.
+
+        The new run pins the version the original ran, or the pipeline's current one with
+        ``current``. Its ``triggered_by_id`` names the original.
+        """
+        body = RerunRequest(version="current" if current else "pinned")
+        return await self._one(RunAccepted, "POST", f"/runs/{run_id}/$rerun", json=request_body(body))
 
     async def retry(self, attempt_id: UUID | str, *, idempotency_key: str | None = None) -> AttemptOut:
         """Create one manual attempt of a failed step, reading its upstream stored outputs."""

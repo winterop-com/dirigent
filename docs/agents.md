@@ -118,7 +118,7 @@ there. So choose the role for what the agent is for:
 | `plan_document`, `apply_document` | Check a document against the instance, then store it |
 | `list_pipelines`, `get_pipeline`, `export_pipeline`, `validate_pipeline` | What the instance holds |
 | `run_pipeline`, `list_runs`, `get_run`, `run_attempts`, `run_logs` | Start a run, optionally waiting for it, and read how it went |
-| `cancel_run`, `retry_attempt` | Stop a run, or retry one attempt |
+| `cancel_run`, `retry_attempt`, `rerun_run` | Stop a run, retry one attempt, or run a settled run again with its parameters and source input |
 | `list_sources`, `source_inputs`, `pause_source`, `resume_source` | The input sources and what arrived |
 | `list_schedules`, `pause_schedule`, `resume_schedule` | The clocks |
 | `instance_info` | The instance's version and what it has installed |

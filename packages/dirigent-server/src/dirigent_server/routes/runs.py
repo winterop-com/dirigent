@@ -1,4 +1,4 @@
-"""Runs: the list, the detail with its DAG view model, cancellation, retry, logs, events, and a report."""
+"""Runs: the list, the detail with its DAG view model, cancellation, rerun, retry, logs, events, and a report."""
 
 import asyncio
 import time
@@ -9,7 +9,7 @@ from typing import Annotated
 from uuid import UUID
 
 import sqlalchemy as sa
-from fastapi import APIRouter, Header, Query, Request, Response, status
+from fastapi import APIRouter, Body, Header, Query, Request, Response, status
 from fastapi.responses import PlainTextResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -24,6 +24,8 @@ from dirigent_client.schemas import (
     ItemOut,
     LogEntryOut,
     Page,
+    RerunRequest,
+    RunAccepted,
     RunDetail,
     RunOut,
     RunReport,
@@ -34,7 +36,7 @@ from dirigent_core import telemetry, wakeups
 from dirigent_core.artifacts import JSON_CONTENT_TYPE, TEXT_KEY, canonical_json, open_artifact
 from dirigent_core.database import session_scope
 from dirigent_core.engine.definition import PipelineDefinition, load_definition
-from dirigent_core.engine.runs import cancel_run, retry_step
+from dirigent_core.engine.runs import cancel_run, rerun, retry_step
 from dirigent_core.engine.state import StepCounts, attempt_counts, item_counts, item_wise_parent, step_states
 from dirigent_core.messages import CANCELLED_BY
 from dirigent_core.models import (
@@ -407,6 +409,34 @@ async def cancel(run_id: UUID, session: SessionDep, services: ServicesDep, princ
         return _render_run(run, pipeline, version)
 
     return await retried_on_deadlock(session, cancel_once)
+
+
+@router.post(
+    "/runs/{run_id}/$rerun",
+    operation_id="rerunRun",
+    summary="Run a settled run again",
+    response_model=RunAccepted,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def rerun_one(
+    run_id: UUID,
+    session: SessionDep,
+    services: ServicesDep,
+    principal: OperatorDep,
+    payload: Annotated[RerunRequest | None, Body()] = None,
+) -> RunAccepted:
+    """Create a new run of a settled run's pipeline, with its parameters and, at a source, its input.
+
+    The new run is attributed to the original as a ``rerun``, on the version the original
+    pinned unless ``version`` is ``current``. A run still in flight is refused with a 409, and
+    the pipeline's concurrency policy decides the new run as it does any other.
+    """
+    original = await _run_row(session, run_id)
+    asked = payload or RerunRequest()
+    created = await rerun(session, services, original, version=asked.version, label=principal.label)
+    if created is None:
+        return RunAccepted(status="skipped", detail="a run of this pipeline is already in flight")
+    return RunAccepted(run_id=created.id, status=created.status.value)
 
 
 @router.post(

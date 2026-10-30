@@ -67,6 +67,8 @@ from dirigent_core.messages import (
     REPLACED_BY_NEWER_RUN,
     REPLACED_BY_RETRY,
     REPLY_NOT_RETRYABLE,
+    RERUN_IN_FLIGHT,
+    RERUN_INPUT_GONE,
     RETRY_CONCURRENCY,
     RUN_PIPELINE_INACTIVE,
     RUN_PIPELINE_NO_VERSIONS,
@@ -771,6 +773,95 @@ async def retry_step(
     await session.flush()
     _logger.info("manual retry created", run_id=str(run.id), step=step_name, attempt=retried.attempt)
     return retried
+
+
+#: What a rerun is entered as: the version the original pinned, or its pipeline's current one.
+type RerunVersion = Literal["pinned", "current"]
+
+
+async def rerun(
+    session: AsyncSession,
+    services: EngineServices,
+    original: Run,
+    *,
+    version: RerunVersion = "pinned",
+    label: str | None = None,
+    now: datetime | None = None,
+) -> Run | None:
+    """Create a new run of a settled run's pipeline, with its parameters, window and priority.
+
+    A run that entered at a source enters the new one at that source with the same input,
+    which is the entered attempt's output: a dead letter is replayed this way. The new run is
+    attributed to the original, and the pipeline's concurrency policy decides it as it would
+    any other run, so this returns None where ``skip`` refuses it.
+    """
+    if original.status in ACTIVE_RUN_STATUSES:
+        raise RunCreationError(RERUN_IN_FLIGHT, run=original.id, status=original.status.value)
+    pipeline = await session.get(Pipeline, original.pipeline_id)
+    if pipeline is None:  # pragma: no cover - a run's pipeline is a RESTRICT foreign key
+        raise RunCreationError(RUN_VERSION_GONE, run=original.id)
+    if not pipeline.active:
+        raise RunCreationError(RUN_PIPELINE_INACTIVE, code=repr(pipeline.code))
+    target = await _rerun_version(session, original, pipeline, version)
+    entry = await _rerun_entry(session, original)
+    window = (
+        RunWindow(start=original.window_start, end=original.window_end)
+        if original.window_start is not None and original.window_end is not None
+        else None
+    )
+    return await create_run(
+        session,
+        services,
+        target,
+        params=dict(original.params),
+        attribution=Attribution(
+            kind=TriggerKind.RERUN,
+            id=original.id,
+            label=f"rerun of {original.id} by {label}" if label else f"rerun of {original.id}",
+        ),
+        window=window,
+        log_levels=dict(original.log_levels) if original.log_levels else None,
+        priority=original.priority,
+        now=now,
+        entry=entry,
+    )
+
+
+async def _rerun_version(
+    session: AsyncSession, original: Run, pipeline: Pipeline, version: RerunVersion
+) -> PipelineVersion:
+    """Read the version a rerun is created from: the one the original pinned, or the current one."""
+    if version == "pinned":
+        pinned = await session.get(PipelineVersion, original.pipeline_version_id)
+        if pinned is None:  # pragma: no cover - a run's version is a RESTRICT foreign key
+            raise RunCreationError(RUN_VERSION_GONE, run=original.id)
+        return pinned
+    if pipeline.current_version is None:  # pragma: no cover - a pipeline with a run has a version
+        raise RunCreationError(RUN_PIPELINE_NO_VERSIONS, code=repr(pipeline.code))
+    current = await session.scalar(
+        sa.select(PipelineVersion).where(
+            PipelineVersion.pipeline_id == pipeline.id, PipelineVersion.version == pipeline.current_version
+        )
+    )
+    if current is None:  # pragma: no cover - the current version is a row of the pipeline
+        raise RunCreationError(RUN_PIPELINE_NO_VERSIONS, code=repr(pipeline.code))
+    return current
+
+
+async def _rerun_entry(session: AsyncSession, original: Run) -> Entry | None:
+    """Read the source a run entered at and the input it entered with, or nothing for one with no sources."""
+    if original.source_step is None:
+        return None
+    received = await session.scalar(
+        sa.select(StepAttempt.output).where(
+            StepAttempt.run_id == original.id,
+            StepAttempt.step_name == original.source_step,
+            StepAttempt.kind == AttemptKind.RECEIVED,
+        )
+    )
+    if received is None:
+        raise RunCreationError(RERUN_INPUT_GONE, run=original.id, step=repr(original.source_step))
+    return Entry(step=original.source_step, output=dict(received), via="hand", note=f"replayed from run {original.id}")
 
 
 async def _definition_of(session: AsyncSession, run: Run) -> PipelineDefinition:
