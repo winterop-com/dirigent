@@ -26,6 +26,21 @@
   never only in `tool.uv.sources`.
 - Run their gates with `env -u VIRTUAL_ENV`, or uv may resync this repository's venv against
   theirs.
+- `dirigent-contrib` is a third sibling: a uv workspace of packs for outside systems, one
+  package per system (`dirigent-chap`, `dirigent-climate`). It pins this repository's packages
+  from PyPI like `dirigent-dhis2`, so a contract change reaches it at the next release.
+
+## Architecture model
+
+- `architecture/workspace.dsl` is the C4 model of dirigent and its ecosystem, and the only
+  source of the diagrams; `docs/architecture-model.md` is generated from it.
+- A change that adds, removes or renames a container, a component the model draws, a
+  communication path between them, a pack, or an outside system a block or source reaches
+  updates `workspace.dsl` in the same change, then runs `make architecture-export-docs` and
+  commits the regenerated page. CI's `make architecture-check-docs` refuses a stale page, but
+  only a person or an agent notices a model that no longer matches the code.
+- A sibling's change of that kind -- a new pack, or a pack reaching a new outside system --
+  updates this model too, in a PR here.
 
 ## Compatibility
 
