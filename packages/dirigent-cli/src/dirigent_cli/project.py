@@ -499,6 +499,10 @@ COMPOSE_DOCKER = """\
       # A bind mount is resolved on the daemon's filesystem, not the worker's, so a path
       # docker.run hands over must mean the same directory here as it does in the worker.
       - work:/var/lib/dirigent/work
+    # A pipeline's container reaches whatever the daemon reaches, so the daemon shares a
+    # network with the worker alone: not with the database, and not with the artifact bucket.
+    networks:
+      - docker
     healthcheck:
       test: ["CMD-SHELL", "docker -H unix:///var/run/docker.sock version >/dev/null 2>&1"]
       interval: 5s
@@ -596,7 +600,7 @@ __WORKER_DOCKER_ENV__    volumes:
       - ./pipelines:/etc/dirigent/pipelines:ro
 __ARTIFACTS_MOUNT____WORKER_DOCKER_VOLUMES__      # The worker's own working files, at the path every service names.
       - work:/var/lib/dirigent/work
-    depends_on:
+__WORKER_NETWORKS__    depends_on:
       postgres:
         condition: service_healthy
       migrate:
@@ -624,6 +628,18 @@ COMPOSE_WORKER_DOCKER_ENV = """\
 
 COMPOSE_WORKER_DOCKER_VOLUMES = """\
       - docker-certs:/certs/client:ro
+"""
+
+COMPOSE_WORKER_DOCKER_NETWORKS = """\
+    networks:
+      - default
+      - docker
+"""
+
+COMPOSE_DOCKER_NETWORK = """\
+
+networks:
+  docker:
 """
 
 COMPOSE_DEPENDS = {
@@ -671,11 +687,13 @@ def compose_document(choices: InitChoices, version: str) -> str:
         COMPOSE_WORKER.replace("__WORKER_DOCKER_ENV__", COMPOSE_WORKER_DOCKER_ENV if docker else "")
         .replace("__ARTIFACTS_MOUNT__", artifacts_mount)
         .replace("__WORKER_DOCKER_VOLUMES__", COMPOSE_WORKER_DOCKER_VOLUMES if docker else "")
+        .replace("__WORKER_NETWORKS__", COMPOSE_WORKER_DOCKER_NETWORKS if docker else "")
         .replace("__WORKER_DEPENDS__", "".join(COMPOSE_DEPENDS[code] for code in choices.services)),
         "volumes:\n  postgres:\n"
         + ("" if s3 else COMPOSE_VOLUMES["artifacts"])
         + "  # The worker's own working files. Not shared with the server: nothing it does opens one.\n  work:\n"
         + "".join(COMPOSE_VOLUMES[code] for code in choices.services),
+        COMPOSE_DOCKER_NETWORK if docker else "",
     ]
     return "".join(parts).replace("__VERSION__", version)
 

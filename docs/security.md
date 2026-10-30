@@ -431,6 +431,17 @@ never turns the gate off, and it does not affect a server.
 image a stored pipeline named should not reach the worker's network unless the step says so.
 Allowlisting `docker.run` is a decision about the host, not about a pipeline.
 
+The privileged dind sidecar in `infra/compose.yaml` does not change that. Allowlisting a `docker.*`
+block grants root-equivalent control of that daemon and everything mounted in it, including every
+run's working files on that worker, and a privileged container inside a privileged sidecar is one
+step from the host's kernel. `docker.compose.up` passes on whatever a document's services ask for.
+The stack keeps the daemon on a network it shares with the worker alone, so the database and the
+artifact bucket have no name a container can resolve. That narrows what is easy to reach and is
+not a firewall: whether their addresses route is up to the host's Docker firewall, and it does
+not contain a pipeline that has taken over the sidecar. **Run these blocks on a dedicated worker host, tagged
+`--tag docker`**, with `requires.workers: [docker]` on the pipelines that use them. See
+[what allowlisting these blocks grants](docker.md#what-allowlisting-these-blocks-grants).
+
 A `docker` connection carries the two docker credentials there are, and both are sealed: the
 client TLS key that reaches a remote daemon, and the registry password a `docker.build` pushes
 with. Sealed means encrypted at rest, redacted in every API response, and never an argument or

@@ -511,9 +511,11 @@ The stack ships the worker a daemon of its own. `infra/compose.yaml` starts a `d
 sidecar serving `tcp://docker:2376` with TLS, and the worker alone carries `DOCKER_HOST`,
 `DOCKER_TLS_VERIFY=1` and `DOCKER_CERT_PATH=/certs/client` pointing at it. A pipeline's
 containers are the sidecar's; **no host socket is mounted anywhere**. The sidecar is
-`privileged`, which docker-in-docker requires, and it mounts the same `artifacts` volume at
-`/var/lib/dirigent/artifacts` as the worker, because a bind mount `docker.run` asks for is
-resolved on the daemon's filesystem rather than the worker's.
+`privileged`, which docker-in-docker requires, and it mounts the same `work` volume at
+`/var/lib/dirigent/work` as the worker, because a bind mount `docker.run` asks for is resolved on
+the daemon's filesystem rather than the worker's. It shares a network with the worker alone, so
+the database and the artifact bucket have no name a pipeline's container can resolve. Allowlisting
+these blocks is [still a decision about the host](docker.md#what-allowlisting-these-blocks-grants).
 
 That worker carries `DIRIGENT_WORKER_TAGS: docker`, so a document declaring
 `requires.workers: [docker]` routes to it and to nothing else in the stack.
