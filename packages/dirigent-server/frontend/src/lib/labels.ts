@@ -1076,8 +1076,9 @@ const refused = {
         no_trigger_document: 'No triggers document coded {code}.',
         no_user: 'No user named {username}.',
         no_user_token: 'No live token named {name} for {username}.',
+        playground_body_too_large: 'The body is larger than the {limit} bytes the playground reads.',
         playground_header_refused:
-            'The playground will not set {header} on itself. It sets no header that plants a cookie, opens this origin to another site, or weakens what a browser enforces here.',
+            'The playground will not set {header} on itself as asked. It sets no header that plants a cookie, asks for a password, navigates a browser off this instance, opens this origin to another site, or weakens what a browser enforces here, and no content type a browser runs.',
         playground_off_instance:
             '{to} is not a path on this instance. The playground redirects only to paths on this instance.',
         playground_unauthenticated:

@@ -132,6 +132,35 @@ def test_the_playground_will_not_redirect_off_this_instance(playground: TestClie
         assert response.status_code == 422, target
 
 
+@pytest.mark.parametrize(
+    "target",
+    [
+        "/\\example.com",
+        "\\\\example.com",
+        "\\/example.com",
+        "///example.com",
+        "/\t/example.com",
+        "/\n/example.com",
+        " //example.com",
+        "http:example.com",
+        "https:/example.com",
+        "javascript:alert(1)",
+        "http://[bad",
+        "path-without-a-slash",
+    ],
+)
+def test_a_redirect_target_a_browser_reads_as_another_origin_is_refused(playground: TestClient, target: str) -> None:
+    response = playground.get(f"{PREFIX}/redirect", params={"to": target}, follow_redirects=False)
+    assert response.status_code == 422
+    assert "location" not in response.headers
+
+
+def test_a_redirect_target_is_sent_as_it_was_judged(playground: TestClient) -> None:
+    response = playground.get(f"{PREFIX}/redirect", params={"to": "/api\\v1?x=1"}, follow_redirects=False)
+    assert response.status_code == 302
+    assert response.headers["location"] == "/api/v1?x=1"
+
+
 def test_an_unreliable_call_fails_until_the_attempt_it_names(playground: TestClient) -> None:
     failing = playground.get(f"{PREFIX}/unreliable", params={"attempt": 1, "fail_until": 2})
     assert failing.status_code == 503
@@ -157,6 +186,107 @@ def test_a_header_this_origin_will_not_set_is_refused(playground: TestClient) ->
     """Planting a cookie on this origin from a query string is not a thing to teach."""
     response = playground.get(f"{PREFIX}/response-headers", params={"Set-Cookie": "a=b"})
     assert response.status_code == 422
+
+
+@pytest.mark.parametrize(
+    "header",
+    [
+        "WWW-Authenticate",
+        "Refresh",
+        "Clear-Site-Data",
+        "Content-Disposition",
+        "Link",
+        "X-Content-Type-Options",
+        "Access-Control-Allow-Origin",
+        "Cross-Origin-Resource-Policy",
+        "X-Accel-Redirect",
+        "bad name",
+    ],
+)
+def test_a_header_that_makes_this_origin_act_is_refused(playground: TestClient, header: str) -> None:
+    response = playground.get(f"{PREFIX}/response-headers", params={header: "x"})
+    assert response.status_code == 422
+    assert header.lower() not in response.headers
+
+
+def test_a_header_value_cannot_start_another_header(playground: TestClient) -> None:
+    response = playground.get(f"{PREFIX}/response-headers", params={"X-Station": "a\r\nSet-Cookie: b=c"})
+    assert response.status_code == 422
+
+
+@pytest.mark.parametrize(
+    "content_type",
+    ["text/html", "TEXT/HTML; charset=utf-8", "image/svg+xml", "application/xhtml+xml", "text/plain, text/html"],
+)
+def test_a_content_type_a_browser_runs_is_refused(playground: TestClient, content_type: str) -> None:
+    """The envelope reflects the query, so an HTML answer would run what a link put in it."""
+    response = playground.get(f"{PREFIX}/response-headers", params={"content-type": content_type})
+    assert response.status_code == 422
+    assert "<script>" not in response.text
+
+
+@pytest.mark.parametrize("content_type", ["text/csv", "application/json", "text/plain; charset=utf-8"])
+def test_an_inert_content_type_is_set_as_asked(playground: TestClient, content_type: str) -> None:
+    response = playground.get(f"{PREFIX}/response-headers", params={"content-type": content_type})
+    assert response.status_code == 200
+    assert response.headers["content-type"] == content_type
+
+
+@pytest.mark.parametrize(
+    "location",
+    [
+        "https://example.com/",
+        "//example.com",
+        "/\\example.com",
+        "http://testserver@example.com/",
+        "http://testserver:81/",
+    ],
+)
+def test_a_location_on_another_origin_is_refused(playground: TestClient, location: str) -> None:
+    response = playground.get(
+        f"{PREFIX}/response-headers", params={"location": location, "status": 302}, follow_redirects=False
+    )
+    assert response.status_code == 422
+    assert "location" not in response.headers
+
+
+@pytest.mark.parametrize("location", ["/api/v1/playground/request", "http://testserver/api", "http://testserver:80/x"])
+def test_a_location_on_this_origin_is_set(playground: TestClient, location: str) -> None:
+    response = playground.get(
+        f"{PREFIX}/response-headers", params={"location": location, "status": 302}, follow_redirects=False
+    )
+    assert response.status_code == 302
+    assert response.headers["location"] == location
+
+
+@pytest.mark.parametrize(
+    ("route", "params"),
+    [
+        ("/request", {}),
+        ("/request", {"status": 204}),
+        ("/redirect", {}),
+        ("/unreliable", {"fail_until": 0}),
+        ("/response-headers", {"X-Station": "bergen"}),
+        ("/stream", {"messages": 1, "every": "0ms"}),
+    ],
+)
+def test_every_answer_is_contained(playground: TestClient, route: str, params: dict[str, Any]) -> None:
+    response = playground.get(f"{PREFIX}{route}", params=params, follow_redirects=False)
+    assert response.status_code < 400
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["content-security-policy"].startswith("sandbox;")
+
+
+def test_a_body_past_the_cap_is_refused(playground: TestClient) -> None:
+    response = playground.post(f"{PREFIX}/request", content=b"x" * (1024 * 1024 + 1))
+    assert response.status_code == 413
+    assert response.json()["code"] == "server.playground_body_too_large"
+
+
+def test_a_body_at_the_cap_is_reflected(playground: TestClient) -> None:
+    response = playground.post(f"{PREFIX}/request", content=b"x" * (1024 * 1024))
+    assert response.status_code == 200
+    assert response.json()["request"]["body_bytes"] == 1024 * 1024
 
 
 def test_auth_refuses_a_call_with_no_credential(playground: TestClient) -> None:
