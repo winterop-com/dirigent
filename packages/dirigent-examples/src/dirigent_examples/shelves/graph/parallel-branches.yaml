@@ -11,7 +11,7 @@
 # instance allowlists it: export DIRIGENT_ENABLED_UNSAFE_BLOCKS='["shell.run"]', or pass
 # --enable-unsafe shell.run to a local run.
 #
-#   dg run --local examples/graph/parallel-branches.yaml
+#   dg run --local examples/graph/parallel-branches.yaml --enable-unsafe shell.run
 
 format: dirigent/v1
 kind: pipeline

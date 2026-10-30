@@ -1,6 +1,6 @@
 # Reading a PostgreSQL warehouse through a connection that cannot write, whatever a step asks.
 #
-# NEEDS AN INSTANCE holding the connection, and a PostgreSQL it can reach. Unlike the other two
+# NEEDS AN INSTANCE holding the connection, and a PostgreSQL it can reach. Unlike the other three
 # documents on this shelf, this one names its connection instead of carrying it, so there is
 # nothing here to run without a server:
 #   dg connection create sql warehouse-read \

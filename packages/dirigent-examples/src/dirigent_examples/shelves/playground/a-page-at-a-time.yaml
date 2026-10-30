@@ -1,9 +1,9 @@
-# A fan-out with something real to walk, and an output large enough to leave the database.
+# A list with something real to walk, and an output large enough to leave the database.
 #
 # Two things a document usually has to contrive, both knobs here:
 #
 #   page / size   the node holds `rows` records and hands back one page of them, saying how
-#                 many pages there are, so a fan-out walks a page instead of a list somebody
+#                 many pages there are, so a step walks a page instead of a list somebody
 #                 typed into the file.
 #   payload       filler of a chosen size beside the records. An output at or under
 #                 `inline_artifact_max` (16KB by default) is stored inline in the database,
@@ -14,10 +14,11 @@
 #
 #   page_two   records 11 to 20 of a hundred, and 32KB of filler beside them, which is what
 #              pushes this step's output out to storage.
-#   per_row    one map.jq element per record on the page: a fan-out over a real page.
+#   per_row    map.jq over the records on the page, inside this one step. There is no for_each
+#              here: a fan-out would give each record a run item of its own.
 #   totals     what the page was, read off the node's own output rather than counted again.
 #
-# EXPECT THIS RUN TO END completed. Read `page_two`'s output in `dg runs show`: `pages: 10`,
+# EXPECT THIS RUN TO END succeeded. Read `page_two`'s output in `dg runs show`: `pages: 10`,
 # `page: 2`, ten records, and `payload_bytes: 32768`. The artifact it wrote is in the run's
 # artifact list, because the output was too large to inline.
 #
@@ -37,7 +38,7 @@ description: |
   One page of a generated hundred, walked element by element, with filler that pushes the
   step's output past the inline limit and out to storage.
 
-tags: [playground, transform, jq, map, fan-out, outputs]
+tags: [playground, transform, jq, map, outputs]
 
 requires:
   blocks:

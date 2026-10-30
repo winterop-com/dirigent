@@ -8,7 +8,7 @@
 # Hop by hop:
 #
 #   reconcile  a playground.generate step whose fail_until is above its budget, so every
-#              attempt is inside the failing window. Three attempts, a second apart, three
+#              attempt is inside the failing window. Three attempts, 1s and then 2s apart, three
 #              identical failures, and the third one settles the step as failed.
 #   audit      one_failed, so it runs and records that the budget was spent rather than that
 #              one call was unlucky. It is the only step in this file that succeeds.
@@ -60,8 +60,8 @@ steps:
   reconcile:
     block: playground.generate
     retry:
-      # Three attempts, a second apart, which is short enough to watch and long enough that
-      # the three rows are plainly three separate tries.
+      # Three attempts, 1s and then 2s apart, which is short enough to watch and long enough
+      # that the three rows are plainly three separate tries.
       max_attempts: 3
       backoff: 1s
       max_backoff: 4s

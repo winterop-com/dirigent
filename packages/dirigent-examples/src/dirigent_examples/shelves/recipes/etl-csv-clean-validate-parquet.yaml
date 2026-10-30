@@ -35,9 +35,8 @@
 # Everything downstream of the gate reads ${steps.gate.output.value}, which is the input
 # unchanged. That reference is the document's proof that no unchecked row reached the file.
 #
-# To change it: -p min_celsius=-50 loosens the range the schema allows; -p strict=true makes
-# the sorter refuse a duplicate key instead of keeping the first, which fails the run rather
-# than quietly preferring one row over another.
+# To change it: -p strict=true makes the sorter refuse a duplicate key instead of keeping the
+# first, which fails the run rather than quietly preferring one row over another.
 #
 # The schema is carried in the document, so no server stores this one: it runs with
 # `dg run --local`, and on an instance the same shape is created once with `dg schema create`.

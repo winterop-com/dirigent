@@ -24,7 +24,7 @@
 # EXPECT THIS RUN TO FAIL, after four attempts and about seven seconds of waiting. Watch the
 # attempt rows rather than the wall clock: there are four of them, 1s, 2s and 4s apart.
 #
-# To change it: raise max_backoff and the fourth delay would have been 8s; lower it to 2s and
+# To change it: raise max_attempts to 5 and the fourth delay is 8s; lower max_backoff to 2s and
 # the sequence flattens to 1s, 2s, 2s. -p fail_until=0 makes the first attempt the only one.
 #
 #   dg run --local examples/patterns/retry-exponential-backoff.yaml                    # fails after 4 attempts
@@ -75,7 +75,7 @@ steps:
       # that fans out wants this above zero; see retry-with-jitter.yaml.
       jitter: 0.0
     config:
-      # Above the budget, so every attempt is inside the failing window and the four delays
+      # Above the budget, so every attempt is inside the failing window and the three delays
       # are the only thing that varies.
       fail_until: "${params.fail_until}"
       rows: 2

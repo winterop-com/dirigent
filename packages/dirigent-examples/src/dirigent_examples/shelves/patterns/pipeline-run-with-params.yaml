@@ -36,9 +36,10 @@
 # EXPECT THIS RUN TO SUCCEED in about five seconds, with three child runs and three statuses
 # of succeeded.
 #
-# To change it: -p regions='["east"]' runs one child; a region that does not match the child's
-# pattern fails that item at execute time with the child's own message, which is the two-stage
-# checking above made visible.
+# To change it: -p regions='["east"]' runs one child. A region that does not match the pattern
+# is refused before the run exists, by the copy of it in this document's own schema. Delete that
+# copy and the same region fails its item at execute time with the child's own message, which is
+# the two-stage checking above made visible.
 #
 #   dg run --local examples/patterns/pipeline-run-with-params.yaml \
 #     --also-apply examples/patterns/pipeline-run-child.yaml
@@ -99,7 +100,7 @@ steps:
     block: pipeline.run
     depends_on: [plan]
     # The fan-out reads params rather than the plan step's output, so every child is on the
-    # graph from the moment the run is visible. ${steps.plan.output.regions} would work too,
+    # graph from the moment the run is visible. ${steps.plan.output.value.regions} would work too,
     # and write the grid once plan had answered.
     for_each: "${params.regions}"
     # One region refusing is not a reason to abandon the others; the join below counts what

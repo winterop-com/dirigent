@@ -53,6 +53,7 @@ tags: [patterns, playground, transform, failure, timeout]
 requires:
   blocks:
     - playground.generate
+    - transform.jq
     - value.const
 
 params:
