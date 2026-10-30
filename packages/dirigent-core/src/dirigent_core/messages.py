@@ -101,6 +101,12 @@ UNKNOWN_STORAGE_CONNECTION = ARTIFACTS.define(
     "no connection coded {ref} to configure the {scheme} scheme from ({available})",
 )
 
+OBJECT_ALTERED = ARTIFACTS.define(
+    "object_altered",
+    "the object at {uri} is not what run {run} (attempt {attempt}) recorded when it wrote it: "
+    "its size or digest differs, so something changed it after the write",
+)
+
 OBJECT_MISSING = ARTIFACTS.define(
     "object_missing",
     "there is nothing at {uri}: run {run} (attempt {attempt}) has an artifact row and storage "
