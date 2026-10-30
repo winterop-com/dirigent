@@ -1,6 +1,8 @@
 """Tests for the storage facade, the file:// backend's contract, and how a scheme is bound."""
 
 import asyncio
+import os
+import shutil
 from collections.abc import AsyncGenerator, AsyncIterator, Callable
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from datetime import UTC, datetime
@@ -381,6 +383,118 @@ async def test_a_symlink_inside_the_artifact_root_cannot_escape_it(tmp_path: Pat
         async with backend.open_write(f"file://{root}/runs/escape/planted.txt") as sink:
             await sink.write(b"nope")
     assert not (outside / "planted.txt").exists()
+
+
+@pytest.fixture
+def swapped(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[FileStorageBackend, Path, Path]:
+    """A backend whose check passes and whose directory then becomes a link out of the root.
+
+    ``path_for`` is the check the race gets past, so the swap happens straight after it. What
+    is under test is that nothing past that point trusts the answer it gave.
+    """
+    root = tmp_path / "artifacts"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "secret.txt").write_text("not yours")
+    runs = root / "runs"
+    runs.mkdir(parents=True)
+    (runs / "secret.txt").write_text("harmless")
+    backend = FileStorageBackend(root)
+    path_for = backend.path_for
+
+    def checks_then_swaps(uri: str) -> Path:
+        checked = path_for(uri)
+        if runs.is_dir() and not runs.is_symlink():
+            shutil.rmtree(runs)
+            runs.symlink_to(outside, target_is_directory=True)
+        return checked
+
+    monkeypatch.setattr(backend, "path_for", checks_then_swaps)
+    return backend, root, outside
+
+
+async def test_a_link_swapped_in_after_the_check_does_not_let_a_read_out(
+    swapped: tuple[FileStorageBackend, Path, Path],
+) -> None:
+    backend, root, _ = swapped
+    with pytest.raises(OutsideRoot):
+        [chunk async for chunk in backend.open_read(f"file://{root}/runs/secret.txt")]
+
+
+async def test_a_link_swapped_in_after_the_check_does_not_let_a_write_out(
+    swapped: tuple[FileStorageBackend, Path, Path],
+) -> None:
+    backend, root, outside = swapped
+    with pytest.raises(OutsideRoot):
+        async with backend.open_write(f"file://{root}/runs/planted.txt") as sink:
+            await sink.write(b"nope")
+    assert sorted(path.name for path in outside.iterdir()) == ["secret.txt"]
+
+
+async def test_a_link_swapped_in_after_the_check_does_not_let_a_delete_out(
+    swapped: tuple[FileStorageBackend, Path, Path],
+) -> None:
+    backend, root, outside = swapped
+    with pytest.raises(OutsideRoot):
+        await backend.delete(f"file://{root}/runs/secret.txt")
+    assert (outside / "secret.txt").read_text() == "not yours"
+
+
+async def test_a_link_swapped_in_after_the_check_does_not_describe_what_is_outside(
+    swapped: tuple[FileStorageBackend, Path, Path],
+) -> None:
+    backend, root, _ = swapped
+    assert await backend.stat(f"file://{root}/runs/secret.txt") is None
+
+
+async def test_a_parent_swapped_mid_write_does_not_move_the_object_out(tmp_path: Path) -> None:
+    """The publish is relative to the directory opened at the start, wherever that name points now."""
+    root = tmp_path / "artifacts"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    runs = root / "runs"
+    runs.mkdir(parents=True)
+    backend = FileStorageBackend(root)
+    moved = root / "moved"
+    async with backend.open_write(f"file://{root}/runs/object.txt") as sink:
+        await sink.write(b"kept")
+        runs.rename(moved)
+        runs.symlink_to(outside, target_is_directory=True)
+    assert not (outside / "object.txt").exists()
+    assert (moved / "object.txt").read_bytes() == b"kept"
+
+
+async def test_a_listing_does_not_describe_a_file_a_link_points_at_outside(tmp_path: Path) -> None:
+    root = tmp_path / "artifacts"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "secret.txt").write_text("not yours")
+    root.mkdir()
+    (root / "kept.txt").write_text("mine")
+    (root / "escape.txt").symlink_to(outside / "secret.txt")
+    backend = FileStorageBackend(root)
+    listed = [entry.uri async for entry in backend.list(f"file://{root}")]
+    assert listed == [f"file://{root}/kept.txt"]
+
+
+async def test_a_link_that_stays_inside_the_root_still_reads(tmp_path: Path) -> None:
+    """Containment is about where a file is, so a link inside the root is not refused for being one."""
+    root = tmp_path / "artifacts"
+    root.mkdir()
+    (root / "kept.txt").write_text("mine")
+    (root / "alias.txt").symlink_to(root / "kept.txt")
+    backend = FileStorageBackend(root)
+    assert b"".join([chunk async for chunk in backend.open_read(f"file://{root}/alias.txt")]) == b"mine"
+
+
+async def test_a_fifo_under_the_root_does_not_hold_a_read_open(tmp_path: Path) -> None:
+    root = tmp_path / "artifacts"
+    root.mkdir()
+    os.mkfifo(root / "pipe")
+    backend = FileStorageBackend(root)
+    async with asyncio.timeout(10):
+        assert await backend.stat(f"file://{root}/pipe") is None
+        assert [chunk async for chunk in backend.open_read(f"file://{root}/pipe")] == []
 
 
 async def test_a_path_that_does_not_exist_yet_is_still_contained(tmp_path: Path) -> None:

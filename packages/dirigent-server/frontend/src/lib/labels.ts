@@ -955,6 +955,8 @@ const refused = {
         unknown_connection: 'No connection coded {code}.',
     },
     artifacts: {
+        object_altered:
+            'The object at {uri} is not what run {run} (attempt {attempt}) recorded when it wrote it. Its size or digest differs, so something changed it after the write.',
         object_missing:
             'Nothing is stored at {uri}. Run {run} (attempt {attempt}) has an artifact row but storage has no object: restore the artifact root from the backup that matches this database, or prune the run.',
     },
