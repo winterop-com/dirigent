@@ -49,7 +49,7 @@ the blocks put generated data into a pipeline.
 | [generated-rows.yaml](generated-rows.yaml) | The lead case: a first step with no input, a field map, a row count and a seed. |
 | [retry-that-really-retries.yaml](retry-that-really-retries.yaml) | `fail_until` reads the engine's attempt number, so the step really fails twice and really recovers. |
 | [a-gate-catching-drift.yaml](a-gate-catching-drift.yaml) | `drift` makes the shape wrong on demand, so `validate.schema` is seen refusing it. |
-| [a-page-at-a-time.yaml](a-page-at-a-time.yaml) | `page`/`size` give a fan-out a real page to walk, and `payload` pushes the output out to storage. |
+| [a-page-at-a-time.yaml](a-page-at-a-time.yaml) | `page`/`size` give `map.jq` a real page to walk, and `payload` pushes the output out to storage. |
 | [in-the-middle-of-a-flow.yaml](in-the-middle-of-a-flow.yaml) | The node with an `input` from upstream, and again as the document's last step. |
 | [waiting-for-a-batch.yaml](waiting-for-a-batch.yaml) | `playground.arrive` parks for a few pokes, then hands over a batch in the shape a consumer reads. |
 | [a-stream-to-read.yaml](a-stream-to-read.yaml) | The streaming route: NDJSON arriving over time, the envelope on the first line. Needs a running `dg dev`. |

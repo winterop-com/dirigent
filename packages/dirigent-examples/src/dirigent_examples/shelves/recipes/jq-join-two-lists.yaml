@@ -11,8 +11,8 @@
 #
 # Both halves of the result come out of that one index: $by_id[.station] is null for a
 # reading nothing matched, so // supplies the default on the joined side and select collects
-# exactly those rows on the unmatched side. An inner join alone would report four readings
-# where five arrived, and never say which one went missing.
+# exactly those rows on the unmatched side. An inner join alone would report three readings
+# where four arrived, and never say which one went missing.
 #
 # To change it: index the other side to change the join's direction -- indexing the readings
 # and iterating the stations answers "which stations reported at all".

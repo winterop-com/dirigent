@@ -32,8 +32,8 @@
 # instance allowlists it: export DIRIGENT_ENABLED_UNSAFE_BLOCKS='["shell.run"]', or pass
 # --enable-unsafe shell.run to a local run.
 #
-#   dg run --local examples/failure/error-handler.yaml
-#   dg run --local examples/failure/error-handler.yaml -p fail_until=0   # the other branch
+#   dg run --local examples/failure/error-handler.yaml --enable-unsafe shell.run
+#   dg run --local examples/failure/error-handler.yaml -p fail_until=0 --enable-unsafe shell.run   # the other branch
 
 format: dirigent/v1
 kind: pipeline

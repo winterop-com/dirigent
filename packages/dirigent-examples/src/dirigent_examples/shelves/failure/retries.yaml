@@ -20,8 +20,8 @@
 # instance allowlists it: export DIRIGENT_ENABLED_UNSAFE_BLOCKS='["shell.run"]', or pass
 # --enable-unsafe shell.run to a local run.
 #
-#   dg run --local examples/failure/retries.yaml                  # completed_with_errors
-#   dg run --local examples/failure/retries.yaml -p fail_until=0  # publish succeeds; completed_with_errors
+#   dg run --local examples/failure/retries.yaml --enable-unsafe shell.run                  # completed_with_errors
+#   dg run --local examples/failure/retries.yaml -p fail_until=0 --enable-unsafe shell.run  # publish succeeds; completed_with_errors
 
 format: dirigent/v1
 kind: pipeline

@@ -33,9 +33,8 @@
 # `dg run --local` builds a throwaway database and mounts no API of its own, so it reaches the
 # playground the same way anything else does: over the network, at the URL below.
 #
-# To change it: -p status=404 with -p expected=404 is the "not there" case; -p status=500
-# with the default expectations fails the run, which is the check that this recipe is not
-# just swallowing everything.
+# To change it: -p status=404 is the "not there" case; -p status=500 is on no list and fails
+# the run, which is the check that this recipe is not just swallowing everything.
 #
 #   dg dev &
 #   dg run --local examples/recipes/http-success-status-list.yaml

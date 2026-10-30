@@ -14,7 +14,11 @@
 #
 # Locally there is no instance to have applied the child to, so hand it over:
 #   dg run --local examples/composition/composition-parent.yaml \
-#     --also-apply examples/composition/composition-child.yaml -p day=2026-01-01
+#     --also-apply examples/composition/composition-child.yaml -p day=2026-01-01 \
+#     --enable-unsafe shell.run
+#
+# archive_note uses shell.run, which executes code on the worker and is refused unless the
+# instance allowlists it, which is what that last flag says for a local run.
 #
 # The two calls differ. load_north waits: it is submit-then-probe, so
 # the parent's step is a parked row rather than a held worker, and archive_note only runs
@@ -59,8 +63,9 @@ steps:
       pipeline: composition-child
       # wait holds this step open until the child settles, so what follows can depend on it.
       wait: true
-      # strict: false lets a failed child come back as this step's output rather than as
-      # this step's failure, which is what makes the child's outcome something to branch on.
+      # strict: false lets a child that finished completed_with_errors count as this step
+      # succeeding, with that status in its output. A child that failed or was cancelled
+      # fails this step either way; strict: true would fail it on completed_with_errors too.
       strict: false
       # A child may start its own children. The depth bounds that, so a pipeline that ends
       # up calling itself stops at a stated limit instead of filling the queue.

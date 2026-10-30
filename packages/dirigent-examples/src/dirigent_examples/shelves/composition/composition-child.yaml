@@ -12,7 +12,8 @@
 #   dg apply examples/composition/composition-parent.yaml
 #
 # Or run the parent locally, which applies this one into the throwaway instance for you:
-#   dg run --local examples/composition/composition-parent.yaml --also-apply examples/composition/composition-child.yaml
+#   dg run --local examples/composition/composition-parent.yaml --also-apply examples/composition/composition-child.yaml \
+#     -p day=2026-01-01 --enable-unsafe shell.run
 
 format: dirigent/v1
 kind: pipeline
@@ -41,8 +42,8 @@ steps:
     retry:
       max_attempts: 3
     config:
-      # Stands in for the region's source read. Seeded from the region's own name, so two
-      # children of the same parent load genuinely different rows.
+      # Stands in for the region's source read. No seed is given, so each run draws its own,
+      # and two children of the same parent load different rows.
       rows: 10
       input:
         region: "${params.region}"

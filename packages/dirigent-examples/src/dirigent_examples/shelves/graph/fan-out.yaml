@@ -18,8 +18,9 @@
 # instance allowlists it: export DIRIGENT_ENABLED_UNSAFE_BLOCKS='["shell.run"]', or pass
 # --enable-unsafe shell.run to a local run.
 #
-#   dg run --local examples/graph/fan-out.yaml -p day=2026-01-01
-#   dg run --local examples/graph/fan-out.yaml -p regions='["east","west","north","south"]'
+#   dg run --local examples/graph/fan-out.yaml -p day=2026-01-01 --enable-unsafe shell.run
+#   dg run --local examples/graph/fan-out.yaml -p day=2026-01-01 \
+#     -p regions='["east","west","north","south"]' --enable-unsafe shell.run
 
 format: dirigent/v1
 kind: pipeline
@@ -47,7 +48,7 @@ steps:
     block: playground.generate
     for_each: "${params.regions}"
     # One element per region, each its own attempt. items: continue lets the rest finish
-    # when one region refuses; items: halt would stop the fan-out at the first failure.
+    # when one region refuses; items: fail_fast would fail the step on the first failure.
     items: continue
     config:
       input:

@@ -8,10 +8,11 @@
 #
 # What this shows, beyond the fetch: how a fan-out is read back. `for_each` here reads params,
 # so the grid is fixed when the run is created. And a fan-out step stores one output: the list
-# of its items' outputs, in item order, with a failed item absent from it. So there is no way for item three of one step to ask item three of another
-# what it produced; what a downstream step gets is the whole list at once. That is why the
-# flattening below is a single step over every envelope, and why the country is read out of
-# SpatialDim: the join key lives in the data, where a fan-in can see it.
+# of its items' outputs, in item order, with a failed item absent from it. A step that shares
+# the grid can read its own match, ${steps.fetch.item.output.body}; a step with no for_each gets
+# the whole list at once, and one table over every country is a step with no for_each. That is
+# why the flattening below is a single step over every envelope, and why the country is read out
+# of SpatialDim: the join key lives in the data, where a fan-in can see it.
 #
 # What happens, hop by hop:
 #
