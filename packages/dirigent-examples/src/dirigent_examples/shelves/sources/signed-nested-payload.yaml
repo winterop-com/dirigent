@@ -1,8 +1,10 @@
 # A signed notification from upstream becomes a run, and only the fields it names reach a step.
 #
 # THE SIGNATURE IS THE CREDENTIAL. `published` says `auth: {kind: hmac}`, so its caller presents
-# no token: it signs the raw body with HMAC-SHA256 under a secret the two sides share, and sends
-# `sha256=<hex>` in X-Dirigent-Signature. The apply mints that secret and shows it once, and
+# no token: it signs `<timestamp>.<raw body>` with HMAC-SHA256 under a secret the two sides share,
+# and sends the Unix seconds in X-Dirigent-Timestamp and `sha256=<hex>` in X-Dirigent-Signature. A
+# timestamp more than five minutes off and a signature already taken are both refused, so a
+# captured call cannot be sent again. The apply mints that secret and shows it once, and
 # `dg source rotate-token` replaces it. A sender that issues its own secret, the way a provider
 # does, has it set instead with `dg source set-secret`, and a sender that insists on its own
 # header is met with `header:`, such as `header: X-Hub-Signature-256`. An unsigned or wrongly
@@ -36,8 +38,10 @@
 # Or as any sender would, signing the exact bytes it sends:
 #
 #   BODY='{"published": {"date": "2026-01-01", "dataset": {"code": "cases"}}, "source": {"system": {"name": "warehouse"}}, "counts": {"rows": 4120}}'
-#   SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$SECRET" | sed 's/^.* //')
-#   curl -H 'Content-Type: application/json' -H "X-Dirigent-Signature: sha256=$SIG" \
+#   STAMP=$(date +%s)
+#   SIG=$(printf '%s.%s' "$STAMP" "$BODY" | openssl dgst -sha256 -hmac "$SECRET" | sed 's/^.* //')
+#   curl -H 'Content-Type: application/json' -H "X-Dirigent-Timestamp: $STAMP" \
+#     -H "X-Dirigent-Signature: sha256=$SIG" \
 #     --data-binary "$BODY" http://localhost:3333/endpoints/published
 #
 # EXPECT THIS RUN TO SUCCEED in well under a second, `receipt` naming the dataset, the day and

@@ -2,9 +2,9 @@
 #
 # webhook.post is the sending half of a signed delivery; sources/signed-nested-payload.yaml is
 # the receiving half. sign_with names the connection whose hmac_secret signs the body, and the
-# block presents the result as X-Dirigent-Signature: sha256=<hex> -- computed exactly the way
-# an endpoint source with `auth: {kind: hmac}` verifies one, so a dirigent instance can be the
-# receiver on the other end with nothing in between.
+# block presents the result as X-Dirigent-Signature, beside the X-Dirigent-Timestamp it covers
+# -- computed exactly the way an endpoint source with `auth: {kind: hmac}` verifies one, so a
+# dirigent instance can be the receiver on the other end with nothing in between.
 #
 # THREE THINGS ARE WORTH BEING PRECISE ABOUT:
 #

@@ -1,8 +1,7 @@
 """The source command group: where a pipeline's inputs enter, what has arrived, and calling one."""
 
-import hashlib
-import hmac
 import json
+import time
 from pathlib import Path
 from typing import Annotated, Final
 from urllib.parse import urlencode
@@ -16,7 +15,7 @@ from dirigent_cli.context import client_for, state_of
 from dirigent_cli.messages import ONE_INPUT_BODY, SOURCE_NOT_CALLABLE, SOURCE_UNREACHABLE, TAKES_NAME_EQUALS_VALUE
 from dirigent_cli.output import emit_fact, emit_one, emit_records
 from dirigent_client import DEFAULT_CONNECT_TIMEOUT
-from dirigent_plugin.sources import Route
+from dirigent_plugin.sources import SIGNATURE_TIMESTAMP_HEADER, Route, sign_body
 
 #: Where ``dg source call`` reads the token a source was given when ``--source-token`` names none.
 TOKEN_ENV: Final = "DIRIGENT_SOURCE_TOKEN"
@@ -178,8 +177,9 @@ def source_call(
         content = urlencode(_pairs(form)).encode()
         headers["Content-Type"] = "application/x-www-form-urlencoded"
     if signing_secret and row.signature_header:
-        digest = hmac.new(signing_secret.encode(), content or b"", hashlib.sha256).hexdigest()
-        headers[row.signature_header] = f"sha256={digest}"
+        stamp = str(int(time.time()))
+        headers[SIGNATURE_TIMESTAMP_HEADER] = stamp
+        headers[row.signature_header] = f"sha256={sign_body(signing_secret.encode(), stamp, content or b'')}"
     try:
         with httpx2.Client(timeout=CALL_TIMEOUT) as http:
             answered = http.request(

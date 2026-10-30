@@ -50,7 +50,8 @@ On a server, an endpoint source is also called the way its callers call it. `dg 
 reads the source's route, fills the template from `-p`, and presents the token given by
 `--source-token` or `DIRIGENT_SOURCE_TOKEN`, never the CLI's own credential. A source declaring
 `auth: {kind: hmac}` takes a signature instead: `--signing-secret`, or `DIRIGENT_SOURCE_SECRET`,
-signs the exact bytes it sends and puts `sha256=<hex>` in the header the source names.
+signs the current time and the exact bytes it sends, puts the time in `X-Dirigent-Timestamp` and
+`sha256=<hex>` in the header the source names.
 
 ```bash
 dg source call greet ask -p name=Bergen --body '{"mood": "cheerful"}' --source-token "$TOKEN"

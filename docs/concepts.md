@@ -180,8 +180,10 @@ An `endpoint` source is called at its route under `/endpoints`: `path: /greet/{n
 `POST /endpoints/greet/Bergen`. Unless it writes `auth: {kind: public}`, its caller presents the
 token the apply minted for it as `Authorization: Bearer`; the token is shown once, in the
 apply's result, and `dg source rotate-token` replaces it. With `auth: {kind: hmac}` the caller
-presents no token: it signs the raw body with HMAC-SHA256 and sends `sha256=<hex>` in
-`X-Dirigent-Signature`, or in the header `auth.header` names (`X-Hub-Signature-256`, say). The
+presents no token: it signs `<timestamp>.<raw body>` with HMAC-SHA256, sends the Unix seconds
+in `X-Dirigent-Timestamp` and `sha256=<hex>` in `X-Dirigent-Signature`, or in the header
+`auth.header` names. A timestamp outside `source_signature_window` and a signature already
+taken are both refused 401. The
 apply mints the signing secret and shows it once, `dg source rotate-token` replaces it, and
 `dg source set-secret` sets one the sender issued; a `webhook.post` step with `sign_with`
 produces exactly that signature. A route is answered by one source on the whole instance, and

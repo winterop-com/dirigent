@@ -3,6 +3,7 @@
 import hashlib
 import hmac
 import json
+import time
 from collections.abc import AsyncGenerator
 from datetime import timedelta
 
@@ -18,9 +19,9 @@ from dirigent_block_http.webhooks import (
     WebhookPostOperator,
     WebhookPostOutput,
     render,
-    sign,
 )
 from dirigent_plugin import BlockFailure, ErrorClass
+from dirigent_plugin.sources import SIGNATURE_TIMESTAMP_HEADER, sign_body
 from dirigent_testing import FakeContext
 
 SECRET = "a shared secret"
@@ -106,8 +107,10 @@ async def test_a_signed_post_carries_an_hmac_over_the_bytes_it_sent(ctx: FakeCon
     assert isinstance(output, WebhookPostOutput)
     assert output.signed
     request = responder.requests[0]
-    expected = hmac.new(SECRET.encode(), request.content, hashlib.sha256).hexdigest()
+    stamp = request.headers[SIGNATURE_TIMESTAMP_HEADER]
+    expected = hmac.new(SECRET.encode(), f"{stamp}.".encode() + request.content, hashlib.sha256).hexdigest()
     assert request.headers[SIGNATURE_HEADER] == expected
+    assert abs(int(stamp) - time.time()) < 60, "the timestamp is the moment it was signed"
 
 
 async def test_the_signature_covers_the_bytes_sent_and_not_a_reserialisation(ctx: FakeContext) -> None:
@@ -120,7 +123,8 @@ async def test_the_signature_covers_the_bytes_sent_and_not_a_reserialisation(ctx
 
     request = responder.requests[0]
     presented = request.headers[SIGNATURE_HEADER]
-    assert hmac.compare_digest(sign(SECRET.encode(), request.content), presented)
+    stamp = request.headers[SIGNATURE_TIMESTAMP_HEADER]
+    assert hmac.compare_digest(sign_body(SECRET.encode(), stamp, request.content), presented)
     reserialised = json.dumps(json.loads(request.content)).encode()
     assert reserialised != request.content, "the naive re-encoding differs, which is why it is not signed"
 
@@ -134,7 +138,8 @@ async def test_signing_may_name_a_connection_other_than_the_target(ctx: FakeCont
     await WebhookPostOperator().execute(config, ctx.as_context())
 
     request = responder.requests[0]
-    assert request.headers[SIGNATURE_HEADER] == sign(SECRET.encode(), request.content)
+    stamp = request.headers[SIGNATURE_TIMESTAMP_HEADER]
+    assert request.headers[SIGNATURE_HEADER] == sign_body(SECRET.encode(), stamp, request.content)
 
 
 async def test_a_connection_with_no_secret_is_refused_rather_than_sent_unsigned(ctx: FakeContext) -> None:

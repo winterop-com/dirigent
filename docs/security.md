@@ -382,10 +382,24 @@ with an eight-character prefix beside it, and compared in constant time. `auth: 
 admits anyone, and only when the document says so. A re-apply keeps the token; `dg source
 rotate-token` replaces it at once.
 
-**Or a signature, with `auth: {kind: hmac}`.** The caller presents no token; it sends
-HMAC-SHA256 over the **raw body** -- the bytes as they arrived, not a re-serialization of the
-parsed JSON, because those are not the same string -- in `X-Dirigent-Signature`, or the header
-`auth.header` names. A `sha256=` prefix is accepted, since several popular senders write one.
+**Or a signature, with `auth: {kind: hmac}`.** The caller presents no token; it sends the
+moment it signed in `X-Dirigent-Timestamp`, as whole Unix seconds, and HMAC-SHA256 over
+`<timestamp>.<raw body>` -- the bytes as they arrived, not a re-serialization of the parsed
+JSON, because those are not the same string -- in `X-Dirigent-Signature`, or the header
+`auth.header` names. A `sha256=` prefix is accepted. A provider that signs only the body, with
+no timestamp, cannot call a signed source directly.
+
+**A signature is taken once.** A timestamp further than `DIRIGENT_SOURCE_SIGNATURE_WINDOW`
+(5 minutes) from the server's clock, either way, is refused 401, and because the timestamp is
+signed it cannot be moved. Inside the window, a signature taken is recorded in
+`source_signatures` until its timestamp leaves the window, and the same signature presented
+again is refused 401. The record is in the database, so it holds across replicas and restarts,
+and it is written only for a signature that verified, so it costs a stranger nothing and gives
+them no way to fill it. A signature is spent by being verified, whatever the call is answered
+afterwards, so a sender retrying a 429 or a 503 signs again; `webhook.post` and `dg source call`
+do. One body signed twice in one second under one secret is one signature, and the second call
+is refused, so a sender that means two calls makes their bodies differ.
+
 The comparison is constant-time and operates on bytes rather than strings, because a header is
 attacker-controlled and `hmac.compare_digest` raises on a non-ASCII `str`. The signing secret
 is minted at apply from the CSPRNG and shown once, or set with `dg source set-secret` when the
@@ -410,11 +424,13 @@ removed.
 
 **Nothing before the source's own rate writes a row.** A call is checked in one order: the
 instance's bucket for the method and path (`DIRIGENT_SOURCE_INTAKE_RATE_PER_MINUTE`, before
-anything is looked up), the route, the token or, for a signed source, the capped read and the
-signature, then the source's own `rate`. A refusal at any of those -- 429, 404, 405, 401, and a
+anything is looked up), the route, the token or, for a signed source, the capped read, the
+timestamp and the signature, then the source's own `rate`. A refusal at any of those -- 429, 404, 405, 401, and a
 signed source's 413 -- is counted in telemetry (`dirigent.source.inputs`) and logged, writes
 nothing and spends nothing from the source's own bucket, so a stranger without the token or
 the secret, or a caller in a loop, cannot cause writes or starve the source's real callers.
+The record of a signature taken is the one write ahead of the rate, and only a caller holding
+the secret causes it.
 From there on every refusal, and every accepted input, is recorded against the source. Both
 buckets are in memory and therefore per process: behind N API replicas the
 effective limit is the configured rate times N, documented rather than fixed, because a row

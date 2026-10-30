@@ -814,6 +814,19 @@ def upgrade() -> None:
         batch_op.create_index("ix_source_inputs_source_id_id", ["source_id", "id"], unique=False)
 
     op.create_table(
+        "source_signatures",
+        sa.Column("source_id", sa.Uuid(), nullable=False),
+        sa.Column("signature", sa.String(length=64), nullable=False),
+        sa.Column("signed_at", dirigent_core.types.UtcDateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["source_id"], ["sources.id"], name=op.f("fk_source_signatures_source_id_sources"), ondelete="CASCADE"
+        ),
+        sa.PrimaryKeyConstraint("source_id", "signature", name=op.f("pk_source_signatures")),
+    )
+    with op.batch_alter_table("source_signatures", schema=None) as batch_op:
+        batch_op.create_index("ix_source_signatures_signed_at", ["signed_at"], unique=False)
+
+    op.create_table(
         "step_attempts",
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("run_id", sa.Uuid(), nullable=False),
@@ -1004,6 +1017,10 @@ def downgrade() -> None:
         batch_op.drop_index("ix_step_attempts_lease_expires_at")
 
     op.drop_table("step_attempts")
+    with op.batch_alter_table("source_signatures", schema=None) as batch_op:
+        batch_op.drop_index("ix_source_signatures_signed_at")
+
+    op.drop_table("source_signatures")
     with op.batch_alter_table("source_inputs", schema=None) as batch_op:
         batch_op.drop_index("ix_source_inputs_source_id_id")
         batch_op.drop_index("ix_source_inputs_created_at")

@@ -19,9 +19,10 @@
 # bytes the receiver never sees, and every delivery would fail verification for a reason
 # nobody could find.
 #
-# The signature is HMAC-SHA256 over the raw body, hex, in X-Dirigent-Signature. A receiver
-# verifies by computing the same HMAC over the body exactly as it arrived -- before parsing,
-# never after re-serialising -- and comparing in constant time. Dirigent's own endpoint
+# The signature is HMAC-SHA256, hex, in X-Dirigent-Signature, over the Unix seconds in
+# X-Dirigent-Timestamp, a dot, and the raw body. A receiver verifies by computing the same HMAC
+# over the body exactly as it arrived -- before parsing, never after re-serialising -- and
+# comparing in constant time. Dirigent's own endpoint
 # source with `auth: {kind: hmac}` does precisely that, so an instance can hand work to
 # another instance's /endpoints route with nothing shared but the secret.
 #
