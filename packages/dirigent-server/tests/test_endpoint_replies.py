@@ -5,12 +5,17 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, cast
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
 from dirigent_client.schemas import Page, SourceInputOut
 from dirigent_core.config import Settings
+from dirigent_core.engine.definition import ReplyNode
 from dirigent_core.engine.executor import Engine
+from dirigent_core.engine.references import ReferenceScope
+from dirigent_core.engine.replies import _rendered_headers, _Unrenderable  # pyright: ignore[reportPrivateUsage]
 from dirigent_core.engine.services import EngineServices
 from dirigent_server import create_app
 from tests_support import apply_document
@@ -125,6 +130,8 @@ def test_a_reply_streams_the_stored_object_its_body_from_names(client: TestClien
     called = client.post("/endpoints/now", json={}, headers={"Authorization": ""})
     assert called.status_code == 200, called.text
     assert called.text == "stored hello"
+    assert called.headers["content-security-policy"].startswith("sandbox;")
+    assert called.headers["x-content-type-options"] == "nosniff"
 
 
 def test_a_reply_that_cannot_render_answers_422_naming_the_run(client: TestClient) -> None:
@@ -137,6 +144,72 @@ def test_a_reply_that_cannot_render_answers_422_naming_the_run(client: TestClien
     assert problem["params"]["run"] == str(entry.run_id)
     assert called.headers["location"] == f"{PREFIX}/runs/{entry.run_id}"
     assert (entry.outcome, entry.status) == ("replied", 422)
+
+
+@pytest.mark.parametrize(
+    "header",
+    [
+        "Set-Cookie",
+        "WWW-Authenticate",
+        "Refresh",
+        "Clear-Site-Data",
+        "Content-Security-Policy",
+        "X-Content-Type-Options",
+        "X-Frame-Options",
+        "Strict-Transport-Security",
+        "Cross-Origin-Opener-Policy",
+        "X-Accel-Redirect",
+        "Transfer-Encoding",
+    ],
+)
+def test_a_header_a_reply_may_not_set_is_refused_at_apply(header: str) -> None:
+    with pytest.raises(ValidationError, match="does not set"):
+        ReplyNode(headers={header: "x"})
+
+
+def test_a_header_a_reply_may_not_set_is_refused_at_render() -> None:
+    with pytest.raises(_Unrenderable) as raised:
+        _rendered_headers("answer", {"Set-Cookie": "session=x"}, ReferenceScope())
+    assert raised.value.failure.code == "run.reply_refused"
+
+
+def test_a_reply_may_still_set_an_ordinary_header() -> None:
+    node = ReplyNode(headers={"Location": "/elsewhere", "X-Greeting": "hello", "Content-Disposition": "attachment"})
+    assert _rendered_headers("answer", node.headers, ReferenceScope()) == {
+        "location": "/elsewhere",
+        "x-greeting": "hello",
+        "content-disposition": "attachment",
+    }
+
+
+def test_a_header_value_a_reference_resolves_to_cannot_start_another_header(client: TestClient) -> None:
+    apply_document(client, answered_at_once('      headers: {x-greeting: "${steps.ask.output.body.who}"}\n'))
+    called = client.post("/endpoints/now", json={"who": "ann\r\nSet-Cookie: session=x"}, headers={"Authorization": ""})
+    assert called.status_code == 422, called.text
+    assert "set-cookie" not in called.headers
+
+
+def test_an_html_reply_is_inert(client: TestClient) -> None:
+    apply_document(
+        client,
+        answered_at_once(
+            """      content_type: text/html
+      body: "<script>${steps.ask.output.body.who}</script>"
+"""
+        ),
+    )
+    called = client.post("/endpoints/now", json={"who": "alert(1)"}, headers={"Authorization": ""})
+    assert called.status_code == 200, called.text
+    assert called.headers["content-type"].startswith("text/html")
+    assert called.headers["content-security-policy"].startswith("sandbox;")
+    assert called.headers["x-content-type-options"] == "nosniff"
+
+
+def test_a_bodyless_reply_is_contained_too(client: TestClient) -> None:
+    apply_document(client, answered_at_once("      status: 204\n"))
+    called = client.post("/endpoints/now", json={}, headers={"Authorization": ""})
+    assert called.status_code == 204, called.text
+    assert called.headers["content-security-policy"].startswith("sandbox;")
 
 
 def test_a_caller_is_held_while_a_worker_runs_the_steps_its_reply_answers_from(client: TestClient) -> None:

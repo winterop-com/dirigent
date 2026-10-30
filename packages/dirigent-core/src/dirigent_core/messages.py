@@ -768,7 +768,7 @@ REPLY_BAD_STATUS = SOURCE.define(
     "reply_bad_status", "a reply's status is a whole number from 200 to 599 or a reference to one, not {status}"
 )
 
-REPLY_BAD_HEADER = SOURCE.define("reply_bad_header", "a reply does not set {header}, which the server writes itself")
+REPLY_BAD_HEADER = SOURCE.define("reply_bad_header", "a reply does not set {header}, which the server writes or enforces itself")
 
 UNKNOWN_KIND = SOURCE.define("unknown_kind", "no source kind {kind} is available on this instance ({known})")
 
