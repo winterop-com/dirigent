@@ -989,7 +989,7 @@ def scaffold(directory: Path, choices: InitChoices, *, version: str = "0.0.0") -
     (directory / DEFAULT_PIPELINES_DIR).mkdir(parents=True, exist_ok=True)
     for code, document in starter_documents(choices.pipelines).items():
         written.append(_write(directory / DEFAULT_PIPELINES_DIR / f"{code}.yaml", document))
-    written.append(_write(directory / ".dirigent" / "profiles.yaml", PROFILES_TEMPLATE))
+    written.append(_write(directory / ".dirigent" / "profiles.yaml", PROFILES_TEMPLATE, mode=0o644))
     written.append(_write(directory / ".dirigent" / ".gitignore", STATE_IGNORE_TEMPLATE))
     written.append(_write(directory / EXAMPLE_CONFIG_FILE, example_document()))
     name = project_name(directory)
