@@ -933,6 +933,13 @@ SOURCE_SIGNATURE_REQUIRED = SOURCE.define(
 
 SOURCE_SIGNATURE_MISMATCH = SOURCE.define("signature_mismatch", "the signature does not match the body")
 
+SOURCE_SIGNATURE_TIMESTAMP = SOURCE.define(
+    "signature_timestamp",
+    "this endpoint takes the Unix seconds the call was signed at in a {header} header, within {window} of now",
+)
+
+SOURCE_SIGNATURE_REPLAYED = SOURCE.define("signature_replayed", "this signature was already taken once")
+
 SOURCE_NOT_SIGNED = SOURCE.define(
     "not_signed", "source {code} of pipeline {pipeline} is {auth}, so it has no signing secret to set"
 )

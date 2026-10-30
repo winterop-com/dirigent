@@ -544,6 +544,20 @@ class SourceInput(Journal):
     """The address the request came from."""
 
 
+class SourceSignature(Base):
+    """A signature a signed source took, kept while its timestamp is inside the window so it is taken once."""
+
+    __tablename__ = "source_signatures"
+    __table_args__ = (sa.Index("ix_source_signatures_signed_at", "signed_at"),)
+
+    source_id: Mapped[UUID] = mapped_column(sa.ForeignKey("sources.id", ondelete="CASCADE"), primary_key=True)
+    signature: Mapped[str] = mapped_column(sa.String(64), primary_key=True)
+    """The hex HMAC-SHA256 the source computed, which is what a replay presents again."""
+
+    signed_at: Mapped[datetime] = mapped_column(Timestamp, nullable=False)
+    """The moment the caller's timestamp names."""
+
+
 class AlertRule(Entity):
     """An event-to-channel binding, declared as data rather than code."""
 
@@ -727,6 +741,7 @@ ALL_TABLES = (
     Source,
     SourceRoute,
     SourceInput,
+    SourceSignature,
     AlertRule,
     Notification,
     LogEntry,

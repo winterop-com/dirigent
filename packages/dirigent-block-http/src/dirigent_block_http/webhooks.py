@@ -1,15 +1,13 @@
 """``webhook.post``: an outbound, optionally HMAC-signed JSON POST.
 
-The ``X-Dirigent-Signature`` it presents is computed the same way dirigent's own inbound
-``/hooks/{token}`` verifies one, so the two must stay in step.
+The ``X-Dirigent-Signature`` it presents, over the ``X-Dirigent-Timestamp`` it sends beside it
+and the body, is the one a signed endpoint source verifies.
 
 The block serialises the body itself, and the signature covers the bytes that go on the
 wire: letting the HTTP client re-encode the body after signing would produce a signature
 that verifies nowhere.
 """
 
-import hashlib
-import hmac
 import json
 import time
 from typing import ClassVar, Final
@@ -30,6 +28,7 @@ from dirigent_block_http.http import (
 from dirigent_block_http.messages import WEBHOOK_NO_SECRET, WEBHOOK_STATUS_REFUSED
 from dirigent_common import BlockModel, Size
 from dirigent_plugin import BlockFailure, ConnectionRef, ErrorClass, Operator, OperatorSpec, RemoteHandle, StepContext
+from dirigent_plugin.sources import SIGNATURE_TIMESTAMP_HEADER, sign_body
 
 SIGNATURE_HEADER: Final = "X-Dirigent-Signature"
 
@@ -100,7 +99,9 @@ class WebhookPostOperator(Operator[WebhookPostConfig, WebhookPostOutput]):
         headers = {**config.headers, "Content-Type": JSON_CONTENT_TYPE}
         secret = _secret(config, ctx)
         if secret is not None:
-            headers[SIGNATURE_HEADER] = sign(secret, payload)
+            stamp = str(int(time.time()))
+            headers[SIGNATURE_TIMESTAMP_HEADER] = stamp
+            headers[SIGNATURE_HEADER] = sign_body(secret, stamp, payload)
         started = time.monotonic()
         async with client_for(config, ctx) as client:
             request = client.build_request(
@@ -143,11 +144,6 @@ class WebhookPostOperator(Operator[WebhookPostConfig, WebhookPostOutput]):
 def render(body: JsonValue) -> bytes:
     """Serialise the body once, into the exact bytes that are both signed and sent."""
     return json.dumps(body, separators=JSON_SEPARATORS, ensure_ascii=False).encode()
-
-
-def sign(secret: bytes, payload: bytes) -> str:
-    """Compute the signature over the raw body, the way dirigent's own intake verifies one."""
-    return hmac.new(secret, payload, hashlib.sha256).hexdigest()
 
 
 def _secret(config: WebhookPostConfig, ctx: StepContext) -> bytes | None:
