@@ -6,6 +6,7 @@ encrypt it. Only those fields go into the envelope; the rest stay queryable JSON
 """
 
 import hashlib
+import hmac
 import json
 from typing import Any
 
@@ -23,6 +24,9 @@ from dirigent_core.messages import (
 )
 
 REDACTED = "***"
+
+#: What separates the key behind `SecretBox.keyed_digest` from the instance key it comes from.
+KEYED_DIGEST_PURPOSE = b"dirigent keyed digest v1"
 
 #: The key identifier is stored beside an envelope, so a rotation can tell which key sealed
 #: a row without trying to decrypt it.
@@ -171,6 +175,16 @@ class SecretBox:
         if self._key is None:
             raise SecretKeyMissing
         return Fernet(self._key)
+
+    def keyed_digest(self, value: str) -> str:
+        """Digest a value in hex, under a key derived from the instance key and used for nothing else.
+
+        Without the instance key, a guess at the value cannot be tested against the digest.
+        """
+        if self._key is None:
+            raise SecretKeyMissing
+        derived = hmac.digest(self._key, KEYED_DIGEST_PURPOSE, hashlib.sha256)
+        return hmac.digest(derived, value.encode(), hashlib.sha256).hex()
 
     def seal(self, secret: JsonMap) -> bytes:
         """Encrypt the secret half of a config."""

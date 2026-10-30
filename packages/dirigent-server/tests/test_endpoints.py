@@ -466,7 +466,8 @@ def test_a_signing_secret_is_listed_by_a_hash_and_none_of_it_in_clear(client: Te
     minted = apply_document(client, held("      auth: {kind: hmac}"))["sources"]["tokens"][0]
     secret = minted["token"]
     assert minted["prefix"] is None
-    assert minted["fingerprint"] == hashlib.sha256(secret.encode()).hexdigest()[:12]
+    assert len(minted["fingerprint"]) == 12
+    assert minted["fingerprint"] != hashlib.sha256(secret.encode()).hexdigest()[:12]
     listed = source(client, "held")
     assert listed.token_prefix is None
     assert listed.secret_fingerprint == minted["fingerprint"]
@@ -475,7 +476,9 @@ def test_a_signing_secret_is_listed_by_a_hash_and_none_of_it_in_clear(client: Te
     replaced = client.post(f"{PREFIX}/pipelines/held/sources/ask/$set-secret", json={"secret": issued})
     assert replaced.status_code == 200, replaced.text
     assert issued[:8] not in replaced.text
-    assert replaced.json()["secret_fingerprint"] == hashlib.sha256(issued.encode()).hexdigest()[:12]
+    fingerprint = replaced.json()["secret_fingerprint"]
+    assert fingerprint != minted["fingerprint"], "a change of secret stays visible"
+    assert fingerprint != hashlib.sha256(issued.encode()).hexdigest()[:12], "a guess cannot be tested offline"
 
 
 def test_moving_a_signed_source_to_a_token_drops_the_fingerprint(client: TestClient) -> None:
