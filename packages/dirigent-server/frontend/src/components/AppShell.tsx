@@ -17,17 +17,7 @@ import { useTheme } from 'next-themes'
 
 import { MODES, MODE_LABELS } from '@/components/ThemeToggle'
 import { IconButton } from '@/components/ds/IconButton'
-import {
-    Keyboard,
-    LogOut,
-    PanelLeft,
-    PanelRight,
-    Search,
-    Settings,
-    Monitor,
-    Moon,
-    Sun,
-} from 'lucide-react'
+import { Keyboard, LogOut, PanelLeft, PanelRight, Search, Settings, Monitor, Moon, Sun } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'

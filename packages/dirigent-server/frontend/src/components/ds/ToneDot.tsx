@@ -29,6 +29,8 @@ export function ToneDot({
     const hollow = 'tone' in dot && dot.tone === 'unknown'
     const said = tip === undefined || tip === null || tip === '' ? null : tip
     const tabIndex = focusable ? 0 : undefined
+    // Failed is what a reader is looking for; a state nothing has proved is said, but quietly.
+    const loud = news && !hollow
     const mark = (
         <span
             className="status-dot"
@@ -41,7 +43,7 @@ export function ToneDot({
         const word = (
             <>
                 {mark}
-                <span className={news ? 'font-medium text-foreground' : 'text-muted-foreground'}>
+                <span className={loud ? 'font-medium text-foreground' : 'text-muted-foreground'}>
                     {label}
                 </span>
             </>

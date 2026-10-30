@@ -174,6 +174,9 @@ export function ListTable<T>({
                   },
               }
 
+    // What stands under a row, which is nothing at all unless the screen has expanded it.
+    const below = (row: T) => under?.(row) ?? null
+
     const head = columns[0]
     const beside = columns.slice(1)
 
@@ -230,8 +233,8 @@ export function ListTable<T>({
                                         <div className="min-w-0">{head.cell(row)}</div>
                                         <Facts columns={beside} row={row} />
                                     </li>
-                                    {under?.(row) != null && (
-                                        <li className="bg-background p-2">{under(row)}</li>
+                                    {below(row) !== null && (
+                                        <li className="bg-background p-2">{below(row)}</li>
                                     )}
                                 </Fragment>
                             ))}
@@ -302,13 +305,13 @@ export function ListTable<T>({
                                                 )
                                             })}
                                         </TableRow>
-                                        {under?.(row) != null && (
+                                        {below(row) !== null && (
                                             <TableRow className="bg-background even:bg-background hover:bg-background">
                                                 <TableCell
                                                     colSpan={columns.length}
                                                     className="py-2 pr-2 pl-11 whitespace-normal"
                                                 >
-                                                    {under(row)}
+                                                    {below(row)}
                                                 </TableCell>
                                             </TableRow>
                                         )}

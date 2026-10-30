@@ -353,7 +353,10 @@ describe('what the dialog says about the settings', () => {
     })
 
     test('follows the order the kind publishes', () => {
-        const schema = { type: 'object', properties: { username: { type: 'string' }, url: { type: 'string' } } }
+        const schema = {
+            type: 'object',
+            properties: { username: { type: 'string' }, url: { type: 'string' } },
+        }
         expect(settingFacts(row, schema).map((fact) => fact.name)).toEqual([
             'username',
             'url',

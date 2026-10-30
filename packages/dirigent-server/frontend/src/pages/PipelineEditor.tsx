@@ -679,9 +679,7 @@ export function PipelineEditor() {
                 )}
                 {local === null ? (
                     <div className="graph-words flex flex-col items-start gap-3 p-4">
-                        <p className="text-muted-foreground">
-                            {LABELS.editor.canvas.nothing_to_draw}
-                        </p>
+                        <p className="text-muted-foreground">{LABELS.editor.canvas.nothing_to_draw}</p>
                     </div>
                 ) : (
                     <Suspense

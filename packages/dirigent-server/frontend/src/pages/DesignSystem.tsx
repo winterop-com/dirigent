@@ -62,6 +62,9 @@ function IconShelf({ group }: { group: IconGroup }) {
     )
 }
 
+/** How far under the top of the scroller a section lands when its index entry is pressed. */
+const SECTION_GAP = 16
+
 /** The sentence under a heading, for the sections that have one to say. */
 const LINES: Partial<Record<GallerySection, string>> = COPY.line
 
@@ -70,7 +73,7 @@ function Section({ id, children }: { id: GallerySection; children: ReactNode }) 
     const anchor = galleryAnchor(id)
     const line = LINES[id]
     return (
-        <section data-gallery={id} aria-labelledby={anchor} className="scroll-mt-4 space-y-2">
+        <section data-gallery={id} aria-labelledby={anchor} className="space-y-2">
             <div className="space-y-0.5">
                 <SectionHeading id={anchor}>{COPY.section[id]}</SectionHeading>
                 {line !== undefined && <p className="text-sm text-muted-foreground">{line}</p>}
@@ -107,6 +110,15 @@ function useReadingSection(): [GallerySection, (section: GallerySection) => void
     return [reading, setReading]
 }
 
+/** Bring one section to the top of the column the screen scrolls in, and nothing else. */
+function toSection(section: GallerySection): void {
+    const target = document.getElementById(galleryAnchor(section))
+    const scroller = target?.closest('main')
+    if (target === null || scroller === null || scroller === undefined) return
+    const offset = target.getBoundingClientRect().top - scroller.getBoundingClientRect().top
+    scroller.scrollTo({ top: scroller.scrollTop + offset - SECTION_GAP })
+}
+
 /** Every section by its plain name: a column beside them on a wide window, a block above on a phone. */
 function GalleryIndex({
     reading,
@@ -137,7 +149,11 @@ function GalleryIndex({
                                             ? 'bg-secondary font-medium text-foreground'
                                             : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
                                     )}
-                                    onClick={() => {
+                                    onClick={(event) => {
+                                        // The shell clips its own overflow, so a jump the browser
+                                        // made would scroll the whole app inside the window.
+                                        event.preventDefault()
+                                        toSection(section)
                                         onChoose(section)
                                     }}
                                 >

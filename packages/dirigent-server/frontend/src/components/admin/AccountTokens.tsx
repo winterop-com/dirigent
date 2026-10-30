@@ -130,7 +130,7 @@ function tokenColumns(
     return [
         {
             id: 'name',
-            header: LABELS.word.name.label,
+            header: LABELS.word.token.label,
             kind: 'title',
             cell: (token) => (
                 <span className="flex min-w-0 items-center gap-2">

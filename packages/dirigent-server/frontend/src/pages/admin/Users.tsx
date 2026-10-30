@@ -97,9 +97,10 @@ function Users() {
     const { reload: reloadUsers } = users
     const { again: readCensusAgain } = census
 
+    const [now] = useState(() => Date.now())
     const counts = useMemo(
-        () => (census.value === null ? null : tokenCounts(census.value, Date.now())),
-        [census.value],
+        () => (census.value === null ? null : tokenCounts(census.value, now)),
+        [census.value, now],
     )
 
     const toggleTokens = useCallback((username: string) => {
@@ -239,6 +240,18 @@ function Users() {
         ])
     }, [readCensusAgain, reloadUsers])
 
+    const tokensUnder = useCallback(
+        (user: UserOut) =>
+            opened.has(user.username) ? (
+                <AccountTokens
+                    username={user.username}
+                    revision={revisions[user.username] ?? 0}
+                    onChanged={readCensusAgain}
+                />
+            ) : null,
+        [opened, readCensusAgain, revisions],
+    )
+
     const columns = useMemo(
         () => userColumns(opened, counts, toggleTokens, setMintingFor),
         [counts, opened, toggleTokens],
@@ -283,15 +296,7 @@ function Users() {
                     next={users.state.next}
                     onMore={users.more}
                     noun={LABELS.word.account.count}
-                    under={(user) =>
-                        opened.has(user.username) ? (
-                            <AccountTokens
-                                username={user.username}
-                                revision={revisions[user.username] ?? 0}
-                                onChanged={readCensusAgain}
-                            />
-                        ) : null
-                    }
+                    under={tokensUnder}
                 />
             </PageState>
 

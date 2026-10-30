@@ -323,6 +323,7 @@ const word = {
     },
     /** What an automation signs in with in place of a password. */
     token: {
+        label: 'Token',
         count: {
             one: 'token',
             many: 'tokens',
@@ -739,7 +740,7 @@ const shell = {
     instance: {
         label: 'Instance',
         /** The dot's accessible name, which carries what the dot's colour says. */
-        said: (state: string) => `Instance: ${state}`,
+        said: (health: string) => `Instance: ${health}`,
         /** Beside the dot, and only when something is wrong. */
         wrong: {
             degraded: 'Server degraded',
@@ -749,7 +750,7 @@ const shell = {
         /** The name, and the environment where the environment is worth saying. */
         line: (name: string, environment: string) => `${name} · ${environment}`,
         /** A fact this instance did not state. */
-        unknown: 'not said',
+        unknown: 'unknown',
     },
 
     /** The account menu's row that opens the settings dialog. */
@@ -758,7 +759,6 @@ const shell = {
     account: {
         /** The control's name, which carries the username the avatar stands for. */
         label: (username: string) => `Account: ${username}`,
-        tooltip: 'Account',
         /** The menu's foot: the instance's own line, and its version. */
         instance: (line: string, version: string) => `${line} · ${version}`,
     },
@@ -1338,7 +1338,7 @@ const dashboard = {
     /** The panel beside the chart: the workers and the connections as one list. */
     health: {
         /** A healthy connection's dot, on the dashboard: the word, and what the check said. */
-        healthy_tip: (word: string, said: string) => `${word}: ${said}`,
+        healthy_tip: (health: string, said: string) => `${health}: ${said}`,
         hint: 'The workers claiming work, and every connection.',
         /** A worker with nothing to report: what it is, and how much it can take. */
         worker: {
@@ -2513,16 +2513,12 @@ const connections = {
     /** The palette's row for reading the listing again. */
     reload: 'Read the connections listing again',
     empty: 'No connections.',
-    /** A connection's dialog while it is being edited: the word in front of its title. */
-    edit_lead: 'Edit',
     /** Beside Save: what writing the settings does. */
     save_checks: 'Saving checks the connection.',
     /** The heading over the password boxes. */
     secrets_heading: 'Secrets',
     /** A secret in the dialog's facts that holds nothing. */
     secret_not_set: 'not set',
-    /** A connection's Health fact, after the dot: how long ago it was asked. */
-    checked: (when: string) => `checked ${when}`,
     /** The question before a delete. */
     delete_title: 'Delete this connection?',
     delete_consequence: 'Anything naming it can no longer connect. This cannot be undone.',
@@ -3279,7 +3275,7 @@ const design = {
         selectable: 'Pressed to filter or remove',
         long: 'Long text',
         kind_status: 'Kinds and run states',
-        tone_dots: 'The word only when it is news',
+        tone_dots: 'The word only when something is wrong',
         always: 'The word always',
         status_dots: 'Run states',
         text_buttons: 'With words',
@@ -3294,7 +3290,7 @@ const design = {
         prose: 'With a plain label',
         key: 'With a document key',
         error: 'With an error',
-        notices: 'Notices',
+        notices: 'With and without a mark',
         well: 'An inset box',
         dialogs: 'Open one',
         asks: 'A dialog that asks',
@@ -3366,7 +3362,7 @@ const design = {
         timeout_value: 'soon',
         timeout_error: 'timeout must be a duration, such as 30s',
         switch_label: 'Follow logs',
-        switch_help: "Open a run's log pane at its tail.",
+        switch_help: "Open a run's log pane at its newest line.",
         switch_shut_label: 'Seal secrets at rest',
         notice_critical_title: 'The last check failed',
         notice_critical_body: 'Connection refused by 10.0.0.4:5432.',

@@ -243,9 +243,11 @@ export function settingFacts(
         if (value === null || value === undefined) return []
         return [{ name, value: typeof value === 'string' ? value : JSON.stringify(value), secret: false }]
     })
-    const secrets = row.secret_fields.map(
-        (name): SettingFact => ({ name, value: isSet(row.config[name]) ? DOTS : null, secret: true }),
-    )
+    const secrets = row.secret_fields.map((name): SettingFact => ({
+        name,
+        value: isSet(row.config[name]) ? DOTS : null,
+        secret: true,
+    }))
     return [...settings, ...secrets]
 }
 

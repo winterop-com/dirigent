@@ -436,6 +436,9 @@ export async function belowTheFold(within: Locator, label: string): Promise<numb
 
 /** Open the settings dialog, which is a row of the account menu at the foot of the rail. */
 export async function openSettings(page: Page): Promise<void> {
-    await page.getByRole('button', { name: /^Account: / }).first().click()
+    await page
+        .getByRole('button', { name: /^Account: / })
+        .first()
+        .click()
     await page.getByRole('menuitem', { name: LABELS.shell.settings, exact: true }).click()
 }

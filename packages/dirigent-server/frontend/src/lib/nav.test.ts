@@ -112,7 +112,7 @@ describe('the admin overview', () => {
         expect(rail).not.toContain(ADMIN_OVERVIEW.path)
     })
 
-    test('is the admin heading\'s link', () => {
+    test("is the admin heading's link", () => {
         expect(NAV.find((section) => section.id === 'admin')?.to).toBe(ADMIN_OVERVIEW.path)
     })
 

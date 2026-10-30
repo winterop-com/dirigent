@@ -1328,6 +1328,7 @@ html.dark[data-theme='contrast'],
     display: flex;
     flex-direction: column;
     justify-content: center;
+    height: 100%;
     overflow: hidden;
     box-sizing: border-box;
     border-radius: var(--radius-lg);

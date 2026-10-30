@@ -33,13 +33,7 @@ const TONE: Record<StatusTone, string> = {
     warn: 'text-warning',
 }
 
-export function StatusBar({
-    onSettings,
-    onShortcuts,
-}: {
-    onSettings: () => void
-    onShortcuts: () => void
-}) {
+export function StatusBar({ onSettings, onShortcuts }: { onSettings: () => void; onShortcuts: () => void }) {
     const status = useStore(screenStatus)
     const collapsed = useStore(railCollapsed)
     const width = useStore(railWidth)

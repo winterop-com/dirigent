@@ -17,7 +17,7 @@ import { useMayWrite } from '@/hooks/use-may-write'
 import { useStore } from '@/hooks/use-store'
 import { type JsonMap, type Problem } from '@/lib/api'
 import { deleteConnection, healthOf, settingFacts, type ConnectionOut } from '@/lib/connections'
-import { formatRelative, separatelyUpdated } from '@/lib/format'
+import { separatelyUpdated } from '@/lib/format'
 import { kindGlyph } from '@/lib/glyphs'
 import { ICONS } from '@/lib/icons'
 import { LABELS } from '@/lib/labels'
@@ -63,7 +63,7 @@ export function ConnectionDialog({
         <EntityHeading
             variant="dialog"
             thing={connection}
-            lead={editing ? LABELS.connections.edit_lead : undefined}
+            lead={editing ? LABELS.action.edit : undefined}
             glyph={<Mark glyph={kindGlyph(connection.kind, marks)} />}
             chips={<KindChip kind={connection.kind} />}
         />
@@ -207,7 +207,7 @@ function ConnectionFacts({ connection, schema }: { connection: ConnectionOut; sc
                             <HealthSaid view={view} />
                             {view.checkedAt !== null && (
                                 <span className="text-xs text-muted-foreground">
-                                    {LABELS.connections.checked(formatRelative(view.checkedAt))}
+                                    {LABELS.word.checked.term} <Instant at={view.checkedAt} />
                                 </span>
                             )}
                         </span>

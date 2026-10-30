@@ -76,11 +76,14 @@ export function AccountMenu({
                     </span>
                     {!collapsed && <span className="truncate font-mono">{identity.username}</span>}
                 </DropdownMenuTrigger>
-                <TooltipContent side="top">{LABELS.shell.account.tooltip}</TooltipContent>
+                <TooltipContent side="top">{LABELS.word.account.label}</TooltipContent>
             </Tooltip>
             <DropdownMenuContent side="top" align="start" className="w-64">
                 <div className="flex min-w-0 items-center gap-2 px-2 py-1.5">
-                    <span className="min-w-0 truncate font-mono text-sm font-medium" title={identity.username}>
+                    <span
+                        className="min-w-0 truncate font-mono text-sm font-medium"
+                        title={identity.username}
+                    >
                         {identity.username}
                     </span>
                     <Chip>{identity.role}</Chip>
