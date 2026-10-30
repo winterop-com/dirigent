@@ -287,6 +287,30 @@ stays clean, and every example stays executable.
 
 ## Wanted
 
+- **A DHIS2 app for dirigent, shipped with dirigent-dhis2.** DHIS2 people want to see and run
+  their pipelines from inside DHIS2: an App Platform app, installed through App Management,
+  listing the pipelines that touch this DHIS2 instance, their runs and logs, and the sources
+  waiting for input, with run, pause and rerun where the user may. It belongs to
+  `dirigent-dhis2`, not here, and it reuses this repository's design system rather than
+  re-drawing it. Most of the work is identity, and it has to be settled before any screen:
+  - *Who the caller is.* A DHIS2 app runs on the DHIS2 origin with the DHIS2 session; dirigent
+    has its own users, roles and tokens. The candidates are DHIS2's Route API (2.41+) holding a
+    dirigent token server-side and proxying under `/api/routes/<id>/run`, which keeps the token
+    out of the browser but makes every DHIS2 user who may use the route the same dirigent
+    principal; dirigent trusting a DHIS2 session it verifies against that instance's
+    `/api/me`, mapping DHIS2 users or groups onto dirigent roles; or OIDC with DHIS2, or the
+    identity provider both already use, as the issuer. It meets the open question on
+    authentication beyond tokens.
+  - *What a DHIS2 user may see.* Roles alone are too coarse when one dirigent serves several
+    DHIS2 instances: a pipeline needs to say which instance, or which DHIS2 user groups, it
+    belongs to, and listings and actions filter on that.
+  - *Embedding.* The security headers deny framing (`frame-ancestors 'none'`), and the API
+    takes no cross-origin calls. The app either talks only through a DHIS2 route, which needs
+    neither, or dirigent gains a configured list of DHIS2 origins it allows, for framing and
+    for CORS.
+  - *Where it ships.* A built app zip as a release asset of `dirigent-dhis2`, versioned with
+    the pack, with the App Hub as a later option.
+
 - **What else importance should reach.** The field is declared and the alert rules match on
   it, so a critical failure pages while a routine one logs. Three readers are still missing,
   and each is a slice of its own: the stuck-run detector treating a critical run as an
