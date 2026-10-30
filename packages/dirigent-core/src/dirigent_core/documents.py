@@ -17,10 +17,12 @@ from dirigent_client.schemas import Catalog, ValidationIssue
 from dirigent_common import (
     LOCAL_REFERENCES,
     STORAGE_URI_FORMAT,
+    BoundedLoader,
     Issue,
     JsonMap,
     Message,
     base_format_checker,
+    bounded_load,
     validation_issue,
 )
 from dirigent_core.engine.definition import (
@@ -88,7 +90,7 @@ from dirigent_core.messages import (
     WRONG_DOCUMENT_KIND,
     WRONG_FORMAT,
 )
-from dirigent_plugin import reference_fields, shell_fields_of, sql_fields_of
+from dirigent_plugin import reference_fields, shell_fields_of, sql_values_of
 
 #: High enough that the canonical dump never folds a line, which would shift the digest.
 YAML_WIDTH: Final = 10_000
@@ -103,8 +105,8 @@ SUFFIXES: Final = (".yaml", ".yml", ".json")
 CARRIED: Final = ("connections", "schemas")
 
 
-class PlainLoader(yaml.SafeLoader):
-    """A safe loader that leaves a date written as a date alone.
+class PlainLoader(BoundedLoader):
+    """A bounded loader that leaves a date written as a date alone.
 
     YAML resolves ``2026-01-01`` to a ``datetime.date``, which is not a JSON value, so the
     timestamp resolver is removed and such a value stays the string it was written as.
@@ -119,7 +121,7 @@ PlainLoader.yaml_implicit_resolvers = {
 
 def safe_load(text: str) -> object:
     """Read YAML (or JSON) the one way dirigent reads it, with dates left as strings."""
-    return yaml.load(text, Loader=PlainLoader)  # noqa: S506 - PlainLoader is SafeLoader minus a resolver
+    return bounded_load(text, PlainLoader)
 
 
 def is_document(raw: JsonMap) -> bool:
@@ -655,13 +657,14 @@ def _step_block_issues(
 
 
 def _sql_reference_issues(step: str, config: JsonMap, schema: JsonMap) -> list[ValidationIssue]:
-    """Refuse a reference in a field the block publishes as SQL, which only ``params`` may carry."""
+    """Refuse a reference anywhere the block publishes SQL, which only ``params`` may carry."""
+    held = sql_values_of(config, schema)
     return [
         ValidationIssue.of(
             STEP_REFERENCE_IN_SQL, location=f"steps.{step}.config.{field}", reference=reference, field=field
         )
-        for field in sorted(sql_fields_of(schema))
-        for reference in references_in(config.get(field))
+        for field in sorted(held)
+        for reference in references_in(held[field])
     ]
 
 

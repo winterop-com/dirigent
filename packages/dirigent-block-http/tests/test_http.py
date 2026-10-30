@@ -232,6 +232,63 @@ async def test_a_webhooks_host_header_does_not_steer_the_credential_to_another_n
     assert handler.requests == []
 
 
+@pytest.mark.parametrize(
+    "name",
+    [
+        "X-Forwarded-Host",
+        "x-forwarded-host",
+        "X_Forwarded_Host",
+        "X-Forwarded-Proto",
+        "X-Forwarded-Port",
+        "X-Forwarded-Scheme",
+        "X-Forwarded-Server",
+        "Forwarded",
+        "X-Host",
+        "X-Original-Host",
+        "X-Original-URL",
+    ],
+)
+async def test_a_steps_routing_header_does_not_steer_the_credential_away(ctx: FakeContext, name: str) -> None:
+    ctx.handler = handler = Responder(json_response(200, {}))
+    config = HttpRequestConfig(connection="api", path="/collect", headers={name: "other.test"})
+    with pytest.raises(BlockFailure) as raised:
+        await HttpRequestOperator().execute(config, ctx.as_context())
+    assert raised.value.code == "http.routing_header_refused"
+    assert raised.value.error_class is ErrorClass.REJECTED
+    assert handler.requests == [], "nothing was sent"
+
+
+async def test_a_webhooks_routing_header_does_not_steer_the_credential_away(ctx: FakeContext) -> None:
+    ctx.handler = handler = Responder(json_response(200, {}))
+    config = WebhookPostConfig(connection="api", path="/hook", headers={"X-Forwarded-Host": "other.test"}, body={})
+    with pytest.raises(BlockFailure) as raised:
+        await WebhookPostOperator().execute(config, ctx.as_context())
+    assert raised.value.code == "http.routing_header_refused"
+    assert handler.requests == []
+
+
+async def test_a_header_that_routes_nothing_is_sent_beside_a_connection(ctx: FakeContext) -> None:
+    ctx.handler = handler = Responder(json_response(200, {}))
+    headers = {"X-Forwarded-For": "192.0.2.1", "X-Request-Id": "abc"}
+    config = HttpRequestConfig(connection="api", path="/collect", headers=headers)
+    await HttpRequestOperator().execute(config, ctx.as_context())
+    assert handler.requests[0].headers["x-forwarded-for"] == "192.0.2.1"
+
+
+async def test_a_step_without_a_connection_sets_any_routing_header(
+    ctx: FakeContext, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ctx.handler = handler = Responder(json_response(200, {}))
+
+    def bare(_target: object, _ctx: object) -> httpx2.AsyncClient:
+        return httpx2.AsyncClient(transport=httpx2.MockTransport(handler))
+
+    monkeypatch.setattr("dirigent_block_http.http.client_for", bare)
+    config = HttpRequestConfig(url="http://service.test/collect", headers={"X-Forwarded-Host": "other.test"})
+    await HttpRequestOperator().execute(config, ctx.as_context())
+    assert handler.requests[0].headers["x-forwarded-host"] == "other.test"
+
+
 @pytest.mark.parametrize("host", ["service.test", "SERVICE.test"])
 async def test_a_host_header_naming_the_connections_own_origin_is_sent(ctx: FakeContext, host: str) -> None:
     ctx.handler = handler = Responder(json_response(200, {}))

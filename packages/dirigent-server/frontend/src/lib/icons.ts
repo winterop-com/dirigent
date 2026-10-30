@@ -47,7 +47,6 @@ import {
     Info,
     Keyboard,
     KeyRound,
-    LayoutDashboard,
     LayoutTemplate,
     ListFilter,
     LoaderCircle,
@@ -143,7 +142,6 @@ export const ICONS = {
 
     // Nouns: what a thing is.
     dashboard: House,
-    overview: LayoutDashboard,
     pipeline: Workflow,
     run_history: Activity,
     step: Box,
@@ -227,7 +225,6 @@ export const ICON_GROUPS = {
     ],
     nouns: [
         'dashboard',
-        'overview',
         'pipeline',
         'run_history',
         'step',
