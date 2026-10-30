@@ -11,10 +11,12 @@ from pydantic import BaseModel, Field, JsonValue, model_validator
 from dirigent_block_http.connections import HttpConnectionConfig
 from dirigent_block_http.messages import (
     NO_TARGET,
+    OFF_ORIGIN,
     RESPONSE_TOO_LARGE,
     STATUS_REFUSED,
+    URL_BESIDE_CONNECTION,
 )
-from dirigent_common import BlockModel, Duration, Size
+from dirigent_common import BlockModel, Duration, Issue, Size
 from dirigent_plugin import (
     BlockFailure,
     ConnectionRef,
@@ -42,10 +44,18 @@ class HttpTarget(BlockModel):
     """The code of the connection whose base URL, auth, TLS, and timeout apply."""
 
     url: str | None = None
-    """An absolute URL, for the case where no connection is configured."""
+    """An absolute URL, for the case where no connection is configured.
+
+    Beside a connection, a literal one is refused at apply, and one a reference resolves to is
+    refused at run time unless it is on the connection's own origin.
+    """
 
     path: str = "/"
-    """The path resolved against the connection's base URL."""
+    """The path resolved against the connection's base URL.
+
+    A request is sent with the connection's credentials only to the scheme, host and port of
+    its ``base_url``, so an absolute URL here is refused unless it is on that origin.
+    """
 
     timeout: Duration | None = Field(default=None, gt=timedelta(0))
     """Overrides the connection's timeout for this call alone."""
@@ -90,6 +100,55 @@ def request_timeout(target: HttpTarget, client: httpx2.AsyncClient) -> httpx2.Ti
 def request_url(target: HttpTarget) -> str:
     """Resolve what one call requests: the absolute URL, or the path on the connection."""
     return target.url or target.path
+
+
+def on_origin(target: HttpTarget, client: httpx2.AsyncClient, request: httpx2.Request) -> None:
+    """Refuse a request that would carry a connection's credentials off the connection's origin.
+
+    Checked on the request as built, after the client has merged it onto ``base_url``, so an
+    absolute ``url`` or ``path`` is judged by where it will actually be sent.
+    """
+    if target.connection and _origin(request.url) != _origin(client.base_url):
+        raise BlockFailure(
+            OFF_ORIGIN,
+            error_class=ErrorClass.REJECTED,
+            url=request_url(target),
+            origin=_shown(client.base_url),
+            connection=repr(target.connection),
+        )
+
+
+def _origin(url: httpx2.URL) -> tuple[str, str, int | None]:
+    """The scheme, host and port a URL is sent to; a default port reads as ``None``."""
+    return url.scheme, url.host, url.port
+
+
+def _shown(url: httpx2.URL) -> str:
+    """Write an origin the way a person reads one."""
+    if not url.host:
+        return "no base_url"
+    port = f":{url.port}" if url.port is not None else ""
+    return f"{url.scheme}://{url.host}{port}"
+
+
+def target_issues(target: BaseModel) -> list[Issue]:
+    """Refuse at apply a literal absolute URL beside a connection, whose origin is not known until run."""
+    if not isinstance(target, HttpTarget) or not target.connection:
+        return []
+    named = {"url": target.url, "path": target.path}
+    return [
+        Issue.of(URL_BESIDE_CONNECTION, field=field, connection=repr(target.connection))
+        for field, value in named.items()
+        if value is not None and _absolute(value)
+    ]
+
+
+def _absolute(value: str) -> bool:
+    """Whether a URL names its own scheme and host; one that does not parse is left to the run."""
+    try:
+        return httpx2.URL(value).is_absolute_url
+    except httpx2.InvalidURL:
+        return False
 
 
 def decode(response: httpx2.Response, payload: bytes) -> tuple[JsonValue | None, str | None]:
@@ -229,6 +288,7 @@ class HttpRequestOperator(Operator[HttpRequestConfig, HttpRequestOutput]):
                 content=content,
                 timeout=request_timeout(config, client),
             )
+            on_origin(config, client, request)
             response = await client.send(request, stream=True, follow_redirects=config.follow_redirects)
             try:
                 payload = await read_bounded(response, config.max_response)
@@ -258,6 +318,10 @@ class HttpRequestOperator(Operator[HttpRequestConfig, HttpRequestOutput]):
             body_bytes=len(payload),
             duration_ms=duration,
         )
+
+    def check_config(self, config: BaseModel) -> list[Issue]:
+        """Refuse a literal absolute URL beside a connection."""
+        return target_issues(config)
 
 
 class HttpReadyConfig(HttpTarget):
@@ -304,6 +368,7 @@ class HttpReadySensor(Sensor[HttpReadyConfig, HttpReadyOutput]):
         try:
             async with client_for(config, ctx) as client:
                 request = client.build_request("GET", request_url(config), timeout=request_timeout(config, client))
+                on_origin(config, client, request)
                 response = await client.send(request, stream=True, follow_redirects=config.follow_redirects)
                 try:
                     answered = await read_bounded(response, config.max_response)
@@ -320,6 +385,10 @@ class HttpReadySensor(Sensor[HttpReadyConfig, HttpReadyOutput]):
             ctx.log.debug("endpoint answered but the body does not match yet")
             return NotYet()
         return HttpReadyOutput(status=response.status_code, duration_ms=duration, matched=config.contains is not None)
+
+    def check_config(self, config: BaseModel) -> list[Issue]:
+        """Refuse a literal absolute URL beside a connection."""
+        return target_issues(config)
 
 
 def status_class(status: int) -> ErrorClass:

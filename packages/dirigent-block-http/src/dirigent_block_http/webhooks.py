@@ -22,13 +22,15 @@ from dirigent_block_http.http import (
     client_for,
     decode,
     is_success,
+    on_origin,
     read_bounded,
     request_timeout,
     request_url,
     status_class,
+    target_issues,
 )
 from dirigent_block_http.messages import WEBHOOK_NO_SECRET, WEBHOOK_STATUS_REFUSED
-from dirigent_common import BlockModel, Size
+from dirigent_common import BlockModel, Issue, Size
 from dirigent_plugin import BlockFailure, ConnectionRef, ErrorClass, Operator, OperatorSpec, RemoteHandle, StepContext
 
 SIGNATURE_HEADER: Final = "X-Dirigent-Signature"
@@ -110,6 +112,7 @@ class WebhookPostOperator(Operator[WebhookPostConfig, WebhookPostOutput]):
                 headers=headers,
                 timeout=request_timeout(config, client),
             )
+            on_origin(config, client, request)
             response = await client.send(request, stream=True, follow_redirects=config.follow_redirects)
             try:
                 answered = await read_bounded(response, config.max_response)
@@ -138,6 +141,10 @@ class WebhookPostOperator(Operator[WebhookPostConfig, WebhookPostOutput]):
             json_body=parsed,
             text=text,
         )
+
+    def check_config(self, config: BaseModel) -> list[Issue]:
+        """Refuse a literal absolute URL beside a connection."""
+        return target_issues(config)
 
 
 def render(body: JsonValue) -> bytes:
