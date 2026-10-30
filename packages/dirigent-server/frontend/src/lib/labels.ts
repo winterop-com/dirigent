@@ -1112,7 +1112,7 @@ const refused = {
         bad_credentials: 'Invalid username or password.',
         bad_cursor: '{name}={after} is not a cursor this listing gave out.',
         connection_exists: 'A connection coded {code} exists.',
-        connection_referenced: 'Connection {code} is still referenced. Delete what uses it first.',
+        connection_referenced: 'Still in use. Delete what uses it first.',
         /** The same sentence `refusal.shut` says, held to it by `test_shared_words.py`. */
         forbidden: 'Not permitted for your role.',
         idempotency_key_required:
@@ -1759,8 +1759,7 @@ const editor = {
         /** What the pane's own window is titled, which is the shape and where it is held. */
         held_body: (code: string) => `${code} · on this instance`,
         /** What updating does, and what it does to everything else naming the code. */
-        update_note:
-            'Updating replaces what the instance holds with what this document carries. Every pipeline naming this code checks against the new shape from its next run.',
+        update_note: 'Every pipeline naming this code checks against the new shape from its next run.',
         /**
          * Which pipelines those are, where the instance holds any.
          *
@@ -2359,8 +2358,7 @@ const triggers = {
     pinned_title: (code: string) => `${code} · pinned parameters`,
     /** Minting a new token for a source, and what that costs. */
     rotate: 'Rotate token',
-    rotate_warning:
-        'Rotating replaces the credential and forgets the old one immediately. Every caller has to be updated.',
+    rotate_warning: 'The old one stops working at once. Every caller has to be updated.',
 
     /** The clocks. */
     schedule: {
@@ -2520,9 +2518,11 @@ const connections = {
     secrets_heading: 'Secrets',
     /** A secret in the dialog's facts that holds nothing. */
     secret_not_set: 'not set',
-    /** The question before a delete. */
-    delete_title: 'Delete this connection?',
-    delete_consequence: 'Anything naming it can no longer connect. This cannot be undone.',
+    /** The question before a delete, around the code. */
+    delete_ask: { before: 'Delete ', after: '?' },
+    /** What stops a delete, and what the shut confirm says on hover. */
+    used_by: (names: string) => `Used by ${names}.`,
+    in_use: 'Still in use, so it cannot be deleted.',
 
     /** The one clause every screen states a set of connections' health in. */
     note: {
@@ -2924,12 +2924,10 @@ const users = {
     token_prefix_tip: 'The start of the secret. Shown because two live tokens share this name.',
     /** The accessible name of a row's revoke button, which the row itself does not repeat. */
     revoke_row: (token: string) => `Revoke ${token}`,
-    /** The question before a revoke. */
-    revoke_title: 'Revoke token',
-    revoke_consequence: 'Anything presenting it is refused from now on. This cannot be undone.',
-    /** The same, where the name is shared: the API revokes by name, so they go together. */
-    revoke_consequence_shared: (many: string) =>
-        `The ${many} live tokens with this name are revoked together, because a token is revoked by its name. Anything presenting them is refused from now on. This cannot be undone.`,
+    /** The question before a revoke, around the name. */
+    revoke_ask: { before: 'Revoke ', after: '?' },
+    /** Where the name is shared: the API revokes by name, so they go together. */
+    revoke_shared: (many: string) => `Revokes all ${many} live tokens with this name.`,
 
     /** Under the new-account dialog's title. */
     new_account_hint: 'The password is what it signs in with the first time.',
@@ -3376,8 +3374,7 @@ const design = {
         dialog_description: 'A token acts as the account it was made for.',
         told_title: 'Token created',
         told_description: 'Store it where the automation reads its secrets.',
-        confirm_title: 'Revoke token',
-        confirm_consequence: 'Anything presenting it is refused from now on. This cannot be undone.',
+        confirm_ask: { before: 'Revoke ', after: '?' },
         pipelines_count: '24',
         connections_count: '7',
         new_pipeline: 'New pipeline',

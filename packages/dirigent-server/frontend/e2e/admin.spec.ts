@@ -393,8 +393,8 @@ test('a token is made on its account, listed under it, and revoked after a quest
     await tokenRowOf(page, token)
         .getByRole('button', { name: `Revoke ${token}` })
         .click()
-    const asking = page.getByRole('dialog', { name: LABELS.users.revoke_title })
-    await expect(asking).toContainText(token)
+    const asking = page.getByRole('dialog', { name: `Revoke ${token}?` })
+    await expect(asking.locator('p')).toHaveCount(0)
     await asking.getByRole('button', { name: LABELS.action.revoke, exact: true }).click()
     await expect(asking).toHaveCount(0)
     await expect(tokenRowOf(page, token)).toContainText(LABELS.state.armed.revoked)
@@ -426,8 +426,8 @@ test('two live tokens sharing a name show their prefix, and revoking says it tak
         .first()
         .getByRole('button', { name: `Revoke ${name}` })
         .click()
-    const asking = page.getByRole('dialog', { name: LABELS.users.revoke_title })
-    await expect(asking).toContainText(LABELS.users.revoke_consequence_shared('2'))
+    const asking = page.getByRole('dialog', { name: `Revoke ${name}?` })
+    await expect(asking).toContainText(LABELS.users.revoke_shared('2'))
 })
 
 test('an account holding many tokens walks them in a box of its own', async ({ page }) => {

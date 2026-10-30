@@ -450,6 +450,14 @@ export function channelWord(channel: Channel): string | null {
     return health.state === 'healthy' ? null : health.label
 }
 
+/** The codes of the rules delivering through one connection, which is what stops it being deleted. */
+export function rulesUsing(
+    rules: readonly Pick<AlertRuleOut, 'code' | 'connection'>[],
+    code: string,
+): string[] {
+    return rules.filter((rule) => rule.connection === code).map((rule) => rule.code)
+}
+
 /** The order the dots read in: what delivers, then what broke, then what cannot say. */
 const TONES: Readonly<Record<ChannelView['tone'], number>> = { good: 0, critical: 1, quiet: 2 }
 

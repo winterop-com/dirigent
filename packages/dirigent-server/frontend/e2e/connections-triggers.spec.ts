@@ -196,8 +196,10 @@ test('deleting a connection asks first, and a refusal stays in the question', as
 
     await page.goto(`/connections/${CONNECTION}`)
     await page.getByRole('button', { name: LABELS.action.delete.verb, exact: true }).click()
-    const asking = page.getByRole('dialog', { name: LABELS.connections.delete_title })
-    await expect(asking).toContainText(CONNECTION)
+    const asking = page.getByRole('dialog', { name: `Delete ${CONNECTION}?` })
+
+    // The question is the title, and it holds nothing else: the verb says what is lost.
+    await expect(asking.locator('p')).toHaveCount(0)
 
     // Cancel leaves it where it was.
     await asking.getByRole('button', { name: LABELS.action.cancel, exact: true }).click()
@@ -213,7 +215,7 @@ test('deleting a connection asks first, and a refusal stays in the question', as
                   body: JSON.stringify({
                       status: 409,
                       title: 'Conflict',
-                      detail: 'still referenced',
+                      detail: 'the server said no',
                       code: 'server.connection_referenced',
                       params: { code: CONNECTION },
                   }),
@@ -222,7 +224,7 @@ test('deleting a connection asks first, and a refusal stays in the question', as
     )
     await page.getByRole('button', { name: LABELS.action.delete.verb, exact: true }).click()
     await asking.getByRole('button', { name: LABELS.action.delete.verb, exact: true }).click()
-    await expect(asking).toContainText('still referenced')
+    await expect(asking).toContainText(LABELS.refused.server.connection_referenced)
     await page.unrouteAll()
 
     // And with nothing in the way the connection goes, and the address with it.
@@ -273,6 +275,34 @@ test('a connection opens a form whose secret box is empty and whose kind is fixe
     await expect(secret).toHaveValue('')
     await expect(secret).toHaveAttribute('type', 'password')
     await expect(dialog.getByLabel('base_url')).toHaveValue(baseURL ?? '')
+})
+
+test('a connection a rule delivers through says so, and its delete is shut', async ({ page }) => {
+    await signIn(page)
+    const prefix = await apiPrefix(page.request)
+    const code = 'e2e-used-hook'
+    const rule = 'e2e-used-by-rule'
+    await page.request.delete(`${prefix}/alert-rules/${rule}`)
+    await page.request.delete(`${prefix}/connections/${code}`)
+    const hook = await page.request.post(`${prefix}/connections`, {
+        data: { code, kind: 'webhook', config: { url: 'http://127.0.0.1:9/none' } },
+    })
+    expect(hook.ok(), await hook.text()).toBe(true)
+    const made = await page.request.post(`${prefix}/alert-rules`, {
+        data: { code: rule, event: 'run_failed', connection: code },
+    })
+    expect(made.ok(), await made.text()).toBe(true)
+
+    await page.goto(`/connections/${code}`)
+    await page.getByRole('button', { name: LABELS.action.delete.verb, exact: true }).click()
+    const asking = page.getByRole('dialog', { name: `Delete ${code}?` })
+    await expect(asking).toContainText(LABELS.connections.used_by(rule))
+    const verb = asking.getByRole('button', { name: LABELS.action.delete.verb, exact: true })
+    await expect(verb).toHaveAttribute('aria-disabled', 'true')
+    await expect(verb).toHaveAttribute('title', LABELS.connections.in_use)
+
+    await page.request.delete(`${prefix}/alert-rules/${rule}`)
+    await page.request.delete(`${prefix}/connections/${code}`)
 })
 
 test('a connection is minted through the form its own kind publishes', async ({ page, baseURL }) => {

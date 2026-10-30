@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 
 import { Description } from '@/components/Description'
 import { Instant } from '@/components/Instant'
@@ -14,7 +14,9 @@ import { Fact, FactList } from '@/components/ds/FactList'
 import { Button } from '@/components/ui/button'
 import { useConnectionEdit } from '@/hooks/use-connection-edit'
 import { useMayWrite } from '@/hooks/use-may-write'
+import { useRead } from '@/hooks/use-read'
 import { useStore } from '@/hooks/use-store'
+import { readAlertRules, rulesUsing } from '@/lib/alerting'
 import { type JsonMap, type Problem } from '@/lib/api'
 import { deleteConnection, healthOf, settingFacts, type ConnectionOut } from '@/lib/connections'
 import { separatelyUpdated } from '@/lib/format'
@@ -58,6 +60,13 @@ export function ConnectionDialog({
     const [deleting, setDeleting] = useState(false)
     const [removing, setRemoving] = useState(false)
     const [refused, setRefused] = useState<Problem | null>(null)
+
+    // What is known to use it is read as the question opens, and a read that fails leaves the
+    // server to say.
+    const asking = useRead(
+        useCallback(() => (deleting ? readAlertRules(null) : Promise.resolve(null)), [deleting]),
+    )
+    const usedBy = rulesUsing(asking.value?.items ?? [], connection.code)
 
     const heading = (
         <EntityHeading
@@ -180,9 +189,16 @@ export function ConnectionDialog({
             <ConfirmDialog
                 open={deleting}
                 onOpenChange={setDeleting}
-                title={LABELS.connections.delete_title}
+                ask={LABELS.connections.delete_ask}
                 code={connection.code}
-                consequence={LABELS.connections.delete_consequence}
+                note={usedBy.length > 0 ? LABELS.connections.used_by(usedBy.join(', ')) : undefined}
+                why={
+                    usedBy.length > 0
+                        ? LABELS.connections.in_use
+                        : asking.read
+                          ? undefined
+                          : LABELS.shell.reading
+                }
                 verb={LABELS.action.delete.verb}
                 busy={removing}
                 busyVerb={LABELS.action.delete.busy}

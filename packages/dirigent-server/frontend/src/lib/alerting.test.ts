@@ -7,6 +7,7 @@ import {
     channelsOf,
     channelView,
     channelWord,
+    rulesUsing,
     deliverySettled,
     importanceNote,
     matchNote,
@@ -389,5 +390,22 @@ describe('the word a chip says after its dot', () => {
     test('is nothing on what is not a credential', () => {
         expect(channelWord({ ...base, notifier: 'log' })).toBeNull()
         expect(channelWord({ ...base, reachable: false })).toBeNull()
+    })
+})
+
+describe('the rules a connection is used by', () => {
+    const rules = [
+        { code: 'ops-failed', connection: 'ops-hook' },
+        { code: 'to-the-log', connection: null },
+        { code: 'ops-stuck', connection: 'ops-hook' },
+        { code: 'elsewhere', connection: 'other' },
+    ]
+
+    test('are the ones naming its code', () => {
+        expect(rulesUsing(rules, 'ops-hook')).toEqual(['ops-failed', 'ops-stuck'])
+    })
+
+    test('are none for a code no rule names', () => {
+        expect(rulesUsing(rules, 'unused')).toEqual([])
     })
 })

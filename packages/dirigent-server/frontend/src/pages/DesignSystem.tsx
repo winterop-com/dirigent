@@ -781,9 +781,8 @@ export function DesignSystem() {
             <ConfirmDialog
                 open={confirming}
                 onOpenChange={setConfirming}
-                title={SAMPLE.confirm_title}
+                ask={SAMPLE.confirm_ask}
                 code={SAMPLE.secret_name}
-                consequence={SAMPLE.confirm_consequence}
                 verb={LABELS.action.revoke}
                 onConfirm={() => {
                     setConfirming(false)

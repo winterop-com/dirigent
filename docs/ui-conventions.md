@@ -538,8 +538,11 @@ a required text field, a map, a JSON value and a program taking both, a footer o
 than closing, and a press outside does nothing at all while a form is open, because a typed
 credential is not something to lose to a stray click. A save checks the connection, because the
 health on screen was about the settings that were just replaced. `Delete` raises `ConfirmDialog`
-over the dialog, and a refusal -- something still uses this credential -- stays in that confirm.
-`GET /connections` carries nothing about what uses a credential, so the dialog has no Used by line.
+over the dialog. **What is known to use the credential shuts it**: the alert rules naming that code
+are read as it opens, and the question says `Used by <rules>.` with Delete shut and saying why. A
+refusal for anything that read cannot see stays in the question as one line.
+`GET /connections` carries nothing about what uses a credential, and a pipeline naming one is not
+on any listing, so the dialog has no Used by fact and the question names rules alone.
 
 `hooks/use-read` is the one-page sibling of `use-paged`, for a read that is a document rather than
 a listing -- what this instance has installed, how the last day of runs came out. Same rule: the
@@ -1519,9 +1522,9 @@ wrong account, and the row opens to show what it made.
 is what a token is known by. The prefix is drawn beside the name only when two live tokens of one
 account share that name, which is the one time the name stops telling them apart, and its tooltip
 says what it is. The expiry is a chip beside the name, only where a token has one; `Last used`{ .label } and
-`Created`{ .label } are columns. **Revoking asks first, and says when it takes more than one.** The API revokes
-by name, so two live tokens sharing a name go together, and the confirm says so rather than
-implying that the row pressed is the only one.
+`Created`{ .label } are columns. **Revoking asks first, and says something only when it takes more than one.**
+The API revokes by name, so two live tokens sharing a name go together, and that is the one line the
+question holds.
 
 ## A control only ever claims what the situation supports
 
@@ -2041,7 +2044,7 @@ no frame of its own.
 | `FormField`, `SwitchField` | Every field: a prose label or a mono key, the required word in body ink, a hint, the default, help in one ink, an error, one 6px gap. `SwitchField` is a boolean setting as a row, the whole row its label |
 | `Notice`, `Well` | `Notice` is a sentence that must not be missed, `critical`, `warning` or `neutral`, with the tone's mark. `Well` is a neutral inset box at 8px for a block that belongs together. A refusal off the wire is still `Refusal` |
 | `DialogShell` | Every dialog: a width from `sm`, `md`, `lg`, `xl`, a title and description, a body that scrolls under a fixed head and foot, and a footer of `Cancel` and one `Refusable` confirm, or of `verbs` on a dialog that reads one thing |
-| `ConfirmDialog` | Before every verb that takes something away -- revoke, deactivate, delete, rotate. It names the thing in mono, says what is lost, and confirms in the critical fill. No such verb is immediate |
+| `ConfirmDialog` | Before every verb that takes something away -- revoke, deactivate, delete, rotate. The title is the question and names the thing, its code in mono and nowhere else: `Delete ops-hook-2?`. There is no body, because the verb says what is lost. It holds one line only when that line changes the answer: what stops the verb, which shuts the confirm with the reason on its `title`, or what the verb takes beyond the thing named. A refusal off the wire is one short line, with no box and no second naming of the thing. No such verb is immediate |
 | `SecretReveal` | A secret the server answers with once: the value in mono, a copy button that says it copied and resets, and the line saying it is shown once |
 | `PageHeader`, `SplitButton` | A screen's heading. It owns the primary action through `actions`, last of them, which is a `SplitButton` when it carries `more`; a `count` beside the title; a `trail` for a detail screen. No subtitle |
 | `TextLink` | Every link that is text. `inline` in prose, `data` for a number or a reference in a table, `external` with its mark and a new tab. The one amber treatment of text, and nothing but a link wears it |

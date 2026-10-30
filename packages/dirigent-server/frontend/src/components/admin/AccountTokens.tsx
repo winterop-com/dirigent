@@ -87,13 +87,9 @@ export function AccountTokens({
                 onOpenChange={(next) => {
                     if (!next) setRevoking(null)
                 }}
-                title={LABELS.users.revoke_title}
+                ask={LABELS.users.revoke_ask}
                 code={revoking?.name ?? ''}
-                consequence={
-                    together > 1
-                        ? LABELS.users.revoke_consequence_shared(String(together))
-                        : LABELS.users.revoke_consequence
-                }
+                note={together > 1 ? LABELS.users.revoke_shared(String(together)) : undefined}
                 verb={LABELS.action.revoke}
                 busy={busy}
                 problem={refused}
