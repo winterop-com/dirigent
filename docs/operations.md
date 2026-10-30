@@ -491,7 +491,8 @@ and the server inside one never opens the file.
 
 The YAML file is `$DIRIGENT_CONFIG_FILE` if that is set; otherwise `dirigent.yaml`,
 `.dirigent/dirigent.yaml`, and `~/.config/dirigent/dirigent.yaml` are all read, with the
-nearest one winning. A leftover `dirigent.toml` sitting where the YAML now belongs is refused
+nearest one winning. `DIRIGENT_ENABLED_UNSAFE_BLOCKS` is not read from a `.env`, `dirigent.yaml`
+or `.dirigent/dirigent.yaml` in the working directory. A leftover `dirigent.toml` sitting where the YAML now belongs is refused
 by name rather than silently ignored.
 
 Every setting below is written as its environment variable. In YAML, drop the prefix and
@@ -499,7 +500,7 @@ lowercase it: `DIRIGENT_LOG_FORMAT=json` is `log_format: json`.
 
 Two spellings are accepted for the collection settings, because the obvious one and the
 generated one are different. `DIRIGENT_ENABLED_UNSAFE_BLOCKS=shell.run,docker.run` is what a
-person types; a JSON array works too, and so does an ordinary list in `dirigent.yaml`. The same
+person types; a JSON array works too, and so does an ordinary list in the YAML file. The same
 applies to `DIRIGENT_WORKER_TAGS`, and `DIRIGENT_STORAGE_CONNECTIONS=s3=archive` is the
 mapping equivalent.
 

@@ -35,6 +35,12 @@ A project's `.env` is that middle layer, which is where `dg init` puts the insta
 `DIRIGENT_SECRET_KEY`. A compose stack's `.env` is a different thing with the same name:
 compose reads it to fill in `${...}` and passes what it resolves to the containers as
 environment, and the server inside one never opens the file.
+
+`enabled_unsafe_blocks` is the exception to the layers. A `.env` and a `dirigent.yaml` or
+`.dirigent/dirigent.yaml` in the working directory travel with a checkout, so they cannot set
+it. It comes from the environment variable, from the file `DIRIGENT_CONFIG_FILE` names, or from
+`~/.config/dirigent/dirigent.yaml`, and `dg run --local --enable-unsafe` adds to it for one
+command.
 """
 
 #: The settings a scaffolded project sets rather than leaves to a default. Everything else

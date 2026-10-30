@@ -765,6 +765,7 @@ DIRIGENT_RABBITMQ_IMAGE=rabbitmq:3-management-alpine
 ENV_UNSAFE_DOCKER = """\
 # Comma-separated block ids, empty for none. Listing one means whoever can edit a pipeline
 # can run code on a worker. The docker.* blocks reach the dind sidecar this stack starts.
+# Compose passes this to the containers; dg does not read it from a .env.
 #
 #   DIRIGENT_ENABLED_UNSAFE_BLOCKS=shell.run,docker.run,docker.compose.up,docker.compose.down
 DIRIGENT_ENABLED_UNSAFE_BLOCKS=docker.run
@@ -772,7 +773,8 @@ DIRIGENT_ENABLED_UNSAFE_BLOCKS=docker.run
 
 ENV_UNSAFE = """\
 # Comma-separated block ids, empty for none. Listing one means whoever can edit a pipeline
-# can run code on a worker.
+# can run code on a worker. Compose passes this to the containers; dg does not read it from
+# a .env.
 #
 #   DIRIGENT_ENABLED_UNSAFE_BLOCKS=shell.run
 DIRIGENT_ENABLED_UNSAFE_BLOCKS=

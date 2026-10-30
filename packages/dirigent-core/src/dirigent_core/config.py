@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Annotated, Any, Literal
 
 from pydantic import Field, SecretStr, field_validator, model_validator
+from pydantic.fields import FieldInfo
 from pydantic_settings import (
     BaseSettings,
     NoDecode,
@@ -36,11 +37,16 @@ POOL_HEADROOM = 4
 #: directory. Everything under it is disposable state, so `dg init` gitignores it.
 STATE_DIR = ".dirigent/state"
 
-DEFAULT_CONFIG_PATHS = (
+#: Relative to the working directory, so these files travel with a checkout.
+PROJECT_CONFIG_PATHS = (
     Path("dirigent.yaml"),
     Path(".dirigent/dirigent.yaml"),
-    Path.home() / ".config" / "dirigent" / "dirigent.yaml",
 )
+
+USER_CONFIG_PATH = Path.home() / ".config" / "dirigent" / "dirigent.yaml"
+
+#: Settings a project's own files may not set: the working directory's `.env` and YAML skip them.
+HOST_ONLY_SETTINGS = frozenset({"enabled_unsafe_blocks"})
 
 
 def parse_string_list(value: object) -> object:
@@ -74,12 +80,31 @@ def parse_string_mapping(value: object) -> object:
     return {key.strip(): held.strip() for key, _, held in (pair.partition("=") for pair in pairs)}
 
 
-def candidate_config_paths() -> list[Path]:
-    """List the YAML files that contribute to the effective configuration, most specific last."""
+def host_config_paths() -> list[Path]:
+    """List the YAML files that speak for the host: the one the environment names, or the user's."""
     named = os.environ.get(CONFIG_FILE_ENV)
-    if named:
-        return [Path(named)]
-    return list(reversed(DEFAULT_CONFIG_PATHS))
+    return [Path(named)] if named else [USER_CONFIG_PATH]
+
+
+def project_config_paths() -> list[Path]:
+    """List the YAML files in the working directory that apply, most specific last."""
+    return [] if os.environ.get(CONFIG_FILE_ENV) else list(reversed(PROJECT_CONFIG_PATHS))
+
+
+class _ProjectLayer(PydanticBaseSettingsSource):
+    """One settings layer read from a project's files, with the host-only settings taken out."""
+
+    def __init__(self, layer: PydanticBaseSettingsSource) -> None:
+        super().__init__(layer.settings_cls)
+        self._layer = layer
+
+    def get_field_value(self, field: FieldInfo, field_name: str) -> tuple[Any, str, bool]:
+        """Answer for one field the way the wrapped layer does."""
+        return self._layer.get_field_value(field, field_name)
+
+    def __call__(self) -> dict[str, Any]:
+        """Read the wrapped layer, without the settings it may not set."""
+        return {name: value for name, value in self._layer().items() if name not in HOST_ONLY_SETTINGS}
 
 
 class Settings(BaseSettings):
@@ -317,7 +342,8 @@ class Settings(BaseSettings):
     """Consecutive GONE probes before the lost-job policy fails a waiting attempt."""
 
     enabled_unsafe_blocks: Annotated[list[str], NoDecode] = Field(default_factory=list[str])
-    """Block ids permitted to execute code on a worker; empty means none."""
+    """Block ids permitted to execute code on a worker; empty means none. A `.env` or YAML file
+    in the working directory cannot set this."""
 
     scheduler_enabled: bool = True
     """Whether `dg server` embeds the scheduler rather than leaving it to its own process."""
@@ -517,9 +543,10 @@ class Settings(BaseSettings):
         dotenv_settings: PydanticBaseSettingsSource,
         file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[PydanticBaseSettingsSource, ...]:
-        """Order the layers: explicit arguments, the environment, the ``.env``, then the YAML file."""
-        yaml_settings = YamlConfigSettingsSource(settings_cls, yaml_file=candidate_config_paths())
-        return (init_settings, env_settings, dotenv_settings, yaml_settings)
+        """Order the layers: explicit arguments, the environment, the ``.env``, then the YAML files."""
+        project_yaml = YamlConfigSettingsSource(settings_cls, yaml_file=project_config_paths())
+        host_yaml = YamlConfigSettingsSource(settings_cls, yaml_file=host_config_paths())
+        return (init_settings, env_settings, _ProjectLayer(dotenv_settings), _ProjectLayer(project_yaml), host_yaml)
 
 
 @lru_cache(maxsize=1)
