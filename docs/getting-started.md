@@ -352,9 +352,8 @@ secrets are encrypted with. Generate one:
 dg secret-key
 ```
 
-A well-formed Fernet key is used as-is. Anything else -- a passphrase you typed -- is hashed
-into a valid key rather than refused, so a human-typed value yields a working instance; prefer
-the generated one. **Losing this key means losing every stored connection secret**, and there
+It has to be a key this command minted, or another well-formed Fernet key. Anything else -- a
+passphrase you typed -- is refused when the process starts. **Losing this key means losing every stored connection secret**, and there
 is no rotation tooling, so back it up somewhere that is not beside the database backup.
 
 **`DIRIGENT_BOOTSTRAP_ADMIN_PASSWORD`** creates the first admin account. It is optional; see

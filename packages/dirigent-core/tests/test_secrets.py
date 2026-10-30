@@ -8,10 +8,11 @@ from dirigent_core.secrets import (
     REDACTED,
     EmptySecret,
     SecretBox,
+    SecretKeyMalformed,
     SecretKeyMismatch,
     SecretKeyMissing,
-    derive_key,
     dump_config,
+    fernet_key,
     generate_key,
     redact,
     secret_fields,
@@ -57,15 +58,15 @@ def test_a_generated_key_is_a_fernet_key_that_seals_and_opens() -> None:
     assert generate_key() != key
     box = SecretBox(key)
     assert box.open(box.seal({"token": "t0ken"})) == {"token": "t0ken"}
-    assert derive_key(key) == key.encode(), "a generated key is used verbatim, never hashed"
+    assert fernet_key(key) == key.encode(), "a generated key is used verbatim, never hashed"
 
 
-def test_a_fernet_key_is_used_verbatim_and_a_passphrase_is_derived() -> None:
+def test_a_fernet_key_is_used_verbatim_and_a_passphrase_is_refused() -> None:
     generated = Fernet.generate_key()
-    assert derive_key(generated.decode()) == generated
-    derived = derive_key("a human passphrase")
-    assert derived != b"a human passphrase"
-    Fernet(derived)
+    assert fernet_key(generated.decode()) == generated
+    with pytest.raises(SecretKeyMalformed, match="a passphrase is not taken") as refused:
+        SecretBox("a human passphrase")
+    assert "a human passphrase" not in str(refused.value), "the refusal never repeats the key"
 
 
 def test_dump_config_reveals_secrets_for_sealing(config: ApiConnection) -> None:

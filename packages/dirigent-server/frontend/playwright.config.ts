@@ -63,7 +63,7 @@ export default defineConfig({
             // An envelope key, because a connection with a secret cannot be stored without
             // one. It seals rows in the scratch database this run creates and deletes, so it
             // is a fixture rather than a credential -- the same standing as the dev password.
-            DIRIGENT_SECRET_KEY: 'dirigent-e2e-envelope-key',
+            DIRIGENT_SECRET_KEY: 'ZGlyaWdlbnQtZTJlLWVudmVsb3BlLWtleS0wMDAwMDA=',
             // Every spec signs in through the form, because that is the round trip worth
             // exercising, and each one gets its own browser context to do it in. An instance
             // accepts ten logins a minute by default -- a bound on Argon2id, for a login route

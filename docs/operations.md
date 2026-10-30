@@ -660,7 +660,7 @@ the stack is complete out of the box; see
 
 | Setting | Default | What it means |
 | --- | --- | --- |
-| `DIRIGENT_SECRET_KEY` | unset | The envelope key for connection secrets and endpoint signing secrets. Required before any secret can be stored or read. A Fernet key is used as-is; anything else is hashed into one. |
+| `DIRIGENT_SECRET_KEY` | unset | The envelope key for connection secrets and endpoint signing secrets. Required before any secret can be stored or read. It has to be a Fernet key, which `dg secret-key` mints; anything else is refused at startup. |
 | `DIRIGENT_BOOTSTRAP_ADMIN_PASSWORD` | unset | Creates the first admin unattended when the server starts against a database with no accounts. One-way: it does nothing once any account exists, so leaving it set on every deploy cannot reset a live instance's password. |
 
 ### Workers

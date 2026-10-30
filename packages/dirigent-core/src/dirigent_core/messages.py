@@ -63,6 +63,11 @@ SECRET_KEY_MISSING = SECRET.define(
     "no secret key is configured: DIRIGENT_SECRET_KEY must hold one before a connection secret can be stored or read",
 )
 
+SECRET_KEY_MALFORMED = SECRET.define(
+    "key_malformed",
+    "DIRIGENT_SECRET_KEY is not a Fernet key, and a passphrase is not taken",
+)
+
 EMPTY_SECRET = SECRET.define("empty", "{fields} cannot be stored empty: a required secret needs a value")
 
 SECRET_KEY_TWICE = SECRET.define(
