@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 
 import { counted, LABELS } from '../src/lib/labels.ts'
-import { apiPrefix, applyDocument, applyExample, signIn } from './support.ts'
+import { apiPrefix, applyDocument, applyExample, removeConnection, signIn } from './support.ts'
 
 /**
  * The two screens that show what an instance is wired to, against a real one.
@@ -297,13 +297,57 @@ test('a connection a rule delivers through says so, and its delete is shut', asy
     await page.goto(`/connections/${code}`)
     await page.getByRole('button', { name: LABELS.action.delete.verb, exact: true }).click()
     const asking = page.getByRole('dialog', { name: `Delete ${code}?` })
-    await expect(asking).toContainText(LABELS.connections.used_by(rule))
+    await expect(asking).toContainText(LABELS.connections.used_by(`alert rule ${rule}`))
     const verb = asking.getByRole('button', { name: LABELS.action.delete.verb, exact: true })
     await expect(verb).toHaveAttribute('aria-disabled', 'true')
     await expect(verb).toHaveAttribute('title', LABELS.connections.in_use)
 
     await page.request.delete(`${prefix}/alert-rules/${rule}`)
     await page.request.delete(`${prefix}/connections/${code}`)
+})
+
+test('a connection a pipeline names says so in its reading, and its delete is shut', async ({ page }) => {
+    await signIn(page)
+    const prefix = await apiPrefix(page.request)
+    const code = 'e2e-used-http'
+    const pipeline = 'e2e-names-a-connection'
+    await removeConnection(page.request, code)
+    const made = await page.request.post(`${prefix}/connections`, {
+        data: { code, kind: 'http', config: { base_url: 'http://127.0.0.1:9' } },
+    })
+    expect(made.ok(), await made.text()).toBe(true)
+    const applied = await page.request.post(`${prefix}/pipelines/$apply`, {
+        data: {
+            document: {
+                format: 'dirigent/v1',
+                kind: 'pipeline',
+                code: pipeline,
+                steps: { fetch: { block: 'http.request', config: { connection: code, path: '/' } } },
+            },
+        },
+    })
+    expect(applied.ok(), await applied.text()).toBe(true)
+
+    await page.goto(`/connections/${code}`)
+    const reading = page.getByRole('dialog').filter({ hasText: code })
+    await expect(reading.getByRole('link', { name: pipeline })).toHaveAttribute(
+        'href',
+        `/pipelines/${pipeline}`,
+    )
+    await expect(reading).toContainText('fetch')
+
+    await page.getByRole('button', { name: LABELS.action.delete.verb, exact: true }).click()
+    const asking = page.getByRole('dialog', { name: `Delete ${code}?` })
+    await expect(asking).toContainText(LABELS.connections.used_by(`pipeline ${pipeline}`))
+    const verb = asking.getByRole('button', { name: LABELS.action.delete.verb, exact: true })
+    await expect(verb).toHaveAttribute('aria-disabled', 'true')
+    await expect(verb).toHaveAttribute('title', LABELS.connections.in_use)
+
+    // THE SERVER REFUSES THE SAME, whatever the read in front of it said.
+    const refused = await page.request.delete(`${prefix}/connections/${code}`)
+    expect(refused.status()).toBe(409)
+
+    await removeConnection(page.request, code)
 })
 
 test('a connection is minted through the form its own kind publishes', async ({ page, baseURL }) => {

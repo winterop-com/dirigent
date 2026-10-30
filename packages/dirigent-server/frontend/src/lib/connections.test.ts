@@ -6,11 +6,13 @@ import {
     DOTS,
     editedConfig,
     healthOf,
+    isUsed,
     mintedConfig,
     patchBody,
     REDACTED,
     settingFields,
     settingsSummary,
+    usersSaid,
     withCheck,
     type ConnectionOut,
     settingFacts,
@@ -376,5 +378,27 @@ describe('what the dialog says about the settings', () => {
     test('draws a value that is not text as the JSON it is', () => {
         const fact = settingFacts({ config: { headers: { a: 1 } }, secret_fields: [] }, null)[0]
         expect(fact?.value).toBe('{"a":1}')
+    })
+})
+
+describe('what uses a connection', () => {
+    const nothing = { pipelines: [], alert_rules: [], storage_schemes: [] }
+
+    test('is nothing where every family is empty', () => {
+        expect(isUsed(nothing)).toBe(false)
+        expect(usersSaid(nothing)).toBe('')
+    })
+
+    test('names each family in the number it holds', () => {
+        const users = {
+            pipelines: [
+                { pipeline: 'nightly', steps: ['fetch'], sources: [] },
+                { pipeline: 'hourly', steps: [], sources: ['listen'] },
+            ],
+            alert_rules: ['page-ops'],
+            storage_schemes: ['s3'],
+        }
+        expect(isUsed(users)).toBe(true)
+        expect(usersSaid(users)).toBe('pipelines nightly, hourly, alert rule page-ops, storage scheme s3')
     })
 })
