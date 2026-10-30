@@ -120,8 +120,65 @@ async def test_duckdb_in_memory_needs_no_file_at_all(local_ctx: FakeContext) -> 
 async def test_a_read_only_duckdb_connection_reads_and_refuses_to_write(ducked: FakeContext) -> None:
     duck(ducked, read_only=True)
     assert (await query(ducked, "SELECT COUNT(*) AS n FROM reading")).rows == [{"n": 2}]
-    with pytest.raises(Exception, match="read-only|read only"):
+    with pytest.raises(BlockFailure) as raised:
         await query(ducked, "INSERT INTO reading VALUES (3, 'east', 1.0)")
+    assert raised.value.code == "sql.duckdb.read_only_runs_select"
+
+
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "COPY (SELECT 'x' AS v) TO '{database}' (FORMAT csv, USE_TMP_FILE false)",
+        "EXPLAIN ANALYZE COPY (SELECT 'x' AS v) TO '{database}' (FORMAT csv, USE_TMP_FILE false)",
+    ],
+    ids=["copy", "explain-analyze"],
+)
+async def test_a_read_only_duckdb_connection_cannot_overwrite_its_own_file(ducked: FakeContext, statement: str) -> None:
+    database = ducked.as_context().work / "demo.duckdb"
+    before = database.read_bytes()
+    duck(ducked, read_only=True)
+    with pytest.raises(BlockFailure) as raised:
+        await query(ducked, statement.format(database=database))
+    assert raised.value.code == "sql.duckdb.read_only_runs_select"
+    assert raised.value.error_class is ErrorClass.REJECTED
+    assert database.read_bytes() == before
+
+
+@pytest.mark.parametrize(
+    "statement",
+    ["SET threads = 1", "ATTACH ':memory:' AS other", "CALL pragma_table_info('reading')", "   ", "-- nothing"],
+    ids=["set", "attach", "call", "blank", "comment"],
+)
+async def test_a_read_only_duckdb_connection_refuses_anything_but_select(ducked: FakeContext, statement: str) -> None:
+    duck(ducked, read_only=True)
+    with pytest.raises(BlockFailure) as raised:
+        await query(ducked, statement)
+    assert raised.value.code == "sql.duckdb.read_only_runs_select"
+
+
+async def test_a_read_only_duckdb_connection_refuses_what_it_cannot_parse(ducked: FakeContext) -> None:
+    duck(ducked, read_only=True)
+    with pytest.raises(BlockFailure) as raised:
+        await query(ducked, "SELEC 1")
+    assert raised.value.code == "sql.duckdb.read_only_unparsed"
+    assert raised.value.error_class is ErrorClass.REJECTED
+
+
+@pytest.mark.parametrize(
+    ("statement", "params", "rows"),
+    [
+        ("SELECT site FROM reading WHERE id = :id AND value > :least", {"id": 1, "least": 1}, [{"site": "north"}]),
+        ("SELECT id::text AS id FROM reading WHERE id = :id", {"id": 2}, [{"id": "2"}]),
+        ("WITH picked AS (SELECT id FROM reading WHERE id = 1) SELECT id FROM picked", {}, [{"id": 1}]),
+        ("FROM reading SELECT id WHERE id = 2", {}, [{"id": 2}]),
+    ],
+    ids=["bound", "cast", "with", "from-first"],
+)
+async def test_a_read_only_duckdb_connection_still_runs_every_spelling_of_a_read(
+    ducked: FakeContext, statement: str, params: JsonMap, rows: list[JsonMap]
+) -> None:
+    duck(ducked, read_only=True)
+    assert (await query(ducked, statement, params=params)).rows == rows
 
 
 def test_a_read_only_duckdb_in_memory_connection_is_refused_when_it_is_written() -> None:

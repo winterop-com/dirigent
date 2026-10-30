@@ -208,6 +208,52 @@ async def test_a_webhook_is_not_sent_off_its_connections_origin(ctx: FakeContext
     assert handler.requests == []
 
 
+@pytest.mark.parametrize(
+    "host",
+    ["other.test", "service.test.other.test", "service.test:8080", "service.test, other.test"],
+    ids=["another-name", "a-longer-name", "another-port", "two-names"],
+)
+async def test_a_steps_host_header_does_not_steer_the_credential_to_another_name(ctx: FakeContext, host: str) -> None:
+    ctx.handler = handler = Responder(json_response(200, {}))
+    config = HttpRequestConfig(connection="api", path="/collect", headers={"Host": host})
+    with pytest.raises(BlockFailure) as raised:
+        await HttpRequestOperator().execute(config, ctx.as_context())
+    assert raised.value.code == "http.host_off_origin"
+    assert raised.value.error_class is ErrorClass.REJECTED
+    assert handler.requests == [], "nothing was sent"
+
+
+async def test_a_webhooks_host_header_does_not_steer_the_credential_to_another_name(ctx: FakeContext) -> None:
+    ctx.handler = handler = Responder(json_response(200, {}))
+    config = WebhookPostConfig(connection="api", path="/hook", headers={"host": "other.test"}, body={"id": 1})
+    with pytest.raises(BlockFailure) as raised:
+        await WebhookPostOperator().execute(config, ctx.as_context())
+    assert raised.value.code == "http.host_off_origin"
+    assert handler.requests == []
+
+
+@pytest.mark.parametrize("host", ["service.test", "SERVICE.test"])
+async def test_a_host_header_naming_the_connections_own_origin_is_sent(ctx: FakeContext, host: str) -> None:
+    ctx.handler = handler = Responder(json_response(200, {}))
+    config = HttpRequestConfig(connection="api", path="/collect", headers={"Host": host})
+    await HttpRequestOperator().execute(config, ctx.as_context())
+    assert [request.headers["host"] for request in handler.requests] == [host]
+
+
+async def test_a_step_without_a_connection_sets_any_host_header(
+    ctx: FakeContext, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ctx.handler = handler = Responder(json_response(200, {}))
+
+    def bare(_target: object, _ctx: object) -> httpx2.AsyncClient:
+        return httpx2.AsyncClient(transport=httpx2.MockTransport(handler))
+
+    monkeypatch.setattr("dirigent_block_http.http.client_for", bare)
+    config = HttpRequestConfig(url="http://service.test/collect", headers={"Host": "other.test"})
+    await HttpRequestOperator().execute(config, ctx.as_context())
+    assert handler.requests[0].headers["host"] == "other.test"
+
+
 async def test_a_connection_without_a_base_url_sends_its_credential_nowhere(
     ctx: FakeContext, monkeypatch: pytest.MonkeyPatch
 ) -> None:

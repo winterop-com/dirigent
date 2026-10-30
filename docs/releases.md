@@ -39,6 +39,33 @@ nothing to do. An instance on a passphrase re-keys one of two ways:
    This key is exactly as guessable as the passphrase, so treat it as a stopgap until step 1 is
    done.
 
+**The schema changed, and `dg db upgrade` does not carry it.** The baseline migration is edited in
+place, so an existing database gets neither `sources.secret_fingerprint` nor the
+`source_signatures` table from an upgrade. Recreate the database, or add both by hand.
+
+**A signed call carries a timestamp, and its signature is taken once.** The signature is now
+HMAC-SHA256 over `X-Dirigent-Timestamp`, a dot, and the raw body, and a timestamp outside
+`source_signature_window` (5m by default) is refused.
+
+- A sender that signs only the body, such as GitHub's `X-Hub-Signature-256`, can no longer call a
+  signed source directly.
+- `webhook.post` with `sign_with` signs the same way, so a receiver outside dirigent has to change.
+- A sender retrying a 429 or a 503 has to sign again.
+
+**Other changes a deployment can notice.**
+
+- Behind a proxy on another host, set `FORWARDED_ALLOW_IPS`. Login limits and the `Secure` cookie
+  both read the caller's address and scheme from it.
+- A project's profiles file can no longer set `token_cmd`, is ignored unless you own it, and cannot
+  send a token from your shell to a non-loopback URL.
+- The client refuses an identifier holding `/`, or one that is empty, `.` or `..`, before it sends
+  anything.
+- A pipeline whose endpoint serves scripted HTML stops working, because every reply is sandboxed,
+  and reply headers such as `set-cookie` are refused.
+- A connection's credentials go only to its own origin, so a step's absolute URL elsewhere is
+  refused.
+- `dg dev` creates its admin as `admin` / `admin` on an empty database.
+
 ## 0.27.1
 
 Released 2026-10-30. Every package in the workspace moves to 0.27.1 together, and so do
