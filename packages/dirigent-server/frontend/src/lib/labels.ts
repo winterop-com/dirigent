@@ -1160,7 +1160,7 @@ const refused = {
         signature_replayed: 'This signature was already taken once.',
         signature_required: 'This endpoint takes a signature of the body in a {header} header.',
         signature_timestamp:
-          'This endpoint takes the Unix seconds the call was signed at in a {header} header, within {window} of now.',
+            'This endpoint takes the Unix seconds the call was signed at in a {header} header, within {window} of now.',
         step_one_form: 'A step is exactly one of block, source or reply, and this one writes {named}.',
         takes_no_token: 'Source {code} of pipeline {pipeline} is {auth}, so it has no token to rotate.',
         token_refused: 'This endpoint takes the bearer token minted for it, in an Authorization header.',
