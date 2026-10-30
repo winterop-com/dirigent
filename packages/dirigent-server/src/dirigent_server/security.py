@@ -39,6 +39,7 @@ from dirigent_server.messages import (
 from dirigent_server.messages import (
     UNAUTHENTICATED as UNAUTHENTICATED_MESSAGE,
 )
+from dirigent_server.viewers import REDOC_JS, SWAGGER_BOOTSTRAP_SOURCE, SWAGGER_CSS, SWAGGER_JS
 
 SESSION_COOKIE = "dirigent_session"
 
@@ -200,16 +201,15 @@ UI_POLICY: Final = "; ".join(
     )
 )
 
-#: What FastAPI's two API viewers load: the CDN's bundles and fonts, their own inline bootstrap,
-#: and the blob worker ReDoc starts.
+#: What the two API viewers load: their pinned bundles, Swagger UI's one inline bootstrap by its
+#: hash, the styles they set on elements, and the blob worker ReDoc starts.
 DOCS_POLICY: Final = "; ".join(
     (
         "default-src 'none'",
-        "script-src https://cdn.jsdelivr.net 'unsafe-inline'",
+        f"script-src {SWAGGER_JS} {REDOC_JS} {SWAGGER_BOOTSTRAP_SOURCE}",
         "worker-src blob:",
-        "style-src https://cdn.jsdelivr.net https://fonts.googleapis.com 'unsafe-inline'",
-        "img-src 'self' data: https://fastapi.tiangolo.com https://cdn.redoc.ly",
-        "font-src https://fonts.gstatic.com",
+        f"style-src {SWAGGER_CSS} 'unsafe-inline'",
+        "img-src 'self' data: https://cdn.redoc.ly",
         "connect-src 'self'",
         "base-uri 'none'",
         "form-action 'none'",
