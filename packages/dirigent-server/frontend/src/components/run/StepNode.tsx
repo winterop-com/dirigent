@@ -6,6 +6,7 @@ import { ProgressLine } from '@/components/run/ProgressLine'
 import { StatusDot } from '@/components/run/StatusChip'
 import { formatDuration } from '@/lib/format'
 import { headingOf } from '@/lib/identity'
+import { ICONS } from '@/lib/icons'
 import { counted, LABELS } from '@/lib/labels'
 import { emptyStripLabel, nodeTone, type StepView } from '@/lib/run-detail'
 import { statusTokens } from '@/lib/status'
@@ -38,6 +39,9 @@ export type StepNode = Node<StepNodeData, 'step'>
  * how wide the step is is what somebody reads off the graph; how many times one element was
  * retried is a fact about that element and is on its chip in the strip.
  *
+ * WHAT THE STEP IS DOING IS THE TOOLTIP'S. A box 44 tall has two lines, and a third at 11px across
+ * 138 pixels says less than the colour of the box; the panel says the whole of it.
+ *
  * IT SAYS HOW LONG THE STEP TOOK, on the right of its last line, in the same reading the
  * panel's `took` fact is drawn from -- `lib/run-detail` measures it once so the two cannot
  * disagree. A step that has not started says nothing there.
@@ -57,10 +61,14 @@ export function StepNode({ data, selected }: NodeProps<StepNode>) {
     const tone = nodeTone(view)
     const tokens = statusTokens(tone) as CSSProperties
     const heading = headingOf(view.node)
+    const source = view.node.kind === 'source'
     const hint =
         view.detail !== null && view.progress !== null
             ? LABELS.runs.node_hint(view.detail, String(Math.round(view.progress * 100)))
             : view.detail
+    const line = heading.code === null ? view.node.block : `${heading.code} · ${view.node.block}`
+    // What the step is doing has no line on the box, so it goes with whichever word is reached.
+    const whole = (text: string) => (hint === null ? text : `${text}\n${hint}`)
 
     return (
         <div
@@ -68,30 +76,38 @@ export function StepNode({ data, selected }: NodeProps<StepNode>) {
             style={tokens}
             data-selected={selected === true}
             data-outcome={tone}
+            data-source={source}
             title={hint ?? undefined}
         >
             <StepPorts editable={false} />
-            <div className="flex items-center gap-2">
-                <StatusDot status={tone} />
+            <div className="flex items-center gap-1.5">
+                {source && <ICONS.source className="size-3 shrink-0 text-muted-foreground" aria-hidden />}
                 <span
                     data-testid="step-title"
-                    className={cn('truncate text-sm font-semibold', !heading.named && 'font-mono')}
+                    title={whole(heading.title)}
+                    className={cn('step-node-title truncate font-semibold', !heading.named && 'font-mono')}
                 >
                     {heading.title}
                 </span>
-                {view.node.fan_out && view.items > 0 && (
-                    <span className="ml-auto shrink-0 font-mono text-xs text-faint">
-                        {counted(view.items, LABELS.runs.node_items)(String(view.items))}
-                    </span>
-                )}
+                <span className="ml-auto flex shrink-0 items-center gap-1.5">
+                    {view.node.fan_out && view.items > 0 && (
+                        <span className="font-mono text-faint">
+                            {counted(view.items, LABELS.runs.node_items)(String(view.items))}
+                        </span>
+                    )}
+                    <StatusDot status={tone} />
+                </span>
             </div>
-            <span data-testid="step-line" className="truncate font-mono text-xs text-muted-foreground">
-                {heading.code === null ? view.node.block : `${heading.code} · ${view.node.block}`}
-            </span>
-            <div className="flex items-baseline gap-2">
-                <span className="min-w-0 truncate text-xs text-faint">{view.detail ?? ' '}</span>
+            <div className="flex items-baseline gap-1.5">
+                <span
+                    data-testid="step-line"
+                    title={whole(source ? LABELS.editor.canvas.listens_to(line) : line)}
+                    className="min-w-0 truncate font-mono text-muted-foreground"
+                >
+                    {line}
+                </span>
                 {view.duration_ms !== null && (
-                    <span className="ml-auto shrink-0 font-mono text-xs text-faint">
+                    <span className="ml-auto shrink-0 font-mono text-faint">
                         {formatDuration(view.duration_ms)}
                     </span>
                 )}
@@ -105,11 +121,11 @@ export function StepNode({ data, selected }: NodeProps<StepNode>) {
 /** The elements of a fan-out step: named while they fit, counted once they do not. */
 function ItemStrip({ view }: { view: StepView }) {
     if (view.strip.kind === 'empty') {
-        return <span className="truncate text-xs text-faint">{emptyStripLabel(view)}</span>
+        return <span className="truncate text-faint">{emptyStripLabel(view)}</span>
     }
     if (view.strip.kind === 'counts') {
         return (
-            <span className="truncate text-xs text-muted-foreground">
+            <span className="truncate text-muted-foreground">
                 {view.strip.counts
                     .map((count) => LABELS.runs.node_item_count(String(count.count), count.status))
                     .join(' · ')}
@@ -117,9 +133,9 @@ function ItemStrip({ view }: { view: StepView }) {
         )
     }
     return (
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 overflow-hidden">
+        <div className="flex h-4 flex-wrap items-center gap-x-2 overflow-hidden">
             {view.strip.items.map((item) => (
-                <span key={item.id} className="flex items-center gap-1 text-xs text-muted-foreground">
+                <span key={item.id} className="flex items-center gap-1 text-muted-foreground">
                     <StatusDot status={item.status} />
                     <span className="max-w-20 truncate font-mono">{item.key}</span>
                     {item.retry !== null && <span className="text-faint">{item.retry}</span>}

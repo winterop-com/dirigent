@@ -1527,6 +1527,8 @@ const editor = {
         add_step_after: (step: string) => `Add step after ${step}`,
         /** What the menu's box narrows, in the words of what it searches. */
         search_blocks: 'Search blocks by id, summary or kind',
+        /** A source's tooltip on a graph: what the line under its title says, whole. */
+        listens_to: (what: string) => `Listens to ${what}`,
         no_block_matches: 'No block matches that.',
         /** The menu opened before the catalog landed, which is not a catalog with nothing in it. */
         reading_catalog: 'Reading the catalog…',

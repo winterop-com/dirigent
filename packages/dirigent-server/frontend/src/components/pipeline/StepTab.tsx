@@ -16,6 +16,7 @@ import { LABELS } from '@/lib/labels'
 import type { SchemaOut } from '@/lib/schemas'
 import {
     blockOf,
+    sourceKindOf,
     changeDocument,
     configOf,
     dependsOn,
@@ -144,7 +145,7 @@ export function StepTab({
                         <span className="font-mono text-xs text-muted-foreground">{heading.code}</span>
                     )}
                     <span className="font-mono text-xs">
-                        {blockOf(document, step) ?? LABELS.editor.no_block}
+                        {blockOf(document, step) ?? sourceKindOf(document, step) ?? LABELS.editor.no_block}
                     </span>
                     {block !== null && <KindChip kind={block.kind} />}
                 </p>

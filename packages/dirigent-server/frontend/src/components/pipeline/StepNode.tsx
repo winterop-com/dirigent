@@ -3,6 +3,7 @@ import { Layers2 } from 'lucide-react'
 import type { CSSProperties } from 'react'
 
 import { StepPorts } from '@/components/graph/StepPorts'
+import { ICONS } from '@/lib/icons'
 import { LABELS } from '@/lib/labels'
 import { statusTokens } from '@/lib/status'
 import { cn } from '@/lib/utils'
@@ -17,6 +18,8 @@ export interface DocumentNodeData extends Record<string, unknown> {
     code: string | null
     /** The block it runs. */
     block: string
+    /** What it listens to, where the step is a source rather than a block. */
+    listens: string | null
     /** Whether this step differs from the version the instance holds. */
     edited: boolean
     /** Whether the block it names is one this instance does not publish. */
@@ -48,9 +51,10 @@ export type DocumentNode = Node<DocumentNodeData, 'step'>
  * of the block -- the key is what `depends_on` and every log line reference, so it is never off
  * the box. The box is the same one
  * the run graph draws -- `.step-node` in index.css -- so a pipeline reads the same in both
- * places, and the left edge takes the neutral hue rather than a state's. It is marked
- * `data-document` so that the foot of it can hug the second line: what a run's box keeps that
- * room for -- a state, a duration, a strip of elements -- a document has none of.
+ * places, and the left edge takes the neutral hue rather than a state's.
+ *
+ * A SOURCE RUNS NO BLOCK, SO IT SAYS WHAT IT LISTENS TO in the block's place, under the mark every
+ * source wears, on a dashed box.
  *
  * THE CHOSEN BOX SAYS SO TWICE, IN NEUTRAL. The halo is the ring around it and the title goes to
  * full weight on the foreground ink -- a selection is a reading position rather than an action,
@@ -69,20 +73,28 @@ export type DocumentNode = Node<DocumentNodeData, 'step'>
 export function StepNode({ data, selected }: NodeProps<DocumentNode>) {
     const tokens = statusTokens('pending') as CSSProperties
 
+    const line =
+        data.code === null ? (data.listens ?? data.block) : `${data.code} · ${data.listens ?? data.block}`
+
     return (
         <div
             className="step-node"
             style={tokens}
             data-document="true"
+            data-source={data.listens !== null}
             data-selected={selected === true}
             data-editable={data.editable}
         >
             <StepPorts editable={data.editable} />
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
+                {data.listens !== null && (
+                    <ICONS.source className="size-3 shrink-0 text-muted-foreground" aria-hidden />
+                )}
                 <span
                     data-testid="step-title"
+                    title={data.title}
                     className={cn(
-                        'truncate text-sm',
+                        'step-node-title truncate',
                         !data.named && 'font-mono',
                         selected === true ? 'font-bold text-foreground' : 'font-semibold',
                     )}
@@ -91,26 +103,30 @@ export function StepNode({ data, selected }: NodeProps<DocumentNode>) {
                 </span>
                 {data.missing && (
                     <span
-                        className="ml-auto shrink-0 rounded-sm border border-critical px-1 text-xs text-critical"
+                        className="ml-auto shrink-0 rounded-sm border border-critical px-1 text-critical"
                         title={LABELS.editor.canvas.not_installed_title(data.block)}
                     >
                         {LABELS.editor.canvas.not_installed}
                     </span>
                 )}
                 {data.edited && !data.missing && (
-                    <span className="ml-auto shrink-0 rounded-sm border border-primary px-1 text-xs text-primary-ink">
+                    <span className="ml-auto shrink-0 rounded-sm border border-primary px-1 text-primary-ink">
                         {LABELS.editor.canvas.edited}
                     </span>
                 )}
             </div>
-            <span className="flex items-center gap-2">
-                <span data-testid="step-line" className="truncate font-mono text-xs text-muted-foreground">
-                    {data.code === null ? data.block : `${data.code} · ${data.block}`}
+            <span className="flex items-center gap-1.5">
+                <span
+                    data-testid="step-line"
+                    title={data.listens === null ? line : LABELS.editor.canvas.listens_to(line)}
+                    className="truncate font-mono text-muted-foreground"
+                >
+                    {line}
                 </span>
                 {data.fanOut && (
                     <span
                         data-testid="step-fan-out"
-                        className="ml-auto flex shrink-0 items-center gap-1 font-mono text-xs text-faint"
+                        className="ml-auto flex shrink-0 items-center gap-1 font-mono text-faint"
                         title={
                             data.fanOutItems === null
                                 ? LABELS.editor.canvas.fan_out_each_title

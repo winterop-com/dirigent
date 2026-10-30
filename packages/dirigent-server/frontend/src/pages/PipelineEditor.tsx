@@ -656,8 +656,8 @@ export function PipelineEditor() {
 
             <div className="relative min-h-96 flex-1 overflow-hidden rounded-md border border-border-strong bg-background">
                 {steps.length === 0 && local !== null && (
-                    <div className="absolute top-4 left-4 z-10 flex items-center gap-3">
-                        <p className="pointer-events-none text-sm text-muted-foreground">
+                    <div className="graph-words absolute top-4 left-4 z-10 flex items-center gap-3">
+                        <p className="pointer-events-none text-muted-foreground">
                             {LABELS.editor.canvas.no_steps}
                         </p>
                         {/* THE OTHER WAY IN IS NOT ON THE SCREEN. Add step is a control on this
@@ -678,8 +678,8 @@ export function PipelineEditor() {
                     </div>
                 )}
                 {local === null ? (
-                    <div className="flex flex-col items-start gap-3 p-4">
-                        <p className="text-sm text-muted-foreground">
+                    <div className="graph-words flex flex-col items-start gap-3 p-4">
+                        <p className="text-muted-foreground">
                             {LABELS.editor.canvas.nothing_to_draw}
                         </p>
                     </div>

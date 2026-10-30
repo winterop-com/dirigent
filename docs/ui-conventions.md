@@ -113,13 +113,20 @@ The scale is 12px, 14px, and 16px. Nothing arrives beside it without a name.
 | `text-stat` | 28px mono | A stat tile's number, and nothing else on any screen |
 | `text-wordmark` | 48px | The login brand lockup's wordmark, and nothing else on any screen |
 | `text-display` | 36px | The sign-in heading, and nothing else on any screen |
+| `--text-graph-title` | 13px | A step's title on a graph, and nothing else on any screen |
+| `--text-graph-small` | 11px | Every other word drawn on a graph: the block or what a source listens to, a badge, a count, a duration, a fan-out's strip, words standing over an empty canvas |
 
 The wordmark is a brand mark rather than text: the login screen draws the product's name at
 display size beside its tile, and no other screen may set a heading there.
 
+A graph has two sizes of its own, because it is drawn at the scale of a diagram rather than of a
+page: a node is 160 by 44, and body text does not fit in it. They are set on `.step-node` and
+`.graph-words` in `index.css` rather than on each word, so a word added to a box inherits its size
+and no word on a canvas can come out at the page's.
+
 `scripts/check_ui_classes.py` fails the gate on anything outside them, whether the fourth size
 arrives as `text-[13px]` or as `text-lg`. The check has no allowlist -- it knows `text-stat`,
-`text-wordmark` and `text-display` by name, and reads `index.css` itself so a fourth size cannot
+`text-wordmark`, `text-display` and the two graph sizes by name, and reads `index.css` itself so a fourth size cannot
 be minted there either. A named
 exception can be counted; an allowlist is a check people argue with. It skips
 `src/components/ui/`, because those files are generated and regenerating them is how they are
@@ -1619,23 +1626,33 @@ them is said in `index.css` against their slots, never by editing them.
 
 ## A graph fits what it draws
 
-**An editor node is two lines and a run node is three.** A document's node is the step's title
--- its `name` if it has one, its map key otherwise -- and the block it runs; its config is a
-map of any size and one truncated line of it crowds the box without answering anything, so the
-step's own pane holds the whole of it. A step whose `for_each` fans it out says so on its mono
-line -- a stacked glyph and the count, or the word "each" where the list is an expression a run
-resolves -- in the neutral ink that line is already in, because a status is the only colour a node
-carries. A run's third
-line is live state -- what a step is waiting for, how a retry went -- and stays. A run's fan-out
-holds its elements in one strip beneath the three lines; before a grid read from a step's output
-has expanded, that strip is the faint words `waits for <step>`, on one line, so the box keeps its
-height when the elements arrive. Elk is told
-the height each is actually drawn at, or the rows come out spaced for a box that is not there.
+**A node is 160 by 44 and two lines, on both canvases.** The title, and under it the block it runs,
+with the key in front where the title is a name. A document's config is a map of any size and one
+truncated line of it crowds the box, so the step's own pane holds the whole of it. A step whose
+`for_each` fans it out says so on the second line -- a stacked glyph and the count, or the word
+"each" where the list is an expression a run resolves -- in the neutral ink that line is already in,
+because a status is the only colour a node carries. On a run the state's dot stands at the end of
+the title line, and the duration at the end of the second. **What a step is doing -- what it waits
+for, how a retry went, why it failed -- is the box's tooltip and the panel's, not a third line**,
+because a line nobody can read at 11px across 138 pixels says less than the colour of the box. A
+run's fan-out holds its elements in one strip beneath the two lines, one line tall; before a grid read
+from a step's output has expanded, that strip is the faint words `waits for <step>`, so the box keeps
+its height when the elements arrive. Elk is told the height each is actually drawn at, or the rows
+come out spaced for a box that is not there.
+
+**Every word on a box truncates, and the whole of it is on hover.** A title, a key and a block each
+carry their full value on their own `title`, with what the step is doing after it on a run.
+
+**A source says what it listens to where a block would be.** A step with `source:` runs no block, so
+its second line is what it listens to and its title leads with `ICONS.source`, on a dashed box. In
+the editor that is the instance's own reading of the source -- `listensTo`, `POST /endpoints/signups`
+or what a polled kind says of itself -- and the document's `kind` until an apply has made one. On a
+run it is the kind, which is what the pinned graph carries. A step with neither says `no block`{ .label }.
 
 
 Both canvases open with the whole DAG in view: `fitView` with padding, held between the two
-bounds in `lib/dag-layout`. `FIT_MAX_ZOOM` keeps a pipeline of two boxes at its own size rather
-than magnified to fill the space, and `FIT_MIN_ZOOM` keeps a node above the size its 14px title
+bounds in `lib/dag-layout`. `FIT_MAX_ZOOM` is 1, so a fit never draws a box above its own size and a pipeline of two boxes is
+not magnified to fill the space, and `FIT_MIN_ZOOM` keeps a node above the size its 13px title
 stops being readable at -- a graph too big for that is panned to rather than shrunk past
 legibility. It re-fits when the node set changes and when the canvas is resized -- the right
 panel opening is a resize -- and stops the moment the reader pans, zooms or drags a box: after
@@ -1740,8 +1757,8 @@ nothing was happening. `formatDuration` is the one ladder -- `840ms`, `9.4s`, `4
 step's `name` where it has one and its map key otherwise, wearing the mono face when the title is
 the key; the second is the block the step runs, with the key in front of it and a middot between
 where the title was a name. So the key is on screen exactly once, whichever way round the step was
-written, and what a step actually runs is never a click away. The third line is what the step is
-doing -- what it is waiting on, what it saved to, what went wrong -- and the panel says the same
+written, and what a step actually runs is never a click away. What the step is doing -- what it is
+waiting on, what it saved to, what went wrong -- is on the box's tooltip, and the panel says the same
 things as facts rather than as a second sentence.
 
 **A live wait's fraction is a foot line, never a number.** A step whose attempt reports how far

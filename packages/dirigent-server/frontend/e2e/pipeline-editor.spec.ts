@@ -584,7 +584,7 @@ test('the editor opens with the whole graph in view, at a zoom that does not blo
     await everyNodeIsInView(page)
     // FIT_MAX_ZOOM in lib/dag-layout: a graph of a few boxes sits at a size worth reading
     // rather than blown up to fill the canvas.
-    expect(await graphZoom(page)).toBeLessThanOrEqual(1.25)
+    expect(await graphZoom(page)).toBeLessThanOrEqual(1)
 })
 
 test('a graph of two steps is fully visible rather than filling the canvas', async ({ page }) => {
@@ -593,7 +593,7 @@ test('a graph of two steps is fully visible rather than filling the canvas', asy
 
     await page.goto(`/pipelines/${PARAMS_PIPELINE}`)
     await everyNodeIsInView(page)
-    expect(await graphZoom(page)).toBeLessThanOrEqual(1.25)
+    expect(await graphZoom(page)).toBeLessThanOrEqual(1)
 })
 
 test('the editor draws a port on every step, and a run graph draws none', async ({ page }) => {

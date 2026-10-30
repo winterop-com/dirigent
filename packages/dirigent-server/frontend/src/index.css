@@ -38,6 +38,12 @@
     --text-base: 1rem;
     --text-base--line-height: 1.5rem;
 
+    /* The two sizes a graph is drawn in, which is the scale of a diagram rather than of a page. */
+    --text-graph-title: 0.8125rem;
+    --text-graph-title--line-height: 1.125rem;
+    --text-graph-small: 0.6875rem;
+    --text-graph-small--line-height: 0.9375rem;
+
     /* THE SHELL'S TWO STRIPS, AND EVERY COLUMN WEARS THE SAME ONE. The rail, the content and
        the right panel each draw their own top row and the rail and the content each draw
        their own foot, so the border between the strip and the work is one unbroken rule
@@ -1321,7 +1327,7 @@ html.dark[data-theme='contrast'],
     position: relative;
     display: flex;
     flex-direction: column;
-    gap: 0.125rem;
+    justify-content: center;
     overflow: hidden;
     box-sizing: border-box;
     border-radius: var(--radius-lg);
@@ -1329,7 +1335,9 @@ html.dark[data-theme='contrast'],
     border-left: 3px solid var(--chip);
     background-color: var(--card);
     color: var(--card-foreground);
-    padding: 0.5rem 0.625rem;
+    padding: 0.25rem 0.5625rem;
+    font-size: var(--text-graph-small);
+    line-height: var(--text-graph-small--line-height);
     text-align: left;
     transition:
         box-shadow 120ms ease-out,
@@ -1351,11 +1359,21 @@ html.dark[data-theme='contrast'],
 .step-node[data-outcome='skipped'] {
     border-style: dashed;
 }
-/* The document's box has two lines and nothing under them, so its foot does not keep the room a
-   run's box keeps for a duration and a strip of elements. `TIGHT_PADDING` in lib/dag-layout is
-   the same four pixels, because elk is told the height the box is drawn at. */
-.step-node[data-document='true'] {
-    padding-bottom: 0.25rem;
+/* A source runs no block: it is where an input enters, on the ground rather than on a card. */
+.step-node[data-source='true'] {
+    border-style: dashed;
+    background-color: var(--background);
+}
+/* A node's title. Every other word on the box takes the size the box sets. */
+.step-node-title {
+    font-size: var(--text-graph-title);
+    line-height: var(--text-graph-title--line-height);
+}
+/* Words standing on a canvas that are not on a box, controls among them. */
+.graph-words,
+.graph-words * {
+    font-size: var(--text-graph-small);
+    line-height: var(--text-graph-small--line-height);
 }
 
 /* A box with ports does not clip them: half a dot is not a dot. */
