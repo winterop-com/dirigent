@@ -49,15 +49,15 @@
     /* What a finger lands on is this tall below the breakpoint. */
     --spacing-finger: 42px;
 
-    /* The radius ladder, stated rather than derived: 2 for a chip, 3 for a control, 4 for a
-       card and a panel. */
-    --radius-sm: 2px;
-    --radius-md: 3px;
-    --radius-lg: 4px;
-    --radius-xl: 4px;
-    --radius-2xl: 4px;
-    --radius-3xl: 4px;
-    --radius-4xl: 4px;
+    /* The radius ladder, stated rather than derived: 1 for a chip, 2 for a control, 2 for a
+       card, a panel and a dialog. */
+    --radius-sm: 1px;
+    --radius-md: 2px;
+    --radius-lg: 2px;
+    --radius-xl: 2px;
+    --radius-2xl: 2px;
+    --radius-3xl: 2px;
+    --radius-4xl: 2px;
 
     --color-background: var(--background);
     --color-foreground: var(--foreground);
@@ -931,7 +931,7 @@ html.dark[data-theme='contrast'],
     top: 50%;
     width: 3px;
     height: 36px;
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     transform: translate(-50%, -50%);
     background-color: var(--border-strong);
     transition:
@@ -1137,7 +1137,7 @@ html.dark[data-theme='contrast'],
     inset-block: 0.25rem;
     inset-inline-start: 0;
     width: 3px;
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     background-color: var(--primary);
 }
 .dg-palette [data-slot='palette-footer'] {
@@ -1215,6 +1215,7 @@ html.dark[data-theme='contrast'],
     width: 9px;
     height: 9px;
     border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
     background-color: var(--card);
     transition:
         background-color 120ms ease-out,
@@ -1418,12 +1419,12 @@ html.dark[data-theme='contrast'],
     bottom: 0;
 }
 .progress-line-under {
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     overflow: hidden;
     margin: 0.25rem 0 0.125rem;
 }
 .progress-line-under .progress-line-fill {
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1464,7 +1465,7 @@ html.dark[data-theme='contrast'],
     background: var(--border-strong);
     border: 3px solid transparent;
     background-clip: content-box;
-    border-radius: 999px;
+    border-radius: var(--radius-sm);
 }
 
 /* ---------------------------------------------------------------------------
@@ -1590,8 +1591,14 @@ html.dark[data-theme='contrast'],
     width: 3px;
     height: 1.125rem;
     transform: translateY(-50%);
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     background-color: var(--sidebar-primary);
+}
+
+/* A switch stands on the ladder. The generated track and thumb both say `rounded-full`. */
+[data-slot='switch'],
+[data-slot='switch-thumb'] {
+    border-radius: var(--radius-sm);
 }
 
 /* ---------------------------------------------------------------------------

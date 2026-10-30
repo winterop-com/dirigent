@@ -20,7 +20,7 @@ const TONES: Record<ChannelView['tone'], string> = {
 
 /** The chip: a glyph, a code and a dot, at the height a pointer and a finger both want. */
 const CHIP =
-    'flex min-h-9 items-center gap-2 rounded-full border border-border bg-card py-1 pr-3 pl-2.5 transition-colors'
+    'flex min-h-9 items-center gap-2 rounded-md border border-border bg-card py-1 pr-3 pl-2.5 transition-colors'
 
 /** What a control this app draws wears when a pointer or the keyboard reaches it. */
 const REACHED =

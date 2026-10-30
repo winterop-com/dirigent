@@ -278,12 +278,14 @@ the drawing is spread across it and shrunk instead, which is what keeps a step's
 beside it. The lockup and the facts are anchored to the foot of the pane, so neither moves between
 a short pane and a tall one.
 
-**The radius ladder** is crisp: 2px for a chip, 3px for a control, 4px for a card and a panel,
-stated in `@theme` rather than derived. A corner that reads as soft or pill-shaped makes a dense
-data screen look generic, so nothing but a status dot or an avatar is fully round. Tailwind's
-middle rungs are flattened onto the ladder -- `rounded-lg` through `rounded-2xl` are all the
-card's 4px -- so a shadcn primitive that ships `rounded-xl` lands on it without being edited. The login's brand tile is the mark, not a card, and
-keeps its own radius.
+**The radius ladder** is crisp: 1px for a chip, 2px for a control, 2px for a card, a panel and a
+dialog, stated in `@theme` rather than derived. A corner that reads as soft or pill-shaped makes a
+dense data screen look generic, so nothing but a status dot or an avatar is fully round: not a
+chip, a switch, a port on the canvas or a scrollbar. Tailwind's middle rungs are flattened onto
+the ladder -- `rounded-lg` through `rounded-4xl` are all the card's 2px -- so a shadcn primitive
+that ships `rounded-xl` lands on it without being edited, and a generated `rounded-full` is said
+back onto a rung in `index.css` against its slot. The login's brand tile stands on the ladder like
+everything else.
 
 ## `apiFetch` is the only fetch
 
@@ -1279,7 +1281,7 @@ rules: one path on the 24 grid, filled in `currentColor`.
 ## The channel strip
 
 **The strip is one wrapping line of chips, and a chip holds three things.** The kind's glyph at
-16px in muted ink, the code in mono, and an 8px dot: 36px tall, pill-shaped, on the card's ground
+16px in muted ink, the code in mono, and an 8px dot: 36px tall, on the control's rung, on the card's ground
 with the app's own border. Nothing else is on it -- no state word, no time, no sentence -- because
 a paragraph per channel is a screenful of channels on a screen whose subject is rules.
 

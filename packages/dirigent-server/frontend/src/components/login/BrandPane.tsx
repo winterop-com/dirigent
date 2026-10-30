@@ -50,7 +50,7 @@ export function BrandPane({
                 <BrandGraph />
             </div>
             <div className="relative flex items-center gap-3.5 lg:absolute lg:right-12 lg:bottom-31 lg:left-12 lg:flex-col lg:items-start lg:gap-6 xl:right-18 xl:left-18 xl:flex-row xl:items-center xl:gap-7">
-                <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-terminal-accent text-terminal lg:size-18 lg:rounded-[1rem]">
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-terminal-accent text-terminal lg:size-18">
                     <Waypoints className="size-5 lg:size-10" aria-hidden />
                 </span>
                 <h1 className="text-base font-semibold tracking-tight xl:text-wordmark">

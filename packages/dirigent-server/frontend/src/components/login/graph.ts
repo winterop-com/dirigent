@@ -14,7 +14,7 @@
 /** A node's box. The dot sits `DOT_INSET` in from the left edge, the bar `BAR_INSET`. */
 export const NODE_W = 66
 export const NODE_H = 36
-export const NODE_RADIUS = 9
+export const NODE_RADIUS = 2
 export const DOT_R = 4
 export const DOT_INSET = 14
 export const BAR_INSET = 25
