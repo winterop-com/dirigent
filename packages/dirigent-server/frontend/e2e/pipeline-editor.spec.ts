@@ -417,6 +417,58 @@ test('the source tab marks a key the schema does not take, on its line', async (
         .toBe(true)
 })
 
+/** Hold a document on the instance, then ask what replacing it with one plain step would take away. */
+async function planWithoutIt(page: Page, pipeline: string, held: Record<string, unknown>): Promise<Locator> {
+    const prefix = await apiPrefix(page.request)
+    await page.request.delete(`${prefix}/pipelines/${pipeline}`)
+    await applyDocument(page.request, {
+        format: 'dirigent/v1',
+        kind: 'pipeline',
+        code: pipeline,
+        ...held,
+    })
+    await page.goto(`/pipelines/${pipeline}`)
+    await page.locator('.react-flow__node').first().click()
+    const panel = page.locator('aside')
+    await panel.getByRole('tab', { name: LABELS.word.source }).click()
+    await writeInEditor(
+        page,
+        panel.getByTestId('code-editor'),
+        [
+            'format: dirigent/v1',
+            'kind: pipeline',
+            `code: ${pipeline}`,
+            'steps:',
+            '  plain:',
+            '    block: http.request',
+            '    config: { url: "http://127.0.0.1:9/after" }',
+            '',
+        ].join('\n'),
+    )
+    await page.getByRole('button', { name: LABELS.action.validate }).click()
+    return page.getByRole('dialog')
+}
+
+test('a plan says when applying would take a source away', async ({ page }) => {
+    await signIn(page)
+    const dialog = await planWithoutIt(page, 'e2e-plan-retires-source', {
+        steps: {
+            ask: { source: { kind: 'endpoint', path: '/e2e-plan-retires-source' } },
+            answer: { depends_on: ['ask'], reply: { status: 200, body: 'done' } },
+        },
+    })
+    await expect(dialog).toContainText(LABELS.editor.plan.retiring.sources.one('ask'))
+})
+
+test('a plan says when applying would take a schedule away', async ({ page }) => {
+    await signIn(page)
+    const dialog = await planWithoutIt(page, 'e2e-plan-retires-schedule', {
+        triggers: { schedules: [{ code: 'nightly', cron: '0 3 * * *' }] },
+        steps: { plain: { block: 'http.request', config: { url: 'http://127.0.0.1:9/before' } } },
+    })
+    await expect(dialog).toContainText(LABELS.editor.plan.retiring.schedules.one('nightly'))
+})
+
 test('validating an intact document reports no issues', async ({ page }) => {
     await signIn(page)
     await applyExample(page.request, DOCUMENT_EXAMPLE)

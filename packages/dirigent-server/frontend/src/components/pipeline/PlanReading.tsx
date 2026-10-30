@@ -30,6 +30,13 @@ export function PlanReading({ view }: { view: PlanView }) {
                     ))}
                 </ul>
             )}
+            {view.retiring.length > 0 && (
+                <ul className="space-y-0.5 text-xs text-warning-ink">
+                    {view.retiring.map((line) => (
+                        <li key={line}>{line}</li>
+                    ))}
+                </ul>
+            )}
             {view.issues.length > 0 && (
                 <div className="space-y-1 rounded-md border border-critical/40 p-2" role="alert">
                     <p className="text-xs font-medium text-critical">
@@ -48,9 +55,12 @@ export function PlanReading({ view }: { view: PlanView }) {
                     </ul>
                 </div>
             )}
-            {view.issues.length === 0 && view.changes.length === 0 && view.tone !== 'critical' && (
-                <p className="text-xs text-muted-foreground">{LABELS.editor.plan.no_changes}</p>
-            )}
+            {view.issues.length === 0 &&
+                view.changes.length === 0 &&
+                view.retiring.length === 0 &&
+                view.tone !== 'critical' && (
+                    <p className="text-xs text-muted-foreground">{LABELS.editor.plan.no_changes}</p>
+                )}
         </div>
     )
 }

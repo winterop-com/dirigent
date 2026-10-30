@@ -150,6 +150,13 @@ export interface Materialized {
     schedules_removed: string[]
 }
 
+/** What applying a document did to its source rows. `SourceChanges`. */
+export interface SourceChanges {
+    created: string[]
+    updated: string[]
+    removed: string[]
+}
+
 /** The outcome of an apply, or of the dry run that plans one. `ApplyResult`. */
 export interface ApplyResult {
     plan: PipelinePlan
@@ -157,6 +164,7 @@ export interface ApplyResult {
     version: number | null
     dry_run: boolean
     triggers: Materialized
+    sources: SourceChanges
 }
 
 /**
