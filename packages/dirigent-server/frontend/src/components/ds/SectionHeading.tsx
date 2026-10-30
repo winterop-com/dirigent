@@ -36,7 +36,11 @@ export function SectionHeading({
     const Tag = tier === 'section' ? 'h2' : 'h3'
     return (
         <div className={cn('flex min-w-0 items-baseline justify-between gap-3', className)}>
-            <Tag id={id} className={cn('min-w-0 truncate', TIERS[tier])}>
+            <Tag
+                id={id}
+                className={cn('min-w-0 truncate', TIERS[tier])}
+                title={typeof children === 'string' ? children : undefined}
+            >
                 {children}
             </Tag>
             {(aside !== undefined || link !== undefined) && (

@@ -130,7 +130,8 @@ arrives as `text-[13px]` or as `text-lg`. The check has no allowlist -- it knows
 be minted there either. A named
 exception can be counted; an allowlist is a check people argue with. It skips
 `src/components/ui/`, because those files are generated and regenerating them is how they are
-fixed.
+fixed. A size one of them carries is said back onto the scale in `index.css`, against its slot: the
+small button's `0.8rem` is `text-xs`.
 
 A relative size composes with the scale rather than escaping it, so `text-[0.85em]` on code inside
 a sentence is deliberate and passes.
@@ -606,6 +607,10 @@ state after: a control that wrote every keystroke back would put a history entry
 `onSelect`, and then it is a button saying "Filter by <tag>" that adds that tag to the set the
 table is already narrowed by rather than replacing it. The pipelines table is where that lives,
 because a tag drawn on a row somebody cannot press is a fact with a gesture missing from it.
+
+**A column's heading is a label, whatever the cells under it are.** A column of codes draws its
+values in mono and its heading in the sans face, because the heading is the same word in the same
+voice on every listing.
 
 **A column holds a value, a title or prose, and that is what decides its width.** A value is
 drawn from a fixed vocabulary -- a chip, an instant, a duration, a count, a mark -- so it is
