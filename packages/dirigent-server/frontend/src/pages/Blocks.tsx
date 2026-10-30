@@ -5,9 +5,10 @@ import { ApiChip } from '@/components/ApiChip'
 import { KindChip } from '@/components/KindChip'
 import { MarkdownLine } from '@/components/Markdown'
 import { ListTable, type Column } from '@/components/list/ListTable'
-import { PageHeader, PageState } from '@/components/PageState'
+import { PageHeader } from '@/components/ds/PageHeader'
+import { PageState } from '@/components/PageState'
 import { Fact, Section } from '@/components/run/Panel'
-import { SearchField } from '@/components/SearchField'
+import { SearchField } from '@/components/ds/SearchField'
 import { useRead } from '@/hooks/use-read'
 import {
     byGroup,
