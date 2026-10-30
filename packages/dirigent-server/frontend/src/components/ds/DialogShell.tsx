@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { ReactNode, RefObject } from 'react'
 
 import { Refusable } from '@/components/Refusable'
 import { Button } from '@/components/ui/button'
@@ -47,6 +47,7 @@ export function DialogShell({
     footer,
     verbs,
     keepOnOutsidePress = false,
+    initialFocus,
     children,
 }: {
     open: boolean
@@ -64,6 +65,8 @@ export function DialogShell({
     verbs?: ReactNode
     /** A press outside does nothing, for a dialog holding a form somebody is typing in. */
     keepOnOutsidePress?: boolean
+    /** The control that takes focus on opening, in place of the first one in the surface. */
+    initialFocus?: RefObject<HTMLElement | null>
     children?: ReactNode
 }) {
     const shut = confirm?.why !== undefined || confirm?.busy === true
@@ -72,6 +75,7 @@ export function DialogShell({
             <DialogContent
                 className={cn('flex max-h-[calc(100vh-4rem)] flex-col', DIALOG_WIDTHS[width])}
                 showCloseButton={confirm === undefined}
+                initialFocus={initialFocus}
             >
                 <DialogHeader className={confirm === undefined ? 'pr-8' : undefined}>
                     <DialogTitle className="leading-6">{title}</DialogTitle>

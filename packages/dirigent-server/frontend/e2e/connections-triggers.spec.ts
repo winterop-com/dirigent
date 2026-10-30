@@ -126,6 +126,7 @@ test('an address naming a connection opens its dialog', async ({ page, baseURL }
     await seedConnection(page.request, baseURL ?? '')
     await page.goto(`/connections/${CONNECTION}`)
     await expect(page.getByRole('dialog')).toContainText(CONNECTION)
+    await expect(page.getByRole('button', { name: LABELS.action.edit, exact: true })).toBeFocused()
 })
 
 test('checking a connection moves its own row, and the sentence is on the tooltip', async ({

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 
 import { Description } from '@/components/Description'
 import { Instant } from '@/components/Instant'
@@ -60,6 +60,7 @@ export function ConnectionDialog({
     const [deleting, setDeleting] = useState(false)
     const [removing, setRemoving] = useState(false)
     const [refused, setRefused] = useState<Problem | null>(null)
+    const editButton = useRef<HTMLButtonElement>(null)
 
     // What is known to use it is read as the question opens, and a read that fails leaves the
     // server to say.
@@ -130,6 +131,7 @@ export function ConnectionDialog({
                     onOpenChange={(next) => {
                         if (!next) onClose()
                     }}
+                    initialFocus={write.may ? editButton : undefined}
                     title={heading}
                     footer={
                         <Refusable why={write.why}>
@@ -167,6 +169,7 @@ export function ConnectionDialog({
                             </Refusable>
                             <Refusable why={write.why}>
                                 <Button
+                                    ref={editButton}
                                     size="sm"
                                     disabled={!write.may}
                                     title={write.why}
