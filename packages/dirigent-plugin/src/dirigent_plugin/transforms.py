@@ -395,6 +395,25 @@ class Filterer(Engine, Operator[ProgramConfig, TransformOutput], ABC):
         return []
 
 
+def hold_csv_columns(columns: int) -> None:
+    """Refuse a csv with more columns than a converter writes."""
+    if columns > CSV_COLUMN_LIMIT:
+        raise TransformError(CSV_TOO_MANY_COLUMNS.render(limit=f"{CSV_COLUMN_LIMIT:,}"))
+
+
+def hold_csv_empty_cells(*, rows: int, columns: int, empty: int) -> None:
+    """Refuse a csv holding more empty cells than a converter writes."""
+    if empty > CSV_EMPTY_CELL_LIMIT:
+        raise TransformError(
+            CSV_TOO_SPARSE.render(
+                rows=f"{rows:,}",
+                columns=f"{columns:,}",
+                empty=f"{empty:,}",
+                limit=f"{CSV_EMPTY_CELL_LIMIT:,}",
+            )
+        )
+
+
 def csv_header(records: Sequence[Mapping[str, Any]]) -> list[str]:
     """The header of a csv these records write: every key any has, in first-seen order.
 
@@ -405,19 +424,9 @@ def csv_header(records: Sequence[Mapping[str, Any]]) -> list[str]:
     columns: dict[str, None] = {}
     for record in records:
         columns.update(dict.fromkeys(record))
-        if len(columns) > CSV_COLUMN_LIMIT:
-            raise TransformError(CSV_TOO_MANY_COLUMNS.render(limit=f"{CSV_COLUMN_LIMIT:,}"))
+        hold_csv_columns(len(columns))
     filled = sum(value is not None for record in records for value in record.values())
-    empty = len(records) * len(columns) - filled
-    if empty > CSV_EMPTY_CELL_LIMIT:
-        raise TransformError(
-            CSV_TOO_SPARSE.render(
-                rows=f"{len(records):,}",
-                columns=f"{len(columns):,}",
-                empty=f"{empty:,}",
-                limit=f"{CSV_EMPTY_CELL_LIMIT:,}",
-            )
-        )
+    hold_csv_empty_cells(rows=len(records), columns=len(columns), empty=len(records) * len(columns) - filled)
     return list(columns)
 
 
