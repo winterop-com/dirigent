@@ -41,6 +41,7 @@ RESPONSES: dict[int | str, dict[str, object]] = {
     401: {"description": "The source takes a bearer token, and the one presented is not its own."},
     404: {"description": "No source answers this path."},
     405: {"description": "A source answers this path, but not with this method."},
+    408: {"description": "The body did not arrive in time."},
     409: {"description": "The pipeline's concurrency policy, or the run itself, refused the input."},
     413: {"description": "The body is larger than the source reads."},
     415: {"description": "The source does not take this content type."},

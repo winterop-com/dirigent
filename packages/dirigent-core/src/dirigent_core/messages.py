@@ -904,6 +904,8 @@ SOURCE_KIND_MISSING = SOURCE.define(
 
 SOURCE_BODY_TOO_LARGE = SOURCE.define("body_too_large", "the body is larger than the {limit} bytes this endpoint reads")
 
+SOURCE_BODY_TIMED_OUT = SOURCE.define("body_timed_out", "the body did not arrive within {timeout}")
+
 SOURCE_BACKLOGGED = SOURCE.define(
     "backlogged",
     "source {code} has {in_flight} runs unsettled, as many as it allows; send again once one settles",
