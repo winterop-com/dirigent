@@ -170,7 +170,9 @@ untouched, for the same reason they survive a self-service change.
 **A body is bounded before anyone has proved who they are.** A route parses its body before
 it authenticates, so `/api/v1` holds at most 1 MiB from a caller and checks its credential before
 reading past that. A caller with no credential, or one that does not resolve, is answered 413
-(`server.unauthenticated_body_too_large`). A login is held to 16 KiB whatever it presents. A
+(`server.unauthenticated_body_too_large`). A login is held to 16 KiB whatever it presents. A body
+that has not arrived whole within 30 seconds is answered 408 and the connection closed
+(`server.body_timed_out`), unless the caller's credential resolves. A
 rate-limit key longer than 128 characters is held as its hash.
 
 ### What is unauthenticated

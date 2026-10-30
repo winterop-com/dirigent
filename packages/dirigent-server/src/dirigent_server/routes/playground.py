@@ -41,7 +41,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from dirigent_common import Duration, Size, filler
 from dirigent_core.config import Settings
-from dirigent_server.bodies import read_capped
+from dirigent_server.bodies import read_within_deadline
 from dirigent_server.errors import Refusal
 from dirigent_server.logging import get_logger
 from dirigent_server.messages import (
@@ -383,7 +383,7 @@ def _body(raw: bytes, content_type: str | None) -> tuple[JsonValue, str]:
 
 async def _facts(request: Request) -> RequestFacts:
     """Gather what arrived, for the envelope every route shares."""
-    raw = await read_capped(request, MAX_BODY)
+    raw = await read_within_deadline(request, MAX_BODY)
     if len(raw) > MAX_BODY:
         raise Refusal(PLAYGROUND_BODY_TOO_LARGE, status=http_status.HTTP_413_CONTENT_TOO_LARGE, limit=MAX_BODY)
     content_type = request.headers.get("content-type")

@@ -1119,6 +1119,7 @@ const refused = {
     server: {
         bad_credentials: 'Invalid username or password.',
         bad_cursor: '{name}={after} is not a cursor this listing gave out.',
+        body_timed_out: 'The whole body did not arrive within {timeout}.',
         connection_exists: 'A connection coded {code} exists.',
         connection_referenced: 'Still in use. Delete what uses it first.',
         /** The same sentence `refusal.shut` says, held to it by `test_shared_words.py`. */
