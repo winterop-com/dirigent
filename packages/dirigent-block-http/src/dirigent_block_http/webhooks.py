@@ -23,6 +23,7 @@ from dirigent_block_http.http import (
     decode,
     is_success,
     read_bounded,
+    request_timeout,
     request_url,
     status_class,
 )
@@ -107,7 +108,7 @@ class WebhookPostOperator(Operator[WebhookPostConfig, WebhookPostOutput]):
                 request_url(config),
                 content=payload,
                 headers=headers,
-                timeout=config.timeout.total_seconds() if config.timeout is not None else None,
+                timeout=request_timeout(config, client),
             )
             response = await client.send(request, stream=True, follow_redirects=config.follow_redirects)
             try:
