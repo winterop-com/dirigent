@@ -2,8 +2,10 @@
 
 An MCP server that lets an agent operate a dirigent instance through its API: write and apply
 pipeline documents, start runs and read them, and pause or resume sources and schedules. Its
-tools are calls the API already answers, so the agent may do what its token may do, and none of
-them deletes anything.
+tools are calls the API already answers, so the agent may do what its token's role may do, and
+none of them deletes anything. An agent that may apply and run a document runs it with every
+connection the instance holds: give a `viewer` token and set `DG_MCP_READ_ONLY=1` when it should
+only read.
 
 ```bash
 claude mcp add dirigent -e DG_URL=https://dirigent.example.org -e DG_TOKEN=... -- uvx dirigent-mcp

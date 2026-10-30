@@ -94,6 +94,14 @@ async def test_every_tool_says_whether_it_writes(server: MCPServer) -> None:
     assert not {"apply_document", "run_pipeline", "cancel_run"} & reads
 
 
+async def test_a_read_only_server_offers_only_the_tools_that_read(server: MCPServer) -> None:
+    every = {tool.name: tool for tool in await server.list_tools()}
+    reading = mcp_server.build(lambda: pytest.fail("listing tools opens no client"), read_only=True)
+    offered = {tool.name for tool in await reading.list_tools()}
+    assert offered == {name for name, tool in every.items() if tool.annotations and tool.annotations.read_only_hint}
+    assert {"apply_document", "run_pipeline", "cancel_run", "pause_source"}.isdisjoint(offered)
+
+
 async def test_a_document_is_planned_applied_and_run(server: MCPServer) -> None:
     planned = await call(server, "plan_document", document=DOCUMENT)
     assert (planned["plan"]["action"], planned["dry_run"]) == ("create", True)
