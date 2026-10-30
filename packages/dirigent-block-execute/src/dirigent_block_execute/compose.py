@@ -340,7 +340,7 @@ class DockerComposeUpOperator(Operator[DockerComposeUpConfig, DockerComposeUpOut
         project = config.project_name or _default_project(ctx)
         timeout = config.timeout.total_seconds()
 
-        with sealed(_connection(config.connection, ctx), root) as material:
+        with sealed(_connection(config.connection, ctx)) as material:
             environ = daemon_environment(
                 subprocess.environment([*DAEMON_ENV, *config.env_allowlist], config.env, root), material
             )
@@ -408,7 +408,7 @@ class DockerComposeDownOperator(Operator[DockerComposeDownConfig, DockerComposeD
         project = config.project_name or _default_project(ctx)
         timeout = config.timeout.total_seconds()
 
-        with sealed(_connection(config.connection, ctx), root) as material:
+        with sealed(_connection(config.connection, ctx)) as material:
             environ = daemon_environment(
                 subprocess.environment([*DAEMON_ENV, *config.env_allowlist], config.env, root), material
             )

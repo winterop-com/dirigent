@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dirigent_client.schemas import BlockKind
 from dirigent_common import format_checker_with
 from dirigent_core.config import Settings
-from dirigent_core.engine.context import load_connections
+from dirigent_core.engine.context import load_connections, open_record
 from dirigent_core.engine.failure import Failure
 from dirigent_core.messages import UNSAFE_BLOCK
 from dirigent_core.plugins import PluginHost
@@ -71,7 +71,7 @@ class EngineServices(BaseModel):
             record = records.get(ref)
             if record is None:
                 raise UnknownStorageConnection(scheme, ref, records)
-            return self.secrets.decrypt_config(model, record.config, record.envelope, key_id=record.key_id)
+            return open_record(self.secrets, record, model, self.connection_models)
 
         return self.storage.bound_by(connection_binder(self.settings.storage_connections, open_connection))
 

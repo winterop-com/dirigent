@@ -2,19 +2,22 @@
 
 Each check answers for itself, in this order: the instance's bucket for the caller's address,
 the method and the route, then the route (404, 405), the token (401), or for a signed source
-the capped read (413) and the signature with its timestamp (401), then the source's own bucket
-(429), the source and its pipeline taking input (503), the content type (415), the capped read
-(413), the parse (400), the runs in flight (503), then the run. Nothing before the source's own bucket writes a
-journal row or spends from it, so a caller without the token or the secret, or in a loop,
-causes no writes; those are counted in telemetry instead. The one write ahead of the bucket is
-the record of a signature taken, which only a caller holding the secret causes.
+the capped read (408, 413) and the signature with its timestamp (401), then the source's own
+bucket (429), the source and its pipeline taking input (503), the content type (415), the
+capped read (408, 413), the parse (400), the runs in flight (503), then the run. A read holds
+no database connection: the transaction ends before it and what is decided on is read again
+after it. Nothing before the source's own bucket writes a journal row or spends from it, so a
+caller without the token or the secret, or in a loop, causes no writes; those are counted in
+telemetry instead. The one write ahead of the bucket is the record of a signature taken, which
+only a caller holding the secret causes.
 """
 
+import asyncio
 import hmac
 import math
 import time
 from collections.abc import Awaitable, Callable, Iterable, Mapping
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Final
 from uuid import UUID
 
@@ -41,6 +44,7 @@ from dirigent_core.messages import (
     METHOD_NOT_ANSWERED,
     NO_ROUTE,
     SOURCE_BACKLOGGED,
+    SOURCE_BODY_TIMED_OUT,
     SOURCE_BODY_TOO_LARGE,
     SOURCE_KIND_MISSING,
     SOURCE_PAUSED,
@@ -239,10 +243,10 @@ class Intake:
                     method=call.method,
                 )
             )
-        row = await session.get(Source, found.source_id)
-        pipeline = await session.get(Pipeline, row.pipeline_id) if row is not None else None
-        if row is None or pipeline is None:
+        current = await _current(session, found.source_id)
+        if current is None:
             return _counted(Refusal.of(NO_ROUTE, status=404, method=call.method, path=called))
+        row, pipeline = current
         kind = received(services.sources, row)
         if kind is None:
             return _counted(Refusal.of(SOURCE_KIND_MISSING, status=503, code=repr(row.code), kind=repr(row.kind)))
@@ -257,9 +261,13 @@ class Intake:
         most = min(declared, cap) if declared is not None else cap
         body: bytes | None = None
         if auth.kind == "hmac":
-            body = await read(most)
+            body = await _read_released(session, read, most, settings.source_body_timeout)
+            if body is None:
+                return _counted(_timed_out(settings.source_body_timeout))
             if len(body) > most:
                 return _counted(Refusal.of(SOURCE_BODY_TOO_LARGE, status=413, limit=most))
+            if await _current(session, found.source_id) is None:
+                return _counted(Refusal.of(NO_ROUTE, status=404, method=call.method, path=called))
             unsigned = await _unsigned(session, services, row, auth, call.headers, body, received_at)
             if unsigned is not None:
                 return _counted(unsigned)
@@ -271,14 +279,9 @@ class Intake:
                 Refusal.of(SOURCE_RATE, status=429, headers=_retry_after(rate.per_minute), per_minute=rate.per_minute)
             )
         journal = _Journal(session, row, call, started)
-        if not pipeline.active:
-            return await journal.refuse(
-                Refusal.of(SOURCE_PIPELINE_INACTIVE, status=503, pipeline=repr(pipeline.code), code=repr(row.code))
-            )
-        if row.paused:
-            return await journal.refuse(
-                Refusal.of(SOURCE_PAUSED, status=503, pipeline=repr(pipeline.code), code=repr(row.code))
-            )
+        stopped = _not_taking(row, pipeline)
+        if stopped is not None:
+            return await journal.refuse(stopped)
         head = InboundRequest(
             method=call.method,
             path=call.path,
@@ -292,7 +295,14 @@ class Intake:
         if refused is not None:
             return await journal.refuse(refused)
         if body is None:
-            body = await read(most)
+            body = await _read_released(session, read, most, settings.source_body_timeout)
+            if body is None:
+                return await journal.refuse(_timed_out(settings.source_body_timeout))
+            if await _current(session, found.source_id) is None:
+                return _counted(Refusal.of(NO_ROUTE, status=404, method=call.method, path=called))
+            stopped = _not_taking(row, pipeline)
+            if stopped is not None:
+                return await journal.refuse(stopped)
         journal.body_bytes = len(body)
         if len(body) > most:
             return await journal.refuse(Refusal.of(SOURCE_BODY_TOO_LARGE, status=413, limit=most))
@@ -305,6 +315,43 @@ class Intake:
         return await _enter(
             session, services, journal, source, pipeline, row, made.model_dump(mode="json"), call, waiter
         )
+
+
+async def _current(session: AsyncSession, source_id: UUID) -> tuple[Source, Pipeline] | None:
+    """Read a source and its pipeline as they stand now, into the objects the session already holds."""
+    row = await session.get(Source, source_id, populate_existing=True)
+    pipeline = await session.get(Pipeline, row.pipeline_id, populate_existing=True) if row is not None else None
+    return None if row is None or pipeline is None else (row, pipeline)
+
+
+async def _read_released(session: AsyncSession, read: ReadBody, most: int, timeout: timedelta) -> bytes | None:
+    """Read a body with no transaction open, or say it did not arrive in time.
+
+    Ending the transaction hands its connection back to the pool, so a caller who stops
+    sending holds a socket and no database connection.
+    """
+    await session.commit()
+    try:
+        async with asyncio.timeout(timeout.total_seconds()):
+            return await read(most)
+    except TimeoutError:
+        return None
+
+
+def _timed_out(timeout: timedelta) -> Refusal:
+    """Refuse a body that did not arrive in time, closing the connection it was arriving on."""
+    return Refusal.of(
+        SOURCE_BODY_TIMED_OUT, status=408, headers={"Connection": "close"}, timeout=format_duration(timeout)
+    )
+
+
+def _not_taking(row: Source, pipeline: Pipeline) -> Refusal | None:
+    """Refuse a call to a source that is paused, or of a pipeline that is inactive."""
+    if not pipeline.active:
+        return Refusal.of(SOURCE_PIPELINE_INACTIVE, status=503, pipeline=repr(pipeline.code), code=repr(row.code))
+    if row.paused:
+        return Refusal.of(SOURCE_PAUSED, status=503, pipeline=repr(pipeline.code), code=repr(row.code))
+    return None
 
 
 async def _enter(

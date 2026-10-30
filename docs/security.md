@@ -117,7 +117,10 @@ configured database the way `dg db upgrade` does, and `DIRIGENT_BOOTSTRAP_ADMIN_
 creates the first admin unattended in a container. Both are one-way -- they do nothing once
 any account exists -- so leaving the variable set on every deploy cannot reset a live
 instance's password. `dg dev` mints a development admin and prints its token once, because
-that is a SQLite file on a laptop.
+that is a SQLite file on a laptop. Its password is the fixed `admin`, so it stays on loopback:
+`dg dev` refuses a non-loopback bind, whether from `--host` or `DIRIGENT_HOST`, while that login
+would be made or still stands. `scripts/seed_dev.py`, which pairs the login with an unsafe
+allowlist, refuses one outright.
 
 ### The account lifecycle
 
@@ -426,7 +429,7 @@ removed.
 instance's bucket for the caller's address, the method and the route
 (`DIRIGENT_SOURCE_INTAKE_RATE_PER_MINUTE`, before any source is read), the route, the token or, for a signed source, the capped read, the
 timestamp and the signature, then the source's own `rate`. A refusal at any of those -- 429, 404, 405, 401, and a
-signed source's 413 -- is counted in telemetry (`dirigent.source.inputs`) and logged, writes
+signed source's 408 and 413 -- is counted in telemetry (`dirigent.source.inputs`) and logged, writes
 nothing and spends nothing from the source's own bucket, so a stranger without the token or
 the secret, or a caller in a loop, cannot cause writes or starve the source's real callers.
 The first bucket is counted per address, so a stranger elsewhere spends their own count: behind a
@@ -445,6 +448,10 @@ updated on every call turns a cheap refusal into a database write.
 `max_body` or the instance's `DIRIGENT_SOURCE_MAX_BODY`, whichever is smaller. For a source
 taking a token, the content type is checked against what the source `accepts` before a byte of
 the body is read; a signed source reads its capped body first, because the signature covers it.
+A read holds no database connection: the call's transaction ends before it, and the source and
+its pipeline are read again after it. A body that has not arrived whole within
+`DIRIGENT_SOURCE_BODY_TIMEOUT` (default 30 seconds) is answered 408 and the connection closed,
+so a stranger who stops sending holds one socket for that long and nothing the API shares.
 
 **A reply cannot act on the origin it shares with the UI.** An endpoint's reply is served on the
 UI's origin, so it answers with `X-Content-Type-Options: nosniff` and
@@ -501,9 +508,9 @@ not contain a pipeline that has taken over the sidecar. **Run these blocks on a 
 A `docker` connection carries the two docker credentials there are, and both are sealed: the
 client TLS key that reaches a remote daemon, and the registry password a `docker.build` pushes
 with. Sealed means encrypted at rest, redacted in every API response, and never an argument or
-an inherited variable. Each reaches the CLI only as a 0600 file in a 0700 directory under the
-run's work directory -- the key as `DOCKER_CERT_PATH`, the login as a `DOCKER_CONFIG` of its own
--- and both directories are removed when the step leaves, whether it succeeded, failed or was
+an inherited variable. Each reaches the CLI only as a 0600 file in a 0700 directory in the
+system's temporary directory, outside the roots a sibling step can read -- the key as
+`DOCKER_CERT_PATH`, the login as a `DOCKER_CONFIG` of its own -- and both directories are removed when the step leaves, whether it succeeded, failed or was
 cancelled. A push logs out before it returns, so the worker's own docker config is never
 written to and no session survives the step.
 
@@ -694,6 +701,13 @@ Marked-secret fields are redacted as `***` in every API response, and they never
 pipeline definition, an export, or a process log. No route carries a credential in its path,
 so a log line or an OpenTelemetry span name never holds one. A secret field that is not set reads as `null`, not as
 `***`: the marker means a credential is stored.
+
+A step or a source that names a connection of another kind than it reads is refused with
+`run.connection_wrong_kind`, naming the connection and both kinds and opening nothing. A stored
+connection that does not validate against the configuration it was read for fails with
+`secret.connection_unreadable`, which names each field and the kind of error and no value, so
+neither failure writes a secret into a run's attempts, its logs, a source's `last_error`, or a
+process log.
 
 That is what makes a redacted read editable. `PATCH /api/v1/connections/{code}` replaces the
 config whole, and a secret field carrying the marker means **keep what is stored** -- the

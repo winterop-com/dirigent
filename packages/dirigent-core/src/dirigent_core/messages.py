@@ -86,6 +86,11 @@ SECRET_KEY_MISMATCH = SECRET.define(
     "either the key changed or the row belongs to another instance",
 )
 
+CONNECTION_UNREADABLE = SECRET.define(
+    "connection_unreadable",
+    "a stored connection does not fit the configuration read from it: {detail}",
+)
+
 ARTIFACTS = Catalogue("artifacts")
 
 NOT_A_URI = ARTIFACTS.define("not_a_uri", "{uri} is not a URI: it names no scheme")
@@ -577,6 +582,11 @@ UNKNOWN_CONNECTION_KIND = RUN.define(
     "connection {ref} has kind {kind}, which no installed plugin contributes",
 )
 
+CONNECTION_WRONG_KIND = RUN.define(
+    "connection_wrong_kind",
+    "connection {ref} has kind {kind}, and this reads a connection of kind {wanted}",
+)
+
 STEP_NOT_IN_VERSION = RUN.define("step_not_in_version", "step {step} is not in the pinned pipeline version")
 
 CONFIG_REFUSED = RUN.define("config_refused", "{detail}")
@@ -905,6 +915,8 @@ SOURCE_KIND_MISSING = SOURCE.define(
 )
 
 SOURCE_BODY_TOO_LARGE = SOURCE.define("body_too_large", "the body is larger than the {limit} bytes this endpoint reads")
+
+SOURCE_BODY_TIMED_OUT = SOURCE.define("body_timed_out", "the body did not arrive within {timeout}")
 
 SOURCE_BACKLOGGED = SOURCE.define(
     "backlogged",
