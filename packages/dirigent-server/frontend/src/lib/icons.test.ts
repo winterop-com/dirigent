@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { ICONS } from '@/lib/icons'
+import { ICON_GROUPS, ICONS } from '@/lib/icons'
 
 describe('the icon vocabulary', () => {
     test('draws no glyph for two concepts', () => {
@@ -12,5 +12,10 @@ describe('the icon vocabulary', () => {
             ).toBeUndefined()
             seen.set(glyph, concept)
         }
+    })
+
+    test('puts every concept in exactly one group', () => {
+        const grouped = Object.values(ICON_GROUPS).flat() as string[]
+        expect([...grouped].sort()).toEqual(Object.keys(ICONS).sort())
     })
 })

@@ -21,8 +21,9 @@ import { PageState } from '@/components/PageState'
 import { StatusChip } from '@/components/run/StatusChip'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Disclosure } from '@/components/pipeline/Disclosure'
 import type { Tone } from '@/lib/design-system'
-import { ICONS, type IconName } from '@/lib/icons'
+import { ICON_GROUPS, ICONS, type IconGroup, type IconName } from '@/lib/icons'
 import { LABELS } from '@/lib/labels'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
 import { RUN_STATUSES } from '@/lib/status'
@@ -32,6 +33,34 @@ const SAMPLE = COPY.sample
 const VARIANT = COPY.variant
 
 const TONES: readonly Tone[] = ['good', 'critical', 'warning', 'info', 'quiet', 'unknown']
+
+/** One kind of icon, shut until it is asked for: the vocabulary is too long to read whole. */
+function IconShelf({ group }: { group: IconGroup }) {
+    const [open, setOpen] = useState(false)
+    const concepts: readonly IconName[] = ICON_GROUPS[group]
+    return (
+        <Disclosure
+            title={COPY.icon_group[group]}
+            summary={<span className="text-xs text-faint">{concepts.length}</span>}
+            open={open}
+            onToggle={() => {
+                setOpen(!open)
+            }}
+        >
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3 lg:grid-cols-5">
+                {concepts.map((concept) => {
+                    const Glyph = ICONS[concept]
+                    return (
+                        <div key={concept} className="flex min-w-0 items-center gap-2 text-xs">
+                            <Glyph className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                            <span className="truncate font-mono">{concept}</span>
+                        </div>
+                    )
+                })}
+            </div>
+        </Disclosure>
+    )
+}
 
 /** One part of the gallery: a section heading over a card of specimens. */
 function Section({ id, title, children }: { id: string; title: string; children: ReactNode }) {
@@ -89,16 +118,10 @@ export function DesignSystem() {
             <PageHeader title={LABELS.screen.design.name} />
             <div className="max-w-5xl space-y-8 pb-8">
                 <Section id="icons" title={COPY.section.icons}>
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-2 p-4 sm:grid-cols-3 lg:grid-cols-5">
-                        {(Object.keys(ICONS) as IconName[]).map((concept) => {
-                            const Glyph = ICONS[concept]
-                            return (
-                                <div key={concept} className="flex min-w-0 items-center gap-2 text-xs">
-                                    <Glyph className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-                                    <span className="truncate font-mono">{concept}</span>
-                                </div>
-                            )
-                        })}
+                    <div className="space-y-1 p-4">
+                        {(Object.keys(ICON_GROUPS) as IconGroup[]).map((group) => (
+                            <IconShelf key={group} group={group} />
+                        ))}
                     </div>
                 </Section>
 

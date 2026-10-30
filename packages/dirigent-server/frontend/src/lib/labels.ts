@@ -3151,6 +3151,12 @@ const settings = {
 const design = {
     /** The status bar's fact while the gallery is open. */
     note: 'Every component, in every state',
+    icon_group: {
+        verbs: 'Verbs',
+        chrome: 'Navigation and chrome',
+        nouns: 'Nouns',
+        states: 'States',
+    },
     section: {
         icons: 'Icons',
         entity: 'Entity heading',
