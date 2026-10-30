@@ -2958,6 +2958,7 @@ def token_create(
         return emit_fact(
             "token.issued",
             message="created",
+            id=str(created.id),
             username=created.username,
             name=created.name,
             prefix=created.prefix,
@@ -2966,6 +2967,7 @@ def token_create(
         )
     console.print(f"[green]created[/] token [bold]{created.name}[/] for [bold]{created.username}[/]")
     console.print(f"\n  {created.token}\n")
+    console.print(f"Its id is {created.id}, which is what revokes it.")
     if created.expires_at is not None:
         console.print(f"It expires at {moment(created.expires_at)}.")
     console.print("[yellow]This is the only time the token is shown.[/] Store it, or create another.")
@@ -2982,9 +2984,10 @@ def token_list(
         return emit_records("token", rows)
     table(
         "tokens",
-        ["user", "name", "prefix", "created", "last used", "expires", "revoked"],
+        ["id", "user", "name", "prefix", "created", "last used", "expires", "revoked"],
         [
             [
+                str(row.id),
                 escape(row.username),
                 escape(row.name),
                 escape(row.prefix),
@@ -2999,23 +3002,11 @@ def token_list(
 
 
 @token_app.command("revoke")
-def token_revoke(
-    ctx: typer.Context,
-    name: Annotated[str, typer.Argument()],
-    user: Annotated[
-        str | None, typer.Option("--user", help="Revoke this account's token rather than your own.")
-    ] = None,
-) -> None:
-    """Revoke the live tokens of that name held by one account."""
+def token_revoke(ctx: typer.Context, token_id: Annotated[str, typer.Argument(metavar="ID")]) -> None:
+    """Revoke the one token with this id, whichever account holds it."""
     with client_for(state_of(ctx)) as dg:
-        if user is None:
-            dg.call(dg.admin.tokens.revoke(name))
-        else:
-            dg.call(dg.admin.users.revoke_token(user, name))
-    if user is None:
-        emit_fact("token.revoked", message="revoked", code=name)
-    else:
-        emit_fact("token.revoked", message="revoked", code=name, username=user)
+        dg.call(dg.admin.tokens.revoke(token_id))
+    emit_fact("token.revoked", message="revoked", id=token_id)
 
 
 @user_app.command("list")

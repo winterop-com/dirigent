@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { accountHeading, isLive, revokedTogether, sharedNames, tokenCounts, type TokenOut } from '@/lib/users'
+import { accountHeading, isLive, sharedNames, tokenCounts, type TokenOut } from '@/lib/users'
 
 describe('an account is headed by the same rule as everything else', () => {
     test('the name is the title, and the username stays on screen as the code', () => {
@@ -65,18 +65,6 @@ describe('when a prefix is worth drawing', () => {
         const revoked = token('a', { revoked_at: '2026-02-01T00:00:00Z' })
         const expired = token('a', { expires_at: '2026-02-01T00:00:00Z' })
         expect(sharedNames([token('a'), revoked, expired], NOW).size).toBe(0)
-    })
-})
-
-describe('how many tokens a revoke takes', () => {
-    test('is every one of that name not yet revoked, because the API revokes by name', () => {
-        const tokens = [
-            token('a'),
-            token('a', { expires_at: '2026-02-01T00:00:00Z' }),
-            token('a', { revoked_at: '2026-02-01T00:00:00Z' }),
-            token('b'),
-        ]
-        expect(revokedTogether(tokens, 'a')).toBe(2)
     })
 })
 

@@ -1,5 +1,7 @@
 """Logging in, logging out, and asking who you are."""
 
+from uuid import UUID
+
 from fastapi import APIRouter, Request, Response, status
 
 from dirigent_client.enums import TokenKind
@@ -209,15 +211,15 @@ async def create_api_token(payload: TokenRequest, session: SessionDep, principal
 
 
 @router.delete(
-    "/tokens/{name}",
+    "/tokens/{token_id}",
     operation_id="revokeToken",
-    summary="Revoke one of your own API tokens",
+    summary="Revoke one API token",
     status_code=status.HTTP_204_NO_CONTENT,
 )
-async def revoke_api_token(name: str, session: SessionDep, principal: AdminDep) -> Response:
-    """Revoke the caller's live tokens of the given name."""
-    if not await revoke_token(session, user_id=principal.user_id, name=name):
-        raise Refusal(NO_TOKEN, status=status.HTTP_404_NOT_FOUND, name=repr(name))
+async def revoke_api_token(token_id: UUID, session: SessionDep, principal: AdminDep) -> Response:
+    """Revoke the one live token with this id, whichever account holds it."""
+    if not await revoke_token(session, token_id):
+        raise Refusal(NO_TOKEN, status=status.HTTP_404_NOT_FOUND, id=str(token_id))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

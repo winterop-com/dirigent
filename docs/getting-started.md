@@ -424,8 +424,8 @@ eight characters, so that a listing can tell two tokens apart without holding ei
 no way to recover a token you did not write down -- mint another and revoke the old one.
 
 ```bash
-dg admin token list                # name, prefix, created, last used, revoked
-dg admin token revoke ci
+dg admin token list                # id, name, prefix, created, last used, revoked
+dg admin token revoke ID
 ```
 
 `last_used_at` is what answers "is anything still presenting this?" before you revoke it. It is

@@ -962,8 +962,8 @@ verb and whose fields are the identity of what changed:
 | `schema.updated` | `dg schema update` | `code`, `name` as it now stands, `changed[]` naming which of `name`, `description` and `body` the request said anything about, and `used_by[]`, the stored pipelines that validate against the shape from their next attempt |
 | `schema.deleted` | `dg schema delete` | `code` |
 | `trigger_document.deleted` | `dg trigger-document delete` | `code`, and that its `schedules` went with it |
-| `token.revoked` | `dg admin token revoke` | `code`, and `username` when `--user` named one |
-| `token.issued` | `dg auth login`, `dg admin token create` | `username`, the token's `name`, and the `token` itself, once; a login adds the `url`, a mint the `prefix` and its `expires_at` |
+| `token.revoked` | `dg admin token revoke` | `id` |
+| `token.issued` | `dg auth login`, `dg admin token create` | `username`, the token's `name`, and the `token` itself, once; a login adds the `url`, a mint the `id`, the `prefix` and its `expires_at` |
 | `pipeline.exported` | `dg export` | `code`, the `version` asked for, the `document` it exported, and the `path` when `-f` wrote it |
 | `example.written` | `dg examples show -f` | `code`, and the `path` the document was written to |
 | `example.source` | `dg examples show` | The example itself: `code`, `name`, `description`, `tags`, `shelf`, `plugin`, `starter`, `requires`, and the `source` verbatim |
@@ -1199,7 +1199,7 @@ dg system health database | worker | scheduler | server [--liveness]
 dg admin user create NAME --role admin|operator|viewer [--password P] [--email E]
 dg admin user list | activate NAME | deactivate NAME
 dg admin user password NAME [--password P]
-dg admin token create NAME [--user U] [--expires 90d] | list | revoke NAME [--user U]
+dg admin token create NAME [--user U] [--expires 90d] | list | revoke ID
 ```
 
 `dg auth login` mints an API token and is the one place it is readable, so it writes a

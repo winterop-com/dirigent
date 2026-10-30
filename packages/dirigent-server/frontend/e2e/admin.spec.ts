@@ -401,7 +401,7 @@ test('a token is made on its account, listed under it, and revoked after a quest
     await expect(tokenRowOf(page, token).getByRole('button', { name: `Revoke ${token}` })).toHaveCount(0)
 })
 
-test('two live tokens sharing a name show their prefix, and revoking says it takes both', async ({
+test('two live tokens sharing a name show their prefix, and revoking one leaves the other', async ({
     page,
 }) => {
     await signIn(page)
@@ -422,12 +422,21 @@ test('two live tokens sharing a name show their prefix, and revoking says it tak
         await expect(page.getByText(LABELS.users.token_prefix(head.prefix), { exact: true })).toBeVisible()
     }
 
-    await tokenRowOf(page, name)
-        .first()
-        .getByRole('button', { name: `Revoke ${name}` })
-        .click()
-    const asking = page.getByRole('dialog', { name: `Revoke ${name}?` })
-    await expect(asking).toContainText(LABELS.users.revoke_shared('2'))
+    // A ROW'S OWN REVOKE TAKES THAT ROW, and the question says which of the two it is.
+    const said = `${name} ${LABELS.users.token_prefix(heads[0].prefix)}`
+    await page.getByRole('button', { name: `Revoke ${said}`, exact: true }).click()
+    const asking = page.getByRole('dialog', { name: `Revoke ${said}?` })
+    await expect(asking.locator('p')).toHaveCount(0)
+    await asking.getByRole('button', { name: LABELS.action.revoke, exact: true }).click()
+    await expect(asking).toHaveCount(0)
+
+    await expect(tokenRowOf(page, name).filter({ hasText: LABELS.state.armed.revoked })).toHaveCount(1)
+    await expect(page.getByRole('button', { name: `Revoke ${name}`, exact: true })).toHaveCount(1)
+    const held = (await (await page.request.get(`${prefix}/users/${username}/tokens`)).json()) as {
+        items: { prefix: string; revoked_at: string | null }[]
+    }
+    expect(held.items.find((one) => one.prefix === heads[0].prefix)?.revoked_at).not.toBeNull()
+    expect(held.items.find((one) => one.prefix === heads[1].prefix)?.revoked_at).toBeNull()
 })
 
 test('an account holding many tokens walks them in a box of its own', async ({ page }) => {

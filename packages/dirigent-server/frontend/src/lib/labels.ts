@@ -2926,8 +2926,6 @@ const users = {
     revoke_row: (token: string) => `Revoke ${token}`,
     /** The question before a revoke, around the name. */
     revoke_ask: { before: 'Revoke ', after: '?' },
-    /** Where the name is shared: the API revokes by name, so they go together. */
-    revoke_shared: (many: string) => `Revokes all ${many} live tokens with this name.`,
 
     /** Under the new-account dialog's title. */
     new_account_hint: 'The password is what it signs in with the first time.',
@@ -2939,7 +2937,7 @@ const users = {
     /** The same line, where the token is minted for another account. */
     token_scope_for: (username: string) => `This token can do whatever ${username} can.`,
     token_name_placeholder: 'ci-deploy',
-    token_name_hint: 'Lower case, digits and single hyphens. It is what the token is revoked by.',
+    token_name_hint: 'Lower case, digits and single hyphens.',
     /** Beside the secret, which the server answers once and cannot answer again. */
     token_once: 'This is the only time this token will be shown.',
     copy_token: 'Copy the token',
