@@ -30,6 +30,8 @@ kind: pipeline
 code: rule-one-failed
 name: The one_failed edge
 description: |
+  Raise an alert when a load fails, as it does here on purpose.
+
   `rule: one_failed` runs a step only when a prerequisite **failed**, and skips it when none
   did. It is how an error-handling branch is drawn in the DAG.
 

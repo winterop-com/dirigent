@@ -45,6 +45,8 @@ kind: pipeline
 code: schedule-window-half-open
 name: The window a firing covers
 description: |
+  Read the time window a scheduled run covers, with no gaps or overlaps.
+
   `${run.window.start}` and `${run.window.end}` are the interval a run covers: half-open, so
   consecutive firings tile the timeline without overlapping or leaving a gap.
 

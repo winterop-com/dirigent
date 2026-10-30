@@ -41,6 +41,8 @@ kind: pipeline
 code: fan-out-continue
 name: A batch that tolerates one bad item
 description: |
+  Process a list of items, and let the rest finish when one fails.
+
   `items: continue` lets the surviving elements finish. The failed item stays red, the step
   counts as succeeded, and the run reports `completed_with_errors`.
 

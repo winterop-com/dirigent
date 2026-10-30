@@ -31,6 +31,8 @@ kind: pipeline
 code: fan-out-over-an-empty-listing
 name: Fan out over an empty listing
 description: |
+  List stations, find none, skip the work, and still succeed.
+
   A `for_each` over a step's output that turns out to be an empty list skips the step, and
   the skip carries down every `all_success` edge behind it.
 

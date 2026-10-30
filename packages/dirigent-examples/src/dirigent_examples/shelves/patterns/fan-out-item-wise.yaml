@@ -48,6 +48,8 @@ kind: pipeline
 code: fan-out-item-wise
 name: One item to one item
 description: |
+  Shape each region's data, write one file per region, and list the files.
+
   `for_each: ${steps.<name>.items}` maps a step over another fan-out's grid, so the two are
   paired by item position and `${steps.<name>.item.output}` is the matching item's output.
 

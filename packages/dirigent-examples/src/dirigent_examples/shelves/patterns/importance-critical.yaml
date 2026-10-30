@@ -48,6 +48,8 @@ kind: pipeline
 code: importance-critical
 name: Slow to be claimed, loud when it breaks
 description: |
+  Reconcile the day's balances at low priority, and treat a failure as critical.
+
   `importance` is one word -- `routine`, `normal` or `critical` -- and it says how much this
   pipeline matters, not when its work is claimed. `priority` says that, and the two are
   independent: this document is `low` priority and `critical` importance at once.

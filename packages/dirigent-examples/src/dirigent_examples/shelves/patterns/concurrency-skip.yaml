@@ -45,6 +45,8 @@ kind: pipeline
 code: concurrency-skip
 name: A second run that never starts
 description: |
+  Refresh a view, and do nothing if a refresh is already running.
+
   `concurrency: skip` creates no run at all when one is already in flight: not queued, not
   deferred, nothing.
 

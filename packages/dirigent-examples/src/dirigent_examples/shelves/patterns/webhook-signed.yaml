@@ -61,6 +61,8 @@ kind: pipeline
 code: webhook-signed
 name: A signed webhook delivery
 description: |
+  Send a webhook signed with a shared secret, and one unsigned to compare.
+
   `webhook.post` with `sign_with` presents `X-Dirigent-Signature` over the exact bytes it
   sends, computed the way an `endpoint` source with `auth: {kind: hmac}` verifies one.
 

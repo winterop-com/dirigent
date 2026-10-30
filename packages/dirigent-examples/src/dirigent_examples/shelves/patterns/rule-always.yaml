@@ -29,6 +29,8 @@ kind: pipeline
 code: rule-always
 name: The always edge
 description: |
+  Always deliver a summary, even when a load fails, as it does here.
+
   `rule: always` runs a step once every prerequisite has settled, whatever they settled as
   and however many of them were skipped.
 

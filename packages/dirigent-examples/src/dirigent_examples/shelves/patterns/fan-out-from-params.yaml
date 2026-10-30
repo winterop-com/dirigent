@@ -36,6 +36,8 @@ kind: pipeline
 code: fan-out-from-params
 name: A fan-out sized by its parameters
 description: |
+  Process each region the caller names when starting the run.
+
   `for_each: "${params.regions}"` lets the caller decide how wide the run is, while the
   parameter schema keeps that from meaning anything at all.
 

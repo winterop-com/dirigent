@@ -41,6 +41,8 @@ kind: pipeline
 code: schedule-interval
 name: A rolling cadence
 description: |
+  Refresh a rolling window of data every hour, and a wider one every six.
+
   An interval is a cadence rather than a calendar moment: a duration is the same length in
   every zone, so nothing here consults a clock face.
 

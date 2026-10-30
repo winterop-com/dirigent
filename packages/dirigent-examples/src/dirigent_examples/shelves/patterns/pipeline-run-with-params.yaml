@@ -50,6 +50,8 @@ kind: pipeline
 code: pipeline-run-with-params
 name: Children, one per region
 description: |
+  Run another pipeline once per region, each with its own parameters.
+
   A parent writes its child's parameters out explicitly; they are validated against the
   **child's** schema when the step executes, not when the parent is applied.
 

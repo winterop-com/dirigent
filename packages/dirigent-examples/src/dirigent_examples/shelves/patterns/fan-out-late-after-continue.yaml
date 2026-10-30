@@ -32,6 +32,8 @@ kind: pipeline
 code: fan-out-late-after-continue
 name: A late grid over what survived
 description: |
+  Check three stations, and publish only the ones that succeeded.
+
   A late grid read from a fan-out under `items: continue` has one item per item that
   succeeded; a failed item is absent from the list, so nothing is made for it.
 

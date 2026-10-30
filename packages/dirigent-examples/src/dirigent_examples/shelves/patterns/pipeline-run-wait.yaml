@@ -46,6 +46,8 @@ kind: pipeline
 code: pipeline-run-wait
 name: A parent that waits
 description: |
+  Run another pipeline, wait for it to finish, and record how it ended.
+
   `pipeline.run` with the default `wait: true` finishes when the child finishes, and the
   child's status becomes the step's outcome.
 

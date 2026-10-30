@@ -33,6 +33,8 @@ kind: pipeline
 code: fan-out-then-join
 name: Fan out, then reduce
 description: |
+  Scale four station readings side by side, then summarise them in one step.
+
   A step joins a fan-out by depending on it and having no `for_each` of its own: one attempt,
   and the batch arrives as a JSON array of the items' outputs.
 

@@ -35,6 +35,8 @@ kind: pipeline
 code: retry-exponential-backoff
 name: Exponential backoff
 description: |
+  Retry a failing step with a longer wait each time, until it gives up.
+
   The five retry fields and the delays they compute: `backoff`, `multiplier`, `max_backoff`,
   `jitter`, and the `max_attempts` that counts the first try.
 

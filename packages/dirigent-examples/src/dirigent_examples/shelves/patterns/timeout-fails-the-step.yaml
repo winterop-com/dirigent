@@ -40,6 +40,8 @@ kind: pipeline
 code: timeout-fails-the-step
 name: A step that runs out of time
 description: |
+  Stop a slow step after two seconds and fail the run, on purpose.
+
   `timeout` bounds one block call. An expired one is a **transient** failure, so a retry
   budget would be spent on it -- which is why this step has none.
 

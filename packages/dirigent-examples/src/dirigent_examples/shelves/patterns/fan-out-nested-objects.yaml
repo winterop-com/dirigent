@@ -39,6 +39,8 @@ kind: pipeline
 code: fan-out-nested-objects
 name: Items that are objects
 description: |
+  Check three feeds, each with its own time limit, and report which were slow.
+
   A `for_each` element is any JSON value. Once it is an object, `${item.code}` reaches a
   field and `${item.limits.max_ms}` a nested one, so one element carries everything one item's
   work needs.
