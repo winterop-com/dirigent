@@ -426,7 +426,7 @@ removed.
 instance's bucket for the method and path (`DIRIGENT_SOURCE_INTAKE_RATE_PER_MINUTE`, before
 anything is looked up), the route, the token or, for a signed source, the capped read, the
 timestamp and the signature, then the source's own `rate`. A refusal at any of those -- 429, 404, 405, 401, and a
-signed source's 413 -- is counted in telemetry (`dirigent.source.inputs`) and logged, writes
+signed source's 408 and 413 -- is counted in telemetry (`dirigent.source.inputs`) and logged, writes
 nothing and spends nothing from the source's own bucket, so a stranger without the token or
 the secret, or a caller in a loop, cannot cause writes or starve the source's real callers.
 The record of a signature taken is the one write ahead of the rate, and only a caller holding
@@ -440,6 +440,10 @@ updated on every call turns a cheap refusal into a database write.
 `max_body` or the instance's `DIRIGENT_SOURCE_MAX_BODY`, whichever is smaller. For a source
 taking a token, the content type is checked against what the source `accepts` before a byte of
 the body is read; a signed source reads its capped body first, because the signature covers it.
+A read holds no database connection: the call's transaction ends before it, and the source and
+its pipeline are read again after it. A body that has not arrived whole within
+`DIRIGENT_SOURCE_BODY_TIMEOUT` (default 30 seconds) is answered 408 and the connection closed,
+so a stranger who stops sending holds one socket for that long and nothing the API shares.
 
 **A reply cannot act on the origin it shares with the UI.** An endpoint's reply is served on the
 UI's origin, so it answers with `X-Content-Type-Options: nosniff` and

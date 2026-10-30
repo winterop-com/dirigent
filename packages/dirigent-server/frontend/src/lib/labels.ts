@@ -1126,6 +1126,7 @@ const refused = {
             'Source {code} has {in_flight} runs unsettled, as many as it allows. Send again once one settles.',
         body_not_json: 'The body is not JSON: {detail}',
         body_not_text: 'The body is not {charset} text: {detail}',
+        body_timed_out: 'The body did not arrive within {timeout}.',
         body_too_large: 'The body is larger than the {limit} bytes this endpoint reads.',
         body_without_type: 'The body arrived with no content type, and this endpoint takes {accepted}.',
         endpoint_accepts_refused:
