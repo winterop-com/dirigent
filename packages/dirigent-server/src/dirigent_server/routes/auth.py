@@ -47,7 +47,12 @@ _logger = get_logger("auth")
 public_router = APIRouter(route_class=Transactional, tags=["auth"])
 
 
+#: Keyed by account and address. Separate from the address cap, so that a stream of junk
+#: usernames evicts only its own entries here and never an address's count.
 LOGIN_BUCKETS = TokenBucket()
+
+#: Keyed by address alone.
+ADDRESS_BUCKETS = TokenBucket()
 
 
 @public_router.post(
@@ -65,7 +70,12 @@ async def login(
     settings: SettingsDep,
 ) -> Identity:
     """Verify a username and password, and set an http-only session cookie."""
-    _limit_login(request, payload.username, per_minute=settings.login_rate_per_minute)
+    _limit_login(
+        request,
+        payload.username,
+        per_minute=settings.login_rate_per_minute,
+        address_per_minute=settings.login_address_rate_per_minute,
+    )
     user = await authenticate(session, payload.username, payload.password.get_secret_value())
     if user is None:
         raise Refusal(BAD_CREDENTIALS, status=status.HTTP_401_UNAUTHORIZED)
@@ -79,23 +89,27 @@ async def login(
     return Identity(user_id=user.id, username=user.username, role=user.role, via=TokenKind.SESSION)
 
 
-def _limit_login(request: Request, username: str, *, per_minute: int) -> None:
+def _limit_login(request: Request, username: str, *, per_minute: int, address_per_minute: int) -> None:
     """Refuse a caller attempting logins faster than the instance is willing to hash.
 
     Login is unauthenticated and runs Argon2id, so an unlimited caller can spend the whole
-    process's memory and CPU. Both keys have to pass: the address bound stops one machine
-    from flooding the process, and the username bound stops a stuffing run spread across
-    many addresses from concentrating on one account. Refusal must stay ahead of the hash.
+    process's memory and CPU. Both counts have to pass: the address's own, and the one for this
+    account from this address, which a caller elsewhere cannot spend. Refusal must stay ahead
+    of the hash.
     """
     address = request.client.host if request.client else "unknown"
-    for scope, key in (("address", f"address:{address}"), ("account", f"user:{username}")):
-        if not LOGIN_BUCKETS.allow(key, per_minute=per_minute):
-            _logger.warning("login rate limited", scope=scope, address=address, limit=per_minute)
+    checks = (
+        ("address", ADDRESS_BUCKETS, address, address_per_minute),
+        ("account", LOGIN_BUCKETS, f"{address} {username}", per_minute),
+    )
+    for scope, buckets, key, limit in checks:
+        if not buckets.allow(key, per_minute=limit):
+            _logger.warning("login rate limited", scope=scope, address=address, limit=limit)
             raise Refusal(
                 TOO_MANY_LOGINS,
                 status=status.HTTP_429_TOO_MANY_REQUESTS,
                 headers={"Retry-After": "60"},
-                per_minute=per_minute,
+                per_minute=limit,
             )
 
 

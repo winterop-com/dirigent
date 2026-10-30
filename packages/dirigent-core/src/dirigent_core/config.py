@@ -393,11 +393,15 @@ class Settings(BaseSettings):
     """The longest a polled source backs off, however many polls in a row have failed."""
 
     login_rate_per_minute: int = Field(default=10, ge=1)
-    """How many login attempts one address, and one username, get a minute.
+    """How many login attempts one username gets a minute from one address.
+
+    Counted per address, so a caller elsewhere cannot lock an account out of login."""
+
+    login_address_rate_per_minute: int = Field(default=60, ge=1)
+    """How many login attempts one address gets a minute, across every username.
 
     The login route is unauthenticated and verifying a password costs Argon2id at 64 MiB, so
-    without this limit a flood of requests exhausts the instance's memory and CPU. It is
-    counted per address *and* per username, covering both a flood and credential stuffing."""
+    without this limit a flood of requests exhausts the instance's memory and CPU."""
 
     alert_base_url: str | None = None
     """The externally reachable base URL, so an alert can link back to the run it is about."""
