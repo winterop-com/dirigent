@@ -84,7 +84,7 @@ async def login(
         response,
         issued.secret.get_secret_value(),
         max_age=int(SESSION_LIFETIME.total_seconds()),
-        secure=settings.environment != "local",
+        secure=request.url.scheme == "https" or settings.environment != "local",
     )
     return Identity(user_id=user.id, username=user.username, role=user.role, via=TokenKind.SESSION)
 

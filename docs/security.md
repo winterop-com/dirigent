@@ -80,6 +80,12 @@ to.
 
 The header wins over the cookie when both are present.
 
+**The session cookie is `Secure`** whenever the login arrived over HTTPS, and always when
+`DIRIGENT_ENVIRONMENT` is not `local`, so only a login over plain HTTP on a `local` instance gets
+a cookie a browser would also send over plain HTTP. A proxy that terminates TLS is believed
+through uvicorn's own trust setting: `X-Forwarded-Proto` counts only from an address in
+`FORWARDED_ALLOW_IPS`, which defaults to `127.0.0.1`.
+
 **Passwords** are Argon2id hashes, at the `argon2-cffi` library defaults, with a minimum
 length of eight characters enforced before anything is hashed. A login against an account
 that does not exist still verifies against a real Argon2id hash of a value nothing can
