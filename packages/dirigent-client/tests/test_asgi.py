@@ -215,7 +215,7 @@ async def test_tokens_and_accounts_are_managed_through_the_admin_accessor(dg: Di
     issued = await dg.admin.tokens.create("ci")
     assert issued.token.startswith(issued.prefix)
     assert "ci" in [row.name for row in (await dg.admin.tokens.list()).items]
-    await dg.admin.tokens.revoke("ci")
+    await dg.admin.tokens.revoke(issued.id)
 
     created = await dg.admin.users.create("second", "another test password", role=UserRole.OPERATOR)
     assert created.username == "second"
@@ -225,7 +225,7 @@ async def test_tokens_and_accounts_are_managed_through_the_admin_accessor(dg: Di
     assert theirs.username == "second"
     assert [(row.username, row.name) for row in (await dg.admin.users.tokens("second")).items] == [("second", "ci")]
     await dg.admin.users.reset_password("second", "a third test password")
-    await dg.admin.users.revoke_token("second", "ci")
+    await dg.admin.tokens.revoke(theirs.id)
     assert all(row.revoked_at is not None for row in (await dg.admin.users.tokens("second")).items)
 
 

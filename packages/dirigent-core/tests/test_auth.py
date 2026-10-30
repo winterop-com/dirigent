@@ -190,10 +190,10 @@ async def test_an_unknown_expired_or_revoked_token_resolves_to_nothing(
     async with session_scope(sessions) as session:
         assert await resolve_token(session, "not a token") is None
         assert await resolve_token(session, stale.secret.get_secret_value(), now=utcnow() + timedelta(hours=1)) is None
-        assert await revoke_token(session, user_id=user.id, name="ci") is True
+        assert await revoke_token(session, live.id) is True
     async with session_scope(sessions) as session:
         assert await resolve_token(session, live.secret.get_secret_value()) is None
-        assert await revoke_token(session, user_id=user.id, name="ci") is False
+        assert await revoke_token(session, live.id) is False
 
 
 async def test_a_token_of_a_deactivated_user_stops_working(
@@ -263,19 +263,26 @@ async def test_a_listing_never_shows_sessions(sessions: async_sessionmaker[Async
         assert [token.name for token in await list_tokens(session, user_id=user.id)] == ["ci"]
 
 
-async def test_revoking_by_name_reaches_only_the_named_account(
+async def test_revoking_reaches_only_the_token_with_that_id(
     sessions: async_sessionmaker[AsyncSession],
 ) -> None:
     async with session_scope(sessions) as session:
         one = await create_user(session, "morten", PASSWORD, role=UserRole.ADMIN)
-        other = await create_user(session, "second", PASSWORD, role=UserRole.ADMIN)
-        mine = await issue_token(session, one, name="ci")
-        theirs = await issue_token(session, other, name="ci")
+        first = await issue_token(session, one, name="ci")
+        second = await issue_token(session, one, name="ci")
     async with session_scope(sessions) as session:
-        assert await revoke_token(session, user_id=one.id, name="ci") is True
+        assert await revoke_token(session, first.id) is True
     async with session_scope(sessions) as session:
-        assert await resolve_token(session, mine.secret.get_secret_value()) is None
-        assert await resolve_token(session, theirs.secret.get_secret_value()) is not None
+        assert await resolve_token(session, first.secret.get_secret_value()) is None
+        assert await resolve_token(session, second.secret.get_secret_value()) is not None
+
+
+async def test_a_browser_session_is_not_a_token_to_revoke(sessions: async_sessionmaker[AsyncSession]) -> None:
+    async with session_scope(sessions) as session:
+        user = await create_user(session, "morten", PASSWORD, role=UserRole.ADMIN)
+        browser = await issue_token(session, user, name="web", kind=TokenKind.SESSION)
+    async with session_scope(sessions) as session:
+        assert await revoke_token(session, browser.id) is False
 
 
 async def test_a_listed_token_names_the_account_that_holds_it(

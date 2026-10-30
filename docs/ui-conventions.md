@@ -919,7 +919,8 @@ rows and the managed schedules a document has stopped declaring, and those are t
 in the dialog that cannot be read back from the document: a source goes with its inputs and its
 token. They stand under the changes in the warning ink, with the words a reader would ask for, and
 only where there are any. What an apply did to its sources and schedules is the note that follows
-it.
+it. **A token an apply created is shown once, the way a rotated one is**, because the answer to that
+apply is the only time it can be read: `MintedToken` stands over the editor before anything moves on.
 
 **A refusal the dialog can answer is answered in the dialog.** A top-level `connections:` or
 `schemas:` section is what lets a document run alone under `dg run --local`, and an apply refuses
@@ -1543,9 +1544,9 @@ wrong account, and the row opens to show what it made.
 is what a token is known by. The prefix is drawn beside the name only when two live tokens of one
 account share that name, which is the one time the name stops telling them apart, and its tooltip
 says what it is. The expiry is a chip beside the name, only where a token has one; `Last used`{ .label } and
-`Created`{ .label } are columns. **Revoking asks first, and says something only when it takes more than one.**
-The API revokes by name, so two live tokens sharing a name go together, and that is the one line the
-question holds.
+`Created`{ .label } are columns. **Revoking asks first, and takes the one token the row is.** The API
+revokes by id, so a row's own Revoke reaches that row and no other. The question names the token the
+way the row does: its name, and its prefix beside the name where two live tokens share it.
 
 ## A control only ever claims what the situation supports
 

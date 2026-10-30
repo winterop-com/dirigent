@@ -471,6 +471,42 @@ test('a plan says when applying would take a schedule away', async ({ page }) =>
     await expect(dialog).toContainText(LABELS.editor.plan.retiring.schedules.one('nightly'))
 })
 
+test('a token an apply creates is shown once, before the editor moves on', async ({ page }) => {
+    await signIn(page)
+    const prefix = await apiPrefix(page.request)
+    const pipeline = 'e2e-apply-mints'
+    await page.request.delete(`${prefix}/pipelines/${pipeline}`)
+    await page.goto('/pipelines/$new')
+    const panel = page.locator('aside')
+    await panel.getByRole('tab', { name: LABELS.word.source }).click()
+    await writeInEditor(
+        page,
+        panel.getByTestId('code-editor'),
+        [
+            'format: dirigent/v1',
+            'kind: pipeline',
+            `code: ${pipeline}`,
+            'steps:',
+            '  ask:',
+            '    source: { kind: endpoint, path: /e2e-apply-mints }',
+            '  answer:',
+            '    depends_on: [ask]',
+            '    reply: { status: 200, body: done }',
+            '',
+        ].join('\n'),
+    )
+    await page.getByRole('button', { name: LABELS.action.apply, exact: true }).click()
+    const asking = page.getByRole('dialog').filter({ hasText: LABELS.editor.apply.title })
+    await asking.getByRole('button', { name: LABELS.action.apply, exact: true }).click()
+
+    const shown = page.getByRole('dialog').filter({ hasText: LABELS.triggers.token.title('ask') })
+    await expect(shown.getByTestId('minted-token')).not.toBeEmpty()
+    await expect(page).toHaveURL(/\/pipelines\/\$new$/)
+    await shown.getByRole('button', { name: 'Close', exact: true }).click()
+    await expect(page).toHaveURL(new RegExp(`/pipelines/${pipeline}$`))
+    await page.request.delete(`${prefix}/pipelines/${pipeline}`)
+})
+
 test('validating an intact document reports no issues', async ({ page }) => {
     await signIn(page)
     await applyExample(page.request, DOCUMENT_EXAMPLE)

@@ -134,8 +134,9 @@ def test_a_token_can_be_created_listed_and_revoked(client: TestClient) -> None:
     assert {token["name"] for token in listed} == {"tests", "ci"}
     assert all("token" not in token for token in listed)
     assert {token["username"] for token in listed} == {"tester"}
-    assert client.delete(f"{PREFIX}/tokens/ci").status_code == 204
-    assert client.delete(f"{PREFIX}/tokens/ci").status_code == 404
+    token = created.json()["id"]
+    assert client.delete(f"{PREFIX}/tokens/{token}").status_code == 204
+    assert client.delete(f"{PREFIX}/tokens/{token}").status_code == 404, "there is no live one left"
 
 
 def test_the_catalog_is_served_and_filterable(client: TestClient) -> None:
@@ -2225,28 +2226,26 @@ def test_an_admin_mints_lists_and_revokes_a_token_for_another_account(client: Te
     assert minted.json()["username"] == "second"
     listed = client.get(f"{PREFIX}/users/second/tokens").json()["items"]
     assert [(row["username"], row["name"]) for row in listed] == [("second", "ci")]
-    assert client.delete(f"{PREFIX}/users/second/tokens/ci").status_code == 204
-    gone = client.delete(f"{PREFIX}/users/second/tokens/ci")
-    assert gone.status_code == 404
-    assert "for 'second'" in gone.json()["detail"]
+    assert client.delete(f"{PREFIX}/tokens/{minted.json()['id']}").status_code == 204, "the revoke reaches any account"
+    assert client.get(f"{PREFIX}/users/second/tokens").json()["items"][0]["revoked_at"] is not None
+    assert client.delete(f"{PREFIX}/users/second/tokens/ci").status_code == 405, "and there is no second path to it"
     assert client.get(f"{PREFIX}/users/nobody/tokens").status_code == 404
     assert client.post(f"{PREFIX}/users/nobody/tokens", json={"name": "ci"}).status_code == 404
 
 
-def test_revoking_your_own_token_leaves_another_accounts_token_of_that_name_alone(client: TestClient) -> None:
-    """A token name is unique only within an account, so the owner is part of what is revoked."""
-    assert client.post(f"{PREFIX}/users", json={**SECOND, "role": "admin"}).status_code == 201
+def test_a_row_is_revoked_alone_where_two_tokens_share_a_name(client: TestClient) -> None:
+    """The bug this holds off: two tokens of one name could only be revoked together."""
+    first = client.post(f"{PREFIX}/tokens", json={"name": "ci"}).json()
+    second = client.post(f"{PREFIX}/tokens", json={"name": "ci"}).json()
+    assert client.delete(f"{PREFIX}/tokens/{first['id']}").status_code == 204
+    live = {row["id"] for row in client.get(f"{PREFIX}/tokens").json()["items"] if not row["revoked_at"]}
+    assert second["id"] in live
+    assert first["id"] not in live
+
+
+def test_a_name_is_not_what_is_revoked(client: TestClient) -> None:
     assert client.post(f"{PREFIX}/tokens", json={"name": "ci"}).status_code == 201
-    theirs = client.post(f"{PREFIX}/users/second/tokens", json={"name": "ci"})
-    assert theirs.status_code == 201
-    assert client.delete(f"{PREFIX}/tokens/ci").status_code == 204
-    live = {
-        (row["username"], row["name"])
-        for row in client.get(f"{PREFIX}/tokens").json()["items"]
-        if not row["revoked_at"]
-    }
-    assert ("second", "ci") in live
-    assert ("tester", "ci") not in live
+    assert client.delete(f"{PREFIX}/tokens/ci").status_code == 422
 
 
 def test_an_email_is_validated_unique_and_clearable(client: TestClient) -> None:
@@ -2962,7 +2961,6 @@ OPERATOR_REFUSED = [
     ("post", "/users/whatever/$reset-password"),
     ("get", "/users/whatever/tokens"),
     ("post", "/users/whatever/tokens"),
-    ("delete", "/users/whatever/tokens/whatever"),
     ("get", "/tokens"),
     ("post", "/tokens"),
     ("delete", "/tokens/whatever"),

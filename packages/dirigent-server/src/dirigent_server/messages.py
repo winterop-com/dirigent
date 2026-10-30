@@ -32,9 +32,7 @@ TOO_MANY_LOGINS = SERVER.define(
     "too many login attempts; this instance accepts {per_minute} a minute",
 )
 
-NO_TOKEN = SERVER.define("no_token", "no live token named {name}")
-
-NO_USER_TOKEN = SERVER.define("no_user_token", "no live token named {name} for {username}")
+NO_TOKEN = SERVER.define("no_token", "no live token with id {id}")
 
 ACCOUNT_GONE = SERVER.define("account_gone", "the authenticated account is gone")
 

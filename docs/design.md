@@ -1073,7 +1073,7 @@ which already reaches every depth. The bucket always comes from the URI; the con
 POST          /api/v1/auth/login             # the only unauthenticated route under /api/v1
 POST          /api/v1/auth/logout            # + GET /auth/me
 POST          /api/v1/auth/password          # self-service; keeps this session, revokes the rest
-GET/POST      /api/v1/tokens                 # + DELETE /tokens/{name}
+GET/POST      /api/v1/tokens                 # + DELETE /tokens/{id}
 GET/POST      /api/v1/users                  # + PATCH, /{username}/$deactivate, /$activate
                                              # + /$reset-password, /{username}/tokens
 GET/POST      /api/v1/connections            # + /{code}, PATCH, DELETE, /{code}/$check

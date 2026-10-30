@@ -46,7 +46,7 @@ shown once. An admin mints one for somebody else with
 
 A browser has a second option -- `dg.auth.login(username, password)` sets an http-only
 `dirigent_session` cookie, good for fourteen days. It exists for the UI. A program should hold
-a token: it can be named, listed, and revoked by name, and a run it starts is attributed to
+a token: it can be named, listed, and revoked, and a run it starts is attributed to
 the token as well as to the user. When both a header and a cookie are present, the header wins.
 
 The client takes a URL and a token and nothing else. Profiles, `DG_URL`, `DG_TOKEN`, and
@@ -74,7 +74,7 @@ and `.` or `..` are refused with a `DirigentError` before any request is made.
 | `dg.workers` | `list` |
 | `dg.system` | `info`, `health`, `ready` |
 | `dg.auth` | `login`, `logout`, `whoami`, `change_password` |
-| `dg.admin` | `users.list`, `users.create`, `users.update`, `users.deactivate`, `users.activate`, `users.reset_password`, `users.tokens`, `users.create_token`, `users.revoke_token`, `tokens.list`, `tokens.create`, `tokens.revoke` |
+| `dg.admin` | `users.list`, `users.create`, `users.update`, `users.deactivate`, `users.activate`, `users.reset_password`, `users.tokens`, `users.create_token`, `tokens.list`, `tokens.create`, `tokens.revoke` |
 
 Anything addressable is addressed by its `code`, which is the first positional argument
 wherever one is taken: `dg.pipelines.get("daily-load")`,
