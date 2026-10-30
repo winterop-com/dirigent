@@ -72,7 +72,7 @@ dg source set-secret signed-nested-payload published --secret "$PROVIDER_SECRET"
 ```bash
 dg dev                                  # a local instance: API, worker, one SQLite file
 # its state is .dirigent/state, kept between starts; --wipe-state starts from nothing
-# on an empty state its admin is dev / dirigent-dev, a fixture; the starting record carries
+# on an empty state its admin is admin / admin, a fixture; the starting record carries
 # the token, minted once, so copy it out of that line
 export DG_URL=http://127.0.0.1:3333 DG_TOKEN=...
 

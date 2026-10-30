@@ -9,8 +9,8 @@ import { DOCS_SHOTS_WIDTH } from '../docs-shots.config.ts'
 /** Where the nine pictures land. Committed, because docs/screens.md renders them. */
 const OUT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..', 'docs/images/screens')
 
-const DEV_USERNAME = 'dev'
-const DEV_PASSWORD = 'dirigent-dev'
+const DEV_USERNAME = 'admin'
+const DEV_PASSWORD = 'admin'
 
 /** The showcase documents the seeded instance already holds, which every picture is of. */
 const BIG = 'nightly-regional-load'

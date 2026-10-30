@@ -227,8 +227,8 @@ def resolve_output(named: str | None, *, json_output: bool) -> Format:
     return cast("Format", resolved)
 
 
-DEV_ADMIN = "dev"
-DEV_PASSWORD = "dirigent-dev"  # noqa: S105
+DEV_ADMIN = "admin"
+DEV_PASSWORD = "admin"  # noqa: S105
 DEV_TOKEN_NAME = "dev"
 
 #: The credential `dg dev --seed` authenticates its own applies with, and how long it lasts.
@@ -1128,7 +1128,7 @@ async def dev_admin(settings: Settings) -> tuple[str | None, str | None]:
     there rather than one that is not, and mints nothing, because that account's token was
     handed over when it was created.
     """
-    from dirigent_core.auth import create_user, find_user, issue_token, list_tokens, list_users
+    from dirigent_core.auth import create_fixture_admin, find_user, issue_token, list_tokens, list_users
     from dirigent_core.database import create_engine, create_session_factory, session_scope
 
     engine = create_engine(settings)
@@ -1138,7 +1138,7 @@ async def dev_admin(settings: Settings) -> tuple[str | None, str | None]:
             existing = await list_users(session)
             if existing:
                 return (existing[0].username, None)
-            await create_user(session, DEV_ADMIN, DEV_PASSWORD, role=UserRole.ADMIN, name="Development admin")
+            await create_fixture_admin(session, DEV_ADMIN, DEV_PASSWORD, name="Development admin")
             user = await find_user(session, DEV_ADMIN)
             if user is None:  # pragma: no cover - it was just created
                 return (None, None)
