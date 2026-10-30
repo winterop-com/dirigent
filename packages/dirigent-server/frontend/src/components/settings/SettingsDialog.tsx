@@ -56,8 +56,7 @@ export const SETTINGS_TITLE = LABELS.settings.title
  * log preference writes `lib/preferences`, which the log pane reads. A dialog that held its own
  * copy of a setting would be a second answer to the same question.
  *
- * SIGN OUT IS STILL IN THE HEADER. This adds a second way to reach it rather than moving it:
- * somebody who knows where it is should keep finding it there.
+ * SIGN OUT IS ALSO IN THE ACCOUNT MENU, which is what opens this dialog.
  */
 export function SettingsDialog({
     open,

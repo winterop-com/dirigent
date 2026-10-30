@@ -753,8 +753,16 @@ const shell = {
         unknown: 'not said',
     },
 
-    /** The bar's own cell, and the row at the foot of the drawer that opens the same dialog. */
+    /** The account menu's row that opens the settings dialog. */
     settings: 'Settings',
+    /** The rail's bottom-left: who is signed in, and what they can reach from there. */
+    account: {
+        /** The control's name, which carries the username the avatar stands for. */
+        label: (username: string) => `Account: ${username}`,
+        tooltip: 'Account',
+        /** The menu's foot: the instance's own line, and its version. */
+        instance: (line: string, version: string) => `${line} · ${version}`,
+    },
 
     resize_panel: 'Resize the side panel',
     /** The tab strip's heading where the screen in front of the panel has filled no tab. */

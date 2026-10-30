@@ -12,6 +12,7 @@ import {
     signInAs,
     signOut,
     startRun,
+    openSettings,
 } from './support.ts'
 
 /**
@@ -189,7 +190,7 @@ test('the settings dialog switches the appearance and the clock behind it', asyn
     const started = page.getByRole('row').filter({ hasText: EXAMPLE.code }).locator('[title]').last()
     await expect(started).not.toHaveAttribute('title', /UTC/)
 
-    await page.getByRole('button', { name: 'Settings', exact: true }).click()
+    await openSettings(page)
     const dialog = page.getByRole('dialog')
     await expect(dialog).toBeVisible()
 
@@ -209,7 +210,7 @@ test('the settings dialog switches the appearance and the clock behind it', asyn
 
 test('the settings search reaches across every category', async ({ page }) => {
     await signIn(page)
-    await page.getByRole('button', { name: 'Settings', exact: true }).click()
+    await openSettings(page)
     const dialog = page.getByRole('dialog')
 
     await dialog.getByLabel(LABELS.settings.search).fill('password')
@@ -233,7 +234,7 @@ test('the settings search reaches across every category', async ({ page }) => {
 
 test('the nav is three groups and About is not one of them', async ({ page }) => {
     await signIn(page)
-    await page.getByRole('button', { name: 'Settings', exact: true }).click()
+    await openSettings(page)
     const dialog = page.getByRole('dialog')
 
     for (const group of ['Preferences', 'You', 'This instance']) {
@@ -253,7 +254,7 @@ test('the nav is three groups and About is not one of them', async ({ page }) =>
 
 test('a palette is chosen from its swatch, by pointer and by the arrows', async ({ page }) => {
     await signIn(page)
-    await page.getByRole('button', { name: 'Settings', exact: true }).click()
+    await openSettings(page)
     const dialog = page.getByRole('dialog')
     await dialog.getByRole('button', { name: LABELS.settings.category.theme, exact: true }).click()
 
@@ -272,7 +273,7 @@ test('a palette is chosen from its swatch, by pointer and by the arrows', async 
 
 test('the password form expands under its row and states the refusal there', async ({ page }) => {
     await signIn(page)
-    await page.getByRole('button', { name: 'Settings', exact: true }).click()
+    await openSettings(page)
     const dialog = page.getByRole('dialog')
     await dialog.getByRole('button', { name: LABELS.word.account.label, exact: true }).click()
 

@@ -1052,7 +1052,7 @@ Rail, content and right panel meet in a strip along the top and a bar along the 
 strip in a row is the same height** -- `h-shell-top`, `h-shell-foot`, stated once in `index.css`
 -- **and the rule between the strip and the work is drawn once**, never once per column: the
 top rule is a single full-width element the shell owns, and the foot is a single full-width bar
-with two cells inside it, the settings cell tracking the rail's own width store. Two elements
+with two cells inside it, the account cell tracking the rail's own width store. Two elements
 each drawing half a border is a line that comes apart at a column edge, and the bottom of the
 app then reads as a step. `e2e/shell.spec.ts` measures every strip with
 `getBoundingClientRect`, in both palettes, with the rail collapsed and the panel open.
@@ -1072,7 +1072,12 @@ wrong**: `Server degraded`{ .label }, `Server unhealthy`{ .label }, `Server unre
 that state's ink. `statusWords` in `lib/server-status` decides it. A press opens the settings
 dialog's Server pane, which is what a finger has where there is nothing to hover with.
 
-**Settings lives at the bottom of the rail's column**, in that bar. The rail's own entries are **single-line labels**, and a
+**The account lives at the bottom of the rail's column**, in that bar: an avatar and the username,
+the avatar alone on a collapsed rail. Pressing it opens the account menu, upward: who is signed in
+and their role, Settings, Shortcuts with the key that opens them, Sign out, and at the foot the
+instance's name, environment and version. A key is drawn beside a row only where `lib/shortcuts`
+binds one. `GET /auth/me` carries no display name, so the menu is headed by the username, which is
+the account's code. The rail's own entries are **single-line labels**, and a
 word that names one of those needs no gloss under it. **They are grouped by what somebody is there
 to do**: Dashboard alone at the head; Operate (Runs, Triggers); Build (Pipelines, Connections,
 Schemas); Reference (Blocks, Examples); and, for an admin, Admin (Users, Workers, Alerting). `lib/nav`
@@ -1133,8 +1138,8 @@ class is still the answer for hiding a thing that has no second form.
 the top strip -- icon only, `aria-label` "Open navigation" -- opens it over a scrim. It closes
 by its own close button, by Escape, by a tap on the scrim, and on every route change, because a
 drawer still standing over the screen somebody navigated to is a drawer they have to dismiss
-twice. Focus moves into it on open and back to the button on close. Settings lives at its foot,
-where the rail's own cell in the status bar puts it above the breakpoint.
+twice. Focus moves into it on open and back to the button on close. The account menu lives at its
+foot, where the rail's own cell in the status bar puts it above the breakpoint.
 
 **A listing row becomes a card where the table will not fit**, which on a phone is every
 listing. The table is one component and so is its narrow form: `ListTable` draws its first

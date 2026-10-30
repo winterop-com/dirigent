@@ -167,7 +167,8 @@ test('the palette button is a glyph, and the chord it would have drawn is not', 
 
 test('a dialog fills the screen, with its verbs at the foot', async ({ page }) => {
     await page.getByRole('button', { name: LABELS.shell.open_nav }).click()
-    await page.getByRole('button', { name: 'Settings' }).click()
+    await page.getByRole('button', { name: /^Account: / }).click()
+    await page.getByRole('menuitem', { name: LABELS.shell.settings, exact: true }).click()
 
     const dialog = page.getByRole('dialog')
     await expect(dialog).toBeVisible()

@@ -94,7 +94,7 @@ test('the bar along the foot is one element, and its cells fill it exactly', asy
         expect(cell.top).toBe((measured?.barTop ?? 0) + 1)
         expect(cell.bottom).toBe(measured?.barBottom)
     }
-    // The settings cell ends exactly where the status cell begins: one divider, no gap.
+    // The account cell ends exactly where the status cell begins: one divider, no gap.
     expect(measured?.cells[0].right).toBe(measured?.cells[1].left)
 })
 
@@ -219,4 +219,25 @@ test('a collapsed rail wakes when its edge is dragged outward', async ({ page })
     await expect(page.getByRole('link', { name: LABELS.screen.pipelines.name })).toContainText(
         LABELS.screen.pipelines.name,
     )
+})
+
+test('the account menu holds the account, the settings, the shortcuts, the way out and the instance', async ({
+    page,
+}) => {
+    await page.getByRole('button', { name: /^Account: / }).click()
+    const menu = page.getByRole('menu')
+    await expect(menu).toContainText('admin')
+    await expect(menu).toContainText('local')
+    await expect(page.getByRole('menuitem', { name: LABELS.shell.settings })).toBeVisible()
+    await expect(page.getByRole('menuitem', { name: LABELS.action.sign_out })).toBeVisible()
+
+    // The one key the menu draws is the one `lib/shortcuts` binds.
+    await page.getByRole('menuitem', { name: LABELS.settings.category.shortcuts }).click()
+    await expect(page.getByRole('dialog')).toBeVisible()
+})
+
+test('signing out from the account menu goes to the door', async ({ page }) => {
+    await page.getByRole('button', { name: /^Account: / }).click()
+    await page.getByRole('menuitem', { name: LABELS.action.sign_out }).click()
+    await expect(page).toHaveURL(/\/login/)
 })

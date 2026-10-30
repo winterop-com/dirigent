@@ -145,11 +145,11 @@ export function AppShell() {
         setSettingsOpen(true)
     }, [])
 
-    useAppShortcuts(
-        useCallback(() => {
-            setShortcutsOpen(true)
-        }, []),
-    )
+    const openShortcuts = useCallback(() => {
+        setShortcutsOpen(true)
+    }, [])
+
+    useAppShortcuts(openShortcuts)
 
     const role = auth.identity?.role ?? null
     const signedIn = auth.status === 'signed-in'
@@ -344,9 +344,14 @@ export function AppShell() {
                 />
             </div>
 
-            <StatusBar onSettings={openSettings} />
+            <StatusBar onSettings={openSettings} onShortcuts={openShortcuts} />
 
-            <NavDrawer open={drawerOpen} onClose={closeDrawer} onSettings={openSettings} />
+            <NavDrawer
+                open={drawerOpen}
+                onClose={closeDrawer}
+                onSettings={openSettings}
+                onShortcuts={openShortcuts}
+            />
 
             <CommandPalette />
             <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
