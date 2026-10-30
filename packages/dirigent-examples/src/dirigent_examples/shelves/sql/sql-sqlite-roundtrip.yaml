@@ -41,7 +41,10 @@ format: dirigent/v1
 kind: pipeline
 code: sql-sqlite-roundtrip
 name: Write a table and read it back
-description: Create a SQLite database in the run's work directory, insert rows with bound parameters, and read them back.
+description: |
+  Create a SQLite database, insert rows, and read them back.
+
+  The database is created in the run's work directory, and the rows go in with bound parameters.
 
 tags: [sql]
 

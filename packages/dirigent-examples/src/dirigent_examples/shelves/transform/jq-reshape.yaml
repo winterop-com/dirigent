@@ -27,7 +27,10 @@ format: dirigent/v1
 kind: pipeline
 code: jq-reshape
 name: Reshape with jq
-description: Reshape a reading payload with jq, then map the result over one region each.
+description: |
+  Reshape a payload of readings, then summarise it once for each region.
+
+  The reshaping runs in jq, and the result is mapped over one region each.
 
 tags: [transform]
 

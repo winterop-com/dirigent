@@ -24,7 +24,11 @@ format: dirigent/v1
 kind: pipeline
 code: jq-join-two-lists
 name: Join two lists with INDEX
-description: Join readings to their station dimension with INDEX, keeping the unmatched rows in a list of their own.
+description: |
+  Join readings to their stations, keeping the ones that match nothing.
+
+  The join uses INDEX over the station dimension, and the unmatched rows go in a list of their
+  own.
 
 tags: [recipes, transform, jq]
 

@@ -15,6 +15,8 @@ kind: pipeline
 code: cron-nightly
 name: Nightly load
 description: |
+  Run a small load every night at five, Oslo time.
+
   One pipeline on a nightly cron schedule, in its own timezone, with pinned parameters.
 
   What this file teaches is the **clock**, not the work below it. The zone belongs

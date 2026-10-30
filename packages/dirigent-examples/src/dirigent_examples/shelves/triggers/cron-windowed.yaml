@@ -25,6 +25,8 @@ kind: pipeline
 code: cron-windowed
 name: Windowed daily load
 description: |
+  Read the day that just closed, every night at five, Oslo time.
+
   A nightly schedule whose runs read the **interval that just closed** rather than
   the instant they started at.
 

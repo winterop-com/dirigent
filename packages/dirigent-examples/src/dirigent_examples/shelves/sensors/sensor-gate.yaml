@@ -25,7 +25,7 @@ format: dirigent/v1
 kind: pipeline
 code: sensor-gate
 name: A sensor gates the run
-description: Wait for today's drop to land, then load it; skip the day if it never does.
+description: Wait for a day's file to arrive, then load it; skip the day if it never does.
 
 tags: [sensor, execute, storage]
 

@@ -1,5 +1,6 @@
 """Every document under examples/ must stay loadable, valid, and byte-stable, forever."""
 
+import re
 from pathlib import Path
 
 import pytest
@@ -187,6 +188,20 @@ def test_an_example_is_coded_after_its_file_and_explains_itself(path: Path) -> N
     assert definition.code == path.stem, "a document's code should match its file name"
     assert definition.description, "every example says what it is for"
     assert text.startswith("#"), "every example opens with a comment saying what it shows"
+
+
+#: The most a description's first sentence may run to, which is what a list row has room for.
+FIRST_SENTENCE_AT_MOST = 80
+
+
+@pytest.mark.parametrize("path", EVERY, ids=ids(EVERY))
+def test_a_description_opens_with_a_short_plain_sentence(path: Path) -> None:
+    description = load_text(path.read_text()).description
+    assert description, "every example says what it does"
+    paragraph = " ".join(description.strip().split("\n\n", 1)[0].split())
+    sentence = re.split(r"(?<=[.!?])\s", paragraph, maxsplit=1)[0]
+    assert len(sentence) <= FIRST_SENTENCE_AT_MOST, sentence
+    assert "`" not in sentence, sentence
 
 
 @pytest.mark.parametrize(

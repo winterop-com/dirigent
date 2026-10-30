@@ -58,7 +58,11 @@ format: dirigent/v1
 kind: pipeline
 code: http-headers-and-auth-connection
 name: Auth on a connection, headers in the step
-description: Call a basic-auth endpoint through a connection that holds the credentials, with the step contributing only non-secret headers.
+description: |
+  Call a password-protected endpoint using credentials held on a connection.
+
+  The endpoint takes basic auth. The connection holds the credentials, and the step contributes
+  only non-secret headers.
 
 tags: [recipes, http, transform]
 

@@ -17,7 +17,10 @@ format: dirigent/v1
 kind: pipeline
 code: interval-rolling
 name: A rolling interval
-description: A pipeline on a rolling hourly interval, refreshing a window rather than hitting a calendar moment.
+description: |
+  Refresh a rolling window every hour, rather than at a set time of day.
+
+  A second schedule refreshes a wider window against production every six hours.
 
 # Two firings of a rolling refresh are not worth having at once: if one is still going when
 # the next hour comes round, skip that firing rather than stack a second run on it.

@@ -44,7 +44,11 @@ format: dirigent/v1
 kind: pipeline
 code: storage-exists-gate
 name: Wait for an object, then read it
-description: Park on a storage.exists sensor with a size floor and a deadline, then read whatever file the sensor reports it found.
+description: |
+  Wait for a file to arrive, then read whichever one turned up.
+
+  The wait parks on a storage.exists sensor with a size floor and a deadline, and the read takes
+  the file the sensor reports it found.
 
 tags: [recipes, sensor, storage, transform]
 

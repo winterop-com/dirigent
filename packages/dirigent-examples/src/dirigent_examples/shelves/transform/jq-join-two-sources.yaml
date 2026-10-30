@@ -35,7 +35,10 @@ format: dirigent/v1
 kind: pipeline
 code: jq-join-two-sources
 name: Join two sources with jq
-description: Enrich a list of readings with the station records they refer to, keeping unmatched rows.
+description: |
+  Add station details to a list of readings, keeping rows with no match.
+
+  Each reading is enriched with the station record it refers to, and unmatched rows are kept.
 
 tags: [transform, graph]
 

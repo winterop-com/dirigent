@@ -46,7 +46,11 @@ format: dirigent/v1
 kind: pipeline
 code: schema-carried
 name: A schema carried in the document
-description: Validate a payload against a shape the document carries, and read the gate's output downstream as proof of the check.
+description: |
+  Check a payload against a schema included in the same file.
+
+  The document carries the shape, and the step downstream reads the gate's output as proof of the
+  check.
 
 tags: [recipes, transform, validate]
 

@@ -40,7 +40,11 @@ format: dirigent/v1
 kind: pipeline
 code: schema-refuses-then-rule
 name: A refused gate and what runs after it
-description: A validation that fails on purpose, an error branch on rule one_failed, a load that is skipped, and a cleanup on all_done.
+description: |
+  Fail a check on purpose, raise an alert, skip the load, and clean up.
+
+  The validation fails, an error branch on rule one_failed runs, the load is skipped, and a
+  cleanup on all_done closes the run out.
 
 tags: [recipes, transform, validate, failure]
 

@@ -30,7 +30,11 @@ format: dirigent/v1
 kind: pipeline
 code: map-enrich-with-lookup
 name: Enrich rows from a lookup table
-description: Merge a dimension table into every row with a whole-value step, then compute the per-row columns with map.jq.
+description: |
+  Add columns to every row from a lookup table, then compute more per row.
+
+  A whole-value step merges a dimension table into every row, and map.jq computes the per-row
+  columns.
 
 tags: [recipes, transform, map]
 

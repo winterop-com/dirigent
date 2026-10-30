@@ -32,6 +32,8 @@ kind: pipeline
 code: a-page-at-a-time
 name: A page at a time, and an output over the threshold
 description: |
+  Walk one page of generated records, and spill a large result out to storage.
+
   One page of a generated hundred, walked element by element, with filler that pushes the
   step's output past the inline limit and out to storage.
 

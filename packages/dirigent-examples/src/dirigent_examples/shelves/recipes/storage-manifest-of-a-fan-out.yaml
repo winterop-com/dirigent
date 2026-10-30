@@ -43,7 +43,11 @@ format: dirigent/v1
 kind: pipeline
 code: storage-manifest-of-a-fan-out
 name: A manifest of a fan-out
-description: Write one file per item with for_each, then read the fan's outputs back as one list and record every file in a manifest.
+description: |
+  Write one file per region, then list them all in a manifest.
+
+  for_each writes one file per item, and the fan's outputs are read back as one list and every
+  file recorded in the manifest.
 
 tags: [recipes, storage, transform, graph]
 

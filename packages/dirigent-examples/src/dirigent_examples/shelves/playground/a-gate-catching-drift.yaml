@@ -29,7 +29,10 @@ kind: pipeline
 code: a-gate-catching-drift
 name: A gate catching drift
 description: |
-  Generated records against a carried JSON Schema, with a knob that makes the shape wrong.
+  Check generated records against a schema, with a switch that makes them wrong.
+
+  The schema is a JSON Schema the document carries, and the `drift` parameter is the knob that
+  makes the shape wrong.
 
   The gate passes good records through and refuses drifted ones, naming the path.
 

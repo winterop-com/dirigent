@@ -33,6 +33,8 @@ kind: pipeline
 code: fan-out-literal-list
 name: A fan-out over a literal list
 description: |
+  Greet three cities at once from a list written in the document.
+
   `for_each` written as a list in the document: one step definition, one run item per
   element, all claimable at once.
 

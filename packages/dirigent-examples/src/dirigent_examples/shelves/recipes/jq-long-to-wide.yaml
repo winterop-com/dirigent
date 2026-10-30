@@ -29,7 +29,10 @@ format: dirigent/v1
 kind: pipeline
 code: jq-long-to-wide
 name: Pivot long rows to wide
-description: Widen one-record-per-measurement rows into one row per subject, with an explicit fill in every unreported cell.
+description: |
+  Turn rows with one measurement each into one row per subject.
+
+  Every unreported cell gets an explicit fill.
 
 tags: [recipes, transform, jq]
 

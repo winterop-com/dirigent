@@ -43,6 +43,8 @@ kind: pipeline
 code: step-names-and-keys
 name: Keys address, names describe
 description: |
+  Load, check and publish a batch, with two steps sharing one title.
+
   A step's map **key** is its code: the only thing anything references, and what
   `${steps.<key>.output...}` names.
 

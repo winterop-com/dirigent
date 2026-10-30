@@ -50,6 +50,8 @@ kind: pipeline
 code: sensor-storage-exists
 name: Waiting for a drop
 description: |
+  Wait for a file to land and reach a minimum size, then archive it.
+
   `storage.exists` waits for an object at a URI, which may end in a **glob**, and ignores it
   until it is at least `min_size` -- the guard against opening a file a producer is still
   uploading.

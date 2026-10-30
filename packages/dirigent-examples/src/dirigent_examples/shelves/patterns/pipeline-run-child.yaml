@@ -36,6 +36,8 @@ kind: pipeline
 code: pipeline-run-child
 name: The called pipeline
 description: |
+  Load one region's data, on its own or when another pipeline calls it.
+
   An ordinary pipeline that four composition examples call. Nothing about it declares that
   it is a child; its parameter schema is the whole interface.
 

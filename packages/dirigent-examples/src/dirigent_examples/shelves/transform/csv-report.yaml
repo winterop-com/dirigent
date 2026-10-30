@@ -18,7 +18,10 @@ format: dirigent/v1
 kind: pipeline
 code: csv-report
 name: A report as csv
-description: Shape records into flat rows, store them as json, and re-encode that as a csv artifact.
+description: |
+  Turn records into flat rows, and save them as a csv file.
+
+  The rows are stored as json first, and that object is re-encoded as a csv artifact.
 
 tags: [transform, storage]
 

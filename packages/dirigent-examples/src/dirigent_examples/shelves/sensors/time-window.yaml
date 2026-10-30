@@ -28,7 +28,7 @@ format: dirigent/v1
 kind: pipeline
 code: time-window
 name: Inside a time window
-description: Wait until the local clock is inside a window, then do the work it guards.
+description: Wait until the clock is inside a set time window, then do the work it guards.
 
 tags: [sensor, execute, window]
 

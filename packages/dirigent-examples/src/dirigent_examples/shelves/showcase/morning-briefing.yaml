@@ -50,6 +50,8 @@ kind: pipeline
 code: morning-briefing
 name: The morning briefing
 description: |
+  Filter four feeds, summarise each, and join them into one morning briefing.
+
   Four feeds, each filtered to what clears a threshold, each reading banded, each summarised,
   and the four summaries joined into one gated briefing that is rendered, saved and read back.
 

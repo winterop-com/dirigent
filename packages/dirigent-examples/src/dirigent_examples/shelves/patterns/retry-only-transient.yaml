@@ -43,6 +43,8 @@ kind: pipeline
 code: retry-only-transient
 name: Transient retries, rejected does not
 description: |
+  Fail three steps in three different ways, and see which ones get retried.
+
   The same three-attempt budget on three steps: a transient failure spends all three, a
   rejected one spends one, and an unknown one spends all three.
 

@@ -22,8 +22,9 @@ kind: pipeline
 code: yaml-config-to-json
 name: A config as an object
 description: |
-  Read a stored YAML config as the JSON object it describes, take what a run needs out of
-  it, and write the answer back out as YAML.
+  Read a YAML config, pick out what a run needs, and write that back as YAML.
+
+  The stored config is read as the JSON object it describes.
 
   `convert.std` reads `yaml` two ways. This document uses the first:
 

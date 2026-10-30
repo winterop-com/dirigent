@@ -37,7 +37,9 @@ kind: pipeline
 code: waiting-for-a-batch
 name: Waiting for a batch to arrive
 description: |
-  A sensor that answers "not yet" for a few pokes and then hands over a generated batch.
+  Wait through a few checks for a generated batch to arrive, then read it.
+
+  A sensor answers "not yet" for a few pokes and then hands over a generated batch.
 
   The consume shape -- messages, offsets, a count -- with no broker to stand up and nothing
   to reach.

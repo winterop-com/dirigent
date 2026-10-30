@@ -42,6 +42,8 @@ kind: pipeline
 code: timeout-skips-the-step
 name: A wait that skips instead of failing
 description: |
+  Wait for a file, and skip the work without failing if it never arrives.
+
   `on_timeout: skip` turns an expired **deadline** into a skipped step rather than a failed
   one, and the skip carries down the branch through the default `all_success` edges.
 

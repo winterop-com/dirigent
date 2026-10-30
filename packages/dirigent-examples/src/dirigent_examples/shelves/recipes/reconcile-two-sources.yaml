@@ -37,7 +37,12 @@ format: dirigent/v1
 kind: pipeline
 code: reconcile-two-sources
 name: Reconcile two sources
-description: Compare two systems' totals by key with a tolerance, report the four buckets, and fail when too many rows disagree.
+description: |
+  Compare two systems' totals, and fail when too many rows disagree.
+
+  The comparison is by key, with a tolerance, and reports the four buckets: matched, differing,
+  only in the source and only in the target. As written three rows differ against a limit of two,
+  so the run fails on purpose.
 
 tags: [recipes, transform]
 

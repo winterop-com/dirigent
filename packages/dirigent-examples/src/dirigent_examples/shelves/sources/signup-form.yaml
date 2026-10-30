@@ -25,6 +25,8 @@ kind: pipeline
 code: signup-form
 name: Signup, by form
 description: |
+  Start a run from a submitted web form, and tidy the fields it carried.
+
   A urlencoded form posted to an endpoint becomes a run, and its caller is answered 202 with
   where to read it; a jq step tidies what the form carried.
 

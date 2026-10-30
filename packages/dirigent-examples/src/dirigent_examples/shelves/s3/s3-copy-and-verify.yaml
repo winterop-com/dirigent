@@ -30,7 +30,11 @@ format: dirigent/v1
 kind: pipeline
 code: s3-copy-and-verify
 name: Copy and verify
-description: Promote an object to a published prefix, and prove it landed before reading it.
+description: |
+  Copy a file to a published folder in S3, and check it landed before reading it.
+
+  The object is promoted to a published prefix, and `storage.exists` proves it landed before
+  anything reads it.
 
 tags: [s3, sensor, storage, transform]
 

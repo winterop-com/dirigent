@@ -52,9 +52,11 @@ kind: pipeline
 code: signed-nested-payload
 name: Signed, from a nested payload
 description: |
+  Accept a signed request, and keep only the named fields from its nested body.
+
   An endpoint takes a body signed with HMAC-SHA256 under a secret the instance minted or the
-  sender issued, and a jq step picks the named fields out of the nested body, so nothing the
-  pipeline does not read reaches a step.
+  sender issued, and a jq step picks the named fields out of the nested body, so nothing else
+  reaches a later step.
 
   The signing secret stays on the instance; none of it belongs in git.
 

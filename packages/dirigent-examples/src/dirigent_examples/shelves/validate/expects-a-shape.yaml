@@ -14,7 +14,11 @@ format: dirigent/v1
 kind: pipeline
 code: expects-a-shape
 name: Expects a shape
-description: Validate a payload against a schema the document carries, then read the value the gate passed through.
+description: |
+  Check a payload against a schema, then read the value that passed.
+
+  The schema is carried in the document, and the next step reads the value the gate passed
+  through.
 
 tags: [validate, transform]
 

@@ -16,7 +16,10 @@ format: dirigent/v1
 kind: pipeline
 code: ndjson-round-trip
 name: One record per line
-description: Re-spell a stored JSON array as ndjson, convert it back, and read the result in as a value.
+description: |
+  Convert a JSON list to one record per line, and back again.
+
+  A stored JSON array is re-spelled as ndjson, converted back, and read in as a value.
 
 tags: [transform, storage]
 

@@ -58,7 +58,11 @@ format: dirigent/v1
 kind: pipeline
 code: duckdb-parquet-to-report
 name: Query a parquet file with DuckDB
-description: Write a parquet artifact, group it with DuckDB over the file itself, and copy the answer out as csv.
+description: |
+  Summarise a parquet file with DuckDB, and save the answer as csv.
+
+  The parquet artifact is written first, DuckDB groups it over the file itself, and the answer
+  is copied out as csv.
 
 tags: [sql, storage, transform, parquet]
 

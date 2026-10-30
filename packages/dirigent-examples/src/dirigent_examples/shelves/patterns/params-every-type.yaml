@@ -52,6 +52,8 @@ kind: pipeline
 code: params-every-type
 name: Every parameter type
 description: |
+  Try every kind of run parameter, with a default for each so it runs as is.
+
   The six JSON Schema types and the keywords that constrain each of them, with every
   parameter carrying a default so the document runs bare.
 

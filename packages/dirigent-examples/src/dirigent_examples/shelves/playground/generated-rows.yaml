@@ -29,6 +29,8 @@ kind: pipeline
 code: generated-rows
 name: Generated rows, from nothing
 description: |
+  Generate rows of fake data with no input, and summarise them.
+
   A first step that needs no input: a field map of Faker providers, a row count and a seed.
 
   The same seed gives the same rows every run, which is what lets an example assert on them.

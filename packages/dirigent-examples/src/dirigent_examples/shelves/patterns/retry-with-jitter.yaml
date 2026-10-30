@@ -38,6 +38,8 @@ kind: pipeline
 code: retry-with-jitter
 name: Jittered retries
 description: |
+  Retry four failing jobs at random intervals, so they do not retry at once.
+
   `jitter` spreads each computed backoff randomly, so four items that failed together do not
   retry together and rebuild the herd that took the dependency down.
 

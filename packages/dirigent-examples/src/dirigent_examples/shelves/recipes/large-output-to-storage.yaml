@@ -46,7 +46,12 @@ format: dirigent/v1
 kind: pipeline
 code: large-output-to-storage
 name: A large result through storage
-description: Generate a payload far past the inline artifact threshold, write it to storage under a name of its own, and keep only a bounded summary in a step output.
+description: |
+  Write a large generated result to a named file, and report a small summary.
+
+  The payload goes far past the inline artifact threshold. It is written to storage under a name
+  of its own, with a csv beside it, and read back into a bounded summary, the shape that belongs
+  in a step output.
 
 tags: [recipes, storage, transform]
 

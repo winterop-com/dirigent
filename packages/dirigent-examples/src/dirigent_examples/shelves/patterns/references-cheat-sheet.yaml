@@ -54,6 +54,8 @@ kind: pipeline
 code: references-cheat-sheet
 name: The whole reference language
 description: |
+  Use every way a step can refer to a value, once each.
+
   Five namespaces -- `params`, `steps`, `item`, `run`, `artifacts` -- and no expressions,
   conditionals or functions anywhere.
 

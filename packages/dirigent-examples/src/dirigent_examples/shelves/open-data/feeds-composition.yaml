@@ -49,8 +49,10 @@ kind: pipeline
 code: feeds-composition
 name: Open data briefing
 description: |
-  One document that runs two others: the **Wikidata** country reference and the **WHO GHO**
-  indicator extract, then reports how each child ended.
+  Run the Wikidata country table and a WHO extract, then report how each ended.
+
+  Runs two other documents, the **Wikidata** country reference and the **WHO GHO** indicator
+  extract, and reports how each child ended.
 
   Parameters go down, statuses come back up, and data crosses between pipelines through
   storage rather than through a step output.

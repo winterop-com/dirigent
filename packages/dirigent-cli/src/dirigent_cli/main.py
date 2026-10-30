@@ -1,7 +1,6 @@
 """The dirigent command line: installed as `dirigent` and as the short alias `dg`."""
 
 import os
-import shutil
 import sys
 from collections.abc import Callable, Sequence
 from datetime import UTC, datetime, timedelta
@@ -41,6 +40,7 @@ from dirigent_cli.messages import (
     RUN_DB_UPGRADE,
     SCHEDULER_NEEDS_POSTGRES,
     SERVER_NEEDS_A_LEADER,
+    STATE_WAY_OUT,
     STORE_UNCONFIGURED,
     STORE_UNREACHABLE,
     UNKNOWN_CONNECTION_KIND,
@@ -56,7 +56,6 @@ from dirigent_common import Issue, raised_detail, validation_issues
 from dirigent_common.hosts import is_loopback_host
 from dirigent_core import migrations
 from dirigent_core.config import (
-    STATE_DIR,
     Settings,
     drop_secret_key_variable,
     get_settings,
@@ -68,6 +67,7 @@ from dirigent_core.config import (
 from dirigent_core.logging import configure_logging, get_logger, silence_stdout
 from dirigent_core.messages import SCHEMA_STALE
 from dirigent_core.protocol import FORMATS, Format, Record, make
+from dirigent_core.statedir import StateRefused, check_state, clear_state_directory, is_state_directory
 from dirigent_core.telemetry import configure_telemetry
 
 if TYPE_CHECKING:
@@ -775,6 +775,10 @@ def server(
             problems=[Issue.of(USE_DG_DEV_STANDALONE), Issue.of(OR_NO_SCHEDULER), Issue.of(OR_POSTGRES)],
         )
         raise typer.Exit(code=commands.GUARD_EXIT)
+    try:
+        check_state(settings)
+    except StateRefused as error:
+        refuse_state(error)
     guard_schema(settings)
     uvicorn.run(
         "dirigent_cli.main:build_app",
@@ -996,10 +1000,14 @@ def dev(
     exposed = not is_loopback_host(address)
     if exposed and wipe_state:
         refuse_the_fixture_on(address)
-    if wipe_state:
-        cleared = clear_state(settings)
-        if cleared is not None:
-            emit(state_cleared(cleared))
+    try:
+        if wipe_state:
+            cleared = clear_state(settings)
+            if cleared is not None:
+                emit(state_cleared(cleared))
+        check_state(settings)
+    except StateRefused as error:
+        refuse_state(error)
     migrated = _migrate_quietly(settings)
     guard_schema(settings)
     admin, token = asyncio.run(dev_admin(settings, exposed_on=address if exposed else None))
@@ -1020,15 +1028,22 @@ def clear_state(settings: Settings) -> Path | None:
     is refused rather than guessed at.
     """
     database = settings.sqlite_path
-    if database is None:
+    if database is None or not is_state_directory(database.parent):
         return None
-    directory = database.parent.resolve()
-    if directory.parts[-2:] != Path(STATE_DIR).parts:
-        return None
-    if not directory.exists():
-        return None
-    shutil.rmtree(directory)
-    return directory
+    directory = database.parent.absolute()
+    return directory if clear_state_directory(directory) else None
+
+
+def refuse_state(error: StateRefused) -> NoReturn:
+    """Say why a state directory was refused, and what to do about it, and end the command."""
+    refuse(
+        error.reason,
+        status=commands.GUARD_EXIT,
+        title="Not this state",
+        problems=[Issue.of(STATE_WAY_OUT)],
+        **error.params,
+    )
+    raise typer.Exit(code=commands.GUARD_EXIT)
 
 
 def state_cleared(directory: Path) -> Record:
@@ -1530,4 +1545,10 @@ LIST_ALIASES = add_list_aliases(app)
 
 def run() -> None:
     """Entry point for the `dirigent` and `dg` console scripts."""
-    app(args=hoist_globals(sys.argv[1:]))
+    try:
+        app(args=hoist_globals(sys.argv[1:]))
+    except StateRefused as error:
+        try:
+            refuse_state(error)
+        except typer.Exit as leaving:
+            sys.exit(leaving.exit_code)

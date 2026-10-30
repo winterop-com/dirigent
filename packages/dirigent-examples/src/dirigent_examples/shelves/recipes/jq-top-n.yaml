@@ -29,7 +29,11 @@ format: dirigent/v1
 kind: pipeline
 code: jq-top-n
 name: Top N with ties and a tail
-description: Rank rows by a measure and keep the leaders, the rows tied with the last of them, and a summary of everything below.
+description: |
+  Keep the top rows by a measure, with ties and the rest summarised.
+
+  Rows are ranked by a measure, and the output holds the leaders, the rows tied with the last of
+  them, and a summary of everything below.
 
 tags: [recipes, transform, jq]
 

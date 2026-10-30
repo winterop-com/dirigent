@@ -53,9 +53,11 @@ kind: pipeline
 code: priority-layered
 name: Low by default, high by hand
 description: |
+  Reload four regions at low priority by default, and higher when asked.
+
   `priority` is one word -- `low`, `normal` or `high` -- and it layers: the document declares
-  the default, a schedule overrides it for what it fires, and `dg run
-  --priority` overrides it once more. The resolved word is pinned on the run at creation.
+  the default, a schedule overrides it for what it fires, and `dg run --priority` overrides it
+  once more. The resolved word is pinned on the run at creation.
 
   The claim orders by priority, then round-robin fairness between runs, then due time.
   Nothing is preempted: an attempt already running is never cancelled for an urgent one.

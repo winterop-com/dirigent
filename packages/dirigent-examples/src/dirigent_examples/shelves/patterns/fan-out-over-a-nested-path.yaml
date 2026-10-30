@@ -32,6 +32,8 @@ kind: pipeline
 code: fan-out-over-a-nested-path
 name: Fan out over a nested path
 description: |
+  Take a list from deep inside a larger answer, and process each item.
+
   `for_each: ${steps.<name>.output.<field>.<field>...}` reaches a list several fields inside
   an upstream step's output, so an envelope needs no reshaping before it is fanned out over.
 

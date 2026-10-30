@@ -56,7 +56,11 @@ format: dirigent/v1
 kind: pipeline
 code: webhook-post-hmac
 name: A signed webhook delivery
-description: POST an event with an HMAC-SHA256 signature over the exact bytes sent, using a secret that lives on a connection.
+description: |
+  Post an event with a signature the receiver can check, and once without.
+
+  The signature is HMAC-SHA256 over the timestamp sent beside it and the exact bytes of the body,
+  using a secret that lives on a connection.
 
 tags: [recipes, transform, webhook]
 

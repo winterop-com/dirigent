@@ -35,7 +35,10 @@ format: dirigent/v1
 kind: pipeline
 code: jq-string-cleaning
 name: Clean strings with jq
-description: Trim, collapse, case-fold and extract the strings a spreadsheet export brings in, and report which fields changed.
+description: |
+  Clean up messy text from a spreadsheet, and report which fields changed.
+
+  The strings a spreadsheet export brings in are trimmed, collapsed, case-folded and extracted.
 
 tags: [recipes, transform, jq]
 

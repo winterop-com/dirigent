@@ -26,6 +26,32 @@ SCHEMA_STALE = DATABASE.define(
     "this version created",
 )
 
+STATE_IS_A_LINK = DATABASE.define(
+    "state_is_a_link",
+    "{where} is a symbolic link or a special file, so this instance neither opens nor deletes it",
+)
+
+STATE_NOT_YOURS = DATABASE.define(
+    "state_not_yours",
+    "{where} belongs to another user, so this instance neither opens nor deletes it",
+)
+
+STATE_WRITABLE = DATABASE.define(
+    "state_writable",
+    "{where} can be written by other users, so this instance does not open it",
+)
+
+STATE_TRACKED = DATABASE.define(
+    "state_tracked",
+    "{where} is tracked by the git repository at {repository}, so what it holds arrived with the "
+    "checkout and this instance neither opens nor deletes it",
+)
+
+STATE_UNCHECKED = DATABASE.define(
+    "state_unchecked",
+    "{where} could not be checked, so this instance does not open it: {detail}",
+)
+
 AUTH = Catalogue("auth")
 
 WEAK_PASSWORD = AUTH.define("weak_password", "a password must be at least {minimum} characters")

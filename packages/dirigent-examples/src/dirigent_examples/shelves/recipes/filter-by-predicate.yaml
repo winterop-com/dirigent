@@ -32,7 +32,11 @@ format: dirigent/v1
 kind: pipeline
 code: filter-by-predicate
 name: Filter with a predicate
-description: Keep the elements a true-or-false program accepts, unmodified and in order, and report how many were dropped.
+description: |
+  Keep the rows that pass a yes-or-no check, and report which were dropped.
+
+  The true-or-false program keeps its elements unmodified and in order, and the report counts what
+  was seen and kept and names what was dropped.
 
 tags: [recipes, transform, filter]
 

@@ -37,7 +37,11 @@ format: dirigent/v1
 kind: pipeline
 code: sql-query-to-storage
 name: Write a query result to storage
-description: Read a table with sql.query and hand its rows to storage.write, which is how a result becomes a file.
+description: |
+  Read a SQLite table and save its rows to a file.
+
+  `sql.query` reads the table and hands its rows to `storage.write`, which is how a result
+  becomes a file.
 
 tags: [sql, storage]
 

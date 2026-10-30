@@ -34,7 +34,10 @@ format: dirigent/v1
 kind: pipeline
 code: report-to-kafka
 name: Publish a rendered report to a Kafka topic
-description: Render a markdown page from a Jinja template and publish it as one record on a Kafka topic.
+description: |
+  Render a report page and publish it as one record on a Kafka topic.
+
+  The page is markdown, rendered from a Jinja template.
 
 tags: [queues, report, kafka, transform]
 

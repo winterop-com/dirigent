@@ -16,6 +16,7 @@ from sqlalchemy.pool import NullPool
 
 from dirigent_core import wakeups
 from dirigent_core.config import Settings
+from dirigent_core.statedir import STATE_MODE, check_state, is_state_directory
 
 _logger = structlog.get_logger("dirigent.database")
 
@@ -101,6 +102,7 @@ async def open_sqlite(*args: Any, **kwargs: Any) -> aiosqlite.Connection:
 def create_engine(settings: Settings) -> AsyncEngine:
     """Build the async engine for the configured database."""
     if settings.is_sqlite:
+        check_state(settings)
         ensure_sqlite_directory(settings)
         engine = create_async_engine(
             settings.database_url,
@@ -126,12 +128,14 @@ def ensure_sqlite_directory(settings: Settings) -> None:
     """Create the directory a SQLite file lives in; the driver opens a file, never a path.
 
     A directory that cannot be created is left to surface as the connection error it causes.
+    A state directory is created private to this user.
     """
     path = settings.sqlite_path
     if path is None:
         return
+    mode = STATE_MODE if is_state_directory(path.parent) else 0o777
     with suppress(OSError):
-        path.parent.mkdir(parents=True, exist_ok=True)
+        path.parent.mkdir(mode=mode, parents=True, exist_ok=True)
 
 
 def create_lock_engine(settings: Settings) -> AsyncEngine:

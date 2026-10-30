@@ -29,6 +29,8 @@ kind: pipeline
 code: rule-all-done
 name: The all_done edge
 description: |
+  Release a lock even when the load fails, as it does here on purpose.
+
   `rule: all_done` runs a step once every prerequisite has **settled**, whatever it settled
   as. It is the cleanup edge.
 

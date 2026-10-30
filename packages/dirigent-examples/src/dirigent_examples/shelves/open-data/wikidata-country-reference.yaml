@@ -44,6 +44,8 @@ kind: pipeline
 code: wikidata-country-reference
 name: Country code reference from Wikidata
 description: |
+  Build a table of ISO country codes from Wikidata for other pipelines to read.
+
   ISO 3166-1 alpha-2, alpha-3 and numeric codes for every sovereign state, read from
   **Wikidata** over SPARQL and saved as a json reference table other pipelines read.
 

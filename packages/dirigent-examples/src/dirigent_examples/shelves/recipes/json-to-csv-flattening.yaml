@@ -48,7 +48,11 @@ format: dirigent/v1
 kind: pipeline
 code: json-to-csv-flattening
 name: Nested JSON to a flat csv
-description: Reach into an envelope, flatten the nested fields into named columns, join the list cells, and convert the written rows into a csv artifact.
+description: |
+  Turn nested JSON into a flat csv with named columns.
+
+  The program reaches into an envelope, flattens the nested fields into named columns and joins
+  the list cells, and the written rows are converted into a csv artifact.
 
 tags: [recipes, storage, transform, starter]
 

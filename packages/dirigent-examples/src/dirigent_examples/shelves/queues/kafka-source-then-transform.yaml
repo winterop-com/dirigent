@@ -32,6 +32,8 @@ kind: pipeline
 code: kafka-source-then-transform
 name: A run for every message on a Kafka topic
 description: |
+  Start one run for each message on a Kafka topic, and reshape its order.
+
   A kafka source turns each message on the orders topic into its own run, committing the
   group's offsets once the run exists; a jq step reshapes the one order the run carries.
 

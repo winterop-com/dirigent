@@ -37,6 +37,8 @@ kind: pipeline
 code: sensor-fan-out-per-message
 name: A sensor's batch, one item per message
 description: |
+  Handle a batch of messages one at a time, so a bad message fails alone.
+
   A sensor source hands each run a batch, and a `for_each` over the batch's messages gives
   every message its own item, written when the run is.
 

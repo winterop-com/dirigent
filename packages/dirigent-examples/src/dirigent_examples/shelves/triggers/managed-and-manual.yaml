@@ -29,7 +29,11 @@ format: dirigent/v1
 kind: pipeline
 code: managed-and-manual
 name: Managed beside manual
-description: Two document-managed schedules, and what an apply leaves untouched.
+description: |
+  Run a load on two schedules the document manages, beside any made by hand.
+
+  An apply updates those two, and leaves untouched whether one is paused, when it last fired,
+  and any schedule made by hand.
 
 tags: [triggers, transform, schedule, starter]
 

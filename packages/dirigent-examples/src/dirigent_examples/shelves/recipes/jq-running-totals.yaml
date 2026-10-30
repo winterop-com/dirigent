@@ -28,7 +28,11 @@ format: dirigent/v1
 kind: pipeline
 code: jq-running-totals
 name: Running totals and moving averages
-description: Sort a daily series, then add cumulative sums, day-on-day deltas, and a moving average over a configurable window.
+description: |
+  Add running totals, daily changes and a moving average to a daily series.
+
+  The series is sorted first. Each day then gets a cumulative sum and a day-on-day delta, and the
+  moving average runs over a configurable window.
 
 tags: [recipes, transform, jq]
 
