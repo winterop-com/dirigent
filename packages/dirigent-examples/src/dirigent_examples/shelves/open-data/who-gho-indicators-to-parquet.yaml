@@ -44,11 +44,12 @@ kind: pipeline
 code: who-gho-indicators-to-parquet
 name: WHO GHO indicator to parquet
 description: |
+  Fetch a WHO health indicator for several countries and save it as parquet.
+
   One **GHO** indicator fetched once per country, flattened out of the OData envelopes into one
   table and written as parquet, with a manifest counting what came back.
 
-  A fan-out's results are read back as one list, because a fan-out step stores one output and
-  `for_each` cannot read an upstream step's output at all.
+  A fan-out's results are read back as one list, because a fan-out step stores one output.
 
 tags: [open-data, http, storage, transform, fan-out, parquet, starter]
 

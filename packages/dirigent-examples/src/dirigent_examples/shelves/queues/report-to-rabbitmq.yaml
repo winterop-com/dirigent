@@ -38,7 +38,10 @@ format: dirigent/v1
 kind: pipeline
 code: report-to-rabbitmq
 name: Publish a rendered report to a RabbitMQ queue
-description: Render a markdown page from a Jinja template and publish it as one message on a RabbitMQ queue.
+description: |
+  Render a report page and publish it as one message on a RabbitMQ queue.
+
+  The page is markdown, rendered from a Jinja template.
 
 tags: [queues, report, rabbitmq, transform]
 

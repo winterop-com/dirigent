@@ -45,6 +45,8 @@ kind: pipeline
 code: odk-central-submissions
 name: ODK Central submissions
 description: |
+  Fetch the submissions for an ODK Central form and save them as a csv file.
+
   Submissions for one **ODK Central** form, read from its OData feed through a connection that
   holds the credential, flattened to named columns and written as csv.
 

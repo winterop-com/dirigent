@@ -37,6 +37,8 @@ kind: pipeline
 code: open-meteo-weekly-report
 name: Weekly weather report
 description: |
+  Fetch a week of daily weather for one place and save it as a csv file.
+
   A week of daily temperature and precipitation for one coordinate, read from the
   **Open-Meteo archive API**, transposed from columns to rows and written as csv.
 

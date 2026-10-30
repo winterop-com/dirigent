@@ -49,6 +49,8 @@ kind: pipeline
 code: usgs-earthquakes-alert
 name: Earthquakes near a point
 description: |
+  Post a digest of nearby earthquakes from the past day, only when there are any.
+
   The **USGS** past-day earthquake feed, filtered by magnitude and great-circle distance from a
   point, posted onward as a digest -- and posted only when something matched.
 

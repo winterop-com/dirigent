@@ -52,7 +52,11 @@ format: dirigent/v1
 kind: pipeline
 code: s3-round-trip
 name: S3 round trip
-description: Move an artifact from local storage out to S3 and back, then confirm it landed.
+description: |
+  Copy a local file up to S3, wait until it is there, and copy it back.
+
+  An artifact moves from local storage out to S3 and back, and `storage.exists` confirms it
+  landed before the copy back.
 
 tags: [s3, http, sensor, storage]
 

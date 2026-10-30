@@ -43,10 +43,10 @@ kind: pipeline
 code: a-stream-to-read
 name: A stream to read
 description: |
-  The playground's streaming route, read by a step and split back into its lines.
+  Read a streaming response to its end and split it back into lines.
 
-  One JSON record per line, the request facts on the first one, and an end a reader can tell
-  from a cut connection.
+  The playground's streaming route, read by a step: one JSON record per line, the request facts
+  on the first one, and an end a reader can tell from a cut connection.
 
 tags: [playground, http, transform, jq]
 
