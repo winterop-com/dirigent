@@ -46,7 +46,7 @@ lint: ## Format and auto-fix (mutating)
 	$(UV) run ruff format .
 	$(UV) run ruff check --fix .
 
-static: ## Read-only gate without the tests: ruff, mypy, pyright, the UI type scale and every label
+static: ## Read-only gate without the tests: ruff, mypy, pyright, the UI type scale, every label, the design system
 	$(UV) run ruff format --check .
 	$(UV) run ruff check .
 	$(UV) run mypy packages
@@ -57,6 +57,7 @@ static: ## Read-only gate without the tests: ruff, mypy, pyright, the UI type sc
 	# should cover everything.
 	$(UV) run python scripts/check_ui_classes.py
 	$(UV) run python scripts/check_ui_labels.py
+	$(UV) run python scripts/check_ui_system.py
 	$(UV) run python scripts/check_refusal_labels.py
 	$(UV) run python scripts/check_docs_labels.py
 
@@ -133,7 +134,7 @@ ui-dev: ## Serve the UI with hot reload, proxying the API to a running `dg dev`
 ui-fmt: ## Format the UI sources (mutating)
 	$(FRONTEND_INSTALL) && bun run fmt
 
-ui-lint: ## Read-only UI gate: the formatter, oxlint, the type checker, the type scale, every label
+ui-lint: ## Read-only UI gate: the formatter, oxlint, the type checker, the type scale, every label, the design system
 	$(FRONTEND_INSTALL) && bun run fmt:check
 	cd $(FRONTEND) && bun run lint
 	# tsc is the only thing that catches a type error: vite strips types without checking
@@ -141,6 +142,7 @@ ui-lint: ## Read-only UI gate: the formatter, oxlint, the type checker, the type
 	cd $(FRONTEND) && bunx tsc -b
 	$(UV) run python scripts/check_ui_classes.py
 	$(UV) run python scripts/check_ui_labels.py
+	$(UV) run python scripts/check_ui_system.py
 	$(UV) run python scripts/check_refusal_labels.py
 	$(UV) run python scripts/check_docs_labels.py
 

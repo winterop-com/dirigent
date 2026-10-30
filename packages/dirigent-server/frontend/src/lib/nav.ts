@@ -71,6 +71,9 @@ export const LOGIN_PATH = '/login'
  */
 export const NEW_PIPELINE_PATH = '/pipelines/$new'
 
+/** The design system's gallery: offered by the palette, never by the rail. */
+export const DESIGN_PATH = '/design'
+
 export const NAV: NavSection[] = [
     {
         id: 'operate',

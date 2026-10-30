@@ -27,6 +27,9 @@ export const SHORTCUTS_KEY = '?'
 /** The letter that shows and hides the run terminal, pressed bare. */
 export const TERMINAL_KEY = 't'
 
+/** The character that puts the caret in the screen's search box. */
+export const SEARCH_KEY = '/'
+
 /** The tags a person types into. A press that lands in one of these is typing, not a shortcut. */
 export const TYPING_TAG_NAMES = ['INPUT', 'TEXTAREA', 'SELECT']
 
@@ -45,12 +48,18 @@ export interface FocusedField {
     tagName: string
     /** True inside a rich-text region, where the browser claims plain letters. */
     isContentEditable: boolean
+    /** True inside the code editor, whose focused element need not be a field at all. */
+    inEditor?: boolean
 }
 
 /** Whether something is being typed into, which a bare-character shortcut must never interrupt. */
 export function isTypingField(focused: FocusedField | null): boolean {
     if (focused === null) return false
-    return TYPING_TAG_NAMES.includes(focused.tagName.toUpperCase()) || focused.isContentEditable
+    return (
+        TYPING_TAG_NAMES.includes(focused.tagName.toUpperCase()) ||
+        focused.isContentEditable ||
+        focused.inEditor === true
+    )
 }
 
 /**
@@ -109,6 +118,19 @@ export function togglesTerminal(press: KeyPress, focused: FocusedField | null): 
     return !isTypingField(focused)
 }
 
+/**
+ * Whether this press moves the caret into the screen's search box.
+ *
+ * Bare, like `?`: Shift is how a Nordic layout makes a `/` and is not refused. Never while
+ * anything is being typed into, the pipeline editor's own buffer included, where a `/` is a
+ * character of the document.
+ */
+export function focusesSearch(press: KeyPress, focused: FocusedField | null): boolean {
+    if (press.key !== SEARCH_KEY) return false
+    if (press.ctrlKey || press.metaKey || press.altKey) return false
+    return !isTypingField(focused)
+}
+
 /** Whether this browser runs on an Apple keyboard, which decides how a chord is spelled. */
 export function applePlatform(userAgent: string): boolean {
     return /Mac|iPhone|iPad/.test(userAgent)
@@ -135,6 +157,7 @@ export function shortcuts(apple: boolean): Shortcut[] {
         { id: 'palette', action: LABELS.shell.open_palette, keys: [modifier, 'K'] },
         { id: 'rail', action: LABELS.shell.chord.rail, keys: [modifier, 'B'] },
         { id: 'terminal', action: LABELS.shell.chord.terminal, keys: ['T'] },
+        { id: 'search', action: LABELS.shell.chord.search, keys: [SEARCH_KEY] },
         { id: 'shortcuts', action: LABELS.shell.chord.shortcuts, keys: [SHORTCUTS_KEY] },
         { id: 'dismiss', action: LABELS.shell.chord.dismiss, keys: ['Esc'] },
         { id: 'choose', action: LABELS.shell.chord.choose, keys: ['Enter'] },
