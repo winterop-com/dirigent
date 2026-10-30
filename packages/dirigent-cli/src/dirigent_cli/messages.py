@@ -67,6 +67,16 @@ DEV_IS_SQLITE_ONLY = CLI.define("dev_is_sqlite_only", "dg dev is the SQLite stan
 
 USE_DG_SERVER = CLI.define("use_dg_server", "use dg server on PostgreSQL")
 
+DEV_FIXTURE_NEEDS_LOOPBACK = CLI.define(
+    "dev_fixture_needs_loopback",
+    "dg dev keeps its admin/admin login to loopback, and {address} is not a loopback address",
+)
+
+BIND_LOOPBACK_OR_MAKE_AN_ADMIN = CLI.define(
+    "bind_loopback_or_make_an_admin",
+    "bind 127.0.0.1, or run dg db upgrade and dg admin user create --role admin with a password of your own first",
+)
+
 NO_ADMIN_TO_SEED = CLI.define("no_admin_to_seed", "dg dev --seed has no admin account to seed as")
 
 CREATE_AN_ADMIN = CLI.define("create_an_admin", "create one with dg admin user create --role admin")

@@ -117,7 +117,10 @@ configured database the way `dg db upgrade` does, and `DIRIGENT_BOOTSTRAP_ADMIN_
 creates the first admin unattended in a container. Both are one-way -- they do nothing once
 any account exists -- so leaving the variable set on every deploy cannot reset a live
 instance's password. `dg dev` mints a development admin and prints its token once, because
-that is a SQLite file on a laptop.
+that is a SQLite file on a laptop. Its password is the fixed `admin`, so it stays on loopback:
+`dg dev` refuses a non-loopback bind, whether from `--host` or `DIRIGENT_HOST`, while that login
+would be made or still stands. `scripts/seed_dev.py`, which pairs the login with an unsafe
+allowlist, refuses one outright.
 
 ### The account lifecycle
 
