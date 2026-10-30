@@ -60,7 +60,29 @@ PROJECT_CONFIG_PATHS = (
 USER_CONFIG_PATH = Path.home() / ".config" / "dirigent" / "dirigent.yaml"
 
 #: Settings a project's own files may not set: the working directory's `.env` and YAML skip them.
-HOST_ONLY_SETTINGS = frozenset({"enabled_unsafe_blocks"})
+#: Each names a place outside the checkout, or deletes or rewrites state the checkout does not own.
+HOST_ONLY_SETTINGS = frozenset(
+    {
+        "alert_base_url",
+        "apply_dir",
+        "apply_lock_key",
+        "apply_prune",
+        "artifact_root",
+        "database_url",
+        "enabled_unsafe_blocks",
+        "host",
+        "retention_firings",
+        "retention_inputs",
+        "retention_logs",
+        "retention_notifications",
+        "retention_runs",
+        "scheduler_lock_key",
+        "secret_key_file",
+        "storage_connections",
+        "ui_dir",
+        "work_root",
+    }
+)
 
 
 def parse_string_list(value: object) -> object:
@@ -393,8 +415,7 @@ class Settings(BaseSettings):
     """Consecutive GONE probes before the lost-job policy fails a waiting attempt."""
 
     enabled_unsafe_blocks: Annotated[list[str], NoDecode] = Field(default_factory=list[str])
-    """Block ids permitted to execute code on a worker; empty means none. A `.env` or YAML file
-    in the working directory cannot set this."""
+    """Block ids permitted to execute code on a worker; empty means none."""
 
     scheduler_enabled: bool = True
     """Whether `dg server` embeds the scheduler rather than leaving it to its own process."""
@@ -602,6 +623,15 @@ class Settings(BaseSettings):
         host_yaml = YamlConfigSettingsSource(settings_cls, yaml_file=host_config_paths())
         project_env = _ProjectDotEnv(settings_cls, env_file=ENV_FILE)
         return (init_settings, env_settings, _ProjectLayer(project_env), _ProjectLayer(project_yaml), host_yaml)
+
+
+def ignored_project_settings() -> list[str]:
+    """Name the host-only settings the working directory's files try to set, which have no effect."""
+    layers = (
+        _ProjectDotEnv(Settings, env_file=ENV_FILE),
+        YamlConfigSettingsSource(Settings, yaml_file=project_config_paths()),
+    )
+    return sorted(HOST_ONLY_SETTINGS.intersection(name for layer in layers for name in layer()))
 
 
 @lru_cache(maxsize=1)

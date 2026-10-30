@@ -507,6 +507,14 @@ process environment, the file `DIRIGENT_CONFIG_FILE` names, or
 `~/.config/dirigent/dirigent.yaml`. A deployment that runs `dg server` from a directory holding
 its configuration names that file with `DIRIGENT_CONFIG_FILE`.
 
+The same files cannot set any other setting that reaches past the checkout. A hostile
+`database_url` would hand the instance's state to another server, `artifact_root` and `work_root`
+would read and write outside the project, `host` would publish a local instance, `ui_dir` would
+serve a page on the instance's origin, `secret_key_file` would read any file this user can, and
+`retention_*`, `apply_dir` and `apply_prune` would rewrite a database the host named. The
+[settings reference](settings.md) marks each of these host only. A project's `pipelines` directory
+has to be inside the project, and `dg apply` refuses a document that is a link to a file outside it.
+
 The gate is enforced **twice**: when a run is created, and again when a worker claims the
 step. Two checks rather than one, so that tightening the configuration stops work that was
 already queued.
