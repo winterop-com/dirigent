@@ -58,6 +58,26 @@ HMAC-SHA256 over `X-Dirigent-Timestamp`, a dot, and the raw body, and a timestam
 - `webhook.post` with `sign_with` signs the same way, so a receiver outside dirigent has to change.
 - A sender retrying a 429 or a 503 has to sign again.
 
+**Settings a project's own files can no longer set, and this one can move your data.** A working
+directory's `.env` and `dirigent.yaml` no longer set `database_url`, `artifact_root`, `work_root`,
+`storage_connections`, `host`, `ui_dir`, `secret_key_file`, `apply_dir`, `apply_prune`,
+`alert_base_url`, the `retention_*` ages or the advisory-lock keys. An instance that relied on one of
+them silently moves to its default, including SQLite for `database_url`. Set them in the process
+environment, in the file `DIRIGENT_CONFIG_FILE` names, or in `~/.config/dirigent/dirigent.yaml`.
+Compose already does. `dg dev`, `dg server` and `dg worker` warn about any that were ignored, and
+`dg config show` lists them.
+
+**A compose stack needs two new variables to start.** `POSTGRES_PASSWORD` and `S3_SECRET_KEY` are
+required, and `dg init --template compose` generates both. An existing database and bucket keep
+their old credentials, so set both to `dirigent`, then rotate.
+
+**A state directory a checkout could have supplied is refused.** `dg dev` and every other command
+that opens the database will not use a `.dirigent/state` that is a symlink, belongs to another user,
+can be written by others, holds a link directly inside it, or is tracked by git. `--wipe-state` does
+not delete through a link and leaves tracked state in place. New state directories are created
+`0700`, and a group-writable one from before has to be cleared with `--wipe-state`. These rules
+protect a separately installed `dg`: `uv run dg` runs the checkout's own pyproject first.
+
 **Other changes a deployment can notice.**
 
 - Behind a proxy on another host, set `FORWARDED_ALLOW_IPS`. Login limits and the `Secure` cookie
@@ -105,6 +125,36 @@ HMAC-SHA256 over `X-Dirigent-Timestamp`, a dot, and the raw body, and a timestam
 - A signing secret's fingerprint is keyed by the instance, so its holder can no longer recompute it.
   A row keeps its unkeyed fingerprint until `dg source set-secret` or `dg source rotate-token` next
   replaces it, so an instance with a guessable hand-set secret should set a strong one.
+- `DIRIGENT_PACKS` entries have to be pinned as `name==version`, so a bare name, a range or a URL
+  fails the build.
+- On a loopback bind, `dg dev` answers 421 to any `Host` that is not a loopback name, including
+  `*.localhost`, so a proxy in front has to send one.
+- Beside a connection, a step cannot set `X-Forwarded-Host`, `Forwarded`, `X-Forwarded-Proto` or
+  similar routing headers.
+- A body under `/api/v1` or the playground has 30 seconds to arrive, unless the caller's credential
+  resolves.
+- `/docs` and `/redoc` run bundles pinned to one release and its hash. They use system fonts, and
+  `/docs/oauth2-redirect` is gone.
+- The playground sets a content type only when all of it is one inert media type, so
+  `text/plain; boundary=x` is refused.
+- On Linux, `dg worker`, `dg dev`, `dg server` and `dg scheduler` clear their dumpable flag, so a
+  same-user command cannot read their environment. They write no core dumps, and a same-user debugger
+  or `py-spy` cannot attach.
+- A reference in a shell string stays one word through comments and here-documents, and a command
+  that cannot be read to its end is refused. It has to be an integer wherever bash evaluates it:
+  `[[ -eq ]]`, `let`, `unset`, `declare -i`, indexed array subscripts and `${var:offset}`.
+- A reference in a jq program is bound as a variable and keeps its type, so `"5"` no longer compares
+  as 5, and `.${params.field}` becomes `.[${params.field}]`. A program that is only a reference is
+  refused, and so is a reference in a `report.render` template; use `values`.
+- A reference anywhere a block publishes SQL is refused, however deeply nested.
+- A document's YAML aliases are bounded before it is built, at every door that reads one, and
+  `convert.arrow` refuses a parquet too wide or too sparse for a csv from its footer.
+- A connection something uses cannot be deleted, and the refusal names what uses it. That includes
+  pipelines, alert rules and storage schemes.
+- A token is revoked by its id, so two sharing a name can be told apart.
+- The web UI calls a starter a template. The API, CLI and packs still say `starter`.
+- `dg config show` hides the database password, and `dg apply` refuses a pipelines directory or a
+  document link outside the project.
 - MCP `apply_document` is marked destructive, because applying can remove sources and schedules, and
   a dry run now lists those removals.
 
