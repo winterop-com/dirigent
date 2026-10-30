@@ -43,8 +43,9 @@ kind: pipeline
 code: poll-cadence
 name: What a poll interval costs
 description: |
-  The same wait polled every second and every four seconds, with the difference in
-  `waited_ms` reported.
+  Time the same wait checked every second and every four seconds.
+
+  The difference in `waited_ms` is reported.
 
   A sensor learns nothing between pokes, so its answer is late by up to one poll interval.
   Cheap and blunt, or precise and chatty -- measured here rather than asserted.

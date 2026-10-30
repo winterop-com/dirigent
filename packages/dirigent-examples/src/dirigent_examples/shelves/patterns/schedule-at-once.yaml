@@ -43,6 +43,8 @@ kind: pipeline
 code: schedule-at-once
 name: One agreed instant
 description: |
+  Run a migration once, at a single moment agreed in advance.
+
   `at:` fires once, at a single instant, and then pauses itself so its parameters and firing
   history stay readable.
 

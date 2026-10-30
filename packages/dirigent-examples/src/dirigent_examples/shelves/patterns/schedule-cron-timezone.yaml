@@ -42,6 +42,8 @@ kind: pipeline
 code: schedule-cron-timezone
 name: Cron, in a named zone
 description: |
+  Load a region's data on three schedules, each in its own time zone.
+
   Five columns and the zone that decides what they mean. The timezone belongs to the
   schedule, so `0 5 * * *` in `Europe/Oslo` is five in the morning in Oslo across a
   daylight-saving boundary.

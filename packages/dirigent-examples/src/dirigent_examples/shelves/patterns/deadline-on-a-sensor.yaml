@@ -47,6 +47,8 @@ kind: pipeline
 code: deadline-on-a-sensor
 name: A deadline on a wait
 description: |
+  Wait for a file that never arrives, then give up and alert someone.
+
   `poll`, `deadline` and `on_timeout` are step-level engine semantics, uniform across every
   sensor and never buried in a block's config.
 

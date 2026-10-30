@@ -41,6 +41,8 @@ kind: pipeline
 code: pipeline-run-strict
 name: Strict about a child's errors
 description: |
+  Run another pipeline twice, accepting its errors in only one of the calls.
+
   `completed_with_errors` is a third status, and whether it is acceptable is the caller's
   judgement: `strict: false` (the default) passes it, `strict: true` fails the step on it.
 

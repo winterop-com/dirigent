@@ -44,6 +44,8 @@ kind: pipeline
 code: outputs-inline-vs-storage
 name: A value, and the storage on either side of it
 description: |
+  Build a large list, save it to storage, and read it back.
+
   A value travels in a step's output. `storage.read` is the only way one comes in from
   storage and `storage.write` the only way one goes out.
 

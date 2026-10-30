@@ -58,6 +58,8 @@ kind: pipeline
 code: sensor-http-ready
 name: Waiting for a service
 description: |
+  Wait for a service to be ready, then send it a test request.
+
   `http.ready` pokes an endpoint until it answers ready. A non-2xx is "not yet", not an
   error -- the same status that would fail an `http.request`.
 

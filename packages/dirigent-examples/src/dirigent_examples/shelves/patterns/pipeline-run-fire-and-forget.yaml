@@ -40,6 +40,8 @@ kind: pipeline
 code: pipeline-run-fire-and-forget
 name: A parent that does not wait
 description: |
+  Run another pipeline twice, waiting for one call and not for the other.
+
   `wait: false` finishes the step as soon as the child run exists, reporting `started` and
   the child's run id.
 

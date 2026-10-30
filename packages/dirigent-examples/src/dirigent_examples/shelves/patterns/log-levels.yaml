@@ -50,6 +50,8 @@ kind: pipeline
 code: log-levels
 name: One family, turned up
 description: |
+  Run steps of three kinds, so the logs of one kind can be turned up.
+
   `--log-level` is a **run** setting, not a document one: `debug` for everything, or
   `PATTERN=LEVEL` for one block family, repeatable.
 

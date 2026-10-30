@@ -61,12 +61,14 @@ kind: pipeline
 code: connections-referenced-vs-carried
 name: A connection named, and one carried
 description: |
+  Call the same service three ways, and compare the answers.
+
   A step names a connection by code and the instance holds the credential, encrypted at rest
   and redacted in every response. That is what makes a document portable.
 
   A document may instead **carry** one, for a run with no instance to create it on -- and a
   server refuses such a document, because applying it would store the secret in every
-  version.
+  version. The third call names no connection at all, only an absolute url.
 
 tags: [patterns, http, transform, credential]
 

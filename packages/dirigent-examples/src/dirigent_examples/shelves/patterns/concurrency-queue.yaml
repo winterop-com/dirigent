@@ -39,6 +39,8 @@ kind: pipeline
 code: concurrency-queue
 name: A second run that waits its turn
 description: |
+  Process a batch, and hold any new run until the current one finishes.
+
   `concurrency: queue` creates the second run and holds it: no step advances until the slot
   is free, and then the oldest held run is released.
 

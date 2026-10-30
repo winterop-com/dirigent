@@ -33,6 +33,8 @@ kind: pipeline
 code: fan-out-late-item-wise
 name: One listed item to one item
 description: |
+  List stations, take a reading for each, then label each one.
+
   A step adopting a grid that was expanded from an output, `for_each: ${steps.<name>.items}`,
   expands with the same indices once that grid has settled.
 

@@ -41,6 +41,8 @@ kind: pipeline
 code: concurrency-replace
 name: The newest trigger wins
 description: |
+  Render and publish a revision, cancelling any render already in progress.
+
   `concurrency: replace` cancels every run in flight, telling any remote about the attempts
   that had one, and starts the new run.
 

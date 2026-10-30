@@ -59,11 +59,14 @@ kind: pipeline
 code: params-validation-refuses
 name: A run request that is refused
 description: |
+  Plan a load, and refuse a bad request before any run exists.
+
   Parameters are validated when the run is **created**, so a bad request produces no run at
   all: nothing to find in `dg runs list`, and no side effect anywhere.
 
-  `format`, bounds, `required` and `additionalProperties: false` are four different guards.
-  The last one catches the typo, which is the one people forget.
+  Bounds, `pattern`, `required` and `additionalProperties: false` are four different guards.
+  The last one catches the typo, which is the one people forget. A `format` is not a guard
+  here: it documents and renders, and nothing checks it.
 
 tags: [patterns, playground, transform, params]
 

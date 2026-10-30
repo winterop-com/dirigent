@@ -47,6 +47,8 @@ kind: pipeline
 code: fan-out-over-an-output
 name: Fan out over what was listed
 description: |
+  List some stations, then take a reading for each one found.
+
   `for_each: ${steps.<name>.output.<field>}` maps a step over a list an upstream step
   produced, so the grid is written when that step succeeds rather than when the run is created.
 

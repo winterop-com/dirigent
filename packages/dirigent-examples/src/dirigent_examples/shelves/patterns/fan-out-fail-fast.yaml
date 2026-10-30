@@ -34,8 +34,10 @@ kind: pipeline
 code: fan-out-fail-fast
 name: One bad item sinks the batch
 description: |
+  Process a list of items, and fail the whole batch when one fails.
+
   `items: fail_fast` is the default: one failed element fails the whole fan-out step, and
-  nothing downstream reads a partial batch.
+  nothing downstream reads a partial batch. As written the second item fails, so the run fails.
 
   The right default, because a fan-out is usually N slices of one job, and half a job
   silently succeeding is worse than a red run.

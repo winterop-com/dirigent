@@ -27,6 +27,8 @@ kind: pipeline
 code: rule-all-success
 name: The all_success edge
 description: |
+  Skip the remaining steps when a load fails, as it does here on purpose.
+
   The default trigger rule: a step runs once every prerequisite **succeeded**.
 
   As written the load fails, so the two steps below it are `skipped` and the run reports
