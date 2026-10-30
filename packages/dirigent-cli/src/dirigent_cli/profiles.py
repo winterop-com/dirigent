@@ -2,15 +2,22 @@
 
 A profile is client-side only and must never hold a database URL: a CLI that could reach the
 database would bypass authentication, attribution, and validation.
+
+A project's file travels with its repository, so whoever wrote it may not be the person running
+the CLI. It is read only when this user owns it, it can never name a command to run, and a
+credential from this user's shell does not follow a URL it chose off this host.
 """
 
+import ipaddress
 import os
 import shutil
+import stat
 import subprocess
 from collections.abc import Mapping
 from datetime import timedelta
 from pathlib import Path
 from typing import Any, Final, cast
+from urllib.parse import urlsplit
 
 import yaml
 from dotenv import dotenv_values
@@ -123,16 +130,21 @@ class ProfileStore(BaseModel):
     path: Path | None = None
 
     @property
+    def is_project(self) -> bool:
+        """Whether this file belongs to a project rather than to the user."""
+        return self.path is not None and _is_project(self.path)
+
+    @property
     def env_file(self) -> Path | None:
         """The ``.env`` at the root of the project this file belongs to, or none for the user file."""
-        if self.path is None or self.path.parent.name != PROJECT_PROFILES.parent.name:
+        if self.path is None or not self.is_project:
             return None
         return self.path.parent.parent / PROJECT_ENV_FILE
 
     def environment(self, environ: Mapping[str, str]) -> dict[str, str]:
         """The environment a profile resolves in: the process's, with the project's ``.env`` filling gaps."""
         path = self.env_file
-        if path is None or not path.is_file():
+        if path is None or not path.is_file() or not _owned_here(path):
             return dict(environ)
         from_file = {key: value for key, value in dotenv_values(path).items() if value is not None}
         return {**from_file, **environ}
@@ -148,6 +160,30 @@ class ProfileStore(BaseModel):
             where = f" in {self.path}" if self.path else ""
             raise ProfileError(f"no profile named {wanted!r}{where} ({known})")
         return found
+
+
+def _is_project(path: Path) -> bool:
+    """Whether a profiles file sits in a project's ``.dirigent`` directory."""
+    return path.parent.name == PROJECT_PROFILES.parent.name
+
+
+def _owned_here(path: Path) -> bool:
+    """Whether this user owns a file and nobody else may rewrite it."""
+    status = path.stat()
+    return status.st_uid == os.getuid() and not status.st_mode & stat.S_IWOTH
+
+
+def _is_loopback(url: str) -> bool:
+    """Whether a URL names this host, so a token sent to it does not leave the machine."""
+    host = urlsplit(url).hostname
+    if host is None or "\\" in url:
+        return False
+    if host == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
 
 
 def candidate_paths(start: Path | None = None) -> list[Path]:
@@ -174,6 +210,11 @@ def load_store(path: Path) -> ProfileStore:
         for name, body in cast("dict[str, Any]", declared).items():
             if not isinstance(body, dict):
                 raise ProfileError(f"{path}: profile {name!r} is not a mapping")
+            if _is_project(path) and cast("dict[str, Any]", body).get("token_cmd"):
+                raise ProfileError(
+                    f"{path}: profile {name!r} sets token_cmd, and a project's file may not name a command "
+                    f"to run; move this profile to {USER_PROFILES}"
+                )
             try:
                 profiles[name] = Profile(name=name, **cast("dict[str, Any]", body))
             except ValueError as error:
@@ -187,9 +228,12 @@ def load_store(path: Path) -> ProfileStore:
 
 
 def find_store(start: Path | None = None) -> ProfileStore:
-    """Read the first profiles file that exists, or an empty store when none does."""
+    """Read the first profiles file that exists and may be read, or an empty store when none does.
+
+    A project's file this user does not own is passed over, as though it were not there.
+    """
     for path in candidate_paths(start):
-        if path.is_file():
+        if path.is_file() and (not _is_project(path) or _owned_here(path)):
             return load_store(path)
     return ProfileStore()
 
@@ -223,27 +267,44 @@ def resolve_endpoint(
     A project's ``.env`` stands in for any ``DG_*`` variable the environment does not set.
     With ``needs_token`` off, a profile whose token cannot be resolved yields no token rather
     than refusing, which is what the command that mints one asks for.
+
+    A token the project did not supply itself, through its file or its ``.env``, is refused on
+    its way to a URL the project chose, unless that URL is on this host.
     """
+    shell = environ if environ is not None else os.environ
     store = find_store(start)
-    env = store.environment(environ if environ is not None else os.environ)
+    env = store.environment(shell)
     chosen = store.select(profile or env.get(PROFILE_ENV))
 
+    url_from_project = False
     if url is not None:
         source = "flag"
     elif env.get(URL_ENV):
         source, url = "environment", env[URL_ENV]
+        url_from_project = not shell.get(URL_ENV)
     elif chosen is not None:
         source, url = f"profile {chosen.name}", chosen.url
+        url_from_project = store.is_project
     else:
         source, url = "default", DEFAULT_URL
 
     resolved_token = token or env.get(TOKEN_ENV) or None
+    token_from_shell = bool(token or shell.get(TOKEN_ENV))
     if resolved_token is None and chosen is not None:
+        token_from_shell = bool(chosen.token is None and chosen.token_env and shell.get(chosen.token_env))
         try:
             resolved_token = chosen.resolve_token(env)
         except ProfileError:
             if needs_token:
                 raise
+    if resolved_token is not None and token_from_shell and url_from_project and not _is_loopback(url):
+        if needs_token:
+            raise ProfileError(
+                f"{store.path} names {url}, and the token in this shell was not issued for a project to "
+                f"send where it likes; name the server yourself with --url or {URL_ENV}, or keep a token "
+                f"for it in {store.env_file}"
+            )
+        resolved_token = None
     return Endpoint(
         url=url.rstrip("/"),
         token=resolved_token,

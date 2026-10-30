@@ -1586,9 +1586,10 @@ the old one immediately; `dg source set-secret` takes a secret the sender issued
 A profile therefore never holds a database URL, and one that names a database scheme is
 refused on sight: a CLI that could reach the database would bypass authentication,
 attribution, and validation entirely. The token has three interchangeable mechanisms and no
-secret-manager assumption -- inline (`token`), an environment variable (`token_env`), or any
-command that prints it (`token_cmd`) -- and precedence is flags, then `DG_*`, then the
-selected profile. `connect_timeout`, `timeout` and `retries` are the profile's patience, and
+secret-manager assumption -- inline (`token`), an environment variable (`token_env`), or, from
+the user's own file only, any command that prints it (`token_cmd`) -- and precedence is flags,
+then `DG_*`, then the selected profile. A project's file is read only when the user owns it, and
+a token from the shell does not follow a URL it chose off this host. `connect_timeout`, `timeout` and `retries` are the profile's patience, and
 they are separate because reaching an instance and waiting for its answer fail for different
 reasons: a refused port or a name that does not resolve is the wrong address, and no amount of
 waiting or repeating turns it into the right one, so the CLI gives it two seconds and one
