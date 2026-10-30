@@ -155,6 +155,25 @@ TEMPLATE_FAILED = COMMON.define("template_failed", "{detail}")
 
 NO_JSON_SPELLING = COMMON.define("no_json_spelling", "a value of type {kind} has no JSON spelling")
 
+YAML_ALIASES_EXPAND_TOO_FAR = COMMON.define(
+    "yaml_aliases_expand_too_far",
+    "the YAML's aliases would add more than {limit} values once each is written out; "
+    "write the repeated parts out in the source, or repeat them less",
+)
+
+YAML_ALIASES_WRITE_TOO_MUCH = COMMON.define(
+    "yaml_aliases_write_too_much",
+    "the YAML's aliases would add more than {limit} bytes of text once each is written out; "
+    "write the repeated parts out in the source, or repeat them less",
+)
+
+YAML_ALIAS_CYCLE = COMMON.define(
+    "yaml_alias_cycle",
+    "the YAML holds an alias inside the node it names, and a value cannot be written out that contains itself",
+)
+
+YAML_NESTED_TOO_DEEP = COMMON.define("yaml_nested_too_deep", "the YAML nests too deeply to be read")
+
 VALIDATION = Catalogue("validation")
 
 #: Pydantic names the condition, so the second half of a validation code is its own error

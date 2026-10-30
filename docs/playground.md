@@ -407,7 +407,7 @@ on that origin, which is exactly what `httponly` exists to prevent.
 Every route takes `status` (the status to answer with, 100 to 599) and `delay` (how long to
 take first, as `250ms` or `2s`, at most 30 seconds).
 
-A body larger than 1 MiB is refused with a 413, read no further than one byte past that. Every
+A body larger than 1 MiB is refused with a 413, read no further than one byte past that. One that has not arrived whole within 30 seconds is refused with a 408. Every
 answer carries `X-Content-Type-Options: nosniff` and a sandboxing `Content-Security-Policy`, so
 a browser that lands on one runs nothing from it.
 
@@ -449,7 +449,7 @@ browser enforces here is refused with a 422: `set-cookie`, `www-authenticate`, `
 `content-security-policy`, `x-content-type-options`, `x-frame-options`, what a proxy acts on
 (`x-accel-*`, `x-sendfile`), and the hop-by-hop headers, among others. `content-type` is one of
 `application/json`, `application/x-ndjson`, `text/csv`, `text/plain` or
-`text/tab-separated-values`, and `location` is a path on this instance or an absolute URL on
+`text/tab-separated-values`, with at most a `charset` after it, and `location` is a path on this instance or an absolute URL on
 its own origin. Anything else is refused the same way.
 
 **`/playground/auth`** accepts the basic pair `playground` / `playground`, or the bearer token

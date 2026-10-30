@@ -13,7 +13,6 @@ import io
 import ipaddress
 import os
 import shutil
-import stat
 import subprocess
 from collections.abc import Mapping
 from datetime import timedelta
@@ -28,6 +27,7 @@ from pydantic import BaseModel, ConfigDict, Field, SecretStr, model_validator
 from dirigent_cli.messages import PROFILE_NAMES_A_DATABASE
 from dirigent_client import API_PREFIX, DEFAULT_CONNECT_TIMEOUT, DEFAULT_RETRIES, DEFAULT_TIMEOUT
 from dirigent_common import Duration, EntityName
+from dirigent_core.config import read_project_file
 
 PROJECT_PROFILES: Final = Path(".dirigent") / "profiles.yaml"
 PROJECT_ENV_FILE: Final = ".env"
@@ -146,7 +146,7 @@ class ProfileStore(BaseModel):
     def environment(self, environ: Mapping[str, str]) -> dict[str, str]:
         """The environment a profile resolves in: the process's, with the project's ``.env`` filling gaps."""
         path = self.env_file
-        text = None if path is None else _read_project_file(path)
+        text = None if path is None else read_project_file(path)
         if text is None:
             return dict(environ)
         parsed = dotenv_values(stream=io.StringIO(text), interpolate=False)
@@ -169,30 +169,6 @@ class ProfileStore(BaseModel):
 def _is_project(path: Path) -> bool:
     """Whether a profiles file sits in a project's ``.dirigent`` directory."""
     return path.parent.name == PROJECT_PROFILES.parent.name
-
-
-def _read_project_file(path: Path) -> str | None:
-    """Read a project's file, or answer none unless it may be trusted as the project's own.
-
-    Neither the file nor its directory may be a symbolic link, and the file must be a regular
-    one this user owns that neither group nor others may write. Every check is made on the
-    opened descriptor, so the file read is the file checked.
-    """
-    try:
-        directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-        try:
-            descriptor = os.open(path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
-        finally:
-            os.close(directory)
-        with os.fdopen(descriptor, encoding="utf-8") as opened:
-            status = os.fstat(opened.fileno())
-            if not stat.S_ISREG(status.st_mode):
-                return None
-            if status.st_uid != os.getuid() or status.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
-                return None
-            return opened.read()
-    except (OSError, UnicodeDecodeError):
-        return None
 
 
 def _is_loopback(url: str) -> bool:
@@ -264,7 +240,7 @@ def _parse_store(path: Path, text: str) -> ProfileStore:
 def find_store(start: Path | None = None) -> ProfileStore:
     """Read the first profiles file that exists and may be read, or an empty store when none does.
 
-    A project's file that ``_read_project_file`` refuses is passed over, as though it were not
+    A project's file that ``read_project_file`` refuses is passed over, as though it were not
     there.
     """
     for path in candidate_paths(start):
@@ -272,7 +248,7 @@ def find_store(start: Path | None = None) -> ProfileStore:
             if path.is_file():
                 return load_store(path)
             continue
-        text = _read_project_file(path)
+        text = read_project_file(path)
         if text is not None:
             return _parse_store(path, text)
     return ProfileStore()

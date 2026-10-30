@@ -1,24 +1,30 @@
 """Layered configuration: defaults, a YAML file, a ``.env``, then DIRIGENT_-prefixed variables."""
 
 import ctypes
+import io
 import json
 import logging
 import os
+import stat
 import sys
+from collections.abc import Mapping
 from datetime import timedelta
 from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
+from dotenv import dotenv_values
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic.fields import FieldInfo
 from pydantic_settings import (
     BaseSettings,
+    DotEnvSettingsSource,
     NoDecode,
     PydanticBaseSettingsSource,
     SettingsConfigDict,
     YamlConfigSettingsSource,
 )
+from pydantic_settings.sources.utils import parse_env_vars
 
 from dirigent_common import Duration, EntityName, Size
 from dirigent_core.messages import POOL_TOO_SMALL, SECRET_KEY_FILE_UNREADABLE, SECRET_KEY_TWICE
@@ -33,8 +39,8 @@ SECRET_KEY_ENV = "DIRIGENT_SECRET_KEY"
 PR_SET_DUMPABLE = 4
 
 #: The project file that carries an instance's own variables, read from the working
-#: directory. A command run elsewhere does not see it.
-ENV_FILE = ".env"
+#: directory. A command run elsewhere does not see it. None reads no such file.
+ENV_FILE: str | None = ".env"
 
 #: Connections a worker process needs beyond its in-flight block calls: one for the lease
 #: heartbeat, one for the sweeper, one for the alert loop, and one spare so that none of the
@@ -99,6 +105,42 @@ def project_config_paths() -> list[Path]:
     return [] if os.environ.get(CONFIG_FILE_ENV) else list(reversed(PROJECT_CONFIG_PATHS))
 
 
+def read_project_file(path: Path) -> str | None:
+    """Read a file a project supplies, or answer none unless it may be trusted as the project's own.
+
+    Neither the file nor its directory may be a symbolic link, and the file must be a regular
+    one this user owns that neither group nor others may write. Every check is made on the
+    opened descriptor, so the file read is the file checked.
+    """
+    try:
+        directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            descriptor = os.open(path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
+        finally:
+            os.close(directory)
+        with os.fdopen(descriptor, encoding="utf-8") as opened:
+            status = os.fstat(opened.fileno())
+            if not stat.S_ISREG(status.st_mode):
+                return None
+            if status.st_uid != os.getuid() or status.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
+                return None
+            return opened.read()
+    except (OSError, UnicodeDecodeError):
+        return None
+
+
+class _ProjectDotEnv(DotEnvSettingsSource):
+    """A project's ``.env``: a file ``read_project_file`` accepts, with ``${VAR}`` left as text."""
+
+    def _read_env_file(self, file_path: Path) -> Mapping[str, str | None]:
+        """Read one file without following a link and without consulting the environment."""
+        text = read_project_file(file_path)
+        if text is None:
+            return {}
+        values = dotenv_values(stream=io.StringIO(text), interpolate=False)
+        return parse_env_vars(values, self.case_sensitive, self.env_ignore_empty, self.env_parse_none_str)
+
+
 class _ProjectLayer(PydanticBaseSettingsSource):
     """One settings layer read from a project's files, with the host-only settings taken out."""
 
@@ -121,8 +163,6 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="DIRIGENT_",
         env_nested_delimiter="__",
-        env_file=ENV_FILE,
-        env_file_encoding="utf-8",
         # A project's .env carries DG_TOKEN and a stack's own variables beside the settings,
         # and none of those name a field here.
         extra="ignore",
@@ -560,7 +600,8 @@ class Settings(BaseSettings):
         """Order the layers: explicit arguments, the environment, the ``.env``, then the YAML files."""
         project_yaml = YamlConfigSettingsSource(settings_cls, yaml_file=project_config_paths())
         host_yaml = YamlConfigSettingsSource(settings_cls, yaml_file=host_config_paths())
-        return (init_settings, env_settings, _ProjectLayer(dotenv_settings), _ProjectLayer(project_yaml), host_yaml)
+        project_env = _ProjectDotEnv(settings_cls, env_file=ENV_FILE)
+        return (init_settings, env_settings, _ProjectLayer(project_env), _ProjectLayer(project_yaml), host_yaml)
 
 
 @lru_cache(maxsize=1)

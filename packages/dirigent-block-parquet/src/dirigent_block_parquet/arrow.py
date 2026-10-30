@@ -7,7 +7,7 @@ from typing import Final
 
 import pyarrow as pa
 import pyarrow.parquet as pq
-from pydantic import JsonValue
+from pydantic import BaseModel, JsonValue
 
 from dirigent_block_parquet.messages import (
     BINARY_COLUMN,
@@ -26,13 +26,16 @@ from dirigent_block_parquet.messages import (
     RECORD_NOT_AN_OBJECT,
 )
 from dirigent_common import spelled
-from dirigent_plugin import Converter, TransformError, csv_header
+from dirigent_plugin import Converter, TransformError, csv_header, hold_csv_columns, hold_csv_empty_cells
 
 #: The text spellings this engine trades parquet with.
 TEXT_FORMATS: Final = ("json", "ndjson", "csv")
 
 #: What a target format calls one element of the sequence it writes.
 UNIT: Final = {"json": "element", "ndjson": "line", "csv": "row", "parquet": "row"}
+
+#: How many rows a parquet is decoded at a time, so wide columns of nulls cost one batch to refuse.
+READ_BATCH_ROWS: Final = 1024
 
 
 class ArrowConverter(Converter):
@@ -65,12 +68,18 @@ class ArrowConverter(Converter):
 
 
 def _read_parquet(source: bytes, target_format: str) -> list[dict[str, JsonValue]]:
-    """Read a parquet payload as records, refusing what the target has no spelling for."""
+    """Read a parquet payload as records, refusing what its footer already says the target cannot hold.
+
+    The footer costs nothing to read and the pages may decode to far more than the payload's
+    size, so everything it answers is asked before a page is read. A file written without
+    statistics, or lying in them, is held to the same limit by counting as the batches arrive.
+    """
     try:
-        table = pq.read_table(pa.BufferReader(source))  # pyright: ignore[reportUnknownMemberType]
+        opened = pq.ParquetFile(pa.BufferReader(source))
     except pa.ArrowInvalid as error:
         raise TransformError(NOT_PARQUET.render(detail=str(error))) from error
-    for name, kind in zip(table.schema.names, table.schema.types, strict=True):
+    schema = opened.schema_arrow
+    for name, kind in zip(schema.names, schema.types, strict=True):
         if pa.types.is_nested(kind):
             raise TransformError(
                 NESTED_COLUMN.render(
@@ -79,7 +88,44 @@ def _read_parquet(source: bytes, target_format: str) -> list[dict[str, JsonValue
             )
         if pa.types.is_binary(kind) or pa.types.is_large_binary(kind) or pa.types.is_fixed_size_binary(kind):
             raise TransformError(BINARY_COLUMN.render(column=repr(name)))
-    return [{key: _spelled(value) for key, value in row.items()} for row in table.to_pylist()]
+    shape = _Shape(rows=opened.metadata.num_rows, columns=len(schema.names))
+    if target_format == "csv":
+        hold_csv_columns(shape.columns)
+        shape.hold_empty(_declared_nulls(opened))
+    records: list[dict[str, JsonValue]] = []
+    empty = 0
+    try:
+        for batch in opened.iter_batches(batch_size=READ_BATCH_ROWS):  # pyright: ignore[reportUnknownMemberType]
+            if target_format == "csv":
+                empty += sum(batch.column(index).null_count for index in range(batch.num_columns))  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
+                shape.hold_empty(empty)
+            records.extend({key: _spelled(value) for key, value in row.items()} for row in batch.to_pylist())
+    except pa.ArrowInvalid as error:
+        raise TransformError(NOT_PARQUET.render(detail=str(error))) from error
+    return records
+
+
+class _Shape(BaseModel):
+    """How many rows and columns a parquet's footer declares."""
+
+    rows: int
+    columns: int
+
+    def hold_empty(self, empty: int) -> None:
+        """Refuse this shape as a csv once this many of its cells are known to be empty."""
+        hold_csv_empty_cells(rows=self.rows, columns=self.columns, empty=empty)
+
+
+def _declared_nulls(opened: pq.ParquetFile) -> int:
+    """Add up the nulls a parquet's footer declares, counting a column chunk without statistics as none."""
+    metadata = opened.metadata
+    total = 0
+    for group in range(metadata.num_row_groups):
+        row_group = metadata.row_group(group)
+        for column in range(row_group.num_columns):
+            statistics = row_group.column(column).statistics
+            total += (statistics.null_count if statistics is not None else None) or 0
+    return total
 
 
 def _spelled(value: object) -> JsonValue:

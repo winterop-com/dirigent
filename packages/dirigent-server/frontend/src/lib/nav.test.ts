@@ -1,14 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import {
-    ADMIN_OVERVIEW,
-    DASHBOARD_PATH,
-    NAV,
-    entriesFor,
-    entryAt,
-    marksOnlyItself,
-    sectionsFor,
-} from '@/lib/nav'
+import { DASHBOARD_PATH, NAV, entriesFor, entryAt, marksOnlyItself, sectionsFor } from '@/lib/nav'
 
 describe('the navigation', () => {
     test('sends a reader with no address of their own to a screen that exists', () => {
@@ -106,23 +98,6 @@ describe('the groups', () => {
     })
 })
 
-describe('the admin overview', () => {
-    test('is not a rail entry', () => {
-        const rail = NAV.flatMap((section) => section.entries).map((entry) => entry.path)
-        expect(rail).not.toContain(ADMIN_OVERVIEW.path)
-    })
-
-    test("is the admin heading's link", () => {
-        expect(NAV.find((section) => section.id === 'admin')?.to).toBe(ADMIN_OVERVIEW.path)
-    })
-
-    test('is offered by the palette to an admin and to nobody else', () => {
-        expect(entriesFor('admin').map((entry) => entry.path)).toContain(ADMIN_OVERVIEW.path)
-        expect(entriesFor('operator').map((entry) => entry.path)).not.toContain(ADMIN_OVERVIEW.path)
-        expect(entriesFor(null).map((entry) => entry.path)).not.toContain(ADMIN_OVERVIEW.path)
-    })
-})
-
 describe('which entry an address is inside', () => {
     test('is the entry itself for its own address', () => {
         expect(entryAt('/runs')?.label).toBe('Runs')
@@ -132,7 +107,7 @@ describe('which entry an address is inside', () => {
         expect(entryAt('/runs/6f1f6b0e-4c1e-4d0a-9d9c-2f2f9b7f7a11')?.label).toBe('Runs')
     })
 
-    test('is the admin screen itself, and nothing for the overview that left the rail', () => {
+    test('is the admin screen itself, and nothing for the bare section', () => {
         expect(entryAt('/admin/users')?.label).toBe('Users')
         expect(entryAt('/admin')).toBeNull()
     })

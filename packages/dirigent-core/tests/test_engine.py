@@ -2234,6 +2234,26 @@ async def test_a_reference_in_a_field_a_block_publishes_as_sql_is_refused_when_t
     assert attempts[0].output is None
 
 
+async def test_a_reference_in_a_nested_field_a_block_publishes_as_sql_is_refused_when_the_step_starts(
+    engine: Engine, sessions: Any, services: EngineServices
+) -> None:
+    definition = PipelineDefinition(
+        code="spliced-nested",
+        steps=steps(
+            only=StepDefinition(
+                block="test.sqlish", config={"source": {"query": "SELECT '${params.region}'"}}, retry=FAST_RETRY
+            )
+        ),
+    )
+    run = await start(sessions, services, definition, region="' OR 1=1 --")
+    await drain(engine)
+    attempts = await attempts_of(sessions, run.id)
+    assert attempts[0].status is AttemptStatus.FAILED
+    assert attempts[0].error_class == ErrorClass.REJECTED.value
+    assert "source.query" in (attempts[0].error or "")
+    assert attempts[0].output is None
+
+
 async def test_a_manual_retry_is_keyed_on_the_step_it_retries(
     engine: Engine, sessions: Any, services: EngineServices
 ) -> None:
