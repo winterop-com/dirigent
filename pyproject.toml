@@ -21,6 +21,7 @@ dirigent-cli = { workspace = true }
 dirigent-block-parquet = { workspace = true }
 dirigent-storage-s3 = { workspace = true }
 dirigent-testing = { workspace = true }
+dirigent-mcp = { workspace = true }
 
 [tool.ruff]
 target-version = "py313"

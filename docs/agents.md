@@ -87,6 +87,42 @@ code: hot-stations
 Write it again after installing a plugin; the schema is the blocks installed beside `dg`. A
 running instance serves the same schema for its own catalog at `GET /api/v1/schema/document`.
 
+## Over MCP, against a running instance
+
+The loop above writes documents and checks them without a server. To let an agent operate an
+instance that is running -- apply a document, start a run, read its logs, pause a source --
+give it the MCP server, `dirigent-mcp`. Its tools are calls the API already answers, so what
+the agent may do is what its token's role may do, and none of them deletes anything.
+
+```bash
+dg admin token create agent --user AGENT_USER     # the token is shown once
+claude mcp add dirigent -e DG_URL=https://dirigent.example.org -e DG_TOKEN=... -- uvx dirigent-mcp
+```
+
+Any MCP client starts it the same way: the command `uvx dirigent-mcp` over stdio, with
+`DG_URL` and `DG_TOKEN` in its environment. Keep the token where your other secrets are.
+
+**What applying and running reaches.** An agent that may apply a document and run it may write
+a pipeline that runs with any connection the instance holds and sends what it reads anywhere an
+enabled block reaches. Text it reads back -- a log line, a source's input -- can try to steer it
+there. So choose the role for what the agent is for:
+
+- **To read and diagnose,** give it a `viewer` token and set `DG_MCP_READ_ONLY=1`. The instance
+  refuses every write from a viewer, and the server offers only the tools that read.
+- **To write and run,** give it an `operator` token, never `admin`, on an instance whose
+  connections and enabled blocks you would let it use; a staging instance is the usual place.
+
+| Tools | What they do |
+| --- | --- |
+| `list_blocks`, `get_block`, `list_examples`, `get_example` | The catalog and the shipped examples, to write a document from |
+| `plan_document`, `apply_document` | Check a document against the instance, then store it |
+| `list_pipelines`, `get_pipeline`, `export_pipeline`, `validate_pipeline` | What the instance holds |
+| `run_pipeline`, `list_runs`, `get_run`, `run_attempts`, `run_logs` | Start a run, optionally waiting for it, and read how it went |
+| `cancel_run`, `retry_attempt` | Stop a run, or retry one attempt |
+| `list_sources`, `source_inputs`, `pause_source`, `resume_source` | The input sources and what arrived |
+| `list_schedules`, `pause_schedule`, `resume_schedule` | The clocks |
+| `instance_info` | The instance's version and what it has installed |
+
 ## Giving it the documentation
 
 [llms.txt](llms.txt) lists every page of this site with a line on what it covers, in the

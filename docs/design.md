@@ -344,6 +344,7 @@ dirigent/
     dirigent-server/       # FastAPI app, auth, SSE, endpoint sources
       frontend/            # the web UI, built into the server wheel
     dirigent-cli/          # `dirigent` / `dg`
+    dirigent-mcp/          # the MCP server an agent operates an instance through
     dirigent-storage-s3/   # the s3:// storage backend package
     dirigent-testing/      # test doubles and pytest fixtures for writing blocks
 ```

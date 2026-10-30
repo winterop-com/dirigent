@@ -14,6 +14,7 @@ dirigent-server          the API and auth                               -> commo
 dirigent-cli             the commands                                   -> common, plugin, client, core, server,
                                                                            blocks, block-execute, examples
 dirigent-examples        the example corpus                             -> common, plugin, client
+dirigent-mcp             the MCP server for agents                      -> common, client
 dirigent-block-base      log, report, validate, value, time, convert,
                          pipeline.run, and the log alert channel        -> common, plugin
 dirigent-block-http      http.request, http.ready, webhook.post         -> common, plugin
