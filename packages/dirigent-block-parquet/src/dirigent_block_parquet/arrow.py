@@ -26,7 +26,7 @@ from dirigent_block_parquet.messages import (
     RECORD_NOT_AN_OBJECT,
 )
 from dirigent_common import spelled
-from dirigent_plugin import Converter, TransformError
+from dirigent_plugin import Converter, TransformError, csv_header
 
 #: The text spellings this engine trades parquet with.
 TEXT_FORMATS: Final = ("json", "ndjson", "csv")
@@ -241,9 +241,7 @@ def _write_text(records: list[dict[str, JsonValue]], target_format: str) -> str:
 
 def _write_csv(records: list[dict[str, JsonValue]]) -> str:
     """Write a header of every key any row has, in first-seen order, and one row per record."""
-    header: list[str] = []
-    for record in records:
-        header.extend(key for key in record if key not in header)
+    header = csv_header(records)
     out = io.StringIO(newline="")
     writer = csv.writer(out, lineterminator="\n")
     writer.writerow(header)

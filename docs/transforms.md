@@ -336,6 +336,11 @@ program is one character of typing and the only place that knows the column.
 the third row carries is still a column, and the rows without it have an empty cell there. A
 header taken from the first row alone would silently drop data.
 
+**A table with no shape is refused, before a row is written.** Every row spells a cell for every
+column, so records that each carry a key of their own write rows times columns cells. `convert.std`
+and `convert.arrow` refuse more than 10,000 columns (`plugin.csv_too_many_columns`), and more than
+10 million empty cells (`plugin.csv_too_sparse`). A dense table of any size is not held to either.
+
 **A nested value has no csv spelling, so it is refused**, naming the row and the key. Writing
 `{"region": "east"}` into a cell as text is not the same content, and a codec that does it
 has stopped being a codec. Flatten before converting: a list of stations becomes one joined

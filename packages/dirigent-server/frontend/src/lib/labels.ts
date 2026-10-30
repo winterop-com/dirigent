@@ -1010,6 +1010,10 @@ const refused = {
         unknown: 'No pipeline coded {code}.',
     },
     plugin: {
+        csv_too_many_columns:
+            'The records name more than {limit} distinct keys, and each is one csv column. Keep the keys you need with a transform first.',
+        csv_too_sparse:
+            '{rows} rows by {columns} columns leave {empty} cells empty, more than the {limit} a csv here may hold. Give the records shared keys with a transform first.',
         route_bad_parameter:
             'The path {template} has the segment {segment}. A parameter is a whole segment: a snake_case name in braces, or that name followed by :path to take the rest of the path.',
         route_bad_segment: 'The path {template} has the segment {segment}, which a path cannot carry.',

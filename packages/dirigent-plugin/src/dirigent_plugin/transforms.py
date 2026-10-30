@@ -25,7 +25,7 @@ misses both. Every frame hands a step's engine work to ``Engine.offload`` and aw
 
 import asyncio
 from abc import ABC, abstractmethod
-from collections.abc import Callable
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any, ClassVar, Final, cast
 
 from pydantic import BaseModel, Field, JsonValue
@@ -40,6 +40,8 @@ from dirigent_plugin.blocks import (
     StepContext,
 )
 from dirigent_plugin.messages import (
+    CSV_TOO_MANY_COLUMNS,
+    CSV_TOO_SPARSE,
     ELEMENT_FAILED,
     FILTER_ANSWER,
     NOT_AN_ARRAY,
@@ -57,6 +59,14 @@ MAP_PROMISE: Final = "replaces every element of a list"
 
 #: What the ``filter`` frame says it does, in the same refusal.
 FILTER_PROMISE: Final = "keeps some of the elements of a list"
+
+
+#: The most columns a csv a converter writes may have.
+CSV_COLUMN_LIMIT: Final = 10_000
+
+#: The most empty cells a csv a converter writes may hold, each of them a separator with
+#: nothing in the source behind it.
+CSV_EMPTY_CELL_LIMIT: Final = 10_000_000
 
 
 class TransformError(Exception):
@@ -383,6 +393,32 @@ class Filterer(Engine, Operator[ProgramConfig, TransformOutput], ABC):
         except TransformError as error:
             return [Issue.of(PROGRAM_REFUSED, detail=str(error))]
         return []
+
+
+def csv_header(records: Sequence[Mapping[str, Any]]) -> list[str]:
+    """The header of a csv these records write: every key any has, in first-seen order.
+
+    Every row spells a cell for every column, so records that each carry a key of their own
+    write rows times columns cells from a source the size of one of those. That is refused
+    before a row is written, while a dense table of any size is not.
+    """
+    columns: dict[str, None] = {}
+    for record in records:
+        columns.update(dict.fromkeys(record))
+        if len(columns) > CSV_COLUMN_LIMIT:
+            raise TransformError(CSV_TOO_MANY_COLUMNS.render(limit=f"{CSV_COLUMN_LIMIT:,}"))
+    filled = sum(value is not None for record in records for value in record.values())
+    empty = len(records) * len(columns) - filled
+    if empty > CSV_EMPTY_CELL_LIMIT:
+        raise TransformError(
+            CSV_TOO_SPARSE.render(
+                rows=f"{len(records):,}",
+                columns=f"{len(columns):,}",
+                empty=f"{empty:,}",
+                limit=f"{CSV_EMPTY_CELL_LIMIT:,}",
+            )
+        )
+    return list(columns)
 
 
 class Converter(Engine, Operator[ConvertConfig, ConvertOutput], ABC):
