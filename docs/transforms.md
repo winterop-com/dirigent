@@ -360,10 +360,12 @@ deciding what text a date meant is the kind of guess a codec does not make. Quot
 source and it converts as the text it is.
 
 **An alias is written out in place, within a bound.** JSON has no anchors, so `*base` and a
-`<<: *base` merge become copies of what they name. A document whose aliases would add more than
-100,000 values once written out is refused before anything is built, because a few hundred
-bytes of aliases nested inside each other expand to billions. An alias inside the node it
-names is refused too: JSON cannot spell a value that contains itself.
+`<<: *base` merge become copies of what they name. An input whose aliases would add more than
+100,000 values or 16 MiB of scalar text once written out is refused before anything is built,
+because a few hundred bytes of aliases nested inside each other expand to billions. Both are
+counted across every document of a stream, and text the input spells out itself counts for
+neither. An alias inside the node it names is refused too: JSON cannot spell a value that
+contains itself.
 
 ### xml is one root element, and one mapping
 
