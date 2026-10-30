@@ -170,7 +170,9 @@ untouched, for the same reason they survive a self-service change.
 **A body is bounded before anyone has proved who they are.** A route parses its body before
 it authenticates, so `/api/v1` holds at most 1 MiB from a caller and checks its credential before
 reading past that. A caller with no credential, or one that does not resolve, is answered 413
-(`server.unauthenticated_body_too_large`). A login is held to 16 KiB whatever it presents. A
+(`server.unauthenticated_body_too_large`). A login is held to 16 KiB whatever it presents. A body
+that has not arrived whole within 30 seconds is answered 408 and the connection closed
+(`server.body_timed_out`), unless the caller's credential resolves. A
 rate-limit key longer than 128 characters is held as its hash.
 
 ### What is unauthenticated
@@ -598,6 +600,15 @@ declare `requires.workers` on the pipelines that use them. An instance with no k
 still starts, so a worker whose steps open no connection can be started without one; a stack
 whose artifact root resolves through a sealed connection cannot, because every worker opens it.
 
+### A document whose aliases expand
+
+A document is YAML, and a few hundred bytes of aliases nested inside each other expand to billions
+of values wherever the document is written out: a digest, an export, a request. So a document is
+measured before it is built, at every door that reads one, and refused when its aliases would add
+more than 100,000 values or 16 MiB of text, contain themselves, or nest past what Python's stack
+holds. An alias used to repeat a block of config is nowhere near that. The same bound holds the
+YAML `convert.std` reads.
+
 ### A reference in a shell string
 
 `shell.run` and `docker.run` take a command as a shell string, and a `${...}` in one never
@@ -653,6 +664,10 @@ file holding it instead, such as a mounted secret under `/run/secrets`, read onc
 **Dirigent assumes no secret manager.** There is no KMS integration, no Vault client, no
 key-fetch hook. If your platform provides secrets, its job is to put this variable or that file
 in place before dirigent starts; dirigent does not reach out for it.
+
+A working directory's `.env` is read literally, so a `${VAR}` in it stays those characters and
+cannot copy a value out of the environment. It is read only when it is a regular file, not a
+symbolic link, that this user owns and neither group nor others may write.
 
 `dg init --template local` writes a generated key into the project's `.env`, which that
 project's `.gitignore` keeps out of the repository and whose mode is owner-only, so a local
@@ -811,7 +826,10 @@ Stated plainly, because a security page that lists only what exists is not much 
   holds a reference is not checked at apply, so its literal URL is refused at run time the same
   way. A `Host` header a step sets beside a `connection` is held to that origin too, at run
   time and before anything is sent (`http.host_off_origin`), because a front that routes on
-  `Host` would otherwise hand the credential to another name it serves. An absolute link the
+  `Host` would otherwise hand the credential to another name it serves. The headers such a front
+  may read instead, `Forwarded`, `X-Forwarded-Host`, `X-Forwarded-Proto` and the others in that
+  family, are refused beside a `connection` the same way (`http.routing_header_refused`), whatever
+  their value and however they are spelled. An absolute link the
   service itself hands back, such as a next page on the same origin, is still followed. A step that calls another service names no connection and gives the `url`.
 - **Rate limiting on the authenticated API.** Only login and endpoint sources are limited.
 - **A CSRF token.** There is none, and the defence is instead the origin check on every

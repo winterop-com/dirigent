@@ -340,6 +340,9 @@ header taken from the first row alone would silently drop data.
 column, so records that each carry a key of their own write rows times columns cells. `convert.std`
 and `convert.arrow` refuse more than 10,000 columns (`plugin.csv_too_many_columns`), and more than
 10 million empty cells (`plugin.csv_too_sparse`). A dense table of any size is not held to either.
+`convert.arrow` asks a parquet's footer first, for its columns and the nulls its statistics declare,
+so such a file is refused before a page is decoded. A file with no statistics is decoded a batch at
+a time and refused at the batch that passes the limit.
 
 **A nested value has no csv spelling, so it is refused**, naming the row and the key. Writing
 `{"region": "east"}` into a cell as text is not the same content, and a codec that does it

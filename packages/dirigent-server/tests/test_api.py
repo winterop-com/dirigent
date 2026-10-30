@@ -1928,17 +1928,37 @@ def test_a_check_holds_no_transaction_while_its_probe_is_out(
 
     path = settings.database_url.removeprefix("sqlite+aiosqlite:///")
 
-    async def probe_that_needs_the_lock(row: Any, services: Any) -> HealthReport:
-        # BEGIN IMMEDIATE from a second connection fails within the timeout if the request
-        # still holds the write lock, which is exactly what the old fan-out did. A lock held
-        # across the probe is never released while it waits, so the timeout only has to outlast
-        # another writer's brief hold.
-        other = sqlite3.connect(path, timeout=2.0)
+    def take_the_write_lock() -> None:
+        other = sqlite3.connect(path, timeout=5.0)
         try:
             other.execute("BEGIN IMMEDIATE")
             other.execute("ROLLBACK")
         finally:
             other.close()
+
+    async def probe_that_needs_the_lock(row: Any, services: Any) -> HealthReport:
+        # Another task on this event loop writes while the probe is out, as the embedded
+        # scheduler's tick does. It finishes only while the loop runs, so the lock is taken on
+        # another thread. BEGIN IMMEDIATE there fails only if the request itself still holds the
+        # lock across the probe, which is exactly what the old fan-out did.
+        holding = asyncio.Event()
+
+        async def another_writer() -> None:
+            engine = create_engine(settings)
+            try:
+                async with session_scope(create_session_factory(engine)) as session:
+                    await session.execute(sa.text("SELECT 1"))
+                    holding.set()
+                    await asyncio.sleep(0.05)
+            finally:
+                await engine.dispose()
+
+        writing = asyncio.create_task(another_writer())
+        try:
+            await asyncio.wait_for(holding.wait(), timeout=5.0)
+            await asyncio.to_thread(take_the_write_lock)
+        finally:
+            await writing
         return HealthReport(healthy=True, detail="probed with the lock free")
 
     monkeypatch.setattr(routes, "check", probe_that_needs_the_lock)

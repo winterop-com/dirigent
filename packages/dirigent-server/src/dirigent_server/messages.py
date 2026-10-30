@@ -118,6 +118,8 @@ PLAYGROUND_STREAMS_FULL = SERVER.define(
     "playground_streams_full", "the playground holds {limit} streams at once, so send again once one ends"
 )
 
+BODY_TIMED_OUT = SERVER.define("body_timed_out", "the whole body did not arrive within {timeout}")
+
 PLAYGROUND_BODY_TOO_LARGE = SERVER.define(
     "playground_body_too_large", "the body is larger than the {limit} bytes the playground reads"
 )
