@@ -151,7 +151,14 @@ protect a separately installed `dg`: `uv run dg` runs the checkout's own pyproje
   `convert.arrow` refuses a parquet too wide or too sparse for a csv from its footer.
 - A connection something uses cannot be deleted, and the refusal names what uses it. That includes
   pipelines, alert rules and storage schemes.
-- A token is revoked by its id, so two sharing a name can be told apart.
+- A token is revoked by its id, so two sharing a name can be told apart: `DELETE /tokens/{id}`,
+  `dg admin token revoke ID` and `dg.admin.tokens.revoke(id)`. `DELETE /users/{username}/tokens/{name}`,
+  `--user` on revoke and `users.revoke_token` are gone, so a script revoking by name has to change.
+- `/admin` is gone, and a dry run's plan names the sources and schedules an apply would remove.
+- `dg dev`'s admin has no display name, and a graph stops fitting at 80% zoom and pans past it.
+- Shipped examples were corrected where their behaviour or comments were wrong, and
+  `endpoint-payload-to-tracker-event` is now `endpoint-payload-to-data-values`, so re-read one you
+  copied from.
 - The web UI calls a starter a template. The API, CLI and packs still say `starter`.
 - `dg config show` hides the database password, and `dg apply` refuses a pipelines directory or a
   document link outside the project.
