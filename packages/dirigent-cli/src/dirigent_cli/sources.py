@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict
 from dirigent_cli.project import DOCUMENT_SUFFIXES
 from dirigent_client import DEFAULT_CONNECT_TIMEOUT
 from dirigent_client.enums import ProvenanceSource
+from dirigent_common import bounded_load
 
 STDIN: Final = "-"
 
@@ -94,7 +95,7 @@ def read_directory(directory: Path) -> tuple[list[Document], int]:
 def _declares_a_format(text: str) -> bool:
     """Whether a file names a dirigent format at its top, or cannot be read well enough to say."""
     try:
-        parsed: object = yaml.safe_load(text)
+        parsed: object = bounded_load(text)
     except yaml.YAMLError:
         return True
     if not isinstance(parsed, dict):
@@ -110,7 +111,7 @@ def parse_document(document: Document) -> dict[str, Any]:
     is the one a person can act on when a whole project was applied.
     """
     try:
-        parsed = yaml.safe_load(document.text)
+        parsed = bounded_load(document.text)
     except yaml.YAMLError as error:
         raise SourceError(f"{document.label} is not readable YAML or JSON: {error}") from error
     if not isinstance(parsed, dict):

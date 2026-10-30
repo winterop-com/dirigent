@@ -28,6 +28,7 @@ from dirigent_client.schemas import (
     RunRequest,
     ValidationIssue,
 )
+from dirigent_common import bounded_load
 
 type DocumentSource = JsonMap | str | Path
 
@@ -213,7 +214,7 @@ def read_document(document: DocumentSource) -> tuple[JsonMap, ProvenanceSource, 
 def parse_document(text: str) -> JsonMap:
     """Read a document's text as YAML, which accepts its JSON form verbatim."""
     try:
-        loaded: object = yaml.safe_load(text)
+        loaded: object = bounded_load(text)
     except yaml.YAMLError as error:
         raise DirigentError(f"the document is not valid YAML or JSON: {error}") from error
     if not isinstance(loaded, dict):

@@ -221,7 +221,24 @@ def test_a_header_value_cannot_start_another_header(playground: TestClient) -> N
 
 @pytest.mark.parametrize(
     "content_type",
-    ["text/html", "TEXT/HTML; charset=utf-8", "image/svg+xml", "application/xhtml+xml", "text/plain, text/html"],
+    [
+        "text/html",
+        "TEXT/HTML; charset=utf-8",
+        "image/svg+xml",
+        "application/xhtml+xml",
+        "text/plain, text/html",
+        "text/plain;,text/html",
+        "text/plain; ,text/html",
+        "text/plain;charset=utf-8,text/html",
+        'text/plain; a="b",text/html',
+        "text/plain; boundary=x",
+        "text/plain;",
+        " text/plain",
+        "text/plain ",
+        "text/plain/html",
+        "text",
+        "",
+    ],
 )
 def test_a_content_type_a_browser_runs_is_refused(playground: TestClient, content_type: str) -> None:
     """The envelope reflects the query, so an HTML answer would run what a link put in it."""
@@ -230,7 +247,10 @@ def test_a_content_type_a_browser_runs_is_refused(playground: TestClient, conten
     assert "<script>" not in response.text
 
 
-@pytest.mark.parametrize("content_type", ["text/csv", "application/json", "text/plain; charset=utf-8"])
+@pytest.mark.parametrize(
+    "content_type",
+    ["text/csv", "application/json", "text/plain; charset=utf-8", "TEXT/PLAIN;charset=UTF-8", "application/x-ndjson"],
+)
 def test_an_inert_content_type_is_set_as_asked(playground: TestClient, content_type: str) -> None:
     response = playground.get(f"{PREFIX}/response-headers", params={"content-type": content_type})
     assert response.status_code == 200

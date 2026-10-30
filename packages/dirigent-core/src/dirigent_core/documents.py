@@ -17,10 +17,12 @@ from dirigent_client.schemas import Catalog, ValidationIssue
 from dirigent_common import (
     LOCAL_REFERENCES,
     STORAGE_URI_FORMAT,
+    BoundedLoader,
     Issue,
     JsonMap,
     Message,
     base_format_checker,
+    bounded_load,
     validation_issue,
 )
 from dirigent_core.engine.definition import (
@@ -102,8 +104,8 @@ SUFFIXES: Final = (".yaml", ".yml", ".json")
 CARRIED: Final = ("connections", "schemas")
 
 
-class PlainLoader(yaml.SafeLoader):
-    """A safe loader that leaves a date written as a date alone.
+class PlainLoader(BoundedLoader):
+    """A bounded loader that leaves a date written as a date alone.
 
     YAML resolves ``2026-01-01`` to a ``datetime.date``, which is not a JSON value, so the
     timestamp resolver is removed and such a value stays the string it was written as.
@@ -118,7 +120,7 @@ PlainLoader.yaml_implicit_resolvers = {
 
 def safe_load(text: str) -> object:
     """Read YAML (or JSON) the one way dirigent reads it, with dates left as strings."""
-    return yaml.load(text, Loader=PlainLoader)  # noqa: S506 - PlainLoader is SafeLoader minus a resolver
+    return bounded_load(text, PlainLoader)
 
 
 def is_document(raw: JsonMap) -> bool:
