@@ -18,9 +18,10 @@
 #   facilities  the input, written into the document with value.const. It is a list of objects
 #             rather than strings, so a name a person recognises and the query string sent to
 #             the geocoder can differ -- which they always end up doing.
-#   lookup_*  one search each, indexed out of that list. A geocoder cannot promise a match, so
-#             each of these tolerates failure: continue_on_failure means a name that cannot be
-#             resolved leaves a row with no coordinates instead of ending the run.
+#   lookup_*  one search each, indexed out of that list. A name the geocoder cannot place is
+#             still a 200 with an empty list, which the table below turns into a row with no
+#             coordinates. A lookup that fails outright, a 429 or a 500, leaves no body to read
+#             and ends the run: tolerating it would only move the failure to the table.
 #   pause_*   one second, which is the whole point of the chain.
 #   table     the join. The three answers arrive as one list in this step's input, the first
 #             candidate of each is taken, and the strings Nominatim returns for lat and lon are
@@ -85,9 +86,8 @@ steps:
   lookup_1:
     block: http.request
     depends_on: [facilities]
-    # A name the geocoder cannot place is a fact about the name, not a broken pipeline; the
-    # chain carries on and the table below records the gap.
-    continue_on_failure: true
+    # A name the geocoder cannot place is a fact about the name, not a broken pipeline; it
+    # answers an empty list, the chain carries on, and the table below records the gap.
     config:
       url: https://nominatim.openstreetmap.org/search
       headers:
@@ -111,7 +111,6 @@ steps:
   lookup_2:
     block: http.request
     depends_on: [facilities, pause_1]
-    continue_on_failure: true
     config:
       url: https://nominatim.openstreetmap.org/search
       headers:
@@ -131,7 +130,6 @@ steps:
   lookup_3:
     block: http.request
     depends_on: [facilities, pause_2]
-    continue_on_failure: true
     config:
       url: https://nominatim.openstreetmap.org/search
       headers:

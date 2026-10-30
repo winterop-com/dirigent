@@ -50,14 +50,15 @@ never met, the sensor skips, and every step behind it skips with it -- while the
 **Remember, without a state block.** Nothing carries over between runs except what a run wrote.
 A marker is a small object at a stable path: a sensor asks whether it is there, a transform
 reads it, the comparison decides, and the last step overwrites it under `rule: all_done`.
-`hdx-dataset-watch.yaml` is the whole pattern in one file. Under `--local` the artifact root is
-a throwaway directory, so every local run is a first sighting; on an instance, a stable prefix
-or an `s3://` bucket is what makes the second run the interesting one.
+`hdx-dataset-watch.yaml` is the whole pattern in one file. The marker sits under `${artifacts}`,
+the instance's storage root, which nothing sweeps: under `${run.scratch}` it would be deleted with
+the run. Under `--local` the artifact root is a throwaway directory, so two runs share a marker
+only when both are given the same `--root`.
 
 ## Two things the reference language will not do
 
-A `${...}` reference reads `params`, `steps.<name>.output.<path>`, `item`, and `run` --
-`run.scratch`, `run.id`, `run.window.start`, `run.window.end`. Two consequences show up
+A `${...}` reference reads `params`, `steps.<name>.output.<path>`, `item`, `artifacts`, and
+`run` -- `run.scratch`, `run.id`, `run.window.start`, `run.window.end`. Two consequences show up
 repeatedly on this shelf:
 
 - **A parameter default is literal text.** `default: ${run.scratch}/marker.json` is those

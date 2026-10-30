@@ -1,6 +1,6 @@
 # Three deadlines sit around one HTTP call. Know which one you are setting.
 #
-# In:  a delay in seconds, as a parameter, defaulting to 2.
+# In:  a delay, as a parameter, defaulting to 2s.
 # Out: a slow call that completes inside its own timeout, and its measured duration.
 #
 # The three, from the inside out:
@@ -25,9 +25,8 @@
 #
 # GET /api/v1/playground/request?delay=<duration> answers after the time it is given, so the
 # relationship is visible: with the default the call takes about 2s against a 10s budget and
-# the run is green. Setting -p delay=6s against -p timeout=3 fails the step instead, as a
-# timeout rather than as an error the server returned, which is a different failure class
-# and retried differently.
+# the run is green. Setting -p delay=6s against -p timeout=3s fails the step instead, as a
+# timeout rather than as an error the server returned.
 #
 # NEEDS AN INSTANCE TO CALL. The playground is served by a dirigent instance under
 # /api/v1/playground, unauthenticated, so a document teaching HTTP calls its own instance and
@@ -43,11 +42,11 @@
 # hang outside the HTTP client -- a name that never resolves, a socket that never closes --
 # still ends the attempt.
 #
-# To change it: -p delay=6s -p timeout=3 to see the failure, or -p delay=1s for a fast run.
+# To change it: -p delay=6s -p timeout=3s to see the failure, or -p delay=1s for a fast run.
 #
 #   dg dev &
 #   dg run --local examples/recipes/http-timeout-override.yaml
-#   dg run --local examples/recipes/http-timeout-override.yaml -p delay=6s -p timeout=3   # fails, on purpose
+#   dg run --local examples/recipes/http-timeout-override.yaml -p delay=6s -p timeout=3s   # fails, on purpose
 
 format: dirigent/v1
 kind: pipeline
@@ -88,9 +87,9 @@ params:
       default: 2s
       description: How long the route waits before answering; a humane duration.
     timeout:
-      type: number
-      default: 10
-      description: This call's own deadline, overriding the connection's 3 seconds.
+      type: string
+      default: 10s
+      description: This call's own deadline, a humane duration, overriding the connection's 3s.
 
 steps:
   slow:
@@ -115,9 +114,15 @@ steps:
         status: ${steps.slow.output.status}
         duration_ms: ${steps.slow.output.duration_ms}
         budget: ${params.timeout}
+      # A duration is text with a unit, so the budget is turned into milliseconds here to be
+      # compared with what the call measured.
       program: |
-        {status, duration_ms,
-         budget_ms: (.budget * 1000),
-         # A call that lands close to its budget is a call about to start failing
-         # intermittently, which is worth reporting before it does.
-         headroom_ms: ((.budget * 1000) - .duration_ms)}
+        def milliseconds:
+          capture("^(?<amount>[0-9.]+)(?<unit>ms|s|m|h)$")
+          | (.amount | tonumber) * {"ms": 1, "s": 1000, "m": 60000, "h": 3600000}[.unit];
+        (.budget | milliseconds) as $budget
+        | {status, duration_ms,
+           budget_ms: $budget,
+           # A call that lands close to its budget is a call about to start failing
+           # intermittently, which is worth reporting before it does.
+           headroom_ms: ($budget - .duration_ms)}

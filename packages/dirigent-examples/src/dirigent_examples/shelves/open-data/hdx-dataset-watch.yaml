@@ -13,16 +13,19 @@
 # storage.write puts the new one down. The whole state machine is a handful of steps and one
 # file, and it works the same against s3:// as against a local artifact root.
 #
-# Two consequences worth reading before copying this:
+# Three consequences worth reading before copying this:
 #
-#   - The marker below is written under ${run.scratch}, which is deleted with the run, so every
-#     `--local` run is a first sighting: the sensor skips, the comparison skips with it, and the
-#     run ends succeeded having only written a marker. That is the honest first-run behaviour,
-#     and it is what the graph shows. On an instance, write the marker at a stable location --
-#     s3://your-bucket/markers/... -- and the second run is the one that compares.
+#   - The marker below is written under ${artifacts}, the instance's storage root, which nothing
+#     sweeps. Under ${run.scratch} it would be deleted with the run, every run would be a first
+#     sighting, and nothing would ever publish.
+#   - The first run on an instance is still a first sighting: the sensor skips, the comparison
+#     skips with it, and the run ends succeeded having only written a marker. That is the honest
+#     first-run behaviour, and it is what the graph shows. The second run is the one that
+#     compares. A `--local` run builds a throwaway instance, so two of them share a marker only
+#     when both are given the same --root.
 #   - The marker path is written out in the two steps that name it, the sensor and the last
 #     write, rather than kept in a parameter, because a parameter default is literal text:
-#     ${run.scratch} in a default is those characters and not a reference to anything.
+#     ${artifacts} in a default is those characters and not a reference to anything.
 #
 # What happens, hop by hop:
 #
@@ -52,12 +55,12 @@
 #   remember  that marker written over the old one. Writing it last is what makes a failed run
 #             repeatable: the marker only advances on a run that got all the way here.
 #
-# To make it yours: change dataset_id to any HDX slug, and give the marker a stable home.
-# The same shape watches any CKAN instance -- data.gov, the EU portal, a national one -- since
+# To make it yours: change dataset_id to any HDX slug. The same shape watches any CKAN instance -- data.gov, the EU portal, a national one -- since
 # package_show and metadata_modified are CKAN's, not HDX's.
 #
-#   dg run --local examples/open-data/hdx-dataset-watch.yaml
-#   dg run --local examples/open-data/hdx-dataset-watch.yaml -p dataset_id=malawi-healthsites
+#   dg run --local --root /tmp/dirigent-hdx examples/open-data/hdx-dataset-watch.yaml   # first sighting
+#   dg run --local --root /tmp/dirigent-hdx examples/open-data/hdx-dataset-watch.yaml   # compares
+#   dg run --local --root /tmp/dirigent-hdx examples/open-data/hdx-dataset-watch.yaml -p dataset_id=malawi-healthsites
 
 format: dirigent/v1
 kind: pipeline
@@ -129,7 +132,7 @@ steps:
     # reason to publish everything; it is a first sighting, and the branch below skips.
     on_timeout: skip
     config:
-      uri: ${run.scratch}/markers/${params.dataset_id}.json
+      uri: ${artifacts}/markers/${params.dataset_id}.json
 
   recalled:
     block: storage.read
@@ -190,7 +193,8 @@ steps:
     depends_on: [written, changed]
     config:
       source: ${steps.written.output.target}
-      target: ${run.scratch}/published/${params.dataset_id}-resources.ndjson
+      # The root again: a path a downstream pipeline watches has to outlive this run.
+      target: ${artifacts}/published/${params.dataset_id}-resources.ndjson
 
   current_marker:
     block: transform.jq
@@ -209,5 +213,5 @@ steps:
     config:
       # The same path the sensor at the top looks for, which is what makes this run's
       # observation the next run's "previous".
-      target: ${run.scratch}/markers/${params.dataset_id}.json
+      target: ${artifacts}/markers/${params.dataset_id}.json
       value: ${steps.current_marker.output.value}

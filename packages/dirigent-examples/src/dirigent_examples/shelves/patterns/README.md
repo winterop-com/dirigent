@@ -85,7 +85,7 @@ stays on the instance.
 
 | File | What it shows | Ends as |
 | --- | --- | --- |
-| [schedule-cron-timezone.yaml](schedule-cron-timezone.yaml) | Five columns, and the named zone that decides what they mean | `succeeded` |
+| [schedule-cron-timezone.yaml](schedule-cron-timezone.yaml) | Five columns, and the named zone that decides what they mean; needs `--window` | `succeeded` |
 | [schedule-interval.yaml](schedule-interval.yaml) | A cadence rather than a calendar, and the misfire grace | `succeeded` |
 | [schedule-at-once.yaml](schedule-at-once.yaml) | One instant, anchored in the zone the schedule declares | `succeeded` |
 | [schedule-window-half-open.yaml](schedule-window-half-open.yaml) | `${run.window.*}`, half-open; needs `--window` | `succeeded` |
@@ -137,19 +137,20 @@ Most take no flags at all:
 dg run --local examples/patterns/rule-one-failed.yaml
 ```
 
-Four need something handed to them, because what they demonstrate is exactly the thing a bare
+Five need something handed to them, because what they demonstrate is exactly the thing a bare
 local run does not have:
 
 ```bash
 dg run --local examples/patterns/references-cheat-sheet.yaml --window 2026-06-01..2026-06-02
 dg run --local examples/patterns/schedule-window-half-open.yaml --window 2026-06-01..2026-06-02
+dg run --local examples/patterns/schedule-cron-timezone.yaml --window 2026-06-01..2026-06-02
 dg run --local examples/patterns/connections-referenced-vs-carried.yaml \
   --connections examples/connections.yaml
 dg run --local examples/patterns/pipeline-run-wait.yaml \
   --also-apply examples/patterns/pipeline-run-child.yaml
 ```
 
-Run the two without their flag once, on purpose: a run with no window refuses
+Run the three without their flag once, on purpose: a run with no window refuses
 `${run.window.start}` by name rather than resolving it to an empty string, which is the whole
 argument for the reference language raising instead of defaulting.
 

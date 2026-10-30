@@ -13,11 +13,11 @@
 # `python -c "import duckdb; duckdb.connect().execute('INSTALL httpfs')"` once.
 #
 # Five hops, and what each one hands on:
-#   readings    three records as a constant, standing in for whatever produced them.
+#   readings    four records as a constant, standing in for whatever produced them.
 #   as_json     storage.write puts them in the run's scratch. Output: the uri they landed at.
 #   store       convert.arrow re-encodes that object as parquet. Output: the target uri.
 #   summarise   sql.query reads that parquet FILE and groups it. Output: the rows, inline.
-#   report      sql.execute writes the answer out again as a csv artifact.
+#   report      sql.execute writes the same query's answer out as a csv artifact.
 #
 # WHY THE WRITE IS ITS OWN HOP. convert.arrow works on storage objects the way storage.copy
 # does -- a source uri, a target uri, no value -- so records a step is holding become an
@@ -86,6 +86,14 @@ connections:
       # database itself is empty and lives only as long as the step that opens it.
       url: "duckdb:///:memory:"
 
+params:
+  type: object
+  properties:
+    floor:
+      type: number
+      default: -10
+      description: The coldest reading both the summary and the csv count.
+
 steps:
   readings:
     block: value.const
@@ -129,7 +137,7 @@ steps:
         # duckdb opens, because this is a duckdb connection.
         source: "${steps.store.output.target}"
         # An ordinary bound value beside the file, to show they are the same mechanism.
-        floor: -10
+        floor: "${params.floor}"
       max_rows: 100
 
   report:
@@ -144,11 +152,13 @@ steps:
           COPY (
             SELECT region, COUNT(*) AS stations, ROUND(AVG(celsius), 2) AS mean_celsius
             FROM read_parquet(:source)
+            WHERE celsius >= :floor
             GROUP BY region
             ORDER BY region
           ) TO :target (FORMAT csv, HEADER)
       params:
         source: "${steps.store.output.target}"
+        floor: "${params.floor}"
         # The write side of the same rule: the target is a uri too, and the csv lands in the
         # run's scratch space where storage.copy or a person can pick it up.
         target: "${run.scratch}/regions.csv"

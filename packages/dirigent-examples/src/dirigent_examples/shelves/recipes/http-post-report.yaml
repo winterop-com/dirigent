@@ -118,7 +118,9 @@ steps:
            readings: [range($days) as $day
                       | range($stations) as $station
                       | {station: "st-\($station)",
-                         day: ("2026-01-0" + ($day + 1 | tostring)),
+                         # Counted from a real date, so -p days=10 still builds real dates.
+                         day: ("2026-01-01T00:00:00Z" | fromdateiso8601 | . + $day * 86400
+                               | strftime("%Y-%m-%d")),
                          # Fixed arithmetic, so the same parameters POST the same bytes.
                          celsius: ((($station * 7) + ($day * 3)) % 19) - 4}]}
 

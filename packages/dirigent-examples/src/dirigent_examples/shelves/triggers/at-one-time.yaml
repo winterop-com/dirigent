@@ -52,8 +52,12 @@ steps:
         from: "${params.from}"
         to: "${params.to}"
         environment: "${params.environment}"
+      # One batch per calendar month the window touches, counted from its own two ends.
       program: |
-        {environment, from, to, months: [range(1; 13)]}
+        def month_index: split("-") | (.[0] | tonumber) * 12 + (.[1] | tonumber) - 1;
+        def month_name: "\(. / 12 | floor)-\(. % 12 + 1 | if . < 10 then "0\(.)" else "\(.)" end)";
+        {environment, from, to,
+         months: [range(.from | month_index; (.to | month_index) + 1) | month_name]}
 
   backfill:
     block: transform.jq
