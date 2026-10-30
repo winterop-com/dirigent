@@ -1,11 +1,12 @@
 """The endpoint intake: a call to a received source, checked in one order, becomes a run or a refusal.
 
 Each check answers for itself, in this order: the instance's bucket for the method and path,
-the route (404, 405), the token (401), the source's own bucket (429), the source and its
-pipeline taking input (503), the content type (415), the capped read (413), the signature of a
-signed source (401), the parse (400), the runs in flight (503), then the run. Nothing before
-the source's own bucket writes a row, so a caller without a token, or in a loop, causes no
-writes; those are counted in telemetry, and so is a signature that does not match.
+the route (404, 405), the token (401), or for a signed source the capped read (413) and the
+signature (401), then the source's own bucket (429), the source and its pipeline taking input
+(503), the content type (415), the capped read (413), the parse (400), the runs in flight
+(503), then the run. Nothing before the source's own bucket writes a row or spends from it,
+so a caller without the token or the secret, or in a loop, causes no writes; those are counted
+in telemetry instead.
 """
 
 import hashlib
@@ -229,6 +230,17 @@ class Intake:
             return _counted(
                 Refusal.of(TOKEN_REFUSED, status=401, headers={"WWW-Authenticate": 'Bearer realm="dirigent"'})
             )
+        cap = settings.source_max_body
+        declared = source.max_body(config)
+        most = min(declared, cap) if declared is not None else cap
+        body: bytes | None = None
+        if auth.kind == "hmac":
+            body = await read(most)
+            if len(body) > most:
+                return _counted(Refusal.of(SOURCE_BODY_TOO_LARGE, status=413, limit=most))
+            unsigned = _unsigned(services, row, auth, call.headers, body)
+            if unsigned is not None:
+                return _counted(unsigned)
         rate = source.rate(config)
         if rate is not None and not self.source_bucket.allow(
             str(row.id), per_minute=rate.per_minute, capacity=rate.burst
@@ -257,17 +269,11 @@ class Intake:
         refused = source.admit(config, head)
         if refused is not None:
             return await journal.refuse(refused)
-        cap = settings.source_max_body
-        declared = source.max_body(config)
-        most = min(declared, cap) if declared is not None else cap
-        body = await read(most)
+        if body is None:
+            body = await read(most)
         journal.body_bytes = len(body)
         if len(body) > most:
             return await journal.refuse(Refusal.of(SOURCE_BODY_TOO_LARGE, status=413, limit=most))
-        if auth.kind == "hmac":
-            unsigned = _unsigned(services, row, auth, call.headers, body)
-            if unsigned is not None:
-                return _counted(unsigned)
         made = await source.receive(config, head.model_copy(update={"body": body}), _ReceiveContext(services=services))
         if isinstance(made, Ignore):
             telemetry.record_input("ignored", 204)
