@@ -316,6 +316,24 @@ jobs:
           done
           $COMPOSE exec -T worker docker version --format '{{.Server.Version}}'
 
+      # What a pipeline's container reaches is what the daemon reaches. The daemon reaching
+      # itself is what shows a refused connection below means the network, not a missing nc.
+      - name: Prove the daemon cannot reach the database or the bucket
+        run: |
+          COMPOSE="docker compose --project-directory . -f infra/compose.yaml"
+          $COMPOSE exec -T docker nc -z -w 3 docker 2376
+          for target in postgres:5432 s3:9000; do
+            service="${target%:*}"
+            port="${target#*:}"
+            address=$(docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$($COMPOSE ps -q "$service")")
+            for host in "$service" "$address"; do
+              if $COMPOSE exec -T docker nc -z -w 3 "$host" "$port"; then
+                echo "the daemon reached $service at $host:$port"
+                exit 1
+              fi
+            done
+          done
+
       # The server applies examples/ at boot, so the document is already stored; this starts
       # a run of it and waits for the whole compose lifecycle to settle.
       - name: Run the compose example against the sidecar

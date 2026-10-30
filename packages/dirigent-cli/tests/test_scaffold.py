@@ -95,6 +95,21 @@ def test_the_scaffolded_stack_matches_the_base_stack(tmp_path: Path) -> None:
         assert {key: theirs[key] for key in rest} == rest, name
 
 
+def test_the_daemon_shares_a_network_with_the_worker_alone(tmp_path: Path) -> None:
+    """A pipeline's container resolves what the daemon resolves, which must not be the database."""
+    for document in compose_files(tmp_path):
+        services = document["services"]
+        daemon = set(services["docker"]["networks"])
+        beside = {
+            name
+            for name, service in services.items()
+            if name != "docker" and daemon & set(service.get("networks", ["default"]))
+        }
+        assert beside == {"worker"}
+        assert "default" in services["worker"]["networks"], "the worker still reaches the database"
+        assert daemon <= set(document["networks"])
+
+
 def test_the_scaffolded_stack_builds_on_the_published_image(tmp_path: Path) -> None:
     scaffolded, _ = compose_files(tmp_path)
     for name in ("server", "worker"):
