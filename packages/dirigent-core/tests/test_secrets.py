@@ -64,7 +64,7 @@ def test_a_generated_key_is_a_fernet_key_that_seals_and_opens() -> None:
 def test_a_fernet_key_is_used_verbatim_and_a_passphrase_is_refused() -> None:
     generated = Fernet.generate_key()
     assert fernet_key(generated.decode()) == generated
-    with pytest.raises(SecretKeyMalformed, match="dg secret-key") as refused:
+    with pytest.raises(SecretKeyMalformed, match="a passphrase is not taken") as refused:
         SecretBox("a human passphrase")
     assert "a human passphrase" not in str(refused.value), "the refusal never repeats the key"
 
