@@ -613,6 +613,11 @@ DEADLINE_PASSED = RUN.define("deadline_passed", "the deadline {deadline} passed 
 
 DEADLINE_SKIPPED = RUN.define("deadline_skipped", "the deadline {deadline} passed; the step is skipped")
 
+LEASE_RECOVERIES = RUN.define(
+    "lease_recoveries",
+    "step {step} was taken back from a worker more than {limit} times without an outcome, so it is not run again",
+)
+
 CALL_TIMED_OUT = RUN.define("call_timed_out", "the block call timed out")
 
 CALL_EXCEEDED_TIMEOUT = RUN.define("call_exceeded_timeout", "the block call exceeded the step timeout {timeout}")

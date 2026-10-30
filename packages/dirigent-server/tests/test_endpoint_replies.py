@@ -1,11 +1,14 @@
 """A caller held for its run's reply: what it is answered with, and what its journal row says."""
 
+import asyncio
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, cast
 
+import httpx2
 import pytest
+import yaml
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
@@ -144,6 +147,80 @@ def test_a_reply_that_cannot_render_answers_422_naming_the_run(client: TestClien
     assert problem["params"]["run"] == str(entry.run_id)
     assert called.headers["location"] == f"{PREFIX}/runs/{entry.run_id}"
     assert (entry.outcome, entry.status) == ("replied", 422)
+
+
+@pytest.mark.parametrize(
+    ("reply", "said"),
+    [
+        ("      status: ${steps.ask.output.body.value}\n", "\u00b2"),
+        ("      status: ${steps.ask.output.body.value}\n", "9" * 5000),
+        ("      body_from: ${steps.ask.output.body.value}\n", "file:///etc/hostname"),
+        ("      body_from: ${steps.ask.output.body.value}\n", "nosuchscheme://bucket/key"),
+        ("      body_from: ${steps.ask.output.body.value}\n", "file:///tmp/\u0000"),
+        ('      content_type: "text/plain; charset=ascii"\n      body: ${steps.ask.output.body.value}\n', "bl\u00e5"),
+        ('      content_type: "text/plain; charset=nope"\n      body: ${steps.ask.output.body.value}\n', "text"),
+    ],
+)
+def test_anything_a_reply_cannot_render_settles_it_as_rejected(client: TestClient, reply: str, said: str) -> None:
+    apply_document(client, answered_at_once(reply))
+    called = client.post("/endpoints/now", json={"value": said}, headers={"Authorization": ""})
+    assert called.status_code == 422, called.text
+    assert called.json()["code"] == "source.reply_rejected"
+    assert "artifacts" not in called.text, "the caller is not told where the instance keeps its artifacts"
+
+
+@pytest.mark.parametrize("status", ["²", "9" * 5000])
+async def test_a_reply_that_cannot_render_after_a_worker_step_ends_the_run_with_that_step_run_once(
+    settings: Settings, admin_token: str, status: str
+) -> None:
+    document = """
+format: dirigent/v1
+kind: pipeline
+code: after-work
+steps:
+  ask:
+    source:
+      kind: endpoint
+      path: /after-work
+      auth: {kind: public}
+  work:
+    block: transform.jq
+    depends_on: [ask]
+    config:
+      input: ${steps.ask.output.body}
+      program: '.'
+  answer:
+    depends_on: [work]
+    reply:
+      status: ${steps.ask.output.body.status}
+"""
+    app = create_app(settings, scheduler=False)
+    admin = {"Authorization": f"Bearer {admin_token}"}
+    async with (
+        app.router.lifespan_context(app),
+        httpx2.AsyncClient(transport=httpx2.ASGITransport(app), base_url="http://testserver") as client,
+    ):
+        applied = await client.post(
+            f"{PREFIX}/pipelines/$apply",
+            json={"document": yaml.safe_load(document), "pause_schedules": False},
+            headers=admin,
+        )
+        assert applied.status_code == 200, applied.text
+        held = asyncio.create_task(client.post("/endpoints/after-work", json={"status": status}))
+        engine = Engine(app.state.session_factory, app.state.services, owner="worker")
+        async with asyncio.timeout(10):
+            while (unit := await engine.claim()) is None:
+                await asyncio.sleep(0.02)
+        await engine.run_unit(unit)
+        called = await asyncio.wait_for(held, timeout=10)
+        assert called.status_code == 422, called.text
+        assert await engine.claim() is None, "nothing is left to run"
+        run_id = called.json()["params"]["run"]
+        attempts = (await client.get(f"{PREFIX}/runs/{run_id}/attempts", headers=admin)).json()["items"]
+        assert [(row["step_name"], row["status"]) for row in attempts if row["step_name"] == "work"] == [
+            ("work", "succeeded")
+        ]
+        assert (await client.get(f"{PREFIX}/runs/{run_id}", headers=admin)).json()["run"]["status"] == "failed"
 
 
 @pytest.mark.parametrize(

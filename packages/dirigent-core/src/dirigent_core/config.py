@@ -239,6 +239,9 @@ class Settings(BaseSettings):
     lease: Duration = Field(default=timedelta(seconds=60), ge=timedelta(seconds=5))
     """How long a claimed attempt's lease is valid before the sweeper may reclaim it."""
 
+    lease_recovery_limit: int = Field(default=5, ge=0)
+    """How many times one attempt may be taken back from a worker and run again before it fails."""
+
     heartbeat: Duration = Field(default=timedelta(seconds=15), ge=timedelta(seconds=1))
     """How often a worker refreshes the leases it holds and its registry row."""
 

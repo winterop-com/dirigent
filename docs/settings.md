@@ -44,6 +44,7 @@ environment, and the server inside one never opens the file.
 | `worker_tags` | `DIRIGENT_WORKER_TAGS` | `[]` | Capability tags a worker advertises to the claim query. |
 | `worker_name` | `DIRIGENT_WORKER_NAME` | `null` | Registry name of this worker; defaults to hostname plus process id. |
 | `lease` | `DIRIGENT_LEASE` | `"1m"` | How long a claimed attempt's lease is valid before the sweeper may reclaim it. |
+| `lease_recovery_limit` | `DIRIGENT_LEASE_RECOVERY_LIMIT` | `5` | How many times one attempt may be taken back from a worker and run again before it fails. |
 | `heartbeat` | `DIRIGENT_HEARTBEAT` | `"15s"` | How often a worker refreshes the leases it holds and its registry row. |
 | `claim_idle` | `DIRIGENT_CLAIM_IDLE` | `"500ms"` | How long an idle worker waits before asking for work again when nothing wakes it. |
 | `log_flush_interval` | `DIRIGENT_LOG_FLUSH_INTERVAL` | `"1s"` | How often a running attempt's buffered log entries are written to the run. |

@@ -13,6 +13,7 @@ from datetime import datetime
 from typing import Final, cast
 
 from pydantic import JsonValue
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirigent_client.enums import AttemptKind, AttemptStatus
@@ -24,10 +25,13 @@ from dirigent_core.engine.expansion import collect_errors, collect_outputs
 from dirigent_core.engine.failure import Failure
 from dirigent_core.engine.references import ReferenceScope, UnknownReference, resolve
 from dirigent_core.engine.services import EngineServices
+from dirigent_core.logging import get_logger
 from dirigent_core.messages import REPLY_BODY_FROM, REPLY_REFUSED, REPLY_STATUS
 from dirigent_core.models import Run, StepAttempt
 from dirigent_core.storage import scratch_prefix
 from dirigent_plugin import ErrorClass
+
+_logger = get_logger("engine")
 
 JSON: Final = "application/json"
 
@@ -38,6 +42,9 @@ VIA_REQUEST: Final = "request"
 
 #: What a rendered header value may hold: a value carrying a line break would start another header.
 HEADER_VALUE: Final = re.compile(r"[\t\x20-\x7e\x80-\xff]*")
+
+#: A status written as text: three ASCII digits, the only spelling ``int`` reads and an answer can use.
+STATUS_TEXT: Final = re.compile(r"[0-9]{3}")
 
 #: Statuses whose answer carries no body.
 BODYLESS: Final = frozenset({204, 304})
@@ -84,6 +91,15 @@ async def settle_reply(
     except _Unrenderable as failure:
         _fail(attempt, failure.failure)
         return
+    except SQLAlchemyError:
+        raise
+    except Exception as error:
+        # The detail reaches whoever called the endpoint, so it names the class and not the text,
+        # which can carry the artifact root. A database failure above is not the reply's, and
+        # stays the transaction's to retry.
+        _logger.warning("a reply could not be rendered", step=name, error=str(error))
+        _fail(attempt, Failure.rejected(REPLY_REFUSED, step=repr(name), detail=type(error).__name__))
+        return
     rendered["delivered"] = await _deliverable(session, services, run, definition, attempt, attempts)
     await persist_output(
         session,
@@ -124,7 +140,7 @@ async def _render(
         window_end=run.window_end,
     )
     status = resolve(cast("JsonValue", reply.status), scope)
-    if isinstance(status, str) and status.strip().isdigit():
+    if isinstance(status, str) and STATUS_TEXT.fullmatch(status.strip()) is not None:
         status = int(status.strip())
     if not isinstance(status, int) or isinstance(status, bool) or not 200 <= status <= 599:
         raise _Unrenderable(Failure.rejected(REPLY_STATUS, step=repr(name), status=repr(status)))
