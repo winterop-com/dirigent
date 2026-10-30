@@ -180,7 +180,7 @@ than by an exception list each endpoint remembers:
 
 - `GET /health` and `GET /health/ready`.
 - `POST /api/v1/auth/login`, which cannot require what it hands out.
-- `/docs`, `/redoc`, and `/openapi.json`. These are FastAPI's defaults and are open. If your
+- `/docs`, `/redoc`, and `/openapi.json`. These are open. If your
   deployment does not want the API surface published, do not expose them past your proxy.
 - Every route under `/endpoints`, which a pipeline's endpoint sources declare, each with its own
   token or signing secret unless it writes itself public. See [endpoint hardening](#endpoint-hardening).
@@ -200,9 +200,12 @@ Every response carries `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY
 `Referrer-Policy: same-origin` and a `Content-Security-Policy` that includes
 `frame-ancestors 'none'`, so no page of this instance can be framed by another site. The UI's
 policy allows scripts only from this origin, workers from this origin or `blob:` for the
-editor, and inline styles. `/docs` and `/redoc` load FastAPI's viewers from `cdn.jsdelivr.net`,
-so they have a policy of their own that allows that CDN and their inline bootstrap, and nothing
-else. A route that sets one of these headers itself keeps its own value. A terminating proxy
+editor, and inline styles. `/docs` and `/redoc` load Swagger UI and ReDoc from `cdn.jsdelivr.net`,
+each pinned to one exact release and to its subresource integrity hash, so a browser runs those
+bytes or nothing. Their policy of their own names those exact URLs rather than the CDN, and
+Swagger UI's inline bootstrap by its hash. A newer release of either arrives only with a dirigent
+release that changes both the version and the hash. ReDoc's badge image still loads from
+`cdn.redoc.ly`, and neither page loads web fonts. A route that sets one of these headers itself keeps its own value. A terminating proxy
 that also sets them should agree with these, because a browser enforces every policy it is sent.
 
 ### Cross-site writes

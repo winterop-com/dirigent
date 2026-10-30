@@ -28,6 +28,7 @@ from dirigent_server.routes import TAGS, build_endpoints_router, build_router
 from dirigent_server.routes.playground import install_stream_deadline
 from dirigent_server.security import install_cross_site_guard, install_security_headers
 from dirigent_server.ui import mount_ui_assets, mount_ui_shell
+from dirigent_server.viewers import router as viewers_router
 
 DESCRIPTION = """
 A generic pipeline orchestrator. Pipelines are data, composed from pluggable building
@@ -102,6 +103,8 @@ def create_app(
         description=DESCRIPTION.strip(),
         version=__version__,
         openapi_tags=TAGS,
+        docs_url=None,
+        redoc_url=None,
         lifespan=lifespan,
         # `instrument_fastapi` is the request span, and `configure_telemetry` owns the providers.
         telemetry={
@@ -121,6 +124,7 @@ def create_app(
     install_error_handlers(app)
     mount_ui_assets(app, resolved)
     app.include_router(health_router)
+    app.include_router(viewers_router)
     app.include_router(build_router(resolved), prefix=resolved.api_prefix)
     app.include_router(build_endpoints_router(), prefix=resolved.endpoint_prefix)
     mount_ui_shell(app, resolved)
