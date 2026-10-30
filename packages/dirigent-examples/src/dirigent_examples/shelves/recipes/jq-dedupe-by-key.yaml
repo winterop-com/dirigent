@@ -31,7 +31,10 @@ format: dirigent/v1
 kind: pipeline
 code: jq-dedupe-by-key
 name: Dedupe by key, three ways
-description: Collapse repeated rows to one per key by first seen, last seen, and newest timestamp, and list the keys that repeated.
+description: |
+  Reduce repeated rows to one per key, and list the keys that repeated.
+
+  The rows collapse three ways, side by side: by first seen, last seen, and newest timestamp.
 
 tags: [recipes, transform, jq]
 

@@ -42,7 +42,11 @@ format: dirigent/v1
 kind: pipeline
 code: parquet-round-trip-types
 name: What survives a parquet round trip
-description: Write one record of every JSON scalar, convert it out to parquet and back, and compare it against the same record round-tripped through csv.
+description: |
+  Compare what a round trip through parquet and through csv does to each type.
+
+  Two records carrying every JSON scalar are converted out to parquet and back, and compared
+  against the same records round-tripped through csv.
 
 tags: [recipes, storage, transform, parquet]
 

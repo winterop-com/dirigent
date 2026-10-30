@@ -49,7 +49,11 @@ format: dirigent/v1
 kind: pipeline
 code: report-daily-digest
 name: A daily digest report
-description: Compute a day's numbers once, write them to storage and convert them into a csv artifact, derive a digest line, and post the summary to a receiver.
+description: |
+  Summarise a day's readings, save a csv, and post the digest to a receiver.
+
+  The day's numbers are computed once, written to storage and converted into a csv artifact, a
+  digest line is derived from them, and the summary is posted.
 
 tags: [recipes, storage, transform, webhook]
 

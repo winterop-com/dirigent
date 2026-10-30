@@ -39,7 +39,11 @@ format: dirigent/v1
 kind: pipeline
 code: csv-to-ndjson
 name: CSV to ndjson, with the typing that follows
-description: Re-spell a csv as one JSON object per line, then give the string cells the types the columns actually have.
+description: |
+  Turn a csv into one JSON object per line, then give the cells their real types.
+
+  Every cell a csv brings in is a string, and the typing step gives each one the type its column
+  actually has.
 
 tags: [recipes, storage, transform]
 

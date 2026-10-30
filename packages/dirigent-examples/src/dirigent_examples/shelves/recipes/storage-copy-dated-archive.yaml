@@ -36,7 +36,11 @@ format: dirigent/v1
 kind: pipeline
 code: storage-copy-dated-archive
 name: A dated archive copy
-description: Write a file, copy it to a date-partitioned archive key, and record both URIs and the bytes copied in a manifest.
+description: |
+  Save a file, copy it to a dated archive folder, and record what was copied.
+
+  The copy lands at a date-partitioned archive key, and a manifest records both URIs and the bytes
+  copied.
 
 tags: [recipes, storage, transform]
 

@@ -33,7 +33,10 @@ format: dirigent/v1
 kind: pipeline
 code: filter-then-map-then-reduce
 name: Filter, then map, then reduce
-description: Keep the usable readings, convert each one, and fold the result into a summary with reduce.
+description: |
+  Keep the usable readings, convert each one, and add them up in a summary.
+
+  The summary is folded with jq's reduce.
 
 tags: [recipes, transform, filter, map]
 

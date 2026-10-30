@@ -49,7 +49,11 @@ format: dirigent/v1
 kind: pipeline
 code: pagination-by-fan-out
 name: Pagination as a fan-out
-description: Fetch a literal list of pages concurrently with for_each, each item its own attempt, then stitch the pages into one list.
+description: |
+  Fetch several pages at once, then stitch them into one list.
+
+  The page numbers are a parameter. for_each makes each page an item of its own, with its own
+  status and retry budget, and the items run concurrently.
 
 tags: [recipes, http, transform, graph]
 

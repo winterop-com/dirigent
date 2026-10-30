@@ -42,7 +42,11 @@ format: dirigent/v1
 kind: pipeline
 code: http-post-json-body
 name: POST a JSON body
-description: Build a payload upstream, POST it as structure rather than as text, and read the receipt the endpoint answers with.
+description: |
+  Build a payload, post it as JSON, and read the receipt that comes back.
+
+  The payload is built upstream and POSTed as structure rather than as text, and the receipt is
+  what the endpoint answers with.
 
 tags: [recipes, http, transform]
 

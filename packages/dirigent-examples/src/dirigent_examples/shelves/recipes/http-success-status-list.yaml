@@ -46,7 +46,11 @@ format: dirigent/v1
 kind: pipeline
 code: http-success-status-list
 name: Statuses that count as success
-description: Accept a specific non-2xx as success for one call with success_status, and branch on what the status actually meant.
+description: |
+  Accept a chosen HTTP error status as success, and report what it meant.
+
+  One call lists the statuses it accepts with success_status, which takes a specific non-2xx as
+  success for that call alone, and a jq step branches on what the status actually meant.
 
 tags: [recipes, http, transform]
 

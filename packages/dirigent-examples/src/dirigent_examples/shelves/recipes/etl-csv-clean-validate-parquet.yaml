@@ -49,7 +49,11 @@ format: dirigent/v1
 kind: pipeline
 code: etl-csv-clean-validate-parquet
 name: CSV to checked parquet
-description: Parse a messy csv, clean and type it, sort out the unloadable rows, hold the rest to a schema, and write parquet.
+description: |
+  Clean a messy csv, check it against a schema, and write it to parquet.
+
+  The csv is parsed, cleaned and typed, the unloadable rows are sorted out, and the rest are held
+  to a schema before the parquet is written.
 
 tags: [recipes, storage, transform, validate, parquet]
 

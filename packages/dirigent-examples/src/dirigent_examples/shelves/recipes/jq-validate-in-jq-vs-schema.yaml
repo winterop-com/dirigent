@@ -38,7 +38,11 @@ format: dirigent/v1
 kind: pipeline
 code: jq-validate-in-jq-vs-schema
 name: Checking in jq versus checking with a schema
-description: Sort a batch into accepted and rejected rows with jq, then hold the accepted ones to a carried schema at a gate.
+description: |
+  Sort rows into good and bad, then check the good ones against a schema.
+
+  jq sorts the batch into accepted and rejected rows, and a carried schema holds the accepted ones
+  at a gate.
 
 tags: [recipes, transform, validate, jq]
 

@@ -36,7 +36,11 @@ format: dirigent/v1
 kind: pipeline
 code: jq-window-dates
 name: Date windows and ISO weeks in jq
-description: Build a window of days from a start date, bucket it into ISO weeks, and show why strptime alone is not a date.
+description: |
+  List the days from a start date and group them into ISO weeks.
+
+  The window of days is built from the start date and bucketed into ISO weeks, and the output
+  shows why strptime alone is not a date.
 
 tags: [recipes, transform, jq]
 
