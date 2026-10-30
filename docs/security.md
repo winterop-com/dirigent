@@ -158,6 +158,12 @@ change. The new password goes through the same minimum length, and a short one i
 session of that account is revoked, including the one it may be sitting in. API tokens are
 untouched, for the same reason they survive a self-service change.
 
+**A body is bounded before anyone has proved who they are.** A route parses its body before
+it authenticates, so `/api/v1` holds at most 1 MiB from a caller and checks its credential before
+reading past that. A caller with no credential, or one that does not resolve, is answered 413
+(`server.unauthenticated_body_too_large`). A login is held to 16 KiB whatever it presents. A
+rate-limit key longer than 128 characters is held as its hash.
+
 ### What is unauthenticated
 
 Five things, and they are exempt by not being mounted behind the authenticated router rather

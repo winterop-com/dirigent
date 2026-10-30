@@ -20,6 +20,11 @@ CROSS_SITE = SERVER.define(
     "origins; automation authenticating with a bearer token is unaffected",
 )
 
+UNAUTHENTICATED_BODY_TOO_LARGE = SERVER.define(
+    "unauthenticated_body_too_large",
+    "the body is larger than the {limit} bytes this route reads from a caller it has not authenticated",
+)
+
 BAD_CREDENTIALS = SERVER.define("bad_credentials", "invalid username or password")
 
 TOO_MANY_LOGINS = SERVER.define(
