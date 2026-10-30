@@ -840,6 +840,15 @@ database, or [prune](#pruning-by-hand) the runs whose bytes are gone with
 No health check will say it first. Readiness asks the database, and nothing probes the artifact
 root, so a restored instance reads as healthy until something reads an artifact.
 
+**An object changed after it was written** is refused the same way, as `artifacts.object_altered`.
+A row records the size and digest of what the engine stored, for step outputs and run documents.
+`GET /artifacts/{id}` compares the size before it answers, so another size is a **500** with the
+problem document. The digest is only known once the object has been read, so an object altered
+at the same size has its response cut off at the end instead of finishing: a reader sees a broken
+transfer, having received the bytes. The objects a block writes itself through `storage.*`, such
+as a captured `stdout_uri`, have no row and are not checked. A restored artifact root that does
+not match its database reads this way too.
+
 **Artifacts newer than the database** -- the state the recommended order leaves -- has objects
 no row names. Nothing reads them, and retention never sweeps them: the sweep deletes a run's
 scratch prefix by walking the run's row, and a prefix with no row is never visited. They cost
