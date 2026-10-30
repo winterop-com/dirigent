@@ -723,7 +723,7 @@ const shell = {
 
     open_palette: 'Open the command palette',
     /** The chord on the palette's button: this platform's modifier, and the letter. */
-    palette_chord: (modifier: string) => `${modifier}K`,
+    palette_chord: (modifier: string) => (modifier.length > 1 ? `${modifier} K` : `${modifier}K`),
     toggle_panel: 'Show or hide the side panel',
     open_settings: 'Open settings',
     shortcuts: 'Keyboard shortcuts',

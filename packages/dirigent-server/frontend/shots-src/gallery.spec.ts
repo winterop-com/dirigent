@@ -11,10 +11,11 @@ const DEV_USERNAME = 'admin'
 const DEV_PASSWORD = 'admin'
 
 async function shot(page: Page, mode: string, name: string): Promise<void> {
-    // The corner identity fills over its reads after every full load; a picture of the asking
-    // state would put the wrong topbar in every frame. What says the read landed is the corner
-    // naming the instance and its environment, not a version: the bar carries none.
-    await page.getByRole('button', { name: 'Instance' }).filter({ hasText: '·' }).waitFor({ timeout: 8000 })
+    // The corner's dot fills over its read after every full load; a picture of the asking state
+    // would put the wrong topbar in every frame. Its accessible name says when the read landed.
+    await page
+        .getByRole('button', { name: /^Instance: (healthy|degraded|unhealthy)/ })
+        .waitFor({ timeout: 8000 })
     await page.waitForTimeout(800)
     await page.screenshot({ path: path.join(OUT, `${name}--${mode}.png`) })
 }
