@@ -73,6 +73,8 @@ from dirigent_plugin.transforms import (
     TransformError,
     TransformOutput,
     csv_header,
+    hold_csv_columns,
+    hold_csv_empty_cells,
 )
 
 __all__ = [
@@ -132,6 +134,8 @@ __all__ = [
     "TransformConfig",
     "TransformError",
     "csv_header",
+    "hold_csv_columns",
+    "hold_csv_empty_cells",
     "TransformOutput",
     "Transformer",
     "classify_default",

@@ -2,6 +2,8 @@
 
 import datetime
 import json
+from collections.abc import Iterator
+from typing import Any
 
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -304,6 +306,87 @@ async def test_a_parquet_wider_than_the_column_limit_is_refused_as_a_csv(
         await from_parquet(ctx, storage, parquet_bytes(null_table(1, 11)), "csv")
 
     assert "more than 10 distinct keys" in raised.value.message
+
+
+def no_page_is_read(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fail anything that decodes a parquet's pages, leaving its footer readable."""
+
+    def refuse(*_: object, **__: object) -> None:
+        pytest.fail("a page was read")
+
+    monkeypatch.setattr(pq, "read_table", refuse)
+    monkeypatch.setattr(pq.ParquetFile, "iter_batches", refuse)
+    monkeypatch.setattr(pq.ParquetFile, "read", refuse)
+
+
+async def test_a_parquet_too_wide_for_a_csv_is_refused_from_its_footer(
+    ctx: FakeContext, storage: FakeStorage, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    payload = parquet_bytes(null_table(1, 11))
+    monkeypatch.setattr(transforms, "CSV_COLUMN_LIMIT", 10)
+    no_page_is_read(monkeypatch)
+
+    with pytest.raises(BlockFailure) as raised:
+        await from_parquet(ctx, storage, payload, "csv")
+
+    assert "more than 10 distinct keys" in raised.value.message
+
+
+async def test_a_parquet_of_nothing_is_refused_from_its_footer(
+    ctx: FakeContext, storage: FakeStorage, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    payload = parquet_bytes(null_table(20, 20))
+    monkeypatch.setattr(transforms, "CSV_EMPTY_CELL_LIMIT", 100)
+    no_page_is_read(monkeypatch)
+
+    with pytest.raises(BlockFailure) as raised:
+        await from_parquet(ctx, storage, payload, "csv")
+
+    assert "20 rows by 20 columns leave 400 cells empty" in raised.value.message
+
+
+async def test_a_nested_column_is_refused_from_the_footer(
+    ctx: FakeContext, storage: FakeStorage, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    payload = parquet_bytes(pa.table({"nested": [[1, 2]]}))  # pyright: ignore[reportUnknownMemberType]
+    no_page_is_read(monkeypatch)
+
+    with pytest.raises(BlockFailure) as raised:
+        await from_parquet(ctx, storage, payload, "json")
+
+    assert "a nested column has no json" in raised.value.message
+
+
+async def test_a_parquet_without_statistics_stops_at_the_batch_that_passes_the_limit(
+    ctx: FakeContext, storage: FakeStorage, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sink = pa.BufferOutputStream()
+    pq.write_table(null_table(10_000, 2), sink, write_statistics=False)  # pyright: ignore[reportUnknownMemberType]
+    monkeypatch.setattr(transforms, "CSV_EMPTY_CELL_LIMIT", 100)
+    read: Any = pq.ParquetFile.iter_batches  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+    batches: list[object] = []
+
+    def counted(self: pq.ParquetFile, batch_size: int) -> Iterator[object]:
+        for batch in read(self, batch_size=batch_size):
+            batches.append(batch)
+            yield batch
+
+    monkeypatch.setattr(pq.ParquetFile, "iter_batches", counted)
+
+    with pytest.raises(BlockFailure) as raised:
+        await from_parquet(ctx, storage, sink.getvalue().to_pybytes(), "csv")
+
+    assert "cells empty" in raised.value.message
+    assert len(batches) == 1
+
+
+async def test_a_parquet_converts_across_batches_in_row_order(ctx: FakeContext, storage: FakeStorage) -> None:
+    rows = 3_073
+    payload = parquet_bytes(pa.table({"n": list(range(rows))}))  # pyright: ignore[reportUnknownMemberType]
+
+    text = await from_parquet(ctx, storage, payload, "ndjson")
+
+    assert [json.loads(line)["n"] for line in text.splitlines()] == list(range(rows))
 
 
 async def test_a_parquet_of_real_rows_still_converts_past_the_limit_on_empty_cells(
