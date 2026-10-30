@@ -13,24 +13,24 @@ import {
     paletteAfter,
 } from '@/lib/theme'
 
-const INDEX_HTML = fileURLToPath(new URL('../../index.html', import.meta.url))
+const PALETTE_JS = fileURLToPath(new URL('../../public/palette.js', import.meta.url))
 const INDEX_CSS = fileURLToPath(new URL('../index.css', import.meta.url))
 
-/** The palette names the pre-paint script in index.html knows about. */
-function namesInIndexHtml(html: string): string[] {
-    const list = /var known = \[([^\]]*)\]/.exec(html)
-    if (list === null) throw new Error('index.html no longer declares a palette list')
+/** The palette names the pre-paint script knows about. */
+function namesInPaletteScript(script: string): string[] {
+    const list = /var known = \[([^\]]*)\]/.exec(script)
+    if (list === null) throw new Error('palette.js no longer declares a palette list')
     return [...list[1].matchAll(/'([^']+)'/g)].map((match) => match[1])
 }
 
 describe('the palette axis', () => {
     test('the pre-paint script knows exactly the palettes this module has', () => {
-        const html = readFileSync(INDEX_HTML, 'utf8')
-        expect(namesInIndexHtml(html)).toEqual(PALETTE_NAMES)
+        const script = readFileSync(PALETTE_JS, 'utf8')
+        expect(namesInPaletteScript(script)).toEqual(PALETTE_NAMES)
     })
 
     test('the pre-paint script reads the key this module writes', () => {
-        expect(readFileSync(INDEX_HTML, 'utf8')).toContain(`localStorage.getItem('${PALETTE_STORAGE_KEY}')`)
+        expect(readFileSync(PALETTE_JS, 'utf8')).toContain(`localStorage.getItem('${PALETTE_STORAGE_KEY}')`)
     })
 
     test('a name this build does not have is read as the default rather than refused', () => {

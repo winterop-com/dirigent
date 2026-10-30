@@ -136,7 +136,7 @@ Everything colour is a CSS custom property in `src/index.css`, exposed to Tailwi
 **Two theme axes, kept apart.** The **mode** is light or dark: next-themes owns it, writes it as a
 `dark` class on `<html>`, and follows the operating system until somebody says otherwise. The
 **palette** is which set of colours the app spends inside that mode: `src/lib/theme.ts` owns it,
-writes it as `data-theme` on the same element, and a small script in `index.html` applies it
+writes it as `data-theme` on the same element, and a small script, `public/palette.js`, applies it
 before the first paint so there is no flash. Neither axis knows about the other.
 
 **A palette is two blocks of CSS and one row, and nothing else in the app learns it exists.** The
