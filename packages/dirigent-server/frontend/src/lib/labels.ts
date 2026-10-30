@@ -694,6 +694,10 @@ const screen = {
     },
     /** An address nothing answers for. */
     nowhere: 'Nothing at this address',
+    /** Every component in the design system, drawn. Offered by the palette and not by the rail. */
+    design: {
+        name: 'Design system',
+    },
 } as const
 
 /**
@@ -769,6 +773,7 @@ const shell = {
     chord: {
         rail: 'Collapse or expand the navigation',
         terminal: "Show or hide a run's terminal",
+        search: "Search this screen's listing",
         shortcuts: 'Open this list',
         dismiss: 'Close a dialog, a menu, or the palette',
         choose: 'Open the row that has focus',
@@ -829,6 +834,15 @@ const shell = {
     zoom_in: 'Zoom in',
     zoom_out: 'Zoom out',
     fit_view: 'Fit view',
+
+    /** The search box's own button, which empties it. */
+    clear_search: 'Clear the search',
+    /** What an external link says to a screen reader after its words. */
+    new_tab: '(opens in a new tab)',
+    /** The button beside a secret shown once, naming what it copies. */
+    copy_secret: (secret: string) => `Copy ${secret}`,
+    /** The line under a secret the server answers with once. */
+    shown_once: 'Shown once. Copy it now: it cannot be read again.',
 } as const
 
 /**
@@ -955,6 +969,8 @@ const refused = {
         unknown_connection: 'No connection coded {code}.',
     },
     artifacts: {
+        object_altered:
+            'The object at {uri} is not what run {run} (attempt {attempt}) recorded when it wrote it. Its size or digest differs, so something changed it after the write.',
         object_missing:
             'Nothing is stored at {uri}. Run {run} (attempt {attempt}) has an artifact row but storage has no object: restore the artifact root from the backup that matches this database, or prune the run.',
     },
@@ -2392,7 +2408,8 @@ const triggers = {
         /** A token, shown by the prefix that tells one copy from another. */
         token: (prefix: string) => `token ${prefix}…`,
         /** A signed source: the header its signature arrives in, and which secret signs it. */
-        signed: (header: string, fingerprint: string) => `signed in ${header}, secret fingerprint ${fingerprint}`,
+        signed: (header: string, fingerprint: string) =>
+            `signed in ${header}, secret fingerprint ${fingerprint}`,
         rotate_secret: 'Rotate secret',
         public: 'public',
         /** What it has taken: inputs that became runs, and inputs refused. */
@@ -3138,6 +3155,162 @@ const settings = {
     sized: (value: string, unit: string) => `${value} ${unit}`,
 } as const
 
+/**
+ * The design system's gallery at `/design`: its section headings, the names of the variants
+ * and states it draws, and the sample content it draws them with.
+ */
+const design = {
+    /** The status bar's fact while the gallery is open. */
+    note: 'Every component, in every state',
+    icon_group: {
+        verbs: 'Verbs',
+        chrome: 'Navigation and chrome',
+        nouns: 'Nouns',
+        states: 'States',
+    },
+    section: {
+        icons: 'Icons',
+        entity: 'Entity heading',
+        chips: 'Chips',
+        dots: 'Dots',
+        icon_buttons: 'Icon buttons',
+        search: 'Search field',
+        headings: 'Section headings',
+        facts: 'Facts',
+        forms: 'Form fields',
+        notices: 'Notices and wells',
+        dialogs: 'Dialogs',
+        page_header: 'Page header',
+        links: 'Text links',
+        states: 'Page states',
+    },
+    variant: {
+        row_stacked: 'Row, stacked',
+        row_inline: 'Row, inline',
+        panel: 'Panel',
+        tones: 'Tones',
+        selectable: 'Selectable and removable',
+        long: 'Long text',
+        kind_status: 'Kind and status',
+        tone_dots: 'Tones',
+        always: 'Word always drawn',
+        status_dots: 'Run states',
+        sizes: 'Sizes and variants',
+        shut: 'Shut, with a reason',
+        empty: 'Empty',
+        typed: 'With text',
+        disabled: 'Disabled',
+        tiers: 'Tiers',
+        grid: 'Grid',
+        row: 'Row',
+        prose: 'Prose label',
+        key: 'Document key',
+        error: 'With an error',
+        switches: 'Switches',
+        notices: 'Notices',
+        well: 'Well',
+        dialogs: 'Dialogs',
+        asks: 'A dialog that asks',
+        tells: 'A dialog that tells',
+        confirm: 'A destructive confirm',
+        secret: 'Secret shown once',
+        listing: 'Listing, with a split primary',
+        trail: 'Detail screen',
+        inline: 'In prose',
+        data: 'In a table',
+        external: 'Out of the app',
+        loading: 'Loading',
+    },
+    sample: {
+        pipeline: {
+            code: 'nightly-ingest',
+            name: 'Nightly ingest',
+            description: "Pulls the day's facility reports and loads them into the warehouse.",
+        },
+        bare_code: 'hourly-sync',
+        long: {
+            code: 'district-aggregate-with-a-code-far-longer-than-a-cell',
+            name: 'A pipeline whose name is far longer than any lead cell has room for',
+            description:
+                'Aggregates every district report into one table, then publishes the table to every downstream consumer that asked for it.',
+        },
+        tag_finance: 'finance',
+        tag_ops: 'ops',
+        tag_nightly: 'nightly',
+        word_managed: 'managed',
+        word_none: 'none',
+        word_live: 'live',
+        word_failing: 'failing',
+        word_edited: 'edited',
+        status_override: 'stopped by a rule',
+        tone: {
+            good: 'healthy',
+            critical: 'failed',
+            warning: 'degraded',
+            info: 'checking',
+            quiet: 'paused',
+            unknown: 'never checked',
+        },
+        pane: 'the output',
+        chord: '⌘K',
+        why_admin: 'Only an admin may change this.',
+        why_paused: 'The pipeline is paused.',
+        why_name: 'Give it a name first.',
+        search_label: 'Search pipelines by name or code',
+        search_typed: 'ingest',
+        recent_runs: 'Recent runs',
+        runs_count: '12 runs',
+        all_runs: 'All runs',
+        yesterday: 'Yesterday',
+        fact_owner: 'owner',
+        fact_owner_value: 'ops-team',
+        fact_schedule: 'schedule',
+        fact_schedule_value: '0 2 * * *',
+        fact_address: 'address',
+        fact_address_value: 'https://reports.example.org/api/v2/facilities/daily-aggregate',
+        fact_description: 'description',
+        fact_kind_value: 'pipeline',
+        name_hint: 'shown in listings',
+        name_help: 'A title for people. Nothing is addressed by it.',
+        key_label: 'base_url',
+        key_default: 'https://api.example.org',
+        key_help: 'The address every request is resolved against.',
+        timeout_label: 'timeout',
+        timeout_value: 'soon',
+        timeout_error: 'timeout must be a duration, such as 30s',
+        switch_label: 'Follow logs',
+        switch_help: "Open a run's log pane at its tail.",
+        switch_shut_label: 'Seal secrets at rest',
+        notice_critical_title: 'The last check failed',
+        notice_critical_body: 'Connection refused by 10.0.0.4:5432.',
+        notice_warning: 'This document is not the version the instance holds.',
+        notice_neutral: 'Runs started before the upgrade keep the version they started on.',
+        well: 'A block that belongs together, such as a sample payload, inset 8px inside its surface.',
+        secret: 'dg_live_4f8a2c9e1b7d6053a8e2f4c1b9d7e6a3',
+        secret_name: 'ci-deploy',
+        dialog_title: 'New token',
+        dialog_description: 'A token acts as the account it was minted for.',
+        told_title: 'Token created',
+        told_description: 'Store it where the automation reads its secrets.',
+        confirm_title: 'Revoke token',
+        confirm_consequence: 'Anything presenting it is refused from now on. This cannot be undone.',
+        pipelines_count: '24',
+        connections_count: '7',
+        new_pipeline: 'New pipeline',
+        more_ways: 'More ways to create a pipeline',
+        from_starter: 'From a starter',
+        from_file: 'From a file',
+        link_sentence: {
+            before: 'Read the ',
+            link: 'run history',
+            after: ' before changing the schedule.',
+        },
+        run_id: '3f9c2a1e',
+        api_docs: 'API documentation',
+        empty: 'No runs.',
+    },
+} as const
+
 export const LABELS = {
     action,
     word,
@@ -3165,6 +3338,7 @@ export const LABELS = {
     workers,
     alerting,
     settings,
+    design,
 } as const satisfies Record<string, Catalogue>
 
 /** A sentence, or the noun inside one, whose grammar moves with the count it is about. */
