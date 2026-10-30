@@ -23,14 +23,19 @@
 #   The name is stable inside the dated prefix, so the newest file is always the one under
 #   the newest key rather than the one with the highest suffix.
 #
+# The archive is under ${artifacts}, the instance's storage root, which nothing sweeps. The
+# file it copies is under ${run.scratch}, which is deleted with the run: an archive there would
+# go with the run it was kept to outlive.
+#
 # The copy reports bytes_copied, which is the cheapest possible integrity check: a manifest
 # carrying it lets a later run notice a zero-byte archive without opening it.
 #
 # To change it: -p archive_prefix=... points the same copy at another root, and -p
-# day=2026-02-03 writes into 2026/02/03 instead.
+# day=2026-02-03 writes into 2026/02/03 instead. A `--local` run builds a throwaway instance,
+# so --root is what keeps the archive where you can look at it.
 #
-#   dg run --local examples/recipes/storage-copy-dated-archive.yaml
-#   dg run --local examples/recipes/storage-copy-dated-archive.yaml -p day=2026-02-03
+#   dg run --local --root /tmp/dirigent-archive examples/recipes/storage-copy-dated-archive.yaml
+#   dg run --local --root /tmp/dirigent-archive examples/recipes/storage-copy-dated-archive.yaml -p day=2026-02-03
 
 format: dirigent/v1
 kind: pipeline
@@ -99,7 +104,7 @@ steps:
     config:
       source: ${steps.store.output.uri}
       # The key comes from the step that built it, so the layout is written once.
-      target: ${run.scratch}/${steps.key.output.value.key}
+      target: ${artifacts}/${steps.key.output.value.key}
 
   manifest:
     block: transform.jq

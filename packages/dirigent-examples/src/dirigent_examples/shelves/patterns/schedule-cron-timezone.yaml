@@ -18,13 +18,18 @@
 # the month in UTC for the archive. Each pins its own parameters, which is what makes them
 # different runs of one thing rather than three copies of a document.
 #
+# NO SCHEDULE PINS A DAY. A pinned day would load that one day on every firing. A firing already
+# knows the interval it covers, derived from the cadence, and the pipeline reads it as
+# ${run.window.start} and ${run.window.end}.
+#
 # The schedules exist only on an instance this document has been applied to. The pipeline
 # itself runs anywhere, and locally it takes the pipeline's defaults rather than any
-# schedule's pinned parameters.
+# schedule's pinned parameters. An ad hoc run has no firing to take a window from, so it says
+# which interval it is for with --window.
 #
 # Hop by hop:
 #
-#   plan     turns the region and the day into the shape a loader would be handed.
+#   plan     turns the region and the window into the shape a loader would be handed.
 #   receipt  reads the plan back and reports what was covered.
 #
 # EXPECT THIS RUN TO SUCCEED in about a second, with no network and no allowlist.
@@ -33,7 +38,7 @@
 # date, and it never touches whether the schedule is paused, when it last fired, or the run
 # history. Those are facts about one instance, so they stay in it.
 #
-#   dg run --local examples/patterns/schedule-cron-timezone.yaml
+#   dg run --local examples/patterns/schedule-cron-timezone.yaml --window 2026-01-01..2026-01-02
 #   dg apply examples/patterns/schedule-cron-timezone.yaml
 #   dg schedule list schedule-cron-timezone
 
@@ -64,11 +69,6 @@ params:
       type: string
       description: Which region the load covers; each schedule pins its own.
       default: nordics
-    day:
-      type: string
-      format: date
-      description: The day being loaded.
-      default: "2026-01-01"
 
 steps:
   plan:
@@ -76,9 +76,10 @@ steps:
     config:
       input:
         region: "${params.region}"
-        day: "${params.day}"
+        from: "${run.window.start}"
+        to: "${run.window.end}"
       program: |
-        {region, day, datasets: ["cases", "climate"]}
+        {region, from, to, datasets: ["cases", "climate"]}
 
   receipt:
     block: transform.jq
@@ -86,7 +87,7 @@ steps:
     config:
       input: "${steps.plan.output.value}"
       program: |
-        {covered: .region, day: .day, datasets: (.datasets | length)}
+        {covered: .region, from, to, datasets: (.datasets | length)}
 
 triggers:
   schedules:
@@ -100,7 +101,6 @@ triggers:
       # Pinned parameters override the pipeline's defaults for this schedule's firings only.
       params:
         region: nordics
-        day: "2026-01-01"
 
     - code: nepal-nightly
       # Asia/Kathmandu is UTC+05:45. A named zone is the only honest way to write that, and
@@ -109,7 +109,6 @@ triggers:
       timezone: Asia/Kathmandu
       params:
         region: nepal
-        day: "2026-01-01"
 
     - code: monthly-archive
       # Day-of-month and month columns, and a minute that is not zero so two schedules that
@@ -120,4 +119,3 @@ triggers:
       timezone: UTC
       params:
         region: all
-        day: "2026-01-01"

@@ -29,11 +29,12 @@
 # ndjson is one JSON value per line, which is why the typing program splits on newlines,
 # drops the empty last one, and fromjson each.
 #
-# To change it: -p empty_is_null=true reads an empty cell as null rather than as the empty
-# string, which is the right rule for a numeric column and the wrong one for a text column.
+# st-3 has no celsius, and the typing program keeps it that way: an empty cell in a numeric
+# column becomes null, because a station that reported nothing did not report zero. null is the
+# right rule for a numeric column and the wrong one for a text column, so the rule is written
+# per column.
 #
 #   dg run --local examples/recipes/csv-to-ndjson.yaml
-#   dg run --local examples/recipes/csv-to-ndjson.yaml -p empty_is_null=true
 
 format: dirigent/v1
 kind: pipeline
@@ -53,14 +54,6 @@ requires:
     - convert.std
     - storage.read
     - transform.jq
-
-params:
-  type: object
-  properties:
-    empty_is_null:
-      type: boolean
-      default: false
-      description: Read an empty cell as null rather than as an empty string.
 
 steps:
   source:
@@ -94,18 +87,12 @@ steps:
     block: transform.jq
     depends_on: [lines]
     config:
-      input:
-        lines: ${steps.lines.output.text}
-        empty_is_null: ${params.empty_is_null}
+      input: ${steps.lines.output.text}
       program: |
-        . as {$lines, $empty_is_null}
-        | [$lines
-           | split("\n")[]
-           | select(length > 0)
-           | fromjson
-           | {station,
-              date,
-              celsius: (if .celsius == ""
-                        then (if $empty_is_null then null else 0 end)
-                        else (.celsius | tonumber) end),
-              active: (.active == "true")}]
+        [split("\n")[]
+         | select(length > 0)
+         | fromjson
+         | {station,
+            date,
+            celsius: (if .celsius == "" then null else (.celsius | tonumber) end),
+            active: (.active == "true")}]

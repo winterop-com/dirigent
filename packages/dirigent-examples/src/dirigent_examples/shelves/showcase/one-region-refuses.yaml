@@ -34,7 +34,8 @@
 #   page        report.render, the morning page, leading with what is missing.
 #   save        storage.write, the page under the run's scratch prefix.
 #   back        storage.read, the same URI, to prove the round trip.
-#   notify      log.write at warning, which is the line an alert rule on this run reads beside.
+#   notify      log.write at warning, once per missing region, which is the line an alert rule
+#               on this run reads beside. It fans out over the gap, so a green run warns of nothing.
 #   settle      log.write behind rule: all_done, so the night is closed out either way.
 #
 # TO CHANGE IT: move the failing window to another region, or give every region a 0 and watch
@@ -242,13 +243,16 @@ steps:
   notify:
     block: log.write
     depends_on: [back, gaps]
+    # One item per missing region. An empty list skips the step, which is how a document says
+    # "only when" without a conditional.
+    for_each: "${steps.gaps.output.value.missing}"
     config:
       message: the regional load finished short
       # warning rather than info: this is the line somebody greps for, and the level is what a
       # log filter selects on.
       level: warning
       value:
-        missing: "${steps.gaps.output.value.missing}"
+        missing: "${item}"
         page: "${steps.save.output.uri}"
 
   settle:

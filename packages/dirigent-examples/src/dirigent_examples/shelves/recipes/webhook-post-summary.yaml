@@ -29,9 +29,12 @@
 # it reads at 1mb because nobody wants a receiver's HTML error page in a step output, and
 # success_status is how a receiver that answers 202 is accommodated.
 #
-# The delivery is a step in the DAG like any other, so a rule decides when it runs. This one
-# is `all_done`, so the notification is sent whether the batch succeeded or not -- a
-# notifier that only fires on success is one that goes quiet exactly when it matters.
+# The delivery is a step in the DAG like any other, so a rule decides when it runs, and there
+# are two of them so something is sent whether the batch succeeded or not -- a notifier that
+# only fires on success is one that goes quiet exactly when it matters. A failed step leaves no
+# output to read, and a reference to one fails the step reading it, even under `all_done`. So
+# `notify` reads the summary and the default edge guards it, and `notify_failure` runs on
+# `one_failed` and reads only what every run has.
 #
 # To change it: -p failures=0 sends the green version, and severity, text and routing all
 # follow from the numbers without another branch in the document.
@@ -47,8 +50,8 @@ name: A run summary as a webhook
 description: |
   Send a receiver a summary of a batch load, with counts and a one-line message.
 
-  The notification body holds counts and identifiers, its human line is derived from those counts,
-  and it is delivered on all_done.
+  The notification body holds counts and identifiers, and its human line is derived from those
+  counts. A second delivery on one_failed says so when the batch itself fails.
 
 tags: [recipes, transform, webhook]
 
@@ -133,9 +136,6 @@ steps:
   notify:
     block: webhook.post
     depends_on: [summary]
-    # Sent whether the work above passed or failed: a notifier that only fires on success
-    # goes quiet exactly when somebody needs it.
-    rule: all_done
     config:
       connection: playground-receiver
       path: /request
@@ -144,6 +144,25 @@ steps:
         # Routing the receiver can dispatch on without parsing the body.
         x-severity: ${steps.summary.output.value.severity}
       # A receiver that queues rather than processes answers 202; both count as delivered.
+      success_status: [200, 202, 204]
+
+  notify_failure:
+    block: webhook.post
+    # Both steps above, because one_failed reads only its own prerequisites and a step below
+    # the failure settles as skipped rather than failed.
+    depends_on: [results, summary]
+    rule: one_failed
+    config:
+      connection: playground-receiver
+      path: /request
+      body:
+        kind: load.failed
+        day: ${params.day}
+        run: ${run.id}
+        severity: error
+        text: "${params.day}: the load did not finish; see run ${run.id}"
+      headers:
+        x-severity: error
       success_status: [200, 202, 204]
 
   delivered:

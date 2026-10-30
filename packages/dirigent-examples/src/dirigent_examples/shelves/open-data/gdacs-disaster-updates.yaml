@@ -38,17 +38,18 @@
 #   notify    what is actually new, posted. This instance's own playground by default, so the shape of the post is
 #             visible without a receiver; point it at yours.
 #
-# To make it yours: narrow `eventlist` and `alertlevel` to what you act on, and give `store` a
-# prefix that outlives one run. The default is `${run.scratch}`, which is deleted with the run,
-# so under it every day is day one.
+# To make it yours: narrow `eventlist` and `alertlevel` to what you act on. The lists are kept
+# under `${artifacts}`, the instance's storage root, which nothing sweeps: under `${run.scratch}`
+# they would be deleted with the run, and every day would be day one. Give `store` a prefix to
+# keep them somewhere else.
 #
-# Rehearsing both days from the CLI takes one directory holding the instance, and a `store`
-# under that directory's artifact root so the second run finds what the first wrote:
+# Rehearsing both days from the CLI takes one directory holding the instance, so the second run
+# finds what the first wrote:
 #
 #   dg run --local --root /tmp/dirigent-gdacs examples/open-data/gdacs-disaster-updates.yaml \
-#     -p store=file:///tmp/dirigent-gdacs/artifacts/gdacs --window 2026-09-05..2026-09-06
+#     --window 2026-09-05..2026-09-06
 #   dg run --local --root /tmp/dirigent-gdacs examples/open-data/gdacs-disaster-updates.yaml \
-#     -p store=file:///tmp/dirigent-gdacs/artifacts/gdacs --window 2026-09-06..2026-09-07
+#     --window 2026-09-06..2026-09-07
 #
 # Day one skips at `seen` and posts nothing; day two posts the difference.
 
@@ -93,9 +94,8 @@ params:
       type: string
       default: ""
       description: >-
-        A prefix the daily lists are written under, such as
-        file:///var/lib/dirigent/gdacs. Empty keeps them in the run's own scratch, where
-        tomorrow's run cannot read them.
+        A prefix the daily lists are written under, such as s3://your-bucket/gdacs. Empty keeps
+        them under this instance's storage root, where tomorrow's run reads them.
     webhook_url:
       type: string
       default: http://127.0.0.1:3333/api/v1/playground/request
@@ -109,7 +109,7 @@ steps:
         start: ${run.window.start}
         end: ${run.window.end}
         store: ${params.store}
-        scratch: ${run.scratch}
+        artifacts: ${artifacts}
       # The two days the query filters between, and the two file names. Yesterday is the day
       # before the window opened, which is the file the previous firing wrote. The prefix is
       # settled here too: a reference resolves once, so a default that names another one has
@@ -121,7 +121,7 @@ steps:
           from_date: .start[0:10],
           to_date: .end[0:10],
           previous_day: (.start | as_date | . - 86400 | strftime("%Y-%m-%d")),
-          store: (if .store == "" then .scratch + "/gdacs" else .store end)
+          store: (if .store == "" then .artifacts + "/gdacs" else .store end)
         }
 
   fetch:

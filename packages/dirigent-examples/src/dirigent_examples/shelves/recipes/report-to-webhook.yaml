@@ -19,6 +19,8 @@
 #   page      report.render, the markdown. Output: text, content_type, text_bytes.
 #   deliver   webhook.post, a JSON body carrying that text. Output: status, signed,
 #             duration_ms, and the receiver's answer.
+# And one for the other path:
+#   deliver_failure  webhook.post again, when summary or page failed.
 #
 # THE BODY IS AN OBJECT, NOT THE PAGE ALONE. webhook.post sends JSON, so the page travels as
 # one field of a small envelope beside the facts a receiver routes on: the pipeline, the day,
@@ -30,9 +32,12 @@
 # rendered, and the numbers in it come from `values` -- and a name that is not there renders
 # empty rather than failing the delivery.
 #
-# THE DELIVERY IS A STEP IN THE DAG, so a rule decides when it runs. This one is `all_done`,
-# so the report is sent whether the work above it succeeded or not: a report that only goes
-# out on success is one that goes quiet exactly when somebody needs it.
+# THE DELIVERY IS A STEP IN THE DAG, so a rule decides when it runs, and there are two of them
+# so something is sent whether the work above succeeded or not: a report that only goes out on
+# success is one that goes quiet exactly when somebody needs it. A failed step leaves no output
+# to read, and a reference to one fails the step reading it, even under `all_done`. So `deliver`
+# reads the page and the default edge guards it, and `deliver_failure` runs on `one_failed` and
+# reads only what every run has.
 #
 # TO CHANGE IT: -p failures=0 sends the green version, and the severity and the wording both
 # follow from the numbers without another branch in the document.
@@ -137,8 +142,6 @@ steps:
   deliver:
     block: webhook.post
     depends_on: [page]
-    # Sent whether the work above passed or failed.
-    rule: all_done
     config:
       connection: playground-receiver
       path: /request
@@ -151,4 +154,23 @@ steps:
       headers:
         # Routing the receiver can dispatch on without reading the page.
         x-severity: ${steps.summary.output.value.severity}
+      success_status: [200, 202, 204]
+
+  deliver_failure:
+    block: webhook.post
+    # Both steps above, because one_failed reads only its own prerequisites and a step below
+    # the failure settles as skipped rather than failed.
+    depends_on: [summary, page]
+    rule: one_failed
+    config:
+      connection: playground-receiver
+      path: /request
+      body:
+        pipeline: report-to-webhook
+        day: ${params.day}
+        severity: error
+        run: ${run.id}
+        text: "the report for ${params.day} could not be built; see run ${run.id}"
+      headers:
+        x-severity: error
       success_status: [200, 202, 204]

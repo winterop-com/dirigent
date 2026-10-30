@@ -58,11 +58,11 @@ description: |
   An artifact moves from local storage out to S3 and back, and `storage.exists` confirms it
   landed before the copy back.
 
-tags: [s3, http, sensor, storage]
+tags: [s3, playground, sensor, storage]
 
 requires:
   blocks:
-    - http.request
+    - playground.generate
     - storage.write
     - storage.copy
     - storage.exists
