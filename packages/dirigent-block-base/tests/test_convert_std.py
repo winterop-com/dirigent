@@ -374,6 +374,47 @@ async def test_a_yaml_value_json_cannot_spell_is_refused_naming_its_path(
     assert refusal in raised.value.message
 
 
+def one_key_records(count: int) -> str:
+    """An array of records that each carry a key no other has, which is a table of nothing."""
+    return json.dumps([{f"k{index}": index} for index in range(count)])
+
+
+@pytest.mark.parametrize("source_format", ["json", "ndjson"])
+async def test_records_of_a_key_each_are_refused_before_a_row_is_written(ctx: FakeContext, source_format: str) -> None:
+    records = json.loads(one_key_records(8_000))
+    source = json.dumps(records) if source_format == "json" else "\n".join(json.dumps(one) for one in records)
+
+    with pytest.raises(BlockFailure) as raised:
+        await convert(ctx, source, source_format, "csv")
+
+    assert raised.value.error_class is ErrorClass.REJECTED
+    assert "8,000 rows by 8,000 columns leave 63,992,000 cells empty" in raised.value.message
+
+
+async def test_more_columns_than_the_limit_is_refused_naming_it(ctx: FakeContext) -> None:
+    record = {f"k{index}": index for index in range(10_001)}
+
+    with pytest.raises(BlockFailure) as raised:
+        await convert(ctx, json.dumps([record]), "json", "csv")
+
+    assert "more than 10,000 distinct keys" in raised.value.message
+
+
+async def test_a_dense_table_is_held_to_neither_limit(ctx: FakeContext) -> None:
+    records = [{f"c{column}": row for column in range(100)} for row in range(5_000)]
+
+    written = (await convert(ctx, json.dumps(records), "json", "csv")).splitlines()
+
+    assert len(written) == 5_001
+    assert written[1] == ",".join(["0"] * 100)
+
+
+async def test_a_sparse_table_under_the_limit_still_converts_with_every_key_a_column(ctx: FakeContext) -> None:
+    written = await convert(ctx, json.dumps([{"a": 1}, {"b": 2}]), "json", "csv")
+
+    assert written.splitlines() == ["a,b", "1,", ",2"]
+
+
 def alias_bomb(levels: int) -> str:
     """A YAML document whose every level repeats the one below it nine times."""
     lines = ["l0: &l0 [x, x, x, x, x, x, x, x, x]"]

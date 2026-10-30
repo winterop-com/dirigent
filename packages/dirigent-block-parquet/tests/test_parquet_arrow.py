@@ -8,7 +8,7 @@ import pyarrow.parquet as pq
 import pytest
 
 from dirigent_block_parquet import ArrowConverter
-from dirigent_plugin import BlockFailure, ErrorClass
+from dirigent_plugin import BlockFailure, ErrorClass, transforms
 from dirigent_testing import FakeContext, FakeStorage, call_block
 
 READINGS = [
@@ -275,3 +275,41 @@ def test_a_pair_this_engine_does_not_convert_is_refused_naming_the_six() -> None
     assert len(refusals) == 1
     assert "convert.arrow does not convert json to csv" in refusals[0].message
     assert "parquet to json" in refusals[0].message
+
+
+def null_table(rows: int, columns: int) -> pa.Table:
+    """A table of nothing but nulls, which parquet holds in almost no bytes."""
+    column = pa.array([None] * rows, type=pa.int64())  # pyright: ignore[reportUnknownMemberType]
+    return pa.table({f"c{index}": column for index in range(columns)})  # pyright: ignore[reportUnknownMemberType]
+
+
+async def test_a_parquet_of_nothing_is_refused_before_a_csv_row_is_written(
+    ctx: FakeContext, storage: FakeStorage, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(transforms, "CSV_EMPTY_CELL_LIMIT", 100)
+
+    with pytest.raises(BlockFailure) as raised:
+        await from_parquet(ctx, storage, parquet_bytes(null_table(20, 20)), "csv")
+
+    assert raised.value.error_class is ErrorClass.REJECTED
+    assert "20 rows by 20 columns leave 400 cells empty" in raised.value.message
+
+
+async def test_a_parquet_wider_than_the_column_limit_is_refused_as_a_csv(
+    ctx: FakeContext, storage: FakeStorage, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(transforms, "CSV_COLUMN_LIMIT", 10)
+
+    with pytest.raises(BlockFailure) as raised:
+        await from_parquet(ctx, storage, parquet_bytes(null_table(1, 11)), "csv")
+
+    assert "more than 10 distinct keys" in raised.value.message
+
+
+async def test_a_parquet_of_real_rows_still_converts_past_the_limit_on_empty_cells(
+    ctx: FakeContext, storage: FakeStorage, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(transforms, "CSV_EMPTY_CELL_LIMIT", 0)
+    payload = await to_parquet(ctx, storage, READINGS_JSON, "json")
+
+    assert (await from_parquet(ctx, storage, payload, "csv")).count("\n") == 3

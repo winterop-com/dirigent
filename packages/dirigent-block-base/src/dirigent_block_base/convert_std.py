@@ -42,7 +42,7 @@ from dirigent_block_base.messages import (
     YAML_STREAM,
     YAML_UNSPELLABLE,
 )
-from dirigent_plugin import Converter, TransformError
+from dirigent_plugin import Converter, TransformError, csv_header
 
 #: The three spellings of a sequence of records, which convert between each other freely.
 SEQUENCE_FORMATS: Final = ("json", "ndjson", "csv")
@@ -258,12 +258,11 @@ def _write(records: list[JsonValue], target_format: str) -> str:
 def _write_csv(records: list[JsonValue]) -> str:
     """Write a header of every key any row has, in first-seen order, and one row per record."""
     rows: list[dict[str, JsonValue]] = []
-    header: list[str] = []
     for number, record in enumerate(records, start=1):
         if not isinstance(record, dict):
             raise TransformError(CSV_ROW_NOT_AN_OBJECT.render(number=number, described=_named(record)))
         rows.append(record)
-        header.extend(key for key in record if key not in header)
+    header = csv_header(rows)
     out = io.StringIO(newline="")
     writer = csv.writer(out, lineterminator="\n")
     writer.writerow(header)

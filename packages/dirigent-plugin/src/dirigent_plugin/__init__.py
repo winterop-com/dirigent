@@ -70,6 +70,7 @@ from dirigent_plugin.transforms import (
     Transformer,
     TransformError,
     TransformOutput,
+    csv_header,
 )
 
 __all__ = [
@@ -128,6 +129,7 @@ __all__ = [
     "StorageBackend",
     "TransformConfig",
     "TransformError",
+    "csv_header",
     "TransformOutput",
     "Transformer",
     "classify_default",
