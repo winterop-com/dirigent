@@ -62,6 +62,7 @@ nav:
       - Telemetry: telemetry.md
   - The project:
       - Architecture: architecture.md
+      - Architecture model: architecture-model.md
       - Design: design.md
       - Conventions: conventions.md
       - UI conventions: ui-conventions.md
@@ -88,7 +89,11 @@ markdown_extensions:
   - toc:
       permalink: true
   - pymdownx.details
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.highlight:
       anchor_linenums: true
 
