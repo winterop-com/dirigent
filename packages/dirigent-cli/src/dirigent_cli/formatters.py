@@ -12,6 +12,7 @@ from typing import Final, cast
 
 from pluginkit import PluginManager
 from rich.console import Group, RenderableType
+from rich.markup import escape
 
 from dirigent_cli import summaries
 from dirigent_cli.stream import paint, shorten, use_scratch_prefix
@@ -141,7 +142,7 @@ def rendered(lines: Iterable[str], formatter: Formatter) -> Iterator[RenderableT
         text = line.rstrip("\n")
         record = parse(text)
         if record is None:
-            yield text
+            yield escape(text)
             continue
         _adopt_scratch(record)
         # The protocol leaves the answer open; what this prints it with is rich's console.

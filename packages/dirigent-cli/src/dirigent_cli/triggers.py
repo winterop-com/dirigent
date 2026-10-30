@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Annotated, Any, cast
 
 import typer
+from rich.markup import escape
 
 from dirigent_cli.commands import paged, parse_importance, parse_log_levels, parse_params, parse_priority
 from dirigent_cli.context import Session, client_for, state_of
@@ -160,9 +161,9 @@ def schedule_list(
         [
             [
                 row.code,
-                row.name or "-",
-                str(row.cron or row.interval or row.at),
-                row.timezone,
+                escape(row.name or "-"),
+                escape(str(row.cron or row.interval or row.at)),
+                escape(row.timezone),
                 render_bool(row.paused),
                 moment(row.next_fire_at),
                 moment(row.last_fired_at),
@@ -225,7 +226,7 @@ def schedule_firings(
                 styled(row.outcome.value),
                 render_bool(row.misfired),
                 str(row.run_id or "-")[:8],
-                row.detail or "-",
+                escape(row.detail or "-"),
             ]
             for row in rows
         ],
@@ -259,10 +260,10 @@ def alerts_rules_list(
         [
             [
                 row.code,
-                row.name or "-",
+                escape(row.name or "-"),
                 alert_event(row.event.value),
-                watching(row.pipeline or row.scope.value, row.importance),
-                row.connection or LOG_NOTIFIER,
+                escape(watching(row.pipeline or row.scope.value, row.importance)),
+                escape(row.connection or LOG_NOTIFIER),
                 throttle_note(row.throttle),
                 render_bool(row.active),
                 moment(row.last_sent_at),
@@ -416,12 +417,12 @@ def alerts_queue(
         ["subject", "notifier", "status", "tries", "sent", "error"],
         [
             [
-                row.subject,
-                row.notifier,
+                escape(row.subject),
+                escape(row.notifier),
                 styled(row.status.value),
                 str(row.attempt),
                 moment(row.sent_at),
-                (row.error or "-")[:60],
+                escape((row.error or "-")[:60]),
             ]
             for row in rows
         ],
@@ -441,10 +442,10 @@ def trigger_document_list(ctx: typer.Context) -> None:
         [
             [
                 row.code,
-                row.name or "-",
-                row.pipeline,
+                escape(row.name or "-"),
+                escape(row.pipeline),
                 row.provenance_source.value,
-                row.applied_by or "-",
+                escape(row.applied_by or "-"),
                 moment(row.updated_at),
             ]
             for row in rows
@@ -462,12 +463,12 @@ def trigger_document_show(
         detail = dg.call(dg.trigger_documents.get(code))
     if state_of(ctx).json_output:
         return emit_one("trigger_document", detail)
-    console.print(f"[bold]{detail.name or detail.code}[/]  [dim]{detail.code}[/]")
-    console.print(f"  pipeline  [bold]{detail.pipeline}[/]")
-    console.print(f"  digest    [dim]{detail.digest}[/]")
-    console.print(f"  schedules {', '.join(detail.schedules) or '-'}")
+    console.print(f"[bold]{escape(detail.name or detail.code)}[/]  [dim]{escape(detail.code)}[/]")
+    console.print(f"  pipeline  [bold]{escape(detail.pipeline)}[/]")
+    console.print(f"  digest    [dim]{escape(detail.digest)}[/]")
+    console.print(f"  schedules {escape(', '.join(detail.schedules)) or '-'}")
     if detail.description:
-        console.print(f"\n{detail.description}")
+        console.print(f"\n{escape(detail.description)}")
 
 
 @trigger_document_app.command("delete")
