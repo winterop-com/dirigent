@@ -812,7 +812,10 @@ Stated plainly, because a security page that lists only what exists is not much 
   holds a reference is not checked at apply, so its literal URL is refused at run time the same
   way. A `Host` header a step sets beside a `connection` is held to that origin too, at run
   time and before anything is sent (`http.host_off_origin`), because a front that routes on
-  `Host` would otherwise hand the credential to another name it serves. An absolute link the
+  `Host` would otherwise hand the credential to another name it serves. The headers such a front
+  may read instead, `Forwarded`, `X-Forwarded-Host`, `X-Forwarded-Proto` and the others in that
+  family, are refused beside a `connection` the same way (`http.routing_header_refused`), whatever
+  their value and however they are spelled. An absolute link the
   service itself hands back, such as a next page on the same origin, is still followed. A step that calls another service names no connection and gives the `url`.
 - **Rate limiting on the authenticated API.** Only login and endpoint sources are limited.
 - **A CSRF token.** There is none, and the defence is instead the origin check on every
