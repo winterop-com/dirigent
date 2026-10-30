@@ -114,9 +114,8 @@ profiles:
   #   url: https://dirigent-staging.example.org
   #   token_env: DG_STAGING_TOKEN
   #
-  # prod:
-  #   url: https://dirigent.example.org
-  #   token_cmd: pass show dirigent/prod
+  # A token_cmd is refused here: a project's file may not name a command to run. A profile
+  # that needs one lives in ~/.config/dirigent/profiles.yaml.
 """
 
 STATE_IGNORE_TEMPLATE = """\

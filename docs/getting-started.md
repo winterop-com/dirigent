@@ -459,11 +459,12 @@ dg auth status                     # says which server, and who you are
 
 **Profiles**, which are durable. A profile names a server and how to obtain a token for it, in
 `.dirigent/profiles.yaml` beside your pipelines or `~/.config/dirigent/profiles.yaml` for the
-whole machine. A token can be inline, read from an environment variable, or produced by any
-command -- `pass show dirigent/prod`, say -- so a production token never has to sit in a file.
-`cd`-ing into a pipeline repository then points the CLI at that repository's server with no
-flag to remember, and `dg --profile prod ...` switches deliberately. The full syntax and the
-precedence rules are in [the command line](cli.md#profiles).
+whole machine. A token can be inline, read from an environment variable, or, in the user file
+only, produced by any command -- `pass show dirigent/prod`, say -- so a production token never
+has to sit in a file. `cd`-ing into a pipeline repository then points the CLI at that
+repository's server with no flag to remember, and `dg --profile prod ...` switches
+deliberately. The full syntax, the precedence rules, and what a project's file may not do are in
+[the command line](cli.md#profiles).
 
 ## Ports
 
