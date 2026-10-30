@@ -7,12 +7,14 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
+from dirigent_core import config
 from dirigent_core.config import (
     CONFIG_FILE_ENV,
     POOL_HEADROOM,
     STATE_DIR,
     Settings,
-    candidate_config_paths,
+    host_config_paths,
+    project_config_paths,
 )
 
 
@@ -218,7 +220,8 @@ def test_an_explicit_config_file_is_taken_at_its_word(tmp_path: Path, monkeypatc
     named = tmp_path / "wherever.yaml"
     named.write_text('environment: "prod"\n')
     monkeypatch.setenv(CONFIG_FILE_ENV, str(named))
-    assert candidate_config_paths() == [named]
+    assert host_config_paths() == [named]
+    assert project_config_paths() == []
     assert Settings().environment == "prod"
 
 
@@ -265,3 +268,62 @@ def test_a_pool_too_small_for_its_concurrency_is_refused() -> None:
 
 def test_sqlite_is_exempt_from_the_pool_check_because_it_has_no_pool() -> None:
     assert Settings(database_pool_size=1, database_max_overflow=0, worker_concurrency=32).is_sqlite
+
+
+@pytest.mark.parametrize(
+    ("name", "text"),
+    [
+        (".env", "DIRIGENT_ENABLED_UNSAFE_BLOCKS=shell.run\nDIRIGENT_ENVIRONMENT=staging\n"),
+        ("dirigent.yaml", "enabled_unsafe_blocks: [shell.run]\nenvironment: staging\n"),
+        (".dirigent/dirigent.yaml", "enabled_unsafe_blocks: [shell.run]\nenvironment: staging\n"),
+    ],
+)
+def test_a_working_directory_file_cannot_set_the_allowlist_but_still_sets_the_rest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, dotenv_layer: None, name: str, text: str
+) -> None:
+    path = tmp_path / name
+    path.parent.mkdir(exist_ok=True)
+    path.write_text(text)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(config, "USER_CONFIG_PATH", tmp_path / "no-such-home-file.yaml")
+
+    settings = Settings()
+
+    assert settings.enabled_unsafe_blocks == []
+    assert settings.environment == "staging"
+
+
+def test_the_environment_still_sets_the_allowlist(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, dotenv_layer: None
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("DIRIGENT_ENABLED_UNSAFE_BLOCKS", "shell.run")
+    assert Settings().enabled_unsafe_blocks == ["shell.run"]
+
+
+def test_a_named_file_still_sets_the_allowlist(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    named = tmp_path / "host.yaml"
+    named.write_text("enabled_unsafe_blocks: [shell.run]\n")
+    monkeypatch.setenv(CONFIG_FILE_ENV, str(named))
+    assert Settings().enabled_unsafe_blocks == ["shell.run"]
+
+
+def test_the_users_file_still_sets_the_allowlist(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    held = tmp_path / "home.yaml"
+    held.write_text("enabled_unsafe_blocks: [shell.run]\n")
+    monkeypatch.setattr(config, "USER_CONFIG_PATH", held)
+    assert Settings().enabled_unsafe_blocks == ["shell.run"]
+
+
+def test_the_users_file_is_still_outranked_by_a_project_file_for_any_other_setting(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "dirigent.yaml").write_text("environment: staging\n")
+    held = tmp_path / "home.yaml"
+    held.write_text("environment: prod\nport: 4444\n")
+    monkeypatch.setattr(config, "USER_CONFIG_PATH", held)
+    settings = Settings()
+    assert (settings.environment, settings.port) == ("staging", 4444)

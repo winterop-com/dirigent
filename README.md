@@ -110,7 +110,9 @@ Configuration layers, most specific first: `DIRIGENT_`-prefixed environment vari
 `.env` file, then a YAML file (`DIRIGENT_CONFIG_FILE`, `./dirigent.yaml`,
 `.dirigent/dirigent.yaml`, or `~/.config/dirigent/dirigent.yaml`), then defaults. The `.env`
 is the one in the directory the command runs in, which is where `dg init` puts a local
-instance's `DIRIGENT_SECRET_KEY`. Everything a person hand-writes for dirigent is YAML --
+instance's `DIRIGENT_SECRET_KEY`. The allowlist above is the exception: a `.env` or a YAML file
+in the working directory travels with a checkout, so it cannot set
+`DIRIGENT_ENABLED_UNSAFE_BLOCKS`. Everything a person hand-writes for dirigent is YAML --
 documents, this file, the CLI's profiles -- so there is one syntax to know. To run against
 PostgreSQL:
 

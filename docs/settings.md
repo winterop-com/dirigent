@@ -16,6 +16,12 @@ A project's `.env` is that middle layer, which is where `dg init` puts the insta
 compose reads it to fill in `${...}` and passes what it resolves to the containers as
 environment, and the server inside one never opens the file.
 
+`enabled_unsafe_blocks` is the exception to the layers. A `.env` and a `dirigent.yaml` or
+`.dirigent/dirigent.yaml` in the working directory travel with a checkout, so they cannot set
+it. It comes from the environment variable, from the file `DIRIGENT_CONFIG_FILE` names, or from
+`~/.config/dirigent/dirigent.yaml`, and `dg run --local --enable-unsafe` adds to it for one
+command.
+
 | Setting | Environment | Default | What it does |
 | --- | --- | --- | --- |
 | `environment` | `DIRIGENT_ENVIRONMENT` | `"local"` | Which deployment this instance believes it is, reported on telemetry. |
@@ -65,7 +71,7 @@ environment, and the server inside one never opens the file.
 | `retention_interval` | `DIRIGENT_RETENTION_INTERVAL` | `"1h"` | How often the scheduler sweeps whatever the retention ages have outlived. |
 | `retention_batch` | `DIRIGENT_RETENTION_BATCH` | `500` | How many rows of one family a single sweep deletes before committing. |
 | `lost_job_max_gone` | `DIRIGENT_LOST_JOB_MAX_GONE` | `3` | Consecutive GONE probes before the lost-job policy fails a waiting attempt. |
-| `enabled_unsafe_blocks` | `DIRIGENT_ENABLED_UNSAFE_BLOCKS` | `[]` | Block ids permitted to execute code on a worker; empty means none. |
+| `enabled_unsafe_blocks` | `DIRIGENT_ENABLED_UNSAFE_BLOCKS` | `[]` | Block ids permitted to execute code on a worker; empty means none. A `.env` or YAML file in the working directory cannot set this. |
 | `scheduler_enabled` | `DIRIGENT_SCHEDULER_ENABLED` | `true` | Whether `dg server` embeds the scheduler rather than leaving it to its own process. |
 | `scheduler_tick` | `DIRIGENT_SCHEDULER_TICK` | `"5s"` | How often the leader asks the database which schedules are due. |
 | `scheduler_misfire_grace` | `DIRIGENT_SCHEDULER_MISFIRE_GRACE` | `"5m"` | How late a firing may be before it counts as a misfire: fire once, advance, no catchup storm. |
@@ -79,7 +85,7 @@ environment, and the server inside one never opens the file.
 | `endpoint_prefix` | `DIRIGENT_ENDPOINT_PREFIX` | `"/endpoints"` | Where endpoint sources are served, outside the versioned API. |
 | `source_max_body` | `DIRIGENT_SOURCE_MAX_BODY` | `1048576` | The largest body any endpoint reads, whatever its own `max_body` says; reading stops one byte past it. |
 | `source_body_timeout` | `DIRIGENT_SOURCE_BODY_TIMEOUT` | `"30s"` | How long an endpoint waits for a whole body before it answers 408; no database connection is held meanwhile. |
-| `source_intake_rate_per_minute` | `DIRIGENT_SOURCE_INTAKE_RATE_PER_MINUTE` | `600` | How fast calls to one method and path are taken, before any source is looked up. |
+| `source_intake_rate_per_minute` | `DIRIGENT_SOURCE_INTAKE_RATE_PER_MINUTE` | `600` | How fast one address's calls to one method and route are taken, before any source is read. |
 | `source_signature_window` | `DIRIGENT_SOURCE_SIGNATURE_WINDOW` | `"5m"` | How far a signed call's `X-Dirigent-Timestamp` may stand from this server's clock, either way. |
 | `source_reply_max` | `DIRIGENT_SOURCE_REPLY_MAX` | `"1m"` | The longest a caller is held for a reply, whatever a reply node's `timeout` says. |
 | `source_max_waiting` | `DIRIGENT_SOURCE_MAX_WAITING` | `256` | How many callers one server process holds open for their replies at once. |

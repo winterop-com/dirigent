@@ -162,6 +162,25 @@ def test_an_unsafe_block_is_refused_cleanly(tmp_path: Path) -> None:
     assert "Traceback" not in result.output
 
 
+@pytest.mark.parametrize(
+    ("name", "text"),
+    [
+        ("dirigent.yaml", "enabled_unsafe_blocks: [shell.run]\n"),
+        (".env", "DIRIGENT_ENABLED_UNSAFE_BLOCKS=shell.run\n"),
+    ],
+)
+def test_a_checkouts_own_file_does_not_allowlist_its_document(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, dotenv_layer: None, name: str, text: str
+) -> None:
+    monkeypatch.delenv(CONFIG_FILE_ENV, raising=False)
+    monkeypatch.setattr("dirigent_core.config.USER_CONFIG_PATH", tmp_path / "no-such-home-file.yaml")
+    (tmp_path / name).write_text(text)
+    reset_settings_cache()
+    result = invoke("run", "--local", str(write(tmp_path, HELLO)))
+    assert result.exit_code == GUARD_EXIT
+    assert "executes code on the worker" in refusal(result.stdout)["message"]
+
+
 def test_the_remedy_for_an_unsafe_block_is_offered_to_a_person(tmp_path: Path) -> None:
     """The flag that unblocks the run is an affordance of the console rendering."""
     result = rendering("run", "--local", str(write(tmp_path, HELLO)))

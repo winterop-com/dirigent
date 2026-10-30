@@ -491,7 +491,8 @@ and the server inside one never opens the file.
 
 The YAML file is `$DIRIGENT_CONFIG_FILE` if that is set; otherwise `dirigent.yaml`,
 `.dirigent/dirigent.yaml`, and `~/.config/dirigent/dirigent.yaml` are all read, with the
-nearest one winning. A leftover `dirigent.toml` sitting where the YAML now belongs is refused
+nearest one winning. `DIRIGENT_ENABLED_UNSAFE_BLOCKS` is not read from a `.env`, `dirigent.yaml`
+or `.dirigent/dirigent.yaml` in the working directory. A leftover `dirigent.toml` sitting where the YAML now belongs is refused
 by name rather than silently ignored.
 
 Every setting below is written as its environment variable. In YAML, drop the prefix and
@@ -499,7 +500,7 @@ lowercase it: `DIRIGENT_LOG_FORMAT=json` is `log_format: json`.
 
 Two spellings are accepted for the collection settings, because the obvious one and the
 generated one are different. `DIRIGENT_ENABLED_UNSAFE_BLOCKS=shell.run,docker.run` is what a
-person types; a JSON array works too, and so does an ordinary list in `dirigent.yaml`. The same
+person types; a JSON array works too, and so does an ordinary list in the YAML file. The same
 applies to `DIRIGENT_WORKER_TAGS`, and `DIRIGENT_STORAGE_CONNECTIONS=s3=archive` is the
 mapping equivalent.
 
@@ -707,7 +708,7 @@ the stack is complete out of the box; see
 | Setting | Default | What it means |
 | --- | --- | --- |
 | `DIRIGENT_SOURCE_MAX_BODY` | `1mb` | The largest body any endpoint source reads, whatever its own `max_body` says. Reading stops one byte past it rather than buffering an unbounded body in order to measure it. |
-| `DIRIGENT_SOURCE_INTAKE_RATE_PER_MINUTE` | `600` | How fast calls to one method and path are taken, checked before any source is looked up. A source's own `rate` applies on top. Per process, so behind N replicas the effective limit is N times this. |
+| `DIRIGENT_SOURCE_INTAKE_RATE_PER_MINUTE` | `600` | How fast one address's calls to one method and route are taken, checked before any source is read. A source's own `rate` applies on top. Per process, so behind N replicas the effective limit is N times this. |
 | `DIRIGENT_LOGIN_RATE_PER_MINUTE` | `10` | Login attempts allowed per minute for one username from one address, so a caller elsewhere cannot lock an account out. |
 | `DIRIGENT_LOGIN_ADDRESS_RATE_PER_MINUTE` | `60` | Login attempts allowed per minute from one address, across every username. Argon2id is deliberately expensive and login is unauthenticated, so without a limit anyone on the network can turn a few hundred requests a second into the whole instance's CPU. Behind a proxy, set `FORWARDED_ALLOW_IPS` to its address, or every caller counts as the proxy. |
 
