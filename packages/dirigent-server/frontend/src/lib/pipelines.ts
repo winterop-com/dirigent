@@ -22,6 +22,7 @@ import { PAGE } from '@/lib/paging'
 import type { RunWindow } from '@/lib/run-window'
 import type { RunPriority } from '@/lib/runs'
 import type { RunStatus } from '@/lib/status'
+import type { SourceTokenOut } from '@/lib/sources'
 
 /** How the newest run of a pipeline went. `LastRun`. */
 export interface LastRun {
@@ -155,6 +156,8 @@ export interface SourceChanges {
     created: string[]
     updated: string[]
     removed: string[]
+    /** The tokens minted for the sources this apply created, each shown here and nowhere else again. */
+    tokens: SourceTokenOut[]
 }
 
 /** The outcome of an apply, or of the dry run that plans one. `ApplyResult`. */

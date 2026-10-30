@@ -919,7 +919,8 @@ rows and the managed schedules a document has stopped declaring, and those are t
 in the dialog that cannot be read back from the document: a source goes with its inputs and its
 token. They stand under the changes in the warning ink, with the words a reader would ask for, and
 only where there are any. What an apply did to its sources and schedules is the note that follows
-it.
+it. **A token an apply created is shown once, the way a rotated one is**, because the answer to that
+apply is the only time it can be read: `MintedToken` stands over the editor before anything moves on.
 
 **A refusal the dialog can answer is answered in the dialog.** A top-level `connections:` or
 `schemas:` section is what lets a document run alone under `dg run --local`, and an apply refuses
