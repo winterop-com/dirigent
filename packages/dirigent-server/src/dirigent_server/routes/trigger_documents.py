@@ -1,4 +1,4 @@
-"""Triggers documents: the clocks and watches one document declares for another's pipeline.
+"""Triggers documents: the clocks one document declares for another's pipeline.
 
 A document is applied through ``POST /pipelines/$apply`` like any other; what is here is
 reading the ones the instance holds, and removing one with the rows it owns.
@@ -71,13 +71,12 @@ async def list_all(
 async def get_one(code: str, session: SessionDep, principal: PrincipalDep) -> TriggerDocumentDetail:
     """Read one triggers document, the document itself, and the rows it owns."""
     row = await _require(session, code)
-    schedules, watches = await owned_codes(session, row.id)
+    schedules = await owned_codes(session, row.id)
     base = render(row, await _pipeline_code(session, row))
     return TriggerDocumentDetail(
         **base.model_dump(),
         document=dict(row.document),
         schedules=schedules,
-        watches=watches,
     )
 
 
@@ -88,7 +87,7 @@ async def get_one(code: str, session: SessionDep, principal: PrincipalDep) -> Tr
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def delete(code: str, session: SessionDep, services: ServicesDep, principal: OperatorDep) -> Response:
-    """Remove a triggers document, and with it every schedule and watch it declared.
+    """Remove a triggers document, and with it every schedule it declared.
 
     The pipeline it named is untouched, and so is anything the pipeline's own document or an
     operator declared on it.

@@ -396,8 +396,8 @@ reconcile runs by hand as `dg apply --prune` inside a project, and
 a directory that carries both converges in one pass: a `kind: triggers` document is refused
 while the pipeline it names is absent, and applying the pipeline first is what makes it
 present. A triggers document the directory no longer holds is *deleted* rather than
-deactivated -- it has no history worth keeping -- and the delete takes the schedules and
-watches it declared with it, never the pipeline's own inline ones and never a hand-made row.
+deactivated -- it has no history worth keeping -- and the delete takes the schedules
+it declared with it, never the pipeline's own inline ones and never a hand-made row.
 The same narrowing applies: only a triggers document a directory apply wrote is ever pruned.
 
 Standing an instance up by hand is still one command for the whole directory:

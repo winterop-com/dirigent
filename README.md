@@ -131,9 +131,10 @@ real](#running-it-for-real-three-services) is the same shape from a checkout.
 - **The scheduler.** A leader-elected loop on a PostgreSQL advisory lock, with per-schedule
   IANA timezones and a misfire policy that fires once and advances rather than working
   through a backlog. Embedded in `dg server` by default; `dg scheduler` isolates it.
-- **Webhook intake.** `POST /hooks/{token}` with server-minted tokens, optional HMAC over
-  the raw body, per-token rate limiting, a strict payload-to-parameter mapping, and a
-  delivery history that records refusals as carefully as acceptances.
+- **Input sources.** A pipeline's first node listens: an `endpoint` the server answers under
+  `/endpoints` (a minted token or an HMAC signature, a rate bucket, an optional reply), a
+  `storage` location or a `sensor` a worker polls, and Kafka or RabbitMQ consumers a worker
+  holds. Each input becomes one run, journalled whether it was accepted or refused.
 - **Alerting.** Rules binding an event at a scope to one channel, delivered through a queue a
   worker claims, leases, and retries -- so a flaky channel cannot take down a worker or
   silently drop an alert. `log`, `webhook`, `slack` and `email` notifiers ship built in; a rule

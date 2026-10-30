@@ -111,9 +111,6 @@ class TriggerKind(StrEnum):
     BACKFILL = "backfill"
     """A backfill over past windows created this one, and ``triggered_by_id`` names the schedule."""
 
-    WATCH = "watch"
-    """A watch armed this one to wait on its sensor, and ``triggered_by_id`` names the watch."""
-
     SOURCE = "source"
     """An input arrived at a source node, and ``triggered_by_id`` names the source."""
 
@@ -238,7 +235,7 @@ class DocumentKind(StrEnum):
 
     PIPELINE = "pipeline"
     TRIGGERS = "triggers"
-    """Clocks and watches for a pipeline defined somewhere else."""
+    """Clocks for a pipeline defined somewhere else."""
 
 
 class ProvenanceSource(StrEnum):

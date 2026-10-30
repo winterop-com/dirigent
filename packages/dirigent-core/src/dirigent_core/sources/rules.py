@@ -24,7 +24,6 @@ from dirigent_core.messages import (
     SAMPLE_INVALID,
     SAMPLE_NOT_AN_OBJECT,
     SCHEDULE_ON_SOURCES,
-    TRIGGERS_ON_SOURCES,
     UNKNOWN_KIND,
 )
 from dirigent_plugin.sources import AnySource, ReceivedSource, SourceHosting
@@ -55,19 +54,11 @@ def source_issues(definition: PipelineDefinition, kinds: Mapping[str, AnySource]
 
 
 def triggers_issues(code: str, triggers: TriggerSpecs, *, prefix: str = "triggers") -> list[ValidationIssue]:
-    """Refuse a trigger on a pipeline with sources: whatever it started would enter no source."""
-    issues = [
+    """Refuse a schedule on a pipeline with sources: whatever it started would enter no source."""
+    return [
         ValidationIssue.of(SCHEDULE_ON_SOURCES, location=f"{prefix}.schedules[{index}]", code=repr(code))
         for index, _ in enumerate(triggers.schedules)
     ]
-    for section, label, declared in (("watches", "watch", triggers.watches),):
-        issues.extend(
-            ValidationIssue.of(
-                TRIGGERS_ON_SOURCES, location=f"{prefix}.{section}[{index}]", code=repr(code), label=label
-            )
-            for index, _ in enumerate(declared)
-        )
-    return issues
 
 
 def source_config(kind: AnySource, config: JsonMap) -> BaseModel:

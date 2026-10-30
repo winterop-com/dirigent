@@ -376,7 +376,7 @@ def apply_command(
     paused: Annotated[
         bool,
         typer.Option(
-            "--paused", help="Create the schedules and watches this apply mints paused; existing ones are untouched."
+            "--paused", help="Create the schedules this apply creates paused; existing ones are untouched."
         ),
     ] = False,
     prune: Annotated[

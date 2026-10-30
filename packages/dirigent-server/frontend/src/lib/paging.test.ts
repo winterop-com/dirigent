@@ -121,7 +121,6 @@ describe('the foot of a listing', () => {
         [LABELS.word.schema.count, '0 schemas', '1 schema', '2 schemas'],
         [LABELS.word.example.count, '0 examples', '1 example', '2 examples'],
         [LABELS.word.schedule.count, '0 schedules', '1 schedule', '2 schedules'],
-        [LABELS.word.watch.count, '0 watches', '1 watch', '2 watches'],
         [LABELS.word.firing.count, '0 firings', '1 firing', '2 firings'],
         [LABELS.word.rule.count, '0 rules', '1 rule', '2 rules'],
         [LABELS.word.notification.count, '0 notifications', '1 notification', '2 notifications'],

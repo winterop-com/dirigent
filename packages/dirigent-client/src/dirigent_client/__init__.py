@@ -122,7 +122,6 @@ from dirigent_client.schemas import (
     UserIn,
     UserOut,
     ValidationIssue,
-    WatchOut,
     WorkerOut,
 )
 from dirigent_client.transport import (
@@ -256,7 +255,6 @@ __all__ = [
     "ValidationFailed",
     "ValidationIssue",
     "WaitTimeout",
-    "WatchOut",
     "WorkerOut",
     "WorkerStatus",
     "declared_label",

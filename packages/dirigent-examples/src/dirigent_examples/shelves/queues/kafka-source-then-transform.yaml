@@ -14,9 +14,9 @@
 # source's sample:
 #   dg run --local examples/queues/kafka-source-then-transform.yaml
 #
-# A SOURCE, NOT A SENSOR. kafka-watch-then-transform.yaml keeps one run waiting on the topic and
-# hands a batch to it; here the topic is the pipeline's entrance, so each message enters a run
-# of its own at `order` and `${steps.order.output.value}` is that one message. One worker holds
+# A SOURCE, NOT A SENSOR. kafka-consume-then-transform.yaml waits on the topic inside a run and
+# hands a batch downstream; here the topic is the pipeline's entrance, so each message enters a
+# run of its own at `order` and `${steps.order.output.value}` is that one message. One worker holds
 # the consumer under a lease; if it dies, another takes the source over once the lease runs out.
 #
 # THE GROUP HOLDS THE PLACE. A source commits its group's offsets once each message it took has

@@ -447,7 +447,7 @@ class StreamOutput(BaseModel):
 class StreamSensor(Sensor[StreamConfig, StreamOutput]):
     """Tails a notional stream: parks, then takes a batch from where its cursor stands.
 
-    A key in ``failing`` makes every poke of it fail, so a test can break a watch's sensor and
+    A key in ``failing`` makes every poke of it fail, so a test can break a source's sensor and
     mend it again without editing the document.
     """
 

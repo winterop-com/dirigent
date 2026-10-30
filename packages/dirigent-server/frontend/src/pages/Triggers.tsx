@@ -6,9 +6,9 @@ import { ApiChip } from '@/components/ApiChip'
 import { ListTable, type Column } from '@/components/list/ListTable'
 import { PageHeader, PageState } from '@/components/PageState'
 import { PipelineRef } from '@/components/PipelineRef'
-import { Chip, Clock, Dot, NextFire, OwnerChip, WatchState } from '@/components/triggers/marks'
+import { Chip, Clock, Dot, NextFire, OwnerChip } from '@/components/triggers/marks'
 import { MintedToken, NewSchedule } from '@/components/triggers/NewTrigger'
-import { SchedulePanel, SourcePanel, WatchPanel } from '@/components/triggers/TriggerPanel'
+import { SchedulePanel, SourcePanel } from '@/components/triggers/TriggerPanel'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { usePaged } from '@/hooks/use-paged'
 import { formatInstant, formatRelative } from '@/lib/format'
@@ -29,41 +29,35 @@ import { cn } from '@/lib/utils'
 import {
     firingView,
     nextFireView,
-    readTriggerPage,
-    triggerId,
-    watchView,
+    readSchedulePage,
+    scheduleId,
     type ScheduleOut,
     type ScheduleRow,
-    type TriggerRow,
-    type WatchOut,
-    type WatchRow,
 } from '@/lib/triggers'
 
 /**
- * Everything that fires a pipeline without a person: the sources a pipeline listens on, the
- * clocks, and the watches that keep a run waiting on a sensor.
+ * Everything that fires a pipeline without a person: the sources a pipeline listens on, and
+ * the clocks.
  *
  * SOURCES ARE READ ON THEIR OWN CURSOR. `/sources` lists every source on the instance, so that
- * section pages by itself; the two trigger sections share the pipelines walk below.
+ * section pages by itself; the schedules section pages over the pipelines walk below.
  *
- * TWO SECTIONS, ONE WALK. This API has no listing of every schedule on the instance -- a
- * trigger hangs off the pipeline it fires -- so the screen walks pipelines and reads the
- * triggers of the ones the pipelines listing already counted at least one of. Every section
- * grows from the same page, which is why every foot states the same walk and one "load more"
- * carries them together.
+ * SCHEDULES ARE A WALK OVER PIPELINES. This API has no listing of every schedule on the
+ * instance -- a schedule hangs off the pipeline it fires -- so the screen walks pipelines and
+ * reads the schedules of the ones the pipelines listing already counted at least one of.
  *
  * MANAGED IS NOT A LOCK, IT IS A SOURCE. A trigger a document declared changes when that
  * document is applied again, and the chip says so; whether it is paused is the instance's,
- * and that is the verb the panel offers. A watch is only ever declared by a document, so there is no New for one.
+ * and that is the verb the panel offers.
  */
 export function Triggers() {
     const [chosen, setChosen] = useState<string | null>(null)
     const [creating, setCreating] = useState<'schedule' | null>(null)
     const [minted, setMinted] = useState<SourceTokenOut | null>(null)
     // What a verb has since made of a row, over the page it was read on.
-    const [fresher, setFresher] = useState<Record<string, TriggerRow>>({})
+    const [fresher, setFresher] = useState<Record<string, ScheduleRow>>({})
 
-    const { state, more, reload } = usePaged(readTriggerPage, triggerId)
+    const { state, more, reload } = usePaged(readSchedulePage, scheduleId)
     const listed = usePaged(readSourcePage, sourceId)
     const reloadSources = listed.reload
     const [chosenSource, setChosenSource] = useState<string | null>(null)
@@ -74,15 +68,15 @@ export function Triggers() {
     )
     const openSource = sources.find((row) => sourceId(row) === chosenSource) ?? null
 
-    const rows = useMemo(() => state.rows.map((row) => fresher[triggerId(row)] ?? row), [fresher, state.rows])
-    const schedules = useMemo(() => rows.filter(isSchedule), [rows])
-    const watches = useMemo(() => rows.filter(isWatch), [rows])
+    const schedules = useMemo(
+        () => state.rows.map((row) => fresher[scheduleId(row)] ?? row),
+        [fresher, state.rows],
+    )
     const scheduleCols = useMemo(() => scheduleColumns(schedules), [schedules])
-    const watchCols = useMemo(() => watchColumns(watches), [watches])
-    const open = rows.find((row) => triggerId(row) === chosen) ?? null
+    const open = schedules.find((row) => scheduleId(row) === chosen) ?? null
 
-    const held = useCallback((row: TriggerRow) => {
-        setFresher((current) => ({ ...current, [triggerId(row)]: row }))
+    const held = useCallback((row: ScheduleRow) => {
+        setFresher((current) => ({ ...current, [scheduleId(row)]: row }))
     }, [])
 
     useEffect(() => {
@@ -122,33 +116,17 @@ export function Triggers() {
             [
                 {
                     id: 'trigger',
-                    label: PANEL_LABEL[open.kind],
-                    render: () => {
-                        switch (open.kind) {
-                            case 'schedule':
-                                return (
-                                    <SchedulePanel
-                                        pipeline={open.pipeline}
-                                        pipelineName={open.pipelineName}
-                                        schedule={open.schedule}
-                                        onChanged={(schedule: ScheduleOut) => {
-                                            held({ ...open, schedule })
-                                        }}
-                                    />
-                                )
-                            case 'watch':
-                                return (
-                                    <WatchPanel
-                                        pipeline={open.pipeline}
-                                        pipelineName={open.pipelineName}
-                                        watch={open.watch}
-                                        onChanged={(watch: WatchOut) => {
-                                            held({ ...open, watch })
-                                        }}
-                                    />
-                                )
-                        }
-                    },
+                    label: LABELS.word.schedule.label,
+                    render: () => (
+                        <SchedulePanel
+                            pipeline={open.pipeline}
+                            pipelineName={open.pipelineName}
+                            schedule={open.schedule}
+                            onChanged={(schedule: ScheduleOut) => {
+                                held({ ...open, schedule })
+                            }}
+                        />
+                    ),
                 },
             ],
             { screen: 'triggers' },
@@ -191,9 +169,9 @@ export function Triggers() {
         ])
     }, [mayWrite, reload, reloadSources])
 
-    const select = (row: TriggerRow) => {
+    const select = (row: ScheduleRow) => {
         setChosenSource(null)
-        setChosen(triggerId(row))
+        setChosen(scheduleId(row))
         openPanel()
     }
 
@@ -203,7 +181,7 @@ export function Triggers() {
         openPanel()
     }
 
-    /** What taking the open row back means here, whichever of the three listings it is in. */
+    /** What taking the open row back means here, whichever of the two listings it is in. */
     const unchoose = () => {
         setChosen(null)
         setChosenSource(null)
@@ -232,7 +210,7 @@ export function Triggers() {
             <PageState
                 loading={!state.read || !listed.state.read}
                 problem={state.problem ?? listed.state.problem}
-                empty={rows.length === 0 && sources.length === 0}
+                empty={schedules.length === 0 && sources.length === 0}
                 emptyMessage={LABELS.triggers.empty}
             >
                 <div className="space-y-6">
@@ -264,33 +242,13 @@ export function Triggers() {
                             <ListTable
                                 columns={scheduleCols}
                                 rows={schedules}
-                                rowKey={triggerId}
+                                rowKey={scheduleId}
                                 reading={state.reading}
                                 next={state.next}
                                 onMore={more}
                                 noun={LABELS.word.schedule.count}
                                 onSelect={select}
-                                selected={(row) => triggerId(row) === chosen}
-                                onClose={unchoose}
-                            />
-                        )}
-                    </section>
-
-                    <section className="space-y-2">
-                        <h2 className="text-sm font-semibold">{LABELS.word.watch.heading}</h2>
-                        {watches.length === 0 ? (
-                            <p className="text-sm text-muted-foreground">{LABELS.triggers.watch.empty}</p>
-                        ) : (
-                            <ListTable
-                                columns={watchCols}
-                                rows={watches}
-                                rowKey={triggerId}
-                                reading={state.reading}
-                                next={state.next}
-                                onMore={more}
-                                noun={LABELS.word.watch.count}
-                                onSelect={select}
-                                selected={(row) => triggerId(row) === chosen}
+                                selected={(row) => scheduleId(row) === chosen}
                                 onClose={unchoose}
                             />
                         )}
@@ -394,15 +352,6 @@ function sourceColumns(rows: readonly SourceOut[]): Column<SourceOut>[] {
     return SOURCE_COLUMNS.filter((column) => column.id !== 'in_flight')
 }
 
-const isSchedule = (row: TriggerRow): row is ScheduleRow => row.kind === 'schedule'
-const isWatch = (row: TriggerRow): row is WatchRow => row.kind === 'watch'
-
-/** What the panel's strip calls the trigger it holds. */
-const PANEL_LABEL: Record<TriggerRow['kind'], string> = {
-    schedule: LABELS.word.schedule.label,
-    watch: LABELS.word.watch.label,
-}
-
 const SCHEDULE_COLUMNS: Column<ScheduleRow>[] = [
     {
         id: 'schedule',
@@ -447,65 +396,10 @@ const SCHEDULE_COLUMNS: Column<ScheduleRow>[] = [
     },
 ]
 
-const WATCH_COLUMNS: Column<WatchRow>[] = [
-    {
-        id: 'watch',
-        header: LABELS.word.watch.label,
-        kind: 'title',
-        cell: (row) => (
-            <Titled thing={row.watch}>
-                <OwnerChip managed={row.watch.managed} document={row.watch.trigger_document} />
-                {row.watch.paused && <Chip>{LABELS.state.armed.paused}</Chip>}
-            </Titled>
-        ),
-    },
-    {
-        id: 'pipeline',
-        header: LABELS.word.pipeline.label,
-        kind: 'prose',
-        cell: (row) => <PipelineRef code={row.pipeline} name={row.pipelineName} />,
-    },
-    {
-        id: 'step',
-        header: LABELS.word.step.label,
-        className: 'font-mono text-xs',
-        cell: (row) => <span className="font-mono text-muted-foreground">{row.watch.step}</span>,
-    },
-    {
-        id: 'waiting',
-        header: LABELS.triggers.watch.waiting,
-        // The paused chip in the title cell already says why nothing is waiting.
-        cell: (row) => (watchView(row.watch).kind === 'paused' ? null : <WatchState watch={row.watch} />),
-    },
-    {
-        id: 'error',
-        header: LABELS.triggers.watch.last_error,
-        kind: 'prose',
-        cell: (row) =>
-            row.watch.last_error === null ? null : (
-                <span className="block truncate text-xs text-muted-foreground" title={row.watch.last_error}>
-                    {row.watch.last_error}
-                </span>
-            ),
-    },
-]
-
 /** The schedule columns, leaving out Next where every row is paused and so has none. */
 function scheduleColumns(rows: readonly ScheduleRow[]): Column<ScheduleRow>[] {
     if (rows.some((row) => nextFireView(row.schedule).kind !== 'paused')) return SCHEDULE_COLUMNS
     return SCHEDULE_COLUMNS.filter((column) => column.id !== 'next')
-}
-
-/**
- * The watch columns, leaving out Waiting where every row is paused and the error column where
- * no row has an error to show.
- */
-function watchColumns(rows: readonly WatchRow[]): Column<WatchRow>[] {
-    const waiting = rows.some((row) => watchView(row.watch).kind !== 'paused')
-    const erred = rows.some((row) => row.watch.last_error !== null)
-    return WATCH_COLUMNS.filter(
-        (column) => (waiting || column.id !== 'waiting') && (erred || column.id !== 'error'),
-    )
 }
 
 /**

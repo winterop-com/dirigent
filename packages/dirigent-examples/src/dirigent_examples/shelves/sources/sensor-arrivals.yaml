@@ -1,0 +1,91 @@
+# Every batch a sensor arrives with becomes one run, found by a worker that pokes it outside any run.
+#
+# A SENSOR SOURCE IS POKED, NOT CALLED. Nobody sends `arrive` anything: a worker pokes
+# playground.arrive on the source's cadence, with no run in existence. A poke that answers "not
+# yet" starts nothing and keeps the sensor's cursor; a poke that succeeds becomes one run, whose
+# `arrive` node already holds the batch, and the sensor is poked again at once for the next one.
+# Nothing here needs a network or an allowlist.
+#
+# THE SOURCE OWNS THE CURSOR. playground.arrive says where a batch ended, and the source stores
+# that and hands it to the next wait's first poke, so the first run's offsets are 0 to 2, the
+# next run's 3 to 5, and so on. kafka.consume does the same with its offsets, though a topic is
+# better read by the `kafka` source, which holds a consumer open:
+# examples/queues/kafka-source-then-transform.yaml.
+#
+# THE WAIT BEGINS AT THE LAST SUCCESS. `after: 5s` is measured from when the source began
+# waiting, which is the last batch or the first poke, so a batch lands every five seconds or so
+# whether the runs it started have settled or not. max_in_flight caps how many may be unsettled
+# at once before the next poke waits for one of them.
+#
+# ONLY A SENSOR THAT SAYS SO. A source may poke playground.arrive and kafka.consume, which read
+# nothing of a run but their cursor and when the wait began. Name any other sensor and the apply
+# refuses it.
+#
+# RUN IT BY HAND, here, with no server and no worker. No --input takes the source's sample,
+# which is a batch the sensor could have arrived with:
+#
+#   dg run --local examples/sources/sensor-arrivals.yaml
+#
+# ON A SERVER, apply it and a run starts every five seconds or so:
+#
+#   dg apply examples/sources/sensor-arrivals.yaml
+#   dg source list sensor-arrivals                  # listening, and how many are in flight
+#   dg runs list --pipeline sensor-arrivals
+#   dg source pause sensor-arrivals arrive          # stops the poking, keeps the cursor
+#   dg source resume sensor-arrivals arrive         # reads on from where it stopped
+#
+# EXPECT THIS RUN TO SUCCEED in well under a second, `summarise` counting the sample's three
+# messages, offsets 0 to 2.
+
+format: dirigent/v1
+kind: pipeline
+code: sensor-arrivals
+name: Sensor arrivals
+description: |
+  A worker pokes a generated batch outside any run, and each batch that arrives becomes one
+  run, its offsets carrying on from the batch before; a jq step summarises it.
+
+tags: [sources, sensor, playground, jq, starter]
+
+requires:
+  blocks:
+    - transform.jq
+
+steps:
+  arrive:
+    source:
+      kind: sensor
+      block: playground.arrive
+      config:
+        # Five seconds from when the source began waiting. after_pokes is zero because the
+        # clock is what this wait is about.
+        after: 5s
+        after_pokes: 0
+        rows: 3
+        fields:
+          station: city
+          reading: pyfloat
+      poll: 1s
+      max_in_flight: 2
+    sample:
+      messages:
+        - {offset: 0, value: {station: Bergen, reading: 11.2}, timestamp: "2026-01-01T06:00:05Z"}
+        - {offset: 1, value: {station: Tromso, reading: 3.8}, timestamp: "2026-01-01T06:00:05Z"}
+        - {offset: 2, value: {station: Oslo, reading: 9.5}, timestamp: "2026-01-01T06:00:05Z"}
+      count: 3
+      next_offset: 3
+      pokes: 6
+      waited_ms: 5000
+      seed: 7
+      locale: en_US
+      fields: {station: city, reading: pyfloat}
+      drift: none
+
+  summarise:
+    block: transform.jq
+    depends_on: [arrive]
+    config:
+      input: ${steps.arrive.output}
+      program: >-
+        {count: .count, first_offset: .messages[0].offset,
+         last_offset: .messages[-1].offset, next_offset: .next_offset}

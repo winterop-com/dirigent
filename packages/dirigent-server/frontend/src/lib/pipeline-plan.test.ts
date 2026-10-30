@@ -41,9 +41,6 @@ function materialized(over: Partial<Materialized> = {}): Materialized {
         schedules_created: [],
         schedules_updated: [],
         schedules_removed: [],
-        watches_created: [],
-        watches_updated: [],
-        watches_removed: [],
         ...over,
     }
 }
@@ -148,10 +145,10 @@ describe('what an apply did', () => {
 
     test('lists what it did to the triggers, and nothing when it left them alone', () => {
         expect(
-            triggerChanges(materialized({ schedules_created: ['nightly'], watches_updated: ['follow'] })),
-        ).toEqual(['schedules created: nightly', 'watches updated: follow'])
-        expect(triggerChanges(materialized({ watches_removed: ['follow'] }))).toEqual([
-            'watches removed: follow',
+            triggerChanges(materialized({ schedules_created: ['nightly'], schedules_updated: ['hourly'] })),
+        ).toEqual(['schedules created: nightly', 'schedules updated: hourly'])
+        expect(triggerChanges(materialized({ schedules_removed: ['hourly'] }))).toEqual([
+            'schedules removed: hourly',
         ])
         expect(triggerChanges(materialized())).toEqual([])
     })
@@ -162,11 +159,11 @@ describe('what an apply did', () => {
             pipeline_id: 'an-id',
             version: 2,
             dry_run: false,
-            triggers: materialized({ schedules_created: ['nightly'], watches_updated: ['follow'] }),
+            triggers: materialized({ schedules_created: ['nightly'], schedules_updated: ['hourly'] }),
         }
         expect(appliedNote(result)).toEqual({
             line: 'convert-one is at version 2',
-            detail: 'schedules created: nightly; watches updated: follow',
+            detail: 'schedules created: nightly; schedules updated: hourly',
         })
         expect(appliedNote({ ...result, triggers: materialized() }).detail).toBeUndefined()
     })

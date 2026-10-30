@@ -296,56 +296,21 @@ test('a schedule opens its own facts and its firing history beside the listing',
     await expect(panel.getByTestId('next-fire')).toHaveText(/^in \d+[mhd]$/)
 })
 
-/** A pipeline whose root sensor is watched, parked for longer than the suite runs. */
-const WATCHED = {
+/** A pipeline with no name of its own, carrying a named schedule that fires once a year. */
+const UNNAMED = {
     format: 'dirigent/v1',
     kind: 'pipeline',
-    code: 'e2e-watched',
-    steps: { arrive: { block: 'playground.arrive', config: { after_pokes: 1000, rows: 1 } } },
-    triggers: { watches: [{ code: 'follow', name: 'Follow the arrivals', step: 'arrive' }] },
+    code: 'e2e-unnamed',
+    steps: { only: { block: 'transform.jq', config: { input: { at: 1 }, program: '.' } } },
+    triggers: {
+        schedules: [{ code: 'yearly', name: 'Once a year', cron: '0 0 1 1 *', timezone: 'UTC' }],
+    },
 }
-
-test('a watch shows the run it has waiting, and pausing it leaves none', async ({ page }) => {
-    await signIn(page)
-    await applyDocument(page.request, WATCHED)
-
-    await page.goto('/triggers')
-    const row = rowOf(page, 'Follow the arrivals')
-    await expect(row).toContainText('follow')
-    await expect(row).toContainText('e2e-watched')
-    await expect(row).toContainText('arrive')
-    // The foot counts what has been read, and the noun beside that number has to be the one the
-    // catalogue spells for the number actually on screen rather than either of its forms.
-    const watches = LABELS.word.watch.count
-    const foot = page.getByText(new RegExp(`^\\d+ (${watches.one}|${watches.many})$`))
-    await expect(foot).toBeVisible()
-    const said = await foot.innerText()
-    const read = Number(said.split(' ')[0])
-    expect(said).toBe(LABELS.shell.rows_read(String(read), counted(read, watches)))
-
-    await row.getByText('Follow the arrivals', { exact: true }).click()
-    const panel = page.getByRole('tabpanel')
-    await expect(panel).toContainText('arrive')
-    await panel.getByRole('button', { name: 'Pause' }).click()
-    await expect(panel.getByRole('button', { name: 'Resume' })).toBeVisible()
-    // Paused is said once, by the chip, and not again where the waiting run would be.
-    await expect(panel.getByText(LABELS.state.armed.paused, { exact: true })).toHaveCount(1)
-    await expect(row.getByText(LABELS.state.armed.paused, { exact: true })).toHaveCount(1)
-    await expect(panel.getByText(LABELS.triggers.watch.waiting, { exact: true })).toHaveCount(0)
-
-    await panel.getByRole('button', { name: 'Resume' }).click()
-    await expect(panel.getByRole('button', { name: 'Pause' })).toBeVisible()
-    await expect(panel.getByRole('link', { name: /^[0-9a-f]+$/ })).toBeVisible()
-
-    // Left paused, so no run waits on the instance the rest of the suite counts runs on.
-    await panel.getByRole('button', { name: 'Pause' }).click()
-    await expect(panel.getByRole('button', { name: 'Resume' })).toBeVisible()
-})
 
 test('a trigger names the pipeline it fires the way every listing heads one', async ({ page }) => {
     await signIn(page)
     await applyExample(page.request, CRON.file)
-    await applyDocument(page.request, WATCHED)
+    await applyDocument(page.request, UNNAMED)
 
     await page.goto('/triggers')
     // A pipeline with a name is headed by it, with its code under it in mono.
@@ -357,10 +322,10 @@ test('a trigger names the pipeline it fires the way every listing heads one', as
         await expect(ref.getByText(code, { exact: true })).toHaveCSS('font-family', /Mono/)
     }
     // One without a name is headed by its code, in mono, and the code is not drawn twice.
-    const bare = rowOf(page, 'Follow the arrivals').getByTestId('pipeline-ref')
-    await expect(bare.getByRole('link')).toHaveText(WATCHED.code)
+    const bare = rowOf(page, 'Once a year').getByTestId('pipeline-ref')
+    await expect(bare.getByRole('link')).toHaveText(UNNAMED.code)
     await expect(bare.getByRole('link')).toHaveCSS('font-family', /Mono/)
-    await expect(bare.getByText(WATCHED.code, { exact: true })).toHaveCount(1)
+    await expect(bare.getByText(UNNAMED.code, { exact: true })).toHaveCount(1)
 
     // The panel names it the same way.
     await rowOf(page, CRON.title).getByText(CRON.title, { exact: true }).click()

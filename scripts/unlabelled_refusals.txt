@@ -77,12 +77,6 @@ document.too_many_tags
 document.trigger_owned_elsewhere
 document.unknown_dependency
 document.unknown_kind
-document.watch_fans_out
-document.watch_not_a_root
-document.watch_not_a_sensor
-document.watch_replace_policy
-document.watch_unknown_step
-document.watch_would_break
 document.worker_tags_missing
 document.wrong_format
 document.wrong_kind
@@ -141,7 +135,6 @@ run.remote_job_gone
 run.replaced_by_newer_run
 run.replaced_by_retry
 run.retry_concurrency
-run.retry_watch_moved_on
 run.self_start
 run.step_not_in_version
 run.step_refused
@@ -167,15 +160,3 @@ server.no_notification
 server.not_a_duration
 server.run_definition_gone
 server.schema_exists
-watch.arm_refused
-watch.duplicate
-watch.moved
-watch.paused
-watch.pipeline_deactivated
-watch.pipeline_deleted
-watch.pipeline_reapplied
-watch.retired
-watch.run_gone
-watch.unarmable
-watch.wait_cancelled
-watch.wait_failed

@@ -162,11 +162,6 @@ describe('what started a run', () => {
         expect(triggerSummary(filled)).toMatchObject({ kind: 'backfill', who: 'backfill nightly' })
     })
 
-    test('names a watch, which armed the run to wait on its sensor', () => {
-        const armed = { ...RUN, triggered_by_kind: 'watch' as const, triggered_by_label: 'watch follow' }
-        expect(triggerSummary(armed)).toMatchObject({ kind: 'watch', who: 'watch follow' })
-    })
-
     test('names a parent run by its short id, and keeps what the server recorded whole', () => {
         const parent = '0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b'
         const child = {

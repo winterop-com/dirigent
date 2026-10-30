@@ -1,4 +1,4 @@
-"""The trigger and alerting command groups: schedules, watches, and alert rules."""
+"""The trigger and alerting command groups: schedules and alert rules."""
 
 from pathlib import Path
 from typing import Annotated, Any, cast
@@ -32,11 +32,6 @@ from dirigent_common import Message
 
 schedule_app = typer.Typer(
     name="schedule", help="A pipeline's clocks: cron, interval, or one-time.", no_args_is_help=True
-)
-watch_app = typer.Typer(
-    name="watch",
-    help="Sensors kept waiting: one run always waiting on each, the next armed on success.",
-    no_args_is_help=True,
 )
 trigger_document_app = typer.Typer(
     name="trigger-document",
@@ -247,60 +242,6 @@ def schedule_delete(
     with client_for(state_of(ctx)) as dg:
         dg.call(dg.schedules.delete(pipeline, code))
     emit_fact("schedule.deleted", message="deleted", code=code, pipeline=pipeline)
-
-
-@watch_app.command("list")
-def watch_list(
-    ctx: typer.Context,
-    pipeline: Annotated[str, typer.Argument(help="The pipeline whose watches to list.")],
-) -> None:
-    """List a pipeline's watches, each with the run it has waiting and how its waits are going."""
-    with client_for(state_of(ctx)) as dg:
-        rows = list(paged(lambda after, size: dg.call(dg.watches.list(pipeline, after=after, limit=size)), None))
-    emit_records("watch", rows)
-
-
-@watch_app.command("show")
-def watch_show(
-    ctx: typer.Context,
-    pipeline: Annotated[str, typer.Argument(help="The pipeline the watch belongs to.")],
-    code: Annotated[str, typer.Argument(help="The watch to show.")],
-) -> None:
-    """Show one watch: the step it waits on, where it left off, and its last error."""
-    with client_for(state_of(ctx)) as dg:
-        row = dg.call(dg.watches.get(pipeline, code))
-    emit_one("watch", row)
-
-
-@watch_app.command("pause")
-def watch_pause(
-    ctx: typer.Context,
-    pipeline: Annotated[str, typer.Argument()],
-    code: Annotated[str, typer.Argument()],
-) -> None:
-    """Stop a watch, cancelling the run it has waiting, and keep where it left off."""
-    with client_for(state_of(ctx)) as dg:
-        row = dg.call(dg.watches.pause(pipeline, code))
-    emit_fact("watch.paused", message="paused", code=code, pipeline=pipeline, cursor=row.cursor)
-
-
-@watch_app.command("resume")
-def watch_resume(
-    ctx: typer.Context,
-    pipeline: Annotated[str, typer.Argument()],
-    code: Annotated[str, typer.Argument()],
-) -> None:
-    """Start a watch again, arming a run from where its last success left off."""
-    with client_for(state_of(ctx)) as dg:
-        row = dg.call(dg.watches.resume(pipeline, code))
-    emit_fact(
-        "watch.resumed",
-        message="resumed",
-        code=code,
-        pipeline=pipeline,
-        waiting_run_id=row.waiting_run_id,
-        cursor=row.cursor,
-    )
 
 
 @alerts_rules_app.command("list")
@@ -516,7 +457,7 @@ def trigger_document_show(
     ctx: typer.Context,
     code: Annotated[str, typer.Argument(help="The triggers document to read.")],
 ) -> None:
-    """Show one triggers document and the schedules and watches it owns."""
+    """Show one triggers document and the schedules it owns."""
     with client_for(state_of(ctx)) as dg:
         detail = dg.call(dg.trigger_documents.get(code))
     if state_of(ctx).json_output:
@@ -525,7 +466,6 @@ def trigger_document_show(
     console.print(f"  pipeline  [bold]{detail.pipeline}[/]")
     console.print(f"  digest    [dim]{detail.digest}[/]")
     console.print(f"  schedules {', '.join(detail.schedules) or '-'}")
-    console.print(f"  watches   {', '.join(detail.watches) or '-'}")
     if detail.description:
         console.print(f"\n{detail.description}")
 
@@ -535,16 +475,10 @@ def trigger_document_delete(
     ctx: typer.Context,
     code: Annotated[str, typer.Argument(help="The triggers document to remove.")],
 ) -> None:
-    """Remove a triggers document and every schedule and watch it declared."""
+    """Remove a triggers document and every schedule it declared."""
     with client_for(state_of(ctx)) as dg:
         dg.call(dg.trigger_documents.delete(code))
-    emit_fact(
-        "trigger_document.deleted",
-        message="deleted",
-        code=code,
-        schedules="deleted",
-        watches="deleted",
-    )
+    emit_fact("trigger_document.deleted", message="deleted", code=code, schedules="deleted")
 
 
 @alerts_app.command("retry")

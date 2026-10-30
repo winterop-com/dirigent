@@ -21,11 +21,12 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from pydantic import BaseModel, SecretStr
+from sqlalchemy.exc import DBAPIError
 
 from dirigent_client.enums import AttemptStatus, LogLevel, RunItemStatus, RunStatus, TriggerKind, WorkerStatus
 from dirigent_client.schemas import LogEntryOut, Page, RunOut
 from dirigent_core.config import Settings
-from dirigent_core.database import create_engine, create_session_factory, session_scope
+from dirigent_core.database import DEADLOCK, create_engine, create_session_factory, session_scope
 from dirigent_core.engine.executor import Engine
 from dirigent_core.models import (
     ArtifactRef,
@@ -967,7 +968,7 @@ def test_a_pipeline_that_has_never_run_carries_no_last_run(client: TestClient) -
     apply_document(client, DOCUMENT)
     row = client.get(f"{PREFIX}/pipelines").json()["items"][0]
     assert row["last_run"] is None
-    assert (row["schedules"], row["watches"], row["active_runs"]) == (0, 0, 0)
+    assert (row["schedules"], row["active_runs"]) == (0, 0)
 
 
 def test_a_pipeline_listing_counts_what_fires_it_and_what_is_in_flight(client: TestClient) -> None:
@@ -1672,6 +1673,37 @@ def test_a_run_can_be_cancelled(client: TestClient) -> None:
     assert cancelled.status_code == 200
     assert cancelled.json()["status"] == "cancelled"
     assert "tester" in cancelled.json()["error"]
+
+
+class _Aborted(Exception):
+    """A driver error carrying the SQLSTATE PostgreSQL breaks a deadlock with."""
+
+    sqlstate = DEADLOCK
+
+
+def test_a_cancel_the_database_aborted_to_break_a_deadlock_is_run_again(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from dirigent_server.routes import runs as routes
+
+    apply_document(client, DOCUMENT)
+    run_id = client.post(f"{PREFIX}/pipelines/api-demo/$run", json={"params": {}}).json()["run_id"]
+    real = routes.cancel_run
+    calls: list[bool] = []
+
+    async def deadlocks_once(*args: Any, **kwargs: Any) -> Any:
+        calls.append(True)
+        if len(calls) == 1:
+            raise DBAPIError("SELECT 1", None, _Aborted())
+        return await real(*args, **kwargs)
+
+    monkeypatch.setattr(routes, "cancel_run", deadlocks_once)
+
+    cancelled = client.post(f"{PREFIX}/runs/{run_id}/$cancel")
+
+    assert cancelled.status_code == 200, cancelled.text
+    assert cancelled.json()["status"] == "cancelled"
+    assert len(calls) == 2
 
 
 def test_an_unknown_run_is_a_404(client: TestClient) -> None:

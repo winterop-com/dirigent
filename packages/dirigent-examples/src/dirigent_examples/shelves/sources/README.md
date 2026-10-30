@@ -11,6 +11,8 @@ renders from the run's outputs to answer whoever sent it.
 | [`signed-nested-payload.yaml`](signed-nested-payload.yaml) | A body signed with HMAC-SHA256 instead of a token, and a jq step that takes only the fields it names from a nested payload. |
 | [`signup-form.yaml`](signup-form.yaml) | A urlencoded form taken, and its caller answered 202 the moment the run exists. |
 | [`landing-files.yaml`](landing-files.yaml) | A storage source a worker polls: each CSV landing under a prefix becomes one run, two in flight at most. |
+| [`sensor-arrivals.yaml`](sensor-arrivals.yaml) | A sensor source: `playground.arrive` poked outside any run, each batch it arrives with one run, the offsets carrying on from batch to batch. |
+| [`sensor-fan-out-per-message.yaml`](sensor-fan-out-per-message.yaml) | A sensor source's batch handled one message at a time: a `for_each` over the batch's messages, its items written with the run. |
 
 Each runs by hand: `dg run --local` takes the source's `sample`, and `--input` gives one
 instead (`--source` names which source when a pipeline has several). Applied to a server, an

@@ -1,4 +1,4 @@
-"""The queue lane for watches: a watched ``kafka.consume`` reading a real topic, run after run.
+"""The queue lane for sensor sources: ``kafka.consume`` poked by a source reading a real topic, run after run.
 
 docker compose -f infra/compose.queues.yaml up -d
 make test-queues
@@ -20,12 +20,12 @@ from dirigent_block_queues.kafka import KafkaConnectionConfig, KafkaConnectionKi
 from dirigent_client.enums import AttemptStatus
 from dirigent_core.config import Settings
 from dirigent_core.database import session_scope
-from dirigent_core.engine.definition import PipelineDefinition, StepDefinition, TriggerSpecs, WatchSpec
-from dirigent_core.engine.executor import Engine
+from dirigent_core.documents import load_text
 from dirigent_core.engine.services import EngineServices
-from dirigent_core.models import Connection, Run, StepAttempt, Watch
+from dirigent_core.models import Connection, Run, Source, StepAttempt
 from dirigent_core.pipelines import apply_document
 from dirigent_core.plugins import PluginHost
+from dirigent_core.sources import polling
 from engineblocks import EngineTestPlugin
 
 pytestmark = pytest.mark.queues
@@ -61,7 +61,7 @@ async def topic() -> AsyncIterator[str]:
         if asyncio.get_running_loop().time() > deadline:
             pytest.skip("the Kafka broker is not reachable, so this lane has nothing to run against")
         await asyncio.sleep(1.0)
-    name = f"dirigent-watch-{uuid.uuid4().hex[:12]}"
+    name = f"dirigent-sensor-{uuid.uuid4().hex[:12]}"
     admin: Any = AIOKafkaAdminClient(bootstrap_servers=BOOTSTRAP)
     await admin.start()
     try:
@@ -80,7 +80,7 @@ async def topic() -> AsyncIterator[str]:
 
 
 async def batches(sessions: async_sessionmaker[AsyncSession]) -> list[list[int]]:
-    """The offsets each succeeded consume took, in the order the watch armed the runs."""
+    """The offsets each batch the source handed over took, in the order the runs were started."""
     async with sessions() as session:
         rows = await session.execute(
             sa.select(StepAttempt.output)
@@ -91,36 +91,38 @@ async def batches(sessions: async_sessionmaker[AsyncSession]) -> list[list[int]]
         return [[message["offset"] for message in output["messages"]] for output in rows.scalars() if output]
 
 
-async def test_a_watched_topic_is_read_on_run_after_run_with_no_consumer_group(
-    engine: Engine, sessions: async_sessionmaker[AsyncSession], services: EngineServices, topic: str
+async def test_a_topic_poked_by_a_source_is_read_on_run_after_run_with_no_consumer_group(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices, topic: str
 ) -> None:
     async with session_scope(sessions) as session:
         session.add(Connection(code="cluster", kind="kafka", config={"bootstrap_servers": [BOOTSTRAP]}))
-    definition = PipelineDefinition(
-        code="tailing-kafka",
-        steps={
-            "tail": StepDefinition(
-                block="kafka.consume",
-                config={"connection": "cluster", "topic": topic, "start": "earliest", "max_messages": 2},
-                poll=timedelta(seconds=1),
-            ),
-            "load": StepDefinition(block="test.echo", depends_on=["tail"], config={"value": "loaded"}),
-        },
-        triggers=TriggerSpecs(watches=[WatchSpec(code="follow", step="tail")]),
-    )
+    document = f"""
+format: dirigent/v1
+kind: pipeline
+code: tailing-kafka
+steps:
+  tail:
+    source:
+      kind: sensor
+      block: kafka.consume
+      config: {{connection: cluster, topic: {topic}, start: earliest, max_messages: 2}}
+      poll: 1s
+  load:
+    block: test.echo
+    depends_on: [tail]
+    config: {{value: loaded}}
+"""
     async with session_scope(sessions) as session:
-        await apply_document(session, services, definition)
+        await apply_document(session, services, load_text(document))
 
     moment = datetime.now(UTC)
     for _ in range(60):
         if len(await batches(sessions)) >= 3:
             break
-        unit = await engine.claim(now=moment)
-        if unit is not None:
-            await engine.run_unit(unit, now=moment)
+        await polling.tick(sessions, services, owner="queue-lane", now=moment)
         moment += timedelta(seconds=2)
 
     assert await batches(sessions) == [[0, 1], [2, 3], [4, 5]]
     async with sessions() as session:
-        watch = (await session.execute(sa.select(Watch))).scalar_one()
-    assert watch.cursor == {"offsets": {"0": 6}}
+        source = (await session.execute(sa.select(Source))).scalar_one()
+    assert source.cursor is not None and source.cursor["cursor"] == {"offsets": {"0": 6}}

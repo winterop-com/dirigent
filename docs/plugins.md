@@ -255,7 +255,7 @@ needs somewhere to write down how far it has read, and that is the cursor.
 
 ```python
 class QueueDepth(Sensor[QueueDepthConfig, QueueDepthOutput]):
-    spec = SensorSpec(id="demo.queue_depth", summary="Wait for messages on a queue.")
+    spec = SensorSpec(id="demo.queue_depth", summary="Wait for messages on a queue.", source=True)
     config_model: ClassVar[type[BaseModel]] = QueueDepthConfig
     output_model: ClassVar[type[BaseModel]] = QueueDepthOutput
 
@@ -277,12 +277,18 @@ it is. It is **stored by the transaction that parks the attempt**, which makes a
 at-least-once: a worker that dies between the read and that commit leaves the older cursor
 behind, and the next poke reads the same ground again, so a poke must tolerate that. And it
 **lives only as long as the waiting attempt** -- a poke that succeeds ends the step, and
-nothing carries the cursor past it. Anything a downstream step needs belongs in the output.
+in a step nothing carries the cursor past it. Anything a downstream step needs belongs in the
+output.
 
-A sensor that reads a source a watch may follow says where a success left off by overriding
-`resume_cursor`, which reads it off the output the poke succeeded with. A watch stores what it
-returns and hands it to the first poke of the next run it arms, so the source is read on from
-the end of the last batch; `None`, the default, starts every run fresh. In a test,
+A sensor may also be poked outside any run, by a `sensor` source that starts one run per
+success. It opts in with `source=True` on its `SensorSpec`, and the apply refuses a source
+naming a sensor that has not. Such a sensor reads nothing of a run but `ctx.cursor` and
+`ctx.started_at`, which is when the source began waiting -- the last success, or the first
+poll -- and a poke that touches scratch, work, runs, capture, a schema or the run id fails as
+`source.sensor_outside_run`. It says where a success left off by overriding `resume_cursor`,
+which reads it off the output the poke succeeded with. The source stores what it returns and
+hands it to the first poke of the next wait, so the ground is read on from the end of the last
+batch rather than succeeding twice; `None`, the default, starts every wait fresh. In a test,
 `carry_cursor(sensor, answer, ctx)` from `dirigent-testing` hands the next poke what the engine
 would, after a park or after a success:
 

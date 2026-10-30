@@ -18,7 +18,7 @@ The documents live on topic shelves, each with its own README:
 | [`failure/`](failure) | Retries, budgets, timeouts, tolerated failures, and the cleanup edge. |
 | [`transform/`](transform) | The reshaping verbs: jq programs and the `convert.std` codec, no allowlist anywhere. |
 | [`recipes/`](recipes) | One question per file: how to group, join, pivot, clean, convert, check, store, and call. |
-| [`triggers/`](triggers) | What starts a run on its own: the three clocks and a watch on a sensor. |
+| [`triggers/`](triggers) | What starts a run on its own: the three clocks. |
 | [`sources/`](sources) | A pipeline that starts where an input arrives: a source, a signed call, a reply, and a run entered by hand. |
 | [`sensors/`](sensors) | Steps that wait for the world: a drop landing, a clock window opening. |
 | [`queues/`](queues) | A run started by a message: a Kafka topic and a RabbitMQ queue, waited on as sensors. |

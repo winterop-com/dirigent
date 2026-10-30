@@ -38,8 +38,6 @@ OPERATOR_ONLY = [
     ("post", "/pipelines/api-demo/triggers/schedules/nightly/$pause"),
     ("post", "/pipelines/api-demo/triggers/schedules/nightly/$resume"),
     ("delete", "/pipelines/api-demo/triggers/schedules/nightly"),
-    ("post", "/pipelines/api-demo/triggers/watches/tail/$pause"),
-    ("post", "/pipelines/api-demo/triggers/watches/tail/$resume"),
     ("post", "/pipelines/api-demo/sources/ask/$pause"),
     ("post", "/pipelines/api-demo/sources/ask/$resume"),
     ("post", "/pipelines/api-demo/sources/ask/$rotate-token"),

@@ -245,7 +245,7 @@ async def test_a_document_naming_an_inactive_pipeline_is_refused(
 ) -> None:
     await apply(sessions, services, PIPELINE)
     async with session_scope(sessions) as session:
-        await set_active(session, services, "batch-fleet", active=False)
+        await set_active(session, "batch-fleet", active=False)
 
     result = await apply(sessions, services, TRIGGERS)
 
@@ -386,7 +386,7 @@ async def test_reading_one_lists_the_rows_it_owns(
     async with session_scope(sessions) as session:
         rows = await list_trigger_documents(session)
         assert [row.code for row in rows] == ["fleet-clocks"]
-        assert await owned_codes(session, rows[0].id) == (["ops-nightly"], [])
+        assert await owned_codes(session, rows[0].id) == ["ops-nightly"]
 
 
 async def test_deleting_one_takes_its_rows_and_leaves_the_pipelines_own(
@@ -410,7 +410,7 @@ async def test_deleting_the_pipeline_takes_its_triggers_documents_with_it(
     await apply(sessions, services, TRIGGERS)
 
     async with session_scope(sessions) as session:
-        await delete_pipeline(session, services, "batch-fleet")
+        await delete_pipeline(session, "batch-fleet")
 
     async with session_scope(sessions) as session:
         assert await list_trigger_documents(session) == []

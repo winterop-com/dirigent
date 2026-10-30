@@ -35,7 +35,7 @@ TAGS: list[dict[str, str]] = [
     {"name": "auth", "description": "Logging in, and the tokens automation uses."},
     {"name": "pipelines", "description": "Applying, exporting, and running definitions."},
     {"name": "runs", "description": "Runs, their attempts, their logs, and their reports."},
-    {"name": "triggers", "description": "A pipeline's schedules and watches."},
+    {"name": "triggers", "description": "A pipeline's schedules."},
     {"name": "alerts", "description": "Alert rules, and the queue they deliver through."},
     {"name": "endpoints", "description": "Endpoint sources, each authenticated by its own token."},
     {"name": "sources", "description": "Where a pipeline's inputs enter, and what has arrived."},

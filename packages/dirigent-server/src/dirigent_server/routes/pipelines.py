@@ -28,7 +28,6 @@ from dirigent_core.documents import carried_refusal, load_document
 from dirigent_core.engine import Attribution, create_run
 from dirigent_core.engine.definition import load_definition
 from dirigent_core.engine.runs import Provenance, RunWindow
-from dirigent_core.engine.services import EngineServices
 from dirigent_core.messages import PIPELINE_DEACTIVATED, PIPELINE_NO_VERSIONS
 from dirigent_core.models import Pipeline, utcnow
 from dirigent_core.pipelines import (
@@ -65,7 +64,6 @@ def render(row: Pipeline, counts: PipelineCounts = NO_COUNTS, last: LastRun | No
         update={
             "active_runs": counts.active_runs,
             "schedules": counts.schedules,
-            "watches": counts.watches,
             "last_run": last,
         }
     )
@@ -115,7 +113,7 @@ async def apply(
 ) -> ApplyResult:
     """Validate a document against this instance and commit a new version, or plan one.
 
-    ``pause_schedules`` on the request creates this apply's new schedules and watches paused; one the
+    ``pause_schedules`` on the request creates this apply's new schedules paused; one the
     instance already holds keeps the paused state it has.
     """
     raw = dict(payload.document)
@@ -246,9 +244,9 @@ async def validate_stored(
     summary="Activate a pipeline",
     response_model=PipelineOut,
 )
-async def activate(code: str, session: SessionDep, services: ServicesDep, principal: OperatorDep) -> PipelineOut:
-    """Make a pipeline runnable again, let its schedules fire, and arm its watches."""
-    return render(await _act(session, services, code, active=True))
+async def activate(code: str, session: SessionDep, principal: OperatorDep) -> PipelineOut:
+    """Make a pipeline runnable again, and let its schedules fire."""
+    return render(await _act(session, code, active=True))
 
 
 @router.post(
@@ -257,9 +255,9 @@ async def activate(code: str, session: SessionDep, services: ServicesDep, princi
     summary="Deactivate a pipeline",
     response_model=PipelineOut,
 )
-async def deactivate(code: str, session: SessionDep, services: ServicesDep, principal: OperatorDep) -> PipelineOut:
-    """Deregister a pipeline: schedules pause, watches stop waiting, it stops being runnable, history is kept."""
-    return render(await _act(session, services, code, active=False))
+async def deactivate(code: str, session: SessionDep, principal: OperatorDep) -> PipelineOut:
+    """Deregister a pipeline: schedules pause, it stops being runnable, history is kept."""
+    return render(await _act(session, code, active=False))
 
 
 @router.delete(
@@ -268,16 +266,15 @@ async def deactivate(code: str, session: SessionDep, services: ServicesDep, prin
     summary="Delete a pipeline and its history",
     status_code=status.HTTP_204_NO_CONTENT,
 )
-async def delete(code: str, session: SessionDep, services: ServicesDep, principal: AdminDep) -> Response:
+async def delete(code: str, session: SessionDep, principal: AdminDep) -> Response:
     """Delete a pipeline and every run ever attributed to it, in one transaction.
 
     Admin, unlike every other pipeline verb, and it takes the history with it: the runs,
     their items, attempts, logs and artifact references, plus the versions, schedules,
-    sources and watches the definition owns. The run a watch has waiting is cancelled; any
-    other run still in flight refuses the delete with a 409 --
+    sources the definition owns. A run still in flight refuses the delete with a 409 --
     finish or cancel them first. Deactivating is the reversible verb an operator has.
     """
-    await delete_pipeline(session, services, code)
+    await delete_pipeline(session, code)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -394,6 +391,6 @@ async def _require(session: AsyncSession, code: str) -> Pipeline:
     return await require_pipeline(session, code)
 
 
-async def _act(session: AsyncSession, services: EngineServices, code: str, *, active: bool) -> Pipeline:
+async def _act(session: AsyncSession, code: str, *, active: bool) -> Pipeline:
     """Activate or deactivate, which refuses an unknown code as a 404 of its own."""
-    return await set_active(session, services, code, active=active)
+    return await set_active(session, code, active=active)

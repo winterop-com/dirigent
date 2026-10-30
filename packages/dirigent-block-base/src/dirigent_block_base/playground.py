@@ -567,7 +567,7 @@ MIN_ARRIVE_POLL: Final = timedelta(milliseconds=100)
 #: Where the poke count lives between pokes.
 POKES: Final = "pokes"
 
-#: Where the next batch's first offset lives, which a watch carries from one run to the next.
+#: Where the next batch's first offset lives, which a ``sensor`` source carries from one run to the next.
 OFFSET: Final = "offset"
 
 
@@ -582,7 +582,8 @@ class ArriveConfig(Generation):
     """How many pokes park before the batch arrives; zero lets the first poke carry it."""
 
     after: Annotated[Duration, Field(ge=timedelta(0))] = timedelta(0)
-    """How long the wait lasts, measured from when the attempt started, such as ``10s``.
+    """How long the wait lasts, such as ``10s``: from the attempt's start, or under a ``sensor``
+    source from its last success.
 
     This and ``after_pokes`` are both floors, so the batch arrives on the first poke that has
     cleared them both. The step's ``deadline`` still ends the wait either way.
@@ -593,8 +594,8 @@ class ArrivedMessage(BlockModel):
     """One message of an arrived batch, shaped the way a consumed message is."""
 
     offset: int
-    """Its place in the stream: from zero in a run of its own, and on from the last batch in a
-    run a watch armed."""
+    """Its place in the stream: from zero in a run of its own, and on from the last batch under
+    a ``sensor`` source."""
 
     value: JsonValue
     """The generated record."""
@@ -613,7 +614,7 @@ class ArriveOutput(BlockModel):
     """How many messages the batch holds."""
 
     next_offset: int
-    """The offset the next batch starts at, which a watch hands the next run it arms."""
+    """The offset the next batch starts at, which a ``sensor`` source hands the next wait."""
 
     pokes: int
     """How many pokes the step took, the one that carried the batch included."""
@@ -651,8 +652,8 @@ class PlaygroundArriveSensor(Sensor[ArriveConfig, ArriveOutput]):
 
     The poke count and the first offset live in the cursor, and a cursor is at-least-once: a
     worker that dies between a park and its commit makes the next poke recount the same one,
-    so the sensor parks a poke longer rather than arriving early. Under a watch, each run's
-    batch is offset on from where the last one ended.
+    so the sensor parks a poke longer rather than arriving early. Under a ``sensor`` source,
+    each run's batch is offset on from where the last one ended.
     """
 
     spec = SensorSpec(
@@ -714,7 +715,7 @@ def parked_pokes(cursor: JsonMap | None) -> int:
 
 
 def first_offset(cursor: JsonMap | None) -> int:
-    """Where this batch's offsets start: where a watch's last batch ended, or zero."""
+    """Where this batch's offsets start: where a source's last batch ended, or zero."""
     held = (cursor or {}).get(OFFSET)
     return held if isinstance(held, int) and held >= 0 else 0
 

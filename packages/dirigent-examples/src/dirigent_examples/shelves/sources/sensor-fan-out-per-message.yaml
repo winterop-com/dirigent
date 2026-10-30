@@ -1,0 +1,95 @@
+# A batch a sensor arrives with, handled one message at a time.
+#
+# sensor-arrivals.yaml makes each batch a run and summarises the batch as a whole. This one gives
+# every message of a batch its own item: `handle` fans out over the batch the source handed over,
+# ${steps.arrive.output.messages}, so a message that cannot be handled is recorded against itself
+# while the rest of its batch carries on, and each one has its own retry budget.
+#
+# THE BATCH IS THERE BEFORE THE RUN IS. A worker pokes playground.arrive outside any run, and only
+# a poke that succeeds starts one, with `arrive` already holding the batch. So the width of
+# `handle` is known the moment the run exists, and its items are written with it, while the
+# source is already waiting for the next batch.
+#
+# RUN IT BY HAND, here, with no server and no worker. No --input takes the source's sample:
+#
+#   dg run --local examples/sources/sensor-fan-out-per-message.yaml
+#
+# ON A SERVER, apply it and a run starts every two seconds or so:
+#
+#   dg apply examples/sources/sensor-fan-out-per-message.yaml
+#   dg runs list --pipeline sensor-fan-out-per-message
+#   dg source pause sensor-fan-out-per-message arrive
+#
+# Hop by hop:
+#
+#   arrive   the source: playground.arrive, poked until two seconds have passed since the last
+#            batch, then a batch of three messages, each with an offset and a value. Offsets
+#            carry on from batch to batch.
+#   handle   one item per message. ${item.value} is that message's reading, and ${item.offset}
+#            where it sat in the stream, so each item says which message it handled.
+#   ack      the join: the offsets handled, which is what a consumer commits.
+#
+# EXPECT A LOCAL RUN TO SUCCEED in well under a second, with three items under `handle` and an
+# ack naming offsets 0, 1 and 2.
+
+format: dirigent/v1
+kind: pipeline
+code: sensor-fan-out-per-message
+name: A sensor's batch, one item per message
+description: |
+  A sensor source hands each run a batch, and a `for_each` over the batch's messages gives
+  every message its own item, written when the run is.
+
+  One message that cannot be handled fails its own item, not the batch.
+
+tags: [sources, sensor, transform, fan-out, jq]
+
+requires:
+  blocks:
+    - transform.jq
+
+steps:
+  arrive:
+    source:
+      kind: sensor
+      block: playground.arrive
+      config:
+        after: 2s
+        after_pokes: 0
+        rows: 3
+        seed: 5
+        fields:
+          station: city
+          reading: pyfloat
+      poll: 1s
+    sample:
+      messages:
+        - {offset: 0, value: {station: Bergen, reading: 11.2}, timestamp: "2026-01-01T06:00:02Z"}
+        - {offset: 1, value: {station: Tromso, reading: 3.8}, timestamp: "2026-01-01T06:00:02Z"}
+        - {offset: 2, value: {station: Oslo, reading: 9.5}, timestamp: "2026-01-01T06:00:02Z"}
+      count: 3
+      next_offset: 3
+      pokes: 3
+      waited_ms: 2000
+      seed: 5
+      locale: en_US
+      fields: {station: city, reading: pyfloat}
+      drift: none
+
+  handle:
+    block: transform.jq
+    depends_on: [arrive]
+    # One item per message the source handed over, as many as arrived.
+    for_each: ${steps.arrive.output.messages}
+    # A message that cannot be handled is recorded against itself; the others still ack.
+    items: continue
+    config:
+      input: ${item}
+      program: '{offset: .offset, station: .value.station}'
+
+  ack:
+    block: transform.jq
+    depends_on: [handle]
+    config:
+      input: ${steps.handle.output}
+      program: '{handled: length, offsets: [.[].value.offset]}'

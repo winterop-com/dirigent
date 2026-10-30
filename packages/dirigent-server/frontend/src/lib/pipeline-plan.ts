@@ -105,9 +105,6 @@ export function triggerChanges(triggers: Materialized): string[] {
         [said.schedules_created, triggers.schedules_created],
         [said.schedules_updated, triggers.schedules_updated],
         [said.schedules_removed, triggers.schedules_removed],
-        [said.watches_created, triggers.watches_created],
-        [said.watches_updated, triggers.watches_updated],
-        [said.watches_removed, triggers.watches_removed],
     ] as const) {
         if (names.length > 0) lines.push(LABELS.editor.plan.change_line(what, names.join(', ')))
     }

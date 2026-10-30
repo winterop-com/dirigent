@@ -44,7 +44,7 @@ frontend changes.
 | Storage backends | Scheme registration plus `open_read` / `open_write` / `stat` / `list` / `delete` over URIs, streamed | `file://` in core, `s3://` as the first backend package |
 | Notifiers | `config_model` plus `async send(message, config)` | `log`, `webhook`; Slack and email as packages |
 | Connection kinds | `config_model` (secret fields marked) plus `async check(config) -> HealthReport` | generic HTTP connection |
-| Source kinds | `spec` (kind, hosting, whether a reply answers it), `config_model`, `output_model`, plus, for a `ReceivedSource`, `route(config)`, `admit(config, head)` and `async receive(config, request, ctx) -> Output \| Ignore \| Refusal`, for a `PolledSource`, `poll_every(config)` and `async poll(config, cursor, ctx, limit) -> Polled`, or for a `HeldSource`, `listen(config, ctx)` around a consumer's `receive` and `ack` | `endpoint`, `storage`; `kafka` and `rabbitmq` in the queues pack |
+| Source kinds | `spec` (kind, hosting, whether a reply answers it), `config_model`, `output_model`, plus, for a `ReceivedSource`, `route(config)`, `admit(config, head)` and `async receive(config, request, ctx) -> Output \| Ignore \| Refusal`, for a `PolledSource`, `poll_every(config)` and `async poll(config, cursor, ctx, limit) -> Polled`, or for a `HeldSource`, `listen(config, ctx)` around a consumer's `receive` and `ack` | `endpoint`, `storage`, `sensor`; `kafka` and `rabbitmq` in the queues pack |
 | Formats | A `formats` map of name to `Callable[[object], bool]`, joined into the checker every schema validation asserts `format` against; a format no installed pack contributes passes unchecked | none in core; `dirigent-dhis2` contributes `dhis2-uid`, `dhis2-period` and `dhis2-code` |
 
 Every block an instance actually has, with the config it takes and the output it produces, is
@@ -109,7 +109,7 @@ It may also carry a `cursor`, an arbitrary JSON map the next poke receives as `c
 which is where a sensor writes down how far it has read: an offset, a watermark, a last-seen
 id. It replaces rather than merges, and it lives only as long as the waiting attempt, because
 a poke that succeeds ends the step -- unless the sensor's `resume_cursor` says where a success
-left off, which a watch stores and hands the next run it arms. Advancing it is at-least-once, exactly as a probe's handle
+left off, which a `sensor` source stores and hands the next wait's first poke. Advancing it is at-least-once, exactly as a probe's handle
 metadata is: the cursor is written by the transaction that parks the attempt, so a worker that
 dies before that commit leaves the older cursor for the next poke, and a poke must tolerate
 reading the same ground twice.
@@ -501,7 +501,7 @@ Three clusters, with the boundary visible in the schema layout itself. All times
 | `Pipeline` | definition | A code plus immutable versions. Edits insert a new version; runs pin the version they started from, which is what makes run snapshots free. |
 | `Step` | definition | Lives inside the pipeline document, not in a table: block reference, config, `depends_on` edges plus trigger rule, retry policy, timeout, optional fan-out expression. Only attempts get rows. |
 | `Schema` | definition | A named JSON Schema the instance holds, addressable by code and referenced by one. Its identity is read off the schema's own keywords -- `$id` is the code, `title` the name -- so what is stored is a portable schema and not a wrapper around one. |
-| `Trigger` | triggers | Ad hoc is implicit; persisted triggers are schedules (cron / interval / one-time, own timezone, own parameters, precomputed `next_fire_at`) and watches (a root sensor step kept waiting, with the cursor it left off at). A `TriggerDocument` row is the third owner a schedule or watch may have, beside a hand and a pipeline's own document. |
+| `Trigger` | triggers | Ad hoc is implicit; persisted triggers are schedules (cron / interval / one-time, own timezone, own parameters, precomputed `next_fire_at`). A `TriggerDocument` row is the third owner a schedule may have, beside a hand and a pipeline's own document. |
 | `Run` | execution | Pinned pipeline version, resolved parameters, the body of every JSON Schema the document names, `triggered_by` as a real reference, a `priority` pinned at creation, and an optional half-open `[window_start, window_end)` naming the logical interval the run covers. Terminal states include `completed_with_errors`. |
 | `RunItem` | execution | First-class fan-out: one row per mapped item with its own status and failing-step pointer, so a run over N inputs reads as a grid. |
 | `StepAttempt` | execution | One row per attempt: number, kind (automatic / manual), input, output reference, error, remote handle, lease, `available_at`, `next_poll_at`, timings. |
@@ -690,11 +690,10 @@ reduces to writing one honest error classifier per block. Everything else is con
   `endpoint` source is called at its route under `/endpoints`, authenticated by its own token,
   or by an HMAC-SHA256 signature of its body with `auth: {kind: hmac}`, unless it writes
   itself public, and its caller is answered 202 with the run or held for a reply. Nothing else
-  executes in the request path. A source
-  carries no schedule or watch beside it, since what they started would enter no source.
-- **Watches.** A root sensor step made a continuous source: one run always waiting on it,
-  and the next armed in the transaction that settles its success, from the cursor the success
-  left off at.
+  executes in the request path. A `storage` or `sensor` source is polled by a worker, the
+  latter poking a sensor block outside any run and starting one run per success, the next
+  wait resumed from the cursor that success left off at. A source carries no schedule beside
+  it, since what it started would enter no source.
 - **Chaining.** Two sanctioned forms: the `pipeline.run` operator, and the outbound
   `webhook.post` operator or notifier carrying run outputs.
 
@@ -821,7 +820,7 @@ so their rules are worth stating exactly:
 A document's `triggers:` section is the declaration, and only the declaration. Applying one
 matches by code within the pipeline and creates, redeclares, or retires accordingly.
 Operational state is never touched: whether a schedule is paused, when it last fired, and the
-cursor a watch holds are facts about *this instance*.
+cursor a source holds are facts about *this instance*.
 
 Ownership is explicit rather than inferred, through a `managed` flag. A row a document
 declared is managed, and an apply may retire it when the document stops declaring it. A
@@ -861,7 +860,6 @@ description: ...             # optional, markdown
 pipeline: nightly-export
 triggers:
   schedules: [...]           # exactly the ScheduleSpec a pipeline document declares
-  watches: [...]             # exactly the WatchSpec
 ```
 
 It is applied through the same `$apply`, plans the same four ways by digest, and reconciles
@@ -897,53 +895,6 @@ deleting the pipeline takes its triggers documents, which are meaningless withou
 schedule created through the API does -- and again at fire time, so a later pipeline version
 that stops accepting the pins turns into a failed firing with the message on the firing row
 rather than a silent one.
-
-### Watches
-
-A watch row names a pipeline and a root sensor step, and holds the operational state the
-declaration does not: `paused`, the `cursor`, `waiting_run_id`, a `failures` count,
-`last_error`, and `rearm_at`.
-
-**One waiting run, by construction.** A run is armed only by the update that moves
-`waiting_run_id` from null to the id the run is about to be written under, taken under the
-pipeline's lock. Every armer races on that one statement -- an apply creating the watch, the
-settlement of the watched step, a resume, the scheduler's tick -- and only one of them can win
-it, on SQLite and on PostgreSQL alike. The run is then created through `create_run`, so the
-concurrency policy, the parameter schema and the allowlist apply exactly as they do to a run a
-schedule fires.
-
-**Re-arming rides the settlement.** The transaction that records the watched step's success
-also stores the cursor the sensor's `resume_cursor` returned, clears the watch's failures, and
-arms the next run seeded with that cursor. A crash can therefore neither lose a batch's place
-nor arm twice: the success, the cursor and the next run commit together or not at all.
-
-**Everything else is the end of a wait.** When the waiting run settles without its watched
-step succeeding, the watch clears `waiting_run_id`, counts a failure, records why, and sets
-`rearm_at` to the backoff: `watch_backoff` doubling to `watch_backoff_max`. A deadline skip
-is an empty wait and re-arms at once. The scheduler's tick arms every live watch with nothing
-waiting whose `rearm_at` has passed, and reads a waiting run that has settled or been swept
-away as the end of its wait -- which is what makes a restart, or a settlement that happened
-while nothing was listening, converge on one waiting run again.
-
-**Pausing and retiring cancel.** Pausing clears `waiting_run_id` and then cancels the run, so
-the cancel is not read as a failure; retiring a watch from its document, or deleting the
-triggers document that owns it, does the same before the row goes, and so do deactivating and
-deleting the pipeline; activating it arms every unpaused watch again. `_withdraw` reads the
-pointer under the pipeline's lock, which every settlement holds too, so it can never cancel a
-run that has already moved downstream. The retry of a failed watched attempt starts from the
-cursor the failed attempt held, automatic or manual, and a manual retry of the watched step of
-a run that is no longer the waiting one is refused.
-
-**Lock order.** Every path that writes a watch takes the pipeline's lock before any run's. The
-settlement of an attempt in a run a watch armed takes the pipeline's lock first for that
-reason, so re-arming inside it never waits on a pause or a cancel holding the two the other
-way round.
-
-**Versions and policies.** An apply that writes a new version cancels a waiting run pinned to
-an older one and arms again from the same cursor. `concurrency: replace` is refused on a watched
-pipeline, at the watch and at any later version, because arming the next run would cancel the
-run a batch has just arrived in; a version that would leave a triggers document's watch on a
-step it cannot wait on is refused the same way.
 
 ## 9. Alerting
 
@@ -1197,8 +1148,8 @@ does not parse is a 422 rather than a 500. Selection is keyset, not offset -- th
 `limit + 1` rows past the cursor in its own order and `next` is the sort key of the last row it
 returns -- so a row inserted between two pages is neither skipped nor served twice. The order,
 and therefore the cursor, is per listing: `/runs`, the firings, a source's inputs and the
-notifications go newest first by id; `/pipelines`, `/connections`, the schedules and the
-watches go by code, `/workers` and `/users` by their own name and username; `/alert-rules`
+notifications go newest first by id; `/pipelines`, `/connections` and the schedules
+go by code, `/workers` and `/users` by their own name and username; `/alert-rules`
 and `/tokens` by id; a pipeline's versions newest version first; `$logs` by log id, in write
 order. Two answers are not pages at all, because what bounds them is not the database: the
 block catalog is bounded by the installed code, and a `$validate` response by the document it
@@ -1223,7 +1174,7 @@ definition and the run's attempts by the same function the engine's readiness wa
 picture and the engine can never disagree.
 
 **A listing row carries what a listing draws.** `/pipelines` answers each row with how many
-schedules and how many watches fire it, how many of its runs are still in flight, and how its
+schedules fire it, how many of its runs are still in flight, and how its
 newest run went -- that run's id, the state it is in, when it started and finished, and the step
 its first failed attempt was of when it did not end well. All of it is computed by the read that
 returns the page: three correlated counts inside the statement that reads the rows, one windowed
@@ -1437,7 +1388,7 @@ third-party plugin read one definition:
 
 - `EntityName` is DNS-label kebab-case (`^[a-z](-?[a-z0-9])*$`, at most 63 characters) and
   governs the `code` of every addressable thing an instance holds: pipelines, connections,
-  schedules, watches, sources, alert rules, workers, profile keys. Dots are excluded because they are
+  schedules, sources, alert rules, workers, profile keys. Dots are excluded because they are
   reserved for block ids, so a code and a block id are never confusable; underscores and
   spaces are excluded because a code travels through URLs. Prose belongs in `name` and
   `description`, never in the code.
@@ -1478,7 +1429,7 @@ keeps neither.
 
 **Deleting deletes.** Deleting a pipeline deletes its run history with it -- every run ever
 attributed to it, and their items, attempts, log entries and artifact references, along with
-the versions, schedules, watches, sources and alert rules the definition owns -- in one transaction,
+the versions, schedules, sources and alert rules the definition owns -- in one transaction,
 and the code is free again. There is no force flag and nothing is left behind to point at. The
 one refusal is about liveness, not history: runs still queued or running refuse the delete with
 a 409, because deleting them would strand work a worker holds a lease on. Finish or cancel
@@ -1589,7 +1540,6 @@ dg format [FILE]                        # render a kept or piped NDJSON stream f
 # triggers and alerting
 dg schedule create PIPELINE NAME --cron EXPR | --interval DUR | --at WHEN [--tz ZONE] [-p k=v] [-P FILE]
 dg schedule list | pause | resume | firings | delete PIPELINE NAME
-dg watch list | show | pause | resume PIPELINE NAME
 dg source list | show | pause | resume | rotate-token | set-secret | inputs | call PIPELINE SOURCE
 dg trigger-document list | show | delete CODE         # clocks declared for a pipeline defined elsewhere
 dg alerts rules list | create NAME --event E [--connection C] [--pipeline P] [--importance I]
@@ -1741,7 +1691,7 @@ clean record stream whatever the verbosity.
   only as a hash, or HMAC-SHA256 verification over the raw body with a sealed secret, rate
   limiting checked before anything is looked up, and a body that reaches steps as the
   source's output rather than as parameters. Section 8 has the whole model.
-- **Attribution is a foreign key**: every run points at the user, token, schedule, watch, source,
+- **Attribution is a foreign key**: every run points at the user, token, schedule, source,
   backfill, or parent run that started it.
 - **Outbound discipline**: timeouts on every call, TLS verification per connection, transport
   retries only for idempotent requests, error classification owned by blocks.
@@ -1835,7 +1785,7 @@ about the system, and they are the hardest thing to change later.
 | Operator | A block that does work; may finish synchronously or return a `RemoteHandle`. | Operator | A task function |
 | Sensor | A block that waits for the world, in-DAG, via durable pokes. | Sensor (ours always deferrable) | **Collision:** Dagster "sensor" starts runs, which is our Trigger |
 | Connection | Named, encrypted credential and settings record of a contributed kind. | Connection | Block |
-| Trigger | What starts runs: ad hoc, Schedule, or Watch; a source starts one where an input arrives. | Schedule/timetable | Deployment schedules |
+| Trigger | What starts runs: ad hoc or Schedule; a source starts one where an input arrives. | Schedule/timetable | Deployment schedules |
 | Trigger rule | Edge condition for step readiness. | `trigger_rule` (same values, deliberately) | Control flow in code |
 | Concurrency policy | Per pipeline: `allow` / `skip` / `queue` / `replace`. | `max_active_runs` | Concurrency limits |
 | ArtifactRef | A step output passed by URI through pluggable storage. | XCom (small values only) | Results and artifacts |
@@ -1856,7 +1806,7 @@ Engine and plugin terms:
 | Catalog | The server's merged view of every plugin contribution, served at `/api/v1/blocks` and consumed by the UI to render forms. |
 | Contribution | What one plugin adds across the seven surfaces, returned by its `contribute()` hook under the `dirigent.plugins.v1` entry-point group. |
 | Scratch space | Run-scoped URI prefix on the default storage backend for intermediate artifacts. Swept with the run it belongs to, once `retention_runs` is set. |
-| `triggered_by` | A kind plus a foreign key on every run, naming what started it: `adhoc`, `user`, `api_token`, `schedule`, `backfill`, `watch`, `source`, or `pipeline` -- the last pointing at the run whose step started this one. Attribution as data, not free text. |
+| `triggered_by` | A kind plus a foreign key on every run, naming what started it: `adhoc`, `user`, `api_token`, `schedule`, `backfill`, `source`, or `pipeline` -- the last pointing at the run whose step started this one. Attribution as data, not free text. |
 
 Naming stance in one line: where an existing term is dominant and means the same thing, reuse
 it exactly; where the dominant terms conflict or mislead, pick the boring word and document

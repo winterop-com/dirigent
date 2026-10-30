@@ -80,7 +80,7 @@ stays clean, and every example stays executable.
      sources give several entries. A run enters at one, the others are settled skipped as not
      entered, and a step joining two sources' branches must say `all_done` or `always`, since
      under `all_success` it could never run.
-   - A pipeline with sources carries no schedules or watches, since what they started would
+   - A pipeline with sources carries no schedules, since what they started would
      enter no source. A run by hand (`dg run`, the trigger dialog) names the source it enters
      at and gives an input, or falls back to the source's `sample`; a pipeline with one
      source needs no name.
@@ -124,7 +124,7 @@ stays clean, and every example stays executable.
    the run's `dirigent_settled` commit rather than polling.
 
    **Hosting.** A kind is hosted one of three ways, and the contract says which: the server
-   receives it (`endpoint`, webhooks), a worker polls it, or a worker holds it open through
+   receives it (`endpoint`), a worker polls it (`storage`, `sensor`), or a worker holds it open through
    a lease (Kafka and RabbitMQ consumers, which bring `starting` and `failing`). A received
    kind turns a request into an input with no connection and no secret in reach, may answer
    a handshake or heartbeat without making a run, and may refuse an input with the status
@@ -140,16 +140,18 @@ stays clean, and every example stays executable.
    polling due sources under a lease, and the built-in `storage` kind), and held kinds (the
    `HeldSource` contract, each consumer held by one worker under a renewed lease and
    acknowledged only once its runs are committed, and the `kafka` and `rabbitmq` kinds in the
-   queues pack), and webhooks folded in (inbound webhook triggers removed, an endpoint taking
-   a signed body with `auth: {kind: hmac}` in their place) have landed; what remains:
-   5. Watches folded in as a `sensor` kind a worker polls.
+   queues pack), webhooks folded in (inbound webhook triggers removed, an endpoint taking
+   a signed body with `auth: {kind: hmac}` in their place), and watches folded in (watches
+   removed, a `sensor` kind a worker polls in their place, poking a sensor that declares
+   itself a source outside any run) have landed.
 
    **The examples shelf** (`shelves/sources/`), each runnable with `dg run --local` and its
    `sample`: an echo endpoint with a reply; a form taken and answered 202; a JSON body held
    to a schema with `validate.schema`, a bad one answered 422; a reply streaming a stored
    file with `body_from`; two sources joined under `all_done`; an endpoint feeding
    `transform.jq` and the dhis2 pack's import (in `dirigent-integration`); FHIR in once
-   `dirigent-fhir` lands; and a Kafka consumer once slice 5 does.
+   `dirigent-fhir` lands; a Kafka consumer; and a sensor poked by a source, `playground.arrive`
+   feeding `transform.jq`.
 
    **Still open:** an `Idempotency-Key` header de-duplicating a caller's retries into one
    run; authentication beyond tokens, which waits on the OIDC open question; and whether a
@@ -386,7 +388,7 @@ stays clean, and every example stays executable.
   resource. Servicekit spent its convention time here and the shape holds: a generic
   repository (data access), a manager carrying the business logic with In-to-Out conversion
   and lifecycle hooks, and a CRUD router built from the pair. Wanted for the plain CRUD
-  resources -- users, connections, schedules, webhooks, alert rules -- and it has to answer
+  resources -- users, connections, schedules, alert rules -- and it has to answer
   what servicekit did not have to: per-route principals (`AdminDep` beside `PrincipalDep`),
   named `operation_id`s, and the `$verb` actions that sit beside the CRUD, which a generic
   router must carry rather than fight. Runs, apply, and the streams stay hand-written: they

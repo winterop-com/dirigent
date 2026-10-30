@@ -1,4 +1,4 @@
-"""Triggers documents: the clocks and watches one document declares for another's pipeline."""
+"""Triggers documents: the clocks one document declares for another's pipeline."""
 
 from dirigent_client.resources.base import Resource, query
 from dirigent_client.schemas import Page, TriggerDocumentDetail, TriggerDocumentOut
@@ -16,5 +16,5 @@ class TriggerDocuments(Resource):
         return await self._one(TriggerDocumentDetail, "GET", f"/trigger-documents/{code}")
 
     async def delete(self, code: str) -> None:
-        """Remove a triggers document and every schedule and watch it owns."""
+        """Remove a triggers document and every schedule it owns."""
         await self._transport.request("DELETE", f"/trigger-documents/{code}")

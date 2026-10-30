@@ -4,7 +4,6 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 import sqlalchemy as sa
-from engineblocks import StreamSensor
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from dirigent_core.database import session_scope
@@ -13,6 +12,7 @@ from dirigent_core.engine.services import EngineServices
 from dirigent_core.models import Run, Source, StepAttempt
 from dirigent_core.pipelines import apply_document
 from dirigent_core.sources import polling
+from engineblocks import StreamSensor
 
 WORKER = "worker-under-test"
 
