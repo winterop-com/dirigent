@@ -6,7 +6,7 @@ from typing import Annotated, ClassVar
 
 from pydantic import BaseModel, Field, JsonValue
 
-from dirigent_common import SQL_MEDIA_TYPE, BlockModel, Duration, StorageUri
+from dirigent_common import JQ_MEDIA_TYPE, SQL_MEDIA_TYPE, TEMPLATE_MEDIA_TYPE, BlockModel, Duration, StorageUri
 from dirigent_plugin import (
     BlockFailure,
     Contribution,
@@ -146,6 +146,32 @@ class SqlishOperator(Operator[SqlishConfig, SqlishOutput]):
     async def execute(self, config: SqlishConfig, ctx: StepContext) -> SqlishOutput | RemoteHandle:
         """Return the statement exactly as it arrived."""
         return SqlishOutput(sql=config.sql)
+
+
+class ProgramishConfig(BlockModel):
+    """A config with a jq program and a template."""
+
+    program: Annotated[str, Field(json_schema_extra={"contentMediaType": JQ_MEDIA_TYPE})] = ""
+    template: Annotated[str, Field(json_schema_extra={"contentMediaType": TEMPLATE_MEDIA_TYPE})] = ""
+
+
+class ProgramishOutput(BaseModel):
+    """What the operator saw after the engine resolved its config."""
+
+    program: str
+    template: str
+
+
+class ProgramishOperator(Operator[ProgramishConfig, ProgramishOutput]):
+    """Reports what it was handed, so a test can read what the engine substituted."""
+
+    spec = OperatorSpec(id="test.programish", summary="Report a program and a template.", idempotent=True)
+    config_model = ProgramishConfig
+    output_model = ProgramishOutput
+
+    async def execute(self, config: ProgramishConfig, ctx: StepContext) -> ProgramishOutput | RemoteHandle:
+        """Return both exactly as they arrived."""
+        return ProgramishOutput(program=config.program, template=config.template)
 
 
 class FailConfig(BaseModel):
@@ -578,6 +604,7 @@ class EngineTestPlugin:
                 ListOperator(),
                 NonIdempotentOperator(),
                 RemoteOperator(),
+                ProgramishOperator(),
                 ShellishOperator(),
                 SqlishOperator(),
                 StoringOperator(),

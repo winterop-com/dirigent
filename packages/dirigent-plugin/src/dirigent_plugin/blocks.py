@@ -311,6 +311,30 @@ def sql_string_fields(model: type[BaseModel]) -> frozenset[str]:
     return sql_fields_of(model.model_json_schema(mode="serialization", schema_generator=HumaneJsonSchema))
 
 
+def media_fields_of(schema: JsonMap, media_type: str) -> frozenset[str]:
+    """Name the fields a config schema publishes as one media type: a string, or an optional one."""
+    properties = schema.get("properties")
+    if not isinstance(properties, dict):
+        return frozenset()
+    return frozenset(
+        str(name)
+        for name, declared in cast("dict[str, Any]", properties).items()
+        if isinstance(declared, dict) and _publishes(cast("dict[str, Any]", declared), media_type)
+    )
+
+
+def _publishes(shape: dict[str, Any], media_type: str) -> bool:
+    """Whether a field's schema or a branch of its union carries a media type."""
+    options = cast("list[dict[str, Any]]", shape.get("anyOf") or [])
+    return shape.get("contentMediaType") == media_type or any(_publishes(option, media_type) for option in options)
+
+
+@functools.cache
+def media_fields(model: type[BaseModel], media_type: str) -> frozenset[str]:
+    """List the config fields a model publishes as one media type, by the schema the catalog publishes."""
+    return media_fields_of(model.model_json_schema(mode="serialization", schema_generator=HumaneJsonSchema), media_type)
+
+
 class RemoteHandle(BaseModel):
     """Serializable claim on a job running somewhere other than this block call.
 

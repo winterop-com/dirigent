@@ -635,6 +635,15 @@ subscript, or a `${var:offset}`. Nor does it cover a command that hands its own 
 arithmetic or `eval`, or a value read from `env`. Where the value came from a caller and a step
 needs one of those, use `argv`, which involves no shell, or hold the value to a schema first.
 
+### A reference in a program
+
+The same rule holds for what a step hands to another language. A value reaches SQL as a bound
+parameter and never as text (see [SQL](sql.md)). In a jq program a reference is bound to a jq
+variable, so `.tenant == "${params.t}"` compares against the value however it is quoted, and a
+program that is only a reference is refused. In a `report.render` template a reference is refused at
+apply and at the start of the step, because `values` is how a template reads anything. A template or
+a program that means the literal text writes `$${...}`.
+
 ## Secrets lifecycle
 
 A connection's secret fields never sit in a readable column. The mechanism is envelope

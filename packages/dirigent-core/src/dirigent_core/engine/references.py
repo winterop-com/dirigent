@@ -22,6 +22,7 @@ rather than resolving to empty, and the engine fails the attempt as ``rejected``
 how a compose file, a shell command or a template reaches a tool with its own braces intact.
 """
 
+import json
 import re
 from collections.abc import Callable, Collection
 from datetime import datetime
@@ -34,6 +35,7 @@ from dirigent_common import JsonMap, Message
 from dirigent_core.errors import DomainError
 from dirigent_core.messages import (
     ITEM_FAILED,
+    JQ_WHOLE_PROGRAM,
     MALFORMED_ARTIFACTS,
     MALFORMED_RUN,
     MALFORMED_STEP,
@@ -47,6 +49,7 @@ from dirigent_core.messages import (
     NOT_PAIRED,
     SHELL_ARITHMETIC,
     SQL_REFERENCE,
+    TEMPLATE_REFERENCE,
     UNKNOWN_NAMESPACE,
 )
 from dirigent_plugin import SHELL_VARIABLE_PREFIX, SHELL_VARIABLES_FIELD
@@ -148,7 +151,13 @@ def resolve(value: JsonValue, scope: ReferenceScope) -> JsonValue:
 
 
 def resolve_config(
-    config: JsonMap, scope: ReferenceScope, *, shell_fields: Collection[str] = (), sql_fields: Collection[str] = ()
+    config: JsonMap,
+    scope: ReferenceScope,
+    *,
+    shell_fields: Collection[str] = (),
+    sql_fields: Collection[str] = (),
+    jq_fields: Collection[str] = (),
+    template_fields: Collection[str] = (),
 ) -> JsonMap:
     """Resolve a step's whole config map, which is what the engine hands a block.
 
@@ -162,15 +171,28 @@ def resolve_config(
 
     ``sql_fields`` names the config keys a block publishes as SQL. A reference in one is refused
     rather than resolved, because a value reaches SQL only as a bound parameter.
+
+    ``template_fields`` names the keys a block publishes as a template, refused the same way,
+    because a value reaches a template only through what it renders against.
+
+    ``jq_fields`` names the keys a block publishes as a jq program, where a reference is bound to
+    a jq variable rather than spliced into the program's text.
     """
     for key in sql_fields:
         for reference in references_in(config.get(key)):
             raise UnknownReference(SQL_REFERENCE, reference=reference, field=key)
+    for key in template_fields:
+        for reference in references_in(config.get(key)):
+            raise UnknownReference(TEMPLATE_REFERENCE, reference=reference, field=key)
     variables: dict[str, str] = {}
-    resolved = {
-        key: (_resolve_shell(value, scope, variables) if key in shell_fields else resolve(value, scope))
-        for key, value in config.items()
-    }
+    resolved: JsonMap = {}
+    for key, value in config.items():
+        if key in shell_fields:
+            resolved[key] = _resolve_shell(value, scope, variables)
+        elif key in jq_fields and isinstance(value, str):
+            resolved[key] = _resolve_jq(key, value, scope)
+        else:
+            resolved[key] = resolve(value, scope)
     if shell_fields:
         resolved[SHELL_VARIABLES_FIELD] = cast("JsonValue", variables)
     return resolved
@@ -382,6 +404,85 @@ def _shell_context(text: str, context: tuple[str, ...]) -> tuple[str, ...]:
         elif character == ")" and inner in ("(", ARITHMETIC_GROUP):
             stack.pop()
     return tuple(stack)
+
+
+def is_whole_program(value: str) -> str | None:
+    """The reference a program is made of and nothing else, or nothing when it is more than that."""
+    whole = WHOLE_REFERENCE.match(value.strip())
+    return whole.group(1).strip() if whole is not None else None
+
+
+def _resolve_jq(field: str, value: str, scope: ReferenceScope) -> str:
+    """Rewrite a jq program so that what it substitutes is a variable and never its source.
+
+    Each reference becomes a jq variable, bound ahead of the program to its value as a JSON
+    literal, which jq reads as data. So ``. >= ${params.n}`` compares against the number, and a
+    string written ``"${params.s}"`` interpolates the variable. Everything goes on the first
+    line, so jq's line numbers in a refusal stay the author's. A program that is a reference and
+    nothing else has no text of its own left to run, and is refused.
+    """
+    whole = is_whole_program(value)
+    if whole is not None:
+        raise UnknownReference(JQ_WHOLE_PROGRAM, reference=whole, field=field)
+    rewritten: list[str] = []
+    bindings: list[str] = []
+    state = _JqText()
+    read = 0
+    for match in REFERENCE_PATTERN.finditer(value):
+        before = value[read : match.start()]
+        state.read(before)
+        literal, resolves = _collapse(match.group(1), match.group(2))
+        state.read(literal)
+        rewritten.append(before + literal)
+        if resolves:
+            name = f"{SHELL_VARIABLE_PREFIX}{len(bindings)}"
+            bindings.append(f"{json.dumps(lookup(match.group(2).strip(), scope))} as ${name} | ")
+            rewritten.append(f"\\(${name})" if state.in_string else f"${name}")
+        read = match.end()
+    if not bindings:
+        return "".join(rewritten) + value[read:]
+    return "".join(bindings) + "(" + "".join(rewritten) + value[read:] + "\n)"
+
+
+class _JqText:
+    """Whether a jq program's text has a string open, through its escapes and its interpolations."""
+
+    def __init__(self) -> None:
+        """Start outside any string, with no interpolation open."""
+        self.depths: list[int] = []
+        self.in_string = False
+        self.comment = False
+        self.escaped = False
+
+    def read(self, text: str) -> None:
+        """Move through more of the program."""
+        for character in text:
+            if self.comment:
+                self.comment = character != "\n"
+            elif self.in_string:
+                self._in_string(character)
+            elif character == "#":
+                self.comment = True
+            elif character == '"':
+                self.in_string = True
+            elif self.depths and character == "(":
+                self.depths[-1] += 1
+            elif self.depths and character == ")":
+                self.depths[-1] -= 1
+                if self.depths[-1] == 0:
+                    self.depths.pop()
+                    self.in_string = True
+
+    def _in_string(self, character: str) -> None:
+        if self.escaped:
+            self.escaped = False
+            if character == "(":
+                self.depths.append(1)
+                self.in_string = False
+        elif character == "\\":
+            self.escaped = True
+        elif character == '"':
+            self.in_string = False
 
 
 def _as_text(value: JsonValue) -> str:

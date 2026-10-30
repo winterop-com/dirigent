@@ -2234,6 +2234,41 @@ async def test_a_reference_in_a_field_a_block_publishes_as_sql_is_refused_when_t
     assert attempts[0].output is None
 
 
+async def test_a_value_reaches_a_jq_program_as_a_variable_and_never_as_its_text(
+    engine: Engine, sessions: Any, services: EngineServices
+) -> None:
+    definition = PipelineDefinition(
+        code="bound",
+        steps=steps(only=StepDefinition(block="test.programish", config={"program": '.a == "${params.region}"'})),
+    )
+    run = await start(sessions, services, definition, region='x" or true or "')
+    await drain(engine)
+    attempts = await attempts_of(sessions, run.id)
+    assert attempts[0].status is AttemptStatus.SUCCEEDED
+    assert attempts[0].output is not None
+    assert attempts[0].output["program"] == '"x\\" or true or \\"" as $DIRIGENT_V0 | (.a == "\\($DIRIGENT_V0)"\n)'
+
+
+@pytest.mark.parametrize(
+    "config",
+    [{"template": "Day ${params.region}"}, {"program": "${params.region}"}],
+    ids=["template", "whole-program"],
+)
+async def test_a_reference_a_program_cannot_hold_is_refused_when_the_step_starts(
+    engine: Engine, sessions: Any, services: EngineServices, config: dict[str, Any]
+) -> None:
+    definition = PipelineDefinition(
+        code="refused",
+        steps=steps(only=StepDefinition(block="test.programish", config=config, retry=FAST_RETRY)),
+    )
+    run = await start(sessions, services, definition, region="{{ 7 * 7 }}")
+    await drain(engine)
+    attempts = await attempts_of(sessions, run.id)
+    assert attempts[0].status is AttemptStatus.FAILED
+    assert attempts[0].error_class == ErrorClass.REJECTED.value
+    assert attempts[0].output is None
+
+
 async def test_a_manual_retry_is_keyed_on_the_step_it_retries(
     engine: Engine, sessions: Any, services: EngineServices
 ) -> None:

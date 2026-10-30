@@ -44,6 +44,8 @@ from dirigent_plugin.blocks import (
     StorageBackend,
     classify_default,
     mark_refusal,
+    media_fields,
+    media_fields_of,
     reference_fields,
     shell_string_fields,
     sql_fields_of,
@@ -148,6 +150,8 @@ __all__ = [
     "merge_contributions",
     "reference_fields",
     "shell_string_fields",
+    "media_fields",
+    "media_fields_of",
     "sql_fields_of",
     "sql_string_fields",
 ]

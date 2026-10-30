@@ -407,6 +407,35 @@ def test_a_reference_in_params_beside_sql_is_applied() -> None:
     assert validate_against_catalog(definition, load_plugin_host().catalog(), connections=None) == []
 
 
+@pytest.mark.parametrize(
+    ("config", "code", "field"),
+    [
+        ("{template: 'Day ${params.day}'}", "document.step_reference_in_template", "template"),
+        ("{program: '${params.day}'}", "document.step_program_is_a_reference", "program"),
+    ],
+    ids=["template", "whole-program"],
+)
+def test_a_reference_a_program_cannot_hold_is_refused_when_the_document_is_applied(
+    host: PluginHost, config: str, code: str, field: str
+) -> None:
+    definition = load_text(
+        "format: dirigent/v1\ncode: spliced\n"
+        "params: {type: object, properties: {day: {type: string}}}\n"
+        f"steps:\n  a: {{block: test.programish, config: {config}}}\n"
+    )
+    issues = validate_against_catalog(definition, host.catalog())
+    assert [(issue.code, issue.location) for issue in issues] == [(code, f"steps.a.config.{field}")]
+
+
+def test_a_reference_in_a_jq_program_with_text_of_its_own_is_applied(host: PluginHost) -> None:
+    definition = load_text(
+        "format: dirigent/v1\ncode: bound\n"
+        "params: {type: object, properties: {day: {type: string}}}\n"
+        "steps:\n  a: {block: test.programish, config: {program: '.a == \"${params.day}\"'}}\n"
+    )
+    assert validate_against_catalog(definition, host.catalog()) == []
+
+
 def test_a_block_that_runs_code_is_refused_where_the_instance_does_not_allow_it(host: PluginHost) -> None:
     """The execution path refuses it too; saying so at apply is what stops it being stored."""
     definition = load_text("format: dirigent/v1\ncode: unsafe\nsteps:\n  a: { block: test.unsafe }\n")

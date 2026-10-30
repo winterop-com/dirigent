@@ -1014,6 +1014,10 @@ const refused = {
         carried_schemas:
             'This document carries its own schemas ({named}), which an instance will not store. Create them on the instance and let the document name them under requires.schemas.',
         no_format: 'The document declares no format. Add format: {format}.',
+        step_program_is_a_reference:
+            '{reference} is the whole of {field}, and a value is never a program. Write the program, and read the reference in it as the value it is.',
+        step_reference_in_template:
+            '{reference} is inside {field}, and a value reaches a template only through values. Give the reference to values under a name, and read that name in the template.',
         step_reference_in_sql:
             '{reference} is inside {field}, and a value reaches SQL only as a bound parameter. Write a placeholder such as :name there, and give the reference to params.',
         step_schema_interpolated:
@@ -1052,6 +1056,10 @@ const refused = {
             'Source kind {kind} is {hosting}, and a contributed kind is the ReceivedSource, PolledSource or HeldSource its hosting names.',
     },
     reference: {
+        in_template:
+            '{reference} is inside {field}, and a value reaches a template only through values. Give the reference to values under a name, and read that name in the template.',
+        jq_whole_program:
+            '{reference} is the whole of {field}, and a value is never a program. Write the program, and read the reference in it as the value it is.',
         in_sql: '{reference} is inside {field}, and a value reaches SQL only as a bound parameter. Write a placeholder such as :name there, and give the reference to params.',
         not_failed:
             '{reference} cannot be resolved: step {step} did not fail, and its error is read only when it did.',

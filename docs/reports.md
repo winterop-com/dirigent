@@ -102,6 +102,10 @@ Jinja template over the values it is given and hands that text on as its output'
 the page anywhere -- `storage.write`, `kafka.produce`, `rabbitmq.publish` or `webhook.post`,
 each reading `${steps.<render>.output.text}`.
 
+A value reaches the template through `values`, under a name the template reads. A `${...}` in
+`template` itself is refused when the document is applied and when the step starts, because text a
+value put there would be template source. `$${...}` stays the literal text `${...}`.
+
 | Example | Where the page goes |
 | --- | --- |
 | [recipes/report-to-file.yaml](https://github.com/winterop-com/dirigent/blob/main/packages/dirigent-examples/src/dirigent_examples/shelves/recipes/report-to-file.yaml) | A file under the run's scratch prefix, read back and logged with `log.write` |
