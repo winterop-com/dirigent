@@ -16,18 +16,8 @@ import { ServerStatusButton } from '@/components/ServerStatusButton'
 import { useTheme } from 'next-themes'
 
 import { MODES, MODE_LABELS } from '@/components/ThemeToggle'
-import {
-    Keyboard,
-    LogOut,
-    Menu,
-    PanelLeft,
-    PanelRight,
-    Search,
-    Settings,
-    Monitor,
-    Moon,
-    Sun,
-} from 'lucide-react'
+import { IconButton } from '@/components/ds/IconButton'
+import { Keyboard, LogOut, PanelLeft, PanelRight, Search, Settings, Monitor, Moon, Sun } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -55,6 +45,9 @@ import { modifierLabel, applePlatform } from '@/lib/shortcuts'
 export const SIGN_OUT_LABEL = LABELS.action.sign_out
 export const TOGGLE_PANEL_LABEL = LABELS.shell.toggle_panel
 export const OPEN_PALETTE_LABEL = LABELS.shell.open_palette
+
+/** The settings pane the top bar's dot opens on. */
+const SERVER_PANE = 'server'
 
 /**
  * The settings dialog is fetched the first time somebody asks for it.
@@ -88,6 +81,7 @@ export function AppShell() {
     const [settingsOpen, setSettingsOpen] = useState(false)
     const { setTheme } = useTheme()
     const [settingsAsked, setSettingsAsked] = useState(false)
+    const [settingsPane, setSettingsPane] = useState<string | null>(null)
     const [problem, setProblem] = useState<Problem | null>(null)
     const [drawerOpen, setDrawerOpen] = useState(false)
     const menu = useRef<HTMLButtonElement | null>(null)
@@ -130,15 +124,22 @@ export function AppShell() {
     }, [navigate, signedOut])
 
     const openSettings = useCallback(() => {
+        setSettingsPane(null)
         setSettingsAsked(true)
         setSettingsOpen(true)
     }, [])
 
-    useAppShortcuts(
-        useCallback(() => {
-            setShortcutsOpen(true)
-        }, []),
-    )
+    const openServerPane = useCallback(() => {
+        setSettingsPane(SERVER_PANE)
+        setSettingsAsked(true)
+        setSettingsOpen(true)
+    }, [])
+
+    const openShortcuts = useCallback(() => {
+        setShortcutsOpen(true)
+    }, [])
+
+    useAppShortcuts(openShortcuts)
 
     const role = auth.identity?.role ?? null
     const signedIn = auth.status === 'signed-in'
@@ -267,20 +268,18 @@ export function AppShell() {
                         className="flex h-shell-top shrink-0 items-center gap-2 bg-sidebar px-3"
                     >
                         {/* The rail is not drawn below the breakpoint, so this is the way to it. */}
-                        <Button
+                        <IconButton
                             ref={menu}
-                            variant="ghost"
-                            size="icon-sm"
-                            aria-label={OPEN_NAV_LABEL}
+                            icon={ICONS.menu}
+                            label={OPEN_NAV_LABEL}
+                            size="sm"
                             className="md:hidden"
                             onClick={() => {
                                 setDrawerOpen(true)
                             }}
-                        >
-                            <Menu className="size-4" aria-hidden />
-                        </Button>
+                        />
                         <div className="flex-1" />
-                        <ServerStatusButton />
+                        <ServerStatusButton onOpen={openServerPane} />
                         <Tooltip>
                             <TooltipTrigger
                                 render={
@@ -305,22 +304,13 @@ export function AppShell() {
                             <TooltipContent side="bottom">{OPEN_PALETTE_LABEL}</TooltipContent>
                         </Tooltip>
                         {filled && (
-                            <Tooltip>
-                                <TooltipTrigger
-                                    render={
-                                        <Button
-                                            variant="ghost"
-                                            size="icon-sm"
-                                            aria-label={TOGGLE_PANEL_LABEL}
-                                            className="hidden md:inline-flex"
-                                            onClick={togglePanel}
-                                        >
-                                            <PanelRight className="size-4" aria-hidden />
-                                        </Button>
-                                    }
-                                />
-                                <TooltipContent side="bottom">{TOGGLE_PANEL_LABEL}</TooltipContent>
-                            </Tooltip>
+                            <IconButton
+                                icon={ICONS.panel}
+                                label={TOGGLE_PANEL_LABEL}
+                                size="sm"
+                                className="hidden md:inline-flex"
+                                onClick={togglePanel}
+                            />
                         )}
                     </header>
 
@@ -344,15 +334,25 @@ export function AppShell() {
                 />
             </div>
 
-            <StatusBar onSettings={openSettings} />
+            <StatusBar onSettings={openSettings} onShortcuts={openShortcuts} />
 
-            <NavDrawer open={drawerOpen} onClose={closeDrawer} onSettings={openSettings} />
+            <NavDrawer
+                open={drawerOpen}
+                onClose={closeDrawer}
+                onSettings={openSettings}
+                onShortcuts={openShortcuts}
+            />
 
             <CommandPalette />
             <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
             {settingsAsked && (
                 <Suspense fallback={null}>
-                    <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+                    <SettingsDialog
+                        key={settingsPane}
+                        startAt={settingsPane}
+                        open={settingsOpen}
+                        onOpenChange={setSettingsOpen}
+                    />
                 </Suspense>
             )}
         </div>

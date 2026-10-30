@@ -1,7 +1,7 @@
-import { Maximize2 } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 
-import { Button } from '@/components/ui/button'
+import { IconButton } from '@/components/ds/IconButton'
+import { ICONS } from '@/lib/icons'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 import { LABELS } from '@/lib/labels'
@@ -56,17 +56,15 @@ export function WindowedPane({
         <div className={cn('flex flex-col', className)} onBlur={onBlur}>
             <div className="flex min-h-0 flex-1 flex-col">{children}</div>
             <div className="flex shrink-0 justify-end p-1.5 pt-0">
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={LABELS.shell.open_in_window(name)}
+                <IconButton
+                    icon={ICONS.open_in_window}
+                    label={LABELS.shell.open_in_window(name)}
+                    size="sm"
                     className="size-6 rounded-md border border-border bg-background text-faint"
                     onClick={() => {
                         setWide(true)
                     }}
-                >
-                    <Maximize2 className="size-3.5" aria-hidden />
-                </Button>
+                />
             </div>
             <Dialog open={wide} onOpenChange={setWide}>
                 {/* Focus is not handed back to the control on close: the library restores it

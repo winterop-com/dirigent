@@ -29,19 +29,13 @@
  */
 
 /** How wide every node is drawn. */
-export const NODE_WIDTH = 200
+export const NODE_WIDTH = 160
 
-/** How tall an ordinary node is: three lines and its padding. */
-export const NODE_HEIGHT = 76
+/** How tall an ordinary node is: its title, one line under it, and its padding. */
+export const NODE_HEIGHT = 44
 
-/** What a fan-out node's item strip adds to its height. */
-export const STRIP_HEIGHT = 26
-
-/** One line of a node's text, which is what a box loses when it stops carrying one. */
-export const LINE_HEIGHT = 18
-
-/** What a box that carries no third line saves at the foot of it, where nothing is drawn. */
-export const TIGHT_PADDING = 4
+/** What a fan-out node's item strip adds to its height: one line of 11px text. */
+export const STRIP_HEIGHT = 16
 
 /** One node to place: what it is called, and how tall it will be drawn. */
 export interface LayoutNode {
@@ -184,17 +178,6 @@ export function layoutOptionsFor(shape: LayoutShape): Record<string, string> {
 export function heightOf(fanOut: boolean): number {
     return fanOut ? NODE_HEIGHT + STRIP_HEIGHT : NODE_HEIGHT
 }
-
-/**
- * How tall a node on the editor's canvas is.
- *
- * Shorter than a run's, because a run's third line is live state -- what a step is waiting for,
- * how a retry went, how long it took -- and a document has no state to say. Its foot is tighter
- * as well: with nothing under the second line, the room a run's box keeps for a strip is room
- * this one is only padding with. Elk is told the height the box is actually drawn at or the rows
- * come out spaced for a box that is not there.
- */
-export const DOCUMENT_NODE_HEIGHT = NODE_HEIGHT - LINE_HEIGHT - TIGHT_PADDING
 
 /**
  * What decides the geometry: which nodes there are, how tall each is, and what joins them.
@@ -341,23 +324,20 @@ export function drawnSize(node: PlacedNode): { width: number; height: number } {
 export const FIT_PADDING = 0.14
 
 /**
- * How far a fit is allowed to zoom in.
+ * How far a fit is allowed to zoom in: never past a box's own size.
  *
- * A GRAPH OF TWO BOXES MUST NOT BE BLOWN UP TO FILL THE CANVAS, AND MUST NOT BE LOST IN IT
- * EITHER. Fitting a small shape to a large space magnifies it until a step is the size of a
- * card, which says the pipeline is bigger than it is; fitting it at its own size leaves a
- * single step as a small box adrift in the dotted ground. A quarter over its own size is the
- * middle of those two: a one-step run opens at a size worth reading, and a fifty-step one is
- * still zoomed out until all of it is on screen.
+ * Fitting a small shape to a large space magnifies it until a step is the size of a card, which
+ * says the pipeline is bigger than it is, so a graph of two boxes opens at the size a graph of
+ * twenty does and a fifty-step one is still zoomed out until all of it is on screen.
  */
-export const FIT_MAX_ZOOM = 1.25
+export const FIT_MAX_ZOOM = 1
 
 /**
  * How far a fit is allowed to zoom out.
  *
  * A NODE IS NEVER DRAWN BELOW A SIZE ITS TEXT CAN BE READ AT. A fit answers the whole shape by
- * scaling it, and past a point what that answers with is a diagram of grey boxes -- the 14px
- * title is under ten pixels by a third of its size. A graph too big to fit at this zoom is
+ * scaling it, and past a point what that answers with is a diagram of grey boxes -- the 13px
+ * title is under ten pixels by a quarter of its size. A graph too big to fit at this zoom is
  * shown at this zoom and panned to, which is the reading that is worth having.
  */
 export const FIT_MIN_ZOOM = 0.55

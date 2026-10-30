@@ -94,7 +94,7 @@ test('the bar along the foot is one element, and its cells fill it exactly', asy
         expect(cell.top).toBe((measured?.barTop ?? 0) + 1)
         expect(cell.bottom).toBe(measured?.barBottom)
     }
-    // The settings cell ends exactly where the status cell begins: one divider, no gap.
+    // The account cell ends exactly where the status cell begins: one divider, no gap.
     expect(measured?.cells[0].right).toBe(measured?.cells[1].left)
 })
 
@@ -156,11 +156,28 @@ test('the seams hold in the light palette as they do in the dark one', async ({ 
     }
 })
 
-test('the corner names the instance rather than only colouring it', async ({ page }) => {
-    const corner = page.getByRole('button', { name: LABELS.shell.instance.label })
+test('the top bar is one dot, and its details are the tooltip', async ({ page }) => {
+    const dot = page.getByRole('button', { name: LABELS.shell.instance.label })
+    await expect(dot).not.toContainText('dirigent')
+    await dot.hover()
     // The name and the environment come from `/system/info`; this suite runs `dg dev`.
-    await expect(corner).toContainText('dirigent')
-    await expect(corner).toContainText('local')
+    const tip = page.locator('[data-slot="tooltip-content"]')
+    await expect(tip).toContainText('dirigent')
+    await expect(tip).toContainText('local')
+    await expect(tip).toContainText(LABELS.word.version.term)
+})
+
+test('pressing the dot opens the settings on the server pane', async ({ page }) => {
+    await page.getByRole('button', { name: LABELS.shell.instance.label }).click()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog.getByRole('button', { name: LABELS.action.recheck })).toBeVisible()
+})
+
+test('the top bar has words only when something is wrong', async ({ page }) => {
+    await page.route('**/health/ready', (route) => route.abort())
+    await page.reload()
+    const dot = page.getByRole('button', { name: LABELS.shell.instance.label })
+    await expect(dot).toContainText(LABELS.shell.instance.wrong.offline)
 })
 
 test('a panel nothing has filled is not there at all, toggle included', async ({ page }) => {
@@ -202,4 +219,25 @@ test('a collapsed rail wakes when its edge is dragged outward', async ({ page })
     await expect(page.getByRole('link', { name: LABELS.screen.pipelines.name })).toContainText(
         LABELS.screen.pipelines.name,
     )
+})
+
+test('the account menu holds the account, the settings, the shortcuts, the way out and the instance', async ({
+    page,
+}) => {
+    await page.getByRole('button', { name: /^Account: / }).click()
+    const menu = page.getByRole('menu')
+    await expect(menu).toContainText('admin')
+    await expect(menu).toContainText('local')
+    await expect(page.getByRole('menuitem', { name: LABELS.shell.settings })).toBeVisible()
+    await expect(page.getByRole('menuitem', { name: LABELS.action.sign_out })).toBeVisible()
+
+    // The one key the menu draws is the one `lib/shortcuts` binds.
+    await page.getByRole('menuitem', { name: LABELS.settings.category.shortcuts }).click()
+    await expect(page.getByRole('dialog')).toBeVisible()
+})
+
+test('signing out from the account menu goes to the door', async ({ page }) => {
+    await page.getByRole('button', { name: /^Account: / }).click()
+    await page.getByRole('menuitem', { name: LABELS.action.sign_out }).click()
+    await expect(page).toHaveURL(/\/login/)
 })

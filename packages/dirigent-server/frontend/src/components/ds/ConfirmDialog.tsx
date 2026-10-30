@@ -1,22 +1,24 @@
 import type { ReactNode } from 'react'
 
 import { DialogShell } from '@/components/ds/DialogShell'
-import { Refusal } from '@/components/Refusal'
 import type { Problem } from '@/lib/api'
+import { refusalLine } from '@/lib/refusal'
 
 /**
  * The question before a verb that takes something away: revoke, deactivate, delete, rotate.
  *
- * The title is the verb and the thing, the body names the thing in mono and says what is lost,
- * and the confirm is the verb again in the critical fill. A refusal is drawn in the body and
- * the dialog stays open on it.
+ * The title is the question and names the thing, its code in mono and nowhere else, and the
+ * confirm is the verb in the critical fill. There is no body unless `note` says what changes the
+ * answer. `why` shuts the confirm and is what its title says. A refusal is one line in the body,
+ * and the dialog stays open on it.
  */
 export function ConfirmDialog({
     open,
     onOpenChange,
-    title,
+    ask,
     code,
-    consequence,
+    note,
+    why,
     verb,
     busy = false,
     busyVerb,
@@ -25,29 +27,45 @@ export function ConfirmDialog({
 }: {
     open: boolean
     onOpenChange: (open: boolean) => void
-    /** The verb and the thing, as a heading: "Revoke token". */
-    title: string
+    /** The question around the code: "Delete " and "?". */
+    ask: { before: string; after: string }
     /** The code of the thing the verb is about, drawn in mono. */
     code: string
-    /** What pressing the verb costs, as a sentence. */
-    consequence: ReactNode
+    /** The one line that changes the answer, where there is one. */
+    note?: ReactNode
+    /** Why the verb cannot be taken. It stays drawn, shut, and says this on hover. */
+    why?: string
     verb: string
     busy?: boolean
     busyVerb?: string
     problem?: Problem | null
     onConfirm: () => void
 }) {
+    const hasBody = note !== undefined || problem !== null
     return (
         <DialogShell
             open={open}
             onOpenChange={onOpenChange}
             width="sm"
-            title={title}
-            confirm={{ label: verb, busy, busyLabel: busyVerb, destructive: true, onConfirm }}
+            title={
+                <>
+                    {ask.before}
+                    <span className="font-mono break-all">{code}</span>
+                    {ask.after}
+                </>
+            }
+            confirm={{ label: verb, busy, busyLabel: busyVerb, destructive: true, why, onConfirm }}
         >
-            <p className="font-mono text-sm break-all">{code}</p>
-            <p className="text-sm text-muted-foreground">{consequence}</p>
-            {problem !== null && <Refusal problem={problem} />}
+            {hasBody ? (
+                <>
+                    {note !== undefined && <p className="text-sm text-muted-foreground">{note}</p>}
+                    {problem !== null && (
+                        <p className="text-sm text-critical-ink" role="alert">
+                            {refusalLine(problem)}
+                        </p>
+                    )}
+                </>
+            ) : undefined}
         </DialogShell>
     )
 }

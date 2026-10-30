@@ -98,7 +98,14 @@ export function ToolbarActions({
             {rest.length > 0 && (
                 <DropdownMenu>
                     <DropdownMenuTrigger
-                        render={<Button variant="ghost" size="icon-sm" aria-label={MORE_ACTIONS_LABEL} />}
+                        render={
+                            <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                aria-label={MORE_ACTIONS_LABEL}
+                                title={MORE_ACTIONS_LABEL}
+                            />
+                        }
                     >
                         <ICONS.more className="size-4" aria-hidden />
                     </DropdownMenuTrigger>

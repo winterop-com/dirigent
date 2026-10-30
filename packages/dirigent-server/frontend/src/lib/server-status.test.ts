@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from 'vitest'
 
-import { checkServer, identityLine, serverStatus, statusOf } from '@/lib/server-status'
+import { checkServer, identityLine, serverStatus, statusOf, statusWords } from '@/lib/server-status'
 
 function answering(body: unknown, version: unknown = { version: '0.1.0' }): typeof fetch {
     return (async (input: RequestInfo | URL) => {
@@ -144,4 +144,17 @@ test('a failing version read cannot call an answering instance offline', async (
     })
     expect(serverStatus.get().state).toBe('healthy')
     expect(asked).toBeGreaterThan(1)
+})
+
+describe('what the top bar says beside its dot', () => {
+    test('is nothing while the instance is well or still being asked', () => {
+        expect(statusWords('healthy')).toBeNull()
+        expect(statusWords('unknown')).toBeNull()
+    })
+
+    test('is a word for each way of being wrong', () => {
+        expect(statusWords('degraded')).toBe('Server degraded')
+        expect(statusWords('unhealthy')).toBe('Server unhealthy')
+        expect(statusWords('offline')).toBe('Server unreachable, retrying')
+    })
 })

@@ -5,7 +5,14 @@ import { Link } from 'react-router'
 import { Mark } from '@/components/Mark'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSmallScreen } from '@/hooks/use-small-screen'
-import { channelCode, channelLink, channelView, type Channel, type ChannelView } from '@/lib/alerting'
+import {
+    channelCode,
+    channelLink,
+    channelView,
+    channelWord,
+    type Channel,
+    type ChannelView,
+} from '@/lib/alerting'
 import { formatRelative } from '@/lib/format'
 import { kindGlyph } from '@/lib/glyphs'
 import { LABELS } from '@/lib/labels'
@@ -20,7 +27,7 @@ const TONES: Record<ChannelView['tone'], string> = {
 
 /** The chip: a glyph, a code and a dot, at the height a pointer and a finger both want. */
 const CHIP =
-    'flex min-h-9 items-center gap-2 rounded-full border border-border bg-card py-1 pr-3 pl-2.5 transition-colors'
+    'flex min-h-9 items-center gap-2 rounded-md border border-border bg-card py-1 pr-3 pl-2.5 transition-colors'
 
 /** What a control this app draws wears when a pointer or the keyboard reaches it. */
 const REACHED =
@@ -71,9 +78,9 @@ function channelNote(count: number, read: boolean): { text: string; tone: string
 /**
  * One channel, at a glance: what kind it is, which credential it is, and whether it delivers.
  *
- * THE CHIP HOLDS THREE THINGS AND THE TOOLTIP HOLDS THE REST. A state word, a time and a check's
- * sentence on every chip is a paragraph per channel; the dot answers the question the strip is
- * read for, and reaching a chip answers the next.
+ * THE CHIP HOLDS THREE THINGS AND THE TOOLTIP HOLDS THE REST. A time and a check's sentence on
+ * every chip is a paragraph per channel; the dot answers the question the strip is read for, a
+ * word follows it only when something is wrong, and reaching a chip answers the next.
  *
  * EVERY CHIP ANSWERS A POINTER THE SAME WAY, the log channel's included. It is a button rather
  * than a link, because there is nothing behind it to open, and it wears the wash and the ring
@@ -82,12 +89,14 @@ function channelNote(count: number, read: boolean): { text: string; tone: string
  */
 function ChannelChip({ channel }: { channel: Channel }) {
     const view = channelView(channel)
+    const word = channelWord(channel)
     const to = channelLink(channel)
     const body = (
         <>
             <Mark glyph={kindGlyph(channel.notifier)} />
             <span className="truncate font-mono text-xs font-semibold">{channelCode(channel)}</span>
             <Dot tone={view.tone} />
+            {word !== null && <span className="text-xs whitespace-nowrap">{word}</span>}
         </>
     )
     // The chip is the control itself rather than a control wrapped around one, so the ring lands
@@ -219,9 +228,11 @@ function ChannelRow({ channel }: { channel: Channel }) {
                         {LABELS.alerting.set_up_channel(channel.notifier)}
                     </Link>
                 ) : (
-                    channel.last_check_at !== null && (
-                        <span className="text-xs text-faint">{formatRelative(channel.last_check_at)}</span>
-                    )
+                    <span className="text-xs text-faint">
+                        {channelWord(channel)}
+                        {channelWord(channel) !== null && channel.last_check_at !== null && ' · '}
+                        {channel.last_check_at !== null && formatRelative(channel.last_check_at)}
+                    </span>
                 )}
             </td>
         </tr>

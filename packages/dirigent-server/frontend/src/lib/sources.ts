@@ -103,6 +103,11 @@ export function readSourcePage(after: string | null): Promise<Page<SourceOut>> {
     return apiJson<Page<SourceOut>>(`/sources${cursor(after)}`)
 }
 
+/** Read one page of the sources one pipeline holds, which is as many as a document declares. */
+export function readPipelineSources(pipeline: string): Promise<Page<SourceOut>> {
+    return apiJson<Page<SourceOut>>(`/pipelines/${encodeURIComponent(pipeline)}/sources${cursor(null)}`)
+}
+
 /** Read one page of a source's journal, newest first. */
 export function readSourceInputs(
     pipeline: string,
@@ -168,6 +173,19 @@ export function routeLine(source: Pick<SourceOut, 'methods' | 'url_path'>): stri
 /** What a source listens to, as one line: the route it answers, or what its kind says it polls. */
 export function listensTo(source: Pick<SourceOut, 'methods' | 'url_path' | 'summary'>): string | null {
     return routeLine(source) ?? source.summary
+}
+
+/**
+ * What a step that is a source says on a graph: what the instance says it listens to, or its kind
+ * where the instance holds nothing for that step yet.
+ */
+export function listeningLine(
+    sources: readonly Pick<SourceOut, 'code' | 'methods' | 'url_path' | 'summary'>[],
+    step: string,
+    kind: string,
+): string {
+    const held = sources.find((source) => source.code === step)
+    return (held === undefined ? null : listensTo(held)) ?? kind
 }
 
 /** What one input was: the request it arrived as, or what a polled kind named it. */

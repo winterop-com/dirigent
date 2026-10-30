@@ -1,7 +1,16 @@
 import { describe, expect, test } from 'vitest'
 
 import type { IconButtonProps } from '@/components/ds/IconButton'
-import { clearShown, escapeFrom, iconButtonTip, isNews, saysWord } from '@/lib/design-system'
+import {
+    clearShown,
+    escapeFrom,
+    galleryAnchor,
+    GALLERY_INDEX,
+    iconButtonTip,
+    isNews,
+    saysWord,
+} from '@/lib/design-system'
+import { LABELS } from '@/lib/labels'
 import { ICONS } from '@/lib/icons'
 import { focusesSearch, type FocusedField, type KeyPress } from '@/lib/shortcuts'
 
@@ -91,5 +100,36 @@ describe('a dot', () => {
     test('says it always or never where it is asked to', () => {
         expect(saysWord(false, 'always')).toBe(true)
         expect(saysWord(true, 'never')).toBe(false)
+    })
+})
+
+describe('the gallery index', () => {
+    const sections = GALLERY_INDEX.flatMap((group) => group.sections)
+
+    test('names no section twice, so one anchor is one place', () => {
+        expect(new Set(sections).size).toBe(sections.length)
+        expect(new Set(sections.map(galleryAnchor)).size).toBe(sections.length)
+    })
+
+    test('says every section in a plain word the catalogue holds', () => {
+        for (const section of sections) expect(LABELS.design.section[section].length).toBeGreaterThan(0)
+    })
+
+    test('says plain names, in the order the page draws them', () => {
+        expect(sections.map((section) => LABELS.design.section[section])).toEqual([
+            'Titles',
+            'Headings',
+            'Links',
+            'Labels',
+            'Status dots',
+            'Icons',
+            'Buttons',
+            'Search',
+            'Form fields',
+            'Switches',
+            'Notices',
+            'Dialogs',
+            'Lists of facts',
+        ])
     })
 })

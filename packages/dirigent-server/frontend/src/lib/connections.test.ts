@@ -13,6 +13,7 @@ import {
     settingsSummary,
     withCheck,
     type ConnectionOut,
+    settingFacts,
 } from '@/lib/connections'
 import { LABELS } from '@/lib/labels'
 
@@ -328,4 +329,52 @@ describe('how a set of connections came out', () => {
 
 test('says nothing at all about an empty registry', () => {
     expect(connectionsNote([])).toBeNull()
+})
+
+describe('what the dialog says about the settings', () => {
+    const row = {
+        config: { url: 'https://example.org', username: 'x', timeout: null, token: '***', ssh_key: null },
+        secret_fields: ['token', 'ssh_key'],
+    }
+
+    test('says what holds a value, and every secret by whether it is set', () => {
+        expect(settingFacts(row, null)).toEqual([
+            { name: 'url', value: 'https://example.org', secret: false },
+            { name: 'username', value: 'x', secret: false },
+            { name: 'token', value: DOTS, secret: true },
+            { name: 'ssh_key', value: null, secret: true },
+        ])
+    })
+
+    // REVERT-PROOF. A secret's value is not read, whatever the config holds.
+    test('cannot put a secret on screen, even one a read should never have answered', () => {
+        const leaked = { ...row, config: { ...row.config, token: 'a-real-credential' } }
+        expect(JSON.stringify(settingFacts(leaked, null))).not.toContain('a-real-credential')
+    })
+
+    test('follows the order the kind publishes', () => {
+        const schema = {
+            type: 'object',
+            properties: { username: { type: 'string' }, url: { type: 'string' } },
+        }
+        expect(settingFacts(row, schema).map((fact) => fact.name)).toEqual([
+            'username',
+            'url',
+            'token',
+            'ssh_key',
+        ])
+    })
+
+    test('leaves out a setting that holds an empty text, list or map', () => {
+        const facts = settingFacts(
+            { config: { headers: {}, tags: [], note: '', verify: false }, secret_fields: [] },
+            null,
+        )
+        expect(facts.map((fact) => fact.name)).toEqual(['verify'])
+    })
+
+    test('draws a value that is not text as the JSON it is', () => {
+        const fact = settingFacts({ config: { headers: { a: 1 } }, secret_fields: [] }, null)[0]
+        expect(fact?.value).toBe('{"a":1}')
+    })
 })

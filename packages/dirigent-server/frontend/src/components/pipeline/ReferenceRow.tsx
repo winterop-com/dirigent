@@ -5,6 +5,7 @@ import { Disclosure } from '@/components/pipeline/Disclosure'
 import { JsonBlock } from '@/components/JsonBlock'
 import { Mark } from '@/components/Mark'
 import type { JsonMap } from '@/lib/api'
+import { HealthSaid } from '@/components/connections/Health'
 import { healthOf, settingsSummary, type ConnectionOut } from '@/lib/connections'
 import { useStore } from '@/hooks/use-store'
 import { kindGlyph, type Glyph, type KindMarks } from '@/lib/glyphs'
@@ -93,7 +94,7 @@ interface Found {
     /** The thing's own name, when it has one and it is not the code. */
     named: string | null
     /** Where the code was answered, in the reader's words. */
-    words: string
+    words: ReactNode
     /** The definition, or null on a row with nothing to open. */
     body: ReactNode | null
 }
@@ -146,7 +147,12 @@ function connectionRow(resolution: ReturnType<typeof resolveConnection>, marks: 
         // the row has none of its own to stand the mark beside.
         mark: kindGlyph(held.kind, marks),
         named: nameOf(held),
-        words: `${held.kind} · ${healthOf(held).label}`,
+        words: (
+            <span className="inline-flex items-center gap-1.5">
+                {held.kind}
+                <HealthSaid view={healthOf(held)} />
+            </span>
+        ),
         body: (
             <div className="space-y-2">
                 <p className="font-mono text-xs text-muted-foreground">{settingsSummary(held)}</p>

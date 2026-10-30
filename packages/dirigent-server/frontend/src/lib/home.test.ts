@@ -457,7 +457,12 @@ describe('what this instance depends on', () => {
 
     test('carries what a connection said the last time anything asked', () => {
         const [row] = healthRows([], [connection('acme', true, 'Acme API v3')])
-        expect(row).toMatchObject({ tone: 'good', detail: 'Acme API v3', at: '2026-01-01T00:00:00Z' })
+        expect(row).toMatchObject({
+            tone: 'good',
+            detail: '',
+            tip: 'healthy: Acme API v3',
+            at: '2026-01-01T00:00:00Z',
+        })
     })
 
     test('carries the refusal whole, and leaves the truncating to the panel', () => {

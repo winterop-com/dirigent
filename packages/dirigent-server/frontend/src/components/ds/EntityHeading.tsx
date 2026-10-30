@@ -5,9 +5,9 @@ import { cn } from '@/lib/utils'
 
 /**
  * Where a heading stands: a listing's lead cell with the code under the title, a row with the
- * code beside it, or the head of a panel.
+ * code beside it, the head of a panel, or inside a dialog's title, whose size it takes.
  */
-export type EntityHeadingVariant = 'row-stacked' | 'row-inline' | 'panel'
+export type EntityHeadingVariant = 'row-stacked' | 'row-inline' | 'panel' | 'dialog'
 
 /**
  * How one addressable thing is headed, everywhere: the name, else the code; the code always on
@@ -22,6 +22,7 @@ export function EntityHeading({
     chips,
     description,
     glyph,
+    lead,
     className,
 }: {
     thing: Addressable
@@ -30,20 +31,26 @@ export function EntityHeading({
     description?: string | null
     /** A kind's mark, drawn before the title. */
     glyph?: ReactNode
+    /** A word in front of the title that is not part of it: what is being done to the thing. */
+    lead?: string
     className?: string
 }) {
     const heading = headingOf(thing)
-    const panel = variant === 'panel'
-    const Title = panel ? 'h2' : 'span'
+    const inTitle = variant === 'dialog'
+    const panel = variant === 'panel' || inTitle
+    const Title = variant === 'panel' ? 'h2' : 'span'
+    const Box = inTitle ? 'span' : 'div'
     const title = (
         <Title
             className={cn(
-                'min-w-0 text-sm font-medium',
+                'min-w-0 font-medium',
+                !inTitle && 'text-sm',
                 panel ? 'break-words' : 'truncate',
                 !heading.named && 'font-mono',
             )}
             title={panel ? undefined : heading.title}
         >
+            {lead !== undefined && <span className="font-sans">{lead} </span>}
             {heading.title}
         </Title>
     )
@@ -58,8 +65,8 @@ export function EntityHeading({
             ? null
             : oneLine(description)
     return (
-        <div className={cn('flex min-w-0 flex-col', panel ? 'gap-1' : 'gap-0.5', className)}>
-            <div
+        <Box className={cn('flex min-w-0 flex-col', panel ? 'gap-1' : 'gap-0.5', className)}>
+            <Box
                 className={cn(
                     'flex min-w-0 items-center gap-2',
                     variant === 'row-inline' && 'items-baseline',
@@ -71,7 +78,7 @@ export function EntityHeading({
                 {title}
                 {variant === 'row-inline' && code}
                 {chips !== undefined && <span className="flex shrink-0 items-center gap-1">{chips}</span>}
-            </div>
+            </Box>
             {variant !== 'row-inline' && code}
             {line !== null && (
                 <p
@@ -81,6 +88,6 @@ export function EntityHeading({
                     {line}
                 </p>
             )}
-        </div>
+        </Box>
     )
 }

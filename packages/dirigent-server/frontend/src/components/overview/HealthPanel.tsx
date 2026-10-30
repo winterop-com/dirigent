@@ -68,6 +68,7 @@ export function HealthPanel({ rows, note, reading }: { rows: HealthRow[]; note: 
                                 <span className="flex shrink-0 items-center gap-1.5">
                                     <span
                                         className={cn('size-2 shrink-0 rounded-full', DOTS[row.tone])}
+                                        title={row.tip ?? undefined}
                                         aria-hidden
                                     />
                                     {row.mark === null ? (

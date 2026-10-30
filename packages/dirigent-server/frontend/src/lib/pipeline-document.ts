@@ -204,6 +204,14 @@ export function blockOf(document: JsonMap | null, step: string): string | null {
     return typeof value === 'string' ? value : null
 }
 
+/** The kind of source one step is, or null when the step is not a source. */
+export function sourceKindOf(document: JsonMap | null, step: string): string | null {
+    const source = stepsIn(document)[step]?.source
+    if (source === null || typeof source !== 'object' || Array.isArray(source)) return null
+    const kind = (source as JsonMap).kind
+    return typeof kind === 'string' ? kind : null
+}
+
 /**
  * One step's display name, or null when the document gives it none.
  *

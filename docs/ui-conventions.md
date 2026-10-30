@@ -113,13 +113,20 @@ The scale is 12px, 14px, and 16px. Nothing arrives beside it without a name.
 | `text-stat` | 28px mono | A stat tile's number, and nothing else on any screen |
 | `text-wordmark` | 48px | The login brand lockup's wordmark, and nothing else on any screen |
 | `text-display` | 36px | The sign-in heading, and nothing else on any screen |
+| `--text-graph-title` | 13px | A step's title on a graph, and nothing else on any screen |
+| `--text-graph-small` | 11px | Every other word drawn on a graph: the block or what a source listens to, a badge, a count, a duration, a fan-out's strip, words standing over an empty canvas |
 
 The wordmark is a brand mark rather than text: the login screen draws the product's name at
 display size beside its tile, and no other screen may set a heading there.
 
+A graph has two sizes of its own, because it is drawn at the scale of a diagram rather than of a
+page: a node is 160 by 44, and body text does not fit in it. They are set on `.step-node` and
+`.graph-words` in `index.css` rather than on each word, so a word added to a box inherits its size
+and no word on a canvas can come out at the page's.
+
 `scripts/check_ui_classes.py` fails the gate on anything outside them, whether the fourth size
 arrives as `text-[13px]` or as `text-lg`. The check has no allowlist -- it knows `text-stat`,
-`text-wordmark` and `text-display` by name, and reads `index.css` itself so a fourth size cannot
+`text-wordmark`, `text-display` and the two graph sizes by name, and reads `index.css` itself so a fourth size cannot
 be minted there either. A named
 exception can be counted; an allowlist is a check people argue with. It skips
 `src/components/ui/`, because those files are generated and regenerating them is how they are
@@ -278,12 +285,14 @@ the drawing is spread across it and shrunk instead, which is what keeps a step's
 beside it. The lockup and the facts are anchored to the foot of the pane, so neither moves between
 a short pane and a tall one.
 
-**The radius ladder** is crisp: 2px for a chip, 3px for a control, 4px for a card and a panel,
-stated in `@theme` rather than derived. A corner that reads as soft or pill-shaped makes a dense
-data screen look generic, so nothing but a status dot or an avatar is fully round. Tailwind's
-middle rungs are flattened onto the ladder -- `rounded-lg` through `rounded-2xl` are all the
-card's 4px -- so a shadcn primitive that ships `rounded-xl` lands on it without being edited. The login's brand tile is the mark, not a card, and
-keeps its own radius.
+**The radius ladder** is crisp: 1px for a chip, 2px for a control, 2px for a card, a panel and a
+dialog, stated in `@theme` rather than derived. A corner that reads as soft or pill-shaped makes a
+dense data screen look generic, so nothing but a status dot or an avatar is fully round: not a
+chip, a switch, a port on the canvas or a scrollbar. Tailwind's middle rungs are flattened onto
+the ladder -- `rounded-lg` through `rounded-4xl` are all the card's 2px -- so a shadcn primitive
+that ships `rounded-xl` lands on it without being edited, and a generated `rounded-full` is said
+back onto a rung in `index.css` against its slot. The login's brand tile stands on the ladder like
+everything else.
 
 ## `apiFetch` is the only fetch
 
@@ -396,7 +405,7 @@ cell is a glance: `oneLine` closes up the whitespace and the row truncates the w
 than rendering a heading cut in half.
 
 **The chosen row's code is in the address.** Schemas and Connections put the code of the row
-somebody opened into the URL and read it back from there, the way Pipelines does, so a schema or a
+somebody opened, in a panel or in a dialog, into the URL and read it back from there, the way Pipelines does, so a schema or a
 credential is a link that can be sent rather than a selection somebody else has to find.
 
 A step is the one exception to the shape, and it is the same rule underneath. Its map key is
@@ -463,13 +472,14 @@ has yet to reach, and saying "fired" of it would be a second untruth in place of
 Every screen that draws a listing draws it with one component. `components/list/ListTable` is
 the heading row, the striping, the row that reaches for the next page and the line along the
 foot; a screen decides its columns and what each cell says, and nothing else. Where a row opens
-something beside the table -- a connection's form, a trigger's history -- the screen passes
+something -- a trigger's history beside the table, a connection's dialog over it -- the screen passes
 `onSelect`, and the row answers Enter and Space as well as a click, because a row only a pointer
 can open is a row some people cannot. **The column header is sticky**: rows scroll beneath it
 inside the listing's own scroll container, and the header keeps the card's ground so no row ever
 shows through it.
 
-**A row that fills the panel is a disclosure, so pressing it again takes it back.** What a press
+**A row on most listings fills the panel, and that is a disclosure, so pressing it again takes it
+back.** What a press
 opened a press closes: the row loses its tint, the screen stops filling the panel, and an
 unfilled panel is not drawn -- so the thing opened from the listing can be shut from the listing,
 rather than only from the panel's own control. A row whose selection is the URL navigates back to
@@ -479,7 +489,8 @@ its own selection back means: `onClose`. **Pressing the open row while the panel
 again** rather than clearing a tint nothing is showing, because a control that does nothing is
 the fault this rule exists to fix. **A row that navigates is not a selection** and does not
 toggle: the runs listing and the admin overview go to a screen, and a press there has already
-left.
+left. **Connections is the one listing whose row opens a dialog instead, and it is being tried
+there**: see below. No other listing has moved, and none should until that trial has been read.
 
 **Every listing is a keyset walk**, answering rows and an opaque cursor and no total, so there
 are no page numbers and what the foot can honestly say is how many rows have been read and
@@ -496,24 +507,42 @@ heading over the table is the kind, and no id, because a row's key is not someth
 reads. A row whose height depended on how many chips it wore would make a listing of twenty rows
 a listing of twenty heights.
 
-**A connection row is one line, 44px, and four cells.** The lead cell is `headingOf`'s pair drawn
+**A connection row is one line, 44px, and three cells.** The lead cell is `headingOf`'s pair drawn
 across rather than stacked -- the title, the kind chip, and the code in mono where the title is
 not already the code -- and nothing stands under it. What a credential is pointed at is read on
-the connection's own page, beside the boxes that change it: a settings line per row is a column
+the connection's own dialog: a settings line per row is a column
 of `url=` and `timeout=` to scan past before the health cell is reached, and it pushes the cells
 that matter off the side of the table. There is no description column either, for the same
-reason and because a description is the panel's. **Health is an 8px dot and one word**, and the
-words are `healthOf`'s -- `healthy`, `failed`, `never checked`{ .label }, `not verified`{ .label } -- in the channel
-strip's three colours: green where the last check passed, red where it failed, grey where
-nothing was proved. One vocabulary, decided in `lib/connections` and read by every screen that
-draws a credential's health. **The check's own sentence is not on the row**: it is the tooltip on
-the health cell, on hover and on keyboard focus alike, and it is on the connection's page in
-full, where there is room for the whole of it. On a card the row carries the dot and the word
-alone: there is no pointer to hover with, and tapping the card opens the page that says it. Checked
+reason and because a description is the dialog's. **A healthy connection is a bare dot, and failed or
+unknown gets the word**, which is the top bar's rule: words only when something is wrong. The dot
+is 8px; the words are `healthOf`'s -- `failed`, `never checked`{ .label }, `not verified`{ .label }, and `healthy` as
+the bare dot's tooltip -- in the channel strip's three colours: green where the last check
+passed, red where it failed, a hollow ring where nothing was proved. One vocabulary, decided in
+`lib/connections` and drawn by `HealthSaid` on every screen that draws a credential's health: this
+listing, a pipeline's requirements, the reference row under a field. **The check's own sentence is
+not on the row**: it is the tooltip on the health cell, on hover and on keyboard focus alike, and
+it is in the connection's dialog in full, where there is room for the whole of it. Checked
 is how long ago, and nothing at all where nothing has ever asked -- so a row nothing has checked
-has no Checked line on its card either. The row ends in the control that asks: a 36px icon button
-wearing `RefreshCw`, labelled `Check <code>`, which checks that row and leaves the listing where
-it is.
+has no Checked line on its card either. Asking again is the dialog's `Check now`{ .label }, not a button on
+every row.
+
+**Connections opens in a dialog, shown first and edited second, and this is a trial.** Pressing a
+row opens one dialog over the listing, at `/connections/<code>`, and there is no panel on this
+screen. It reads first: the title, the kind and the code; the description; then the health with
+the check's own sentence, every setting that holds a value under its own key, every secret as dots
+or `not set`{ .label }, and when it was made and changed. Its footer is `Delete`, and `Check now`{ .label } and `Edit`
+at the other end, with the corner's close as the way out. `Edit` is the same dialog in its edit
+state, at the same width, so nothing moves under the hand: the schema-driven form in two columns,
+a required text field, a map, a JSON value and a program taking both, a footer of `Cancel` and
+`Save`, and no corner close. Cancel, Escape and a press outside all go back to the reading rather
+than closing, and a press outside does nothing at all while a form is open, because a typed
+credential is not something to lose to a stray click. A save checks the connection, because the
+health on screen was about the settings that were just replaced. `Delete` raises `ConfirmDialog`
+over the dialog. **What is known to use the credential shuts it**: the alert rules naming that code
+are read as it opens, and the question says `Used by <rules>.` with Delete shut and saying why. A
+refusal for anything that read cannot see stays in the question as one line.
+`GET /connections` carries nothing about what uses a credential, and a pipeline naming one is not
+on any listing, so the dialog has no Used by fact and the question names rules alone.
 
 `hooks/use-read` is the one-page sibling of `use-paged`, for a read that is a document rather than
 a listing -- what this instance has installed, how the last day of runs came out. Same rule: the
@@ -619,7 +648,8 @@ quarter of the table.
 
 **A card's rows follow the same rule as a listing's columns.** The dashboard's health card
 lines a mark, a code, what the thing last said and when up on one line in a card a third of the
-screen wide, which is a table's problem in something that is not a table: the mark is a value
+screen wide, which is a table's problem in something that is not a table. A healthy connection says
+nothing there, its dot's tooltip carrying the word and the check's sentence: the mark is a value
 and holds its width, the code is the identity and keeps a floor of six characters, what it said
 is prose and truncates in what is left with the whole of it on its title, and the instant is a
 value out of a fixed vocabulary and holds its own. Nothing on such a row is `shrink-0` unless
@@ -742,7 +772,7 @@ in the step panel's own group gesture: a shut row with a one-line summary, and t
 it against the group rule when it is opened. A schema the document carries in its top-level
 `schemas:` resolves before one the instance holds, which is the order the engine resolves them in,
 and says `carried by this document`{ .label }; one the instance holds says `instance` and opens with a link
-to `/schemas/<code>`, a connection with `<kind> · <state>` and a link to `/connections/<code>`. A
+to `/schemas/<code>`, a connection with its kind, its health as every screen draws it, and a link to `/connections/<code>`. A
 code nothing holds is `not stored`{ .label } or `not configured`{ .label }, muted, and not a button -- there is nothing
 under it to open. Nothing is called missing while the listing behind the answer is still being
 read, and a value written `${...}` names no code at all, so neither draws a row. The code itself is
@@ -1050,27 +1080,44 @@ Rail, content and right panel meet in a strip along the top and a bar along the 
 strip in a row is the same height** -- `h-shell-top`, `h-shell-foot`, stated once in `index.css`
 -- **and the rule between the strip and the work is drawn once**, never once per column: the
 top rule is a single full-width element the shell owns, and the foot is a single full-width bar
-with two cells inside it, the settings cell tracking the rail's own width store. Two elements
+with two cells inside it, the account cell tracking the rail's own width store. Two elements
 each drawing half a border is a line that comes apart at a column edge, and the bottom of the
 app then reads as a step. `e2e/shell.spec.ts` measures every strip with
 `getBoundingClientRect`, in both palettes, with the rail collapsed and the panel open.
 
-**A fact appears once in the shell.** What this instance is and who is signed in belong to the
-corner identity and the health popover behind it -- the name, the environment, the version,
-every check and the username, with Sign out under them. **The foot carries only what the
+**A fact appears once in the shell.** How this instance is doing belongs to the top bar's dot.
+**The foot carries only what the
 current screen is doing**: its note and its identifier, and nothing that is true of the session
 rather than of the screen. What a screen states there is what nothing else on it already says
 -- how many rows were read is the foot of the table's line, not the bar's; a standing fact is
 which version the instance holds, not who applied it and when -- and an instant is the house's
 relative form rather than a locale string.
 
-**Settings lives at the bottom of the rail's column**, in that bar; the instance's identity --
-a dot, its name and environment from `/system/info`, its version -- lives at the right of the
-topbar, and opens the health popover. The rail's own entries are **single-line labels** --
-Dashboard, Pipelines, Runs, Triggers, Connections, Blocks, Examples and Schemas, with the admin
-section under them -- and a word that names one of those needs no gloss under it. `lib/nav` is
-the array the rail draws and the palette offers, and the line an entry carries about itself is
-data on the entry that the palette reads.
+**The top bar's dot is the whole of what it says while the instance is well.** One dot at the right
+of the bar, and the details are its tooltip: the name and environment from `/system/info`, the
+health and when it was asked, the version, and every check. **Words appear only when something is
+wrong**: `Server degraded`{ .label }, `Server unhealthy`{ .label }, `Server unreachable, retrying`{ .label }, beside the dot, in
+that state's ink. `statusWords` in `lib/server-status` decides it. A press opens the settings
+dialog's Server pane, which is what a finger has where there is nothing to hover with.
+
+**The account lives at the bottom of the rail's column**, in that bar: an avatar and the username,
+the avatar alone on a collapsed rail. Pressing it opens the account menu, upward: who is signed in
+and their role, Settings, Shortcuts with the key that opens them, Sign out, and at the foot the
+instance's name, environment and version. A key is drawn beside a row only where `lib/shortcuts`
+binds one. `GET /auth/me` carries no display name, so the menu is headed by the username, which is
+the account's code. The rail's own entries are **single-line labels**, and a
+word that names one of those needs no gloss under it. **They are grouped by what somebody is there
+to do**: Dashboard alone at the head; Operate (Runs, Triggers); Build (Pipelines, Connections,
+Schemas); Reference (Blocks, Examples); and, for an admin, Admin (Users, Workers, Alerting). `lib/nav`
+is the array the rail draws and the palette offers, and the line an entry carries about itself is
+data on the entry that the palette reads. The active entry wears a slim bar in the gutter, which
+survives the collapse.
+
+**The admin overview is not a rail entry.** `/admin` is the instance at a glance -- five tiles, the
+runs that want somebody, the workers table -- and most of that is already the dashboard's. It is
+offered by the palette to an admin, and the Admin heading over the section is its link, so a screen
+with no entry of its own is still one press from where its section is read. A collapsed rail draws
+no heading, and the palette is the way there.
 
 ## Small screens
 
@@ -1119,8 +1166,8 @@ class is still the answer for hiding a thing that has no second form.
 the top strip -- icon only, `aria-label` "Open navigation" -- opens it over a scrim. It closes
 by its own close button, by Escape, by a tap on the scrim, and on every route change, because a
 drawer still standing over the screen somebody navigated to is a drawer they have to dismiss
-twice. Focus moves into it on open and back to the button on close. Settings lives at its foot,
-where the rail's own cell in the status bar puts it above the breakpoint.
+twice. Focus moves into it on open and back to the button on close. The account menu lives at its
+foot, where the rail's own cell in the status bar puts it above the breakpoint.
 
 **A listing row becomes a card where the table will not fit**, which on a phone is every
 listing. The table is one component and so is its narrow form: `ListTable` draws its first
@@ -1214,7 +1261,7 @@ wire answers with. Adding a kind is adding one entry there and nothing else: no 
 table of its own, and no screen works a mark out from a code itself.
 
 **The mark is drawn beside the code wherever a kind says what a thing is.** The channel strip's
-chips, a rule's target, the connections listing's row, the connection's own panel header, the New
+chips, a rule's target, the connections listing's row, the connection's own dialog, the New
 connection dialog's kind rows, the pipeline editor's reference row under a field naming a
 connection, and the health rows on the home screen: a reader who learned the envelope on the
 strip reads it on all seven. A screen that says what a thing is and draws no mark is the fault
@@ -1224,7 +1271,7 @@ kinds and draws none: its rows are the registries themselves, where the kind is 
 than what the row is, and it lists schemes and notifiers in the same shape beside them.
 
 **The mark does not take the kind's word off a chip.** Where the kind is carried as a `kind-chip`
--- the connections listing's row, the connection's panel header -- the chip keeps its word and
+-- the connections listing's row, the connection's dialog -- the chip keeps its word and
 its family hue: a chip is the value somebody reads to know what to narrow a listing by or type
 into a document, and a mark cannot be typed. Where there is no chip the mark stands with the code
 alone and the kind is not spelled twice: a channel chip and a rule's target are the mark and the
@@ -1278,10 +1325,13 @@ rules: one path on the 24 grid, filled in `currentColor`.
 
 ## The channel strip
 
-**The strip is one wrapping line of chips, and a chip holds three things.** The kind's glyph at
-16px in muted ink, the code in mono, and an 8px dot: 36px tall, pill-shaped, on the card's ground
-with the app's own border. Nothing else is on it -- no state word, no time, no sentence -- because
-a paragraph per channel is a screenful of channels on a screen whose subject is rules.
+**The strip is one wrapping line of chips, and a chip holds three things, and a fourth when
+something is wrong.** The kind's glyph at
+16px in muted ink, the code in mono, and an 8px dot: 36px tall, on the control's rung, on the card's ground
+with the app's own border. A credential that failed or has proved nothing says so after the dot,
+in `healthOf`'s word; a healthy one, the log and a kind nothing is set up for say nothing. Nothing
+else is on it -- no time, no sentence -- because a paragraph per channel is a screenful of channels
+on a screen whose subject is rules.
 
 **A connection is a channel and a notifier is a kind**, so a chip says the connection's code and
 the glyph says the kind: five email credentials are five envelope chips reading `ops-mail`,
@@ -1293,7 +1343,7 @@ notifier, or a connection whose last check passed. Red where the last check fail
 everything else: a kind nothing is set up for, a credential nobody has checked, a probe that
 proved nothing. A reader learns three colours once; six would be a legend.
 
-**The words are the tooltip's, and a credential's are the connections listing's**: `healthy`,
+**The rest of the words are the tooltip's, and a credential's are the connections listing's**: `healthy`,
 `failed`, `not verified`{ .label } and `never checked`{ .label } are `healthOf`'s, read through it rather than said a
 second way here, so one credential reads the same wherever it is drawn. The strip adds two of its
 own, for the two things that are not a credential: `ready` for the log channel, which nothing
@@ -1437,7 +1487,10 @@ its foot. A dialog raised over a dialog puts a scrim over the thing it is about,
 offered the verb is already the sentence saying what the form is for. The button that opened it
 is replaced by the section while it stands, so there are never two controls that shut it, and the
 refusal is `Refusal` inside the section, where the fields it is about are. **One row at a time**:
-two open forms in one list are two half-typed things with one confirm behind them.
+two open forms in one list are two half-typed things with one confirm behind them. **The exception
+is the connection dialog**, which is one dialog being tried and not a second one: its Edit is the
+same surface, and the only thing ever raised over it is the `ConfirmDialog` every verb that takes
+something away goes through.
 
 **What the row already says, the form does not ask.** The row is the summary, so a box repeating
 a value drawn a line above it draws that value twice and offers to change something the row's own
@@ -1452,6 +1505,26 @@ means, and one of the two will be the one with the credential in it.
 
 The step panel's engine groups are the same gesture at rest: the row is the group's own summary,
 and its fields open under it rather than in a pane of their own.
+
+**An account's tokens are listed under its row.** A token authenticates as one account, so it is
+filed there rather than in a second table with an Account column. A chevron at the head of the row
+opens and shuts it, with a tooltip saying which; pressing the rest of the row still opens the
+account's panel, and several accounts may stand open. What opens is the same `ListTable` every
+listing is, inset under the row and reading `GET /users/{username}/tokens` when it is opened and
+not before. It keeps a cursor of its own and is capped at 24rem with its heading stuck, so an
+account holding hundreds does not push every other account off the page. A closed row says how many
+live tokens it holds, from one read of `GET /tokens`, and says nothing at all where that read did
+not reach the end, because a number off part of a listing is not a count. An account with none
+draws `No tokens.`{ .label } when opened. **`New token`{ .label } is on the row**, so a token is never made for the
+wrong account, and the row opens to show what it made.
+
+**A token row is its name, the three times it has, and Revoke.** There is no Prefix column: the name
+is what a token is known by. The prefix is drawn beside the name only when two live tokens of one
+account share that name, which is the one time the name stops telling them apart, and its tooltip
+says what it is. The expiry is a chip beside the name, only where a token has one; `Last used`{ .label } and
+`Created`{ .label } are columns. **Revoking asks first, and says something only when it takes more than one.**
+The API revokes by name, so two live tokens sharing a name go together, and that is the one line the
+question holds.
 
 ## A control only ever claims what the situation supports
 
@@ -1472,7 +1545,9 @@ itself in one line, the way every other action that completed without incident d
 its confirm, and nothing else in its footer. A dialog that only tells carries no footer at all: it
 is dismissed by the corner's close and by Escape, so no footer ever says `Close`, `Done` or
 `Dismiss`. `DialogShell` is that rule written once -- `confirm` given, the footer and no corner
-close; `confirm` absent, the corner close and no footer.
+close; `confirm` absent, the corner close and no footer. **A dialog that reads one thing is the third
+case**, and it is a connection's: the corner close, and a footer of `verbs` on that thing rather
+than a confirm, so nothing in it says Cancel because nothing has been started.
 
 **One dismissal, one control.** A dialog whose footer carries the way out does not also draw the
 corner's own -- `showCloseButton={false}` -- because two ways out of one dialog are two answers to
@@ -1554,23 +1629,33 @@ them is said in `index.css` against their slots, never by editing them.
 
 ## A graph fits what it draws
 
-**An editor node is two lines and a run node is three.** A document's node is the step's title
--- its `name` if it has one, its map key otherwise -- and the block it runs; its config is a
-map of any size and one truncated line of it crowds the box without answering anything, so the
-step's own pane holds the whole of it. A step whose `for_each` fans it out says so on its mono
-line -- a stacked glyph and the count, or the word "each" where the list is an expression a run
-resolves -- in the neutral ink that line is already in, because a status is the only colour a node
-carries. A run's third
-line is live state -- what a step is waiting for, how a retry went -- and stays. A run's fan-out
-holds its elements in one strip beneath the three lines; before a grid read from a step's output
-has expanded, that strip is the faint words `waits for <step>`, on one line, so the box keeps its
-height when the elements arrive. Elk is told
-the height each is actually drawn at, or the rows come out spaced for a box that is not there.
+**A node is 160 by 44 and two lines, on both canvases.** The title, and under it the block it runs,
+with the key in front where the title is a name. A document's config is a map of any size and one
+truncated line of it crowds the box, so the step's own pane holds the whole of it. A step whose
+`for_each` fans it out says so on the second line -- a stacked glyph and the count, or the word
+"each" where the list is an expression a run resolves -- in the neutral ink that line is already in,
+because a status is the only colour a node carries. On a run the state's dot stands at the end of
+the title line, and the duration at the end of the second. **What a step is doing -- what it waits
+for, how a retry went, why it failed -- is the box's tooltip and the panel's, not a third line**,
+because a line nobody can read at 11px across 138 pixels says less than the colour of the box. A
+run's fan-out holds its elements in one strip beneath the two lines, one line tall; before a grid read
+from a step's output has expanded, that strip is the faint words `waits for <step>`, so the box keeps
+its height when the elements arrive. Elk is told the height each is actually drawn at, or the rows
+come out spaced for a box that is not there.
+
+**Every word on a box truncates, and the whole of it is on hover.** A title, a key and a block each
+carry their full value on their own `title`, with what the step is doing after it on a run.
+
+**A source says what it listens to where a block would be.** A step with `source:` runs no block, so
+its second line is what it listens to and its title leads with `ICONS.source`, on a dashed box. In
+the editor that is the instance's own reading of the source -- `listensTo`, `POST /endpoints/signups`
+or what a polled kind says of itself -- and the document's `kind` until an apply has made one. On a
+run it is the kind, which is what the pinned graph carries. A step with neither says `no block`{ .label }.
 
 
 Both canvases open with the whole DAG in view: `fitView` with padding, held between the two
-bounds in `lib/dag-layout`. `FIT_MAX_ZOOM` keeps a pipeline of two boxes at its own size rather
-than magnified to fill the space, and `FIT_MIN_ZOOM` keeps a node above the size its 14px title
+bounds in `lib/dag-layout`. `FIT_MAX_ZOOM` is 1, so a fit never draws a box above its own size and a pipeline of two boxes is
+not magnified to fill the space, and `FIT_MIN_ZOOM` keeps a node above the size its 13px title
 stops being readable at -- a graph too big for that is panned to rather than shrunk past
 legibility. It re-fits when the node set changes and when the canvas is resized -- the right
 panel opening is a resize -- and stops the moment the reader pans, zooms or drags a box: after
@@ -1675,8 +1760,8 @@ nothing was happening. `formatDuration` is the one ladder -- `840ms`, `9.4s`, `4
 step's `name` where it has one and its map key otherwise, wearing the mono face when the title is
 the key; the second is the block the step runs, with the key in front of it and a middot between
 where the title was a name. So the key is on screen exactly once, whichever way round the step was
-written, and what a step actually runs is never a click away. The third line is what the step is
-doing -- what it is waiting on, what it saved to, what went wrong -- and the panel says the same
+written, and what a step actually runs is never a click away. What the step is doing -- what it is
+waiting on, what it saved to, what went wrong -- is on the box's tooltip, and the panel says the same
 things as facts rather than as a second sentence.
 
 **A live wait's fraction is a foot line, never a number.** A step whose attempt reports how far
@@ -1940,30 +2025,36 @@ again is a second answer to a question the system has already answered. `/design
 component in every variant and state -- enabled, shut with a reason, hovered, focused, empty,
 loading, long text truncating -- in both modes; it is offered by the palette ("Design system")
 and not by the rail. A component that needs a new variant gets it in `ds/` and on that screen
-first, then on the page that asked.
+first, then on the page that asked. **The gallery is named for what somebody is looking for, not
+for how the code files it**: Text (Titles, Headings, Links), Marks (Labels, Status dots, Icons),
+Controls (Buttons, Search, Form fields, Switches), Containers (Notices, Dialogs, Lists of facts),
+with an index beside them that follows the scroll and a plain sentence under a heading only where it
+adds a fact. A component keeps its own name in the code. A specimen stands on the section's card with
+no frame of its own.
 
 | Component | When |
 | --- | --- |
-| `EntityHeading` | Any addressable thing headed by its name and code. `row-stacked` for a listing's lead cell, `row-inline` where a row has one line, `panel` for a panel's head. The name, else the code; the code always on screen in mono and never twice (`headingOf`); chips beside the title; an optional one-line description. One title weight in all three |
+| `EntityHeading` | Any addressable thing headed by its name and code. `row-stacked` for a listing's lead cell, `row-inline` where a row has one line, `panel` for a panel's head, `dialog` inside a dialog's title. The name, else the code; the code always on screen in mono and never twice (`headingOf`); chips beside the title; an optional one-line description. One title weight in all three |
 | `Chip` | A word on a chip: `neutral`, `mono` for a key, `dashed` for an absence, `good`, `critical`, `edit`. `onSelect` makes it a button, `onRemove` adds an X with its own focus ring. It replaces the hand-typed chip and the pill `Badge` for a word. `KindChip` and `StatusChip` stay, on the same 20px and the same radius |
-| `ToneDot` | Every state drawn as a dot, from one map: a tone (`good`, `critical`, `warning`, `info`, `quiet`, `unknown`, the last hollow) or a run status. A dot alone is the answer -- a green dot says connected -- and its word is its name and its tooltip. The word is drawn beside it only when it is news: failed, unknown. `StatusChip` takes a `label` where a screen names the state in its own terms |
-| `IconButton` | Any button that is an icon and nothing else. Its type requires `label`; the tooltip is the label, a longer `tooltip`, or `why` when it is shut. Sizes `sm` and `md`. Shut with `why`, never with `disabled`, so it stays reachable |
+| `ToneDot` | Every state drawn as a dot, from one map: a tone (`good`, `critical`, `warning`, `info`, `quiet`, `unknown`, the last hollow) or a run status. A dot alone is the answer -- a green dot says connected -- and its word is its name and its tooltip. The word is drawn beside it only when it is news: failed, unknown. `tip` adds a sentence to the tooltip, and `focusable` puts the dot in the tab order where nothing around it is a control. `StatusChip` takes a `label` where a screen names the state in its own terms |
+| `IconButton` | Any button that is an icon and nothing else, which is why every icon button has a tooltip. Its type requires `label`; the tooltip is the label, a longer `tooltip`, or `why` when it is shut. Sizes `xs`, `sm` and `md`. Shut with `why`, never with `disabled`, so it stays reachable |
 | `SearchField` | Every box that narrows a screen. A leading search glyph, a clear button once there is text, Escape to clear, and the `/` key cap: `/` moves the caret into the first box marked for it, never while another field or the editor has focus |
 | `SectionHeading` | A heading inside a screen. `section` is sentence case at `text-sm font-semibold`; `group` is the one faint uppercase label over a run of rows. An optional `aside` and `link` |
-| `FactList`, `Fact` | Facts about one thing. `grid` is a term column beside a value column, a panel's; `row` is small facts wrapping on one line, a heading's strip |
+| `FactList`, `Fact` | Facts about one thing. `grid` is a term column beside a value column, a panel's and a dialog's, whose term is a key in mono where `termMono` says so; `row` is small facts wrapping on one line, a heading's strip |
 | `FormField`, `SwitchField` | Every field: a prose label or a mono key, the required word in body ink, a hint, the default, help in one ink, an error, one 6px gap. `SwitchField` is a boolean setting as a row, the whole row its label |
 | `Notice`, `Well` | `Notice` is a sentence that must not be missed, `critical`, `warning` or `neutral`, with the tone's mark. `Well` is a neutral inset box at 8px for a block that belongs together. A refusal off the wire is still `Refusal` |
-| `DialogShell` | Every dialog: a width from `sm`, `md`, `lg`, `xl`, a title and description, a body that scrolls under a fixed head and foot, and a footer of `Cancel` and one `Refusable` confirm |
-| `ConfirmDialog` | Before every verb that takes something away -- revoke, deactivate, delete, rotate. It names the thing in mono, says what is lost, and confirms in the critical fill. No such verb is immediate |
+| `DialogShell` | Every dialog: a width from `sm`, `md`, `lg`, `xl`, a title and description, a body that scrolls under a fixed head and foot, and a footer of `Cancel` and one `Refusable` confirm, or of `verbs` on a dialog that reads one thing |
+| `ConfirmDialog` | Before every verb that takes something away -- revoke, deactivate, delete, rotate. The title is the question and names the thing, its code in mono and nowhere else: `Delete ops-hook-2?`. There is no body, because the verb says what is lost. It holds one line only when that line changes the answer: what stops the verb, which shuts the confirm with the reason on its `title`, or what the verb takes beyond the thing named. A refusal off the wire is one short line, with no box and no second naming of the thing. No such verb is immediate |
 | `SecretReveal` | A secret the server answers with once: the value in mono, a copy button that says it copied and resets, and the line saying it is shown once |
 | `PageHeader`, `SplitButton` | A screen's heading. It owns the primary action through `actions`, last of them, which is a `SplitButton` when it carries `more`; a `count` beside the title; a `trail` for a detail screen. No subtitle |
 | `TextLink` | Every link that is text. `inline` in prose, `data` for a number or a reference in a table, `external` with its mark and a new tab. The one amber treatment of text, and nothing but a link wears it |
 
 **A mark comes from `lib/icons` and nowhere else.** `ICONS` maps every concept the interface
 draws a mark for -- create, edit, delete, run, rerun, pause, resume, cancel, refresh, recheck,
-clear a filter, search, copy, external, settings, fit the view, open in a window, a starter, and
-the nouns: pipeline, run, step, block, connection, schema, trigger, schedule, source, user,
-token, worker -- to one lucide icon, and no two concepts to the same one: fitting the canvas is
+clear a filter, search, copy, external, settings, fit the view, open in a window, upload, a
+template, the sidebar, and the nouns: pipeline, run history, step, block, connection, schema, trigger, schedule, source, user,
+token, worker -- to one lucide icon, named for what it means rather than where it was first drawn,
+and no two concepts to the same one: fitting the canvas is
 `Scan` and opening a pane in a window is `Maximize2`. A page or a component that needs a mark
 with no concept adds the concept there. A kind's mark is still `lib/glyphs`.
 
@@ -1985,7 +2076,8 @@ one fewer as stale, so the change that moves a screen onto the system shrinks th
 On a screen whose heading names the noun, the primary create button says `New` alone: the screen
 supplies the object. The full name stays on the control's `aria-label`, on the palette action,
 which is offered from every screen and so needs the noun, and on whatever the button opens. A
-screen offering more than one create -- Users and tokens, Triggers -- keeps the noun on each
-button, because `New` alone would not say which.
+screen offering more than one create -- Triggers -- keeps the noun on each button, because `New`
+alone would not say which. A create that belongs to one row is on that row and names its noun:
+`New token`{ .label }, on the account it is for.
 
 

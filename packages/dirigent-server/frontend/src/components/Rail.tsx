@@ -9,7 +9,7 @@ import { useDragSize } from '@/hooks/use-drag-size'
 import { useStore } from '@/hooks/use-store'
 import { authStore } from '@/lib/auth'
 import { LABELS } from '@/lib/labels'
-import { DASHBOARD_PATH, marksOnlyItself, sectionsFor, type NavEntry } from '@/lib/nav'
+import { DASHBOARD_PATH, marksOnlyItself, sectionsFor, type NavEntry, type NavSection } from '@/lib/nav'
 import {
     RAIL_COLLAPSED_WIDTH,
     RAIL_MAX_WIDTH,
@@ -175,12 +175,8 @@ export function Rail() {
 
                 <div className="min-h-0 flex-1 overflow-y-auto pt-1 pb-2">
                     {sections.map((section) => (
-                        <nav key={section.id} className="flex flex-col gap-1 px-2 pb-3">
-                            {section.label !== null && !collapsed && (
-                                <p className="px-2 pt-4 pb-1.5 text-xs font-medium tracking-wide text-faint uppercase">
-                                    {section.label}
-                                </p>
-                            )}
+                        <nav key={section.id} className="flex flex-col gap-1 px-2 pb-1">
+                            {section.label !== null && !collapsed && <SectionLabel section={section} />}
                             {section.label !== null && collapsed && (
                                 <div className="mx-2 my-2 border-t border-border" />
                             )}
@@ -208,10 +204,32 @@ export function Rail() {
                         else return
                         event.preventDefault()
                     }}
-                    className="resize-handle z-10 hidden w-1.5 shrink-0 cursor-col-resize touch-none md:block"
+                    className="resize-handle z-10 -mr-1.5 hidden w-1.5 shrink-0 cursor-col-resize touch-none md:block"
                 />
             }
         </>
+    )
+}
+
+/** A group's heading, which is a link where the group has a screen of its own. */
+export function SectionLabel({ section }: { section: NavSection }) {
+    const look = 'px-2 pt-3 pb-1 text-xs font-medium tracking-wide text-faint uppercase'
+    if (section.to === undefined) return <p className={look}>{section.label}</p>
+    return (
+        <NavLink
+            to={section.to}
+            end
+            title={LABELS.screen.overview.name}
+            className={({ isActive }) =>
+                cn(
+                    look,
+                    'control-link block rounded-md underline-offset-4 hover:text-foreground hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
+                    isActive && 'text-foreground',
+                )
+            }
+        >
+            {section.label}
+        </NavLink>
     )
 }
 

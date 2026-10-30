@@ -316,7 +316,6 @@ const word = {
     /** A person's record. */
     account: {
         label: 'Account',
-        heading: 'Accounts',
         count: {
             one: 'account',
             many: 'accounts',
@@ -324,7 +323,7 @@ const word = {
     },
     /** What an automation signs in with in place of a password. */
     token: {
-        heading: 'Tokens',
+        label: 'Token',
         count: {
             one: 'token',
             many: 'tokens',
@@ -339,7 +338,6 @@ const word = {
     /** What an account signs in with. */
     password: 'Password',
     /** The leading characters a token is recognised by. */
-    prefix: 'Prefix',
     /** Which plugin contributed the thing. */
     plugin: {
         label: 'Plugin',
@@ -415,7 +413,6 @@ const word = {
     /** How this instance is deployed. */
     environment: {
         label: 'Environment',
-        term: 'environment',
     },
     /** Where this instance keeps its records. */
     database: 'Database',
@@ -425,6 +422,10 @@ const word = {
     created: {
         label: 'Created',
         term: 'created',
+    },
+    /** When the thing was last changed. */
+    updated: {
+        label: 'Updated',
     },
     /** When a run was taken up. */
     started: {
@@ -669,6 +670,10 @@ const screen = {
         name: 'Schemas',
         hint: 'Shapes a payload is checked against',
     },
+    /** The rail's groups, which say what somebody is there to do. */
+    operate: 'Operate',
+    build: 'Build',
+    reference: 'Reference',
     /** The section the admin screens sit under. */
     admin: 'Admin',
     /** The instance, for whoever runs it. */
@@ -676,11 +681,10 @@ const screen = {
         name: 'Overview',
         hint: 'This instance, at a glance',
     },
-    /** Accounts and the tokens they mint. The heading is not the name. */
+    /** Accounts and the tokens under them. */
     users: {
         name: 'Users',
         hint: 'Accounts and automation tokens',
-        heading: 'Users and tokens',
     },
     /** The nodes that claim work. */
     workers: {
@@ -732,17 +736,32 @@ const shell = {
     open_settings: 'Open settings',
     shortcuts: 'Keyboard shortcuts',
 
-    /** The corner: which instance this is, what it is running, and how it is doing. */
+    /** The top bar's dot: which instance this is, what it is running, and how it is doing. */
     instance: {
         label: 'Instance',
+        /** The dot's accessible name, which carries what the dot's colour says. */
+        said: (health: string) => `Instance: ${health}`,
+        /** Beside the dot, and only when something is wrong. */
+        wrong: {
+            degraded: 'Server degraded',
+            unhealthy: 'Server unhealthy',
+            offline: 'Server unreachable, retrying',
+        },
         /** The name, and the environment where the environment is worth saying. */
         line: (name: string, environment: string) => `${name} · ${environment}`,
         /** A fact this instance did not state. */
-        unknown: 'not said',
+        unknown: 'unknown',
     },
 
-    /** The bar's own cell, and the row at the foot of the drawer that opens the same dialog. */
+    /** The account menu's row that opens the settings dialog. */
     settings: 'Settings',
+    /** The rail's bottom-left: who is signed in, and what they can reach from there. */
+    account: {
+        /** The control's name, which carries the username the avatar stands for. */
+        label: (username: string) => `Account: ${username}`,
+        /** The menu's foot: the instance's own line, and its version. */
+        instance: (line: string, version: string) => `${line} · ${version}`,
+    },
 
     resize_panel: 'Resize the side panel',
     /** The tab strip's heading where the screen in front of the panel has filled no tab. */
@@ -988,7 +1007,7 @@ const refused = {
             'This document carries its own schemas ({named}), which an instance will not store. Create them on the instance and let the document name them under requires.schemas.',
         no_format: 'The document declares no format. Add format: {format}.',
         step_reference_in_sql:
-            '{reference} is inside {field}, and a value reaches SQL only as a bound parameter. Write :name there and give the reference to params.',
+            '{reference} is inside {field}, and a value reaches SQL only as a bound parameter. Write a placeholder such as :name there, and give the reference to params.',
         step_schema_interpolated:
             '{code} is resolved once the run has started, and a schema is named by its code. A run takes the shapes its document names when it starts, so write the code this step checks against.',
         unsatisfied: 'The document does not satisfy {format}.',
@@ -1011,9 +1030,9 @@ const refused = {
     },
     plugin: {
         csv_too_many_columns:
-            'The records name more than {limit} distinct keys, and each is one csv column. Keep the keys you need with a transform first.',
+            'The records have more than {limit} distinct keys, and each one becomes a CSV column. Keep the keys you need with a transform first.',
         csv_too_sparse:
-            '{rows} rows by {columns} columns leave {empty} cells empty, more than the {limit} a csv here may hold. Give the records shared keys with a transform first.',
+            '{rows} rows by {columns} columns leave {empty} cells empty, and a CSV may hold at most {limit}. Give the records shared keys with a transform first.',
         route_bad_parameter:
             'The path {template} has the segment {segment}. A parameter is a whole segment: a snake_case name in braces, or that name followed by :path to take the rest of the path.',
         route_bad_segment: 'The path {template} has the segment {segment}, which a path cannot carry.',
@@ -1025,7 +1044,7 @@ const refused = {
             'Source kind {kind} is {hosting}, and a contributed kind is the ReceivedSource, PolledSource or HeldSource its hosting names.',
     },
     reference: {
-        in_sql: '{reference} is inside {field}, and a value reaches SQL only as a bound parameter. Write :name there and give the reference to params.',
+        in_sql: '{reference} is inside {field}, and a value reaches SQL only as a bound parameter. Write a placeholder such as :name there, and give the reference to params.',
         not_failed:
             '{reference} cannot be resolved: step {step} did not fail, and its error is read only when it did.',
         shell_arithmetic:
@@ -1033,7 +1052,7 @@ const refused = {
     },
     run: {
         connection_wrong_kind:
-            'Connection {ref} has kind {kind}, and this reads a connection of kind {wanted}.',
+            'Connection {ref} has kind {kind}, and this step reads a connection of kind {wanted}.',
         entry_ambiguous: 'Pipeline {code} has the sources {sources}. Name the one this run enters at.',
         entry_input_refused:
             'The input for source {step} is not one its kind {kind} can make whole: {detail}',
@@ -1047,7 +1066,7 @@ const refused = {
         not_pausable: 'This run is {status}, and only a queued or running run pauses.',
         not_retryable: 'Step {step} is {status}, and only a settled failure can be retried.',
         lease_recoveries:
-            'Step {step} was taken back from a worker more than {limit} times without an outcome, so it is not run again.',
+            'Step {step} was taken back from a worker more than {limit} times with no result, so it will not run again.',
         reply_body_from: 'Reply {step} streams its body from {value}, and body_from names a storage URI.',
         reply_not_retryable:
             'Step {step} is a reply. The server settles it once, when the steps it answers from have settled.',
@@ -1084,7 +1103,7 @@ const refused = {
             'This schema names no code. Give one, set $id, or store it from a file whose name is a code.',
     },
     secret: {
-        connection_unreadable: 'A stored connection does not fit the configuration read from it: {detail}',
+        connection_unreadable: 'The settings of a stored connection no longer fit its kind: {detail}',
         key_file_unreadable: 'The secret key file {path} cannot be read as a key: {detail}',
         key_malformed: 'DIRIGENT_SECRET_KEY is not a Fernet key, and a passphrase is not taken.',
         key_twice: 'Both secret_key and secret_key_file are set. Name the envelope key one way.',
@@ -1093,7 +1112,7 @@ const refused = {
         bad_credentials: 'Invalid username or password.',
         bad_cursor: '{name}={after} is not a cursor this listing gave out.',
         connection_exists: 'A connection coded {code} exists.',
-        connection_referenced: 'Connection {code} is still referenced. Delete what uses it first.',
+        connection_referenced: 'Still in use. Delete what uses it first.',
         /** The same sentence `refusal.shut` says, held to it by `test_shared_words.py`. */
         forbidden: 'Not permitted for your role.',
         idempotency_key_required:
@@ -1116,7 +1135,8 @@ const refused = {
             'The playground will not set {header} on itself as asked. It sets no header that plants a cookie, asks for a password, navigates a browser off this instance, opens this origin to another site, or weakens what a browser enforces here, and no content type a browser runs.',
         playground_off_instance:
             '{to} is not a path on this instance. The playground redirects only to paths on this instance.',
-        playground_streams_full: 'The playground holds {limit} streams at once. Send again once one ends.',
+        playground_streams_full:
+            'The playground holds at most {limit} streams at once. Send again once one ends.',
         playground_unauthenticated:
             'This route wants a credential: the basic pair {username}/{username}, or the documented bearer token. Both are public constants.',
         prune_names_nothing:
@@ -1148,7 +1168,7 @@ const refused = {
         empty_secret: 'An empty signing secret is not a secret.',
         field_refused:
             'A source takes name, description and sample, and nothing else. {field} goes on the step after it.',
-        intake_rate: 'This instance takes {per_minute} calls a minute from one address at one route.',
+        intake_rate: 'This instance takes {per_minute} calls a minute from one address to one route.',
         join_of_sources:
             'Step {step} waits with all_success on both {first} and {second}, and a run enters at one source only, so it could never run. Join them with all_done or always.',
         kind_missing: 'Source {code} is of kind {kind}, which is not installed on this instance.',
@@ -1204,7 +1224,7 @@ const refused = {
             'This endpoint takes the Unix seconds the call was signed at in a {header} header, within {window} of now.',
         step_one_form: 'A step is exactly one of block, source or reply, and this one writes {named}.',
         takes_no_token: 'Source {code} of pipeline {pipeline} is {auth}, so it has no token to rotate.',
-        token_refused: 'This endpoint takes the bearer token minted for it, in an Authorization header.',
+        token_refused: 'This endpoint takes the bearer token created for it, in an Authorization header.',
         unknown: 'Pipeline {pipeline} has no source {code}.',
         unknown_kind: 'No source kind {kind} is available on this instance. Known: {known}.',
         unsupported_media:
@@ -1318,6 +1338,8 @@ const dashboard = {
 
     /** The panel beside the chart: the workers and the connections as one list. */
     health: {
+        /** A healthy connection's dot, on the dashboard: the word, and what the check said. */
+        healthy_tip: (health: string, said: string) => `${health}: ${said}`,
         hint: 'The workers claiming work, and every connection.',
         /** A worker with nothing to report: what it is, and how much it can take. */
         worker: {
@@ -1506,6 +1528,8 @@ const editor = {
         add_step_after: (step: string) => `Add step after ${step}`,
         /** What the menu's box narrows, in the words of what it searches. */
         search_blocks: 'Search blocks by id, summary or kind',
+        /** A source's tooltip on a graph: what the line under its title says, whole. */
+        listens_to: (what: string) => `Listens to ${what}`,
         no_block_matches: 'No block matches that.',
         /** The menu opened before the catalog landed, which is not a catalog with nothing in it. */
         reading_catalog: 'Reading the catalog…',
@@ -1735,8 +1759,7 @@ const editor = {
         /** What the pane's own window is titled, which is the shape and where it is held. */
         held_body: (code: string) => `${code} · on this instance`,
         /** What updating does, and what it does to everything else naming the code. */
-        update_note:
-            'Updating replaces what the instance holds with what this document carries. Every pipeline naming this code checks against the new shape from its next run.',
+        update_note: 'Every pipeline naming this code checks against the new shape from its next run.',
         /**
          * Which pipelines those are, where the instance holds any.
          *
@@ -2335,8 +2358,7 @@ const triggers = {
     pinned_title: (code: string) => `${code} · pinned parameters`,
     /** Minting a new token for a source, and what that costs. */
     rotate: 'Rotate token',
-    rotate_warning:
-        'Rotating replaces the credential and forgets the old one immediately. Every caller has to be updated.',
+    rotate_warning: 'The old one stops working at once. Every caller has to be updated.',
 
     /** The clocks. */
     schedule: {
@@ -2490,8 +2512,17 @@ const connections = {
     /** The palette's row for reading the listing again. */
     reload: 'Read the connections listing again',
     empty: 'No connections.',
-    /** The row's button, which asks the external system again. */
-    check_row: (code: string) => `Check ${code}`,
+    /** Beside Save: what writing the settings does. */
+    save_checks: 'Saving checks the connection.',
+    /** The heading over the password boxes. */
+    secrets_heading: 'Secrets',
+    /** A secret in the dialog's facts that holds nothing. */
+    secret_not_set: 'not set',
+    /** The question before a delete, around the code. */
+    delete_ask: { before: 'Delete ', after: '?' },
+    /** What stops a delete, and what the shut confirm says on hover. */
+    used_by: (names: string) => `Used by ${names}.`,
+    in_use: 'Still in use, so it cannot be deleted.',
 
     /** The one clause every screen states a set of connections' health in. */
     note: {
@@ -2509,8 +2540,6 @@ const connections = {
     /** The settings the summary line had no room for. */
     more_settings: (many: string) => `+${many} more`,
 
-    /** What follows the created instant when the record has been edited since. */
-    also_updated: ' · updated ',
     /** Under the name box: what a name is not, and what a reference uses instead. */
     name_hint: (code: string) => `Display only. Every reference to this credential is by its code, ${code}.`,
     description_placeholder: 'What this credential is for. Markdown is rendered.',
@@ -2847,9 +2876,9 @@ const schemas = {
 const users = {
     /** The palette row that opens the new-account dialog. */
     new_user_action: 'Create an account',
-    /** The palette row that opens the new-token dialog. */
-    new_token_action: 'Mint an automation token',
-    /** The palette row that reads both listings again. */
+    /** The palette row that opens the new-token dialog, for the account that is signed in. */
+    new_token_action: 'Create an automation token',
+    /** The palette row that reads the listing again. */
     reload_action: 'Read the accounts listing again',
 
     /** The button above the listing, and the title of the dialog it opens. */
@@ -2872,16 +2901,33 @@ const users = {
     },
     /** The panel's button, and the title of the dialog it opens. */
     reset_password: 'Reset password',
-    /** The button above the tokens listing, in the panel, and the title of the dialog they open. */
+    /** The button on an account's row, and the title of the dialog it opens. */
     new_token: 'New token',
+    /** That button's accessible name, which names the account the row does not repeat. */
+    new_token_for: (username: string) => `New token for ${username}`,
 
-    /** Under that heading: that a signed-in session is not one of these. */
-    tokens_hint: 'A session is never listed here.',
+    /** The chevron at the head of an account's row. */
+    show_tokens: (username: string) => `Show the tokens of ${username}`,
+    hide_tokens: (username: string) => `Hide the tokens of ${username}`,
+    /** How many live tokens a shut row holds. */
+    tokens_held: {
+        one: (many: string) => `${many} token`,
+        many: (many: string) => `${many} tokens`,
+    },
     tokens_empty: 'No tokens.',
     last_used_column: 'Last used',
-    expires_column: 'Expires',
+    /** The chip beside a token's name, where it has an expiry. */
+    token_expires: (when: string) => `expires ${when}`,
+    token_expired: (when: string) => `expired ${when}`,
+    /** Beside the name, only where two live tokens of one account share it. */
+    token_prefix: (prefix: string) => `${prefix}…`,
+    token_prefix_tip: 'The start of the secret. Shown because two live tokens share this name.',
     /** The accessible name of a row's revoke button, which the row itself does not repeat. */
     revoke_row: (token: string) => `Revoke ${token}`,
+    /** The question before a revoke, around the name. */
+    revoke_ask: { before: 'Revoke ', after: '?' },
+    /** Where the name is shared: the API revokes by name, so they go together. */
+    revoke_shared: (many: string) => `Revokes all ${many} live tokens with this name.`,
 
     /** Under the new-account dialog's title. */
     new_account_hint: 'The password is what it signs in with the first time.',
@@ -3183,66 +3229,79 @@ const settings = {
  * and states it draws, and the sample content it draws them with.
  */
 const design = {
-    /** The status bar's fact while the gallery is open. */
-    note: 'Every component, in every state',
+    /** The index beside the sections, and what it is to a screen reader. */
+    index: 'Sections',
+    group: {
+        text: 'Text',
+        marks: 'Marks',
+        controls: 'Controls',
+        containers: 'Containers',
+    },
     icon_group: {
         verbs: 'Verbs',
-        chrome: 'Navigation and chrome',
+        chrome: 'Navigation',
         nouns: 'Nouns',
         states: 'States',
     },
     section: {
+        titles: 'Titles',
+        headings: 'Headings',
+        links: 'Links',
+        labels: 'Labels',
+        dots: 'Status dots',
         icons: 'Icons',
-        entity: 'Entity heading',
-        chips: 'Chips',
-        dots: 'Dots',
-        icon_buttons: 'Icon buttons',
-        search: 'Search field',
-        headings: 'Section headings',
-        facts: 'Facts',
+        buttons: 'Buttons',
+        search: 'Search',
         forms: 'Form fields',
-        notices: 'Notices and wells',
+        switches: 'Switches',
+        notices: 'Notices',
         dialogs: 'Dialogs',
-        page_header: 'Page header',
-        links: 'Text links',
-        states: 'Page states',
+        facts: 'Lists of facts',
+    },
+    /** Under a section's heading, where the name alone does not say it. */
+    line: {
+        titles: 'How a named thing is drawn: its name, its code, and its description.',
+        labels: 'A short word on a thing. A kind and a run state each have colours of their own.',
+        dots: 'The dot is the answer. Its word appears only when something is wrong.',
+        icons: 'One mark for each concept, and one concept for each mark.',
+        dialogs: 'A dialog that asks ends in Cancel and a confirm. One that tells has a corner close.',
     },
     variant: {
-        row_stacked: 'Row, stacked',
-        row_inline: 'Row, inline',
-        panel: 'Panel',
-        tones: 'Tones',
-        selectable: 'Selectable and removable',
+        row_stacked: 'In a list',
+        row_inline: 'On one line',
+        panel: 'At the top of a dialog or panel',
+        tones: 'Words',
+        selectable: 'Pressed to filter or remove',
         long: 'Long text',
-        kind_status: 'Kind and status',
-        tone_dots: 'Tones',
-        always: 'Word always drawn',
+        kind_status: 'Kinds and run states',
+        tone_dots: 'The word only when something is wrong',
+        always: 'The word always',
         status_dots: 'Run states',
-        sizes: 'Sizes and variants',
+        text_buttons: 'With words',
+        sizes: 'Icons only',
         shut: 'Shut, with a reason',
         empty: 'Empty',
         typed: 'With text',
         disabled: 'Disabled',
-        tiers: 'Tiers',
-        grid: 'Grid',
-        row: 'Row',
-        prose: 'Prose label',
-        key: 'Document key',
+        tiers: 'Inside a screen',
+        grid: 'As a grid',
+        row: 'On one line',
+        prose: 'With a plain label',
+        key: 'With a document key',
         error: 'With an error',
-        switches: 'Switches',
-        notices: 'Notices',
-        well: 'Well',
-        dialogs: 'Dialogs',
+        notices: 'With and without a mark',
+        well: 'An inset box',
+        dialogs: 'Open one',
         asks: 'A dialog that asks',
         tells: 'A dialog that tells',
         confirm: 'A destructive confirm',
-        secret: 'Secret shown once',
-        listing: 'Listing, with a split primary',
-        trail: 'Detail screen',
-        inline: 'In prose',
+        secret: 'A secret shown once',
+        listing: 'At the top of a listing',
+        trail: 'At the top of one thing',
+        inline: 'In a sentence',
         data: 'In a table',
-        external: 'Out of the app',
-        loading: 'Loading',
+        external: 'Leaving the app',
+        loading: 'Reading',
     },
     sample: {
         pipeline: {
@@ -3302,7 +3361,7 @@ const design = {
         timeout_value: 'soon',
         timeout_error: 'timeout must be a duration, such as 30s',
         switch_label: 'Follow logs',
-        switch_help: "Open a run's log pane at its tail.",
+        switch_help: "Open a run's log pane at its newest line.",
         switch_shut_label: 'Seal secrets at rest',
         notice_critical_title: 'The last check failed',
         notice_critical_body: 'Connection refused by 10.0.0.4:5432.',
@@ -3312,11 +3371,10 @@ const design = {
         secret: 'dg_live_4f8a2c9e1b7d6053a8e2f4c1b9d7e6a3',
         secret_name: 'ci-deploy',
         dialog_title: 'New token',
-        dialog_description: 'A token acts as the account it was minted for.',
+        dialog_description: 'A token acts as the account it was made for.',
         told_title: 'Token created',
         told_description: 'Store it where the automation reads its secrets.',
-        confirm_title: 'Revoke token',
-        confirm_consequence: 'Anything presenting it is refused from now on. This cannot be undone.',
+        confirm_ask: { before: 'Revoke ', after: '?' },
         pipelines_count: '24',
         connections_count: '7',
         new_pipeline: 'New pipeline',

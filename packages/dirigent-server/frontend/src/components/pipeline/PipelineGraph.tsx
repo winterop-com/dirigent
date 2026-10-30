@@ -1,5 +1,5 @@
 import { ReactFlowProvider, useReactFlow, type Edge } from '@xyflow/react'
-import { useEffect, useMemo, useState, type MouseEvent } from 'react'
+import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react'
 
 import { fitCapped, GraphCanvas, type CanvasEditing } from '@/components/graph/GraphCanvas'
 import { usePlacedGraph } from '@/components/graph/use-placed'
@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { addStepAsked, relayoutAsked } from '@/lib/canvas-actions'
 import { StepNode, type DocumentNode } from '@/components/pipeline/StepNode'
+import { useRead } from '@/hooks/use-read'
 import { useStore } from '@/hooks/use-store'
 import type { JsonMap } from '@/lib/api'
 import type { BlockEntry } from '@/lib/blocks'
@@ -26,17 +27,19 @@ import {
     type Placement,
     type Placements,
 } from '@/lib/canvas-layout'
-import { DOCUMENT_NODE_HEIGHT, drawnSize, NODE_WIDTH, RANK_SPACING, type LayoutShape } from '@/lib/dag-layout'
+import { drawnSize, NODE_HEIGHT, NODE_WIDTH, RANK_SPACING, type LayoutShape } from '@/lib/dag-layout'
 import {
     blockOf,
     edgesIn,
     fanOutOf,
+    sourceKindOf,
     stepEdited,
     stepHeading,
     stepNames,
     type DocumentEdits,
 } from '@/lib/pipeline-document'
 import { stepMissing, type Unmet } from '@/lib/requirements'
+import { listeningLine, readPipelineSources, type SourceOut } from '@/lib/sources'
 
 /**
  * The document's graph: the steps it declares and the edges its `depends_on` draws.
@@ -68,6 +71,9 @@ import { stepMissing, type Unmet } from '@/lib/requirements'
 
 /** The one node kind this graph draws. Built once: React Flow re-mounts every node on a new object. */
 const NODE_TYPES = { step: StepNode }
+
+/** What a document with no read of its sources has: nothing, and the same nothing each time. */
+const NO_SOURCES: readonly SourceOut[] = []
 
 /** What another pipeline's arrangement amounts to here: nothing, and the same nothing each time. */
 const NO_PLACEMENTS: Placements = {}
@@ -173,12 +179,23 @@ function EditableGraph({
 
     const shape = useMemo<LayoutShape>(
         () => ({
-            nodes: stepNames(document).map((name) => ({ id: name, height: DOCUMENT_NODE_HEIGHT })),
+            nodes: stepNames(document).map((name) => ({ id: name, height: NODE_HEIGHT })),
             edges: edgesIn(document),
         }),
         [document],
     )
     const placed = usePlacedGraph(shape)
+
+    // What this instance says each source listens to, which is asked only of a document with one.
+    // A pipeline nothing has applied answers 404, and its boxes say their kind.
+    const hasSource = stepNames(document).some((name) => sourceKindOf(document, name) !== null)
+    const held = useRead(
+        useCallback(
+            () => (hasSource ? readPipelineSources(pipeline) : Promise.resolve(null)),
+            [hasSource, pipeline],
+        ),
+    )
+    const sources = held.value?.items ?? NO_SOURCES
 
     // An arrangement is one pipeline's, so another pipeline's is nothing until its own is read.
     const placements = layout.pipeline === pipeline ? layout.placements : NO_PLACEMENTS
@@ -186,6 +203,7 @@ function EditableGraph({
     const nodes = useMemo<DocumentNode[]>(() => {
         return withHeld(placed.nodes, placements).map((node) => {
             const fan = fanOutOf(document, node.id)
+            const kind = sourceKindOf(document, node.id)
             return {
                 id: node.id,
                 type: 'step' as const,
@@ -197,6 +215,7 @@ function EditableGraph({
                 data: {
                     ...stepHeading(document, node.id),
                     block: blockOf(document, node.id) ?? LABELS.editor.no_block,
+                    listens: kind === null ? null : listeningLine(sources, node.id, kind),
                     edited: stepEdited(edits, node.id),
                     missing: stepMissing(unmet, node.id),
                     fanOut: fan.fanOut,
@@ -205,7 +224,7 @@ function EditableGraph({
                 },
             }
         })
-    }, [document, edits, placed, placements, selected, unmet])
+    }, [document, edits, placed, placements, selected, sources, unmet])
 
     const edges = useMemo<Edge[]>(() => {
         return placed.edges.map((edge) => ({

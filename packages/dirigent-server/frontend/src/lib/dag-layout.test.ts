@@ -323,7 +323,7 @@ describe('the shape placed without elk', () => {
             edges: names.slice(1).map((name, index) => [names[index], name] as [string, string]),
         })
 
-        // Five ranks is what 1400px of canvas holds, so the sixth starts the second row.
+        // Six ranks is what 1400px of canvas holds, so the seventh starts the second row.
         const column = NODE_WIDTH + RANK_SPACING
         expect(placed.nodes.map((box) => box.x)).toEqual([
             0,
@@ -331,12 +331,12 @@ describe('the shape placed without elk', () => {
             2 * column,
             3 * column,
             4 * column,
+            5 * column,
             0,
             column,
-            2 * column,
         ])
         const below = NODE_HEIGHT + RANK_SPACING
-        expect(placed.nodes.map((box) => box.y)).toEqual([0, 0, 0, 0, 0, below, below, below])
+        expect(placed.nodes.map((box) => box.y)).toEqual([0, 0, 0, 0, 0, 0, below, below])
     })
 
     test('places nothing when there is nothing to place', () => {
@@ -422,5 +422,27 @@ describe('revealPoint', () => {
 
     test('a box cut by the top edge is brought in too', () => {
         expect(revealPoint(box, { x: 0, y: -60, zoom: 1 }, canvas)).toEqual({ x: 200, y: 88 })
+    })
+})
+
+describe('the size of a box', () => {
+    test('is 160 by 44, and a fit never draws it above that', () => {
+        expect(NODE_WIDTH).toBe(160)
+        expect(NODE_HEIGHT).toBe(44)
+        expect(FIT_MAX_ZOOM).toBe(1)
+    })
+
+    // REVERT-PROOF. Two nodes of one rank, and two ranks, must not touch at these spacings.
+    test('leaves a gap between two placed boxes, in a column and in a row', () => {
+        const placed = placedByRank({
+            nodes: [node('a'), node('b'), node('c')],
+            edges: [
+                ['a', 'c'],
+                ['b', 'c'],
+            ],
+        }).nodes
+        const [a, b, c] = placed
+        expect(b.y - (a.y + a.height)).toBeGreaterThan(0)
+        expect(c.x - (a.x + a.width)).toBeGreaterThan(0)
     })
 })

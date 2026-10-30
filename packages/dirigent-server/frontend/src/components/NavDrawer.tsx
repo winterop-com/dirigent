@@ -1,20 +1,19 @@
-import { Settings, Waypoints, X } from 'lucide-react'
+import { Waypoints } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { NavLink, useLocation } from 'react-router'
 
-import { RailEntry } from '@/components/Rail'
-import { Button } from '@/components/ui/button'
+import { AccountMenu } from '@/components/AccountMenu'
+import { IconButton } from '@/components/ds/IconButton'
+import { RailEntry, SectionLabel } from '@/components/Rail'
 import { useStore } from '@/hooks/use-store'
 import { authStore } from '@/lib/auth'
 import { LABELS } from '@/lib/labels'
+import { ICONS } from '@/lib/icons'
 import { DASHBOARD_PATH, sectionsFor } from '@/lib/nav'
 import { cn } from '@/lib/utils'
 
 export const OPEN_NAV_LABEL = LABELS.shell.open_nav
 export const CLOSE_NAV_LABEL = LABELS.shell.close_nav
-
-/** What the drawer's foot offers, which is the cell the status bar carries above the breakpoint. */
-const SETTINGS_LABEL = LABELS.shell.settings
 
 /** How many frames the drawer asks for focus before it gives up, about a second at 60Hz. */
 const FOCUS_FRAMES = 60
@@ -31,17 +30,19 @@ const FOCUS_FRAMES = 60
  * THE ENTRIES ARE THE RAIL'S OWN. `RailEntry` draws a row here exactly as it draws one there,
  * so an entry added to `lib/nav` arrives in both without either being told.
  *
- * SETTINGS IS AT THE FOOT, because the status bar's settings cell is the rail's width and is
- * not drawn below the breakpoint at all.
+ * THE ACCOUNT MENU IS AT THE FOOT, because the status bar's account cell is the rail's width and
+ * is not drawn below the breakpoint at all.
  */
 export function NavDrawer({
     open,
     onClose,
     onSettings,
+    onShortcuts,
 }: {
     open: boolean
     onClose: () => void
     onSettings: () => void
+    onShortcuts: () => void
 }) {
     const auth = useStore(authStore)
     const sections = sectionsFor(auth.identity?.role ?? null)
@@ -126,26 +127,19 @@ export function NavDrawer({
                             {LABELS.shell.wordmark}
                         </span>
                     </NavLink>
-                    <Button
+                    <IconButton
                         ref={close}
-                        variant="ghost"
-                        size="icon"
-                        aria-label={CLOSE_NAV_LABEL}
+                        icon={ICONS.clear}
+                        label={CLOSE_NAV_LABEL}
                         onClick={onClose}
                         className="ml-auto shrink-0 text-muted-foreground"
-                    >
-                        <X className="size-4" aria-hidden />
-                    </Button>
+                    />
                 </div>
 
                 <div className="min-h-0 flex-1 overflow-y-auto border-t border-border-strong pt-1 pb-2">
                     {sections.map((section) => (
-                        <nav key={section.id} className="flex flex-col gap-1 px-2 pb-3">
-                            {section.label !== null && (
-                                <p className="px-2 pt-4 pb-1.5 text-xs font-medium tracking-wide text-faint uppercase">
-                                    {section.label}
-                                </p>
-                            )}
+                        <nav key={section.id} className="flex flex-col gap-1 px-2 pb-1">
+                            {section.label !== null && <SectionLabel section={section} />}
                             {section.entries.map((entry) => (
                                 <RailEntry key={entry.path} entry={entry} collapsed={false} />
                             ))}
@@ -154,17 +148,17 @@ export function NavDrawer({
                 </div>
 
                 <div className="shrink-0 border-t border-border-strong p-2">
-                    <Button
-                        variant="ghost"
-                        onClick={() => {
+                    <AccountMenu
+                        className="w-full"
+                        onSettings={() => {
                             onClose()
                             onSettings()
                         }}
-                        className="w-full justify-start gap-3 px-3 text-muted-foreground hover:text-foreground"
-                    >
-                        <Settings className="size-4 shrink-0" aria-hidden />
-                        {SETTINGS_LABEL}
-                    </Button>
+                        onShortcuts={() => {
+                            onClose()
+                            onShortcuts()
+                        }}
+                    />
                 </div>
             </aside>
         </div>

@@ -135,9 +135,66 @@ export function tokensPath(after: string | null, limit: number = PAGE): string {
     return `/tokens?${query.toString()}`
 }
 
-/** Read one page of live automation tokens, oldest first. Sessions are never listed. */
-export function readTokens(after: string | null): Promise<Page<TokenOut>> {
-    return apiJson<Page<TokenOut>>(tokensPath(after))
+/** The most one request answers, which is what a count over the whole listing asks for. */
+const WHOLE_PAGE = 500
+
+/** Read as many automation tokens as one request answers, oldest first. Sessions are never listed. */
+export function readTokenCensus(): Promise<Page<TokenOut>> {
+    return apiJson<Page<TokenOut>>(tokensPath(null, WHOLE_PAGE))
+}
+
+/** Read one page of the automation tokens one account holds, oldest first. */
+export function readAccountTokens(username: string, after: string | null): Promise<Page<TokenOut>> {
+    const query = new URLSearchParams({ limit: String(PAGE) })
+    if (after !== null) query.set('after', after)
+    return apiJson<Page<TokenOut>>(`/users/${encodeURIComponent(username)}/tokens?${query.toString()}`)
+}
+
+/** Whether a token can still authenticate at this moment. */
+export function isLive(token: Pick<TokenOut, 'revoked_at' | 'expires_at'>, now: number): boolean {
+    if (token.revoked_at !== null) return false
+    return token.expires_at === null || Date.parse(token.expires_at) > now
+}
+
+/** The names two or more live tokens of one account share, which is when a prefix is worth drawing. */
+export function sharedNames(
+    tokens: readonly Pick<TokenOut, 'name' | 'revoked_at' | 'expires_at'>[],
+    now: number,
+): ReadonlySet<string> {
+    const seen = new Set<string>()
+    const shared = new Set<string>()
+    for (const token of tokens) {
+        if (!isLive(token, now)) continue
+        if (seen.has(token.name)) shared.add(token.name)
+        seen.add(token.name)
+    }
+    return shared
+}
+
+/** How many tokens a revoke by this name takes: every one not yet revoked, expired or not. */
+export function revokedTogether(
+    tokens: readonly Pick<TokenOut, 'name' | 'revoked_at'>[],
+    name: string,
+): number {
+    return tokens.filter((token) => token.name === name && token.revoked_at === null).length
+}
+
+/**
+ * How many live tokens each account holds, or null where the read did not reach the end.
+ *
+ * A number off part of the listing is not a count, so a listing longer than one request says
+ * nothing rather than something too low.
+ */
+export function tokenCounts(
+    page: Pick<Page<TokenOut>, 'items' | 'next'>,
+    now: number,
+): ReadonlyMap<string, number> | null {
+    if (page.next !== null) return null
+    const counts = new Map<string, number>()
+    for (const token of page.items) {
+        if (isLive(token, now)) counts.set(token.username, (counts.get(token.username) ?? 0) + 1)
+    }
+    return counts
 }
 
 /** Mint a token. The secret it answers with is the only copy there will ever be. */

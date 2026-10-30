@@ -13,10 +13,9 @@
  * The fetch goes through `rootFetch`, which is `lib/api`'s -- these paths are mounted at the
  * root rather than on the versioned prefix, and `lib/api` is the only file that calls `fetch`.
  *
- * WHAT THIS INSTANCE IS CALLED IS CACHED HERE TOO, and read once. The corner says the name and
- * the environment beside the dot, because a reader with a staging tab and a production tab open
- * has to be able to tell them apart before they press anything -- and a name that never changes
- * while a process is up is asked for once rather than on every recheck.
+ * WHAT THIS INSTANCE IS CALLED IS CACHED HERE TOO, and read once. The dot's tooltip and the
+ * account menu say the name and the environment, and a name that never changes while a process
+ * is up is asked for once rather than on every recheck.
  */
 
 import { rootFetch } from '@/lib/api'
@@ -56,7 +55,7 @@ export const serverStatus = createStore<ServerStatus>({
 })
 
 /**
- * What the corner says on one line: the instance, and where it thinks it is running.
+ * The instance on one line, and where it thinks it is running.
  *
  * The name alone in production and the name with its environment anywhere else -- a production
  * tab needs no label, and every other tab needs one. Before the read lands there is nothing
@@ -66,6 +65,14 @@ export function identityLine(status: Pick<ServerStatus, 'name' | 'environment'>)
     const name = status.name ?? LABELS.shell.wordmark
     if (status.environment === null || status.environment === 'production') return name
     return LABELS.shell.instance.line(name, status.environment)
+}
+
+/** What the top bar says beside its dot: nothing while the instance is well or still being asked. */
+export function statusWords(state: ServerState): string | null {
+    if (state === 'degraded' || state === 'unhealthy' || state === 'offline') {
+        return LABELS.shell.instance.wrong[state]
+    }
+    return null
 }
 
 /** What one readiness body means, independent of who fetched it. */

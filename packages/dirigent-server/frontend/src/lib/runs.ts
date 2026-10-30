@@ -122,6 +122,9 @@ export interface DagNode {
     code: string
     /** The step's human title, when the document gave it one. */
     name: string | null
+    /** Which form the step takes. `StepKind`. */
+    kind: 'block' | 'source' | 'reply'
+    /** The block a block step runs, the kind of a source, or `reply`. */
     block: string
     outcome: string
     depends_on: string[]

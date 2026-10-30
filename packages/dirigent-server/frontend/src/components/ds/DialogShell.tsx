@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { ReactNode, RefObject } from 'react'
 
 import { Refusable } from '@/components/Refusable'
 import { Button } from '@/components/ui/button'
@@ -34,7 +34,8 @@ export interface DialogConfirm {
  *
  * A dialog that asks passes `confirm`, and its footer is `Cancel` and the confirm, with no
  * corner close. A dialog that only tells passes none: it has no footer, and is dismissed by the
- * corner close and Escape. `Cancel` is the only dismissal word a footer says.
+ * corner close and Escape. `Cancel` is the only dismissal word a footer says. A dialog that reads
+ * one thing passes `verbs`: the corner close, and a footer of what can be done to that thing.
  */
 export function DialogShell({
     open,
@@ -44,6 +45,9 @@ export function DialogShell({
     description,
     confirm,
     footer,
+    verbs,
+    keepOnOutsidePress = false,
+    initialFocus,
     children,
 }: {
     open: boolean
@@ -54,14 +58,24 @@ export function DialogShell({
     confirm?: DialogConfirm
     /** Anything the footer carries at its start, opposite the verbs. */
     footer?: ReactNode
+    /**
+     * What a dialog that reads one thing offers on it, in place of a confirm. The corner close
+     * stays, because nothing has been started that a Cancel would take back.
+     */
+    verbs?: ReactNode
+    /** A press outside does nothing, for a dialog holding a form somebody is typing in. */
+    keepOnOutsidePress?: boolean
+    /** The control that takes focus on opening, in place of the first one in the surface. */
+    initialFocus?: RefObject<HTMLElement | null>
     children?: ReactNode
 }) {
     const shut = confirm?.why !== undefined || confirm?.busy === true
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
+        <Dialog open={open} onOpenChange={onOpenChange} disablePointerDismissal={keepOnOutsidePress}>
             <DialogContent
                 className={cn('flex max-h-[calc(100vh-4rem)] flex-col', DIALOG_WIDTHS[width])}
                 showCloseButton={confirm === undefined}
+                initialFocus={initialFocus}
             >
                 <DialogHeader className={confirm === undefined ? 'pr-8' : undefined}>
                     <DialogTitle className="leading-6">{title}</DialogTitle>
@@ -87,6 +101,12 @@ export function DialogShell({
                                 {confirm.busy === true ? (confirm.busyLabel ?? confirm.label) : confirm.label}
                             </Button>
                         </Refusable>
+                    </DialogFooter>
+                )}
+                {confirm === undefined && verbs !== undefined && (
+                    <DialogFooter className="items-center">
+                        {footer !== undefined && <div className="mr-auto min-w-0">{footer}</div>}
+                        {verbs}
                     </DialogFooter>
                 )}
             </DialogContent>

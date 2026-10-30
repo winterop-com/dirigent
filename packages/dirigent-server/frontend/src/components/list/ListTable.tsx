@@ -1,4 +1,10 @@
-import { Fragment, useEffect, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import {
+    Fragment,
+    useEffect,
+    useState,
+    type KeyboardEvent as ReactKeyboardEvent,
+    type ReactNode,
+} from 'react'
 
 import { ListFormProvider } from '@/components/list/ListForm'
 import { Button } from '@/components/ui/button'
@@ -66,6 +72,9 @@ const REACH = '300px'
  * One rule for every listing, so what a press opened a press closes wherever somebody is. A
  * screen whose rows navigate passes no `onClose` and nothing toggles, because a press there has
  * already left.
+ *
+ * A ROW MAY EXPAND UNDER ITSELF. `under` is what stands below a row a screen has opened, across every
+ * column of the table and under the card on a small screen. Which rows are open is the screen's.
  */
 export function ListTable<T>({
     chrome,
@@ -81,6 +90,7 @@ export function ListTable<T>({
     onSelect,
     selected,
     onClose,
+    under,
 }: {
     /** Which chrome to draw. A grouped listing turns the header and footer off. */
     chrome?: ListChrome
@@ -113,6 +123,8 @@ export function ListTable<T>({
      * passes it; one whose rows navigate does not.
      */
     onClose?: () => void
+    /** What stands under a row that has been expanded, or null while it has not. */
+    under?: (row: T) => ReactNode
 }) {
     // A callback ref rather than a held one: the row carrying it is only rendered while there is
     // a next page, so its arrival and departure are what start and stop the observer.
@@ -162,6 +174,9 @@ export function ListTable<T>({
                   },
               }
 
+    // What stands under a row, which is nothing at all unless the screen has expanded it.
+    const below = (row: T) => under?.(row) ?? null
+
     const head = columns[0]
     const beside = columns.slice(1)
 
@@ -205,19 +220,23 @@ export function ListTable<T>({
                     {cards && head !== undefined ? (
                         <ul className="divide-y divide-border">
                             {rows.map((row) => (
-                                <li
-                                    key={rowKey(row)}
-                                    {...chooses(row)}
-                                    className={cn(
-                                        'row-hover flex min-h-finger flex-col justify-center gap-2 px-3 py-3',
-                                        selected?.(row) === true && 'bg-accent/70',
-                                        onSelect !== undefined && 'cursor-pointer',
-                                        rowClassName?.(row),
+                                <Fragment key={rowKey(row)}>
+                                    <li
+                                        {...chooses(row)}
+                                        className={cn(
+                                            'row-hover flex min-h-finger flex-col justify-center gap-2 px-3 py-3',
+                                            selected?.(row) === true && 'bg-accent/70',
+                                            onSelect !== undefined && 'cursor-pointer',
+                                            rowClassName?.(row),
+                                        )}
+                                    >
+                                        <div className="min-w-0">{head.cell(row)}</div>
+                                        <Facts columns={beside} row={row} />
+                                    </li>
+                                    {below(row) !== null && (
+                                        <li className="bg-background p-2">{below(row)}</li>
                                     )}
-                                >
-                                    <div className="min-w-0">{head.cell(row)}</div>
-                                    <Facts columns={beside} row={row} />
-                                </li>
+                                </Fragment>
                             ))}
                         </ul>
                     ) : (
@@ -243,48 +262,60 @@ export function ListTable<T>({
                             )}
                             <TableBody>
                                 {rows.map((row) => (
-                                    <TableRow
-                                        key={rowKey(row)}
-                                        className={cn(
-                                            'row-hover border-border',
-                                            // The stripe steps aside for the selection: `even:` carries a
-                                            // pseudo-class, so left in place it would outrank the tint and
-                                            // every even row would look unselected.
-                                            selected?.(row) === true
-                                                ? 'bg-accent/70 even:bg-accent/70 hover:bg-accent/70'
-                                                : cn(
-                                                      'even:bg-secondary/30',
-                                                      onSelect !== undefined && 'hover:bg-accent/60',
-                                                  ),
-                                            onSelect !== undefined && 'cursor-pointer',
-                                            rowClassName?.(row),
-                                        )}
-                                        {...chooses(row)}
-                                    >
-                                        {columns.map((column, at) => {
-                                            const sizing = sizings[at]
-                                            return (
+                                    <Fragment key={rowKey(row)}>
+                                        <TableRow
+                                            className={cn(
+                                                'row-hover border-border',
+                                                // The stripe steps aside for the selection: `even:` carries a
+                                                // pseudo-class, so left in place it would outrank the tint and
+                                                // every even row would look unselected.
+                                                selected?.(row) === true
+                                                    ? 'bg-accent/70 even:bg-accent/70 hover:bg-accent/70'
+                                                    : cn(
+                                                          'even:bg-secondary/30',
+                                                          onSelect !== undefined && 'hover:bg-accent/60',
+                                                      ),
+                                                onSelect !== undefined && 'cursor-pointer',
+                                                rowClassName?.(row),
+                                            )}
+                                            {...chooses(row)}
+                                        >
+                                            {columns.map((column, at) => {
+                                                const sizing = sizings[at]
+                                                return (
+                                                    <TableCell
+                                                        key={column.id}
+                                                        // Marked so the listing can measure this
+                                                        // column: what a title needs is read off
+                                                        // these cells, and what a value takes off
+                                                        // the ones carrying no mark at all.
+                                                        {...(sizing?.marks === undefined ||
+                                                        sizing.marks === null
+                                                            ? {}
+                                                            : { [sizing.marks]: '' })}
+                                                        className={cn(
+                                                            'px-3 py-2',
+                                                            sizing?.className,
+                                                            column.className,
+                                                        )}
+                                                        style={asked(sizing, measured.shares)}
+                                                    >
+                                                        {column.cell(row)}
+                                                    </TableCell>
+                                                )
+                                            })}
+                                        </TableRow>
+                                        {below(row) !== null && (
+                                            <TableRow className="bg-background even:bg-background hover:bg-background">
                                                 <TableCell
-                                                    key={column.id}
-                                                    // Marked so the listing can measure this
-                                                    // column: what a title needs is read off
-                                                    // these cells, and what a value takes off
-                                                    // the ones carrying no mark at all.
-                                                    {...(sizing?.marks === undefined || sizing.marks === null
-                                                        ? {}
-                                                        : { [sizing.marks]: '' })}
-                                                    className={cn(
-                                                        'px-3 py-2',
-                                                        sizing?.className,
-                                                        column.className,
-                                                    )}
-                                                    style={asked(sizing, measured.shares)}
+                                                    colSpan={columns.length}
+                                                    className="py-2 pr-2 pl-11 whitespace-normal"
                                                 >
-                                                    {column.cell(row)}
+                                                    {below(row)}
                                                 </TableCell>
-                                            )
-                                        })}
-                                    </TableRow>
+                                            </TableRow>
+                                        )}
+                                    </Fragment>
                                 ))}
                             </TableBody>
                         </Table>

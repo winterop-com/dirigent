@@ -397,7 +397,7 @@ export function channelLink(channel: Channel): string | null {
  * second way here. The two this strip adds are its own: `ready` for the log, which nothing
  * checks, and `not set up` for a notifier this instance installed and holds no credential for --
  * said in the words somebody would use rather than in the shape of the thing that is missing.
- * The words are the tooltip's; the chip itself carries the dot.
+ * The words are the tooltip's; the chip itself carries the dot, and the word only when wrong.
  */
 export type ChannelLabel =
     | HealthLabel
@@ -436,6 +436,26 @@ export function channelView(channel: Channel): ChannelView {
     if (!channel.reachable) return { tone: 'quiet', label: LABELS.alerting.channel.not_set_up, detail: null }
     const health = healthOf(channel)
     return { tone: health.tone ?? 'quiet', label: health.label, detail: health.detail }
+}
+
+/**
+ * The word a chip says after its dot: a credential's, when it failed or has proved nothing.
+ *
+ * A healthy one, the log and a kind nothing is set up for say nothing: the dot and the tooltip
+ * have said it.
+ */
+export function channelWord(channel: Channel): string | null {
+    if (channel.notifier === LOG_NOTIFIER || !channel.reachable) return null
+    const health = healthOf(channel)
+    return health.state === 'healthy' ? null : health.label
+}
+
+/** The codes of the rules delivering through one connection, which is what stops it being deleted. */
+export function rulesUsing(
+    rules: readonly Pick<AlertRuleOut, 'code' | 'connection'>[],
+    code: string,
+): string[] {
+    return rules.filter((rule) => rule.connection === code).map((rule) => rule.code)
 }
 
 /** The order the dots read in: what delivers, then what broke, then what cannot say. */

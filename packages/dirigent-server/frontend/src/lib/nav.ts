@@ -54,6 +54,8 @@ export interface NavSection {
     label: string | null
     /** The role an account needs before this section is offered at all. */
     requires: UserRole | null
+    /** Where the heading itself goes, for a section with a screen of its own. */
+    to?: string
     entries: NavEntry[]
 }
 
@@ -74,9 +76,17 @@ export const NEW_PIPELINE_PATH = '/pipelines/$new'
 /** The design system's gallery: offered by the palette, never by the rail. */
 export const DESIGN_PATH = '/design'
 
+/** The instance at a glance: offered by the palette to an admin, and linked from the section's heading. */
+export const ADMIN_OVERVIEW: NavEntry = {
+    path: '/admin',
+    label: LABELS.screen.overview.name,
+    hint: LABELS.screen.overview.hint,
+    icon: LayoutDashboard,
+}
+
 export const NAV: NavSection[] = [
     {
-        id: 'operate',
+        id: 'dashboard',
         label: null,
         requires: null,
         entries: [
@@ -86,12 +96,13 @@ export const NAV: NavSection[] = [
                 hint: LABELS.screen.dashboard.hint,
                 icon: House,
             },
-            {
-                path: '/pipelines',
-                label: LABELS.screen.pipelines.name,
-                hint: LABELS.screen.pipelines.hint,
-                icon: Workflow,
-            },
+        ],
+    },
+    {
+        id: 'operate',
+        label: LABELS.screen.operate,
+        requires: null,
+        entries: [
             {
                 path: '/runs',
                 label: LABELS.screen.runs.name,
@@ -104,12 +115,38 @@ export const NAV: NavSection[] = [
                 hint: LABELS.screen.triggers.hint,
                 icon: CalendarClock,
             },
+        ],
+    },
+    {
+        id: 'build',
+        label: LABELS.screen.build,
+        requires: null,
+        entries: [
+            {
+                path: '/pipelines',
+                label: LABELS.screen.pipelines.name,
+                hint: LABELS.screen.pipelines.hint,
+                icon: Workflow,
+            },
             {
                 path: '/connections',
                 label: LABELS.screen.connections.name,
                 hint: LABELS.screen.connections.hint,
                 icon: Plug,
             },
+            {
+                path: '/schemas',
+                label: LABELS.screen.schemas.name,
+                hint: LABELS.screen.schemas.hint,
+                icon: FileJson,
+            },
+        ],
+    },
+    {
+        id: 'reference',
+        label: LABELS.screen.reference,
+        requires: null,
+        entries: [
             {
                 path: '/blocks',
                 label: LABELS.screen.blocks.name,
@@ -122,25 +159,14 @@ export const NAV: NavSection[] = [
                 hint: LABELS.screen.examples.hint,
                 icon: BookOpen,
             },
-            {
-                path: '/schemas',
-                label: LABELS.screen.schemas.name,
-                hint: LABELS.screen.schemas.hint,
-                icon: FileJson,
-            },
         ],
     },
     {
         id: 'admin',
         label: LABELS.screen.admin,
         requires: 'admin',
+        to: ADMIN_OVERVIEW.path,
         entries: [
-            {
-                path: '/admin',
-                label: LABELS.screen.overview.name,
-                hint: LABELS.screen.overview.hint,
-                icon: LayoutDashboard,
-            },
             {
                 path: '/admin/users',
                 label: LABELS.screen.users.name,
@@ -174,17 +200,18 @@ export function sectionsFor(role: UserRole | null): NavSection[] {
     return NAV.filter((section) => section.requires === null || section.requires === role)
 }
 
-/** Every entry an account is offered, flattened, which is what the palette shelves. */
+/** Every screen an account is offered, flattened, which is what the palette shelves. */
 export function entriesFor(role: UserRole | null): NavEntry[] {
-    return sectionsFor(role).flatMap((section) => section.entries)
+    const rail = sectionsFor(role).flatMap((section) => section.entries)
+    return role === 'admin' ? [...rail, ADMIN_OVERVIEW] : rail
 }
 
 /**
  * Whether an entry is marked only at its own address.
  *
- * An entry with other entries beneath it -- the root, which every address is under, and
- * `/admin`, which the three admin screens sit below -- would otherwise be marked wherever any
- * of them is open, and the rail would say the reader is in two places.
+ * An entry with other entries beneath it -- the root, which every address is under -- would
+ * otherwise be marked wherever any of them is open, and the rail would say the reader is in two
+ * places.
  */
 export function marksOnlyItself(path: string): boolean {
     const below = path === '/' ? '/' : `${path}/`
@@ -194,10 +221,9 @@ export function marksOnlyItself(path: string): boolean {
 }
 
 /**
- * The entry one address is inside, or null.
+ * The rail entry one address is inside, or null.
  *
- * Longest path first, so `/admin/users` marks Users rather than Overview: `/admin` is a prefix
- * of every admin address, and a rail that marked both would say the reader is in two places.
+ * Longest path first, because an entry may be a prefix of another address it does not own.
  */
 export function entryAt(path: string): NavEntry | null {
     const candidates = NAV.flatMap((section) => section.entries)

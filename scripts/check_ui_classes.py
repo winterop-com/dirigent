@@ -13,12 +13,13 @@ about, which is why it can be an error rather than a warning. Everything else in
 docs/ui-conventions.md -- whether a sentence got the prose size, whether a status token was used
 as text -- is review's job, not this file's.
 
-THREE NAMED SIZES SIT OUTSIDE THE SCALE, AND THEY ARE NAMED HERE. A stat tile's number is
+FIVE NAMED SIZES SIT OUTSIDE THE SCALE, AND THEY ARE NAMED HERE. A stat tile's number is
 display type, so it is ``text-stat``; the login brand lockup's wordmark is a brand mark rather
-than text, so it is ``text-wordmark``; the login screen's own greeting is ``text-display``. All
-three are declared once in index.css and knowable by name. That is not an allowlist: nothing else
-is exempt, and the second half of this check reads index.css itself and fails if a size utility
-appears there that is not the three plus these. A named exception can be counted; a pattern
+than text, so it is ``text-wordmark``; the login screen's own greeting is ``text-display``; and a
+graph is drawn at the scale of a diagram, so its title is ``graph-title`` and every other word on
+it ``graph-small``. All five are declared once in index.css and knowable by name. That is not an
+allowlist: nothing else is exempt, and the second half of this check reads index.css itself and
+fails if a size utility appears there that is not the three plus these. A named exception can be counted; a pattern
 cannot.
 
 AMBER AS TEXT IS ``text-primary-ink``. ``--primary`` is a fill tuned to carry its own
@@ -78,9 +79,10 @@ THEME = ROOTS[0] / "index.css"
 #: The three sizes, as the theme tokens that declare them.
 SCALE = {"xs", "sm", "base"}
 
-#: The display sizes outside the scale: a stat tile's number, the login brand lockup's wordmark,
-#: and the login form's greeting. Nothing else on any screen wears any of them.
-NAMED = {"stat", "wordmark", "display"}
+#: The sizes outside the scale: a stat tile's number, the login brand lockup's wordmark, the login
+#: form's greeting, and the two sizes a graph is drawn in. Nothing else on any screen wears any of
+#: them.
+NAMED = {"stat", "wordmark", "display", "graph-title", "graph-small"}
 
 #: A size token declared under ``@theme``: ``--text-xs: 0.75rem``. The line-height twins
 #: (``--text-xs--line-height``) belong to a size rather than declaring one, so they are skipped.
@@ -91,8 +93,9 @@ DECLARED_TOKEN = re.compile(r"--text-([a-z0-9-]+)\s*:")
 DECLARED_CLASS = re.compile(r"^(?:\.|@utility\s+)text-([a-z0-9-]+)\s*\{", re.MULTILINE)
 
 CSS_FIX = (
-    "index.css declares the scale, and it is three sizes plus the named display sizes "
-    "text-stat, text-wordmark and text-display. Minting another here is minting a fourth size. "
+    "index.css declares the scale, and it is three sizes plus the named sizes text-stat, "
+    "text-wordmark, text-display, graph-title and graph-small. Minting another here is minting "
+    "a fourth size. "
     "See docs/ui-conventions.md."
 )
 
@@ -147,7 +150,7 @@ def minted() -> list[tuple[int, str]]:
             name = found.group(1)
             if name.endswith("--line-height") or name.removesuffix("--line-height") in SCALE:
                 continue
-            if name not in SCALE:
+            if name not in SCALE and name not in NAMED:
                 hits.append((lineno, f"--text-{name}"))
         for found in DECLARED_CLASS.finditer(line):
             if found.group(1) not in NAMED:
