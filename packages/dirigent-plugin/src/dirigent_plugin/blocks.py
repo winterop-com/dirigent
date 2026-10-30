@@ -396,6 +396,14 @@ class SensorSpec(BaseModel):
     default_poll: timedelta = timedelta(minutes=1)
     default_deadline: timedelta = timedelta(hours=24)
 
+    source: bool = False
+    """Whether a ``sensor`` source may poke it outside any run, a run started by each success.
+
+    Such a sensor reads nothing of a run but ``ctx.cursor`` and ``ctx.started_at``, which is
+    when the source began waiting, and says through :meth:`Sensor.resume_cursor` where the
+    next wait carries on, so the same ground does not succeed twice.
+    """
+
     @model_validator(mode="before")
     @classmethod
     def _shelve(cls, data: Any) -> Any:

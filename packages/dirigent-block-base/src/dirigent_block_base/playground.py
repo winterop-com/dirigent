@@ -660,6 +660,7 @@ class PlaygroundArriveSensor(Sensor[ArriveConfig, ArriveOutput]):
         summary="Park for a configured wait, then arrive with a generated batch.",
         default_poll=timedelta(seconds=2),
         default_deadline=timedelta(minutes=10),
+        source=True,
     )
     config_model: ClassVar[type[BaseModel]] = ArriveConfig
     output_model: ClassVar[type[BaseModel]] = ArriveOutput

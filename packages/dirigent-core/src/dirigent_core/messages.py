@@ -957,6 +957,19 @@ SOURCE_RUN_SKIPPED = SOURCE.define(
 
 SOURCE_RUN_REFUSED = SOURCE.define("run_refused", "no run could be created: {detail}")
 
+SENSOR_UNKNOWN = SOURCE.define(
+    "sensor_unknown", "no sensor {block} is installed on this instance (the sensors a source pokes: {known})"
+)
+
+SENSOR_NOT_A_SOURCE = SOURCE.define(
+    "sensor_not_a_source",
+    "{block} is not a sensor a source pokes outside a run (those installed: {known})",
+)
+
+SENSOR_OUTSIDE_RUN = SOURCE.define(
+    "sensor_outside_run", "{block} read {what}, which a sensor poked by a source has no run to give"
+)
+
 SOURCE_WAITING_FULL = SOURCE.define(
     "waiting_full", "this server holds {waiting} callers for their replies, as many as it may; send again shortly"
 )

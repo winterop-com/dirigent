@@ -350,6 +350,7 @@ class KafkaConsumeSensor(Sensor[KafkaConsumeConfig, KafkaConsumeOutput]):
         id="kafka.consume",
         summary="Wait for messages on a Kafka topic.",
         default_poll=timedelta(seconds=30),
+        source=True,
     )
     config_model: ClassVar[type[BaseModel]] = KafkaConsumeConfig
     output_model: ClassVar[type[BaseModel]] = KafkaConsumeOutput

@@ -152,9 +152,9 @@ class PluginHost:
 
     def _index_built_in_sources(self) -> None:
         """Claim the source kinds dirigent itself provides, before any plugin may."""
-        from dirigent_core.sources.kinds import BUILT_IN
+        from dirigent_core.sources.kinds import built_in
 
-        for source in BUILT_IN:
+        for source in built_in(self.sensors):
             self._claim("source kind", source.spec.kind, BUILT_IN_PLUGIN)
             self.sources[source.spec.kind] = source
 

@@ -12,11 +12,16 @@ there is no run yet, so a reference to one fails the poll.
 """
 
 import time
+from collections.abc import Mapping
+from contextlib import AbstractAsyncContextManager
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any, Final, Literal, cast
 from uuid import UUID
 
+import httpx2
 import sqlalchemy as sa
+from jsonschema import FormatChecker
 from pydantic import BaseModel, ConfigDict, JsonValue
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -24,16 +29,23 @@ from dirigent_client.enums import InputOutcome, TriggerKind
 from dirigent_common import JsonMap
 from dirigent_core import telemetry
 from dirigent_core.database import session_scope
+from dirigent_core.engine.context import ConnectionRecord, build_http_client, load_connections
 from dirigent_core.engine.references import ReferenceScope, resolve
 from dirigent_core.engine.runs import Attribution, Entry, create_run
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.engine.state import lock_pipeline
 from dirigent_core.errors import DomainError
 from dirigent_core.logging import get_logger
-from dirigent_core.messages import SOURCE_RUN_REFUSED, SOURCE_RUN_SKIPPED
+from dirigent_core.messages import (
+    RUN_UNKNOWN_CONNECTION,
+    SENSOR_OUTSIDE_RUN,
+    SOURCE_RUN_REFUSED,
+    SOURCE_RUN_SKIPPED,
+    UNKNOWN_CONNECTION_KIND,
+)
 from dirigent_core.models import Pipeline, PipelineVersion, Source, SourceInput, utcnow
 from dirigent_core.sources.rows import in_flight, max_in_flight, polled
-from dirigent_plugin import Logger, Storage
+from dirigent_plugin import BlockFailure, Capture, ConnectionRef, ErrorClass, Logger, Runs, StepContext, Storage
 from dirigent_plugin.sources import Polled, PolledSource
 
 #: How many doublings the backoff takes before the cap is all that is left of it.
@@ -134,6 +146,7 @@ async def poll_one(
         row = await session.get(Source, claimed.source_id)
         found = polled(services.sources, row) if row is not None else None
         storage = await services.bound_storage(session)
+        connections = await load_connections(session)
         cursor = row.cursor if row is not None else None
     if row is None or found is None:
         return PollOutcome(source_id=claimed.source_id, runs=[])
@@ -143,7 +156,8 @@ async def poll_one(
         config = kind.config_model.model_validate(
             resolve(cast("JsonValue", row.config), ReferenceScope(artifacts=services.storage.artifact_root))
         )
-        answer = await kind.poll(config, cursor, _PollContext(storage=storage), claimed.room)
+        ctx = _PollContext(storage=storage, services=services, step=row.code, connections=connections)
+        answer = await kind.poll(config, cursor, ctx, claimed.room)
     except Exception as error:  # a kind's failure is the source's, recorded and backed off
         return await _failed(sessions, services, claimed, owner=owner, error=str(error) or type(error).__name__)
     return await _settle(sessions, services, claimed, kind, answer, owner=owner, started=started)
@@ -191,7 +205,8 @@ async def _settle(
             row.polled_at = moment
             row.failures = 0
             row.last_error = None
-            row.next_poll_at = moment + kind.poll_every(kind.config_model.model_validate(row.config))
+            cadence = kind.poll_every(kind.config_model.model_validate(row.config))
+            row.next_poll_at = moment + (answer.next_poll_in if answer.next_poll_in is not None else cadence)
             row.lease_owner = None
             row.lease_expires_at = None
     except InputRefused as refused:
@@ -285,11 +300,29 @@ async def _current_version(session: AsyncSession, pipeline: Pipeline) -> Pipelin
 
 
 class _PollContext:
-    """What a polled kind reaches while it polls."""
+    """What a polled kind reaches while it polls, and what a sensor it pokes is handed."""
 
-    def __init__(self, *, storage: Storage) -> None:
-        """Hold the storage bound for this poll."""
+    def __init__(
+        self, *, storage: Storage, services: EngineServices, step: str, connections: dict[str, ConnectionRecord]
+    ) -> None:
+        """Hold the storage bound for this poll and the connection snapshot it was taken with."""
         self._storage = storage
+        self._services = services
+        self._step = step
+        self._connections = connections
+
+    def sensor_context(self, *, block: str, cursor: JsonMap | None, started_at: datetime) -> StepContext:
+        """A context for one poke outside any run, whose run id is a property that refuses."""
+        outside = _OutsideRun(
+            block=block,
+            step=self._step,
+            cursor=cursor,
+            started_at=started_at,
+            storage=self._storage,
+            services=self._services,
+            connections=self._connections,
+        )
+        return cast("StepContext", outside)
 
     @property
     def log(self) -> Logger:
@@ -300,6 +333,103 @@ class _PollContext:
     def storage(self) -> Storage:
         """Storage, every scheme configured from the connection the instance names for it."""
         return self._storage
+
+
+class _OutsideRun:
+    """A sensor's context outside any run: connections, storage and its cursor, and nothing of a run."""
+
+    run_item_id: UUID | None = None
+    attempt: int = 1
+
+    def __init__(
+        self,
+        *,
+        block: str,
+        step: str,
+        cursor: JsonMap | None,
+        started_at: datetime,
+        storage: Storage,
+        services: EngineServices,
+        connections: dict[str, ConnectionRecord],
+    ) -> None:
+        """Bind the context to one poke."""
+        self._block = block
+        self.step = step
+        self.cursor = cursor
+        self.started_at = started_at
+        self.inline_capture = services.settings.inline_capture
+        self.params: Mapping[str, JsonValue] = {}
+        self.log: Logger = _ProcessLog()
+        self._storage = storage
+        self._services = services
+        self._connections = connections
+
+    @property
+    def run_id(self) -> UUID:
+        """Refuse: a poke outside a run has no run."""
+        raise self._refused("the run id")
+
+    @property
+    def storage(self) -> Storage:
+        """Storage, every scheme configured from the connection the instance names for it."""
+        return self._storage
+
+    @property
+    def scratch(self) -> str:
+        """Refuse: a poke outside a run has no scratch."""
+        raise self._refused("the run's scratch")
+
+    @property
+    def work(self) -> Path:
+        """Refuse: a poke outside a run has no work directory."""
+        raise self._refused("the run's work directory")
+
+    @property
+    def runs(self) -> Runs:
+        """Refuse: a poke outside a run has no run to attribute others to."""
+        raise self._refused("the runs handle")
+
+    def capture(self, name: str, *, content_type: str = "text/plain") -> AbstractAsyncContextManager[Capture]:
+        """Refuse: a capture is written under the run's scratch."""
+        raise self._refused("a capture")
+
+    def schema(self, code: str) -> JsonMap:
+        """Refuse: a run's schemas are pinned when it is created."""
+        raise self._refused("a schema")
+
+    def format_checker(self) -> FormatChecker:
+        """The instance's assembled checker: base formats plus every contributed one."""
+        return self._services.format_checker
+
+    def connection[C: BaseModel](self, ref: ConnectionRef, model: type[C]) -> C:
+        """Resolve a connection by code, opened and validated against the sensor's own model."""
+        record = self._record(ref)
+        return self._services.secrets.decrypt_config(model, record.config, record.envelope, key_id=record.key_id)
+
+    def storage_connection[C: BaseModel](self, scheme: str, model: type[C]) -> C | None:
+        """Resolve the connection this instance configures a storage scheme from, or None."""
+        ref = self._services.settings.storage_connections.get(scheme)
+        return None if ref is None else self.connection(ref, model)
+
+    def http(self, ref: ConnectionRef) -> httpx2.AsyncClient:
+        """Build an HTTP client for a connection read by code, already carrying its settings."""
+        record = self._record(ref)
+        model = self._services.connection_models.get(record.kind)
+        if model is None:
+            raise LookupError(UNKNOWN_CONNECTION_KIND.render(ref=repr(ref), kind=repr(record.kind)))
+        return build_http_client(self.connection(ref, model))
+
+    def _record(self, ref: ConnectionRef) -> ConnectionRecord:
+        """The connection a sensor names, or a refusal naming those there are."""
+        record = self._connections.get(ref)
+        if record is None:
+            known = ", ".join(sorted(self._connections)) or "none are configured"
+            raise LookupError(RUN_UNKNOWN_CONNECTION.render(ref=repr(ref), available=known))
+        return record
+
+    def _refused(self, what: str) -> BlockFailure:
+        """The failure a sensor reading part of a run is answered with."""
+        return BlockFailure(SENSOR_OUTSIDE_RUN, error_class=ErrorClass.REJECTED, block=repr(self._block), what=what)
 
 
 class _ProcessLog:
