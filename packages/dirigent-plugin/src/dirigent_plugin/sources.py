@@ -5,6 +5,8 @@ already settled and its output is the input. A kind is hosted one of three ways:
 receives it, a worker polls it, or a worker holds it open.
 """
 
+import hashlib
+import hmac
 import re
 from abc import ABC, abstractmethod
 from contextlib import AbstractAsyncContextManager
@@ -76,8 +78,17 @@ class SourceAuth(BaseModel):
     signature of the body, made with the source's signing secret; ``public`` admits anyone."""
 
     header: str = Field(default="X-Dirigent-Signature", min_length=1)
-    """For ``hmac``, the header the signature arrives in: the hex HMAC-SHA256 of the raw body,
-    with or without a leading ``sha256=``."""
+    """For ``hmac``, the header the signature arrives in: the hex HMAC-SHA256 of the timestamp
+    in ``X-Dirigent-Timestamp``, a dot, and the raw body, with or without a leading ``sha256=``."""
+
+
+#: The header a signed call carries the moment it was signed in, as whole Unix seconds.
+SIGNATURE_TIMESTAMP_HEADER: Final = "X-Dirigent-Timestamp"
+
+
+def sign_body(secret: bytes, timestamp: str, body: bytes) -> str:
+    """Compute the hex signature a signed source verifies: HMAC-SHA256 over ``<timestamp>.<body>``."""
+    return hmac.new(secret, timestamp.encode("ascii") + b"." + body, hashlib.sha256).hexdigest()
 
 
 class SourceRate(BaseModel):

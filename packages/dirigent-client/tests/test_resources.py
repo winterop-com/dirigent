@@ -15,6 +15,7 @@ from dirigent_client import (
     AlertScope,
     BlockKind,
     Dirigent,
+    DirigentError,
     RunStatus,
     UserRole,
 )
@@ -514,3 +515,29 @@ async def test_a_prefix_is_spelled_the_way_the_server_spells_it() -> None:
             await dg.pipelines.list()
 
         assert seen == ["/api/v2/pipelines"], f"{written!r} addressed somewhere else"
+
+
+@pytest.mark.parametrize("code", ["victim/$deactivate#", "x/../../users/alice/$deactivate", "..", ".", ""])
+async def test_an_identifier_that_is_not_one_path_segment_is_refused_before_any_request(code: str) -> None:
+    recorder = Recorder([httpx2.Response(200, json=[])])
+    async with client_of(recorder) as dg:
+        with pytest.raises(DirigentError, match="not an identifier"):
+            await dg.pipelines.validate(code)
+    assert recorder.calls == []
+
+
+@pytest.mark.parametrize(
+    ("code", "encoded"),
+    [("a#b", "a%23b"), ("a?b", "a%3Fb"), ("a%2Fb", "a%252Fb"), ("a b", "a%20b"), ("sql.query", "sql.query")],
+)
+async def test_url_syntax_in_an_identifier_stays_inside_its_segment(code: str, encoded: str) -> None:
+    seen: list[bytes] = []
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        seen.append(request.url.raw_path)
+        return httpx2.Response(200, json=[])
+
+    async with Dirigent(url="http://instance.test", http_transport=httpx2.MockTransport(handler)) as dg:
+        await dg.pipelines.validate(code)
+
+    assert seen == [f"{API_PREFIX}/pipelines/{encoded}/$validate".encode()]

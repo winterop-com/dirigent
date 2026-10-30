@@ -2,29 +2,32 @@
 
 Each check answers for itself, in this order: the instance's bucket for the method and path,
 the route (404, 405), the token (401), or for a signed source the capped read (413) and the
-signature (401), then the source's own bucket (429), the source and its pipeline taking input
-(503), the content type (415), the capped read (413), the parse (400), the runs in flight
-(503), then the run. Nothing before the source's own bucket writes a row or spends from it,
-so a caller without the token or the secret, or in a loop, causes no writes; those are counted
-in telemetry instead.
+signature with its timestamp (401), then the source's own bucket (429), the source and its
+pipeline taking input (503), the content type (415), the capped read (413), the parse (400),
+the runs in flight (503), then the run. Nothing before the source's own bucket writes a
+journal row or spends from it, so a caller without the token or the secret, or in a loop,
+causes no writes; those are counted in telemetry instead. The one write ahead of the bucket is
+the record of a signature taken, which only a caller holding the secret causes.
 """
 
-import hashlib
 import hmac
 import math
 import time
 from collections.abc import Awaitable, Callable, Iterable, Mapping
+from datetime import UTC, datetime
 from typing import Final
 from uuid import UUID
 
 import sqlalchemy as sa
 from jsonschema import FormatChecker
 from pydantic import BaseModel, ConfigDict, Field, JsonValue
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirigent_client.enums import InputOutcome, TriggerKind
 from dirigent_client.schemas import InputAccepted
 from dirigent_common import JsonMap
+from dirigent_common.durations import format_duration
 from dirigent_core import telemetry, wakeups
 from dirigent_core.auth import hash_token
 from dirigent_core.engine.definition import load_definition
@@ -46,18 +49,36 @@ from dirigent_core.messages import (
     SOURCE_RUN_REFUSED,
     SOURCE_RUN_SKIPPED,
     SOURCE_SIGNATURE_MISMATCH,
+    SOURCE_SIGNATURE_REPLAYED,
     SOURCE_SIGNATURE_REQUIRED,
+    SOURCE_SIGNATURE_TIMESTAMP,
     SOURCE_WAITING_FULL,
     SOURCE_WAITING_SHARE,
     TOKEN_REFUSED,
 )
-from dirigent_core.models import Pipeline, PipelineVersion, Source, SourceInput, SourceRoute, utcnow
+from dirigent_core.models import (
+    Pipeline,
+    PipelineVersion,
+    Source,
+    SourceInput,
+    SourceRoute,
+    SourceSignature,
+    utcnow,
+)
 from dirigent_core.ratelimit import TokenBucket
 from dirigent_core.sources.rows import AnyReceived, endpoint_path, in_flight, open_signing_secret, received
 from dirigent_core.sources.rules import source_config
 from dirigent_core.sources.waiter import Hold, Seating, Waiter
 from dirigent_plugin.blocks import Logger
-from dirigent_plugin.sources import Ignore, InboundRequest, Refusal, Route, SourceAuth
+from dirigent_plugin.sources import (
+    SIGNATURE_TIMESTAMP_HEADER,
+    Ignore,
+    InboundRequest,
+    Refusal,
+    Route,
+    SourceAuth,
+    sign_body,
+)
 
 #: How long a process answers from the routes it read before reading them again, a notification or not.
 ROUTES_TTL_SECONDS: Final = 5.0
@@ -238,7 +259,7 @@ class Intake:
             body = await read(most)
             if len(body) > most:
                 return _counted(Refusal.of(SOURCE_BODY_TOO_LARGE, status=413, limit=most))
-            unsigned = _unsigned(services, row, auth, call.headers, body)
+            unsigned = await _unsigned(session, services, row, auth, call.headers, body, received_at)
             if unsigned is not None:
                 return _counted(unsigned)
         rate = source.rate(config)
@@ -510,23 +531,56 @@ def _presents(row: Source, headers: Mapping[str, str]) -> bool:
     return hmac.compare_digest(hash_token(credential.strip()), row.token_hash)
 
 
-def _unsigned(
-    services: EngineServices, row: Source, auth: SourceAuth, headers: Mapping[str, str], body: bytes
+async def _unsigned(
+    session: AsyncSession,
+    services: EngineServices,
+    row: Source,
+    auth: SourceAuth,
+    headers: Mapping[str, str],
+    body: bytes,
+    moment: datetime,
 ) -> Refusal | None:
-    """Refuse a body whose signature is missing or is not this source's secret's, in constant time.
+    """Refuse a call whose signature is missing, stale, not this source's secret's, or taken before.
 
-    Both sides are compared as bytes, since the header is the caller's and one character outside
-    ASCII would otherwise raise rather than refuse.
+    The signature covers ``<timestamp>.<body>`` and the timestamp has to be within the
+    instance's window of now. A signature taken is recorded until its timestamp leaves the
+    window, so the same call sent again is refused for one reason or the other. Both sides of
+    the comparison are bytes, since the header is the caller's and one character outside ASCII
+    would otherwise raise rather than refuse.
     """
     presented = headers.get(auth.header.lower())
     if not presented:
         return Refusal.of(SOURCE_SIGNATURE_REQUIRED, status=401, header=auth.header)
+    window = services.settings.source_signature_window
+    stamp = headers.get(SIGNATURE_TIMESTAMP_HEADER.lower(), "").strip()
+    signed_at = _signed_at(stamp)
+    if signed_at is None or abs(moment - signed_at) > window:
+        return Refusal.of(
+            SOURCE_SIGNATURE_TIMESTAMP, status=401, header=SIGNATURE_TIMESTAMP_HEADER, window=format_duration(window)
+        )
     secret = open_signing_secret(services.secrets, row)
     offered = presented.strip().removeprefix("sha256=")
-    expected = hmac.new(secret or b"", body, hashlib.sha256).hexdigest().encode("ascii")
-    if secret is None or not hmac.compare_digest(expected, offered.encode("utf-8", "surrogateescape")):
+    expected = sign_body(secret or b"", stamp, body)
+    if secret is None or not hmac.compare_digest(expected.encode("ascii"), offered.encode("utf-8", "surrogateescape")):
         return Refusal.of(SOURCE_SIGNATURE_MISMATCH, status=401)
+    await session.execute(
+        sa.delete(SourceSignature)
+        .where(SourceSignature.source_id == row.id, SourceSignature.signed_at < moment - window)
+        .execution_options(synchronize_session=False)
+    )
+    try:
+        async with session.begin_nested():
+            session.add(SourceSignature(source_id=row.id, signature=expected, signed_at=signed_at))
+    except IntegrityError:
+        return Refusal.of(SOURCE_SIGNATURE_REPLAYED, status=401)
     return None
+
+
+def _signed_at(stamp: str) -> datetime | None:
+    """Read a signature's timestamp, whole Unix seconds, or nothing when it is not one."""
+    if not stamp.isascii() or not stamp.isdigit() or len(stamp) > 12:
+        return None
+    return datetime.fromtimestamp(int(stamp), UTC)
 
 
 def _retry_after(per_minute: int) -> dict[str, str]:

@@ -363,6 +363,11 @@ class Settings(BaseSettings):
 
     A source's own ``rate`` applies on top of this."""
 
+    source_signature_window: Duration = Field(default=timedelta(minutes=5), gt=timedelta(0))
+    """How far a signed call's ``X-Dirigent-Timestamp`` may stand from this server's clock, either way.
+
+    A signature is taken once inside it, and a call signed outside it is refused."""
+
     source_reply_max: Duration = Field(default=timedelta(seconds=60), gt=timedelta(0))
     """The longest a caller is held for a reply, whatever a reply node's ``timeout`` says."""
 

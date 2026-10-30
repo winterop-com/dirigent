@@ -2,6 +2,7 @@
 
 import hashlib
 import hmac
+import time
 from typing import Any
 
 import pytest
@@ -360,10 +361,16 @@ def test_a_form_reaches_a_source_that_takes_one_and_json_does_not(client: TestCl
     assert refused.status_code == 415, refused.text
 
 
-def signed(secret: str, body: bytes) -> dict[str, str]:
-    """Sign a body the way a sender holding the source's secret does."""
-    digest = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
-    return {"X-Dirigent-Signature": f"sha256={digest}", "Content-Type": "application/json", "Authorization": ""}
+def signed(secret: str, body: bytes, *, at: float | None = None) -> dict[str, str]:
+    """Sign a body the way a sender holding the source's secret does, at a moment or now."""
+    stamp = str(int(time.time() if at is None else at))
+    digest = hmac.new(secret.encode(), f"{stamp}.".encode() + body, hashlib.sha256).hexdigest()
+    return {
+        "X-Dirigent-Signature": f"sha256={digest}",
+        "X-Dirigent-Timestamp": stamp,
+        "Content-Type": "application/json",
+        "Authorization": "",
+    }
 
 
 def test_a_signed_source_takes_a_body_signed_with_its_secret_and_refuses_any_other(client: TestClient) -> None:
@@ -385,6 +392,40 @@ def test_a_signed_source_takes_a_body_signed_with_its_secret_and_refuses_any_oth
 
     taken = client.post("/endpoints/held", content=body, headers=signed(secret, body))
     assert taken.status_code == 202, taken.text
+
+
+def test_a_signature_is_taken_once_and_only_inside_its_window(client: TestClient) -> None:
+    secret = apply_document(client, held("      auth: {kind: hmac}"))["sources"]["tokens"][0]["token"]
+    body = b'{"order": 1}'
+    headers = signed(secret, body)
+    assert client.post("/endpoints/held", content=body, headers=headers).status_code == 202
+    replayed = client.post("/endpoints/held", content=body, headers=headers)
+    assert replayed.status_code == 401, replayed.text
+    assert replayed.json()["code"] == "source.signature_replayed"
+
+    stale = client.post("/endpoints/held", content=body, headers=signed(secret, body, at=time.time() - 600))
+    assert stale.status_code == 401, stale.text
+    assert stale.json()["code"] == "source.signature_timestamp"
+    early = client.post("/endpoints/held", content=body, headers=signed(secret, body, at=time.time() + 600))
+    assert early.json()["code"] == "source.signature_timestamp"
+    unstamped = {name: value for name, value in signed(secret, body).items() if name != "X-Dirigent-Timestamp"}
+    assert client.post("/endpoints/held", content=body, headers=unstamped).json()["code"] == (
+        "source.signature_timestamp"
+    )
+    moved = {**signed(secret, body), "X-Dirigent-Timestamp": str(int(time.time()) - 1)}
+    assert client.post("/endpoints/held", content=body, headers=moved).json()["code"] == "source.signature_mismatch"
+    assert [entry.status for entry in inputs(client, "held")] == [202]
+
+
+def test_a_signature_refused_past_its_check_is_still_spent(client: TestClient) -> None:
+    secret = apply_document(client, held("      auth: {kind: hmac}"))["sources"]["tokens"][0]["token"]
+    client.post(f"{PREFIX}/pipelines/held/sources/ask/$pause")
+    body = b"{}"
+    headers = signed(secret, body)
+    assert client.post("/endpoints/held", content=body, headers=headers).status_code == 503
+    replayed = client.post("/endpoints/held", content=body, headers=headers)
+    assert replayed.json()["code"] == "source.signature_replayed", "a captured call writes one journal row at most"
+    assert [entry.status for entry in inputs(client, "held")] == [503]
 
 
 def test_a_caller_who_cannot_sign_spends_no_rate_and_writes_no_row(client: TestClient) -> None:
@@ -464,8 +505,8 @@ def test_a_signature_in_the_sources_own_header_never_reaches_the_input(client: T
     applied = apply_document(client, held("      auth: {kind: hmac, header: X-Hub-Signature-256}"))
     secret = applied["sources"]["tokens"][0]["token"]
     body = b'{"order": 1}'
-    digest = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
-    headers = {"X-Hub-Signature-256": f"sha256={digest}", "Content-Type": "application/json", "Authorization": ""}
+    headers = signed(secret, body)
+    headers["X-Hub-Signature-256"] = headers.pop("X-Dirigent-Signature")
     taken = client.post("/endpoints/held", content=body, headers=headers)
     assert taken.status_code == 202, taken.text
     run_id = taken.json()["run_id"]

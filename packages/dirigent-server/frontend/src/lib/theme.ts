@@ -13,7 +13,7 @@
  * The same blocks answer to `[data-palette='<name>']`, which is what lets the swatch card on the
  * Theme pane paint one palette's tokens while the app is wearing another.
  *
- * APPLIED BEFORE FIRST PAINT, by the inline script in index.html rather than here. A palette
+ * APPLIED BEFORE FIRST PAINT, by public/palette.js, which index.html loads, rather than here. A palette
  * read in a React effect arrives one frame after the document does, and every load flashes the
  * default under whatever was actually chosen. That script reads the same storage key this
  * module writes, so the store below starts on the palette the document is already painted in.
@@ -40,7 +40,7 @@ export const PALETTES: Palette[] = [
 
 export const DEFAULT_PALETTE: PaletteName = 'dirigent'
 
-/** Where the chosen palette is kept, and the key the inline script in index.html reads. */
+/** Where the chosen palette is kept, and the key public/palette.js reads. */
 export const PALETTE_STORAGE_KEY = 'dirigent.palette'
 
 /** The attribute on `<html>` the CSS blocks hang off. */

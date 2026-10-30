@@ -11,7 +11,7 @@ from pydantic import JsonValue
 
 from dirigent_client.enums import LogLevel, ProvenanceSource, RunPriority
 from dirigent_client.errors import DirigentError
-from dirigent_client.resources.base import Resource, query, request_body
+from dirigent_client.resources.base import Resource, query, request_body, segment
 from dirigent_client.schemas import (
     ApplyRequest,
     ApplyResult,
@@ -48,7 +48,7 @@ class Pipelines(Resource):
 
     async def get(self, code: str) -> PipelineDetail:
         """Read a pipeline and the document its current version holds."""
-        return await self._one(PipelineDetail, "GET", f"/pipelines/{code}")
+        return await self._one(PipelineDetail, "GET", f"/pipelines/{segment(code)}")
 
     async def apply(
         self,
@@ -102,12 +102,12 @@ class Pipelines(Resource):
     ) -> Page[PipelineVersionOut]:
         """List every immutable version, newest first, with its provenance."""
         return await self._many(
-            PipelineVersionOut, "GET", f"/pipelines/{code}/versions", params=query(after=after, limit=limit)
+            PipelineVersionOut, "GET", f"/pipelines/{segment(code)}/versions", params=query(after=after, limit=limit)
         )
 
     async def export(self, code: str, *, version: int | None = None) -> str:
         """Render a stored pipeline as the canonical YAML a git repository holds."""
-        return await self._transport.text(f"/pipelines/{code}/$export", params=query(version=version))
+        return await self._transport.text(f"/pipelines/{segment(code)}/$export", params=query(version=version))
 
     async def validate(self, code: str, *, version: int | None = None) -> builtins.list[ValidationIssue]:
         """Report what a stored version would fail on if it ran now, against this instance.
@@ -115,20 +115,22 @@ class Pipelines(Resource):
         The issues are bounded by the document, so this one answers a bare array, not a page.
         builtins names the type because this class has a method called ``list``.
         """
-        rows = await self._transport.json("POST", f"/pipelines/{code}/$validate", params=query(version=version))
+        rows = await self._transport.json(
+            "POST", f"/pipelines/{segment(code)}/$validate", params=query(version=version)
+        )
         return [ValidationIssue.model_validate(row) for row in rows]
 
     async def activate(self, code: str) -> PipelineOut:
         """Make a pipeline runnable again, and let its schedules fire."""
-        return await self._one(PipelineOut, "POST", f"/pipelines/{code}/$activate")
+        return await self._one(PipelineOut, "POST", f"/pipelines/{segment(code)}/$activate")
 
     async def deactivate(self, code: str) -> PipelineOut:
         """Deregister a pipeline: schedules pause, it stops being runnable, history is kept."""
-        return await self._one(PipelineOut, "POST", f"/pipelines/{code}/$deactivate")
+        return await self._one(PipelineOut, "POST", f"/pipelines/{segment(code)}/$deactivate")
 
     async def delete(self, code: str) -> None:
         """Delete a pipeline and every run ever attributed to it, refusing while any is in flight."""
-        await self._transport.request("DELETE", f"/pipelines/{code}")
+        await self._transport.request("DELETE", f"/pipelines/{segment(code)}")
 
     async def run(
         self,
@@ -167,7 +169,7 @@ class Pipelines(Resource):
             log_levels=log_levels,
             priority=priority,
         )
-        return await self._one(RunAccepted, "POST", f"/pipelines/{code}/$run", json=request_body(payload))
+        return await self._one(RunAccepted, "POST", f"/pipelines/{segment(code)}/$run", json=request_body(payload))
 
     async def backfill(
         self,
@@ -191,7 +193,9 @@ class Pipelines(Resource):
             params=params,
             dry_run=dry_run,
         )
-        return await self._one(BackfillAccepted, "POST", f"/pipelines/{code}/$backfill", json=request_body(payload))
+        return await self._one(
+            BackfillAccepted, "POST", f"/pipelines/{segment(code)}/$backfill", json=request_body(payload)
+        )
 
 
 def read_document(document: DocumentSource) -> tuple[JsonMap, ProvenanceSource, str | None]:

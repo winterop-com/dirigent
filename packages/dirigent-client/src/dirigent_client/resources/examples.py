@@ -2,7 +2,7 @@
 
 from collections.abc import Sequence
 
-from dirigent_client.resources.base import Resource, query
+from dirigent_client.resources.base import Resource, query, segment
 from dirigent_client.schemas import ExampleDetail, ExampleOut, Page
 
 
@@ -25,4 +25,4 @@ class Examples(Resource):
 
     async def get(self, code: str) -> ExampleDetail:
         """Read one example by its code, with the text a copy of it copies."""
-        return await self._one(ExampleDetail, "GET", f"/examples/{code}")
+        return await self._one(ExampleDetail, "GET", f"/examples/{segment(code)}")

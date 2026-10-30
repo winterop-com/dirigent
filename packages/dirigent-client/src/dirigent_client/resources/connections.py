@@ -1,6 +1,6 @@
 """Connections: coded credential records of a contributed kind, redacted in every response."""
 
-from dirigent_client.resources.base import Resource, edit_body, query, request_body
+from dirigent_client.resources.base import Resource, edit_body, query, request_body, segment
 from dirigent_client.schemas import ConnectionIn, ConnectionOut, ConnectionUpdate, Page
 from dirigent_common import HealthReport, JsonMap
 
@@ -14,7 +14,7 @@ class Connections(Resource):
 
     async def get(self, code: str) -> ConnectionOut:
         """Read one credential record, with its secrets redacted."""
-        return await self._one(ConnectionOut, "GET", f"/connections/{code}")
+        return await self._one(ConnectionOut, "GET", f"/connections/{segment(code)}")
 
     async def create(
         self,
@@ -43,12 +43,12 @@ class Connections(Resource):
         their own keep the name and the description the credential was created with.
         """
         sent = edit_body(ConnectionUpdate, name=name, description=description, config=config)
-        return await self._one(ConnectionOut, "PATCH", f"/connections/{code}", json=sent)
+        return await self._one(ConnectionOut, "PATCH", f"/connections/{segment(code)}", json=sent)
 
     async def delete(self, code: str) -> None:
         """Remove a credential record."""
-        await self._transport.request("DELETE", f"/connections/{code}")
+        await self._transport.request("DELETE", f"/connections/{segment(code)}")
 
     async def check(self, code: str) -> HealthReport:
         """Open the credential and ask its kind whether the external system answers."""
-        return await self._one(HealthReport, "POST", f"/connections/{code}/$check")
+        return await self._one(HealthReport, "POST", f"/connections/{segment(code)}/$check")

@@ -107,7 +107,7 @@ stays clean, and every example stays executable.
    when written out), a `rate` bucket and `max_in_flight`. No files: a caller with a file
    posts a URI and the pipeline fetches it. A request is checked in one order, each step
    answering for itself: the instance's intake bucket, the route (404, 405), auth (401: the
-   token, or for a signed source the capped read and the signature), the source's bucket
+   token, or for a signed source the capped read and the timestamped signature), the source's bucket
    (429), the pipeline being active (503), the content type (415), the capped read (413), the
    parse (400), the in-flight count (503), then the run. Nothing before the source's own
    bucket writes a row or spends from it -- not a 404, 405, 401 or 429 -- so a caller without

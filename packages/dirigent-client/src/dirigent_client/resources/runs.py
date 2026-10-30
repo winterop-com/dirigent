@@ -12,7 +12,7 @@ import httpx2
 
 from dirigent_client.enums import AttemptStatus, RunStatus
 from dirigent_client.errors import TransportError, WaitTimeout
-from dirigent_client.resources.base import Resource, query, request_body
+from dirigent_client.resources.base import Resource, query, request_body, segment
 from dirigent_client.schemas import (
     ArtifactOut,
     AttemptEvent,
@@ -88,7 +88,7 @@ class Runs(Resource):
 
     async def get(self, run_id: UUID | str) -> RunDetail:
         """Read a run with the DAG view model, and how many items and attempts it has."""
-        return await self._one(RunDetail, "GET", f"/runs/{run_id}")
+        return await self._one(RunDetail, "GET", f"/runs/{segment(run_id)}")
 
     async def items(
         self,
@@ -98,7 +98,9 @@ class Runs(Resource):
         limit: int | None = None,
     ) -> Page[ItemOut]:
         """List a run's fan-out items in the order they were created, which is grid order."""
-        return await self._many(ItemOut, "GET", f"/runs/{run_id}/items", params=query(after=after, limit=limit))
+        return await self._many(
+            ItemOut, "GET", f"/runs/{segment(run_id)}/items", params=query(after=after, limit=limit)
+        )
 
     async def attempts(
         self,
@@ -113,7 +115,7 @@ class Runs(Resource):
         return await self._many(
             AttemptOut,
             "GET",
-            f"/runs/{run_id}/attempts",
+            f"/runs/{segment(run_id)}/attempts",
             params=query(step=step, status=status.value if status else None, after=after, limit=limit),
         )
 
@@ -125,11 +127,13 @@ class Runs(Resource):
         limit: int | None = None,
     ) -> Page[ArtifactOut]:
         """List what a run wrote down: each step's stored output, and its report document."""
-        return await self._many(ArtifactOut, "GET", f"/runs/{run_id}/artifacts", params=query(after=after, limit=limit))
+        return await self._many(
+            ArtifactOut, "GET", f"/runs/{segment(run_id)}/artifacts", params=query(after=after, limit=limit)
+        )
 
     async def artifact_text(self, artifact_id: UUID | str) -> str:
         """Read one artifact's content as the text it was stored as."""
-        return await self._transport.text(f"/artifacts/{artifact_id}")
+        return await self._transport.text(f"/artifacts/{segment(artifact_id)}")
 
     async def report_document(self, run_id: UUID | str) -> str | None:
         """Read the markdown document this run rendered when it settled, if it rendered one."""
@@ -142,7 +146,7 @@ class Runs(Resource):
 
     async def cancel(self, run_id: UUID | str) -> RunOut:
         """Stop what has not started, and tell the remote about what has."""
-        return await self._one(RunOut, "POST", f"/runs/{run_id}/$cancel")
+        return await self._one(RunOut, "POST", f"/runs/{segment(run_id)}/$cancel")
 
     async def rerun(self, run_id: UUID | str, *, current: bool = False) -> RunAccepted:
         """Run a settled run again, with its parameters and, at a source, its input.
@@ -151,20 +155,22 @@ class Runs(Resource):
         ``current``. Its ``triggered_by_id`` names the original.
         """
         body = RerunRequest(version="current" if current else "pinned")
-        return await self._one(RunAccepted, "POST", f"/runs/{run_id}/$rerun", json=request_body(body))
+        return await self._one(RunAccepted, "POST", f"/runs/{segment(run_id)}/$rerun", json=request_body(body))
 
     async def pause(self, run_id: UUID | str) -> RunOut:
         """Hold a queued or running run: nothing more of it starts, and its deadlines stand still."""
-        return await self._one(RunOut, "POST", f"/runs/{run_id}/$pause")
+        return await self._one(RunOut, "POST", f"/runs/{segment(run_id)}/$pause")
 
     async def resume(self, run_id: UUID | str) -> RunOut:
         """Let a paused run go on, its open deadlines moved on by as long as it was paused."""
-        return await self._one(RunOut, "POST", f"/runs/{run_id}/$resume")
+        return await self._one(RunOut, "POST", f"/runs/{segment(run_id)}/$resume")
 
     async def retry(self, attempt_id: UUID | str, *, idempotency_key: str | None = None) -> AttemptOut:
         """Create one manual attempt of a failed step, reading its upstream stored outputs."""
         key = idempotency_key or str(uuid.uuid4())
-        return await self._one(AttemptOut, "POST", f"/attempts/{attempt_id}/$retry", headers={"Idempotency-Key": key})
+        return await self._one(
+            AttemptOut, "POST", f"/attempts/{segment(attempt_id)}/$retry", headers={"Idempotency-Key": key}
+        )
 
     async def logs(
         self,
@@ -176,12 +182,12 @@ class Runs(Resource):
     ) -> Page[LogEntryOut]:
         """Read one page of a run's log entries, in write order."""
         return await self._many(
-            LogEntryOut, "GET", f"/runs/{run_id}/$logs", params=query(after=after, limit=limit, step=step)
+            LogEntryOut, "GET", f"/runs/{segment(run_id)}/$logs", params=query(after=after, limit=limit, step=step)
         )
 
     async def report(self, run_id: UUID | str) -> RunReport:
         """Summarise a run: what each step amounted to, and how long the whole thing took."""
-        return await self._one(RunReport, "GET", f"/runs/{run_id}/$report")
+        return await self._one(RunReport, "GET", f"/runs/{segment(run_id)}/$report")
 
     async def wait(
         self,
@@ -200,7 +206,7 @@ class Runs(Resource):
             if time.monotonic() + interval > deadline:
                 raise WaitTimeout(
                     f"run {run_id} was still {run.status.value} after {timeout}",
-                    url=self._transport.endpoint(f"/runs/{run_id}"),
+                    url=self._transport.endpoint(f"/runs/{segment(run_id)}"),
                 )
             await asyncio.sleep(interval)
             interval = min(interval * POLL_BACKOFF, POLL_MAX_SECONDS)
@@ -230,7 +236,9 @@ class Runs(Resource):
             expired = False
             advanced = False
             try:
-                async with self._transport.stream(f"/runs/{run_id}/$events", params=query(after=cursor)) as response:
+                async with self._transport.stream(
+                    f"/runs/{segment(run_id)}/$events", params=query(after=cursor)
+                ) as response:
                     async for event in httpx2.EventSource(response):
                         if event.event == "end":
                             ended = True
@@ -290,7 +298,7 @@ class Runs(Resource):
             advanced = False
             try:
                 params = query(follow="sse", after=cursor, step=step)
-                async with self._transport.stream(f"/runs/{run_id}/$logs", params=params) as response:
+                async with self._transport.stream(f"/runs/{segment(run_id)}/$logs", params=params) as response:
                     async for event in httpx2.EventSource(response):
                         if event.event == "end":
                             ended = True

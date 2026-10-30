@@ -795,11 +795,13 @@ so their rules are worth stating exactly:
   beside it, compared in constant time, and shown exactly once -- when it is minted or
   rotated. It never appears in a document, in an export, or in a listing; there is nowhere in
   `dirigent/v1` to write one.
-- **Or the signature is**, with `auth: {kind: hmac}`: an HMAC-SHA256 over the **raw body** --
-  the bytes as they arrived, not a re-serialization of the parsed JSON, because those are not
-  the same string -- in `X-Dirigent-Signature` or the header the source names. The
-  `sha256=` prefix several popular senders write is accepted. The secret is minted at apply or
-  set from the sender's own, sealed with the instance key, and shown once.
+- **Or the signature is**, with `auth: {kind: hmac}`: an HMAC-SHA256 over the timestamp in
+  `X-Dirigent-Timestamp`, a dot, and the **raw body** -- the bytes as they arrived, not a
+  re-serialization of the parsed JSON, because those are not the same string -- in
+  `X-Dirigent-Signature` or the header the source names. The `sha256=` prefix is accepted. A
+  timestamp outside `source_signature_window` is refused, and a signature taken is recorded
+  until its timestamp leaves the window, so a captured call cannot be sent twice. The secret is
+  minted at apply or set from the sender's own, sealed with the instance key, and shown once.
 - **Rate limiting is a bucket per path, checked before anything is looked up**, so a caller in
   a loop costs a dictionary lookup rather than a megabyte of parsing and a database round
   trip. The bucket is in memory and therefore per process: behind N API replicas the

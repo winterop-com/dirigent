@@ -1,6 +1,6 @@
 """Triggers documents: the clocks one document declares for another's pipeline."""
 
-from dirigent_client.resources.base import Resource, query
+from dirigent_client.resources.base import Resource, query, segment
 from dirigent_client.schemas import Page, TriggerDocumentDetail, TriggerDocumentOut
 
 
@@ -13,8 +13,8 @@ class TriggerDocuments(Resource):
 
     async def get(self, code: str) -> TriggerDocumentDetail:
         """Read one triggers document, with the rows it owns."""
-        return await self._one(TriggerDocumentDetail, "GET", f"/trigger-documents/{code}")
+        return await self._one(TriggerDocumentDetail, "GET", f"/trigger-documents/{segment(code)}")
 
     async def delete(self, code: str) -> None:
         """Remove a triggers document and every schedule it owns."""
-        await self._transport.request("DELETE", f"/trigger-documents/{code}")
+        await self._transport.request("DELETE", f"/trigger-documents/{segment(code)}")

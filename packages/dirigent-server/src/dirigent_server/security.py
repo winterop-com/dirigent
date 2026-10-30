@@ -14,10 +14,12 @@ is what the cross-site guard below requires. A bearer token is not ambient and i
 """
 
 from collections.abc import Awaitable, Callable
-from typing import Annotated
+from typing import Annotated, Final
 
 from fastapi import FastAPI, Request, Response, Security, status
 from fastapi.security import APIKeyCookie, HTTPAuthorizationCredentials, HTTPBearer
+from starlette.datastructures import MutableHeaders
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from dirigent_core.auth import Principal, resolve_token
 from dirigent_core.config import Settings
@@ -173,6 +175,83 @@ def install_cross_site_guard(app: FastAPI, settings: Settings) -> None:
                 )
             )
         return await call_next(request)
+
+
+#: What the bundle needs: its own scripts and workers, Monaco's blob workers, and the inline
+#: styles Monaco and the graph set on elements.
+UI_POLICY: Final = "; ".join(
+    (
+        "default-src 'self'",
+        "script-src 'self'",
+        "worker-src 'self' blob:",
+        "style-src 'self' 'unsafe-inline'",
+        "img-src 'self' data: blob:",
+        "font-src 'self' data:",
+        "connect-src 'self'",
+        "object-src 'none'",
+        "base-uri 'self'",
+        "form-action 'self'",
+        "frame-ancestors 'none'",
+    )
+)
+
+#: What FastAPI's two API viewers load: the CDN's bundles and fonts, their own inline bootstrap,
+#: and the blob worker ReDoc starts.
+DOCS_POLICY: Final = "; ".join(
+    (
+        "default-src 'none'",
+        "script-src https://cdn.jsdelivr.net 'unsafe-inline'",
+        "worker-src blob:",
+        "style-src https://cdn.jsdelivr.net https://fonts.googleapis.com 'unsafe-inline'",
+        "img-src 'self' data: https://fastapi.tiangolo.com https://cdn.redoc.ly",
+        "font-src https://fonts.gstatic.com",
+        "connect-src 'self'",
+        "base-uri 'none'",
+        "form-action 'none'",
+        "frame-ancestors 'none'",
+    )
+)
+
+#: The paths that serve those viewers.
+DOCS_PATHS: Final = ("/docs", "/redoc")
+
+#: Sent on every response. A route that set its own value keeps it.
+DEFAULT_HEADERS: Final = (
+    ("x-content-type-options", "nosniff"),
+    ("x-frame-options", "DENY"),
+    ("referrer-policy", "same-origin"),
+)
+
+
+class SecurityHeaders:
+    """Stamp every response this application sends with the default security headers."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        """Wrap the application."""
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        """Pass one request through, adding what its response did not set itself."""
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        path: str = scope["path"]
+        policy = DOCS_POLICY if path.startswith(DOCS_PATHS) else UI_POLICY
+
+        async def stamped(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                headers = MutableHeaders(scope=message)
+                for name, value in DEFAULT_HEADERS:
+                    headers.setdefault(name, value)
+                headers.setdefault("content-security-policy", policy)
+            await send(message)
+
+        await self.app(scope, receive, stamped)
+
+
+def install_security_headers(app: FastAPI) -> None:
+    """Send the default security headers on every response, whichever layer answered it."""
+    app.add_middleware(SecurityHeaders)
 
 
 def set_session_cookie(response: Response, secret: str, *, max_age: int, secure: bool) -> None:
