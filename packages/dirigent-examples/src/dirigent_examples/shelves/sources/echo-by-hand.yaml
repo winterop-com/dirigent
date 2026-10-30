@@ -21,6 +21,8 @@ kind: pipeline
 code: echo-by-hand
 name: Echo, by hand
 description: |
+  Answer a request by sending its body straight back.
+
   A source takes an input and a reply answers with it: the smallest pipeline with a source,
   run by hand with its sample or with an input given.
 

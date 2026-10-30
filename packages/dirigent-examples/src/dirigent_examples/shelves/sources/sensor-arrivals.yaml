@@ -42,6 +42,8 @@ kind: pipeline
 code: sensor-arrivals
 name: Sensor arrivals
 description: |
+  Start one run for each batch of generated messages, and summarise the batch.
+
   A worker pokes a generated batch outside any run, and each batch that arrives becomes one
   run, its offsets carrying on from the batch before; a jq step summarises it.
 

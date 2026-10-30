@@ -34,7 +34,7 @@ format: dirigent/v1
 kind: triggers
 code: document-nightly
 name: Nightly batch clocks
-description: Schedules for a pipeline another document defines.
+description: Set three schedules on a pipeline that another document defines.
 
 pipeline: managed-and-manual
 

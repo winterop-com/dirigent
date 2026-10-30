@@ -15,7 +15,10 @@ format: dirigent/v1
 kind: pipeline
 code: at-one-time
 name: A single agreed instant
-description: A one-time schedule firing a bounded backfill at a single agreed instant.
+description: |
+  Run a backfill once, at one agreed moment.
+
+  A one-time schedule fires the bounded backfill at a single agreed instant.
 
 tags: [triggers, transform, schedule]
 

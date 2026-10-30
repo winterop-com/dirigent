@@ -27,6 +27,8 @@ kind: pipeline
 code: landing-files
 name: Landing files
 description: |
+  Start one run for each CSV that lands in a folder, and say what arrived.
+
   Each CSV that appears under the landing prefix becomes one run, found by a worker's poll;
   a jq step says what arrived and how large it is.
 
