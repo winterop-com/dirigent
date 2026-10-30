@@ -1,10 +1,10 @@
 """The endpoint intake: a call to a received source, checked in one order, becomes a run or a refusal.
 
-Each check answers for itself, in this order: the instance's bucket for the method and path,
-the route (404, 405), the token (401), or for a signed source the capped read (413) and the
-signature with its timestamp (401), then the source's own bucket (429), the source and its
-pipeline taking input (503), the content type (415), the capped read (413), the parse (400),
-the runs in flight (503), then the run. Nothing before the source's own bucket writes a
+Each check answers for itself, in this order: the instance's bucket for the caller's address,
+the method and the route, then the route (404, 405), the token (401), or for a signed source
+the capped read (413) and the signature with its timestamp (401), then the source's own bucket
+(429), the source and its pipeline taking input (503), the content type (415), the capped read
+(413), the parse (400), the runs in flight (503), then the run. Nothing before the source's own bucket writes a
 journal row or spends from it, so a caller without the token or the secret, or in a loop,
 causes no writes; those are counted in telemetry instead. The one write ahead of the bucket is
 the record of a signature taken, which only a caller holding the secret causes.
@@ -220,9 +220,10 @@ class Intake:
         received_at = utcnow()
         settings = services.settings
         limit = settings.source_intake_rate_per_minute
-        if not self.instance_bucket.allow(f"{call.method} {call.path}", per_minute=limit):
-            return _counted(Refusal.of(INTAKE_RATE, status=429, headers=_retry_after(limit), per_minute=limit))
         found = (await self.routes(session)).find(call.method, call.path)
+        route = found.route.template if isinstance(found, Matched) else ""
+        if not self.instance_bucket.allow(f"{call.caller} {call.method} {route}", per_minute=limit):
+            return _counted(Refusal.of(INTAKE_RATE, status=429, headers=_retry_after(limit), per_minute=limit))
         called = endpoint_path(settings, call.path)
         if found is None:
             return _counted(Refusal.of(NO_ROUTE, status=404, method=call.method, path=called))

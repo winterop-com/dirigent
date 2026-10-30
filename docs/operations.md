@@ -706,7 +706,7 @@ the stack is complete out of the box; see
 | Setting | Default | What it means |
 | --- | --- | --- |
 | `DIRIGENT_SOURCE_MAX_BODY` | `1mb` | The largest body any endpoint source reads, whatever its own `max_body` says. Reading stops one byte past it rather than buffering an unbounded body in order to measure it. |
-| `DIRIGENT_SOURCE_INTAKE_RATE_PER_MINUTE` | `600` | How fast calls to one method and path are taken, checked before any source is looked up. A source's own `rate` applies on top. Per process, so behind N replicas the effective limit is N times this. |
+| `DIRIGENT_SOURCE_INTAKE_RATE_PER_MINUTE` | `600` | How fast one address's calls to one method and route are taken, checked before any source is read. A source's own `rate` applies on top. Per process, so behind N replicas the effective limit is N times this. |
 | `DIRIGENT_LOGIN_RATE_PER_MINUTE` | `10` | Login attempts allowed per minute for one username from one address, so a caller elsewhere cannot lock an account out. |
 | `DIRIGENT_LOGIN_ADDRESS_RATE_PER_MINUTE` | `60` | Login attempts allowed per minute from one address, across every username. Argon2id is deliberately expensive and login is unauthenticated, so without a limit anyone on the network can turn a few hundred requests a second into the whole instance's CPU. Behind a proxy, set `FORWARDED_ALLOW_IPS` to its address, or every caller counts as the proxy. |
 

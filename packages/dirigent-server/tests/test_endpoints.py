@@ -7,9 +7,12 @@ from typing import Any
 
 import pytest
 import yaml
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from dirigent_client.schemas import AttemptOut, Page, SourceInputOut, SourceOut
+from dirigent_core.config import Settings
+from dirigent_server import create_app
 from tests_support import apply_document
 
 PREFIX = "/api/v1"
@@ -225,6 +228,56 @@ def test_a_rotated_token_replaces_the_old_one_at_once(client: TestClient) -> Non
     assert client.post("/endpoints/echo/ann", json={}, headers=bearer(old)).status_code == 401
     assert client.post("/endpoints/echo/ann", json={}, headers=bearer(new)).status_code == 200
     assert source(client, "echo").token_prefix == new[:8]
+
+
+def _flood(settings: Settings, per_minute: int) -> FastAPI:
+    return create_app(settings.model_copy(update={"source_intake_rate_per_minute": per_minute}))
+
+
+def test_a_stranger_elsewhere_cannot_spend_a_signed_senders_count(settings: Settings, admin_token: str) -> None:
+    app = _flood(settings, 6)
+    admin = {"Authorization": f"Bearer {admin_token}"}
+    with TestClient(app, client=("203.0.113.1", 50000), headers=admin) as stranger:
+        secret = apply_document(stranger, held("      auth: {kind: hmac}"))["sources"]["tokens"][0]["token"]
+        answered = [stranger.post("/endpoints/held", content=b"{}").status_code for _ in range(10)]
+    assert answered[0] == 401
+    assert answered[-1] == 429, "a stranger has a count of its own"
+    with TestClient(app, client=("203.0.113.2", 50000)) as sender:
+        called = sender.post("/endpoints/held", content=b"{}", headers=signed(secret, b"{}"))
+    assert called.status_code == 202, called.text
+
+
+def test_a_stranger_elsewhere_cannot_spend_a_token_holders_count(settings: Settings, admin_token: str) -> None:
+    app = _flood(settings, 6)
+    admin = {"Authorization": f"Bearer {admin_token}"}
+    with TestClient(app, client=("203.0.113.1", 50000), headers=admin) as stranger:
+        token = token_of(apply_document(stranger, held()))
+        answered = [stranger.post("/endpoints/held", json={}, headers=bearer("wrong")).status_code for _ in range(10)]
+    assert answered[-1] == 429
+    with TestClient(app, client=("203.0.113.2", 50000)) as holder:
+        called = holder.post("/endpoints/held", json={}, headers=bearer(token))
+    assert called.status_code == 202, called.text
+
+
+def test_every_spelling_of_a_route_and_every_value_of_its_parameters_share_one_count(
+    settings: Settings, admin_token: str
+) -> None:
+    with TestClient(_flood(settings, 4), headers={"Authorization": f"Bearer {admin_token}"}) as client:
+        apply_document(client, echo())
+        answered = [
+            client.post(path, json={}, headers=bearer("wrong")).status_code
+            for path in ("/endpoints/echo/a", "/endpoints/echo/a/", "/endpoints/echo//a", "/endpoints/echo/b")
+        ]
+        assert answered == [401, 401, 401, 401]
+        assert client.post("/endpoints/echo/c", json={}, headers=bearer("wrong")).status_code == 429
+        put = client.put("/endpoints/echo/c", json={}, headers=bearer("wrong"))
+        assert put.status_code == 401, "another method has its own count"
+
+
+def test_every_path_no_route_answers_shares_one_count(settings: Settings, admin_token: str) -> None:
+    with TestClient(_flood(settings, 2), headers={"Authorization": f"Bearer {admin_token}"}) as client:
+        answered = [client.post(f"/endpoints/nothing/{index}").status_code for index in range(3)]
+    assert answered == [404, 404, 429]
 
 
 def test_a_public_source_has_no_token_to_rotate(client: TestClient) -> None:

@@ -888,7 +888,9 @@ TOKEN_REFUSED = SOURCE.define(
     "token_refused", "this endpoint takes the bearer token minted for it, in an Authorization header"
 )
 
-INTAKE_RATE = SOURCE.define("intake_rate", "this instance takes {per_minute} calls a minute at one path")
+INTAKE_RATE = SOURCE.define(
+    "intake_rate", "this instance takes {per_minute} calls a minute from one address at one route"
+)
 
 SOURCE_RATE = SOURCE.define("rate", "this endpoint takes {per_minute} calls a minute")
 

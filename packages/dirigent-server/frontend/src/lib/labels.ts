@@ -1133,7 +1133,7 @@ const refused = {
         empty_secret: 'An empty signing secret is not a secret.',
         field_refused:
             'A source takes name, description and sample, and nothing else. {field} goes on the step after it.',
-        intake_rate: 'This instance takes {per_minute} calls a minute at one path.',
+        intake_rate: 'This instance takes {per_minute} calls a minute from one address at one route.',
         join_of_sources:
             'Step {step} waits with all_success on both {first} and {second}, and a run enters at one source only, so it could never run. Join them with all_done or always.',
         kind_missing: 'Source {code} is of kind {kind}, which is not installed on this instance.',
