@@ -5,7 +5,6 @@ A connection kind's ``config_model`` says which fields are secret by typing them
 encrypt it. Only those fields go into the envelope; the rest stay queryable JSON on the row.
 """
 
-import base64
 import hashlib
 import json
 from typing import Any
@@ -15,7 +14,7 @@ from pydantic import BaseModel, SecretStr
 
 from dirigent_common import JsonMap
 from dirigent_core.errors import DomainError
-from dirigent_core.messages import EMPTY_SECRET, SECRET_KEY_MISMATCH, SECRET_KEY_MISSING
+from dirigent_core.messages import EMPTY_SECRET, SECRET_KEY_MALFORMED, SECRET_KEY_MISMATCH, SECRET_KEY_MISSING
 
 REDACTED = "***"
 
@@ -34,6 +33,12 @@ class SecretKeyMissing(SecretError):
     """A secret had to be sealed or opened but the instance has no key configured."""
 
     message = SECRET_KEY_MISSING
+
+
+class SecretKeyMalformed(SecretError):
+    """The configured key is not a Fernet key, such as a passphrase."""
+
+    message = SECRET_KEY_MALFORMED
 
 
 class EmptySecret(SecretError):
@@ -63,16 +68,13 @@ def generate_key() -> str:
     return Fernet.generate_key().decode()
 
 
-def derive_key(material: str) -> bytes:
-    """Turn configured key material into a Fernet key, accepting a passphrase as well.
-
-    A Fernet key passes through untouched; anything else is hashed into a valid 32-byte key.
-    """
+def fernet_key(material: str) -> bytes:
+    """Read configured key material as a Fernet key, refusing anything else."""
     candidate = material.encode()
     try:
         Fernet(candidate)
-    except (ValueError, TypeError):
-        return base64.urlsafe_b64encode(hashlib.sha256(candidate).digest())
+    except (ValueError, TypeError) as error:
+        raise SecretKeyMalformed from error
     return candidate
 
 
@@ -140,7 +142,7 @@ class SecretBox:
 
     def __init__(self, key_material: str | None) -> None:
         """Bind the box to the configured key, or to no key at all."""
-        self._key = derive_key(key_material) if key_material else None
+        self._key = fernet_key(key_material) if key_material else None
         self.key_id = key_id_for(self._key) if self._key else None
 
     @property

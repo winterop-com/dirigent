@@ -1056,6 +1056,10 @@ const refused = {
         no_code:
             'This schema names no code. Give one, set $id, or store it from a file whose name is a code.',
     },
+    secret: {
+        key_malformed:
+            'DIRIGENT_SECRET_KEY is not a Fernet key, and a passphrase is not taken: generate one with dg secret-key.',
+    },
     server: {
         bad_credentials: 'Invalid username or password.',
         bad_cursor: '{name}={after} is not a cursor this listing gave out.',

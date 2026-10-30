@@ -16,6 +16,28 @@ tag is what publishes: `.github/workflows/release.yaml` builds every package and
 to PyPI through trusted publishing, then builds the image from that commit and pushes it as
 `<version>` and `latest`. The two sibling repositories then relock against the tag and bump.
 
+## Unreleased
+
+**`DIRIGENT_SECRET_KEY` has to be a Fernet key.** A passphrase used to be turned into a key by one
+unsalted SHA-256, which made envelopes in a database backup open to offline guessing. It is now
+refused when the process starts, and an instance holding a Fernet key from `dg secret-key` has
+nothing to do. An instance on a passphrase re-keys one of two ways:
+
+1. **Re-enter the secrets, which is the one that removes the weakness.** Set a new key from
+   `dg secret-key` on every process, then re-enter each connection's secret fields and each signed
+   source's secret, following [Rotation, honestly](security.md#rotation-honestly). You need those
+   secrets from wherever you keep them, since nothing can read them back.
+2. **Keep the old key's bytes, to start the instance first.** The Fernet key the passphrase was
+   already hashed into opens every existing envelope, so setting it brings the instance up with
+   nothing re-entered:
+
+   ```bash
+   printf %s "$OLD_PASSPHRASE" | openssl dgst -sha256 -binary | base64 | tr '+/' '-_'
+   ```
+
+   This key is exactly as guessable as the passphrase, so treat it as a stopgap until step 1 is
+   done.
+
 ## 0.27.1
 
 Released 2026-10-30. Every package in the workspace moves to 0.27.1 together, and so do
