@@ -77,6 +77,7 @@ environment, and the server inside one never opens the file.
 | `notification_lease` | `DIRIGENT_NOTIFICATION_LEASE` | `"1m"` | How long a claimed notification's lease is valid before another worker may take it. |
 | `endpoint_prefix` | `DIRIGENT_ENDPOINT_PREFIX` | `"/endpoints"` | Where endpoint sources are served, outside the versioned API. |
 | `source_max_body` | `DIRIGENT_SOURCE_MAX_BODY` | `1048576` | The largest body any endpoint reads, whatever its own `max_body` says; reading stops one byte past it. |
+| `source_body_timeout` | `DIRIGENT_SOURCE_BODY_TIMEOUT` | `"30s"` | How long an endpoint waits for a whole body before it answers 408; no database connection is held meanwhile. |
 | `source_intake_rate_per_minute` | `DIRIGENT_SOURCE_INTAKE_RATE_PER_MINUTE` | `600` | How fast calls to one method and path are taken, before any source is looked up. |
 | `source_signature_window` | `DIRIGENT_SOURCE_SIGNATURE_WINDOW` | `"5m"` | How far a signed call's `X-Dirigent-Timestamp` may stand from this server's clock, either way. |
 | `source_reply_max` | `DIRIGENT_SOURCE_REPLY_MAX` | `"1m"` | The longest a caller is held for a reply, whatever a reply node's `timeout` says. |
