@@ -5,7 +5,8 @@ these blocks the answer was ``shell.run`` with ``psql`` -- an unsafe block, a cr
 command line, and a result that arrives as text somebody has to parse.
 
 Both blocks are **ordinary**. They run no command a document supplies and reach nothing but the
-database their connection names, which is a narrower grant than ``shell.run``.
+database their connection names, which is a narrower grant than ``shell.run``. On sqlite that
+is held by the engine's authorizer, which refuses ``ATTACH`` and ``VACUUM INTO``.
 
 Nothing a document writes ever reaches the SQL text. A statement is a constant in the document
 and every value is a named bind parameter, so ``${...}`` resolves into ``params`` and a value
