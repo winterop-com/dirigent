@@ -2,11 +2,13 @@
 
 A worker lists the location on the source's cadence and hands over every object it has not
 handed over before, oldest first. The cursor maps each object handed over that is still listed
-to its modification time, so an object is new whatever its timestamp, an object rewritten in
-place is handed over again, and the cursor holds as many entries as the location holds objects.
+to its modification time, so an object is new whatever its timestamp, and the cursor holds as
+many entries as the location holds objects. An object is known by its URI alone unless the
+source asks for one whose modification time changed to be handed over again.
 """
 
 from datetime import UTC, datetime, timedelta
+from typing import cast
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -25,6 +27,9 @@ class StorageConfig(BaseModel):
 
     poll: Duration = timedelta(minutes=1)
     """How long a worker waits between two looks."""
+
+    rerun_changed: bool = False
+    """Whether an object already handed over is handed over again once its modification time changes."""
 
     max_in_flight: int | None = Field(default=None, ge=1)
     """How many unsettled runs from this source may exist before the next look waits for one to settle."""
@@ -89,9 +94,9 @@ class StorageSource(PolledSource[StorageConfig, StorageInput]):
         """List the location, and hand over what the cursor has not seen, oldest first."""
         listed = [found async for found in ctx.storage.list(config.uri)]
         seen = _seen_of(cursor)
-        unseen = sorted((one for one in listed if seen.get(one.uri) != _stamp(one)), key=_key)
-        newer = unseen[:limit]
-        kept = {one.uri: _stamp(one) for one in listed if seen.get(one.uri) == _stamp(one)}
+        known = [one for one in listed if _known(one, seen, rerun_changed=config.rerun_changed)]
+        newer = sorted((one for one in listed if one not in known), key=_key)[:limit]
+        kept = {one.uri: seen[one.uri] for one in known}
         if not newer:
             return Polled(inputs=[], cursor={"seen": kept} if kept else None)
         now = datetime.now(UTC)
@@ -119,9 +124,14 @@ def _stamp(found: StatResult) -> str:
     return found.modified_at.isoformat()
 
 
+def _known(found: StatResult, seen: dict[str, str], *, rerun_changed: bool) -> bool:
+    """Whether an object is one the cursor has already handed over."""
+    return found.uri in seen and (not rerun_changed or seen[found.uri] == _stamp(found))
+
+
 def _seen_of(cursor: JsonMap | None) -> dict[str, str]:
     """Read the objects a cursor has handed over, by URI, or none for a source that has handed over nothing."""
     seen = cursor.get("seen") if cursor is not None else None
     if not isinstance(seen, dict):
         return {}
-    return {uri: stamp for uri, stamp in seen.items() if isinstance(uri, str) and isinstance(stamp, str)}
+    return {uri: stamp for uri, stamp in cast("dict[str, object]", seen).items() if isinstance(stamp, str)}

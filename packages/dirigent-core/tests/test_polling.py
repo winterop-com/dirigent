@@ -140,22 +140,26 @@ async def test_an_object_that_lands_late_with_an_old_date_is_still_handed_over(
     assert (await entered(sessions))[-1] == f"file://{inbox}/yesterday.csv"
 
 
-async def test_a_rewritten_object_is_handed_over_again_and_a_removed_one_leaves_the_cursor(
-    sessions: async_sessionmaker[AsyncSession], services: EngineServices, tmp_path: Path
+@pytest.mark.parametrize(("rerun_changed", "runs"), [(False, 0), (True, 1)])
+async def test_a_redated_object_runs_again_only_when_asked_and_a_removed_one_leaves_the_cursor(
+    sessions: async_sessionmaker[AsyncSession],
+    services: EngineServices,
+    tmp_path: Path,
+    rerun_changed: bool,
+    runs: int,
 ) -> None:
     inbox = inbox_of(tmp_path)
     base = datetime(2026, 1, 1, tzinfo=UTC)
     put(inbox, "a.csv", base)
     put(inbox, "b.csv", base)
-    await apply(sessions, services, landing(inbox))
+    await apply(sessions, services, landing(inbox, extra=f"      rerun_changed: {str(rerun_changed).lower()}"))
     await polling.tick(sessions, services, owner=WORKER)
     put(inbox, "a.csv", base + timedelta(hours=1))
     (inbox / "b.csv").unlink()
     [again] = await polling.tick(sessions, services, owner=WORKER, now=datetime.now(UTC) + timedelta(minutes=2))
-    assert len(again.runs) == 1
-    assert (await the_source(sessions)).cursor == {
-        "seen": {f"file://{inbox}/a.csv": (base + timedelta(hours=1)).isoformat()}
-    }
+    assert len(again.runs) == runs
+    stamp = base + timedelta(hours=1) if rerun_changed else base
+    assert (await the_source(sessions)).cursor == {"seen": {f"file://{inbox}/a.csv": stamp.isoformat()}}
 
 
 async def test_a_failed_poll_keeps_the_cursor_and_backs_off(
