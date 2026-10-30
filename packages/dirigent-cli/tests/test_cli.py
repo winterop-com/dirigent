@@ -11,6 +11,7 @@ from typing import Any, cast
 import click
 import pytest
 import typer
+from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
 from clisupport import closing, of_kind, only, plain, records, refusal
@@ -431,6 +432,27 @@ def test_a_fixture_login_an_earlier_loopback_start_left_is_not_served_on_another
 
     with pytest.raises(typer.Exit):
         asyncio.run(main.dev_admin(settings, exposed_on="0.0.0.0"))  # noqa: S104
+
+
+@pytest.mark.parametrize("address", ["127.0.0.1", "127.0.0.2", "localhost", "::1"])
+def test_dev_on_loopback_answers_only_to_a_loopback_name(address: str) -> None:
+    from dirigent_core import migrations
+
+    settings = get_settings()
+    migrations.upgrade("head", settings)
+    with TestClient(main.build_dev_app(settings, address)) as client:
+        assert client.get("/health", headers={"host": "127.0.0.1:3333"}).status_code == 200
+        assert client.get("/health", headers={"host": "evil.example:3333"}).status_code == 421
+
+
+def test_dev_on_another_address_answers_to_any_name() -> None:
+    """A real admin may serve a dev instance to the network, under whatever name reaches it."""
+    from dirigent_core import migrations
+
+    settings = get_settings()
+    migrations.upgrade("head", settings)
+    with TestClient(main.build_dev_app(settings, "0.0.0.0")) as client:  # noqa: S104
+        assert client.get("/health", headers={"host": "my-laptop.lan:3333"}).status_code == 200
 
 
 @pytest.mark.parametrize("address", ["127.0.0.1", "127.0.0.2", "localhost", "::1"])

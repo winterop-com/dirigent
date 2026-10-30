@@ -26,7 +26,7 @@ from dirigent_server.health import router as health_router
 from dirigent_server.logging import get_logger
 from dirigent_server.routes import TAGS, build_endpoints_router, build_router
 from dirigent_server.routes.playground import install_stream_deadline
-from dirigent_server.security import install_cross_site_guard, install_security_headers
+from dirigent_server.security import install_cross_site_guard, install_loopback_hosts_only, install_security_headers
 from dirigent_server.ui import mount_ui_assets, mount_ui_shell
 
 DESCRIPTION = """
@@ -55,6 +55,7 @@ def create_app(
     *,
     host: PluginHost | None = None,
     scheduler: bool | None = None,
+    loopback_only: bool = False,
 ) -> FastAPI:
     """Build the API application: health probes, the routers, the UI, and the embedded scheduler.
 
@@ -63,6 +64,10 @@ def create_app(
 
     The UI mounts in two pieces around the routers: its fixed paths before them, its shell
     after them, so an API route is matched before anything the bundle claims.
+
+    ``loopback_only`` refuses a request whose ``Host`` is not a loopback name. A proxy on the same
+    host can front a server bound to loopback under its public name, so this is not assumed from
+    the bind.
     """
     resolved = settings or get_settings()
     embed = resolved.scheduler_enabled if scheduler is None else scheduler
@@ -126,6 +131,8 @@ def create_app(
     mount_ui_shell(app, resolved)
     instrument_fastapi(app)
     install_compression(app)
+    if loopback_only:
+        install_loopback_hosts_only(app)
     install_security_headers(app)
     install_stream_deadline(app, resolved)
     return app

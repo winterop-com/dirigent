@@ -122,6 +122,13 @@ that is a SQLite file on a laptop. Its password is the fixed `admin`, so it stay
 would be made or still stands. `scripts/seed_dev.py`, which pairs the login with an unsafe
 allowlist, refuses one outright.
 
+On a loopback bind, `dg dev` also answers only to a loopback name: `localhost`, or an address such
+as `127.0.0.1` or `[::1]`. Any other `Host` is refused 421 (`server.host_not_loopback`) before the
+request is read. Without that, a page on a name that resolves to 127.0.0.1 could read this instance
+as its own origin and sign in as `admin`. A proxy in front of a loopback `dg dev` has to send one of
+those names as `Host`. A non-loopback bind has no such check, and `dg server` never does, because a
+proxy on the same host commonly fronts a loopback `dg server` under its public name.
+
 ### The account lifecycle
 
 An account is created, edited, deactivated, and activated again. There is no delete: a run, a

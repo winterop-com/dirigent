@@ -1121,6 +1121,7 @@ const refused = {
         connection_referenced: 'Still in use. Delete what uses it first.',
         /** The same sentence `refusal.shut` says, held to it by `test_shared_words.py`. */
         forbidden: 'Not permitted for your role.',
+        host_not_loopback: 'This instance is bound to loopback and answers only to a loopback name.',
         idempotency_key_required:
             'An Idempotency-Key header is required, so a retried request creates one attempt.',
         internal: 'The server failed to handle this request. The server log has the detail.',
