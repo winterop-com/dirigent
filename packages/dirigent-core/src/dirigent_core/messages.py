@@ -86,6 +86,11 @@ SECRET_KEY_MISMATCH = SECRET.define(
     "either the key changed or the row belongs to another instance",
 )
 
+CONNECTION_UNREADABLE = SECRET.define(
+    "connection_unreadable",
+    "a stored connection does not fit the configuration read from it: {detail}",
+)
+
 ARTIFACTS = Catalogue("artifacts")
 
 NOT_A_URI = ARTIFACTS.define("not_a_uri", "{uri} is not a URI: it names no scheme")
@@ -575,6 +580,11 @@ RUN_SCHEMA_NOT_HELD = RUN.define(
 UNKNOWN_CONNECTION_KIND = RUN.define(
     "unknown_connection_kind",
     "connection {ref} has kind {kind}, which no installed plugin contributes",
+)
+
+CONNECTION_WRONG_KIND = RUN.define(
+    "connection_wrong_kind",
+    "connection {ref} has kind {kind}, and this reads a connection of kind {wanted}",
 )
 
 STEP_NOT_IN_VERSION = RUN.define("step_not_in_version", "step {step} is not in the pinned pipeline version")

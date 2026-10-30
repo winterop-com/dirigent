@@ -10,11 +10,17 @@ import json
 from typing import Any
 
 from cryptography.fernet import Fernet, InvalidToken
-from pydantic import BaseModel, SecretStr
+from pydantic import BaseModel, SecretStr, ValidationError
 
 from dirigent_common import JsonMap
 from dirigent_core.errors import DomainError
-from dirigent_core.messages import EMPTY_SECRET, SECRET_KEY_MALFORMED, SECRET_KEY_MISMATCH, SECRET_KEY_MISSING
+from dirigent_core.messages import (
+    CONNECTION_UNREADABLE,
+    EMPTY_SECRET,
+    SECRET_KEY_MALFORMED,
+    SECRET_KEY_MISMATCH,
+    SECRET_KEY_MISSING,
+)
 
 REDACTED = "***"
 
@@ -61,6 +67,16 @@ class SecretKeyMismatch(SecretError):
         """Name the key that sealed the envelope."""
         super().__init__(sealed_by=f" sealed by key {key_id}" if key_id else "")
         self.key_id = key_id
+
+
+class ConnectionUnreadable(SecretError):
+    """A stored connection did not validate against a model, named by field and error kind alone."""
+
+    message = CONNECTION_UNREADABLE
+
+    def __init__(self, problems: list[str]) -> None:
+        """Name each field that failed and how, and no value."""
+        super().__init__(detail="; ".join(problems))
 
 
 def generate_key() -> str:
@@ -190,6 +206,17 @@ class SecretBox:
         *,
         key_id: str | None = None,
     ) -> C:
-        """Recombine a stored connection and validate it against its model."""
+        """Recombine a stored connection and validate it against its model.
+
+        The input holds plaintext secrets, so a failure names each field and error kind and
+        keeps no value, and it is raised outside the handler so it does not chain the original.
+        """
         merged: dict[str, Any] = {**public, **self.open(envelope, key_id=key_id)}
-        return model.model_validate(merged)
+        try:
+            return model.model_validate(merged)
+        except ValidationError as error:
+            problems = [
+                f"{'.'.join(str(part) for part in item['loc'])}: {item['type']}"
+                for item in error.errors(include_url=False, include_context=False, include_input=False)
+            ]
+        raise ConnectionUnreadable(problems)

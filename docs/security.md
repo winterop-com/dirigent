@@ -690,6 +690,13 @@ pipeline definition, an export, or a process log. No route carries a credential 
 so a log line or an OpenTelemetry span name never holds one. A secret field that is not set reads as `null`, not as
 `***`: the marker means a credential is stored.
 
+A step or a source that names a connection of another kind than it reads is refused with
+`run.connection_wrong_kind`, naming the connection and both kinds and opening nothing. A stored
+connection that does not validate against the configuration it was read for fails with
+`secret.connection_unreadable`, which names each field and the kind of error and no value, so
+neither failure writes a secret into a run's attempts, its logs, a source's `last_error`, or a
+process log.
+
 That is what makes a redacted read editable. `PATCH /api/v1/connections/{code}` replaces the
 config whole, and a secret field carrying the marker means **keep what is stored** -- the
 sealed value is put back before the config is validated and sealed again, so changing a base

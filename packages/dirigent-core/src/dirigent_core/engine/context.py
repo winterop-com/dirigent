@@ -23,7 +23,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dirigent_client.enums import LogLevel
 from dirigent_common import BaseRedirect, JsonMap
 from dirigent_core.logging import debug_kept, get_logger
-from dirigent_core.messages import RUN_UNKNOWN_CONNECTION, RUN_UNKNOWN_SCHEMA, UNKNOWN_CONNECTION_KIND
+from dirigent_core.messages import (
+    CONNECTION_WRONG_KIND,
+    RUN_UNKNOWN_CONNECTION,
+    RUN_UNKNOWN_SCHEMA,
+    UNKNOWN_CONNECTION_KIND,
+)
 from dirigent_core.models import Connection
 from dirigent_core.secrets import SecretBox
 from dirigent_core.storage import AttemptStorage, Storage, connection_binder, work_dir
@@ -348,7 +353,7 @@ class EngineStepContext:
                 ref=repr(ref),
                 available=_listed(self._connections, "none are configured"),
             )
-        return self._secrets.decrypt_config(model, record.config, record.envelope, key_id=record.key_id)
+        return open_record(self._secrets, record, model, self._connection_models)
 
     def storage_connection[C: BaseModel](self, scheme: str, model: type[C]) -> C | None:
         """Resolve the connection this instance configures a storage scheme from, or None."""
@@ -387,6 +392,25 @@ class EngineStepContext:
                 UNKNOWN_CONNECTION_KIND, error_class=ErrorClass.REJECTED, ref=repr(ref), kind=repr(record.kind)
             )
         return build_http_client(self.connection(ref, model))
+
+
+def open_record[C: BaseModel](
+    secrets: SecretBox, record: ConnectionRecord, model: type[C], models: Mapping[str, type[BaseModel]]
+) -> C:
+    """Open a stored connection for a model, refusing a connection of a kind the model does not read.
+
+    A model no installed kind declares has no kind to compare against, and only validates.
+    """
+    wanted = sorted(kind for kind, candidate in models.items() if candidate is model)
+    if wanted and record.kind not in wanted:
+        raise BlockFailure(
+            CONNECTION_WRONG_KIND,
+            error_class=ErrorClass.REJECTED,
+            ref=repr(record.code),
+            kind=repr(record.kind),
+            wanted=", ".join(repr(kind) for kind in wanted),
+        )
+    return secrets.decrypt_config(model, record.config, record.envelope, key_id=record.key_id)
 
 
 def _listed(known: "Mapping[str, object]", empty: str) -> str:

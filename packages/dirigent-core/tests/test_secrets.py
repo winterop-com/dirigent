@@ -2,10 +2,11 @@
 
 import pytest
 from cryptography.fernet import Fernet
-from pydantic import BaseModel, SecretStr
+from pydantic import BaseModel, ConfigDict, SecretStr
 
 from dirigent_core.secrets import (
     REDACTED,
+    ConnectionUnreadable,
     EmptySecret,
     SecretBox,
     SecretKeyMalformed,
@@ -148,6 +149,27 @@ def test_a_config_with_no_secrets_stores_no_envelope(box: SecretBox) -> None:
     assert envelope is None
     assert key_id is None
     assert box.decrypt_config(Plain, public, None).host == "db"
+
+
+def test_a_config_that_does_not_validate_names_fields_and_kinds_and_no_value(
+    box: SecretBox, config: ApiConnection
+) -> None:
+    class Other(BaseModel):
+        model_config = ConfigDict(extra="forbid")
+
+        host: str
+
+    public, envelope, key_id = box.encrypt_config(ApiConnection, config)
+    with pytest.raises(ConnectionUnreadable) as refused:
+        box.decrypt_config(Other, public, envelope, key_id=key_id)
+
+    said = str(refused.value)
+    assert "token: extra_forbidden" in said
+    assert "host: missing" in said
+    assert "t0ken" not in said
+    assert "hunter2" not in said
+    assert refused.value.__context__ is None, "a traceback renders what an exception chains"
+    assert refused.value.__cause__ is None
 
 
 def test_a_wrong_key_fails_with_a_clear_error(config: ApiConnection) -> None:
