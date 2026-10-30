@@ -23,6 +23,29 @@ async def test_a_value_that_fits_is_returned_unchanged(ctx: FakeContext) -> None
     assert output.value == payload
 
 
+async def test_a_schema_cannot_make_the_worker_fetch_a_url(ctx: FakeContext, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A reference nothing local answers is the schema's fault, so retrying it cannot help."""
+    asked: list[object] = []
+
+    def recorded(request: object, *_: object, **__: object) -> None:
+        asked.append(request)
+        raise OSError("a schema reached for the network")
+
+    monkeypatch.setattr("urllib.request.urlopen", recorded)
+    ctx.schemas["remote"] = {"$ref": "http://169.254.169.254/latest/meta-data/"}
+    with pytest.raises(BlockFailure) as raised:
+        await call_block(ValidateSchemaOperator(), {"input": {"id": "OU1"}, "schema": "remote"}, ctx)
+    assert asked == []
+    assert raised.value.error_class is ErrorClass.REJECTED
+    assert "169.254.169.254" in raised.value.message
+
+
+async def test_a_schema_keeps_the_references_it_holds_itself(ctx: FakeContext) -> None:
+    ctx.schemas["local"] = {"$defs": {"id": {"type": "string"}}, "properties": {"id": {"$ref": "#/$defs/id"}}}
+    output = await call_block(ValidateSchemaOperator(), {"input": {"id": "OU1"}, "schema": "local"}, ctx)
+    assert isinstance(output, ValidateSchemaOutput)
+
+
 async def test_a_missing_field_is_rejected_naming_the_root(ctx: FakeContext) -> None:
     ctx.schemas["ou-shape"] = SCHEMA
     with pytest.raises(BlockFailure) as raised:

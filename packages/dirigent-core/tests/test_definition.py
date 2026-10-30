@@ -140,6 +140,44 @@ def test_parameters_are_validated_against_the_published_schema() -> None:
         definition.validate_params({"day": "x", "limit": "many"}, base_format_checker())
 
 
+def test_a_parameter_schema_cannot_make_the_process_fetch_a_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Params are validated on the server, so a fetch here is a request from the server's network."""
+    asked: list[object] = []
+
+    def recorded(request: object, *_: object, **__: object) -> None:
+        asked.append(request)
+        raise OSError("a schema reached for the network")
+
+    monkeypatch.setattr("urllib.request.urlopen", recorded)
+    definition = PipelineDefinition(
+        code="remote",
+        params={"type": "object", "properties": {"day": {"$ref": "http://169.254.169.254/latest/meta-data/"}}},
+        steps={"a": StepDefinition(block="test.echo")},
+    )
+    with pytest.raises(ParameterError, match="parameter schema is not itself valid JSON Schema"):
+        definition.validate_params({"day": "x"}, base_format_checker())
+    assert asked == []
+
+
+def test_a_parameter_schema_keeps_its_own_references_and_the_published_metaschema() -> None:
+    """Only the network is gone: what a document holds, and the drafts the library ships, resolve."""
+    definition = PipelineDefinition(
+        code="local",
+        params={
+            "type": "object",
+            "$defs": {"day": {"type": "string"}},
+            "properties": {
+                "day": {"$ref": "#/$defs/day"},
+                "shape": {"$ref": "https://json-schema.org/draft/2020-12/schema"},
+            },
+        },
+        steps={"a": StepDefinition(block="test.echo")},
+    )
+    assert definition.validate_params({"day": "x", "shape": {"type": "string"}}, base_format_checker())["day"] == "x"
+    with pytest.raises(ParameterError):
+        definition.validate_params({"day": 1}, base_format_checker())
+
+
 def test_a_parameter_schema_that_is_not_a_schema_refuses_the_run_rather_than_escaping() -> None:
     """A version stored before apply checked the schema still has to fail as a ParameterError."""
     definition = PipelineDefinition(
