@@ -211,25 +211,12 @@ export function Rail() {
     )
 }
 
-/** A group's heading, which is a link where the group has a screen of its own. */
+/** A group's heading. */
 export function SectionLabel({ section }: { section: NavSection }) {
-    const look = 'px-2 pt-3 pb-1 text-xs font-medium tracking-wide text-faint uppercase'
-    if (section.to === undefined) return <p className={look}>{section.label}</p>
     return (
-        <NavLink
-            to={section.to}
-            end
-            title={LABELS.screen.overview.name}
-            className={({ isActive }) =>
-                cn(
-                    look,
-                    'control-link block rounded-md underline-offset-4 hover:text-foreground hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
-                    isActive && 'text-foreground',
-                )
-            }
-        >
+        <p className="px-2 pt-3 pb-1 text-xs font-medium tracking-wide text-faint uppercase">
             {section.label}
-        </NavLink>
+        </p>
     )
 }
 
