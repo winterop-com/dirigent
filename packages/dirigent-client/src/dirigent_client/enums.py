@@ -8,6 +8,9 @@ class RunStatus(StrEnum):
 
     QUEUED = "queued"
     RUNNING = "running"
+    PAUSED = "paused"
+    """Held by an operator: nothing new is claimed and its deadlines stand still until it resumes."""
+
     SUCCEEDED = "succeeded"
     COMPLETED_WITH_ERRORS = "completed_with_errors"
     FAILED = "failed"
