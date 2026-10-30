@@ -41,7 +41,11 @@ format: dirigent/v1
 kind: pipeline
 code: ndjson-to-parquet
 name: Records to parquet and back
-description: Write typed records into the run's scratch space, convert them through ndjson into parquet, and read the file back to see what landed.
+description: |
+  Write records to a parquet file and read them back to see what landed.
+
+  Typed records go into the run's scratch space and are converted through ndjson into parquet, and
+  the file is what gets read back.
 
 tags: [recipes, storage, transform, parquet, starter]
 

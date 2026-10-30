@@ -34,7 +34,10 @@ format: dirigent/v1
 kind: pipeline
 code: jq-nested-to-flat
 name: Flatten nested records
-description: Flatten nested records into joined-path keys, with list fields collapsed into one cell rather than indexed columns.
+description: |
+  Flatten nested records into rows that a csv or parquet file can hold.
+
+  Keys are the joined paths, and list fields collapse into one cell rather than indexed columns.
 
 tags: [recipes, transform, jq]
 

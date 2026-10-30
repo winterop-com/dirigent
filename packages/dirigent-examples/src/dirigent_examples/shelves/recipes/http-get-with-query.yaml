@@ -45,7 +45,10 @@ format: dirigent/v1
 kind: pipeline
 code: http-get-with-query
 name: A GET with query parameters
-description: Build a GET whose query is a map rather than a hand-written string, and reshape the JSON body it answers with.
+description: |
+  Send a GET request with query parameters and reshape the JSON answer.
+
+  The query is a map rather than a hand-written string.
 
 tags: [recipes, http, transform]
 

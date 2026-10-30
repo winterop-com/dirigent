@@ -43,7 +43,11 @@ format: dirigent/v1
 kind: pipeline
 code: storage-keep-past-the-run
 name: Something kept past its run
-description: Fetch a body, write a working copy to the run's scratch and a kept copy under the artifact root, and read the kept one back.
+description: |
+  Fetch something and save a copy that outlasts the run.
+
+  The body is written twice: a working copy to the run's scratch, and a kept copy under the
+  artifact root, which is the one read back.
 
 tags: [recipes, http, storage, transform, starter]
 

@@ -45,7 +45,11 @@ format: dirigent/v1
 kind: pipeline
 code: http-save-body-to-storage
 name: A response body saved to storage
-description: Call an endpoint, write the body it answered with to a storage URI, and read the file back for a summary.
+description: |
+  Call an endpoint, save the answer to a file, and read it back for a summary.
+
+  The body it answered with is written to a storage URI, and the summary comes from the file read
+  back.
 
 tags: [recipes, http, storage, transform, starter]
 

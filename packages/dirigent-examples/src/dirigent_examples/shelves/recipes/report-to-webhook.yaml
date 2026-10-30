@@ -45,7 +45,10 @@ format: dirigent/v1
 kind: pipeline
 code: report-to-webhook
 name: Render a report and POST it
-description: Render a markdown page from a Jinja template and deliver it to a receiver as one field of a webhook body.
+description: |
+  Render a report page and send it to a receiver as a webhook.
+
+  The markdown page comes from a Jinja template and is delivered as one field of a webhook body.
 
 tags: [recipes, report, transform, webhook]
 

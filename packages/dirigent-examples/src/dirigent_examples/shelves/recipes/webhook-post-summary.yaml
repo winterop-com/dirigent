@@ -44,7 +44,11 @@ format: dirigent/v1
 kind: pipeline
 code: webhook-post-summary
 name: A run summary as a webhook
-description: Build a notification body of counts and identifiers, derive its human line from those counts, and deliver it on all_done.
+description: |
+  Send a receiver a summary of a batch load, with counts and a one-line message.
+
+  The notification body holds counts and identifiers, its human line is derived from those counts,
+  and it is delivered on all_done.
 
 tags: [recipes, transform, webhook]
 

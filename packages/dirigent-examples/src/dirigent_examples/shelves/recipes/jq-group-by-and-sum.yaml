@@ -22,7 +22,11 @@ format: dirigent/v1
 kind: pipeline
 code: jq-group-by-and-sum
 name: Group and sum with jq
-description: Bucket flat rows by one column, total two numeric columns per bucket, and keep a grand total beside them.
+description: |
+  Total two columns for each group of rows, with a grand total alongside.
+
+  Flat rows are bucketed by one column, two numeric columns are totalled per bucket, and the grand
+  total is kept beside them.
 
 tags: [recipes, transform, jq]
 

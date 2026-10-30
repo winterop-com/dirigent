@@ -37,7 +37,11 @@ format: dirigent/v1
 kind: pipeline
 code: report-built-in
 name: The built-in report
-description: The smallest pipeline that renders a report document, with an empty report section and no template of its own.
+description: |
+  Total sales by region and add the standard run report.
+
+  The smallest pipeline that renders a report document, with an empty report section and no
+  template of its own.
 
 tags: [recipes, transform, report, starter]
 

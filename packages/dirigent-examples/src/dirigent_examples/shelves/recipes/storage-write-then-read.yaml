@@ -35,7 +35,11 @@ format: dirigent/v1
 kind: pipeline
 code: storage-write-then-read
 name: Write to storage, then read it back
-description: Put a transform's result in the run's scratch space with storage.write, read it into the next step with storage.read, and do it again with what that step produced.
+description: |
+  Pass work from one step to the next through storage, twice over.
+
+  A transform's result goes into the run's scratch space with storage.write and comes into the
+  next step with storage.read, and the same happens again with what that step produced.
 
 tags: [recipes, storage, transform, starter]
 

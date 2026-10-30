@@ -45,7 +45,11 @@ format: dirigent/v1
 kind: pipeline
 code: http-post-file-from-storage
 name: POST a file read out of storage
-description: Write a file into the run's scratch space, read it back with storage.read, and POST what the read brought back.
+description: |
+  Save a file, read it back, and upload its contents to an endpoint.
+
+  The file goes into the run's scratch space, storage.read brings it back, and what the read
+  brought back is POSTed.
 
 tags: [recipes, http, storage, transform]
 

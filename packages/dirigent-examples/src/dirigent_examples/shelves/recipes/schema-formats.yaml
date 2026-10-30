@@ -37,7 +37,11 @@ format: dirigent/v1
 kind: pipeline
 code: schema-formats
 name: Formats that actually assert
-description: Hold a record of strings to date, date-time, email, uri, uuid4 and digest formats, and show what a pack-contributed format does.
+description: |
+  Check that a record's strings are real dates, emails, URLs, IDs and digests.
+
+  The record is held to date, date-time, email, uri, uuid4 and digest formats, and a
+  pack-contributed format shows what such a format does.
 
 tags: [recipes, validate]
 

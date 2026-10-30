@@ -48,7 +48,11 @@ format: dirigent/v1
 kind: pipeline
 code: http-follow-redirects
 name: Following a redirect, or not
-description: Make the same redirecting call twice, with and without follow_redirects, and compare the status and the Location header.
+description: |
+  Call a redirecting URL twice, followed and not, and compare the answers.
+
+  The same call is made with and without follow_redirects, and the comparison reads the status and
+  the Location header.
 
 tags: [recipes, http, transform]
 

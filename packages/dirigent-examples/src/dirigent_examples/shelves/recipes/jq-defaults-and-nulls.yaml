@@ -35,7 +35,11 @@ format: dirigent/v1
 kind: pipeline
 code: jq-defaults-and-nulls
 name: Defaults, nulls, and the // trap
-description: Distinguish absent, null, false, and empty when defaulting fields, and show what the alternative operator gets wrong.
+description: |
+  Fill in missing fields without overwriting false, and see the mistake to avoid.
+
+  The program distinguishes absent, null, false, and empty when defaulting fields, and shows what
+  the alternative operator gets wrong.
 
 tags: [recipes, transform, jq]
 

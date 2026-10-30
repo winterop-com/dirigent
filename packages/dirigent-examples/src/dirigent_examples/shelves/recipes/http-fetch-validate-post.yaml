@@ -64,6 +64,8 @@ kind: pipeline
 code: http-fetch-validate-post
 name: Fetch, validate, transform, validate, post
 description: |
+  Fetch data, check it, reshape it, check the result, and post it on.
+
   The full shape: a GET from an endpoint, a schema gate on what came back, a jq reshaping, a
   second gate on what was made, and a POST of the result.
 

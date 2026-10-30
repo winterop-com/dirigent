@@ -49,7 +49,11 @@ format: dirigent/v1
 kind: pipeline
 code: csv-header-rules
 name: CSV header rules
-description: How the csv codec reads a ragged file and writes a union header, and the two headers it refuses to read at all.
+description: |
+  Read a csv with uneven rows, and write uneven records out to a csv.
+
+  How the csv codec reads a ragged file and writes a union header, and the two headers it refuses
+  to read at all.
 
 tags: [recipes, storage, transform]
 

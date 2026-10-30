@@ -53,7 +53,11 @@ format: dirigent/v1
 kind: pipeline
 code: http-timeout-override
 name: A per-call timeout override
-description: Override a connection's timeout for one slow call, under an engine step deadline that covers the whole attempt.
+description: |
+  Give one slow call a longer timeout than its connection allows.
+
+  The override applies to that call alone, and sits under an engine step deadline that covers the
+  whole attempt.
 
 tags: [recipes, http, transform]
 

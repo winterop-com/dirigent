@@ -40,7 +40,10 @@ format: dirigent/v1
 kind: pipeline
 code: report-to-file
 name: Render a report and write it to a file
-description: Render a markdown page from a Jinja template, write it to the run's scratch space, and read it back.
+description: |
+  Render a report page from a template, save it to a file, and read it back.
+
+  The markdown page comes from a Jinja template and goes into the run's scratch space.
 
 tags: [recipes, report, storage, transform, starter]
 

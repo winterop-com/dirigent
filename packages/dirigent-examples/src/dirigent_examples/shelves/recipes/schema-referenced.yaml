@@ -40,7 +40,11 @@ format: dirigent/v1
 kind: pipeline
 code: schema-referenced
 name: A schema the instance holds
-description: Validate a record against ou-record, a schema applied to the instance on its own, and declare the dependency in requires.
+description: |
+  Check a record against a schema stored on the instance.
+
+  The record is validated against ou-record, a schema applied to the instance on its own, and the
+  document declares that dependency in requires.
 
 tags: [recipes, transform, validate]
 

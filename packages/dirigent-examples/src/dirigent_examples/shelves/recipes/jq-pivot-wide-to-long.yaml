@@ -23,7 +23,10 @@ format: dirigent/v1
 kind: pipeline
 code: jq-pivot-wide-to-long
 name: Pivot wide rows to long
-description: Melt a column-per-measure table into one record per measurement, dropping the cells that were never measured.
+description: |
+  Turn a table with one column per measure into one row per measurement.
+
+  Cells that were never measured are dropped.
 
 tags: [recipes, transform, jq]
 
