@@ -3,7 +3,8 @@ name: release
 # A `v*` tag publishes: every package to PyPI, and the image to GHCR.
 #
 # PyPI auth is trusted publishing, so no token is stored here: PyPI verifies the OIDC token
-# GitHub mints for this workflow file and environment.
+# GitHub mints for this workflow file and environment. The image is held behind the `ghcr`
+# environment, and only after the tag has been checked against every package's version.
 
 on:
   push:
@@ -21,11 +22,10 @@ jobs:
     name: build the distributions
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      # setup-uv stopped publishing major tags at v8, so pin the exact version.
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.3.2
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
           enable-cache: true
 
@@ -48,7 +48,9 @@ jobs:
       # The server wheel packages src/dirigent_server/static/, so the bundle is built and
       # put there before the build.
       - name: Install bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.4
 
       - name: Build the bundle into the server package
         run: make ui-static
@@ -65,7 +67,7 @@ jobs:
       - name: Refuse a server wheel without the UI
         run: unzip -l dist/dirigent-server/dirigent_server-*.whl | grep -q 'dirigent_server/static/index.html'
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: dist
           path: dist/
@@ -105,23 +107,38 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: dist
           path: dist/
 
       # No password: the action exchanges the runner's OIDC token with PyPI. A file PyPI
       # already holds is skipped, so a rerun after a partial upload publishes the rest.
-      - uses: pypa/gh-action-pypi-publish@release/v1
+      - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
         with:
           packages-dir: dist/${{ matrix.package }}/
           skip-existing: true
+
+  # A job that calls a reusable workflow cannot name an environment, so the gate is a job of
+  # its own and the image waits on it. The environment holds only what its protection rules
+  # say: with no required reviewers on `ghcr`, this passes without stopping.
+  approve-image:
+    name: approve publishing the image
+    needs: build
+    runs-on: ubuntu-24.04
+    environment:
+      name: ghcr
+    permissions: {}
+    steps:
+      - name: Name what is being published
+        run: echo "Publishing $GITHUB_REF_NAME to ghcr.io/winterop-com/dirigent"
 
   # Both platforms, on docker's reusable builder: it sets up QEMU and buildx, tags from the
   # git tag through metadata-action, and pushes one multi-platform manifest.
   image:
     name: publish the image
-    uses: docker/github-builder/.github/workflows/build.yml@v1
+    needs: approve-image
+    uses: docker/github-builder/.github/workflows/build.yml@cbc9d42f8c89a55623392aadd03600965b80e963 # v1
     permissions:
       contents: read
       packages: write
