@@ -86,7 +86,10 @@ class SourceOut(WireModel):
     """How a caller of a received source authenticates: ``token`` or ``public``."""
 
     token_prefix: str | None = None
-    """The leading characters of the token or the signing secret, so a caller's copy can be told apart."""
+    """The leading characters of a bearer token, so a caller's copy can be told apart."""
+
+    secret_fingerprint: str | None = None
+    """For an ``hmac`` source, the first 12 hex characters of the SHA-256 of its signing secret."""
 
     signature_header: str | None = None
     """For an ``hmac`` source, the header a caller's signature of the body arrives in."""
@@ -133,7 +136,12 @@ class SourceTokenOut(WireModel):
     token: str
     """The token, or the signing secret."""
 
-    prefix: str
+    prefix: str | None = None
+    """The leading characters of a bearer token."""
+
+    fingerprint: str | None = None
+    """For ``hmac``, the first 12 hex characters of the SHA-256 of the signing secret."""
+
     url_path: str
     """Where the source is called, so a caller can be configured without assembling the path by hand."""
 
