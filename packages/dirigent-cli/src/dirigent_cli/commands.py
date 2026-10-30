@@ -176,7 +176,7 @@ from dirigent_client import (
     declared_label,
 )
 from dirigent_client.schemas import TokenLifetime
-from dirigent_common import Issue, JsonMap, Message
+from dirigent_common import Issue, JsonMap, Message, bounded_load
 from dirigent_core import migrations
 from dirigent_core.config import STATE_DIR, Settings
 from dirigent_core.documents import (
@@ -1185,7 +1185,7 @@ def parse_input(value: str | None) -> Any:
         except OSError as error:
             fail(INPUT_FILE_UNREADABLE, path=str(path), detail=error.strerror or str(error))
     try:
-        return yaml.safe_load(text)
+        return bounded_load(text)
     except yaml.YAMLError as error:
         fail(INPUT_REFUSED, detail=str(error).splitlines()[0])
 
@@ -2763,7 +2763,7 @@ def _read_schema(reference: str) -> tuple[JsonMap, Document]:
     except SourceError as error:
         fail(SOURCE_REFUSED, detail=str(error))
     try:
-        body = yaml.safe_load(document.text)
+        body = bounded_load(document.text)
     except yaml.YAMLError as error:
         fail(SCHEMA_UNREADABLE, label=document.label, detail=str(error))
     if not isinstance(body, dict):

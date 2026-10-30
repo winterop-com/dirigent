@@ -599,6 +599,15 @@ declare `requires.workers` on the pipelines that use them. An instance with no k
 still starts, so a worker whose steps open no connection can be started without one; a stack
 whose artifact root resolves through a sealed connection cannot, because every worker opens it.
 
+### A document whose aliases expand
+
+A document is YAML, and a few hundred bytes of aliases nested inside each other expand to billions
+of values wherever the document is written out: a digest, an export, a request. So a document is
+measured before it is built, at every door that reads one, and refused when its aliases would add
+more than 100,000 values or 16 MiB of text, contain themselves, or nest past what Python's stack
+holds. An alias used to repeat a block of config is nowhere near that. The same bound holds the
+YAML `convert.std` reads.
+
 ### A reference in a shell string
 
 `shell.run` and `docker.run` take a command as a shell string, and a `${...}` in one never

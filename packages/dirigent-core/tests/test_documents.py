@@ -2,6 +2,7 @@
 
 import json
 from datetime import timedelta
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -13,6 +14,7 @@ from dirigent_core.documents import (
     digest_of_document,
     load_document,
     parse_text,
+    readable,
     summarize,
     to_yaml,
     validate_against_catalog,
@@ -90,6 +92,46 @@ def test_yaml_and_json_are_the_same_model_read_two_ways() -> None:
     from_yaml = load_text(FULL)
     as_json = json.dumps(canonical_document(from_yaml))
     assert load_text(as_json) == from_yaml
+
+
+def expanding_document(levels: int) -> str:
+    """A pipeline whose config holds aliases nested so each level multiplies the last by nine."""
+    rows = ["        - &a0 [x, x, x, x, x, x, x, x, x]"]
+    rows += [f"        - &a{level} [{', '.join([f'*a{level - 1}'] * 9)}]" for level in range(1, levels)]
+    body = "\n".join(rows)
+    return f"format: dirigent/v1\ncode: bomb\nsteps:\n  a:\n    block: flow.wait\n    config:\n      v:\n{body}\n"
+
+
+def test_a_document_whose_aliases_expand_too_far_is_refused_before_it_is_built() -> None:
+    with pytest.raises(DocumentError, match=r"aliases would add more than 100,000 values"):
+        load_text(expanding_document(7))
+
+
+def test_a_document_that_contains_itself_is_refused() -> None:
+    with pytest.raises(DocumentError, match="contains itself"):
+        load_text("format: dirigent/v1\ncode: x\nsteps: &loop\n  a:\n    block: wait\n    config: *loop\n")
+
+
+def test_a_document_nested_past_the_stack_is_refused() -> None:
+    with pytest.raises(DocumentError, match="nests too deeply"):
+        load_text("[" * 5000 + "]" * 5000)
+
+
+def test_a_document_whose_aliases_stay_in_bound_loads_written_out() -> None:
+    definition = load_text(
+        "format: dirigent/v1\ncode: x\n"
+        "steps:\n  a:\n    block: flow.wait\n    config: &shared\n      v: [1, 2]\n"
+        "  b:\n    block: flow.wait\n    config: *shared\n"
+    )
+
+    assert definition.steps["a"].config == definition.steps["b"].config == {"v": [1, 2]}
+
+
+def test_a_directory_read_passes_over_a_file_that_expands_too_far(tmp_path: Path) -> None:
+    (tmp_path / "bomb.yaml").write_text(expanding_document(7))
+    (tmp_path / "fine.yaml").write_text("format: dirigent/v1\ncode: fine\nsteps: {}\n")
+
+    assert [path.name for path, _ in readable(tmp_path)] == ["fine.yaml"]
 
 
 def test_a_document_must_declare_its_format() -> None:
