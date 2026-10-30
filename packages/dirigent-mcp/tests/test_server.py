@@ -121,6 +121,16 @@ async def test_a_document_is_planned_applied_and_run(server: MCPServer) -> None:
     ]
 
 
+@pytest.mark.parametrize("code", ["mcp-demo/$deactivate#", "x/../mcp-demo/$deactivate#"])
+async def test_a_reading_tool_cannot_be_steered_to_another_route_by_its_argument(server: MCPServer, code: str) -> None:
+    await call(server, "apply_document", document=DOCUMENT)
+
+    with pytest.raises(ToolError, match="not an identifier"):
+        await server.call_tool("validate_pipeline", {"code": code})
+
+    assert (await call(server, "get_pipeline", code="mcp-demo"))["active"] is True
+
+
 async def test_a_settled_run_is_rerun_and_one_in_flight_is_refused(server: MCPServer) -> None:
     tools = {tool.name: tool for tool in await server.list_tools()}
     assert tools["rerun_run"].annotations is not None and not tools["rerun_run"].annotations.read_only_hint

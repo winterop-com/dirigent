@@ -1,6 +1,6 @@
 """The block catalog: what this instance can run, and the schemas a form is built from."""
 
-from dirigent_client.resources.base import Resource, query
+from dirigent_client.resources.base import Resource, query, segment
 from dirigent_client.schemas import BlockEntry, BlockKind, Catalog
 
 
@@ -13,4 +13,4 @@ class Blocks(Resource):
 
     async def get(self, block_id: str) -> BlockEntry:
         """Read one catalog entry, which is what a step's configuration form is built from."""
-        return await self._one(BlockEntry, "GET", f"/blocks/{block_id}")
+        return await self._one(BlockEntry, "GET", f"/blocks/{segment(block_id)}")
