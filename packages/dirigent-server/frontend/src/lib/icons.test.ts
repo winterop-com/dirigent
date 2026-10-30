@@ -16,6 +16,6 @@ describe('the icon vocabulary', () => {
 
     test('puts every concept in exactly one group', () => {
         const grouped = Object.values(ICON_GROUPS).flat() as string[]
-        expect([...grouped].sort()).toEqual(Object.keys(ICONS).sort())
+        expect(grouped.toSorted()).toEqual(Object.keys(ICONS).toSorted())
     })
 })
