@@ -736,9 +736,17 @@ const shell = {
     open_settings: 'Open settings',
     shortcuts: 'Keyboard shortcuts',
 
-    /** The corner: which instance this is, what it is running, and how it is doing. */
+    /** The top bar's dot: which instance this is, what it is running, and how it is doing. */
     instance: {
         label: 'Instance',
+        /** The dot's accessible name, which carries what the dot's colour says. */
+        said: (state: string) => `Instance: ${state}`,
+        /** Beside the dot, and only when something is wrong. */
+        wrong: {
+            degraded: 'Server degraded',
+            unhealthy: 'Server unhealthy',
+            offline: 'Server unreachable, retrying',
+        },
         /** The name, and the environment where the environment is worth saying. */
         line: (name: string, environment: string) => `${name} · ${environment}`,
         /** A fact this instance did not state. */

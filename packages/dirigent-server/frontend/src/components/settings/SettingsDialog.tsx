@@ -61,14 +61,17 @@ export const SETTINGS_TITLE = LABELS.settings.title
  */
 export function SettingsDialog({
     open,
+    startAt = null,
     onOpenChange,
 }: {
     open: boolean
+    /** The category it opens on, where the thing that opened it is about one. */
+    startAt?: string | null
     onOpenChange: (open: boolean) => void
 }) {
     const apple = applePlatform(navigator.userAgent)
     const [query, setQuery] = useState('')
-    const [chosen, setChosen] = useState(FIRST_CATEGORY)
+    const [chosen, setChosen] = useState(startAt ?? FIRST_CATEGORY)
 
     const rows = useMemo(() => settingsRows(apple), [apple])
     const shown = useMemo(() => filterSettings(rows, query), [query, rows])

@@ -3,7 +3,6 @@
 # A ratchet, not a backlog: `scripts/check_ui_system.py` refuses a new offence and refuses to
 # keep a count a migration has lowered. One line per rule and file: rule, path, count.
 # Written by that script's --write; shrink it by moving a screen onto components/ds.
-icon-button	packages/dirigent-server/frontend/src/components/AppShell.tsx	2
 icon-button	packages/dirigent-server/frontend/src/components/NavDrawer.tsx	1
 icon-button	packages/dirigent-server/frontend/src/components/PanelSheet.tsx	1
 icon-button	packages/dirigent-server/frontend/src/components/Rail.tsx	1
@@ -24,7 +23,6 @@ lucide-import	packages/dirigent-server/frontend/src/components/PageState.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/PanelSheet.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/Rail.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/RefreshControl.tsx	1
-lucide-import	packages/dirigent-server/frontend/src/components/ServerStatusButton.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/StatusBar.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/ThemeToggle.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/WindowedPane.tsx	1

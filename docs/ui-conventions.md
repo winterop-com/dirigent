@@ -1057,18 +1057,22 @@ each drawing half a border is a line that comes apart at a column edge, and the 
 app then reads as a step. `e2e/shell.spec.ts` measures every strip with
 `getBoundingClientRect`, in both palettes, with the rail collapsed and the panel open.
 
-**A fact appears once in the shell.** What this instance is and who is signed in belong to the
-corner identity and the health popover behind it -- the name, the environment, the version,
-every check and the username, with Sign out under them. **The foot carries only what the
+**A fact appears once in the shell.** How this instance is doing belongs to the top bar's dot.
+**The foot carries only what the
 current screen is doing**: its note and its identifier, and nothing that is true of the session
 rather than of the screen. What a screen states there is what nothing else on it already says
 -- how many rows were read is the foot of the table's line, not the bar's; a standing fact is
 which version the instance holds, not who applied it and when -- and an instant is the house's
 relative form rather than a locale string.
 
-**Settings lives at the bottom of the rail's column**, in that bar; the instance's identity --
-a dot, its name and environment from `/system/info`, its version -- lives at the right of the
-topbar, and opens the health popover. The rail's own entries are **single-line labels**, and a
+**The top bar's dot is the whole of what it says while the instance is well.** One dot at the right
+of the bar, and the details are its tooltip: the name and environment from `/system/info`, the
+health and when it was asked, the version, and every check. **Words appear only when something is
+wrong**: `Server degraded`{ .label }, `Server unhealthy`{ .label }, `Server unreachable, retrying`{ .label }, beside the dot, in
+that state's ink. `statusWords` in `lib/server-status` decides it. A press opens the settings
+dialog's Server pane, which is what a finger has where there is nothing to hover with.
+
+**Settings lives at the bottom of the rail's column**, in that bar. The rail's own entries are **single-line labels**, and a
 word that names one of those needs no gloss under it. **They are grouped by what somebody is there
 to do**: Dashboard alone at the head; Operate (Runs, Triggers); Build (Pipelines, Connections,
 Schemas); Reference (Blocks, Examples); and, for an admin, Admin (Users, Workers, Alerting). `lib/nav`

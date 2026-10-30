@@ -156,11 +156,28 @@ test('the seams hold in the light palette as they do in the dark one', async ({ 
     }
 })
 
-test('the corner names the instance rather than only colouring it', async ({ page }) => {
-    const corner = page.getByRole('button', { name: LABELS.shell.instance.label })
+test('the top bar is one dot, and its details are the tooltip', async ({ page }) => {
+    const dot = page.getByRole('button', { name: LABELS.shell.instance.label })
+    await expect(dot).not.toContainText('dirigent')
+    await dot.hover()
     // The name and the environment come from `/system/info`; this suite runs `dg dev`.
-    await expect(corner).toContainText('dirigent')
-    await expect(corner).toContainText('local')
+    const tip = page.locator('[data-slot="tooltip-content"]')
+    await expect(tip).toContainText('dirigent')
+    await expect(tip).toContainText('local')
+    await expect(tip).toContainText(LABELS.word.version.term)
+})
+
+test('pressing the dot opens the settings on the server pane', async ({ page }) => {
+    await page.getByRole('button', { name: LABELS.shell.instance.label }).click()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog.getByRole('button', { name: LABELS.action.recheck })).toBeVisible()
+})
+
+test('the top bar has words only when something is wrong', async ({ page }) => {
+    await page.route('**/health/ready', (route) => route.abort())
+    await page.reload()
+    const dot = page.getByRole('button', { name: LABELS.shell.instance.label })
+    await expect(dot).toContainText(LABELS.shell.instance.wrong.offline)
 })
 
 test('a panel nothing has filled is not there at all, toggle included', async ({ page }) => {

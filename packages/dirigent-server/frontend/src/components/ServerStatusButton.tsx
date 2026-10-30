@@ -1,14 +1,8 @@
-import { useEffect, useState } from 'react'
-
-import { ChevronDown } from 'lucide-react'
-
-import { useNavigate } from 'react-router'
+import { useEffect } from 'react'
 
 import { Button } from '@/components/ui/button'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useStore } from '@/hooks/use-store'
-import { authStore, signOut } from '@/lib/auth'
-import { LOGIN_PATH } from '@/lib/nav'
 import { formatRelative } from '@/lib/format'
 import { LABELS } from '@/lib/labels'
 import {
@@ -16,7 +10,9 @@ import {
     checkServer,
     identityLine,
     serverStatus,
+    statusWords,
     type ServerState,
+    type ServerStatus,
 } from '@/lib/server-status'
 import { cn } from '@/lib/utils'
 
@@ -31,40 +27,60 @@ export const TONE: Record<ServerState, { dot: string; word: string }> = {
     offline: { dot: 'bg-critical', word: LABELS.state.server.offline },
 }
 
-/** One fact about the instance, on the row every fact here shares. */
-function Fact({ term, detail }: { term: string; detail: string }) {
-    return (
-        <div className="row-hover col-span-2 grid grid-cols-subgrid px-3 py-0.5">
-            <dt className="text-faint">{term}</dt>
-            <dd className="font-mono">{detail}</dd>
-        </div>
-    )
+/** The ink the words beside the dot are in, for the states that have words. */
+const WORD_INK: Partial<Record<ServerState, string>> = {
+    degraded: 'text-warning-ink',
+    unhealthy: 'text-critical-ink',
+    offline: 'text-critical-ink',
 }
 
 export function Dot({ state, wide }: { state: ServerState; wide?: boolean }) {
-    return <span className={cn('rounded-full', wide ? 'size-2.5' : 'size-2', TONE[state].dot)} aria-hidden />
+    return (
+        <span
+            className={cn('shrink-0 rounded-full', wide ? 'size-2.5' : 'size-2', TONE[state].dot)}
+            aria-hidden
+        />
+    )
+}
+
+/** Everything the dot does not say: which instance, how it is, what it runs, and every check. */
+function Details({ status }: { status: ServerStatus }) {
+    return (
+        <span className="flex flex-col items-start gap-1">
+            <span className="font-medium">{identityLine(status)}</span>
+            <span>
+                {TONE[status.state].word}
+                {status.checkedAt !== null && (
+                    <span className="opacity-70">
+                        {' '}
+                        {LABELS.word.checked.term} {formatRelative(new Date(status.checkedAt).toISOString())}
+                    </span>
+                )}
+            </span>
+            <span>
+                {LABELS.word.version.term}{' '}
+                <span className="font-mono">{status.version ?? LABELS.shell.instance.unknown}</span>
+            </span>
+            {status.checks.map((check) => (
+                <span key={check.name}>
+                    <span className="font-mono">{check.name}</span> {check.status}
+                    {check.detail !== null && <span className="opacity-70"> {check.detail}</span>}
+                </span>
+            ))}
+        </span>
+    )
 }
 
 /**
- * The corner identity: which instance this is, what it is running, and how it is doing.
+ * How this instance is doing, as one dot: the details are its tooltip, and words appear beside it
+ * only when something is wrong.
  *
- * THE INSTANCE IS NAMED, NOT MERELY COLOURED. A dot alone says the server is well without
- * saying which server, and a reader with a staging tab beside a production one has to know
- * that before they press anything. So the trigger is the dot and the name and environment
- * from `/system/info` -- a summary outside, and every detail, version included, within.
- *
- * The dot re-asks on a slow clock and when the tab comes back; the popover shows what the
- * last answer carried and re-asks as it opens, so its rows are as fresh as the click.
- *
- * THE SESSION LIVES HERE TOO: the account and its way out sit at the bottom of the same
- * popover, so the corner holds everything about "this instance, this session" behind one
- * button instead of loose chrome on the bar.
+ * The dot re-asks on a slow clock, when the tab comes back and as its tooltip opens, so what the
+ * tooltip says is as fresh as the hover. A press opens the settings dialog's Server pane.
  */
-export function ServerStatusButton() {
+export function ServerStatusButton({ onOpen }: { onOpen: () => void }) {
     const status = useStore(serverStatus)
-    const auth = useStore(authStore)
-    const navigate = useNavigate()
-    const [open, setOpen] = useState(false)
+    const words = statusWords(status.state)
 
     useEffect(() => {
         void checkServer()
@@ -80,102 +96,30 @@ export function ServerStatusButton() {
     }, [])
 
     return (
-        <DropdownMenu
-            open={open}
+        <Tooltip
             onOpenChange={(next) => {
-                setOpen(next)
                 if (next) void checkServer()
             }}
         >
-            <DropdownMenuTrigger
+            <TooltipTrigger
                 render={
                     <Button
                         variant="ghost"
                         size="sm"
-                        className="cursor-pointer gap-2 rounded-md px-2"
-                        aria-label={SERVER_STATUS_LABEL}
-                    >
-                        <Dot state={status.state} />
-                        <span className="max-w-64 truncate text-sm font-medium">{identityLine(status)}</span>
-                        <ChevronDown className="size-3 text-faint" aria-hidden />
-                    </Button>
+                        className="cursor-pointer gap-2 px-2"
+                        aria-label={LABELS.shell.instance.said(TONE[status.state].word)}
+                        onClick={onOpen}
+                    />
                 }
-            />
-            <DropdownMenuContent align="end" className="w-80 min-w-80 p-0">
-                <div className="row-hover flex items-center gap-2 px-3 py-2">
-                    <Dot state={status.state} wide />
-                    <span className="text-sm font-medium">{TONE[status.state].word}</span>
-                    {status.state === 'offline' && (
-                        <span className="text-xs text-muted-foreground">{LABELS.refusal.no_answer.term}</span>
-                    )}
-                    <span className="flex-1" />
-                    {status.checkedAt !== null && (
-                        <span className="text-xs text-faint">
-                            {LABELS.word.checked.term}{' '}
-                            {formatRelative(new Date(status.checkedAt).toISOString())}
-                        </span>
-                    )}
-                </div>
-                {/* WHAT THIS INSTANCE IS, said once in the app and said here. The status bar
-                    used to repeat the version along its right edge, which is a fact appearing
-                    twice in one shell. */}
-                <dl className="grid grid-cols-[auto_1fr] gap-x-3 border-t border-border px-0 py-2 text-xs">
-                    <Fact
-                        term={LABELS.word.environment.term}
-                        detail={status.environment ?? LABELS.shell.instance.unknown}
-                    />
-                    <Fact
-                        term={LABELS.word.version.term}
-                        detail={status.version ?? LABELS.shell.instance.unknown}
-                    />
-                    {status.checks.map((check) => (
-                        <div
-                            key={check.name}
-                            className="row-hover col-span-2 grid grid-cols-subgrid px-3 py-0.5"
-                        >
-                            <dt className="text-faint">{check.name}</dt>
-                            <dd className="flex flex-col">
-                                <span className="flex items-center gap-1.5">
-                                    <Dot
-                                        state={
-                                            check.status === 'healthy' || check.status === 'degraded'
-                                                ? (check.status as ServerState)
-                                                : 'unhealthy'
-                                        }
-                                    />
-                                    {check.status}
-                                </span>
-                                {check.detail !== null && (
-                                    <span
-                                        className={cn(
-                                            check.status === 'healthy'
-                                                ? 'text-muted-foreground'
-                                                : 'text-warning-ink',
-                                        )}
-                                    >
-                                        {check.detail}
-                                    </span>
-                                )}
-                            </dd>
-                        </div>
-                    ))}
-                </dl>
-                {auth.identity !== null && (
-                    <div className="flex items-center gap-2 border-t border-border px-3 py-1.5">
-                        <span className="font-mono text-sm">{auth.identity.username}</span>
-                        <span className="flex-1" />
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                                void signOut().then(() => navigate(LOGIN_PATH, { replace: true }))
-                            }}
-                        >
-                            {LABELS.action.sign_out}
-                        </Button>
-                    </div>
+            >
+                <Dot state={status.state} />
+                {words !== null && (
+                    <span className={cn('text-xs font-medium', WORD_INK[status.state])}>{words}</span>
                 )}
-            </DropdownMenuContent>
-        </DropdownMenu>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" align="end">
+                <Details status={status} />
+            </TooltipContent>
+        </Tooltip>
     )
 }

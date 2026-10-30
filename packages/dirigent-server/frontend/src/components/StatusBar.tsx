@@ -28,9 +28,8 @@ export const SETTINGS_LABEL = LABELS.shell.settings
  * `lib/screen-status` while it is mounted -- where a run's one event stream is, and the trace
  * the run is on -- and the bar draws them without knowing which screen wrote them.
  *
- * WHAT THIS INSTANCE IS, AND WHO IS SIGNED IN, BELONG TO THE CORNER, NOT HERE. A fact appears
- * once in the shell, and the identity in the topbar already carries the name, the environment,
- * the version, the health of every check and the username it is all being read as.
+ * HOW THIS INSTANCE IS DOING BELONGS TO THE TOP BAR'S DOT, NOT HERE. A fact appears once in the
+ * shell.
  */
 
 /** How each tone is inked. A live stream is information, not a warning. */
