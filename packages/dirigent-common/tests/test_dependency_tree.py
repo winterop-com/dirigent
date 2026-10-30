@@ -57,6 +57,8 @@ ALLOWED: Final[dict[str, set[str]]] = {
     # The corpus carries SDK scripts on its python/ shelf, which import the client.
     "dirigent-examples": {"dirigent-common", "dirigent-plugin", "dirigent-client"},
     "dirigent-storage-s3": {"dirigent-common", "dirigent-plugin"},
+    # An agent's server reaches the instance through the client alone, never the engine.
+    "dirigent-mcp": {"dirigent-common", "dirigent-client"},
     "dirigent-testing": {"dirigent-common", "dirigent-plugin"},
 }
 

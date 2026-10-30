@@ -275,6 +275,7 @@ dirigent/
     dirigent-examples/     # the example corpus, contributed through the examples() hook
     dirigent-server/       # FastAPI app, authentication, the REST surface, and frontend/
     dirigent-cli/          # `dirigent` and the short alias `dg`
+    dirigent-mcp/          # the MCP server an agent operates an instance through
     dirigent-storage-s3/   # the s3:// storage backend, registering its own scheme
     dirigent-testing/      # test doubles and pytest fixtures for writing blocks
   examples/                # a symlink to dirigent-examples' shelves, so `dg run --local examples/...` reads

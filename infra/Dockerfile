@@ -51,6 +51,7 @@ COPY packages/dirigent-blocks/pyproject.toml packages/dirigent-blocks/
 COPY packages/dirigent-examples/pyproject.toml packages/dirigent-examples/
 COPY packages/dirigent-server/pyproject.toml packages/dirigent-server/
 COPY packages/dirigent-cli/pyproject.toml packages/dirigent-cli/
+COPY packages/dirigent-mcp/pyproject.toml packages/dirigent-mcp/
 COPY packages/dirigent-storage-s3/pyproject.toml packages/dirigent-storage-s3/
 COPY packages/dirigent-testing/pyproject.toml packages/dirigent-testing/
 RUN --mount=type=cache,target=/root/.cache/uv \
