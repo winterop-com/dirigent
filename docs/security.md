@@ -91,11 +91,19 @@ can tell two tokens apart without holding either. A plain SHA-256 is the right h
 password hash would be wrong: the token has full entropy, so there is nothing to brute-force,
 and the lookup happens on every single request.
 
-**The login route is rate limited** on the client address *and* on the username, at
-`DIRIGENT_LOGIN_RATE_PER_MINUTE` (default 10) each. Those are two different attacks -- a flood
-from one place, and credential stuffing spread across many -- and Argon2id at 64 MiB is
-expensive by design, so an unauthenticated caller who could invoke it freely could turn a few
-hundred requests a second into the memory and CPU of the whole instance.
+**The login route is rate limited** twice: one username from one address at
+`DIRIGENT_LOGIN_RATE_PER_MINUTE` (default 10), and one address across every username at
+`DIRIGENT_LOGIN_ADDRESS_RATE_PER_MINUTE` (default 60). The first slows guessing at one account
+and is counted per address, so a stranger failing logins against a named account spends their
+own count and not its owner's. The second bounds what one machine can spend, because Argon2id
+at 64 MiB is expensive by design, and an unauthenticated caller who could invoke it freely could
+turn a few hundred requests a second into the memory and CPU of the whole instance. No count
+spans addresses, so guessing spread across many addresses is limited only per address: a strong
+password is what stops that.
+
+Both counts read the address the server sees. Behind a reverse proxy that is the proxy's own
+unless uvicorn trusts it, so set `FORWARDED_ALLOW_IPS` to the proxy's address: otherwise every
+caller shares one address, and a stranger can again lock a named account out.
 
 **First run.** Nothing can authenticate before an account exists, so account creation has a
 local path that does not go through the API: `dg admin user create` runs against the

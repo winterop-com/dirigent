@@ -43,7 +43,7 @@ from dirigent_core.plugins import PluginHost, load_plugin_host
 from dirigent_core.secrets import SecretBox
 from dirigent_core.storage import FileStorageBackend
 from dirigent_plugin import Contribution
-from dirigent_server.routes.auth import LOGIN_BUCKETS
+from dirigent_server.routes.auth import ADDRESS_BUCKETS, LOGIN_BUCKETS
 from tests_support import DOCUMENT, apply_document
 
 PREFIX = "/api/v1"
@@ -2784,6 +2784,42 @@ def test_login_is_rate_limited_before_it_hashes_anything(anonymous: TestClient) 
     assert 401 in codes
     assert codes[-1] == 429
     LOGIN_BUCKETS.buckets.clear()
+    ADDRESS_BUCKETS.buckets.clear()
+
+
+def test_a_caller_elsewhere_cannot_lock_an_account_out_of_login(settings: Settings, admin_token: str) -> None:
+    """Exhausting a named account's count from one address leaves it whole from any other."""
+    from dirigent_server import create_app
+
+    LOGIN_BUCKETS.buckets.clear()
+    ADDRESS_BUCKETS.buckets.clear()
+    app = create_app(settings)
+    login = {"username": "tester", "password": "wrong-password"}
+    with TestClient(app, client=("203.0.113.1", 50000)) as stranger:
+        answered = [stranger.post(f"{PREFIX}/auth/login", json=login).status_code for _ in range(20)]
+    assert answered[-1] == 429, "one account from one address has its limit"
+    with TestClient(app, client=("203.0.113.2", 50000)) as owner:
+        assert owner.post(f"{PREFIX}/auth/login", json=login).status_code == 401, "the owner elsewhere is still heard"
+    LOGIN_BUCKETS.buckets.clear()
+    ADDRESS_BUCKETS.buckets.clear()
+
+
+def test_one_address_is_capped_across_every_username(settings: Settings, admin_token: str) -> None:
+    """Spreading attempts over junk usernames does not get a machine past its own cap."""
+    from dirigent_server import create_app
+
+    LOGIN_BUCKETS.buckets.clear()
+    ADDRESS_BUCKETS.buckets.clear()
+    tuned = settings.model_copy(update={"login_address_rate_per_minute": 3})
+    login = {"password": "wrong-password"}
+    with TestClient(create_app(tuned), client=("203.0.113.3", 50000)) as caller:
+        answered = [
+            caller.post(f"{PREFIX}/auth/login", json={**login, "username": f"junk-{index}"}).status_code
+            for index in range(4)
+        ]
+    assert answered == [401, 401, 401, 429]
+    LOGIN_BUCKETS.buckets.clear()
+    ADDRESS_BUCKETS.buckets.clear()
 
 
 OPERATOR_ALLOWED = [
