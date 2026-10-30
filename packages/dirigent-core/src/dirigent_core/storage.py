@@ -5,9 +5,12 @@ different worker than its predecessor still sees its inputs.
 """
 
 import asyncio
+import fcntl
 import os
+import stat
+import sys
 from collections.abc import AsyncGenerator, AsyncIterator, Callable, Iterable, Mapping
-from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from contextlib import AbstractAsyncContextManager, asynccontextmanager, suppress
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import BinaryIO, ClassVar, Final
@@ -23,6 +26,16 @@ from dirigent_plugin import ByteSink, ContainerResult, StatResult, StorageBacken
 CHUNK_SIZE: Final = 256 * 1024
 
 GLOB_CHARACTERS: Final = ("*", "?", "[")
+
+#: How a stored object is opened. Non-blocking so a FIFO planted under the root reads as empty
+#: rather than holding a worker thread until something writes to it.
+READING: Final = os.O_RDONLY | os.O_NONBLOCK
+
+#: How a directory is opened, to act relative to it.
+DIRECTORY: Final = os.O_RDONLY | os.O_DIRECTORY
+
+#: The buffer macOS's ``F_GETPATH`` fills, which is its ``MAXPATHLEN``.
+MAX_PATH_BYTES: Final = 1024
 
 
 class StorageError(DomainError):
@@ -148,8 +161,9 @@ class FileStorageBackend(StorageBackend):
         ``..`` away is not enough when a symlink can point anywhere: ``shell.run`` works
         inside the run's scratch directory, so a step that runs ``ln -s /etc scratch/etc``
         and then asks storage for ``file://.../scratch/etc/shadow`` clears a lexical check
-        with room to spare and ``open_read`` follows the link. Resolving first turns the
-        containment check into a statement about the file that is actually opened.
+        with room to spare and ``open_read`` follows the link. Resolving says where the path
+        leads now, and refuses early; what holds for the file actually opened is
+        :meth:`_open_within_root`, which checks the descriptor.
         """
         scheme, remainder = parse_uri(uri)
         if scheme != self.scheme:
@@ -167,10 +181,59 @@ class FileStorageBackend(StorageBackend):
         """Render a contained local path back as the URI a caller would use."""
         return f"file://{path}"
 
+    def _within_root(self, descriptor: int) -> bool:
+        """Whether what an open descriptor refers to is inside the root, whatever its path now says."""
+        boundary = os.open(self.root, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            root = _real_path(boundary)
+        finally:
+            os.close(boundary)
+        real = _real_path(descriptor)
+        return real == root or real.is_relative_to(root)
+
+    def _open_within_root(self, uri: str, path: Path, flags: int) -> int:
+        """Open a path, and refuse it if what was opened is outside the root.
+
+        ``path_for`` answers for the moment it looked, and a link swapped in after that is
+        followed by the open. The descriptor is the file itself, so this holds whatever the
+        path has become by the time it is read.
+        """
+        descriptor = os.open(path, flags)
+        try:
+            if not self._within_root(descriptor):
+                raise OutsideRoot(uri, self.root)
+        except BaseException:
+            os.close(descriptor)
+            raise
+        return descriptor
+
+    def _open_reader(self, uri: str, path: Path) -> BinaryIO:
+        """Open a contained object for reading."""
+        descriptor = self._open_within_root(uri, path, READING)
+        try:
+            return os.fdopen(descriptor, "rb")
+        except BaseException:
+            os.close(descriptor)
+            raise
+
+    def _stat_within_root(self, path: Path) -> tuple[int, datetime] | None:
+        """Return a contained file's size and modification time, or None for anything else."""
+        try:
+            descriptor = os.open(path, READING)
+        except OSError:
+            return None
+        try:
+            info = os.fstat(descriptor)
+            if not stat.S_ISREG(info.st_mode) or not self._within_root(descriptor):
+                return None
+            return info.st_size, datetime.fromtimestamp(info.st_mtime, tz=UTC)
+        finally:
+            os.close(descriptor)
+
     async def open_read(self, uri: str) -> AsyncGenerator[bytes]:
         """Stream the object at a URI in bounded chunks."""
         path = self.path_for(uri)
-        handle = await asyncio.to_thread(path.open, "rb")
+        handle = await asyncio.to_thread(self._open_reader, uri, path)
         try:
             while True:
                 chunk = await asyncio.to_thread(handle.read, CHUNK_SIZE)
@@ -182,22 +245,31 @@ class FileStorageBackend(StorageBackend):
 
     @asynccontextmanager
     async def _writer(self, uri: str) -> AsyncGenerator[ByteSink]:
-        """Open a staged writer, publishing it onto the target only on a clean exit."""
+        """Open a staged writer, publishing it onto the target only on a clean exit.
+
+        Every step after the directory is opened is relative to its descriptor, so a parent
+        swapped for a link mid-write cannot move the staged file or the target anywhere else.
+        """
         path = self.path_for(uri)
         await asyncio.to_thread(path.parent.mkdir, parents=True, exist_ok=True)
-        # The nonce is per writer: two writers on one URI must not share a staging file.
-        staged = path.with_name(f".{path.name}.{os.getpid()}.{uuid4().hex}.partial")
-        handle = await asyncio.to_thread(staged.open, "wb")
-        sink = FileSink(handle, path)
+        directory = await asyncio.to_thread(self._open_within_root, uri, path.parent, DIRECTORY)
         try:
-            yield sink
-        except BaseException:
+            # The nonce is per writer: two writers on one URI must not share a staging file.
+            staged = f".{path.name}.{os.getpid()}.{uuid4().hex}.partial"
+            handle = await asyncio.to_thread(_create_staged, staged, directory)
+            sink = FileSink(handle, path)
+            try:
+                yield sink
+            except BaseException:
+                await asyncio.to_thread(handle.close)
+                with suppress(FileNotFoundError):
+                    await asyncio.to_thread(os.unlink, staged, dir_fd=directory)
+                raise
             await asyncio.to_thread(handle.close)
-            await asyncio.to_thread(staged.unlink, True)
-            raise
-        await asyncio.to_thread(handle.close)
-        # Staging beside the target keeps both on one filesystem, where os.replace is atomic.
-        await asyncio.to_thread(os.replace, staged, path)
+            # Staging beside the target keeps both on one filesystem, where os.replace is atomic.
+            await asyncio.to_thread(os.replace, staged, path.name, src_dir_fd=directory, dst_dir_fd=directory)
+        finally:
+            os.close(directory)
 
     def open_write(self, uri: str, *, content_type: str | None = None) -> AbstractAsyncContextManager[ByteSink]:
         """Open a streamed writer for a URI; the object appears only once writing finished.
@@ -210,7 +282,7 @@ class FileStorageBackend(StorageBackend):
     async def stat(self, uri: str) -> StatResult | None:
         """Describe the object at a URI, or return None when it does not exist."""
         path = self.path_for(uri)
-        info = await asyncio.to_thread(_stat_file, path)
+        info = await asyncio.to_thread(self._stat_within_root, path)
         if info is None:
             return None
         return StatResult(uri=self.uri_for(path), size=info[0], modified_at=info[1])
@@ -234,14 +306,23 @@ class FileStorageBackend(StorageBackend):
     async def list(self, uri: str) -> AsyncIterator[StatResult]:
         """List the files under a prefix, or the files matching a glob pattern."""
         for path in await asyncio.to_thread(self.matches, uri):
-            info = await asyncio.to_thread(_stat_file, path)
+            info = await asyncio.to_thread(self._stat_within_root, path)
             if info is not None:
                 yield StatResult(uri=self.uri_for(path), size=info[0], modified_at=info[1])
 
     async def delete(self, uri: str) -> None:
         """Remove the object at a URI; deleting what is not there is not an error."""
         path = self.path_for(uri)
-        await asyncio.to_thread(path.unlink, True)
+        await asyncio.to_thread(self._unlink, uri, path)
+
+    def _unlink(self, uri: str, path: Path) -> None:
+        """Remove one name from a directory checked to be inside the root."""
+        with suppress(FileNotFoundError):
+            directory = self._open_within_root(uri, path.parent, DIRECTORY)
+            try:
+                os.unlink(path.name, dir_fd=directory)
+            finally:
+                os.close(directory)
 
 
 def _fixed_prefix(pattern: str) -> str:
@@ -254,15 +335,22 @@ def _fixed_prefix(pattern: str) -> str:
     return str(Path(*parts)) if parts else "/"
 
 
-def _stat_file(path: Path) -> tuple[int, datetime] | None:
-    """Return a file's size and modification time, or None when it is not a file."""
+def _real_path(descriptor: int) -> Path:
+    """The path the kernel holds for an open descriptor, which links do not take part in."""
+    if sys.platform == "darwin":
+        answer = fcntl.fcntl(descriptor, fcntl.F_GETPATH, bytes(MAX_PATH_BYTES))
+        return Path(os.fsdecode(answer.partition(b"\0")[0]))
+    return Path(os.readlink(f"/proc/self/fd/{descriptor}"))
+
+
+def _create_staged(name: str, directory: int) -> BinaryIO:
+    """Create a staging file under a directory descriptor, refusing a name that already exists."""
+    descriptor = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o666, dir_fd=directory)
     try:
-        info = path.stat()
-    except OSError:
-        return None
-    if not path.is_file():
-        return None
-    return info.st_size, datetime.fromtimestamp(info.st_mtime, tz=UTC)
+        return os.fdopen(descriptor, "wb")
+    except BaseException:
+        os.close(descriptor)
+        raise
 
 
 class Storage:
