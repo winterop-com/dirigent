@@ -309,6 +309,18 @@ async def test_a_schedule_dropped_from_the_document_is_retired(
     assert await schedule_named(sessions, "daily-load", "nightly") is None
 
 
+async def test_a_dry_run_names_a_schedule_the_document_stopped_declaring_and_keeps_it(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    await apply(sessions, services, WITH_TRIGGERS)
+
+    async with session_scope(sessions) as session:
+        result = await apply_document(session, services, load_text(BASE), dry_run=True)
+
+    assert result.triggers.schedules_removed == ["nightly"]
+    assert await schedule_named(sessions, "daily-load", "nightly") is not None
+
+
 async def test_a_schedule_created_by_hand_survives_an_apply_that_does_not_mention_it(
     sessions: async_sessionmaker[AsyncSession], services: EngineServices
 ) -> None:

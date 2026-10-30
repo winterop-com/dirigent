@@ -1,9 +1,11 @@
 """The MCP server: one dirigent instance, operated by an agent through the instance's own API.
 
 Every tool is a call the Python client already makes, so what an agent may do is bounded by
-the role of the token it was given, and nothing here deletes. Applying and running a document
-is still the whole of the instance's reach: a pipeline the agent writes runs with every
-connection the instance holds. Read-only, the server offers the reading tools alone.
+the role of the token it was given. No tool is a delete, but ``apply_document`` retires what a
+document stops declaring: a source, with its input journal and its token, and a schedule the
+document managed. Applying and running a document is still the whole of the instance's reach: a
+pipeline the agent writes runs with every connection the instance holds. Read-only, the server
+offers the reading tools alone.
 """
 
 import os
@@ -36,6 +38,7 @@ MAX_WAIT: Final = timedelta(minutes=10)
 
 READS: Final = ToolAnnotations(read_only_hint=True, open_world_hint=False)
 WRITES: Final = ToolAnnotations(read_only_hint=False, destructive_hint=False, open_world_hint=False)
+APPLIES: Final = ToolAnnotations(read_only_hint=False, destructive_hint=True, open_world_hint=False)
 ANSWER: Final = TypeAdapter[Any](Any)
 
 STOPS: Final = ToolAnnotations(read_only_hint=False, destructive_hint=True, open_world_hint=False)
@@ -44,7 +47,10 @@ INSTRUCTIONS: Final = """\
 This server operates one dirigent instance: a data pipeline orchestrator whose pipelines are
 YAML documents of steps, each step a block with a config. Before writing a document, read
 the blocks it will use (list_blocks, get_block) and an example close to it (list_examples,
-get_example); plan_document checks a document against the instance without storing it.
+get_example); plan_document checks a document against the instance without storing it, and
+lists under sources.removed and triggers.schedules_removed what applying it would retire.
+apply_document retires a source, with its input journal and token, and a schedule when the
+document stops declaring them, so plan first and keep every source and schedule a pipeline has.
 A run is started with run_pipeline, read with get_run, run_logs and run_attempts, and run again with rerun_run."""
 
 
@@ -117,13 +123,18 @@ def build(open_client: Callable[[], Dirigent], *, read_only: bool = False) -> MC
     async def plan_document(document: str) -> Any:
         """Check a YAML pipeline or triggers document against the instance without storing it.
 
-        Answers what applying it would do, or every issue that refuses it.
+        Answers what applying it would do, or every issue that refuses it. `sources.removed` and
+        `triggers.schedules_removed` name what applying it would retire.
         """
         return await call(lambda dg: dg.pipelines.apply(parse_document(document), dry_run=True))
 
-    @tool(WRITES)
+    @tool(APPLIES)
     async def apply_document(document: str, pause_schedules: bool = False) -> Any:
-        """Store a YAML pipeline or triggers document as a new version; an unchanged one is left as it is."""
+        """Store a YAML pipeline or triggers document as a new version; an unchanged one is left as it is.
+
+        A source or a schedule the document managed and no longer declares is deleted, and a
+        source's input journal and token go with it. plan_document names them first.
+        """
         return await call(lambda dg: dg.pipelines.apply(parse_document(document), pause_schedules=pause_schedules))
 
     @tool(WRITES)

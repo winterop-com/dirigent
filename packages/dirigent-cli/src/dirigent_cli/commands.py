@@ -317,6 +317,9 @@ def _print_plan(result: ApplyResult, origin: str) -> bool:
         for label, flag in (("params", diff.params_changed), ("triggers", diff.triggers_changed)):
             if flag:
                 console.print(f"  [dim]{label} changed[/]")
+    for label, removed in (("sources", result.sources.removed), ("schedules", result.triggers.schedules_removed)):
+        if removed:
+            console.print(f"  [yellow]{label} removed:[/] {escape(', '.join(removed))}")
     return True
 
 
