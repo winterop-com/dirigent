@@ -118,6 +118,25 @@ def kinds(sent: list[dict[str, Any]]) -> list[str]:
     return [request["kind"] for request in sent]
 
 
+def test_a_runner_starts_without_the_workers_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A program behind no allowlist has a process with none of the instance's secrets in it."""
+    monkeypatch.setenv("DIRIGENT_SECRET_KEY", "the-envelope-key")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "a-cloud-credential")
+    monkeypatch.setenv("PATH", "/usr/bin:/bin")
+    answers_with_its_environment = (
+        "import json, os, sys\nsys.stdin.readline()\nprint(json.dumps({'outputs': [dict(os.environ)]}), flush=True)\n"
+    )
+    started = ProgramRunner((sys.executable, "-c", answers_with_its_environment))
+    try:
+        environment = started.run("any", None)[0]
+    finally:
+        started.kill()
+    assert isinstance(environment, dict)
+    assert "DIRIGENT_SECRET_KEY" not in environment
+    assert "AWS_SECRET_ACCESS_KEY" not in environment
+    assert environment["PATH"] == "/usr/bin:/bin"
+
+
 async def test_a_step_sends_its_program_once_however_many_elements_it_runs(
     block_ctx: FakeContext, sent: list[dict[str, Any]]
 ) -> None:
