@@ -45,6 +45,7 @@ from dirigent_core.messages import (
     NO_WINDOW,
     NOT_FAILED,
     NOT_PAIRED,
+    SHELL_ARITHMETIC,
     UNKNOWN_NAMESPACE,
 )
 from dirigent_plugin import SHELL_VARIABLE_PREFIX, SHELL_VARIABLES_FIELD
@@ -57,6 +58,15 @@ over makes what follows a reference. So ``${x}`` resolves, ``$${x}`` is the lite
 and ``$$${x}`` is a dollar followed by the resolved ``${x}``. A ``$$`` that no brace follows
 is not matched at all and passes through untouched.
 """
+
+#: All a reference inside shell arithmetic may resolve to: an integer, which no shell evaluates.
+SHELL_INTEGER: Final = re.compile(r"-?[0-9]+")
+
+#: What opens shell arithmetic: ``$((``, the ``((`` command, and the older ``$[``.
+SHELL_ARITHMETIC_OPENERS: Final = ("((", "$[")
+
+#: A parenthesis grouping inside arithmetic, which one ``)`` closes.
+ARITHMETIC_GROUP: Final = "group"
 
 #: A reference that is the entire value, which resolves to the typed value rather than text.
 WHOLE_REFERENCE: Final = re.compile(r"^\$\{([^{}]+)\}$")
@@ -220,6 +230,11 @@ def _resolve_shell(value: JsonValue, scope: ReferenceScope, variables: dict[str,
     A shell string is always text, so the whole-reference shortcut does not apply: a command
     that is entirely one reference is one word, and therefore the name of a program to run
     and never a program.
+
+    Shell arithmetic is the one place a shell re-reads a variable's value: bash evaluates it
+    as an expression, and an array subscript in that expression runs a command substitution.
+    So a reference inside ``$(( ))``, ``(( ))`` or ``$[ ]`` resolves only to an integer, and
+    any other value is refused before the command starts.
     """
     if not isinstance(value, str):
         return value
@@ -232,8 +247,12 @@ def _resolve_shell(value: JsonValue, scope: ReferenceScope, variables: dict[str,
         literal, resolves = _collapse(match.group(1), match.group(2))
         rewritten.append(before + literal)
         if resolves:
+            reference = match.group(2).strip()
+            text = _as_text(lookup(reference, scope))
+            if _in_arithmetic(context) and SHELL_INTEGER.fullmatch(text) is None:
+                raise UnknownReference(SHELL_ARITHMETIC, reference=reference)
             name = f"{SHELL_VARIABLE_PREFIX}{len(variables)}"
-            variables[name] = _as_text(lookup(match.group(2).strip(), scope))
+            variables[name] = text
             rewritten.append(_shell_word(name, context))
         read = match.end()
     rewritten.append(value[read:])
@@ -247,9 +266,21 @@ def _shell_word(name: str, context: tuple[str, ...]) -> str:
     leave the value to be split into words. Anywhere else it takes a pair, or the shell would
     split the value and expand any glob in it -- bare, and inside a ``$( )`` or a backquoted
     command, which quote nothing they hold. Inside single quotes, which a shell keeps
-    literal, this text is what the author gets rather than the value.
+    literal, this text is what the author gets rather than the value. Inside arithmetic it
+    is bare: the value is an integer, and dash refuses a quote there.
     """
-    return f"${name}" if context and context[-1] in "'\"" else f'"${name}"'
+    quoted = bool(context) and context[-1] in "'\""
+    return f"${name}" if quoted or _in_arithmetic(context) else f'"${name}"'
+
+
+def _in_arithmetic(context: tuple[str, ...]) -> bool:
+    """Whether the innermost substitution or arithmetic the shell has open is arithmetic."""
+    for opened in reversed(context):
+        if opened in SHELL_ARITHMETIC_OPENERS:
+            return True
+        if opened in ("(", "`"):
+            return False
+    return False
 
 
 def _shell_context(text: str, context: tuple[str, ...]) -> tuple[str, ...]:
@@ -259,13 +290,20 @@ def _shell_context(text: str, context: tuple[str, ...]) -> tuple[str, ...]:
     substitution, or a backquoted one, each of which quotes what is inside it in its own
     right. Only the innermost decides how a reference there is written, and getting that
     wrong can only cost a value its word boundaries -- never make it shell source.
+
+    It also holds arithmetic -- ``$((``, ``((`` and ``$[`` -- and the parentheses grouping
+    inside it, so the ``))`` that closes arithmetic is told apart from a group closing.
     """
     stack = list(context)
-    escaped = skipped = False
+    escaped = False
+    skip = 0
     for index, character in enumerate(text):
         inner = stack[-1] if stack else ""
-        if skipped or escaped:
-            skipped = escaped = False
+        ahead = text[index + 1 : index + 3]
+        if skip:
+            skip -= 1
+        elif escaped:
+            escaped = False
         elif inner == "'":
             if character == "'":
                 stack.pop()
@@ -273,12 +311,28 @@ def _shell_context(text: str, context: tuple[str, ...]) -> tuple[str, ...]:
             escaped = True
         elif inner in '"`' and character == inner:
             stack.pop()
-        elif character == "$" and text[index + 1 : index + 2] == "(":
+        elif character == ")" and inner == "((" and ahead[:1] == ")":
+            stack.pop()
+            skip = 1
+        elif character == "]" and inner == "$[":
+            stack.pop()
+        elif character == "$" and ahead == "((":
+            stack.append("((")
+            skip = 2
+        elif character == "$" and ahead[:1] == "[":
+            stack.append("$[")
+            skip = 1
+        elif character == "$" and ahead[:1] == "(":
             stack.append("(")
-            skipped = True
+            skip = 1
+        elif character == "(" and inner in ("((", ARITHMETIC_GROUP):
+            stack.append(ARITHMETIC_GROUP)
+        elif character == "(" and ahead[:1] == "(" and inner in ("", "(", "`"):
+            stack.append("((")
+            skip = 1
         elif character == "`" or (character in "'\"" and inner != '"'):
             stack.append(character)
-        elif character == ")" and inner == "(":
+        elif character == ")" and inner in ("(", ARITHMETIC_GROUP):
             stack.pop()
     return tuple(stack)
 

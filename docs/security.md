@@ -454,6 +454,25 @@ expires, when the engine's step timeout cancels the attempt, and on any other wa
 block. A command is usually `sh -c`, so killing only the process that was started would
 leave the children doing the work still running.
 
+### A reference in a shell string
+
+`shell.run` and `docker.run` take a command as a shell string, and a `${...}` in one never
+becomes shell source. The engine rewrites each reference to a variable it invents and sets that
+variable in the command's environment, so what a webhook payload carries is text the shell
+expands and does not parse.
+
+Shell arithmetic is the exception, because there the shell does read the value again. Bash
+evaluates a variable's value as an expression, and a subscript in that expression runs a command
+substitution: `a[$(id)]` runs `id`. So a reference inside `$(( ))`, `(( ))` or `$[ ]` must resolve
+to an integer, and anything else fails the step as `rejected` before the command starts. Declare
+the parameter as `type: integer` and a caller's bad value is refused at the door instead.
+
+The check reads those three spellings and nothing else. It does not cover a reference that bash
+evaluates some other way: the operands of `[[ -eq ]]`, `let`, `declare -i`, an indexed array's
+subscript, or a `${var:offset}`. Nor does it cover a command that hands its own variable to
+arithmetic or `eval`, or a value read from `env`. Where the value came from a caller and a step
+needs one of those, use `argv`, which involves no shell, or hold the value to a schema first.
+
 ## Secrets lifecycle
 
 A connection's secret fields never sit in a readable column. The mechanism is envelope
