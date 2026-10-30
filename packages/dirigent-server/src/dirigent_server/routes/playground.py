@@ -25,12 +25,13 @@ import asyncio
 import base64
 import binascii
 import json
+import re
 import secrets
 import time
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Final
-from urllib.parse import unquote_plus, urlencode
+from urllib.parse import SplitResult, unquote_plus, urlencode, urlsplit
 
 from fastapi import APIRouter, Query, Request, Response
 from fastapi import status as http_status
@@ -38,9 +39,11 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, JsonValue
 
 from dirigent_common import Duration, Size, filler
+from dirigent_server.bodies import read_capped
 from dirigent_server.errors import Refusal
 from dirigent_server.messages import (
     PLAYGROUND_BAD_KNOB,
+    PLAYGROUND_BODY_TOO_LARGE,
     PLAYGROUND_HEADER_REFUSED,
     PLAYGROUND_OFF_INSTANCE,
     PLAYGROUND_UNAUTHENTICATED,
@@ -72,21 +75,76 @@ MAX_HOPS: Final = 10
 MAX_DELAY: Final = timedelta(seconds=30)
 
 #: Response headers the playground will not set on itself, because each one would make this
-#: origin do something for a caller that is not teaching anything: plant a cookie, open the
-#: origin to another site, or weaken what a browser enforces here.
+#: origin do something for a caller that is not teaching anything: plant a cookie, ask for a
+#: password, navigate or clear the browser, open the origin to another site, or weaken what a
+#: browser enforces here.
 FORBIDDEN_HEADERS: Final = frozenset(
     {
+        "alt-svc",
+        "clear-site-data",
         "connection",
+        "content-disposition",
+        "content-encoding",
         "content-length",
         "content-security-policy",
+        "content-security-policy-report-only",
+        "link",
+        "nel",
+        "permissions-policy",
+        "proxy-authenticate",
+        "refresh",
+        "report-to",
+        "reporting-endpoints",
+        "service-worker-allowed",
         "set-cookie",
         "set-cookie2",
+        "sourcemap",
         "strict-transport-security",
         "transfer-encoding",
         "upgrade",
+        "www-authenticate",
+        "x-content-type-options",
         "x-frame-options",
+        "x-sendfile",
+        "x-xss-protection",
     }
 )
+
+#: Families of response header refused like the names above: the CORS and cross-origin
+#: policies, and what a proxy in front of this instance acts on.
+FORBIDDEN_HEADER_PREFIXES: Final = ("access-control-", "cross-origin-", "x-accel-")
+
+#: What a header name may be spelled with: an RFC 9110 token.
+HEADER_NAME: Final = re.compile(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+")
+
+#: What a header value may be spelled with: visible ASCII and interior spaces.
+HEADER_VALUE: Final = re.compile(r"[\x20-\x7e]*")
+
+#: What a redirect target may be spelled with.
+VISIBLE_ASCII: Final = re.compile(r"[\x21-\x7e]*")
+
+#: The port a URL that names none is sent to.
+DEFAULT_PORTS: Final = {"http": 80, "https": 443}
+
+#: The content types ``response-headers`` will answer under, none of which a browser runs.
+INERT_CONTENT_TYPES: Final = frozenset(
+    {
+        "application/json",
+        "application/x-ndjson",
+        "text/csv",
+        "text/plain",
+        "text/tab-separated-values",
+    }
+)
+
+#: The largest body a call may send, read no further than one byte past it.
+MAX_BODY: Final = 1024 * 1024
+
+#: Set on every answer, so a browser that lands on one runs nothing and keeps no origin for it.
+CONTAINED: Final = {
+    "content-security-policy": "sandbox; default-src 'none'; frame-ancestors 'none'",
+    "x-content-type-options": "nosniff",
+}
 
 #: Query names the routes read as knobs, so ``response-headers`` never sets one as a header.
 RESERVED_ARGS: Final = frozenset({"delay", "status"})
@@ -304,7 +362,9 @@ def _body(raw: bytes, content_type: str | None) -> tuple[JsonValue, str]:
 
 async def _facts(request: Request) -> RequestFacts:
     """Gather what arrived, for the envelope every route shares."""
-    raw = await request.body()
+    raw = await read_capped(request, MAX_BODY)
+    if len(raw) > MAX_BODY:
+        raise Refusal(PLAYGROUND_BODY_TOO_LARGE, status=http_status.HTTP_413_CONTENT_TOO_LARGE, limit=MAX_BODY)
     content_type = request.headers.get("content-type")
     body, body_kind = _body(raw, content_type)
     return RequestFacts(
@@ -321,10 +381,11 @@ async def _facts(request: Request) -> RequestFacts:
 
 
 def _answer(model: BaseModel, code: int, headers: dict[str, str] | None = None) -> Response:
-    """Send one answer, leaving out the body where the status cannot carry one."""
+    """Send one answer, contained, leaving out the body where the status cannot carry one."""
+    contained = {**(headers or {}), **CONTAINED}
     if code in BODYLESS or code < 200:
-        return Response(status_code=code, headers=headers)
-    return JSONResponse(model.model_dump(mode="json"), status_code=code, headers=headers)
+        return Response(status_code=code, headers=contained)
+    return JSONResponse(model.model_dump(mode="json"), status_code=code, headers=contained)
 
 
 def _bad_knob(detail: str) -> Refusal:
@@ -431,13 +492,58 @@ def _destination(request: Request, to: str | None) -> str:
     """Where the chain ends: a path on this instance, defaulting to the reflection route."""
     if to is None:
         return f"{request.url.path.removesuffix('/redirect')}/request"
-    if not to.startswith("/") or to.startswith("//"):
+    path = _local_path(to)
+    if path is None:
         raise Refusal(
             PLAYGROUND_OFF_INSTANCE,
             status=http_status.HTTP_422_UNPROCESSABLE_CONTENT,
             to=to,
         )
-    return to
+    return path
+
+
+def _local_path(target: str) -> str | None:
+    """Answer a target as the path it names on this origin, or None if it names anything else."""
+    read = _read_target(target)
+    if read is None:
+        return None
+    normal, parsed = read
+    if parsed.scheme or not normal.startswith("/") or normal.startswith("//"):
+        return None
+    return normal
+
+
+def _location(target: str, request: Request) -> str | None:
+    """Answer the ``location`` this origin may send: a path on it, or an absolute URL on it."""
+    path = _local_path(target)
+    if path is not None:
+        return path
+    read = _read_target(target)
+    if read is None:
+        return None
+    normal, parsed = read
+    url = request.url
+    here = (url.scheme, (url.hostname or "").lower(), url.port or DEFAULT_PORTS.get(url.scheme))
+    there = (parsed.scheme, parsed.hostname, parsed.port or DEFAULT_PORTS.get(parsed.scheme))
+    return normal if there == here else None
+
+
+def _read_target(target: str) -> tuple[str, SplitResult] | None:
+    """Normalise a redirect target the way a browser reads it, then parse it.
+
+    A browser reads a backslash as a slash, so what is judged and what is sent are the same
+    normalised text. It also drops tabs and newlines and strips spaces, so a target holding
+    anything but visible ASCII is refused rather than normalised.
+    """
+    if VISIBLE_ASCII.fullmatch(target) is None:
+        return None
+    normal = target.replace("\\", "/")
+    try:
+        parsed = urlsplit(normal)
+        _ = parsed.port
+    except ValueError:
+        return None
+    return normal, parsed
 
 
 def _next_hop(request: Request, hops: int, to: str | None, status: int) -> str:
@@ -535,7 +641,7 @@ async def stream(
         media_type=NDJSON,
         # A stream a proxy holds until it is whole is not a stream, and the point of the route
         # is that its pieces arrive apart.
-        headers={"cache-control": "no-cache", "x-accel-buffering": "no"},
+        headers={"cache-control": "no-cache", "x-accel-buffering": "no", **CONTAINED},
     )
 
 
@@ -562,7 +668,7 @@ async def _lines(opened: StreamOpened, every: timedelta, padding: str | None) ->
     operation_id="playgroundResponseHeaders",
     summary="Set the query's pairs as response headers",
     response_model=SetHeaders,
-    responses={422: {"description": "A header this origin will not set on itself."}},
+    responses={422: {"description": "A header or value this origin will not set on itself."}},
 )
 async def response_headers(request: Request, status: StatusArg = 200, delay: DelayArg = timedelta(0)) -> Response:
     """Set each query argument as a response header, so a client's header handling has something to read."""
@@ -571,15 +677,36 @@ async def response_headers(request: Request, status: StatusArg = 200, delay: Del
     for name, value in request.query_params.multi_items():
         if name in RESERVED_ARGS:
             continue
-        if name.lower() in FORBIDDEN_HEADERS:
-            raise Refusal(
-                PLAYGROUND_HEADER_REFUSED,
-                status=http_status.HTTP_422_UNPROCESSABLE_CONTENT,
-                header=name,
-            )
-        chosen[name] = value
+        chosen[name] = _settable(name, value, request)
     answer = SetHeaders(kind="headers", request=await _facts(request), status=status, headers=chosen)
     return _answer(answer, status, headers=chosen)
+
+
+def _settable(name: str, value: str, request: Request) -> str:
+    """Answer the value a chosen header is sent with, or refuse the header."""
+    settable: str | None = None
+    if _may_set(name, value):
+        settable = _location(value, request) if name.lower() == "location" else value
+    if settable is None:
+        raise Refusal(
+            PLAYGROUND_HEADER_REFUSED,
+            status=http_status.HTTP_422_UNPROCESSABLE_CONTENT,
+            header=name,
+        )
+    return settable
+
+
+def _may_set(name: str, value: str) -> bool:
+    """Whether this origin will send a header of this name, and this value if it is a content type."""
+    lowered = name.lower()
+    if (
+        lowered in FORBIDDEN_HEADERS
+        or lowered.startswith(FORBIDDEN_HEADER_PREFIXES)
+        or HEADER_NAME.fullmatch(name) is None
+        or HEADER_VALUE.fullmatch(value) is None
+    ):
+        return False
+    return lowered != "content-type" or value.split(";")[0].strip().lower() in INERT_CONTENT_TYPES
 
 
 @router.get(

@@ -1,13 +1,17 @@
 """Who the caller is, the accounts an instance holds, and the tokens automation uses."""
 
-from datetime import datetime
+from datetime import datetime, timedelta
+from typing import Annotated
 from uuid import UUID
 
 from pydantic import BaseModel, Field, SecretStr
 
 from dirigent_client.enums import TokenKind, UserRole
 from dirigent_client.schemas.common import WireModel
-from dirigent_common import Email, EntityName
+from dirigent_common import Duration, Email, EntityName
+
+#: How long a token may live: above zero and under a century, so its expiry is always a real date.
+TokenLifetime = Annotated[Duration, Field(gt=timedelta(0), le=timedelta(days=36500))]
 
 
 class LoginRequest(BaseModel):
@@ -50,6 +54,9 @@ class TokenRequest(BaseModel):
     path (``DELETE /users/{username}/tokens/{name}`` and ``DELETE /tokens/{name}``), so a
     name with a slash or a space in it is a token nobody can revoke."""
 
+    expires_in: TokenLifetime | None = None
+    """How long the token lives from now, such as ``90d``; unset, it lives until it is revoked."""
+
 
 class IssuedTokenOut(WireModel):
     """A freshly minted token: the one and only time its secret is returned."""
@@ -60,6 +67,9 @@ class IssuedTokenOut(WireModel):
     prefix: str
     token: str
     """The secret. It is not stored and cannot be shown again."""
+
+    expires_at: datetime | None = None
+    """When the token stops resolving, or null for one that lives until it is revoked."""
 
 
 class UserOut(WireModel):

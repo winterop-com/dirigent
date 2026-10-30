@@ -1,5 +1,7 @@
 """Logging in, logging out, asking who you are, and the accounts and tokens an admin manages."""
 
+from datetime import timedelta
+
 from pydantic import SecretStr
 
 from dirigent_client.enums import UserRole
@@ -121,9 +123,9 @@ class Users(Resource):
             TokenOut, "GET", f"/users/{segment(username)}/tokens", params=query(after=after, limit=limit)
         )
 
-    async def create_token(self, username: str, name: str) -> IssuedTokenOut:
+    async def create_token(self, username: str, name: str, *, expires_in: timedelta | None = None) -> IssuedTokenOut:
         """Mint a bearer token for another account; its secret is returned exactly once."""
-        payload = TokenRequest(name=name)
+        payload = TokenRequest(name=name, expires_in=expires_in)
         return await self._one(IssuedTokenOut, "POST", f"/users/{segment(username)}/tokens", json=request_body(payload))
 
     async def revoke_token(self, username: str, name: str) -> None:
@@ -138,9 +140,9 @@ class Tokens(Resource):
         """List every account's API tokens, without their secrets; sessions are not listed."""
         return await self._many(TokenOut, "GET", "/tokens", params=query(after=after, limit=limit))
 
-    async def create(self, name: str) -> IssuedTokenOut:
+    async def create(self, name: str, *, expires_in: timedelta | None = None) -> IssuedTokenOut:
         """Mint a bearer token for this account; its secret is returned exactly once."""
-        payload = TokenRequest(name=name)
+        payload = TokenRequest(name=name, expires_in=expires_in)
         return await self._one(IssuedTokenOut, "POST", "/tokens", json=request_body(payload))
 
     async def revoke(self, name: str) -> None:

@@ -5,13 +5,14 @@ import json
 import os
 import sys
 from collections.abc import Callable, Iterator, Mapping, Sequence
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Annotated, Any, Final, NoReturn, cast
 from uuid import UUID
 
 import typer
 import yaml
+from pydantic import TypeAdapter, ValidationError
 from rich.markup import escape
 
 from dirigent_cli import schemas, starters
@@ -84,6 +85,7 @@ from dirigent_cli.messages import (
     SOURCE_REFUSED,
     STARTER_TAG_NEEDED,
     STRICT_NEEDS_WATCH,
+    TOKEN_EXPIRY_INVALID,
     TRIGGERS_DOCUMENT_NOT_RUNNABLE,
     UNKNOWN_CONNECTION_KIND,
     UNSAFE_FOR_THE_INSTANCE,
@@ -173,6 +175,7 @@ from dirigent_client import (
     ValidationIssue,
     declared_label,
 )
+from dirigent_client.schemas import TokenLifetime
 from dirigent_common import Issue, JsonMap, Message
 from dirigent_core import migrations
 from dirigent_core.config import STATE_DIR, Settings
@@ -2917,18 +2920,32 @@ def system_info(
         )
 
 
+def _token_lifetime(expires: str | None) -> timedelta | None:
+    """Read ``--expires``, refusing a value that is no lifetime before anything is sent."""
+    if expires is None:
+        return None
+    try:
+        return TypeAdapter(TokenLifetime).validate_python(expires)
+    except ValidationError:
+        fail(TOKEN_EXPIRY_INVALID, value=repr(expires))
+
+
 @token_app.command("create")
 def token_create(
     ctx: typer.Context,
     name: Annotated[str, typer.Argument(help="What to call the token.")],
     user: Annotated[str | None, typer.Option("--user", help="Mint it for this account rather than your own.")] = None,
+    expires: Annotated[
+        str | None, typer.Option("--expires", help="How long it lives, such as 90d; unset, until it is revoked.")
+    ] = None,
 ) -> None:
     """Mint a bearer token and print its secret once."""
+    expires_in = _token_lifetime(expires)
     with client_for(state_of(ctx)) as dg:
         if user is None:
-            created = dg.call(dg.admin.tokens.create(name))
+            created = dg.call(dg.admin.tokens.create(name, expires_in=expires_in))
         else:
-            created = dg.call(dg.admin.users.create_token(user, name))
+            created = dg.call(dg.admin.users.create_token(user, name, expires_in=expires_in))
     if state_of(ctx).json_output:
         return emit_fact(
             "token.issued",
@@ -2937,9 +2954,12 @@ def token_create(
             name=created.name,
             prefix=created.prefix,
             token=created.token,
+            expires_at=created.expires_at.isoformat() if created.expires_at else None,
         )
     console.print(f"[green]created[/] token [bold]{created.name}[/] for [bold]{created.username}[/]")
     console.print(f"\n  {created.token}\n")
+    if created.expires_at is not None:
+        console.print(f"It expires at {moment(created.expires_at)}.")
     console.print("[yellow]This is the only time the token is shown.[/] Store it, or create another.")
 
 
@@ -2954,7 +2974,7 @@ def token_list(
         return emit_records("token", rows)
     table(
         "tokens",
-        ["user", "name", "prefix", "created", "last used", "revoked"],
+        ["user", "name", "prefix", "created", "last used", "expires", "revoked"],
         [
             [
                 row.username,
@@ -2962,6 +2982,7 @@ def token_list(
                 row.prefix,
                 moment(row.created_at),
                 moment(row.last_used_at),
+                moment(row.expires_at),
                 moment(row.revoked_at),
             ]
             for row in rows

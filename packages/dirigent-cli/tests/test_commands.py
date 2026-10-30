@@ -1543,6 +1543,19 @@ def test_a_minted_bearer_token_survives_the_json_output(server: str) -> None:
     minted = only(result.stdout, "token.issued")
     assert minted["token"], "a script that minted a token can read it"
     assert minted["name"] == "scripted"
+    assert minted["expires_at"] is None
+
+
+def test_a_token_is_minted_with_an_expiry_and_lists_it(server: str) -> None:
+    result = invoke("--json", "admin", "token", "create", "quarterly", "--expires", "90d")
+    assert result.exit_code == 0, result.output
+    minted = only(result.stdout, "token.issued")
+    assert minted["expires_at"] is not None
+    listed = {row["name"]: row for row in rows(invoke("--json", "admin", "token", "list").stdout, "token")}
+    assert listed["quarterly"]["expires_at"] is not None
+    refused = invoke("--json", "admin", "token", "create", "forever", "--expires", "soon")
+    assert refused.exit_code == 1, refused.output
+    assert refusal(refused.stdout)["code"] == "cli.token_expiry_invalid"
 
 
 def test_tokens_and_users_and_auth_status(server: str) -> None:

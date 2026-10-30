@@ -161,6 +161,12 @@ than by an exception list each endpoint remembers:
   deployment does not want the API surface published, do not expose them past your proxy.
 - Every route under `/endpoints`, which a pipeline's endpoint sources declare, each with its own
   token or signing secret unless it writes itself public. See [endpoint hardening](#endpoint-hardening).
+- The [playground](playground.md) under `/api/v1/playground`, which opens no session and reads no
+  instance data. It shares the UI's origin, so what a caller can make it answer is contained:
+  every answer carries `nosniff` and a sandboxing CSP, it answers under no content type a browser
+  runs, it sets no header that would make the origin act for the caller, it redirects only on
+  its own origin, and it reads at most 1 MiB of a body. `DIRIGENT_PLAYGROUND_ENABLED=false`
+  unmounts it.
 
 Every other route under `/api/v1` requires a principal, as a property of the router mount.
 
@@ -300,8 +306,8 @@ only the caller's own tokens. `/api/v1/users/{username}/tokens` is the admin's p
 account: list, mint, and revoke a token that belongs to someone else. Both are admin-only, the
 first because listing every credential an instance holds is itself authority.
 
-**Minting.** `dg admin token create NAME`, or `POST /api/v1/tokens`; `dg admin token create
-NAME --user U` and `POST /api/v1/users/{username}/tokens` mint for another account. The secret
+**Minting.** `dg admin token create NAME [--expires 90d]`, or `POST /api/v1/tokens` with
+`expires_in`; `dg admin token create NAME --user U` and `POST /api/v1/users/{username}/tokens` mint for another account. The secret
 is generated server-side and returned exactly once, in the response to the mint. It is never
 recoverable afterwards -- the instance holds only the SHA-256 and the eight-character prefix.
 
@@ -311,7 +317,7 @@ user exists and is active, and `expires_at` has not passed. Any of those failing
 answer -- no principal.
 
 **Listing.** `dg admin token list` shows the account, the name, the prefix, the creation time,
-`last_used_at`, and whether it is revoked. Sessions are excluded from the listing, because a
+`last_used_at`, `expires_at`, and whether it is revoked. Sessions are excluded from the listing, because a
 browser session is not something an operator manages by name.
 
 **Revocation.** `dg admin token revoke NAME` for the caller's own, `--user U` for another
@@ -321,8 +327,10 @@ next request. Revocation matches by **name**, and a name is unique only within a
 revoking a name revokes that account's live tokens holding it and reaches no one else's.
 Logging out revokes the session the cookie carries by the same mechanism.
 
-**Expiry.** A token may be minted with a lifetime, in which case it stops resolving at that
-instant. There is no default lifetime for an API token; a session gets 14 days.
+**Expiry.** A token may be minted with a lifetime, `--expires 90d` or `expires_in` over HTTP, in
+which case it stops resolving at that instant. There is no default lifetime for an API token,
+so one minted without it lives until it is revoked; a session gets 14 days. A lifetime is above
+zero and under 100 years.
 
 **Rotation.** There is no built-in rotation command and no overlap window. Rotating means:
 mint the new token, deploy it wherever the old one is used, then revoke the old one --

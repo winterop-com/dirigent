@@ -3,6 +3,7 @@
 import asyncio
 import json
 import threading
+import time
 import uuid
 from collections.abc import Awaitable, Callable, Iterator
 from datetime import UTC, datetime, timedelta
@@ -92,6 +93,29 @@ def test_a_wrong_password_is_refused_without_saying_which_half_was_wrong(anonymo
     response = anonymous.post(f"{PREFIX}/auth/login", json={"username": "tester", "password": "wrong"})
     assert response.status_code == 401
     assert response.json()["detail"] == "invalid username or password"
+
+
+def test_a_token_minted_with_a_lifetime_stops_authenticating_when_it_ends(client: TestClient) -> None:
+    lasting = client.post(f"{PREFIX}/tokens", json={"name": "quarterly", "expires_in": "90d"})
+    assert lasting.status_code == 201, lasting.text
+    expires_at = datetime.fromisoformat(lasting.json()["expires_at"])
+    assert timedelta(days=89) < expires_at - datetime.now(UTC) <= timedelta(days=90)
+    listed = {token["name"]: token for token in client.get(f"{PREFIX}/tokens").json()["items"]}
+    assert listed["quarterly"]["expires_at"] == lasting.json()["expires_at"]
+    assert listed["tests"]["expires_at"] is None, "a token minted without one lives until it is revoked"
+
+    fleeting = client.post(f"{PREFIX}/tokens", json={"name": "fleeting", "expires_in": "1ms"}).json()
+    time.sleep(0.01)
+    refused = client.get(f"{PREFIX}/auth/me", headers={"Authorization": f"Bearer {fleeting['token']}"})
+    assert refused.status_code == 401, refused.text
+    held = client.get(f"{PREFIX}/auth/me", headers={"Authorization": f"Bearer {lasting.json()['token']}"})
+    assert held.status_code == 200, held.text
+
+
+@pytest.mark.parametrize("lifetime", ["0s", "-1d", "40000d", "soon"])
+def test_a_token_lifetime_out_of_range_is_refused(client: TestClient, lifetime: str) -> None:
+    refused = client.post(f"{PREFIX}/tokens", json={"name": "bad", "expires_in": lifetime})
+    assert refused.status_code == 422, refused.text
 
 
 def test_whoami_says_which_credential_was_used(client: TestClient) -> None:

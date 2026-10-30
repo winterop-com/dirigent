@@ -407,6 +407,10 @@ on that origin, which is exactly what `httponly` exists to prevent.
 Every route takes `status` (the status to answer with, 100 to 599) and `delay` (how long to
 take first, as `250ms` or `2s`, at most 30 seconds).
 
+A body larger than 1 MiB is refused with a 413, read no further than one byte past that. Every
+answer carries `X-Content-Type-Options: nosniff` and a sandboxing `Content-Security-Policy`, so
+a browser that lands on one runs nothing from it.
+
 | Route | Methods | What it does |
 | --- | --- | --- |
 | `/playground/request` | GET, POST, PUT, PATCH, DELETE | Reflects, and nothing else. |
@@ -427,7 +431,8 @@ $ curl 'http://127.0.0.1:3333/api/v1/playground/request?station=bergen&status=50
 or 308) and `to`. Each hop points at the next, and the last points at the destination, which
 is `/playground/request` unless `to` names another path. `to` is a **path on this instance
 and never an absolute URL**: an open redirect is a phishing tool wearing the instance's own
-domain, and there is nothing to teach that needs one.
+domain, and there is nothing to teach that needs one. It is read as a browser reads it, a
+backslash as a slash, so `/\example.com` is refused too.
 
 **`/playground/unreliable`** takes `attempt` (which attempt the caller says this is) and
 `fail_until`, and answers `status` (default 503) while `attempt <= fail_until`, then 200. The
@@ -436,11 +441,16 @@ between requests, and an answer that depended on what it remembered could not be
 A document teaching a retry usually wants the node's `fail_until` instead, which reads the
 engine's own attempt number.
 
-**`/playground/response-headers`** sets every query argument as a response header, including
-`content-type`. `status` and `delay` are read as knobs and never set as headers. A header
-that would plant a cookie, open this origin to another site, or weaken what a browser
-enforces here is refused with a 422: `set-cookie`, `strict-transport-security`,
-`content-security-policy`, `x-frame-options` and the hop-by-hop headers.
+**`/playground/response-headers`** sets every query argument as a response header. `status`
+and `delay` are read as knobs and never set as headers. A header that would plant a cookie, ask
+for a password, navigate or clear a browser, open this origin to another site, or weaken what a
+browser enforces here is refused with a 422: `set-cookie`, `www-authenticate`, `refresh`,
+`clear-site-data`, `content-disposition`, `link`, `access-control-*`, `cross-origin-*`,
+`content-security-policy`, `x-content-type-options`, `x-frame-options`, what a proxy acts on
+(`x-accel-*`, `x-sendfile`), and the hop-by-hop headers, among others. `content-type` is one of
+`application/json`, `application/x-ndjson`, `text/csv`, `text/plain` or
+`text/tab-separated-values`, and `location` is a path on this instance or an absolute URL on
+its own origin. Anything else is refused the same way.
 
 **`/playground/auth`** accepts the basic pair `playground` / `playground`, or the bearer token
 `playground-token`. Both are public constants printed here on purpose: they guard nothing and
