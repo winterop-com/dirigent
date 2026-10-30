@@ -1,5 +1,6 @@
 """Tests for the layered instance configuration."""
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -197,6 +198,55 @@ def test_a_dotenv_reads_a_setting_the_way_the_environment_does(
     assert settings.storage_connections == {"s3": "archive", "gs": "cold"}
     assert settings.enabled_unsafe_blocks == []
     assert settings.port == 3333
+
+
+def test_a_dotenv_is_taken_literally_so_it_cannot_copy_a_value_out_of_the_environment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, dotenv_layer: None
+) -> None:
+    (tmp_path / ".env").write_text(
+        "DIRIGENT_WORKER_TAGS=${A_SECRET_IN_THE_SHELL}\nDIRIGENT_API_PREFIX=/${A_SECRET_IN_THE_SHELL:-a-default}\n"
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("A_SECRET_IN_THE_SHELL", "held-by-the-shell")
+
+    settings = Settings()
+
+    assert settings.worker_tags == ["${A_SECRET_IN_THE_SHELL}"]
+    assert settings.api_prefix == "/${A_SECRET_IN_THE_SHELL:-a-default}"
+
+
+def test_a_dotenv_that_is_a_symbolic_link_is_not_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, dotenv_layer: None
+) -> None:
+    held = tmp_path / "elsewhere"
+    held.write_text("DIRIGENT_SECRET_KEY=a-key-held-elsewhere\n")
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / ".env").symlink_to(held)
+    monkeypatch.chdir(project)
+
+    assert Settings().secret_key is None
+
+
+@pytest.mark.parametrize("mode", [0o664, 0o646])
+def test_a_dotenv_someone_else_may_rewrite_is_not_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, dotenv_layer: None, mode: int
+) -> None:
+    path = tmp_path / ".env"
+    path.write_text("DIRIGENT_SECRET_KEY=a-key-from-the-file\n")
+    path.chmod(mode)
+    monkeypatch.chdir(tmp_path)
+
+    assert Settings().secret_key is None
+
+
+def test_a_dotenv_that_is_a_pipe_is_passed_over_rather_than_waited_on(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, dotenv_layer: None
+) -> None:
+    os.mkfifo(tmp_path / ".env")
+    monkeypatch.chdir(tmp_path)
+
+    assert Settings().secret_key is None
 
 
 def test_the_api_prefix_is_normalised() -> None:
