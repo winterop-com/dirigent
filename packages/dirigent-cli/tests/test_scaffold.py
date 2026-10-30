@@ -1,5 +1,6 @@
 """Tests for ``dg blocks new`` and ``dg init``'s templates."""
 
+import os
 import py_compile
 import re
 import tomllib
@@ -13,6 +14,7 @@ from typer.testing import CliRunner
 
 from clisupport import of_kind, records, refusal
 from dirigent_cli.main import app, hoist_globals
+from dirigent_cli.profiles import find_store
 from dirigent_cli.project import (
     InitChoices,
     ProjectError,
@@ -144,6 +146,15 @@ def test_the_stack_applies_the_project_documents(tmp_path: Path) -> None:
     mount = "./pipelines:/etc/dirigent/pipelines:ro"
     assert mount in scaffolded["services"]["server"]["volumes"]
     assert mount in scaffolded["services"]["worker"]["volumes"]
+
+
+def test_the_profiles_file_is_read_back_under_a_group_writable_umask(tmp_path: Path) -> None:
+    before = os.umask(0o002)
+    try:
+        scaffold(tmp_path, InitChoices())
+    finally:
+        os.umask(before)
+    assert find_store(tmp_path).is_project
 
 
 def test_the_environment_file_is_private_and_carries_a_key_and_the_password(tmp_path: Path) -> None:
