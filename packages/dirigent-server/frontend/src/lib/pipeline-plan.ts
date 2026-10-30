@@ -36,6 +36,8 @@ export interface PlanView {
     issues: ValidationIssue[]
     /** Whether applying is offered at all. */
     applicable: boolean
+    /** Whether this writes over a stored version, which is the one plan "no changes" can be said of. */
+    updates: boolean
 }
 
 /**
@@ -62,6 +64,7 @@ export function planView(result: Pick<ApplyResult, 'plan' | 'triggers' | 'source
                 retiring: [],
                 issues,
                 applicable: false,
+                updates: false,
             }
         case 'unchanged':
             return {
@@ -71,6 +74,7 @@ export function planView(result: Pick<ApplyResult, 'plan' | 'triggers' | 'source
                 retiring: [],
                 issues,
                 applicable: false,
+                updates: false,
             }
         case 'create':
             return {
@@ -80,6 +84,7 @@ export function planView(result: Pick<ApplyResult, 'plan' | 'triggers' | 'source
                 retiring,
                 issues,
                 applicable: true,
+                updates: false,
             }
         case 'update':
             return {
@@ -89,6 +94,7 @@ export function planView(result: Pick<ApplyResult, 'plan' | 'triggers' | 'source
                 retiring,
                 issues,
                 applicable: true,
+                updates: true,
             }
     }
 }

@@ -251,3 +251,12 @@ describe('what an apply would take away', () => {
         )
     })
 })
+
+describe('whether a plan can be said to change nothing', () => {
+    test('is only where it writes over a stored version', () => {
+        expect(planView(dry({ action: 'update' })).updates).toBe(true)
+        expect(planView(dry({ action: 'create' })).updates).toBe(false)
+        expect(planView(dry({ action: 'unchanged' })).updates).toBe(false)
+        expect(planView(dry({ action: 'invalid' })).updates).toBe(false)
+    })
+})
