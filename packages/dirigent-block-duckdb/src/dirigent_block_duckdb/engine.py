@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any, ClassVar, Final
 from urllib.parse import urlsplit
 
+import duckdb
 import sqlalchemy
 import sqlalchemy.exc
 from pydantic import SecretStr
@@ -36,6 +37,8 @@ from dirigent_block_duckdb.messages import (
     PARAMETER_NAMES_STORAGE,
     PARAMETER_OUTSIDE_THE_RUN,
     READ_ONLY_IN_MEMORY,
+    READ_ONLY_RUNS_SELECT,
+    READ_ONLY_UNPARSED,
     STATEMENT_LOADS_AN_EXTENSION,
     STATEMENT_OUTSIDE_THE_RUN,
 )
@@ -357,7 +360,7 @@ class _Session:
         self.connection: _Threaded | None = None
 
     async def __aenter__(self) -> "_Threaded":
-        """Open the file, read-only where the connection said so, which duckdb enforces itself."""
+        """Open the file, read-only where the connection said so, and hold the session to that."""
         try:
             async with asyncio.timeout(self.settings.connect_timeout.total_seconds()):
                 opened = await asyncio.to_thread(self.engine.connect)
@@ -377,7 +380,7 @@ class _Session:
             await asyncio.to_thread(opened.close)
             await asyncio.to_thread(self.engine.dispose)
             raise
-        self.connection = _Threaded(opened, _readable(self.ctx))
+        self.connection = _Threaded(opened, _readable(self.ctx), read_only=self.settings.read_only)
         return self.connection
 
     async def __aexit__(self, *_error: object) -> None:
@@ -393,24 +396,53 @@ class _Threaded:
     A deadline that passes cancels the wait but not the thread, so a call cancelled here
     interrupts duckdb, which is what ends the statement rather than leaving it running behind
     a step that has already failed.
+
+    A read-only open covers the attached catalog and not file output, and ``COPY`` can name
+    the open database's own path, so a read-only session runs nothing that does not parse as
+    ``SELECT``. ``EXPLAIN`` is not one: ``EXPLAIN ANALYZE COPY`` runs the copy.
     """
 
-    def __init__(self, connection: Connection, roots: list[Path]) -> None:
-        """Hold the connection, the handle an interrupt is sent through, and the roots it is held to."""
+    def __init__(self, connection: Connection, roots: list[Path], *, read_only: bool = False) -> None:
+        """Hold the connection, the interrupt handle, the roots it is held to, and whether it only reads."""
         self.connection = connection
         self.raw: Any = connection.connection.driver_connection
         self.roots = roots
+        self.read_only = read_only
         self.abandoned: asyncio.Future[Any] | None = None
 
     async def execute(self, statement: TextClause, parameters: dict[str, Any] | None = None, /) -> Any:
         """Run one statement and hand back its result, rowcount included."""
-        return await self._call(lambda: self.connection.execute(statement, parameters))
+
+        def run() -> Any:
+            self._hold_to_reads(statement)
+            return self.connection.execute(statement, parameters)
+
+        return await self._call(run)
 
     async def stream(self, statement: TextClause, parameters: dict[str, Any] | None = None, /) -> "_ThreadedRows":
         """Run one statement and hand back a cursor read a batch at a time."""
         cursor = self.connection.execution_options(stream_results=True)
-        result = await self._call(lambda: cursor.execute(statement, parameters))
+
+        def run() -> Any:
+            self._hold_to_reads(statement)
+            return cursor.execute(statement, parameters)
+
+        result = await self._call(run)
         return _ThreadedRows(result, self._call)
+
+    def _hold_to_reads(self, statement: TextClause) -> None:
+        """Refuse on a read-only session anything but SELECT, parsing the text duckdb would be handed."""
+        if not self.read_only:
+            return
+        compiled = str(statement.compile(dialect=self.connection.dialect))
+        try:
+            parsed = self.raw.extract_statements(compiled)
+        except duckdb.Error as error:
+            raise BlockFailure(READ_ONLY_UNPARSED, error_class=ErrorClass.REJECTED, detail=str(error)) from error
+        kinds = [one.type for one in parsed]
+        if not kinds or any(kind is not duckdb.StatementType.SELECT for kind in kinds):
+            named = ", ".join(sorted({kind.name for kind in kinds})) or "empty"
+            raise BlockFailure(READ_ONLY_RUNS_SELECT, error_class=ErrorClass.REJECTED, kinds=named)
 
     @asynccontextmanager
     async def begin(self) -> AsyncGenerator[None]:
