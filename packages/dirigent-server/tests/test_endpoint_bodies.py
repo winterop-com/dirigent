@@ -133,10 +133,12 @@ async def test_a_call_finishing_its_body_reads_what_changed_while_it_arrived(
 ) -> None:
     await _apply(admin, "public")
     call, task = await _stall(app)
-    paused = await admin.post(f"{PREFIX}/pipelines/stalled/sources/ask/$pause")
-    assert paused.status_code == 200, paused.text
-    call.finish.set()
-    await task
+    try:
+        paused = await admin.post(f"{PREFIX}/pipelines/stalled/sources/ask/$pause")
+        assert paused.status_code == 200, paused.text
+    finally:
+        call.finish.set()
+        await task
     assert call.status == 503
 
 
