@@ -81,6 +81,10 @@ BAD_SINCE = SERVER.define("bad_since", "{detail}")
 
 NOT_A_DURATION = SERVER.define("not_a_duration", "{since} is not a duration")
 
+STATS_WINDOW_TOO_LONG = SERVER.define(
+    "stats_window_too_long", "a stats window is at most {maximum}, and {since} is longer"
+)
+
 NO_ARTIFACT = SERVER.define("no_artifact", "no artifact {artifact_id}")
 
 ARTIFACT_EMPTY = SERVER.define("artifact_empty", "artifact {artifact_id} holds no content")

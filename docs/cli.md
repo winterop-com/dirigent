@@ -925,6 +925,7 @@ verb and whose fields are the identity of what changed:
 | `run.detail` | `dg runs show` | The run, its `dag`, its `items` and its `attempts`, under `fields` |
 | `run.report` | `dg runs report` | What each step amounted to and how long it took, under `fields` |
 | `run.report_document` | `dg runs report --markdown` | `run_id`, and the markdown `document` the run rendered when it settled |
+| `runs.stats` | `dg runs stats` | How the window's settled runs went: `window_start`, `window_end`, the `settled` and `failed` totals, `trend[]` of one `day` each with its `total` and a count per terminal status, `durations[]` of `pipeline`, `runs`, `p50_ms`, `p95_ms`, `max_ms`, `top_errors[]` of `code`, `message`, `count`, `last_at`, `pipeline`, and `failing_steps[]` of `pipeline`, `step`, `failures`, `last_at` |
 | `run.profile` | `dg runs profile` | The chain that decided the run: `run_id`, `pipeline`, `status`, `duration_ms`, `critical_path`, and the `queued_ms`, `running_ms` and `waiting_ms` along it |
 | `run.profile.step` | `dg runs profile` | One step on that chain: `step`, `block`, `attempts`, `queued_ms`, `running_ms`, `waiting_ms` |
 | `run.profile.warning` | `dg runs profile` | One cause the timestamps prove: the `step` it is about and the `cause` |
@@ -1076,6 +1077,7 @@ dg run --local file|url [--connections FILE] [--schema FILE] [--enable-unsafe BL
 dg run --local ... [--root DIR]                              # hold the instance in DIR and keep it, so a later run reads it
 dg backfill PIPELINE --schedule CODE --from A --to B [--dry-run]
 dg runs list [--pipeline CODE] [--status failed] [--since 24h] [--tag nightly] [--limit 50]
+dg runs stats [--since 7d] [--pipeline CODE] [--tag nightly]   # per day, durations, top errors, failing steps
 dg runs show | cancel | pause | resume | report | profile RUN_ID
 dg runs report RUN_ID [--markdown]      # the document the run rendered, when it declares `report:`
 dg runs logs RUN_ID [--follow] [--step NAME]
