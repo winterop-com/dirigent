@@ -2,7 +2,7 @@ import { Settings, Waypoints, X } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { NavLink, useLocation } from 'react-router'
 
-import { RailEntry } from '@/components/Rail'
+import { RailEntry, SectionLabel } from '@/components/Rail'
 import { Button } from '@/components/ui/button'
 import { useStore } from '@/hooks/use-store'
 import { authStore } from '@/lib/auth'
@@ -140,12 +140,8 @@ export function NavDrawer({
 
                 <div className="min-h-0 flex-1 overflow-y-auto border-t border-border-strong pt-1 pb-2">
                     {sections.map((section) => (
-                        <nav key={section.id} className="flex flex-col gap-1 px-2 pb-3">
-                            {section.label !== null && (
-                                <p className="px-2 pt-4 pb-1.5 text-xs font-medium tracking-wide text-faint uppercase">
-                                    {section.label}
-                                </p>
-                            )}
+                        <nav key={section.id} className="flex flex-col gap-1 px-2 pb-1">
+                            {section.label !== null && <SectionLabel section={section} />}
                             {section.entries.map((entry) => (
                                 <RailEntry key={entry.path} entry={entry} collapsed={false} />
                             ))}

@@ -1,6 +1,14 @@
 import { describe, expect, test } from 'vitest'
 
-import { DASHBOARD_PATH, NAV, entriesFor, entryAt, marksOnlyItself, sectionsFor } from '@/lib/nav'
+import {
+    ADMIN_OVERVIEW,
+    DASHBOARD_PATH,
+    NAV,
+    entriesFor,
+    entryAt,
+    marksOnlyItself,
+    sectionsFor,
+} from '@/lib/nav'
 
 describe('the navigation', () => {
     test('sends a reader with no address of their own to a screen that exists', () => {
@@ -76,7 +84,42 @@ describe('role gating', () => {
     })
 
     test('draws the ungated sections before the identity is known, rather than nothing at all', () => {
-        expect(sectionsFor(null).map((section) => section.id)).toEqual(['operate'])
+        expect(sectionsFor(null).map((section) => section.id)).toEqual([
+            'dashboard',
+            'operate',
+            'build',
+            'reference',
+        ])
+    })
+})
+
+describe('the groups', () => {
+    test('hold their entries in the order the rail reads them', () => {
+        const groups = sectionsFor('admin').map((section) => section.entries.map((entry) => entry.path))
+        expect(groups).toEqual([
+            ['/'],
+            ['/runs', '/triggers'],
+            ['/pipelines', '/connections', '/schemas'],
+            ['/blocks', '/examples'],
+            ['/admin/users', '/admin/workers', '/admin/alerting'],
+        ])
+    })
+})
+
+describe('the admin overview', () => {
+    test('is not a rail entry', () => {
+        const rail = NAV.flatMap((section) => section.entries).map((entry) => entry.path)
+        expect(rail).not.toContain(ADMIN_OVERVIEW.path)
+    })
+
+    test('is the admin heading\'s link', () => {
+        expect(NAV.find((section) => section.id === 'admin')?.to).toBe(ADMIN_OVERVIEW.path)
+    })
+
+    test('is offered by the palette to an admin and to nobody else', () => {
+        expect(entriesFor('admin').map((entry) => entry.path)).toContain(ADMIN_OVERVIEW.path)
+        expect(entriesFor('operator').map((entry) => entry.path)).not.toContain(ADMIN_OVERVIEW.path)
+        expect(entriesFor(null).map((entry) => entry.path)).not.toContain(ADMIN_OVERVIEW.path)
     })
 })
 
@@ -89,9 +132,9 @@ describe('which entry an address is inside', () => {
         expect(entryAt('/runs/6f1f6b0e-4c1e-4d0a-9d9c-2f2f9b7f7a11')?.label).toBe('Runs')
     })
 
-    test('is the longest match, so /admin/users marks Users rather than the admin overview', () => {
+    test('is the admin screen itself, and nothing for the overview that left the rail', () => {
         expect(entryAt('/admin/users')?.label).toBe('Users')
-        expect(entryAt('/admin')?.label).toBe('Overview')
+        expect(entryAt('/admin')).toBeNull()
     })
 
     test('is nothing for an address this app does not answer', () => {
@@ -107,10 +150,6 @@ describe('which entry an address is inside', () => {
 describe('which addresses mark an entry', () => {
     test('the root is marked at the root alone, because every address is under it', () => {
         expect(marksOnlyItself('/')).toBe(true)
-    })
-
-    test('the admin overview is marked at its own address, because three screens sit below it', () => {
-        expect(marksOnlyItself('/admin')).toBe(true)
     })
 
     // REVERT-PROOF. A screen with nothing beneath it stays marked while a detail screen of its

@@ -1068,11 +1068,19 @@ relative form rather than a locale string.
 
 **Settings lives at the bottom of the rail's column**, in that bar; the instance's identity --
 a dot, its name and environment from `/system/info`, its version -- lives at the right of the
-topbar, and opens the health popover. The rail's own entries are **single-line labels** --
-Dashboard, Pipelines, Runs, Triggers, Connections, Blocks, Examples and Schemas, with the admin
-section under them -- and a word that names one of those needs no gloss under it. `lib/nav` is
-the array the rail draws and the palette offers, and the line an entry carries about itself is
-data on the entry that the palette reads.
+topbar, and opens the health popover. The rail's own entries are **single-line labels**, and a
+word that names one of those needs no gloss under it. **They are grouped by what somebody is there
+to do**: Dashboard alone at the head; Operate (Runs, Triggers); Build (Pipelines, Connections,
+Schemas); Reference (Blocks, Examples); and, for an admin, Admin (Users, Workers, Alerting). `lib/nav`
+is the array the rail draws and the palette offers, and the line an entry carries about itself is
+data on the entry that the palette reads. The active entry wears a slim bar in the gutter, which
+survives the collapse.
+
+**The admin overview is not a rail entry.** `/admin` is the instance at a glance -- five tiles, the
+runs that want somebody, the workers table -- and most of that is already the dashboard's. It is
+offered by the palette to an admin, and the Admin heading over the section is its link, so a screen
+with no entry of its own is still one press from where its section is read. A collapsed rail draws
+no heading, and the palette is the way there.
 
 ## Small screens
 

@@ -669,6 +669,10 @@ const screen = {
         name: 'Schemas',
         hint: 'Shapes a payload is checked against',
     },
+    /** The rail's groups, which say what somebody is there to do. */
+    operate: 'Operate',
+    build: 'Build',
+    reference: 'Reference',
     /** The section the admin screens sit under. */
     admin: 'Admin',
     /** The instance, for whoever runs it. */
