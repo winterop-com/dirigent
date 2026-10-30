@@ -57,8 +57,8 @@ from dirigent_core.models import (
 )
 from dirigent_core.registry import live_worker_tags
 from dirigent_core.schemas import schema_codes
-from dirigent_core.sources.rows import claimed_route_issues, reconcile_sources
-from dirigent_core.triggers.materialize import materialize_triggers, owner_issues
+from dirigent_core.sources.rows import claimed_route_issues, reconcile_sources, retiring_sources
+from dirigent_core.triggers.materialize import materialize_triggers, owner_issues, retiring_schedules
 
 _logger = get_logger("pipelines")
 
@@ -272,6 +272,7 @@ async def apply_document(
 ) -> ApplyResult:
     """Validate, plan, and -- unless this is a dry run -- commit what a document declares.
 
+    A dry run also says which source rows and managed schedules the apply would retire.
     A pipeline document commits a new version; a triggers document writes itself and its rows.
     ``pause_schedules`` governs the schedules this apply creates, and only those: one
     the instance already holds keeps whatever paused state an operator gave it, because that
@@ -309,6 +310,9 @@ async def apply_document(
             sources = await reconcile_sources(
                 session, services.settings, services.sources, services.secrets, pipeline, definition
             )
+        if pipeline is not None and dry_run and plan.action is not PlanAction.INVALID:
+            triggers = await retiring_schedules(session, pipeline, definition)
+            sources = await retiring_sources(session, pipeline, definition)
         return ApplyResult(
             plan=plan,
             pipeline_id=pipeline.id if pipeline else None,

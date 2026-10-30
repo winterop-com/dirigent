@@ -150,6 +150,13 @@ async def claimed_route_issues(
     return issues
 
 
+async def retiring_sources(session: AsyncSession, pipeline: Pipeline, definition: PipelineDefinition) -> SourceChanges:
+    """Say which source rows applying a document would retire, and touch none of them."""
+    return SourceChanges(
+        removed=sorted(row.code for row in await _rows_of(session, pipeline.id) if row.code not in definition.sources)
+    )
+
+
 async def reconcile_sources(
     session: AsyncSession,
     settings: Settings,

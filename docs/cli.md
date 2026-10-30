@@ -390,7 +390,8 @@ with the `next` commands that start the stack, beginning with `uv sync`. Both ca
 `template`, and the stack's `services`, any `packs`, and `workflow` when one was written.
 
 Inside a project, `dg apply` with no argument applies every document, and `dg apply
---dry-run` is the whole-project diff. That plus a pipeline repository on GitHub is the entire
+--dry-run` is the whole-project diff, and it names the sources and managed schedules an apply
+would retire. That plus a pipeline repository on GitHub is the entire
 promotion story.
 
 `--prune` reconciles the whole project: after applying every document, a pipeline an

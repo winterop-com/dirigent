@@ -58,6 +58,21 @@ async def materialize_triggers(
     return result
 
 
+async def retiring_schedules(
+    session: AsyncSession, pipeline: Pipeline, definition: Document, *, owner: UUID | None = None
+) -> Materialized:
+    """Say which schedules applying a document would retire, and touch none of them."""
+    rows = await session.execute(sa.select(Schedule).where(Schedule.pipeline_id == pipeline.id))
+    declared = {spec.code for spec in definition.triggers.schedules}
+    return Materialized(
+        schedules_removed=sorted(
+            row.code
+            for row in rows.scalars()
+            if row.trigger_document_id == owner and row.managed and row.code not in declared
+        )
+    )
+
+
 async def _reconcile_schedules(
     session: AsyncSession,
     pipeline: Pipeline,
