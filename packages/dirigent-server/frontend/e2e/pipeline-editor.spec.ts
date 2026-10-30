@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
+import { FIT_MIN_ZOOM } from '../src/lib/dag-layout.ts'
 import { LABELS } from '../src/lib/labels.ts'
 import {
     DEV_USERNAME,
@@ -639,6 +640,39 @@ test('the editor opens with the whole graph in view, at a zoom that does not blo
     // FIT_MAX_ZOOM in lib/dag-layout: a graph of a few boxes sits at a size worth reading
     // rather than blown up to fill the canvas.
     expect(await graphZoom(page)).toBeLessThanOrEqual(1)
+})
+
+test('a graph too big for the floor opens readable, from its start, and is panned to', async ({ page }) => {
+    await signIn(page)
+    const prefix = await apiPrefix(page.request)
+    const pipeline = 'e2e-past-the-floor'
+    await page.request.delete(`${prefix}/pipelines/${pipeline}`)
+    const count = 40
+    const steps = Object.fromEntries(
+        Array.from({ length: count }, (_, at) => [
+            `step_${String(at).padStart(2, '0')}`,
+            {
+                block: 'http.request',
+                config: { url: `http://127.0.0.1:9/${String(at)}` },
+                ...(at === 0 ? {} : { depends_on: [`step_${String(at - 1).padStart(2, '0')}`] }),
+            },
+        ]),
+    )
+    await applyDocument(page.request, { format: 'dirigent/v1', kind: 'pipeline', code: pipeline, steps })
+
+    await page.goto(`/pipelines/${pipeline}`)
+    await expect(page.locator('.react-flow__node')).toHaveCount(count)
+    await canvasSettled(page)
+
+    expect(await graphZoom(page)).toBeCloseTo(FIT_MIN_ZOOM)
+    const first = page.locator('.react-flow__node[data-id="step_00"]')
+    const canvas = page.locator('.react-flow')
+    const inside = async () => {
+        const [box, frame] = await Promise.all([first.boundingBox(), canvas.boundingBox()])
+        return box !== null && frame !== null && box.x >= frame.x && box.y >= frame.y
+    }
+    await expect.poll(inside).toBe(true)
+    await page.request.delete(`${prefix}/pipelines/${pipeline}`)
 })
 
 test('a graph of two steps is fully visible rather than filling the canvas', async ({ page }) => {
