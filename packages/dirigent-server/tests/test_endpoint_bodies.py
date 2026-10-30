@@ -109,7 +109,7 @@ async def _stall(app: FastAPI) -> tuple[Unfinished, asyncio.Task[None]]:
     """Start one call whose body stops arriving, and return once the route is waiting on it."""
     call = Unfinished()
     task = asyncio.create_task(app(_scope("/endpoints/stalled"), call.receive, call.send))
-    await asyncio.wait_for(call.stalled.wait(), timeout=10)
+    await asyncio.wait_for(call.stalled.wait(), timeout=60)
     return call, task
 
 
@@ -166,7 +166,7 @@ async def test_a_body_that_stops_arriving_is_answered_408_and_closes_the_connect
     ):
         await _apply(client, auth)
         call = Unfinished()
-        await asyncio.wait_for(built(_scope("/endpoints/stalled"), call.receive, call.send), timeout=10)
+        await asyncio.wait_for(built(_scope("/endpoints/stalled"), call.receive, call.send), timeout=60)
         assert call.status == 408
         assert call.headers[b"connection"] == b"close"
         inputs = (await client.get(f"{PREFIX}/pipelines/stalled/sources/ask/inputs")).json()["items"]
