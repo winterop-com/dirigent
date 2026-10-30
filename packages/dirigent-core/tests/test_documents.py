@@ -337,7 +337,7 @@ def test_a_deferred_reference_is_not_type_checked_but_the_rest_still_is(host: Pl
         ("{block: sql.query, config: {connection: db, sql: \"SELECT '${params.day}'\"}}", "sql"),
         (
             "{block: sql.execute, config: {connection: db, statements: ['SELECT 1', 'DELETE FROM ${params.day}']}}",
-            "statements",
+            "statements.1",
         ),
     ],
     ids=["query", "execute"],
@@ -353,6 +353,25 @@ def test_a_reference_in_sql_is_refused_when_the_document_is_applied(config: str,
         ("document.step_reference_in_sql", f"steps.a.config.{field}")
     ]
     assert issues[0].params["reference"] == "params.day"
+
+
+@pytest.mark.parametrize(
+    "source",
+    ["{query: 'SELECT ${params.day}'}", "'${params.day}'"],
+    ids=["statement", "whole-object"],
+)
+def test_a_reference_in_a_nested_sql_field_is_refused_when_the_document_is_applied(
+    host: PluginHost, source: str
+) -> None:
+    definition = load_text(
+        "format: dirigent/v1\ncode: spliced\n"
+        "params: {type: object, properties: {day: {type: string}}}\n"
+        f"steps:\n  a: {{block: test.sqlish, config: {{source: {source}}}}}\n"
+    )
+    issues = validate_against_catalog(definition, host.catalog())
+    assert [issue.code for issue in issues] == ["document.step_reference_in_sql"]
+    assert issues[0].location is not None
+    assert issues[0].location.startswith("steps.a.config.source")
 
 
 def test_a_reference_in_params_beside_sql_is_applied() -> None:
