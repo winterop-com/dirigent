@@ -1883,6 +1883,28 @@ async def test_an_expired_lease_with_no_handle_requeues_the_attempt(
     assert (await reload(sessions, run.id)).status is RunStatus.SUCCEEDED
 
 
+async def test_an_attempt_taken_back_past_the_limit_fails_instead_of_running_again(
+    engine: Engine, sessions: Any, services: EngineServices
+) -> None:
+    definition = PipelineDefinition(code="poisoned", steps=steps(only=StepDefinition(block="test.echo")))
+    run = await start(sessions, services, definition)
+    later = _after_lease(services)
+
+    for _ in range(services.settings.lease_recovery_limit + 1):
+        unit = await engine.claim(now=later)
+        assert unit is not None, "each recovery within the limit runs the step again"
+        later += services.settings.lease * 2
+        async with session_scope(sessions) as session:
+            assert await sweep_leases(session, now=later) == [unit.attempt_id]
+
+    assert await engine.claim(now=later) is None
+    [attempt] = await attempts_of(sessions, run.id)
+    assert attempt.status is AttemptStatus.FAILED
+    assert attempt.error_code == "run.lease_recoveries"
+    assert attempt.error_class == "rejected"
+    assert (await reload(sessions, run.id)).status is RunStatus.FAILED
+
+
 async def test_an_expired_lease_with_a_recorded_handle_resumes_probing(
     engine: Engine, sessions: Any, services: EngineServices
 ) -> None:

@@ -1037,6 +1037,8 @@ const refused = {
         not_paused: 'This run is {status}, and only a paused run resumes.',
         not_pausable: 'This run is {status}, and only a queued or running run pauses.',
         not_retryable: 'Step {step} is {status}, and only a settled failure can be retried.',
+        lease_recoveries:
+            'Step {step} was taken back from a worker more than {limit} times without an outcome, so it is not run again.',
         reply_body_from: 'Reply {step} streams its body from {value}, and body_from names a storage URI.',
         reply_not_retryable:
             'Step {step} is a reply. The server settles it once, when the steps it answers from have settled.',

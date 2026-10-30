@@ -313,6 +313,9 @@ class StepAttempt(Entity):
     lease_expires_at: Mapped[datetime | None] = mapped_column(Timestamp)
     heartbeat_at: Mapped[datetime | None] = mapped_column(Timestamp)
 
+    lease_recoveries: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0, server_default="0")
+    """How many times the sweeper put this attempt back in the queue after its lease expired."""
+
     remote_handle: Mapped[JsonMap | None] = mapped_column(JsonDocument)
 
     fetched_output: Mapped[JsonMap | None] = mapped_column(JsonDocument)

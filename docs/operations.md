@@ -671,6 +671,7 @@ the stack is complete out of the box; see
 | `DIRIGENT_WORKER_TAGS` | empty | Capability tags this worker advertises to the claim query, comma-separated. The claim routes on them: only a worker carrying every tag in a run's `requires.workers` claims that run's work. `dg worker --tag` is the flag form. See [routing by tags](#multi-node). |
 | `DIRIGENT_WORKER_NAME` | hostname plus pid | Registry name of this worker. Constrained like every entity code, because the registry is a listing an operator reads. |
 | `DIRIGENT_LEASE` | `60s` | How long a claimed attempt's lease is valid before the sweeper may reclaim it. |
+| `DIRIGENT_LEASE_RECOVERY_LIMIT` | `5` | How many times one attempt may be taken back from a worker and run again before it fails with `run.lease_recoveries`. This also ends a step that kills its worker each time. |
 | `DIRIGENT_HEARTBEAT` | `15s` | How often a worker refreshes the leases it holds and its registry row. |
 | `DIRIGENT_CLAIM_IDLE` | `500ms` | How long an idle worker waits before asking for work again when nothing wakes it. A commit that queues work wakes it at once, so this is what a lost wake-up costs; see [how soon a run starts](#how-soon-a-run-starts). |
 | `DIRIGENT_SWEEP_INTERVAL` | `30s` | How often a worker runs the crash-recovery sweeper over expired leases. This is also the cadence the queue-depth and `waiting` gauges are sampled on. |
