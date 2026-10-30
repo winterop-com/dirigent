@@ -7,7 +7,7 @@ from collections.abc import Callable, Sequence
 from datetime import UTC, datetime, timedelta
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Any, TextIO, cast
+from typing import TYPE_CHECKING, Annotated, Any, NoReturn, TextIO, cast
 
 import typer
 from pydantic import ValidationError
@@ -20,8 +20,10 @@ from dirigent_cli.context import CliState, state_of
 from dirigent_cli.formatters import DEFAULT, names
 from dirigent_cli.messages import (
     AUTH_REFUSED,
+    BIND_LOOPBACK_OR_MAKE_AN_ADMIN,
     CONNECTION_UNUSABLE,
     CREATE_AN_ADMIN,
+    DEV_FIXTURE_NEEDS_LOOPBACK,
     DEV_IS_SQLITE_ONLY,
     FORMATTER_TAKES_NO_TEMPLATE,
     FORMATTERS_ARE,
@@ -49,6 +51,7 @@ from dirigent_cli.messages import (
     WORKER_NEEDS_POSTGRES,
 )
 from dirigent_cli.output import configure, detail_mode, emit_fact, emit_problem, emit_rendered, refuse
+from dirigent_cli.profiles import is_loopback_host
 from dirigent_client.enums import UserRole
 from dirigent_common import Issue, raised_detail, validation_issues
 from dirigent_core import migrations
@@ -974,14 +977,17 @@ def dev(
             problems=[Issue.of(USE_DG_SERVER)],
         )
         raise typer.Exit(code=commands.GUARD_EXIT)
+    address = host or settings.host
+    exposed = not is_loopback_host(address)
+    if exposed and wipe_state:
+        refuse_the_fixture_on(address)
     if wipe_state:
         cleared = clear_state(settings)
         if cleared is not None:
             emit(state_cleared(cleared))
     migrated = _migrate_quietly(settings)
     guard_schema(settings)
-    admin, token = asyncio.run(dev_admin(settings))
-    address = host or settings.host
+    admin, token = asyncio.run(dev_admin(settings, exposed_on=address if exposed else None))
     listening = port or settings.port
     bound = f"http://{address}:{listening}"
     emit(dev_started(settings, bound=bound, admin=admin, token=token, migrated=migrated))
@@ -1128,15 +1134,38 @@ def _process_logging(level: str, *, cap_foreign: bool, stream: TextIO | None = N
     )
 
 
-async def dev_admin(settings: Settings) -> tuple[str | None, str | None]:
+def refuse_the_fixture_on(address: str) -> NoReturn:
+    """Refuse to serve the fixed development login on an address other machines can reach."""
+    refuse(
+        DEV_FIXTURE_NEEDS_LOOPBACK,
+        status=commands.GUARD_EXIT,
+        title="Not loopback",
+        problems=[Issue.of(BIND_LOOPBACK_OR_MAKE_AN_ADMIN)],
+        address=address,
+    )
+    raise typer.Exit(code=commands.GUARD_EXIT)
+
+
+async def dev_admin(settings: Settings, *, exposed_on: str | None = None) -> tuple[str | None, str | None]:
     """Name the admin to log in as, and mint it a token where one is owed.
 
     An empty instance gets the development admin made for it. One that already has accounts
     -- ``dg init`` made it, or a person did -- keeps them: this names the admin that is
     there rather than one that is not, and mints nothing, because that account's token was
     handed over when it was created.
+
+    ``exposed_on`` is the non-loopback address the instance is about to bind, if it is one.
+    There the development admin is refused, whether it would be made now or an earlier start
+    on loopback left it with its fixed password.
     """
-    from dirigent_core.auth import create_fixture_admin, find_user, issue_token, list_tokens, list_users
+    from dirigent_core.auth import (
+        create_fixture_admin,
+        find_user,
+        issue_token,
+        list_tokens,
+        list_users,
+        verify_password,
+    )
     from dirigent_core.database import create_engine, create_session_factory, session_scope
 
     engine = create_engine(settings)
@@ -1144,6 +1173,10 @@ async def dev_admin(settings: Settings) -> tuple[str | None, str | None]:
         sessions = create_session_factory(engine)
         async with session_scope(sessions) as session:
             existing = await list_users(session)
+            if exposed_on is not None:
+                fixture = await find_user(session, DEV_ADMIN)
+                if not existing or (fixture and verify_password(fixture.password_hash, DEV_PASSWORD)):
+                    refuse_the_fixture_on(exposed_on)
             if existing:
                 return (existing[0].username, None)
             await create_fixture_admin(session, DEV_ADMIN, DEV_PASSWORD, name="Development admin")

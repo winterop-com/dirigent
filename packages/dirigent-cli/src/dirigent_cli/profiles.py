@@ -176,8 +176,11 @@ def _owned_here(path: Path) -> bool:
 def _is_loopback(url: str) -> bool:
     """Whether a URL names this host, so a token sent to it does not leave the machine."""
     host = urlsplit(url).hostname
-    if host is None or "\\" in url:
-        return False
+    return host is not None and "\\" not in url and is_loopback_host(host)
+
+
+def is_loopback_host(host: str) -> bool:
+    """Whether a host names this machine alone: ``localhost`` or a loopback address, and nothing else."""
     if host == "localhost":
         return True
     try:
