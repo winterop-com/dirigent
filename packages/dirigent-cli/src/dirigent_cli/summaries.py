@@ -135,7 +135,7 @@ def _header(record: Record) -> RenderableType | None:
     total = record.get("items_total") or 0
     failed = record.get("items_failed") or 0
     return build_fields(
-        f"run {record.get('run_id')}{prioritised(record.get('priority'))}",
+        f"run {escape(str(record.get('run_id')))}{prioritised(record.get('priority'))}",
         {
             "pipeline": f"{record.get('pipeline')} (version {record.get('pipeline_version')})",
             "status": record.get("message"),
@@ -159,12 +159,12 @@ def _steps(steps: Sequence[schemas.StepSummary], level: Detail, *, watched: bool
             [
                 [
                     labelled(row.step, row.item) + flagged(row.warnings),
-                    row.block,
+                    escape(row.block),
                     styled(row.status),
-                    ", ".join(row.depends_on) or "-",
+                    escape(", ".join(row.depends_on)) or "-",
                     str(row.attempts),
                     elapsed(row.duration_ms),
-                    row.error or "-",
+                    escape(row.error or "-"),
                 ]
                 for row in steps
             ],
@@ -175,9 +175,9 @@ def _steps(steps: Sequence[schemas.StepSummary], level: Detail, *, watched: bool
         [
             [
                 labelled(row.step, row.item) + flagged(row.warnings),
-                row.block,
+                escape(row.block),
                 styled(row.status),
-                ", ".join(row.depends_on) or "-",
+                escape(", ".join(row.depends_on)) or "-",
                 elapsed(row.duration_ms),
                 render_output(row.output, level, uri=row.artifact_uri, size_bytes=row.artifact_bytes),
             ]
@@ -209,16 +209,16 @@ def _failures(failures: Sequence[schemas.FailureSummary], level: Detail) -> list
     lines: list[RenderableType] = []
     for failure in failures:
         lines.append(
-            f"\n[bold red]{failure.step}[/] failed  [dim]{failure.block}, attempt {failure.attempt}"
-            f"{', ' + failure.error_class if failure.error_class else ''}[/]"
+            f"\n[bold red]{escape(failure.step)}[/] failed  [dim]{escape(failure.block)}, attempt {failure.attempt}"
+            f"{', ' + escape(failure.error_class) if failure.error_class else ''}[/]"
         )
-        lines.extend(f"  [red]{text}[/]" for text in (failure.error or "no error was recorded").splitlines())
+        lines.extend(f"  [red]{escape(text)}[/]" for text in (failure.error or "no error was recorded").splitlines())
         if failure.input and level is not Detail.SUMMARY:
             lines.append("  [dim]it was given:[/]")
             lines.extend(f"    [dim]{text}[/]" for text in render_output(failure.input, level).splitlines())
         if failure.logs:
             lines.append("  [dim]last log lines:[/]")
-            lines.extend(f"    [dim]{text}[/]" for text in failure.logs)
+            lines.extend(f"    [dim]{escape(text)}[/]" for text in failure.logs)
     return lines
 
 
@@ -227,14 +227,15 @@ def _kept(record: Record) -> list[RenderableType]:
     kept = record.get("kept_at")
     if not kept:
         return []
-    lines: list[RenderableType] = ["\n[dim]the instance was kept at[/]", f"  {kept}"]
+    shown = escape(str(kept))
+    lines: list[RenderableType] = ["\n[dim]the instance was kept at[/]", f"  {shown}"]
     scratch = record.get("scratch")
     if scratch:
-        lines.extend(("[dim]this run wrote under[/]", f"  {scratch}"))
+        lines.extend(("[dim]this run wrote under[/]", f"  {escape(str(scratch))}"))
     lines.extend(
         (
             "[dim]point a server at it with[/]",
-            f"  DIRIGENT_DATABASE_URL=sqlite+aiosqlite:///{kept}/dirigent.db",
+            f"  DIRIGENT_DATABASE_URL=sqlite+aiosqlite:///{shown}/dirigent.db",
         )
     )
     return lines
@@ -412,7 +413,7 @@ def _config(record: Record) -> RenderableType | None:
 def _db_history(record: Record) -> RenderableType | None:
     """Render the migration history the record carries, as alembic wrote it."""
     history = str(record.get("history") or "")
-    return history or None
+    return escape(history) or None
 
 
 def _problems(record: Record) -> list[RenderableType]:
@@ -463,7 +464,7 @@ def _shape(record: Record) -> RenderableType | None:
         return None
     parts: list[RenderableType] = [
         build_table(
-            f"what {record.get('code')} will cost",
+            f"what {escape(str(record.get('code')))} will cost",
             ["step", "block", "cardinality", "attempts", "retry wait", "timeout", "deadline", "poll"],
             [
                 [
@@ -536,9 +537,12 @@ def _backfill(record: Record) -> RenderableType | None:
     if not windows:
         return None
     return build_table(
-        f"{record.get('pipeline')} {record.get('schedule')}",
+        escape(f"{record.get('pipeline')} {record.get('schedule')}"),
         ["window start", "window end", "run"],
-        [[one.window_start, one.window_end, one.run_id or one.detail or "-"] for one in windows],
+        [
+            [escape(one.window_start), escape(one.window_end), escape(one.run_id or one.detail or "-")]
+            for one in windows
+        ],
     )
 
 
@@ -547,7 +551,7 @@ def _profile(record: Record) -> RenderableType | None:
     path = record.get("critical_path")
     if not isinstance(path, list):
         return None
-    chain = " -> ".join(str(code) for code in cast("list[object]", path)) or "-"
+    chain = escape(" -> ".join(str(code) for code in cast("list[object]", path))) or "-"
     duration = record.get("duration_ms")
     parts = [
         ("queued", record.get("queued_ms")),
@@ -600,7 +604,7 @@ def _stats(record: Record) -> RenderableType | None:
                     ["pipeline", "runs", "p50", "p95", "max"],
                     [
                         [
-                            str(row.get("pipeline")),
+                            escape(str(row.get("pipeline"))),
                             str(row.get("runs")),
                             elapsed(row.get("p50_ms")),
                             elapsed(row.get("p95_ms")),
@@ -622,9 +626,9 @@ def _stats(record: Record) -> RenderableType | None:
                     [
                         [
                             str(row.get("count")),
-                            str(row.get("code") or "-"),
+                            escape(str(row.get("code") or "-")),
                             escape(str(row.get("message") or "-")),
-                            str(row.get("pipeline") or "-"),
+                            escape(str(row.get("pipeline") or "-")),
                             moment(row.get("last_at")),
                         ]
                         for row in errors
@@ -643,8 +647,8 @@ def _stats(record: Record) -> RenderableType | None:
                     [
                         [
                             str(row.get("failures")),
-                            str(row.get("pipeline")),
-                            str(row.get("step")),
+                            escape(str(row.get("pipeline"))),
+                            escape(str(row.get("step"))),
                             moment(row.get("last_at")),
                         ]
                         for row in steps
