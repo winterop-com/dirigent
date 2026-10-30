@@ -64,6 +64,10 @@ runs it in a throwaway SQLite instance in a temporary directory, streams what ea
 and deletes the database afterwards. It is the same apply, the same engine, and the same worker
 loop a real instance uses.
 
+A pack goes in beside the CLI and is found with nothing to configure: `uv tool install
+dirigent-cli --with dirigent-dhis2`, or once without installing, `uvx --from dirigent-cli --with
+dirigent-dhis2 dg dev`. The command is in `dirigent-cli`, so `uvx` always takes `--from`.
+
 Then the real loop, in one process on one SQLite file:
 
 ```bash
