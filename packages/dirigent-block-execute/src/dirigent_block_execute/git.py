@@ -172,7 +172,7 @@ class GitConnectionKind(ConnectionKind):
             return HealthReport(healthy=False, detail="git is not on this host's PATH")
         with tempfile.TemporaryDirectory(prefix="dirigent-git-check-") as home:
             root = Path(home)
-            with credentials(settings, root) as sealed:
+            with credentials(settings) as sealed:
                 environ = {**subprocess.environment([], {}, root), **sealed.environ}
                 try:
                     code, out, err = await subprocess.output(
@@ -269,7 +269,7 @@ class GitCheckoutOperator(Operator[GitCheckoutConfig, GitCheckoutOutput]):
         if binary is None:
             raise BlockFailure(NO_GIT, error_class=ErrorClass.REJECTED)
 
-        with credentials(settings, root) as sealed:
+        with credentials(settings) as sealed:
             environ = {**subprocess.environment([], {}, root), **sealed.environ}
             git = _Git(binary, environ, config.timeout.total_seconds(), sealed, ctx)
             standing = await _standing(git, config, destination, remote)
@@ -302,7 +302,7 @@ class Sealed:
 
 
 @contextlib.contextmanager
-def credentials(settings: GitConnectionConfig, parent: Path) -> Generator[Sealed]:
+def credentials(settings: GitConnectionConfig) -> Generator[Sealed]:
     """Materialise the connection's credential into a private directory, and take it away again.
 
     The directory is 0700 and holds a 0700 askpass helper and its two 0600 answers, or a 0600
@@ -310,7 +310,7 @@ def credentials(settings: GitConnectionConfig, parent: Path) -> Generator[Sealed
     its home. Nothing in it outlives the step: the directory goes whether the checkout
     succeeded, failed, or was cancelled.
     """
-    with secrets.private_directory(parent, "dirigent-git-") as directory:
+    with secrets.private_directory("dirigent-git-") as directory:
         yield _materialise(settings, directory)
 
 

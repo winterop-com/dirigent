@@ -500,9 +500,9 @@ not contain a pipeline that has taken over the sidecar. **Run these blocks on a 
 A `docker` connection carries the two docker credentials there are, and both are sealed: the
 client TLS key that reaches a remote daemon, and the registry password a `docker.build` pushes
 with. Sealed means encrypted at rest, redacted in every API response, and never an argument or
-an inherited variable. Each reaches the CLI only as a 0600 file in a 0700 directory under the
-run's work directory -- the key as `DOCKER_CERT_PATH`, the login as a `DOCKER_CONFIG` of its own
--- and both directories are removed when the step leaves, whether it succeeded, failed or was
+an inherited variable. Each reaches the CLI only as a 0600 file in a 0700 directory in the
+system's temporary directory, outside the roots a sibling step can read -- the key as
+`DOCKER_CERT_PATH`, the login as a `DOCKER_CONFIG` of its own -- and both directories are removed when the step leaves, whether it succeeded, failed or was
 cancelled. A push logs out before it returns, so the worker's own docker config is never
 written to and no session survives the step.
 

@@ -1,15 +1,20 @@
 """Tests for git.checkout, against a bare repository on disk rather than a network remote."""
 
 import asyncio
+import contextlib
 import shutil
 import subprocess as std_subprocess
+import tempfile
+from collections.abc import Generator
 from pathlib import Path
-from typing import NamedTuple
+from typing import Any, NamedTuple
+from urllib.parse import urlsplit
 
 import pytest
 from pydantic import SecretStr, ValidationError
 
 from dirigent_block_execute import git as git_block
+from dirigent_block_execute import secrets
 from dirigent_block_execute.capture import REDACTED, scrub
 from dirigent_block_execute.git import (
     GitCheckoutConfig,
@@ -147,9 +152,18 @@ def work_root(ctx: FakeContext) -> Path:
     return ctx.work
 
 
-def private_directories(ctx: FakeContext) -> list[Path]:
-    """The credential directories still sitting in the run's work directory."""
-    return list(work_root(ctx).glob("dirigent-git-*"))
+@pytest.fixture(autouse=True)
+def credential_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """The system's temporary directory as this test's credential directories see it."""
+    directory = tmp_path / "system-tmp"
+    directory.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(directory))
+    return directory
+
+
+def private_directories(home: Path) -> list[Path]:
+    """The credential directories still sitting in the temporary directory."""
+    return list(home.glob("dirigent-git-*"))
 
 
 async def checkout(
@@ -523,10 +537,10 @@ def test_scrub_replaces_every_secret_it_is_given() -> None:
     assert scrub("nothing to hide") == "nothing to hide"
 
 
-def test_a_token_becomes_an_askpass_helper_and_two_unreadable_files(tmp_path: Path) -> None:
+def test_a_token_becomes_an_askpass_helper_and_two_unreadable_files() -> None:
     settings = GitConnectionConfig(url="https://host/o/r.git", token=SecretStr("ghp_secret"))
 
-    with credentials(settings, tmp_path) as sealed:
+    with credentials(settings) as sealed:
         helper = Path(sealed.environ["GIT_ASKPASS"])
         directory = helper.parent
         assert directory.stat().st_mode & 0o777 == 0o700
@@ -541,12 +555,12 @@ def test_a_token_becomes_an_askpass_helper_and_two_unreadable_files(tmp_path: Pa
     assert not directory.exists()
 
 
-def test_a_key_becomes_a_private_file_the_ssh_command_names(tmp_path: Path) -> None:
+def test_a_key_becomes_a_private_file_the_ssh_command_names(credential_home: Path) -> None:
     settings = GitConnectionConfig(url="ssh://git@host/o/r.git", ssh_key=SecretStr("-----BEGIN KEY-----\nkkk"))
 
-    with credentials(settings, tmp_path) as sealed:
+    with credentials(settings) as sealed:
         command = sealed.environ["GIT_SSH_COMMAND"]
-        key = next(iter(tmp_path.glob("dirigent-git-*"))) / "id"
+        key = next(iter(private_directories(credential_home))) / "id"
         assert key.stat().st_mode & 0o777 == 0o600
         assert key.read_text().startswith("-----BEGIN KEY-----")
         assert str(key) in command
@@ -555,27 +569,27 @@ def test_a_key_becomes_a_private_file_the_ssh_command_names(tmp_path: Path) -> N
         assert str(key) in sealed.secrets, "the key's path is scrubbed out of every message too"
         assert scrub(command, sealed.secrets).count(str(key)) == 0
 
-    assert not list(tmp_path.glob("dirigent-git-*"))
+    assert not private_directories(credential_home)
 
 
-def test_known_hosts_pin_the_host_key_when_the_connection_carries_them(tmp_path: Path) -> None:
+def test_known_hosts_pin_the_host_key_when_the_connection_carries_them(credential_home: Path) -> None:
     settings = GitConnectionConfig(
         url="ssh://git@host/o/r.git",
         ssh_key=SecretStr("kkk"),
         known_hosts="host ssh-ed25519 AAAAC3Nza",
     )
 
-    with credentials(settings, tmp_path) as sealed:
+    with credentials(settings) as sealed:
         command = sealed.environ["GIT_SSH_COMMAND"]
-        hosts = next(iter(tmp_path.glob("dirigent-git-*"))) / "known_hosts"
+        hosts = next(iter(private_directories(credential_home))) / "known_hosts"
         assert hosts.read_text() == "host ssh-ed25519 AAAAC3Nza\n"
         assert "StrictHostKeyChecking=yes" in command
         assert f"UserKnownHostsFile={hosts}" in command
 
 
-def test_a_connection_with_no_credential_writes_nothing_to_read(tmp_path: Path) -> None:
-    with credentials(GitConnectionConfig(url="https://host/o/r.git"), tmp_path) as sealed:
-        directory = next(iter(tmp_path.glob("dirigent-git-*")))
+def test_a_connection_with_no_credential_writes_nothing_to_read(credential_home: Path) -> None:
+    with credentials(GitConnectionConfig(url="https://host/o/r.git")) as sealed:
+        directory = next(iter(private_directories(credential_home)))
         assert list(directory.iterdir()) == [sealed.home]
         assert list(sealed.home.iterdir()) == []
         assert sealed.secrets == []
@@ -583,7 +597,7 @@ def test_a_connection_with_no_credential_writes_nothing_to_read(tmp_path: Path) 
 
 
 async def test_the_checkout_carries_no_credential_and_leaves_none_behind(
-    local_ctx: FakeContext, remote: Remote
+    local_ctx: FakeContext, remote: Remote, credential_home: Path
 ) -> None:
     install(local_ctx, tokened(remote))
 
@@ -593,18 +607,43 @@ async def test_the_checkout_carries_no_credential_and_leaves_none_behind(
     assert "ghp_x" not in config
     assert "@" not in config
     assert "ghp_x" not in output.remote
-    assert private_directories(local_ctx) == []
+    assert private_directories(credential_home) == []
     logged = " ".join(str(entry) for entry in local_ctx.log.entries)
     assert "ghp_x" not in logged
 
 
-async def test_the_private_directory_is_gone_after_a_failure(local_ctx: FakeContext, remote: Remote) -> None:
+async def test_the_private_directory_is_gone_after_a_failure(
+    local_ctx: FakeContext, remote: Remote, credential_home: Path
+) -> None:
     install(local_ctx, tokened(remote))
     with pytest.raises(BlockFailure) as raised:
         await checkout(local_ctx, ref="no-such-branch")
 
     assert "ghp_x" not in str(raised.value)
-    assert private_directories(local_ctx) == []
+    assert private_directories(credential_home) == []
+
+
+async def test_the_credential_is_written_outside_every_root_a_sibling_step_reads(
+    local_ctx: FakeContext, remote: Remote, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    held: list[Path] = []
+    make = secrets.private_directory
+
+    @contextlib.contextmanager
+    def watched(*arguments: Any) -> Generator[Path]:
+        with make(*arguments) as directory:
+            held.append(directory)
+            yield directory
+
+    monkeypatch.setattr(secrets, "private_directory", watched)
+    install(local_ctx, tokened(remote))
+
+    await checkout(local_ctx)
+
+    scratch = Path(urlsplit(local_ctx.as_context().scratch).path)
+    assert held
+    assert not any(directory.is_relative_to(local_ctx.work) for directory in held)
+    assert not any(directory.is_relative_to(scratch) for directory in held)
 
 
 # -- what the run log and the artifacts get ---------------------------------------

@@ -4,6 +4,11 @@ A tool that takes a credential takes it from a file: git through an askpass help
 through a client key and a config directory. The file is 0600 inside a 0700 directory, is
 created with those permissions rather than fixed after, and goes away when the step leaves
 however it leaves.
+
+The directory sits in the system's temporary directory, never in a run's work directory or
+scratch space. Every step of a run has the same uid, so the modes keep out other users and not
+a sibling step, and a sibling that reads files, such as ``sql.query`` on duckdb, reads those
+roots.
 """
 
 import contextlib
@@ -22,9 +27,9 @@ EXECUTABLE = stat.S_IRWXU
 
 
 @contextlib.contextmanager
-def private_directory(parent: Path, prefix: str) -> Generator[Path]:
-    """Make a 0700 directory under a parent, and remove it and everything in it afterwards."""
-    directory = Path(tempfile.mkdtemp(prefix=prefix, dir=parent))
+def private_directory(prefix: str) -> Generator[Path]:
+    """Make a 0700 directory outside every run's roots, and remove it and everything in it afterwards."""
+    directory = Path(tempfile.mkdtemp(prefix=prefix))
     directory.chmod(stat.S_IRWXU)
     try:
         yield directory
