@@ -44,6 +44,7 @@ A coding agent working in a project starts from the `AGENTS.md` that `dg init` w
 ## Optional
 
 - [Architecture](https://winterop-com.github.io/dirigent/architecture/): the packages of the workspace and what may depend on what
+- [Architecture model](https://winterop-com.github.io/dirigent/architecture-model/): the C4 model -- landscape, containers, components, flows and deployments
 - [Design](https://winterop-com.github.io/dirigent/design/): the specification the code is held to
 - [Conventions](https://winterop-com.github.io/dirigent/conventions/): the choices the codebase makes that a reader does not expect
 - [UI conventions](https://winterop-com.github.io/dirigent/ui-conventions/): how the web UI is built
