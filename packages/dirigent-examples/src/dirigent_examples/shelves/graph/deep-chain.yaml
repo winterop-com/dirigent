@@ -23,11 +23,11 @@ kind: pipeline
 code: deep-chain
 name: Deep chain
 description: |
-  Ten steps in one line, each reading the one above it.
+  Run ten steps in one line, each reading the one above it.
 
   The longest path through a DAG is its **height**, and it is the floor under the run's
   duration: no number of workers makes a chain shorter. Its opposite is
-  `wide-fan`, where all ten steps are claimable at once.
+  `wide-fan`, where eight of its ten steps are claimable at once.
 
 tags: [graph, transform]
 

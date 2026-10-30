@@ -23,7 +23,7 @@ format: dirigent/v1
 kind: pipeline
 code: parallel-sleep
 name: Sleeps in parallel
-description: Three independent waits that run at once, and one step that waits for all of them.
+description: Run three independent waits at once, and one step that waits for all of them.
 
 tags: [graph, execute, sensor]
 

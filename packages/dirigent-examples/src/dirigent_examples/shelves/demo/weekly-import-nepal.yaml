@@ -35,6 +35,8 @@ code: weekly-import-nepal
 # the code is the only thing that was ever identity.
 name: Weekly import
 description: |
+  Summarise one week's district import for Nepal.
+
   The Nepal half of a deliberately ambiguous pair.
 
   This pipeline and `weekly-import-malawi` share the display name **Weekly import**. Only

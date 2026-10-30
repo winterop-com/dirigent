@@ -40,7 +40,10 @@ format: dirigent/v1
 kind: pipeline
 code: docker-compose-file
 name: A stack from a compose file on the worker
-description: Write a compose file into the run's work directory, bring the stack up from that path, and tear it down.
+description: |
+  Write a compose file, start the stack from it, and tear it down.
+
+  The file goes into the run's work directory, and the stack is brought up from that path.
 
 tags: [docker, execute]
 

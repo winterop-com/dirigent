@@ -38,7 +38,10 @@ format: dirigent/v1
 kind: pipeline
 code: docker-run-failing-teardown
 name: A failing drive step over a stack
-description: A container that reaches the stack and then exits 1, with the teardown running on any outcome.
+description: |
+  Fail a step on purpose against a Docker stack, and tear the stack down anyway.
+
+  A container reaches the stack and then exits 1, and the teardown runs on any outcome.
 
 tags: [docker, execute]
 

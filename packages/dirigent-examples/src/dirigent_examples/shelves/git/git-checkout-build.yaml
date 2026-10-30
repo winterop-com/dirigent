@@ -42,7 +42,7 @@ format: dirigent/v1
 kind: pipeline
 code: git-checkout-build
 name: Build a checked-out project
-description: Check a public repository out, build the Dockerfile it ships, and run the image once.
+description: Check out a public repository, build its Dockerfile, and run the image once.
 
 tags: [git, execute]
 

@@ -16,6 +16,8 @@ code: weekly-import-malawi
 # The same title as weekly-import-nepal.yaml, on purpose.
 name: Weekly import
 description: |
+  Summarise one week's district import for Malawi.
+
   The Malawi half of a deliberately ambiguous pair.
 
   Same display name as `weekly-import-nepal`, different `code`. The listing shows one title

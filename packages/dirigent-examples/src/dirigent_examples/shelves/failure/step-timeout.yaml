@@ -39,7 +39,7 @@ kind: pipeline
 code: step-timeout
 name: Step timeout
 description: |
-  A sleep that is asked to take thirty seconds, given two.
+  Fail on purpose by giving a thirty-second sleep only two seconds to finish.
 
   The run fails in about two seconds. It fails **on time, not on work**: the command was
   healthy and would have finished, and the engine abandoned it anyway because the step

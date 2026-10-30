@@ -40,10 +40,10 @@ kind: pipeline
 code: retry-budget
 name: Retry budget
 description: |
-  A local command that always exits 1, given three attempts to prove it.
+  Fail on purpose after three attempts at a command that always exits 1.
 
   A non-zero exit is classified `unknown`, and **unknown is retried**: only `rejected`
-  ends a step on its first failure. The budget is spent in full, about a second apart,
+  ends a step on its first failure. The budget is spent in full, a second or two apart,
   and then the step fails.
 
   A retry budget is a bet that the failure was luck. This one loses that bet three times,
