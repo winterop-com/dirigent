@@ -1,6 +1,7 @@
 """Pipeline projects: a uv project of documents, and the scaffolding that creates one."""
 
 import re
+import secrets
 from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final, cast
@@ -287,7 +288,7 @@ x-dirigent: &dirigent
   image: dirigent-instance:local
   restart: unless-stopped
   environment: &dirigent-env
-    DIRIGENT_DATABASE_URL: ${DIRIGENT_DATABASE_URL:-postgresql+asyncpg://${POSTGRES_USER:-dirigent}:${POSTGRES_PASSWORD:-dirigent}@postgres:5432/${POSTGRES_DB:-dirigent}}
+    DIRIGENT_DATABASE_URL: ${DIRIGENT_DATABASE_URL:-postgresql+asyncpg://${POSTGRES_USER:-dirigent}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-dirigent}}
     DIRIGENT_CONFIG_FILE: /etc/dirigent/dirigent.yaml
     DIRIGENT_SECRET_KEY: ${DIRIGENT_SECRET_KEY:?set DIRIGENT_SECRET_KEY in .env}
     DIRIGENT_ENVIRONMENT: ${DIRIGENT_ENVIRONMENT:-prod}
@@ -322,7 +323,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-dirigent}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dirigent}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: ${POSTGRES_DB:-dirigent}
     volumes:
       - postgres:/var/lib/postgresql/data
@@ -423,7 +424,7 @@ COMPOSE_MIGRATE_ENV_S3 = """\
       S3_CONNECTION: ${S3_CONNECTION:-artifacts}
       S3_BUCKET: ${S3_BUCKET:-dirigent}
       S3_ACCESS_KEY: ${S3_ACCESS_KEY:-dirigent}
-      S3_SECRET_KEY: ${S3_SECRET_KEY:-dirigent}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:?set S3_SECRET_KEY in .env}
 """
 
 COMPOSE_S3 = """\
@@ -434,7 +435,7 @@ COMPOSE_S3 = """\
     restart: unless-stopped
     environment:
       RUSTFS_ACCESS_KEY: ${S3_ACCESS_KEY:-dirigent}
-      RUSTFS_SECRET_KEY: ${S3_SECRET_KEY:-dirigent}
+      RUSTFS_SECRET_KEY: ${S3_SECRET_KEY:?set S3_SECRET_KEY in .env}
     volumes:
       - s3:/data
     ports:
@@ -710,7 +711,7 @@ DIRIGENT_SECRET_KEY=__SECRET_KEY__
 DIRIGENT_BOOTSTRAP_ADMIN_PASSWORD=__PASSWORD__
 
 POSTGRES_USER=dirigent
-POSTGRES_PASSWORD=dirigent
+POSTGRES_PASSWORD=__POSTGRES_PASSWORD__
 POSTGRES_DB=dirigent
 POSTGRES_PORT=5432
 
@@ -738,7 +739,7 @@ ENV_S3 = """\
 # S3_SECRET_KEY, so the credentials live here and nowhere else; change one and the next `up`
 # brings the row to it.
 S3_ACCESS_KEY=dirigent
-S3_SECRET_KEY=dirigent
+S3_SECRET_KEY=__S3_SECRET_KEY__
 S3_BUCKET=dirigent
 S3_CONNECTION=artifacts
 
@@ -800,6 +801,8 @@ def env_document(choices: InitChoices, version: str, key: str) -> str:
         )
         .replace("__SECRET_KEY__", key)
         .replace("__PASSWORD__", choices.password)
+        .replace("__POSTGRES_PASSWORD__", secrets.token_hex(24))
+        .replace("__S3_SECRET_KEY__", secrets.token_hex(24))
         .replace("__VERSION__", version)
     )
 

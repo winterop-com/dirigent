@@ -84,8 +84,8 @@ from dirigent_plugin import (
     NotYet,
     ProbeStatus,
     RemoteHandle,
+    published_config_schema,
     shell_string_fields,
-    sql_string_fields,
 )
 
 DEFAULT_PROBE_INTERVAL = timedelta(seconds=30)
@@ -312,7 +312,7 @@ class Engine:
                 step.config,
                 scope,
                 shell_fields=shell_string_fields(block.config_model),
-                sql_fields=sql_string_fields(block.config_model),
+                config_schema=published_config_schema(block.config_model),
             )
             block.config_model.model_validate(config)
             _logger.debug(

@@ -177,7 +177,9 @@ untouched, for the same reason they survive a self-service change.
 **A body is bounded before anyone has proved who they are.** A route parses its body before
 it authenticates, so `/api/v1` holds at most 1 MiB from a caller and checks its credential before
 reading past that. A caller with no credential, or one that does not resolve, is answered 413
-(`server.unauthenticated_body_too_large`). A login is held to 16 KiB whatever it presents. A
+(`server.unauthenticated_body_too_large`). A login is held to 16 KiB whatever it presents. A body
+that has not arrived whole within 30 seconds is answered 408 and the connection closed
+(`server.body_timed_out`), unless the caller's credential resolves. A
 rate-limit key longer than 128 characters is held as its hash.
 
 ### What is unauthenticated
@@ -606,6 +608,15 @@ declare `requires.workers` on the pipelines that use them. An instance with no k
 still starts, so a worker whose steps open no connection can be started without one; a stack
 whose artifact root resolves through a sealed connection cannot, because every worker opens it.
 
+### A document whose aliases expand
+
+A document is YAML, and a few hundred bytes of aliases nested inside each other expand to billions
+of values wherever the document is written out: a digest, an export, a request. So a document is
+measured before it is built, at every door that reads one, and refused when its aliases would add
+more than 100,000 values or 16 MiB of text, contain themselves, or nest past what Python's stack
+holds. An alias used to repeat a block of config is nowhere near that. The same bound holds the
+YAML `convert.std` reads.
+
 ### A reference in a shell string
 
 `shell.run` and `docker.run` take a command as a shell string, and a `${...}` in one never
@@ -708,10 +719,10 @@ Given what the code supports, rotating a key means re-entering the credentials:
 2. Stop the writers, or accept a window in which runs needing a credential fail.
 3. Set the new `DIRIGENT_SECRET_KEY` on every process.
 4. Re-enter each connection's secret fields, which seals them with the new key. The CLI has no
-   update command, so this is `dg connection delete CODE` followed by `dg connection create
-   KIND CODE --set field=value` -- documents reference a connection by code, so recreating it
-   under the same code is invisible to them. `PATCH /api/v1/connections/{code}` does it in
-   place if you would rather script it against the API.
+   update command, so this is `PATCH /api/v1/connections/{code}`, in place. A connection nothing
+   uses can be deleted with `dg connection delete CODE` and made again with `dg connection create
+   KIND CODE --set field=value` instead; one that a pipeline, an alert rule or a storage scheme
+   names is refused the delete.
 5. Run `dg connection check CODE` for each, which is the one command that actually opens an
    envelope and uses what is inside it.
 
@@ -823,7 +834,10 @@ Stated plainly, because a security page that lists only what exists is not much 
   holds a reference is not checked at apply, so its literal URL is refused at run time the same
   way. A `Host` header a step sets beside a `connection` is held to that origin too, at run
   time and before anything is sent (`http.host_off_origin`), because a front that routes on
-  `Host` would otherwise hand the credential to another name it serves. An absolute link the
+  `Host` would otherwise hand the credential to another name it serves. The headers such a front
+  may read instead, `Forwarded`, `X-Forwarded-Host`, `X-Forwarded-Proto` and the others in that
+  family, are refused beside a `connection` the same way (`http.routing_header_refused`), whatever
+  their value and however they are spelled. An absolute link the
   service itself hands back, such as a next page on the same origin, is still followed. A step that calls another service names no connection and gives the `url`.
 - **Rate limiting on the authenticated API.** Only login and endpoint sources are limited.
 - **A CSRF token.** There is none, and the defence is instead the origin check on every

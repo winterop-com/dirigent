@@ -45,9 +45,7 @@ import { readWorkers } from '@/lib/workers'
  * NO ENDPOINT WAS ADDED FOR THIS SCREEN, AND NONE OF THEM IS ADMIN'S. Every fact here is
  * composed in the browser out of listings the server answers for any account -- the runs
  * listing, the pipelines listing, a pipeline's own schedules, the worker registry and the
- * connections listing -- so an operator sees the whole screen. The admin overview asks these
- * questions and more that do need the role, and what the two screens share is drawn by the same
- * components.
+ * connections listing -- so an operator sees the whole screen.
  *
  * EVERY NUMBER AND EVERY SECTION LEAVES. A dashboard's job is to be left, so a tile links to
  * the listing narrowed the way the tile counted, each heading is the screen that owns the noun,

@@ -3,9 +3,7 @@
  *
  * NOTHING HERE IS ADMIN'S. Every read this screen makes is one the server answers for any
  * principal -- the runs listing, the pipelines listing, a pipeline's own schedules, the worker
- * registry and the connections listing. The admin overview asks the same questions and more
- * that need the role, and the tiles and rows the two screens share are `lib/overview`'s rather
- * than copied into this file.
+ * registry and the connections listing.
  *
  * THE COMPOSERS ARE PURE: pages in, rows out. What a paused schedule does to the next firings,
  * and what order a live run is listed in, are decisions a Node test makes.
@@ -34,10 +32,8 @@ export const LIVE_ROWS = 6
 /**
  * A count of some of a page's rows, marked when the page was not the whole listing.
  *
- * `counted` in `lib/overview` says this of a whole page; this says it of a subset, and the mark
- * is the same one for the same reason -- a truncated page can only ever put a floor under a
- * count, and a number that claimed to be a total nobody counted is the one thing a tile may not
- * do.
+ * A truncated page can only ever put a floor under a count, and a number that claimed to be a
+ * total nobody counted is the one thing a tile may not do.
  */
 export function partOf(count: number, page: Page<unknown>): string {
     return `${String(count)}${page.next === null ? '' : '+'}`

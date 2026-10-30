@@ -17,6 +17,7 @@ import {
     everyNodeIsInView,
     graphZoom,
     nodeAt,
+    removeConnection,
     removeSchema,
     repositoryRoot,
     signIn,
@@ -1252,7 +1253,7 @@ async function seedNamed(request: APIRequestContext, baseURL: string): Promise<v
         },
     })
     expect(stored.ok(), await stored.text()).toBe(true)
-    await request.delete(`${prefix}/connections/${REFERENCE_CONNECTION}`)
+    await removeConnection(request, REFERENCE_CONNECTION)
     const minted = await request.post(`${prefix}/connections`, {
         data: {
             code: REFERENCE_CONNECTION,
@@ -1405,8 +1406,8 @@ test('a carried connection is minted in its own row, and the document is never l
     await signIn(page)
     const prefix = await apiPrefix(page.request)
     // Whatever an earlier run left behind: this spec is about a code the instance has not got.
-    await page.request.delete(`${prefix}/connections/${CARRIED_CONNECTION}`)
     await page.request.delete(`${prefix}/pipelines/${CARRYING_CONNECTION_PIPELINE}`)
+    await removeConnection(page.request, CARRIED_CONNECTION)
 
     await page.goto('/pipelines')
     await page.getByRole('button', { name: LABELS.pipelines.new }).click()

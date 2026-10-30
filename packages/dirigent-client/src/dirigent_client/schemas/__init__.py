@@ -26,7 +26,14 @@ from dirigent_client.schemas.auth import (
 )
 from dirigent_client.schemas.catalog import BlockEntry, BlockKind, Catalog, SourceEntry, SurfaceEntry
 from dirigent_client.schemas.common import Page, Problem
-from dirigent_client.schemas.connections import ConnectionIn, ConnectionOut, ConnectionUpdate
+from dirigent_client.schemas.connections import (
+    ConnectionDetail,
+    ConnectionIn,
+    ConnectionOut,
+    ConnectionUpdate,
+    ConnectionUsers,
+    PipelineUse,
+)
 from dirigent_client.schemas.examples import ExampleDetail, ExampleOut
 from dirigent_client.schemas.labels import Labels
 from dirigent_client.schemas.pipelines import (
@@ -119,10 +126,12 @@ __all__ = [
     "Catalog",
     "CheckResult",
     "CheckStatus",
+    "ConnectionDetail",
     "ConnectionHealth",
     "ConnectionIn",
     "ConnectionOut",
     "ConnectionUpdate",
+    "ConnectionUsers",
     "DagNode",
     "DagView",
     "DiffSummary",
@@ -153,6 +162,7 @@ __all__ = [
     "PipelineDurations",
     "PipelineOut",
     "PipelinePlan",
+    "PipelineUse",
     "PipelineVersionOut",
     "PlanAction",
     "Problem",

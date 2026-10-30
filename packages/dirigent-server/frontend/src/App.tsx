@@ -72,9 +72,6 @@ const Examples = lazy(() => import('@/pages/Examples').then((module) => ({ defau
  * Four screens, a users table with two dialogs behind it and a dashboard that composes five
  * listings, all of it behind a role gate. An operator pays nothing for any of it.
  */
-const AdminOverview = lazy(() =>
-    import('@/pages/admin/Overview').then((module) => ({ default: module.AdminOverview })),
-)
 const AdminUsers = lazy(() =>
     import('@/pages/admin/Users').then((module) => ({ default: module.AdminUsers })),
 )
@@ -230,14 +227,6 @@ export default function App() {
                     element={
                         <Suspense fallback={<Loading />}>
                             <Schemas />
-                        </Suspense>
-                    }
-                />
-                <Route
-                    path="admin"
-                    element={
-                        <Suspense fallback={<Loading />}>
-                            <AdminOverview />
                         </Suspense>
                     }
                 />

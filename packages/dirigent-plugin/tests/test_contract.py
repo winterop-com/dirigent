@@ -12,10 +12,18 @@ import httpx2
 import pytest
 from jsonschema import FormatChecker
 from pluginkit import PluginManager
-from pydantic import BaseModel, JsonValue, ValidationError
+from pydantic import BaseModel, Field, JsonValue, ValidationError
 
 import dirigent_plugin
-from dirigent_common import API_VERSION, SHELL_MEDIA_TYPE, Catalogue, JsonMap, Message, base_format_checker
+from dirigent_common import (
+    API_VERSION,
+    SHELL_MEDIA_TYPE,
+    SQL_MEDIA_TYPE,
+    Catalogue,
+    JsonMap,
+    Message,
+    base_format_checker,
+)
 from dirigent_plugin import (
     MARK_LIMIT,
     ByteSink,
@@ -46,7 +54,9 @@ from dirigent_plugin import (
     contribute,
     markers,
     merge_contributions,
+    published_config_schema,
     shell_string_fields,
+    sql_values_of,
 )
 from dirigent_testing.messages import TEST_REFUSAL
 from toy import (
@@ -614,3 +624,70 @@ def test_the_variables_a_shell_string_is_substituted_into_arrive_outside_the_sch
     assert Ran(shell_variables={"DIRIGENT_V0": "a b"}).shell_variables == {"DIRIGENT_V0": "a b"}
     with pytest.raises(ValidationError):
         Ran(shell_variables={"PATH": "/evil"})
+
+
+class SqlLeaf(BaseModel):
+    """A nested part holding a statement beside a plain field."""
+
+    query: Annotated[str, Field(json_schema_extra={"contentMediaType": SQL_MEDIA_TYPE})]
+    note: str = ""
+
+
+class SqlTree(BaseModel):
+    """A nested part that recurses, so a walk over its definition has to stop."""
+
+    leaf: SqlLeaf | None = None
+    children: list["SqlTree"] = Field(default_factory=list["SqlTree"])
+
+
+class SqlConfig(BaseModel):
+    """Every shape a pack could nest a statement in."""
+
+    top: Annotated[str | None, Field(json_schema_extra={"contentMediaType": SQL_MEDIA_TYPE})] = None
+    many: list[Annotated[str, Field(json_schema_extra={"contentMediaType": SQL_MEDIA_TYPE})]] = Field(
+        default_factory=list[str]
+    )
+    leaf: SqlLeaf | None = None
+    leaves: list[SqlLeaf] = Field(default_factory=list[SqlLeaf])
+    named: dict[str, SqlLeaf] = Field(default_factory=dict[str, SqlLeaf])
+    pair: tuple[SqlLeaf, int] | None = None
+    tree: SqlTree | None = None
+    plain: str = ""
+    free: dict[str, str] = Field(default_factory=dict[str, str])
+
+
+@pytest.mark.parametrize(
+    ("config", "expected"),
+    [
+        ({"top": "a"}, {"top": "a"}),
+        ({"many": ["a", "b"]}, {"many.0": "a", "many.1": "b"}),
+        ({"leaf": {"query": "a", "note": "n"}}, {"leaf.query": "a"}),
+        ({"leaves": [{"query": "a"}, {"query": "b"}]}, {"leaves.0.query": "a", "leaves.1.query": "b"}),
+        ({"named": {"x": {"query": "a"}}}, {"named.x.query": "a"}),
+        ({"pair": [{"query": "a"}, 1]}, {"pair.0.query": "a"}),
+        ({"tree": {"children": [{"leaf": {"query": "a"}}]}}, {"tree.children.0.leaf.query": "a"}),
+        ({"leaf": "${params.x}"}, {"leaf": "${params.x}"}),
+        ({"leaves": "${params.x}"}, {"leaves": "${params.x}"}),
+        ({"tree": "${params.x}"}, {"tree": "${params.x}"}),
+        ({"many": "${params.x}"}, {"many": "${params.x}"}),
+        ({"plain": "${params.x}", "free": {"k": "${params.y}"}}, {}),
+        ({"leaf": {"query": "a", "note": "${params.x}"}}, {"leaf.query": "a"}),
+    ],
+    ids=[
+        "optional",
+        "list",
+        "nested",
+        "nested-list",
+        "map",
+        "tuple",
+        "recursive",
+        "whole-object",
+        "whole-list",
+        "whole-recursive",
+        "whole-top-list",
+        "not-sql",
+        "beside-sql",
+    ],
+)
+def test_sql_is_found_wherever_a_schema_publishes_it(config: JsonMap, expected: JsonMap) -> None:
+    assert sql_values_of(config, published_config_schema(SqlConfig)) == expected

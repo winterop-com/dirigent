@@ -1,7 +1,7 @@
 """Connections: coded credential records of a contributed kind, redacted in every response."""
 
 from dirigent_client.resources.base import Resource, edit_body, query, request_body, segment
-from dirigent_client.schemas import ConnectionIn, ConnectionOut, ConnectionUpdate, Page
+from dirigent_client.schemas import ConnectionDetail, ConnectionIn, ConnectionOut, ConnectionUpdate, Page
 from dirigent_common import HealthReport, JsonMap
 
 
@@ -12,9 +12,9 @@ class Connections(Resource):
         """List every stored credential record, with its secrets redacted."""
         return await self._many(ConnectionOut, "GET", "/connections", params=query(after=after, limit=limit))
 
-    async def get(self, code: str) -> ConnectionOut:
-        """Read one credential record, with its secrets redacted."""
-        return await self._one(ConnectionOut, "GET", f"/connections/{segment(code)}")
+    async def get(self, code: str) -> ConnectionDetail:
+        """Read one credential record, with its secrets redacted and what uses it."""
+        return await self._one(ConnectionDetail, "GET", f"/connections/{segment(code)}")
 
     async def create(
         self,
@@ -46,7 +46,7 @@ class Connections(Resource):
         return await self._one(ConnectionOut, "PATCH", f"/connections/{segment(code)}", json=sent)
 
     async def delete(self, code: str) -> None:
-        """Remove a credential record."""
+        """Remove a credential record, which the server refuses while anything still uses it."""
         await self._transport.request("DELETE", f"/connections/{segment(code)}")
 
     async def check(self, code: str) -> HealthReport:

@@ -3,7 +3,7 @@
 import json
 import time
 from datetime import timedelta
-from typing import ClassVar, Literal
+from typing import ClassVar, Final, Literal
 
 import httpx2
 from pydantic import BaseModel, Field, JsonValue, model_validator
@@ -14,6 +14,7 @@ from dirigent_block_http.messages import (
     NO_TARGET,
     OFF_ORIGIN,
     RESPONSE_TOO_LARGE,
+    ROUTING_HEADER_REFUSED,
     STATUS_REFUSED,
     URL_BESIDE_CONNECTION,
 )
@@ -36,6 +37,29 @@ type HttpMethod = Literal["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTI
 DEFAULT_TEXT_CONTENT_TYPE = "text/plain; charset=utf-8"
 
 JSON_CONTENT_TYPE = "application/json"
+
+#: Request headers a proxy or framework may read in place of ``Host`` or the scheme and port, to
+#: choose a backend or build the URL it acts on. Spelled with hyphens and in lowercase.
+ROUTING_HEADERS: Final = frozenset(
+    {
+        "forwarded",
+        "front-end-https",
+        "x-forwarded-host",
+        "x-forwarded-port",
+        "x-forwarded-proto",
+        "x-forwarded-protocol",
+        "x-forwarded-scheme",
+        "x-forwarded-server",
+        "x-forwarded-ssl",
+        "x-host",
+        "x-http-host-override",
+        "x-original-host",
+        "x-original-url",
+        "x-rewrite-url",
+        "x-scheme",
+        "x-url-scheme",
+    }
+)
 
 
 class HttpTarget(BlockModel):
@@ -107,8 +131,10 @@ def on_origin(target: HttpTarget, client: httpx2.AsyncClient, request: httpx2.Re
     """Refuse a request that would carry a connection's credentials off the connection's origin.
 
     Checked on the request as built, after the client has merged it onto ``base_url``, so an
-    absolute ``url`` or ``path`` is judged by where it will actually be sent, and a ``Host``
-    header by the name it hands a front that routes on one.
+    absolute ``url`` or ``path`` is judged by where it will actually be sent, a ``Host`` header
+    by the name it hands a front that routes on one, and the headers such a front reads instead
+    of ``Host`` are refused outright. A server may read an underscore in a name as a hyphen, so
+    the two are not told apart.
     """
     if not target.connection:
         return
@@ -129,6 +155,15 @@ def on_origin(target: HttpTarget, client: httpx2.AsyncClient, request: httpx2.Re
             origin=_shown(client.base_url),
             connection=repr(target.connection),
         )
+    for name in request.headers:
+        if name.lower().replace("_", "-") in ROUTING_HEADERS:
+            raise BlockFailure(
+                ROUTING_HEADER_REFUSED,
+                error_class=ErrorClass.REJECTED,
+                header=name,
+                origin=_shown(client.base_url),
+                connection=repr(target.connection),
+            )
 
 
 def _origin(url: httpx2.URL) -> tuple[str, str, int | None]:

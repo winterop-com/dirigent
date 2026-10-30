@@ -26,7 +26,7 @@ from dirigent_common.hosts import is_loopback_host
 from dirigent_core.auth import Principal, resolve_token
 from dirigent_core.config import Settings
 from dirigent_server.dependencies import SessionDep
-from dirigent_server.errors import Refusal, answer, render
+from dirigent_server.errors import Refusal, answer, render, unhandled
 from dirigent_server.messages import (
     CROSS_SITE as CROSS_SITE_MESSAGE,
 )
@@ -228,6 +228,13 @@ DEFAULT_HEADERS: Final = (
 )
 
 
+def _stamp(headers: MutableHeaders, path: str) -> None:
+    """Add the default security headers for this path, keeping any a response set itself."""
+    for name, value in DEFAULT_HEADERS:
+        headers.setdefault(name, value)
+    headers.setdefault("content-security-policy", DOCS_POLICY if path.startswith(DOCS_PATHS) else UI_POLICY)
+
+
 class SecurityHeaders:
     """Stamp every response this application sends with the default security headers."""
 
@@ -241,22 +248,33 @@ class SecurityHeaders:
             await self.app(scope, receive, send)
             return
         path: str = scope["path"]
-        policy = DOCS_POLICY if path.startswith(DOCS_PATHS) else UI_POLICY
 
         async def stamped(message: Message) -> None:
             if message["type"] == "http.response.start":
-                headers = MutableHeaders(scope=message)
-                for name, value in DEFAULT_HEADERS:
-                    headers.setdefault(name, value)
-                headers.setdefault("content-security-policy", policy)
+                _stamp(MutableHeaders(scope=message), path)
             await send(message)
 
         await self.app(scope, receive, stamped)
 
 
+async def _unhandled_with_headers(request: Request, error: Exception) -> Response:
+    """Answer an unhandled exception as the error handlers do, with the default headers on it.
+
+    Starlette runs the handler for ``Exception`` outside every middleware, so no middleware can
+    stamp this answer.
+    """
+    response = await unhandled(request, error)
+    _stamp(response.headers, request.url.path)
+    return response
+
+
 def install_security_headers(app: FastAPI) -> None:
-    """Send the default security headers on every response, whichever layer answered it."""
+    """Send the default security headers on every response, whichever layer answered it.
+
+    Registered after the error handlers, so this handler for ``Exception`` replaces theirs.
+    """
     app.add_middleware(SecurityHeaders)
+    app.add_exception_handler(Exception, _unhandled_with_headers)
 
 
 #: A ``Host`` value: a name or an address, or an address in brackets, then perhaps a port.

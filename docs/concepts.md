@@ -476,6 +476,13 @@ as secret are encrypted at rest and redacted in every API response.
 An alert channel is one of these too: a `slack` or an `email` connection is what an alert rule
 delivers through, minted and sealed exactly like the credential a block uses.
 
+**A connection something uses cannot be deleted.** `DELETE /connections/{code}` and `dg connection
+delete` answer 409 `server.connection_in_use` while a pipeline's current version names the code -- in a
+step, in a source, or under `requires.connections` -- while an alert rule delivers through it, or
+while the instance's `storage_connections` configures a scheme from it. `GET /connections/{code}`
+and `dg connection show` say which, under `used_by`. A past version holds nothing back, and a code
+written as a `${...}` reference is not one the server can read until a run resolves it.
+
 Detail: [operations.md](operations.md#secrets) for the key that encrypts them,
 [operations.md](operations.md#notifier-channels) for the channels, and
 [security.md](security.md#secrets-lifecycle) for the lifecycle.

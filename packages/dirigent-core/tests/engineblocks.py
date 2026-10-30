@@ -124,10 +124,18 @@ class ShellishOperator(Operator[ShellishConfig, ShellishOutput]):
         return ShellishOutput(command=config.command, variables=config.shell_variables)
 
 
+class SqlishSource(BaseModel):
+    """A part of a config a pack nests, with a statement inside it."""
+
+    query: Annotated[str, Field(json_schema_extra={"contentMediaType": SQL_MEDIA_TYPE})]
+    day: str = ""
+
+
 class SqlishConfig(BlockModel):
     """A config with a field the block publishes as SQL."""
 
     sql: Annotated[str, Field(json_schema_extra={"contentMediaType": SQL_MEDIA_TYPE})] = ""
+    source: SqlishSource | None = None
 
 
 class SqlishOutput(BaseModel):

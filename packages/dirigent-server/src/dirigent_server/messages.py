@@ -50,6 +50,11 @@ NO_CONNECTION = SERVER.define("no_connection", "no connection coded {code}")
 
 CONNECTION_EXISTS = SERVER.define("connection_exists", "a connection coded {code} exists")
 
+CONNECTION_IN_USE = SERVER.define(
+    "connection_in_use",
+    "connection {code} cannot be removed while {users} name it; they must stop naming it first",
+)
+
 CONNECTION_REFERENCED = SERVER.define(
     "connection_referenced",
     "connection {code} is still referenced; delete what uses it first",
@@ -123,6 +128,8 @@ PLAYGROUND_STREAMS_FULL = SERVER.define(
 HOST_NOT_LOOPBACK = SERVER.define(
     "host_not_loopback", "this instance is bound to loopback and answers only to a loopback name"
 )
+
+BODY_TIMED_OUT = SERVER.define("body_timed_out", "the whole body did not arrive within {timeout}")
 
 PLAYGROUND_BODY_TOO_LARGE = SERVER.define(
     "playground_body_too_large", "the body is larger than the {limit} bytes the playground reads"
