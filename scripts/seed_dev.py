@@ -30,8 +30,8 @@ from pydantic import BaseModel
 from dirigent_cli.commands import GUARD_EXIT
 from dirigent_cli.main import DEV_ADMIN, DEV_PASSWORD
 from dirigent_cli.messages import DEV_FIXTURE_NEEDS_LOOPBACK
-from dirigent_cli.profiles import is_loopback_host
 from dirigent_client import BlockingDirigent, DirigentError
+from dirigent_common.hosts import is_loopback_host
 from dirigent_core.config import STATE_DIR
 from dirigent_core.protocol import Record, as_json, make
 from dirigent_core.secrets import generate_key

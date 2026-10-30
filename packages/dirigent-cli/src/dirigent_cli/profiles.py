@@ -10,7 +10,6 @@ URL it chose off this host. A project's ``.env`` is taken literally: a ``${VAR}`
 """
 
 import io
-import ipaddress
 import os
 import shutil
 import subprocess
@@ -27,6 +26,7 @@ from pydantic import BaseModel, ConfigDict, Field, SecretStr, model_validator
 from dirigent_cli.messages import PROFILE_NAMES_A_DATABASE
 from dirigent_client import API_PREFIX, DEFAULT_CONNECT_TIMEOUT, DEFAULT_RETRIES, DEFAULT_TIMEOUT
 from dirigent_common import Duration, EntityName
+from dirigent_common.hosts import is_loopback_host
 from dirigent_core.config import read_project_file
 
 PROJECT_PROFILES: Final = Path(".dirigent") / "profiles.yaml"
@@ -175,16 +175,6 @@ def _is_loopback(url: str) -> bool:
     """Whether a URL names this host, so a token sent to it does not leave the machine."""
     host = urlsplit(url).hostname
     return host is not None and "\\" not in url and is_loopback_host(host)
-
-
-def is_loopback_host(host: str) -> bool:
-    """Whether a host names this machine alone: ``localhost`` or a loopback address, and nothing else."""
-    if host == "localhost":
-        return True
-    try:
-        return ipaddress.ip_address(host).is_loopback
-    except ValueError:
-        return False
 
 
 def candidate_paths(start: Path | None = None) -> list[Path]:

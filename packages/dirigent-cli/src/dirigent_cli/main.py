@@ -51,9 +51,9 @@ from dirigent_cli.messages import (
     WORKER_NEEDS_POSTGRES,
 )
 from dirigent_cli.output import configure, detail_mode, emit_fact, emit_problem, emit_rendered, refuse
-from dirigent_cli.profiles import is_loopback_host
 from dirigent_client.enums import UserRole
 from dirigent_common import Issue, raised_detail, validation_issues
+from dirigent_common.hosts import is_loopback_host
 from dirigent_core import migrations
 from dirigent_core.config import (
     STATE_DIR,
@@ -828,6 +828,13 @@ def build_app() -> "FastAPI":
     return create_app(get_settings())
 
 
+def build_dev_app(settings: Settings, address: str) -> "FastAPI":
+    """Build the application ``dg dev`` serves, which on a loopback bind answers only to a loopback name."""
+    from dirigent_server import create_app
+
+    return create_app(settings, loopback_only=is_loopback_host(address))
+
+
 def build_worker(
     settings: Settings,
     *,
@@ -1241,7 +1248,7 @@ async def _dev(
 
     worker, engine = build_worker(settings, concurrency=None, tags=None, name=None)
     install_signal_handlers(worker)
-    server_config = uvicorn.Config(build_app(), host=host, port=port, log_config=None)
+    server_config = uvicorn.Config(build_dev_app(settings, host), host=host, port=port, log_config=None)
     api = uvicorn.Server(server_config)
 
     def shut_down() -> None:
