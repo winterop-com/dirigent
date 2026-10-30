@@ -488,8 +488,9 @@ this for every listing, from `selected` and `panelStanding`, and a screen says o
 its own selection back means: `onClose`. **Pressing the open row while the panel is down opens it
 again** rather than clearing a tint nothing is showing, because a control that does nothing is
 the fault this rule exists to fix. **A row that navigates is not a selection** and does not
-toggle: the runs listing goes to a screen, and a press there has already left. **Connections is the one listing whose row opens a dialog instead, and it is being tried
-there**: see below. No other listing has moved, and none should until that trial has been read.
+toggle: the runs listing goes to a screen, and a press there has already left. **Connections and
+Users are the two listings whose row opens a dialog instead, and the pattern is still being tried**:
+see below. No other listing has moved, and none should until that trial has been read.
 
 **Every listing is a keyset walk**, answering rows and an opaque cursor and no total, so there
 are no page numbers and what the foot can honestly say is how many rows have been read and
@@ -525,7 +526,8 @@ is how long ago, and nothing at all where nothing has ever asked -- so a row not
 has no Checked line on its card either. Asking again is the dialog's `Check now`{ .label }, not a button on
 every row.
 
-**Connections opens in a dialog, shown first and edited second, and this is a trial.** Pressing a
+**Connections opens in a dialog, shown first and edited second, and this is a trial, of which Users
+is the second use.** Pressing a
 row opens one dialog over the listing, at `/connections/<code>`, and there is no panel on this
 screen. It reads first: the title, the kind and the code; the description; then the health with
 the check's own sentence, every setting that holds a value under its own key, every secret as dots
@@ -545,6 +547,16 @@ made again as the question opens, and the question says `Used by <what>.` with D
 why. The server checks again at the delete and holds what it finds, so a refusal for what that read
 did not see stays in the question as one line. `GET /connections` carries nothing about what uses a
 credential, because a listing would have to walk every document for every row.
+
+**An account opens the same way, and is the trial's second use.** A press on the row, anywhere but its
+chevron, opens one dialog over the listing that reads first: the title, the role, the email where
+there is one, when it last signed in and when it was made. Its footer is `Deactivate` (or `Activate`),
+and `Reset password` and `Edit` at the other end. `Edit` is the same dialog at the same width: name and
+email side by side, the role as one compact select with what each role may do on its option, a footer
+of `Cancel` and `Save`, and no help line that does not add a fact. There is no panel on this screen.
+There is no single read of an account, so the open one is not in the address. **A role is a word and
+not a code**: plain in the Role column and in the reading, and never a chip beside the mono username
+it could be mistaken for.
 
 `hooks/use-read` is the one-page sibling of `use-paged`, for a read that is a document rather than
 a listing -- what this instance has installed, how the last day of runs came out. Same rule: the
@@ -1484,9 +1496,9 @@ offered the verb is already the sentence saying what the form is for. The button
 is replaced by the section while it stands, so there are never two controls that shut it, and the
 refusal is `Refusal` inside the section, where the fields it is about are. **One row at a time**:
 two open forms in one list are two half-typed things with one confirm behind them. **The exception
-is the connection dialog**, which is one dialog being tried and not a second one: its Edit is the
-same surface, and the only thing ever raised over it is the `ConfirmDialog` every verb that takes
-something away goes through.
+is the connection dialog and the account dialog**, which are one dialog being tried and not a
+second one: Edit is the same surface, and the only thing ever raised over one is the `ConfirmDialog`
+every verb that takes something away goes through.
 
 **What the row already says, the form does not ask.** The row is the summary, so a box repeating
 a value drawn a line above it draws that value twice and offers to change something the row's own
@@ -1504,8 +1516,9 @@ and its fields open under it rather than in a pane of their own.
 
 **An account's tokens are listed under its row.** A token authenticates as one account, so it is
 filed there rather than in a second table with an Account column. A chevron at the head of the row
-opens and shuts it, with a tooltip saying which; pressing the rest of the row still opens the
-account's panel, and several accounts may stand open. What opens is the same `ListTable` every
+opens and shuts it, with a tooltip saying which, and does nothing else; pressing the rest of the
+row opens the account's dialog, and the heading's own tooltip says so. Several accounts may stand
+open. What opens is the same `ListTable` every
 listing is, inset under the row and reading `GET /users/{username}/tokens` when it is opened and
 not before. It keeps a cursor of its own and is capped at 24rem with its heading stuck, so an
 account holding hundreds does not push every other account off the page. A closed row says how many
@@ -1961,7 +1974,7 @@ holds 652 distinct backticked phrases and a handful of them are labels, so a che
 would be mostly false alarm. The author says which instead:
 
 ```markdown
-The account panel's `Reset password`{ .label } button ends every session of the account.
+The account dialog's `Reset password`{ .label } button ends every session of the account.
 ```
 
 `scripts/check_docs_labels.py`, in `make static` and `make ui-lint`, then refuses a marked phrase
@@ -2043,7 +2056,7 @@ no frame of its own.
 | `FormField`, `SwitchField` | Every field: a prose label or a mono key, the required word in body ink, a hint, the default, help in one ink, an error, one 6px gap. `SwitchField` is a boolean setting as a row, the whole row its label |
 | `Notice`, `Well` | `Notice` is a sentence that must not be missed, `critical`, `warning` or `neutral`, with the tone's mark. `Well` is a neutral inset box at 8px for a block that belongs together. A refusal off the wire is still `Refusal` |
 | `DialogShell` | Every dialog: a width from `sm`, `md`, `lg`, `xl`, a title and description, a body that scrolls under a fixed head and foot, and a footer of `Cancel` and one `Refusable` confirm, or of `verbs` on a dialog that reads one thing |
-| `ConfirmDialog` | Before every verb that takes something away -- revoke, deactivate, delete, rotate. The title is the question and names the thing, its code in mono and nowhere else: `Delete ops-hook-2?`. There is no body, because the verb says what is lost. It holds one line only when that line changes the answer: what stops the verb, which shuts the confirm with the reason on its `title`, or what the verb takes beyond the thing named. A refusal off the wire is one short line, with no box and no second naming of the thing. No such verb is immediate |
+| `ConfirmDialog` | Before every verb that takes something away -- revoke, deactivate, delete, rotate. The title is the question and names the thing, its code in mono and nowhere else: `Delete ops-hook-2?`. There is no body, because the verb says what is lost. It holds one line only when that line changes the answer: what stops the verb, which shuts the confirm with the reason on its `title`, or what the verb takes beyond the thing named. A refusal off the wire is one short line, with no box and no second naming of the thing. A verb that cannot go without one value holds that one field: a password reset's new password. No such verb is immediate |
 | `SecretReveal` | A secret the server answers with once: the value in mono, a copy button that says it copied and resets, and the line saying it is shown once |
 | `PageHeader`, `SplitButton` | A screen's heading. It owns the primary action through `actions`, last of them, which is a `SplitButton` when it carries `more`; a `count` beside the title; a `trail` for a detail screen. No subtitle |
 | `TextLink` | Every link that is text. `inline` in prose, `data` for a number or a reference in a table, `external` with its mark and a new tab. The one amber treatment of text, and nothing but a link wears it |
