@@ -169,7 +169,7 @@ configuration planes and this is only the first of them:
 | Plane | Holds | Lives |
 | --- | --- | --- |
 | Profiles | A server URL, how to get a token, and how patient to be | Beside you, in a project or `~/.config` |
-| Server settings | `DIRIGENT_DATABASE_URL`, `DIRIGENT_SECRET_KEY`, the artifact root | The environment, the project's `.env`, or `dirigent.yaml`, on the host running the server and the workers |
+| Server settings | `DIRIGENT_DATABASE_URL`, `DIRIGENT_SECRET_KEY`, the artifact root | The environment, the file `DIRIGENT_CONFIG_FILE` names, or `~/.config/dirigent/dirigent.yaml`, on the host running the server and the workers; a project's `.env` or `dirigent.yaml` sets only what the [settings reference](settings.md) does not mark host only |
 | Connections | Third-party credentials | Encrypted inside the server's database |
 
 ## Seeing a pipeline's shape

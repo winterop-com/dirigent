@@ -44,11 +44,18 @@ class Project(BaseModel):
         return self.root / self.pipelines
 
     def documents(self) -> list[Path]:
-        """List every document in the project, in a stable order."""
+        """List every document in the project, in a stable order, refusing one outside the project."""
         directory = self.pipelines_dir
+        root = self.root.resolve()
+        if not directory.resolve().is_relative_to(root):
+            raise ProjectError(f"{directory} is outside the project; {PROJECT_FILE} may name only a directory in it")
         if not directory.is_dir():
             raise ProjectError(f"{directory} does not exist; {PROJECT_FILE} points the pipelines directory at it")
-        return sorted(path for path in directory.iterdir() if path.suffix in DOCUMENT_SUFFIXES and path.is_file())
+        paths = sorted(path for path in directory.iterdir() if path.suffix in DOCUMENT_SUFFIXES and path.is_file())
+        for path in paths:
+            if not path.resolve().is_relative_to(root):
+                raise ProjectError(f"{path} is a link to a file outside the project")
+        return paths
 
 
 def find_project(start: Path | None = None) -> Project | None:

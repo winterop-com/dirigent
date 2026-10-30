@@ -491,8 +491,18 @@ and the server inside one never opens the file.
 
 The YAML file is `$DIRIGENT_CONFIG_FILE` if that is set; otherwise `dirigent.yaml`,
 `.dirigent/dirigent.yaml`, and `~/.config/dirigent/dirigent.yaml` are all read, with the
-nearest one winning. `DIRIGENT_ENABLED_UNSAFE_BLOCKS` is not read from a `.env`, `dirigent.yaml`
-or `.dirigent/dirigent.yaml` in the working directory. A leftover `dirigent.toml` sitting where the YAML now belongs is refused
+nearest one winning.
+
+A `.env`, `dirigent.yaml` or `.dirigent/dirigent.yaml` in the working directory travels with a
+checkout, so none of them can set a setting the [settings reference](settings.md) marks host only:
+the database, the bind address, the artifact and work roots, the storage connections, the web UI
+bundle, the boot apply, the key file, the alert link, the retention ages, the advisory-lock keys
+and the unsafe-block allowlist. Set those in the environment, in the file `DIRIGENT_CONFIG_FILE`
+names, or in `~/.config/dirigent/dirigent.yaml`. A compose stack names its `dirigent.yaml` with
+`DIRIGENT_CONFIG_FILE`, so it can set any of them. `dg config show` lists what a directory's files
+tried and failed to set, and `dg dev`, `dg server` and `dg worker` warn about it.
+
+A leftover `dirigent.toml` sitting where the YAML now belongs is refused
 by name rather than silently ignored.
 
 Every setting below is written as its environment variable. In YAML, drop the prefix and

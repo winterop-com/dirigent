@@ -710,6 +710,50 @@ def test_schema_create_refuses_a_body_that_is_not_a_schema(tmp_path: Path, serve
     assert refused.exit_code != 0
 
 
+@pytest.mark.parametrize("named", ["../outside", "{outside}"])
+def test_a_project_cannot_name_a_pipelines_directory_outside_itself(tmp_path: Path, named: str) -> None:
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "credentials.json").write_text("{}")
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "dirigent.yaml").write_text(f"project:\n  pipelines: {named.format(outside=outside)}\n")
+
+    found = find_project(project)
+
+    assert found is not None
+    with pytest.raises(ProjectError, match="outside the project"):
+        found.documents()
+
+
+def test_a_project_cannot_hold_a_document_that_links_outside_itself(tmp_path: Path) -> None:
+    outside = tmp_path / "credentials.json"
+    outside.write_text("{}")
+    project = tmp_path / "project"
+    (project / "pipelines").mkdir(parents=True)
+    (project / "dirigent.yaml").write_text("project:\n  pipelines: pipelines\n")
+    (project / "pipelines" / "innocent.json").symlink_to(outside)
+
+    found = find_project(project)
+
+    assert found is not None
+    with pytest.raises(ProjectError, match="outside the project"):
+        found.documents()
+
+
+def test_a_project_may_keep_its_documents_in_any_directory_of_its_own(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    (project / "deploy" / "documents").mkdir(parents=True)
+    (project / "dirigent.yaml").write_text("project:\n  pipelines: deploy/documents\n")
+    held = project / "deploy" / "documents" / "one.yaml"
+    held.write_text("format: dirigent/v1\n")
+
+    found = find_project(project)
+
+    assert found is not None
+    assert found.documents() == [held]
+
+
 def test_apply_in_a_project_applies_every_document(tmp_path: Path, server: str) -> None:
     scaffold(tmp_path, InitChoices(pipelines=("report-to-file",)))
     (tmp_path / "pipelines" / "second.yaml").write_text(DOCUMENT)

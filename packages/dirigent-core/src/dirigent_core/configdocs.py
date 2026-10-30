@@ -12,7 +12,7 @@ from typing import Any, Final
 from pydantic_core import PydanticUndefined
 
 from dirigent_common import as_markdown, format_duration
-from dirigent_core.config import Settings
+from dirigent_core.config import HOST_ONLY_SETTINGS, Settings
 
 #: Relative to the repository root.
 PAGE_PATH: Final = "docs/settings.md"
@@ -36,11 +36,12 @@ A project's `.env` is that middle layer, which is where `dg init` puts the insta
 compose reads it to fill in `${...}` and passes what it resolves to the containers as
 environment, and the server inside one never opens the file.
 
-`enabled_unsafe_blocks` is the exception to the layers. A `.env` and a `dirigent.yaml` or
-`.dirigent/dirigent.yaml` in the working directory travel with a checkout, so they cannot set
-it. It comes from the environment variable, from the file `DIRIGENT_CONFIG_FILE` names, or from
-`~/.config/dirigent/dirigent.yaml`, and `dg run --local --enable-unsafe` adds to it for one
-command.
+A setting marked **Host only** below is the exception to the layers. A `.env` and a
+`dirigent.yaml` or `.dirigent/dirigent.yaml` in the working directory travel with a checkout, so
+they cannot set it. It comes from the environment variable, from the file `DIRIGENT_CONFIG_FILE`
+names, or from `~/.config/dirigent/dirigent.yaml`. `dg config show` names any that the working
+directory's files tried to set, and `dg dev`, `dg server` and `dg worker` warn about them. For
+`enabled_unsafe_blocks`, `dg run --local --enable-unsafe` also adds to it for one command.
 """
 
 #: The settings a scaffolded project sets rather than leaves to a default. Everything else
@@ -51,7 +52,9 @@ EXAMPLE_HEADER: Final = """\
 # Every setting dirigent has, with its default and what it does.
 #
 # This file is read, never loaded: dirigent does not look for it. Copy a line into
-# dirigent.yaml to change it, or set the environment variable named beside it.
+# dirigent.yaml to change it, or set the environment variable named beside it. A setting
+# marked host only is not read from a dirigent.yaml or .env in the working directory: set the
+# environment variable, or put it in the file DIRIGENT_CONFIG_FILE names.
 #
 # Generated from the settings model, so it lists what this version actually has.
 """
@@ -97,6 +100,11 @@ def one_line(text: str) -> str:
     return as_markdown(" ".join(text.split()))
 
 
+def marked(name: str) -> str:
+    """Read one field's description with the mark a host-only setting carries."""
+    return f"{described(name)} **Host only.**" if name in HOST_ONLY_SETTINGS else described(name)
+
+
 def _commented(text: str, width: int = 92) -> list[str]:
     """Wrap a description into comment lines, in the spelling a YAML file reads."""
     return [f"# {line}" for line in textwrap.wrap(text.replace("`", ""), width=width)] or ["#"]
@@ -122,6 +130,8 @@ def example_document() -> str:
     lines = [EXAMPLE_HEADER]
     for name in Settings.model_fields:
         lines.extend(_commented(described(name)))
+        if name in HOST_ONLY_SETTINGS:
+            lines.append("# Host only.")
         lines.append(f"# {environment_name(name)}")
         lines.append(f"# {name}: {_yaml_value(rendered_default(name))}")
         lines.append("")
@@ -138,7 +148,7 @@ def project_document(**chosen: Any) -> str:
 def render() -> str:
     """Render the settings reference page."""
     rows = "\n".join(
-        f"| `{name}` | `{environment_name(name)}` | `{_yaml_value(rendered_default(name))}` | {described(name)} |"
+        f"| `{name}` | `{environment_name(name)}` | `{_yaml_value(rendered_default(name))}` | {marked(name)} |"
         for name in Settings.model_fields
     )
     header = "| Setting | Environment | Default | What it does |\n| --- | --- | --- | --- |"

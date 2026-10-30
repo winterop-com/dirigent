@@ -406,8 +406,11 @@ def _config(record: Record) -> RenderableType | None:
     settings = record.get("settings")
     if not isinstance(settings, Mapping):
         return None
-    held = cast("Mapping[str, object]", settings)
-    return build_fields("effective configuration", dict(held)) if held else None
+    held = dict(cast("Mapping[str, object]", settings))
+    ignored = record.get("ignored")
+    if isinstance(ignored, list) and ignored:
+        held["ignored in this directory's files"] = ", ".join(str(name) for name in cast("list[object]", ignored))
+    return build_fields("effective configuration", held) if held else None
 
 
 def _db_history(record: Record) -> RenderableType | None:

@@ -10,12 +10,15 @@ from pydantic import ValidationError
 from dirigent_core import config
 from dirigent_core.config import (
     CONFIG_FILE_ENV,
+    HOST_ONLY_SETTINGS,
     POOL_HEADROOM,
     STATE_DIR,
     Settings,
     host_config_paths,
+    ignored_project_settings,
     project_config_paths,
 )
+from dirigent_core.configdocs import SCAFFOLDED
 
 
 def test_a_key_file_supplies_the_secret_key(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -181,20 +184,15 @@ def test_a_dotenv_is_read_from_the_working_directory_and_nowhere_else(
 def test_a_dotenv_reads_a_setting_the_way_the_environment_does(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, dotenv_layer: None
 ) -> None:
-    """Same prefix, same spellings for a list and a mapping, and a line without the prefix is no setting."""
+    """Same prefix, same spelling for a list, and a line without the prefix is no setting."""
     (tmp_path / ".env").write_text(
-        "DIRIGENT_WORKER_TAGS=docker,gpu\n"
-        "DIRIGENT_STORAGE_CONNECTIONS=s3=archive, gs=cold\n"
-        "DIRIGENT_ENABLED_UNSAFE_BLOCKS=\n"
-        "S3_ACCESS_KEY=dirigent\n"
-        "PORT=8080\n"
+        "DIRIGENT_WORKER_TAGS=docker,gpu\nDIRIGENT_ENABLED_UNSAFE_BLOCKS=\nS3_ACCESS_KEY=dirigent\nPORT=8080\n"
     )
     monkeypatch.chdir(tmp_path)
 
     settings = Settings()
 
     assert settings.worker_tags == ["docker", "gpu"]
-    assert settings.storage_connections == {"s3": "archive", "gs": "cold"}
     assert settings.enabled_unsafe_blocks == []
     assert settings.port == 3333
 
@@ -327,3 +325,100 @@ def test_the_users_file_is_still_outranked_by_a_project_file_for_any_other_setti
     monkeypatch.setattr(config, "USER_CONFIG_PATH", held)
     settings = Settings()
     assert (settings.environment, settings.port) == ("staging", 4444)
+
+
+#: A value for each host-only setting, as a hostile checkout would write it.
+HOSTILE: dict[str, str] = {
+    "alert_base_url": "https://attacker.example.org",
+    "apply_dir": "/somewhere/else",
+    "apply_lock_key": "7",
+    "apply_prune": "true",
+    "artifact_root": "s3://attacker/artifacts",
+    "database_url": "postgresql+asyncpg://u:p@attacker.example.org/dirigent",
+    "enabled_unsafe_blocks": "shell.run",
+    "host": "0.0.0.0",  # noqa: S104 - the value under test, never bound
+    "retention_firings": "1s",
+    "retention_inputs": "1s",
+    "retention_logs": "1s",
+    "retention_notifications": "1s",
+    "retention_runs": "1s",
+    "scheduler_lock_key": "7",
+    "storage_connections": "s3=attacker",
+    "ui_dir": "/somewhere/else",
+    "work_root": "/somewhere/else",
+}
+
+
+def test_every_host_only_setting_has_a_hostile_value_under_test() -> None:
+    assert set(HOSTILE) | {"secret_key_file"} == HOST_ONLY_SETTINGS
+
+
+@pytest.mark.parametrize("name", sorted(HOSTILE))
+@pytest.mark.parametrize("layer", [".env", "dirigent.yaml", ".dirigent/dirigent.yaml"])
+def test_a_working_directory_file_cannot_set_a_host_only_setting(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, dotenv_layer: None, name: str, layer: str
+) -> None:
+    default = getattr(Settings(), name)
+    path = tmp_path / layer
+    path.parent.mkdir(exist_ok=True)
+    written = f"DIRIGENT_{name.upper()}={HOSTILE[name]}\n" if layer == ".env" else f"{name}: {HOSTILE[name]}\n"
+    path.write_text(written)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(config, "USER_CONFIG_PATH", tmp_path / "no-such-home-file.yaml")
+
+    assert getattr(Settings(), name) == default
+    assert ignored_project_settings() == [name]
+
+
+@pytest.mark.parametrize("layer", [".env", "dirigent.yaml"])
+def test_a_working_directory_file_cannot_name_a_file_to_read_as_the_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, dotenv_layer: None, layer: str
+) -> None:
+    held = tmp_path / "held"
+    held.write_text("read-from-a-file-the-checkout-named\n")
+    written = f"DIRIGENT_SECRET_KEY_FILE={held}\n" if layer == ".env" else f"secret_key_file: {held}\n"
+    (tmp_path / layer).write_text(written)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(config, "USER_CONFIG_PATH", tmp_path / "no-such-home-file.yaml")
+
+    settings = Settings()
+
+    assert settings.secret_key is None
+    assert settings.secret_key_file is None
+
+
+@pytest.mark.parametrize("name", sorted(HOSTILE))
+def test_the_environment_and_a_named_file_still_set_a_host_only_setting(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    default = getattr(Settings(), name)
+    monkeypatch.chdir(tmp_path)
+    named = tmp_path / "host.yaml"
+    named.write_text(f"{name}: {HOSTILE[name]}\n")
+    monkeypatch.setenv(CONFIG_FILE_ENV, str(named))
+    assert getattr(Settings(), name) != default
+
+    named.write_text("")
+    monkeypatch.setenv(f"DIRIGENT_{name.upper()}", HOSTILE[name])
+    assert getattr(Settings(), name) != default
+
+
+def test_the_users_file_still_sets_a_host_only_setting(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    held = tmp_path / "home.yaml"
+    held.write_text("work_root: /kept/here\n")
+    monkeypatch.setattr(config, "USER_CONFIG_PATH", held)
+    assert Settings().work_root == "/kept/here"
+    assert ignored_project_settings() == []
+
+
+def test_a_scaffolded_project_sets_no_host_only_setting() -> None:
+    assert not HOST_ONLY_SETTINGS.intersection(SCAFFOLDED)
+
+
+@pytest.mark.parametrize("name", sorted(Settings.model_fields))
+def test_a_setting_naming_a_path_or_an_address_is_host_only(name: str) -> None:
+    """A new setting that names a file, a directory or a URL has to be decided on, not inherited."""
+    annotation = str(Settings.model_fields[name].annotation)
+    places = "Path" in annotation or name.endswith(("_url", "_root", "_dir", "_file", "_connections"))
+    assert not places or name in HOST_ONLY_SETTINGS
