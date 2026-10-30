@@ -278,10 +278,11 @@ the drawing is spread across it and shrunk instead, which is what keeps a step's
 beside it. The lockup and the facts are anchored to the foot of the pane, so neither moves between
 a short pane and a tall one.
 
-**The radius ladder** is 4px for a chip, 6px for a control and a card, 8px for a panel, stated in
-`@theme` rather than derived. Tailwind's middle rungs are flattened onto it -- `rounded-md`
-through `rounded-2xl` are all the card's 6px -- so a shadcn primitive that ships `rounded-xl`
-lands on the ladder without being edited. The login's brand tile is the mark, not a card, and
+**The radius ladder** is crisp: 2px for a chip, 3px for a control, 4px for a card and a panel,
+stated in `@theme` rather than derived. A corner that reads as soft or pill-shaped makes a dense
+data screen look generic, so nothing but a status dot or an avatar is fully round. Tailwind's
+middle rungs are flattened onto the ladder -- `rounded-lg` through `rounded-2xl` are all the
+card's 4px -- so a shadcn primitive that ships `rounded-xl` lands on it without being edited. The login's brand tile is the mark, not a card, and
 keeps its own radius.
 
 ## `apiFetch` is the only fetch
