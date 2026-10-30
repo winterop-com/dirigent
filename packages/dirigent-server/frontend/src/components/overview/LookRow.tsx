@@ -7,7 +7,7 @@ import type { LookEntry } from '@/lib/overview'
 import { cn } from '@/lib/utils'
 
 /**
- * The needs-a-look table's columns, shared by the dashboard and the admin overview.
+ * The needs-a-look table's columns.
  *
  * A TABLE, BECAUSE THE VALUES NEED NAMING. A run in trouble is a status, a pipeline, the
  * step it died in and when -- four different kinds of value on one line, and a header row

@@ -282,6 +282,8 @@ jobs:
           cp .env.example .env
           python -c "from secrets import token_bytes; import base64; print('DIRIGENT_SECRET_KEY=' + base64.urlsafe_b64encode(token_bytes(32)).decode())" >> .env
           echo "DIRIGENT_BOOTSTRAP_ADMIN_PASSWORD=ci-admin-password" >> .env
+          echo "POSTGRES_PASSWORD=ci-postgres-password" >> .env
+          echo "S3_SECRET_KEY=ci-bucket-secret-key" >> .env
           echo "DIRIGENT_ENABLED_UNSAFE_BLOCKS=docker.run,docker.build,docker.compose.up,docker.compose.down" >> .env
 
       # Both halves come from a public registry that drops a connection now and then: the

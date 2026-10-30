@@ -49,7 +49,7 @@ screen, the two listings this app is mostly read through -- pipelines and runs -
 and everything else is fetched when it is opened: run detail and the pipeline editor, because
 React Flow is the canvas nothing else draws on; the dashboard at `/`, which composes a screenful
 of reads nothing else composes; connections, triggers, schemas, blocks and examples, each
-carrying the forms, the dialogs and the panels nothing else uses; and the four admin screens,
+carrying the forms, the dialogs and the panels nothing else uses; and the three admin screens,
 which most readers of this app are never offered.
 
 **A chunk inside a lazy route is the same rule again.** Monaco is larger than everything else
@@ -488,8 +488,7 @@ this for every listing, from `selected` and `panelStanding`, and a screen says o
 its own selection back means: `onClose`. **Pressing the open row while the panel is down opens it
 again** rather than clearing a tint nothing is showing, because a control that does nothing is
 the fault this rule exists to fix. **A row that navigates is not a selection** and does not
-toggle: the runs listing and the admin overview go to a screen, and a press there has already
-left. **Connections is the one listing whose row opens a dialog instead, and it is being tried
+toggle: the runs listing goes to a screen, and a press there has already left. **Connections is the one listing whose row opens a dialog instead, and it is being tried
 there**: see below. No other listing has moved, and none should until that trial has been read.
 
 **Every listing is a keyset walk**, answering rows and an opaque cursor and no total, so there
@@ -538,11 +537,14 @@ a required text field, a map, a JSON value and a program taking both, a footer o
 than closing, and a press outside does nothing at all while a form is open, because a typed
 credential is not something to lose to a stray click. A save checks the connection, because the
 health on screen was about the settings that were just replaced. `Delete` raises `ConfirmDialog`
-over the dialog. **What is known to use the credential shuts it**: the alert rules naming that code
-are read as it opens, and the question says `Used by <rules>.` with Delete shut and saying why. A
-refusal for anything that read cannot see stays in the question as one line.
-`GET /connections` carries nothing about what uses a credential, and a pipeline naming one is not
-on any listing, so the dialog has no Used by fact and the question names rules alone.
+over the dialog. **What uses the credential shuts it**: `GET /connections/{code}` answers `used_by`
+-- the pipelines whose current version names the code with the steps and sources that do, the alert
+rules delivering through it, the storage schemes configured from it -- and where any of that is true
+the reading draws it as a `Used by` fact, each one linked where it has a screen. The same read is
+made again as the question opens, and the question says `Used by <what>.` with Delete shut and saying
+why. The server checks again at the delete and holds what it finds, so a refusal for what that read
+did not see stays in the question as one line. `GET /connections` carries nothing about what uses a
+credential, because a listing would have to walk every document for every row.
 
 `hooks/use-read` is the one-page sibling of `use-paged`, for a read that is a document rather than
 a listing -- what this instance has installed, how the last day of runs came out. Same rule: the
@@ -550,8 +552,8 @@ read function's identity is the question, and an answer to a question nobody is 
 discarded rather than left on screen.
 
 **A screen that watches beats, and the rest are read when they are opened.** A run's own screen
-holds one event stream and needs nothing beside it. Three screens go stale standing still -- the
-runs listing, the dashboard and the admin overview -- so each reads itself again on the one
+holds one event stream and needs nothing beside it. Two screens go stale standing still -- the
+runs listing and the dashboard -- so each reads itself again on the one
 cadence `lib/refresh` holds for the whole app: off, or five seconds to five minutes, thirty by
 default, chosen from the split refresh control and answering the same everywhere it is offered.
 `hooks/use-heartbeat` is the beat. It fires only while the tab is visible, because a screen
@@ -1113,12 +1115,6 @@ is the array the rail draws and the palette offers, and the line an entry carrie
 data on the entry that the palette reads. The active entry wears a slim bar in the gutter, which
 survives the collapse.
 
-**The admin overview is not a rail entry.** `/admin` is the instance at a glance -- five tiles, the
-runs that want somebody, the workers table -- and most of that is already the dashboard's. It is
-offered by the palette to an admin, and the Admin heading over the section is its link, so a screen
-with no entry of its own is still one press from where its section is read. A collapsed rail draws
-no heading, and the palette is the way there.
-
 ## Small screens
 
 The shell has one breakpoint, `md` at 768px, and one rule above it: at `md` and up nothing about
@@ -1547,7 +1543,10 @@ is dismissed by the corner's close and by Escape, so no footer ever says `Close`
 `Dismiss`. `DialogShell` is that rule written once -- `confirm` given, the footer and no corner
 close; `confirm` absent, the corner close and no footer. **A dialog that reads one thing is the third
 case**, and it is a connection's: the corner close, and a footer of `verbs` on that thing rather
-than a confirm, so nothing in it says Cancel because nothing has been started.
+than a confirm, so nothing in it says Cancel because nothing has been started. **A dialog that asks
+and then tells changes case when it has answered**: a token made, whose secret it now shows, and a
+test message sent, whose delivery it now reads, take the corner close from that moment, because
+nothing is left that a Cancel could take back.
 
 **One dismissal, one control.** A dialog whose footer carries the way out does not also draw the
 corner's own -- `showCloseButton={false}` -- because two ways out of one dialog are two answers to

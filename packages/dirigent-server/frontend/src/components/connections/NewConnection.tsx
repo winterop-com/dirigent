@@ -58,7 +58,7 @@ export function NewConnection({
                 </div>
 
                 <DialogFooter>
-                    <DialogClose render={<Button variant="ghost" />}>{LABELS.action.close}</DialogClose>
+                    <DialogClose render={<Button variant="ghost" />}>{LABELS.action.cancel}</DialogClose>
                     <Refusable why={form.shut}>
                         <Button
                             disabled={form.busy || form.shut !== undefined}

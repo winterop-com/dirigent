@@ -15,12 +15,12 @@ workspace "Dirigent" "Architecture model for Dirigent, a generic pipeline orches
             tags "Pack"
         }
 
-        contrib = softwareSystem "dirigent-contrib" "Block packs for outside systems (winterop-com/dirigent-contrib), one package per system." {
+        contrib = softwareSystem "dirigent-contrib" "Block packs for outside systems (winterop-com/dirigent-contrib), one package with a subpackage per system." {
             tags "Pack"
-            chapPack = container "dirigent-chap" "The chap connection kind and blocks for datasets, backtests, predictions, quantiles and the endemic channel." "Python package" {
+            chapPack = container "dirigent_contrib.chap" "The chap connection kind and blocks for datasets, backtests, predictions, quantiles and the endemic channel." "Python subpackage" {
                 tags "Pack"
             }
-            climatePack = container "dirigent-climate" "The climate connection kind and blocks for aggregation, batch jobs, exports to DHIS2, and managed datasets." "Python package" {
+            climatePack = container "dirigent_contrib.climate" "The climate connection kind and blocks for aggregation, batch jobs, exports to DHIS2, and managed datasets." "Python subpackage" {
                 tags "Pack"
             }
         }

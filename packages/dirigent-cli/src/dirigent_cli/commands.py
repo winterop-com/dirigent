@@ -176,9 +176,10 @@ from dirigent_client import (
     declared_label,
 )
 from dirigent_client.schemas import TokenLifetime
-from dirigent_common import Issue, JsonMap, Message
+from dirigent_common import Issue, JsonMap, Message, bounded_load
 from dirigent_core import migrations
 from dirigent_core.config import STATE_DIR, Settings
+from dirigent_core.connections import said
 from dirigent_core.documents import (
     DocumentError,
     TriggerTarget,
@@ -430,9 +431,11 @@ def apply_command(
         _print_source_tokens(result, base_url=dg.url)
     if pruned is not None:
         for code in pruned.pruned:
-            console.print(f"{styled('deactivated'):<10} {code}  [dim](absent from the project)[/]")
+            console.print(f"{styled('deactivated'):<10} {escape(code)}  [dim](absent from the project)[/]")
         for code in pruned.trigger_documents_removed:
-            console.print(f"{styled('deleted'):<10} {code}  [dim](triggers document absent from the project)[/]")
+            console.print(
+                f"{styled('deleted'):<10} {escape(code)}  [dim](triggers document absent from the project)[/]"
+            )
         if not pruned.pruned and not pruned.trigger_documents_removed:
             console.print("[dim]Nothing to prune: the project holds everything it applied.[/]")
     if dry_run:
@@ -497,7 +500,7 @@ def export_command(
     if file is None:
         console.print(text, end="", highlight=False, markup=False)
         return
-    console.print(f"Wrote [bold]{file}[/].")
+    console.print(f"Wrote [bold]{escape(str(file))}[/].")
 
 
 def validate_command(
@@ -901,7 +904,7 @@ def pipeline_list(
         ["code", "name", "tags", "version", "active", RUNS_IN_FLIGHT, "updated"],
         [
             [
-                row.code,
+                escape(row.code),
                 escape(row.name or "-"),
                 escape(" ".join(row.tags)) or "-",
                 str(row.current_version or "-"),
@@ -925,7 +928,7 @@ def pipeline_show(
     if state_of(ctx).json_output:
         return emit_one("pipeline", row)
     fields(
-        f"pipeline {code}",
+        f"pipeline {escape(code)}",
         {
             "id": row.id,
             "name": row.name or "-",
@@ -953,7 +956,7 @@ def pipeline_versions(
     if state_of(ctx).json_output:
         return emit_records("pipeline_version", rows)
     table(
-        f"versions of {code}",
+        f"versions of {escape(code)}",
         ["version", "digest", "source", "applied by", "created"],
         [
             [
@@ -977,9 +980,9 @@ def pipeline_validate(
 ) -> None:
     """Re-check what the instance already holds against what it has now.
 
-    An instance drifts -- a plugin uninstalled, a connection deleted, the allowlist tightened
-    -- and a pipeline that applied cleanly then fails when it next runs. This is the check
-    apply makes, run again on demand.
+    An instance drifts -- a plugin uninstalled, the allowlist tightened -- and a pipeline that
+    applied cleanly then fails when it next runs. This is the check apply makes, run again on
+    demand.
     """
     state = state_of(ctx)
     if every and (code is not None or version is not None):
@@ -1185,7 +1188,7 @@ def parse_input(value: str | None) -> Any:
         except OSError as error:
             fail(INPUT_FILE_UNREADABLE, path=str(path), detail=error.strerror or str(error))
     try:
-        return yaml.safe_load(text)
+        return bounded_load(text)
     except yaml.YAMLError as error:
         fail(INPUT_REFUSED, detail=str(error).splitlines()[0])
 
@@ -2132,7 +2135,7 @@ def runs_show(
         )
     run = detail.run
     fields(
-        f"run {run_id}",
+        f"run {escape(str(run_id))}",
         {
             "pipeline": f"{run.pipeline} (version {run.pipeline_version})",
             "status": run.status.value,
@@ -2352,7 +2355,7 @@ def runs_report(
 def _print_report(report: RunReport) -> None:
     """Print a run report."""
     fields(
-        f"run {report.run_id}",
+        f"run {escape(str(report.run_id))}",
         {
             "pipeline": f"{report.pipeline} (version {report.pipeline_version})",
             "status": report.status.value,
@@ -2464,7 +2467,7 @@ def blocks_new(
         emit_event(ScaffoldedRecord(directory=str(root), next=["uv sync", "uv run pytest"]))
         return
     for path in written:
-        console.print(f"  {path.relative_to(root.parent)}")
+        console.print(f"  {escape(str(path.relative_to(root.parent)))}")
     console.print("\nA working pack. Wire the [bold]tool.uv.sources[/] its README names, then:")
     console.print("  [bold]uv sync && uv run pytest[/]")
 
@@ -2509,8 +2512,8 @@ def blocks_list(
         [[escape(block.id), block.kind.value, escape(block.plugin), escape(block.summary)] for block in catalog.blocks],
     )
     console.print(
-        f"[dim]storage schemes:[/] {', '.join(entry.id for entry in catalog.storage_schemes) or '-'}   "
-        f"[dim]connection kinds:[/] {', '.join(entry.id for entry in catalog.connection_kinds) or '-'}"
+        f"[dim]storage schemes:[/] {escape(', '.join(entry.id for entry in catalog.storage_schemes)) or '-'}   "
+        f"[dim]connection kinds:[/] {escape(', '.join(entry.id for entry in catalog.connection_kinds)) or '-'}"
     )
 
 
@@ -2532,7 +2535,7 @@ def blocks_show(
     if state_of(ctx).json_output:
         return emit_one("block", entry)
     fields(
-        f"block {block_id}",
+        f"block {escape(block_id)}",
         {
             "kind": entry.kind.value,
             "plugin": entry.plugin,
@@ -2557,8 +2560,8 @@ def _print_schema(schema: dict[str, Any]) -> None:
     for name, body in properties.items():
         kind = body.get("type") or ("enum" if "enum" in body else "any")
         mark = "[red]*[/]" if name in required else " "
-        default = f" [dim](default {body['default']!r})[/]" if "default" in body else ""
-        console.print(f"  {mark} {name:<22} {kind}{default}")
+        default = f" [dim](default {escape(repr(body['default']))})[/]" if "default" in body else ""
+        console.print(f"  {mark} {escape(f'{name:<22}')} {escape(str(kind))}{default}")
 
 
 @connection_app.command("list")
@@ -2575,7 +2578,7 @@ def connection_list(
         ["code", "name", "kind", "last check", "healthy", "description"],
         [
             [
-                row.code,
+                escape(row.code),
                 escape(row.name or "-"),
                 escape(row.kind),
                 moment(row.last_check_at),
@@ -2676,8 +2679,14 @@ def connection_show(
     if state_of(ctx).json_output:
         return emit_one("connection", row)
     fields(
-        f"connection {code}",
-        {"name": row.name or "-", "kind": row.kind, "description": row.description or "-", **row.config},
+        f"connection {escape(code)}",
+        {
+            "name": row.name or "-",
+            "kind": row.kind,
+            "description": row.description or "-",
+            **row.config,
+            "used by": said(row.used_by) or "-",
+        },
     )
 
 
@@ -2703,7 +2712,7 @@ def connection_check(ctx: typer.Context, code: Annotated[str, typer.Argument()])
 
 @connection_app.command("delete")
 def connection_delete(ctx: typer.Context, code: Annotated[str, typer.Argument()]) -> None:
-    """Remove a credential record."""
+    """Remove a credential record, refused while a pipeline, a rule or a storage scheme uses it."""
     with client_for(state_of(ctx)) as dg:
         dg.call(dg.connections.delete(code))
     emit_fact("connection.deleted", message="deleted", code=code)
@@ -2722,7 +2731,7 @@ def schema_list(ctx: typer.Context) -> None:
         ["code", "name", "description", "used by"],
         [
             [
-                row.code,
+                escape(row.code),
                 escape(row.name or "-"),
                 escape(row.description or "-"),
                 str(len(row.used_by)) if row.used_by else "-",
@@ -2753,7 +2762,7 @@ def schema_create(
         created = dg.call(dg.schemas.create(schema, code=resolved, name=name, description=description))
     if state_of(ctx).json_output:
         return emit_fact("schema.created", message="created", code=created.code, name=created.name)
-    console.print(f"[green]stored[/] schema [bold]{created.code}[/]")
+    console.print(f"[green]stored[/] schema [bold]{escape(created.code)}[/]")
 
 
 def _read_schema(reference: str) -> tuple[JsonMap, Document]:
@@ -2763,7 +2772,7 @@ def _read_schema(reference: str) -> tuple[JsonMap, Document]:
     except SourceError as error:
         fail(SOURCE_REFUSED, detail=str(error))
     try:
-        body = yaml.safe_load(document.text)
+        body = bounded_load(document.text)
     except yaml.YAMLError as error:
         fail(SCHEMA_UNREADABLE, label=document.label, detail=str(error))
     if not isinstance(body, dict):
@@ -2841,7 +2850,7 @@ def schema_show(ctx: typer.Context, code: Annotated[str, typer.Argument()]) -> N
     if state_of(ctx).json_output:
         return emit_one("schema", row)
     fields(
-        f"schema {code}",
+        f"schema {escape(code)}",
         {
             "name": row.name or "-",
             "description": row.description or "-",
@@ -2916,7 +2925,7 @@ def system_info(
             ["code", "name", "kind", "last check", "healthy", "detail"],
             [
                 [
-                    row.code,
+                    escape(row.code),
                     escape(row.name or "-"),
                     escape(row.kind),
                     moment(row.last_check_at),
@@ -2964,8 +2973,8 @@ def token_create(
             token=created.token,
             expires_at=created.expires_at.isoformat() if created.expires_at else None,
         )
-    console.print(f"[green]created[/] token [bold]{created.name}[/] for [bold]{created.username}[/]")
-    console.print(f"\n  {created.token}\n")
+    console.print(f"[green]created[/] token [bold]{escape(created.name)}[/] for [bold]{escape(created.username)}[/]")
+    console.print(f"\n  {escape(created.token)}\n")
     if created.expires_at is not None:
         console.print(f"It expires at {moment(created.expires_at)}.")
     console.print("[yellow]This is the only time the token is shown.[/] Store it, or create another.")
@@ -3030,7 +3039,7 @@ def user_list(
     table(
         "users",
         ["username", "role", "active", "last login"],
-        [[row.username, row.role.value, render_bool(row.active), moment(row.last_login_at)] for row in rows],
+        [[escape(row.username), row.role.value, render_bool(row.active), moment(row.last_login_at)] for row in rows],
     )
 
 
@@ -3041,7 +3050,7 @@ def user_deactivate(ctx: typer.Context, username: Annotated[str, typer.Argument(
         row = dg.call(dg.admin.users.deactivate(username))
     if state_of(ctx).json_output:
         return emit_records("user", [row])
-    console.print(f"[red]deactivated[/] user {row.username}")
+    console.print(f"[red]deactivated[/] user {escape(row.username)}")
 
 
 @user_app.command("activate")
@@ -3051,7 +3060,7 @@ def user_activate(ctx: typer.Context, username: Annotated[str, typer.Argument()]
         row = dg.call(dg.admin.users.activate(username))
     if state_of(ctx).json_output:
         return emit_records("user", [row])
-    console.print(f"[green]activated[/] user {row.username}")
+    console.print(f"[green]activated[/] user {escape(row.username)}")
 
 
 @user_app.command("password")
@@ -3216,7 +3225,7 @@ def examples_list(
         ["code", "name", "tags", "plugin", "starter", "needs"],
         [
             [
-                row.code,
+                escape(row.code),
                 escape(row.name or "-"),
                 escape(" ".join(one for one in row.tags if one != STARTER_TAG)) or "-",
                 escape(row.plugin),
@@ -3249,7 +3258,7 @@ def examples_show(
         file.write_text(entry.source)
         if state.json_output:
             return emit_fact("example.written", message="written", code=entry.code, path=str(file))
-        console.print(f"Wrote [bold]{file}[/].")
+        console.print(f"Wrote [bold]{escape(str(file))}[/].")
         return
     if state.json_output:
         return emit_fact("example.source", message="example", **entry.model_dump(mode="json"))
