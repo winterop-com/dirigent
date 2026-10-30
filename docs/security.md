@@ -623,6 +623,15 @@ Stated plainly, because a security page that lists only what exists is not much 
   `follow_redirects_with_auth`: its `base_url` is followed once, without the credential, and
   every request then goes, credential and all, to wherever it landed. Set it only on a
   `base_url` whose redirect you trust, such as `https://play.dhis2.org/2.43`.
+
+  Nor can a step: a connection's credentials and headers go only to its own origin, the
+  scheme, host and port of its `base_url`. `http.request`, `http.ready` and `webhook.post`
+  refuse a literal absolute `url` or `path` beside a `connection` at apply
+  (`http.url_beside_connection`), and refuse one a reference resolves to at run time unless it
+  is on that origin (`http.off_origin`), before anything is sent. A step whose config still
+  holds a reference is not checked at apply, so its literal URL is refused at run time the same
+  way. An absolute link the service itself hands back, such as a next page on the same origin,
+  is still followed. A step that calls another service names no connection and gives the `url`.
 - **Rate limiting on the authenticated API.** Only login and endpoint sources are limited.
 - **A CSRF token.** There is none, and the defence is instead the origin check on every
   cookie-authenticated write described in [cross-site writes](#cross-site-writes), on top of
