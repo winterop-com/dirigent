@@ -133,7 +133,17 @@ def demo_corpus(directory: Path, examples: Path) -> Path:
     that names it is applied.
     """
     directory.mkdir(parents=True, exist_ok=True)
-    connections = {"connections": {"artifacts": {"kind": "s3", "config": S3_CONNECTION}}}
+    artifacts = {
+        "name": "Local object store",
+        "kind": "s3",
+        "description": (
+            "The S3-compatible store the storage lane's rustfs container serves on `127.0.0.1:9000`, "
+            "bucket `dirigent-archive`. Serves `s3://` for the s3 examples, and fails its check "
+            "until that container runs."
+        ),
+        "config": S3_CONNECTION,
+    }
+    connections = {"connections": {"artifacts": artifacts}}
     (directory / "connections.yaml").write_text(yaml.safe_dump(connections, sort_keys=False))
     (directory / "unmet-needs.yaml").write_text(yaml.safe_dump(unmet_needs(examples), sort_keys=False))
     return directory

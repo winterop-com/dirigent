@@ -54,6 +54,9 @@ schemas:
   reading-records:
     $schema: https://json-schema.org/draft/2020-12/schema
     title: A page of station readings
+    description: |
+      A page of generated readings, each a `station` string and a numeric `value`, closed to any
+      other field. The gate in `a-gate-catching-drift` refuses a page that has drifted.
     type: array
     items:
       type: object

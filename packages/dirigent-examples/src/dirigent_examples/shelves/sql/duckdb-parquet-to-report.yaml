@@ -72,6 +72,10 @@ requires:
 
 connections:
   analysis:
+    name: DuckDB in memory
+    description: |
+      An in-memory DuckDB database with no file: its tables are the parquet files a query names.
+      Used by `duckdb-parquet-to-report`.
     kind: sql
     config:
       # No file: the tables this pipeline reads are the parquet files it names, so the

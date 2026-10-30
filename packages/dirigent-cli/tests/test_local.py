@@ -1071,6 +1071,18 @@ def test_a_document_brings_its_own_connections_and_a_file_replaces_one(tmp_path:
     assert len(connections_for([document], [override])) == 2, "the replaced one is not seeded twice"
 
 
+def test_a_carried_connection_keeps_its_name_and_description() -> None:
+    """A carried connection is seeded with the labels the document gave it."""
+    document = load_text(
+        "format: dirigent/v1\ncode: carried\n"
+        "connections:\n"
+        "  demo: {name: Demo, kind: http, description: The demo API., config: {base_url: 'https://example.org'}}\n"
+        "steps:\n  a: { block: shell.run, config: {argv: [echo, hi]} }\n"
+    )
+    [carried] = connections_for([document], ())
+    assert (carried.name, carried.description) == ("Demo", "The demo API.")
+
+
 def stored_stream(tmp_path: Path) -> Path:
     """Run a document under NDJSON and keep the stream in a file."""
     document = str(write(tmp_path, HELLO))

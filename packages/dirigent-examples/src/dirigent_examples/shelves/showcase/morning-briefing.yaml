@@ -110,6 +110,11 @@ params:
 # Carried, so `dg run --local` has the shape without an instance holding it.
 schemas:
   daily-briefing:
+    title: Daily briefing
+    description: |
+      The joined morning briefing: the `day`, a reading count, and one summary per feed with its
+      reported, kept and high counts. The gate in `morning-briefing` holds it before it is
+      rendered.
     type: object
     required: [day, feeds]
     additionalProperties: false

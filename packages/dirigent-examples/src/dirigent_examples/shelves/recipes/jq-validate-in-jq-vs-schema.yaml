@@ -50,6 +50,10 @@ requires:
 
 schemas:
   recipe-org-unit-list:
+    title: Accepted org-unit rows
+    description: |
+      A list of org units, each an `id`, a `name` and a `level` of 1 or more.
+      `jq-validate-in-jq-vs-schema` holds the rows jq accepted to it at a gate.
     type: array
     items:
       type: object

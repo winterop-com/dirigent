@@ -60,6 +60,10 @@ requires:
 
 connections:
   awesome-compose:
+    name: Docker compose samples repository
+    description: |
+      `docker/awesome-compose` on GitHub, a collection of compose stacks. Public, so no
+      credential. Used by `git-checkout-compose`.
     kind: git
     config:
       # Docker's own collection of sample stacks. It is public, so no credential is sealed

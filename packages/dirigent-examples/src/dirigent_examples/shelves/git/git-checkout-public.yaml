@@ -53,6 +53,10 @@ requires:
 
 connections:
   octocat-hello-world:
+    name: GitHub Hello-World repository
+    description: |
+      `octocat/Hello-World` on GitHub: one README and two commits. Public, so no credential.
+      Used by `git-checkout-public`.
     kind: git
     config:
       # GitHub's own smallest repository: one README and two commits. Nothing is sealed here

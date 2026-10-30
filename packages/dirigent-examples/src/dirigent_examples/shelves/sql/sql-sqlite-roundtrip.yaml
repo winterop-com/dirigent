@@ -53,6 +53,10 @@ requires:
 
 connections:
   work-db:
+    name: SQLite work database
+    description: |
+      A SQLite file, `demo.db`, in the run's work directory, so it needs nothing on the host.
+      Used by `sql-sqlite-roundtrip` and `sql-query-to-storage`.
     kind: sql
     config:
       # Relative, so it lands in this run's work directory and needs nothing on the host. The

@@ -85,6 +85,10 @@ requires:
 # they are set to.
 connections:
   playground-carried:
+    name: Playground, carried
+    description: |
+      The playground with its basic-auth pair, carried in the document so a local run needs no
+      instance connection. Used by `connections-referenced-vs-carried`.
     kind: http
     config:
       base_url: http://127.0.0.1:3333/api/v1/playground

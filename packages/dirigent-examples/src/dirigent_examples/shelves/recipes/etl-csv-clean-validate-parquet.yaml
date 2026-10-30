@@ -64,6 +64,11 @@ requires:
 
 schemas:
   recipe-reading-rows:
+    title: Cleaned reading rows
+    description: |
+      Cleaned csv rows: an `st-` station id, a `day`, a `celsius` between -90 and 60, and an
+      `active` flag. `etl-csv-clean-validate-parquet` holds the rows to it before writing
+      parquet.
     type: array
     minItems: 1
     items:

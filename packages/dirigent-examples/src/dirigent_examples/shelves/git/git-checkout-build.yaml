@@ -56,6 +56,10 @@ requires:
 
 connections:
   helloworld-demo-node:
+    name: Docker Node sample repository
+    description: |
+      `dockersamples/helloworld-demo-node` on GitHub: a Node server with a Dockerfile at its
+      root. Public, so no credential. Used by `git-checkout-build`.
     kind: git
     config:
       # Docker's own sample project: a Node server with no dependencies and a Dockerfile at

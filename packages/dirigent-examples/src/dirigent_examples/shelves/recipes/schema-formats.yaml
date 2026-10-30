@@ -48,6 +48,10 @@ requires:
 
 schemas:
   recipe-formatted-record:
+    title: Formatted record
+    description: |
+      A record of strings, each held to a format: `date`, `date-time`, `email`, `uri`, `uuid4`,
+      `sha256`, and the pack-contributed `acme-site-id`. Used by `schema-formats`.
     type: object
     required: [day, when, email, endpoint, request_id, digest, site]
     additionalProperties: false

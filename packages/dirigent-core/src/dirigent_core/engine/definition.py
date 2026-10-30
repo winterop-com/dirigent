@@ -414,7 +414,9 @@ class ConnectionDefinition(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
+    name: str | None = None
     kind: str = "http"
+    description: str | None = None
     config: JsonMap = Field(default_factory=dict)
 
 

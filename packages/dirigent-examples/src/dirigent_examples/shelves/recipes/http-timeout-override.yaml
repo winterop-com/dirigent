@@ -64,6 +64,10 @@ requires:
 
 connections:
   playground-slow:
+    name: Playground, 3s timeout
+    description: |
+      The playground with a 3 second default timeout, short enough that a per-step override has
+      work to do. Used by `http-timeout-override`.
     kind: http
     config:
       base_url: http://127.0.0.1:3333/api/v1/playground

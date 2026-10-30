@@ -208,7 +208,9 @@ async def _connections(client: Dirigent, declared: Sequence[ConnectionSpec], ori
 async def _connection(client: Dirigent, spec: ConnectionSpec) -> str:
     """Store one connection and say whether it was new, letting a refusal through."""
     try:
-        await client.connections.create(spec.code, kind=spec.kind, config=spec.config, name=spec.name)
+        await client.connections.create(
+            spec.code, kind=spec.kind, config=spec.config, name=spec.name, description=spec.description
+        )
     except DirigentError:
         await client.connections.update(spec.code, config=spec.config)
         return "updated"
