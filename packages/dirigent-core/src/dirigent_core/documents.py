@@ -14,7 +14,15 @@ from jsonschema.validators import extend as extend_validator  # pyright: ignore[
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, ValidationError
 
 from dirigent_client.schemas import Catalog, ValidationIssue
-from dirigent_common import STORAGE_URI_FORMAT, Issue, JsonMap, Message, base_format_checker, validation_issue
+from dirigent_common import (
+    LOCAL_REFERENCES,
+    STORAGE_URI_FORMAT,
+    Issue,
+    JsonMap,
+    Message,
+    base_format_checker,
+    validation_issue,
+)
 from dirigent_core.engine.definition import (
     FORMAT_V1,
     KIND_PIPELINE,
@@ -731,7 +739,7 @@ def _config_issues(step: str, config: JsonMap, schema: JsonMap) -> list[Validati
     if not schema:
         return []
     deferred = defer_references(config)
-    validator: Any = ConfigValidator(schema)
+    validator: Any = ConfigValidator(schema, registry=LOCAL_REFERENCES)
     raised: Any = validator.iter_errors(deferred)  # pyright: ignore[reportUnknownMemberType]
     found = cast("list[SchemaValidationError]", list(raised))
     issues: list[ValidationIssue] = []

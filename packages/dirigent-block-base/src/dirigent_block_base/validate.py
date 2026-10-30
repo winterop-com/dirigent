@@ -6,8 +6,8 @@ from jsonschema import Draft202012Validator
 from jsonschema import ValidationError as SchemaValidationError
 from pydantic import BaseModel, Field, JsonValue
 
-from dirigent_block_base.messages import VALUE_REFUSED
-from dirigent_common import BlockModel, Issue
+from dirigent_block_base.messages import SCHEMA_REFERENCE_UNRESOLVED, VALUE_REFUSED
+from dirigent_common import LOCAL_REFERENCES, BlockModel, Issue, Unresolvable
 from dirigent_plugin import BlockFailure, ErrorClass, Operator, OperatorSpec, SchemaRef, StepContext
 
 
@@ -56,9 +56,12 @@ class ValidateSchemaOperator(Operator[ValidateSchemaConfig, ValidateSchemaOutput
         the gate rather than passing the value on.
         """
         schema = ctx.schema(config.json_schema)
-        validator = Draft202012Validator(schema, format_checker=ctx.format_checker())
+        validator = Draft202012Validator(schema, format_checker=ctx.format_checker(), registry=LOCAL_REFERENCES)
         errors: Any = validator.iter_errors(config.input)  # pyright: ignore[reportUnknownMemberType]
-        first = next(iter(sorted(errors, key=_where)), None)
+        try:
+            first = next(iter(sorted(errors, key=_where)), None)
+        except Unresolvable as error:
+            raise BlockFailure(SCHEMA_REFERENCE_UNRESOLVED, error_class=ErrorClass.REJECTED, ref=error.ref) from error
         if first is not None:
             raise BlockFailure(
                 VALUE_REFUSED, error_class=ErrorClass.REJECTED, location=first.json_path, detail=first.message
