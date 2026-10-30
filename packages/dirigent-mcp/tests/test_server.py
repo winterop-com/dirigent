@@ -94,6 +94,82 @@ async def test_every_tool_says_whether_it_writes(server: MCPServer) -> None:
     assert not {"apply_document", "run_pipeline", "cancel_run"} & reads
 
 
+async def test_only_applying_and_stopping_are_marked_destructive(server: MCPServer) -> None:
+    tools = {tool.name: tool for tool in await server.list_tools()}
+    destructive = {name for name, tool in tools.items() if tool.annotations and tool.annotations.destructive_hint}
+    assert "apply_document" in destructive
+    assert "run_pipeline" not in destructive
+    assert "plan_document" not in destructive
+
+
+WITH_A_SOURCE = """
+format: dirigent/v1
+kind: pipeline
+code: mcp-sourced
+steps:
+  ask:
+    source:
+      kind: endpoint
+      path: /mcp-sourced
+  greet:
+    block: value.const
+    depends_on: [ask]
+    config:
+      value: hello
+"""
+
+WITH_A_SCHEDULE = """
+format: dirigent/v1
+kind: pipeline
+code: mcp-clocked
+triggers:
+  schedules:
+    - code: nightly
+      cron: "0 5 * * *"
+steps:
+  greet:
+    block: value.const
+    config:
+      value: hello
+"""
+
+BARE = """
+format: dirigent/v1
+kind: pipeline
+code: {code}
+steps:
+  greet:
+    block: value.const
+    config:
+      value: hello
+"""
+
+
+async def test_a_plan_names_the_source_applying_would_retire_and_retires_nothing(server: MCPServer) -> None:
+    await call(server, "apply_document", document=WITH_A_SOURCE)
+    bare = BARE.format(code="mcp-sourced")
+
+    planned = await call(server, "plan_document", document=bare)
+    assert (planned["dry_run"], planned["sources"]["removed"]) == (True, ["ask"])
+    assert (await call(server, "plan_document", document=WITH_A_SOURCE))["sources"]["removed"] == [], (
+        "it is still there"
+    )
+
+    assert (await call(server, "apply_document", document=bare))["sources"]["removed"] == ["ask"]
+
+
+async def test_a_plan_names_the_schedule_applying_would_retire_and_retires_nothing(server: MCPServer) -> None:
+    await call(server, "apply_document", document=WITH_A_SCHEDULE)
+    bare = BARE.format(code="mcp-clocked")
+
+    planned = await call(server, "plan_document", document=bare)
+    assert (planned["dry_run"], planned["triggers"]["schedules_removed"]) == (True, ["nightly"])
+    unchanged = await call(server, "plan_document", document=WITH_A_SCHEDULE)
+    assert unchanged["triggers"]["schedules_removed"] == [], "it is still there"
+
+    assert (await call(server, "apply_document", document=bare))["triggers"]["schedules_removed"] == ["nightly"]
+
+
 async def test_a_read_only_server_offers_only_the_tools_that_read(server: MCPServer) -> None:
     every = {tool.name: tool for tool in await server.list_tools()}
     reading = mcp_server.build(lambda: pytest.fail("listing tools opens no client"), read_only=True)

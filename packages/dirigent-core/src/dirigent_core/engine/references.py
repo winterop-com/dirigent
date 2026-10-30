@@ -46,6 +46,7 @@ from dirigent_core.messages import (
     NOT_FAILED,
     NOT_PAIRED,
     SHELL_ARITHMETIC,
+    SQL_REFERENCE,
     UNKNOWN_NAMESPACE,
 )
 from dirigent_plugin import SHELL_VARIABLE_PREFIX, SHELL_VARIABLES_FIELD
@@ -146,7 +147,9 @@ def resolve(value: JsonValue, scope: ReferenceScope) -> JsonValue:
             return value
 
 
-def resolve_config(config: JsonMap, scope: ReferenceScope, *, shell_fields: Collection[str] = ()) -> JsonMap:
+def resolve_config(
+    config: JsonMap, scope: ReferenceScope, *, shell_fields: Collection[str] = (), sql_fields: Collection[str] = ()
+) -> JsonMap:
     """Resolve a step's whole config map, which is what the engine hands a block.
 
     ``shell_fields`` names the config keys the block marked with
@@ -156,7 +159,13 @@ def resolve_config(config: JsonMap, scope: ReferenceScope, *, shell_fields: Coll
     block to set in the command's environment. The metacharacters the pipeline author typed
     keep their meaning, and a value that arrived in a caller's input is never shell source,
     however the author quoted the reference.
+
+    ``sql_fields`` names the config keys a block publishes as SQL. A reference in one is refused
+    rather than resolved, because a value reaches SQL only as a bound parameter.
     """
+    for key in sql_fields:
+        for reference in references_in(config.get(key)):
+            raise UnknownReference(SQL_REFERENCE, reference=reference, field=key)
     variables: dict[str, str] = {}
     resolved = {
         key: (_resolve_shell(value, scope, variables) if key in shell_fields else resolve(value, scope))
@@ -234,7 +243,9 @@ def _resolve_shell(value: JsonValue, scope: ReferenceScope, variables: dict[str,
     Shell arithmetic is the one place a shell re-reads a variable's value: bash evaluates it
     as an expression, and an array subscript in that expression runs a command substitution.
     So a reference inside ``$(( ))``, ``(( ))`` or ``$[ ]`` resolves only to an integer, and
-    any other value is refused before the command starts.
+    any other value is refused before the command starts. Whether one is open is read twice,
+    by the quote tracker and with no regard to quotes, so that a quote the tracker misreads in
+    a comment, a here-document or ``$'...'`` cannot switch the check off.
     """
     if not isinstance(value, str):
         return value
@@ -244,22 +255,23 @@ def _resolve_shell(value: JsonValue, scope: ReferenceScope, variables: dict[str,
     for match in REFERENCE_PATTERN.finditer(value):
         before = value[read : match.start()]
         context = _shell_context(before, context)
+        arithmetic = _in_arithmetic(context) or _arithmetic_open(value[: match.start()])
         literal, resolves = _collapse(match.group(1), match.group(2))
         rewritten.append(before + literal)
         if resolves:
             reference = match.group(2).strip()
             text = _as_text(lookup(reference, scope))
-            if _in_arithmetic(context) and SHELL_INTEGER.fullmatch(text) is None:
+            if arithmetic and SHELL_INTEGER.fullmatch(text) is None:
                 raise UnknownReference(SHELL_ARITHMETIC, reference=reference)
             name = f"{SHELL_VARIABLE_PREFIX}{len(variables)}"
             variables[name] = text
-            rewritten.append(_shell_word(name, context))
+            rewritten.append(_shell_word(name, context, arithmetic=arithmetic))
         read = match.end()
     rewritten.append(value[read:])
     return "".join(rewritten)
 
 
-def _shell_word(name: str, context: tuple[str, ...]) -> str:
+def _shell_word(name: str, context: tuple[str, ...], *, arithmetic: bool) -> str:
     """A reference to the variable that is one word where the author put it.
 
     Inside the author's quotes it takes none of its own: a second pair would end theirs and
@@ -270,7 +282,7 @@ def _shell_word(name: str, context: tuple[str, ...]) -> str:
     is bare: the value is an integer, and dash refuses a quote there.
     """
     quoted = bool(context) and context[-1] in "'\""
-    return f"${name}" if quoted or _in_arithmetic(context) else f'"${name}"'
+    return f"${name}" if quoted or arithmetic else f'"${name}"'
 
 
 def _in_arithmetic(context: tuple[str, ...]) -> bool:
@@ -281,6 +293,41 @@ def _in_arithmetic(context: tuple[str, ...]) -> bool:
         if opened in ("(", "`"):
             return False
     return False
+
+
+def _arithmetic_open(text: str) -> bool:
+    """Whether a command has shell arithmetic open at the end of this text, whatever it quotes.
+
+    Nothing here reads a quote, a comment or a here-document, so none can hide an opener, and a
+    literal opener such as ``'$(( '`` reads as one. Everything until the close counts as inside,
+    a ``$( )`` included, because a shell evaluates what that prints. A ``)`` that closes a
+    ``((`` alone ends it, because a shell reads ``((a) | b)`` as two subshells.
+    """
+    stack: list[str] = []
+    index = 0
+    while index < len(text):
+        character = text[index]
+        ahead = text[index + 1 : index + 2]
+        inner = stack[-1] if stack else ""
+        step = 1
+        if not stack:
+            if character == "(" and ahead == "(":
+                stack.append("((")
+                step = 2
+            elif character == "$" and ahead == "[":
+                stack.append("$[")
+                step = 2
+        elif character in "([":
+            stack.append(character)
+        elif character == ")" and inner == "(":
+            stack.pop()
+        elif character == ")" and inner == "((":
+            stack.pop()
+            step = 2 if ahead == ")" else 1
+        elif character == "]" and inner in ("[", "$["):
+            stack.pop()
+        index += step
+    return bool(stack)
 
 
 def _shell_context(text: str, context: tuple[str, ...]) -> tuple[str, ...]:

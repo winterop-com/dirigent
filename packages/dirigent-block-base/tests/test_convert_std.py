@@ -374,6 +374,47 @@ async def test_a_yaml_value_json_cannot_spell_is_refused_naming_its_path(
     assert refusal in raised.value.message
 
 
+def one_key_records(count: int) -> str:
+    """An array of records that each carry a key no other has, which is a table of nothing."""
+    return json.dumps([{f"k{index}": index} for index in range(count)])
+
+
+@pytest.mark.parametrize("source_format", ["json", "ndjson"])
+async def test_records_of_a_key_each_are_refused_before_a_row_is_written(ctx: FakeContext, source_format: str) -> None:
+    records = json.loads(one_key_records(8_000))
+    source = json.dumps(records) if source_format == "json" else "\n".join(json.dumps(one) for one in records)
+
+    with pytest.raises(BlockFailure) as raised:
+        await convert(ctx, source, source_format, "csv")
+
+    assert raised.value.error_class is ErrorClass.REJECTED
+    assert "8,000 rows by 8,000 columns leave 63,992,000 cells empty" in raised.value.message
+
+
+async def test_more_columns_than_the_limit_is_refused_naming_it(ctx: FakeContext) -> None:
+    record = {f"k{index}": index for index in range(10_001)}
+
+    with pytest.raises(BlockFailure) as raised:
+        await convert(ctx, json.dumps([record]), "json", "csv")
+
+    assert "more than 10,000 distinct keys" in raised.value.message
+
+
+async def test_a_dense_table_is_held_to_neither_limit(ctx: FakeContext) -> None:
+    records = [{f"c{column}": row for column in range(100)} for row in range(5_000)]
+
+    written = (await convert(ctx, json.dumps(records), "json", "csv")).splitlines()
+
+    assert len(written) == 5_001
+    assert written[1] == ",".join(["0"] * 100)
+
+
+async def test_a_sparse_table_under_the_limit_still_converts_with_every_key_a_column(ctx: FakeContext) -> None:
+    written = await convert(ctx, json.dumps([{"a": 1}, {"b": 2}]), "json", "csv")
+
+    assert written.splitlines() == ["a,b", "1,", ",2"]
+
+
 def alias_bomb(levels: int) -> str:
     """A YAML document whose every level repeats the one below it nine times."""
     lines = ["l0: &l0 [x, x, x, x, x, x, x, x, x]"]
@@ -390,6 +431,61 @@ async def test_yaml_whose_aliases_expand_past_the_limit_is_refused_before_it_is_
 
     assert raised.value.error_class is ErrorClass.REJECTED
     assert "aliases would add more than 100,000 values" in raised.value.message
+
+
+def scalar_ladder(levels: int, *, length: int = 10_000) -> str:
+    """A mapping whose every level repeats the one below it nine times, over one long scalar."""
+    lines = [f"l0: &l0 {'x' * length}"]
+    lines += [f"l{level}: &l{level} [{', '.join([f'*l{level - 1}'] * 9)}]" for level in range(1, levels + 1)]
+    return "\n".join(lines) + "\n"
+
+
+@pytest.mark.parametrize("target", ["json", "ndjson"])
+async def test_a_long_scalar_behind_few_aliases_is_refused_by_the_bytes_it_writes_out(
+    ctx: FakeContext, target: str
+) -> None:
+    source = scalar_ladder(4)
+    assert len(source) < 12_000, "a small input, under the limit on values"
+
+    with pytest.raises(BlockFailure) as raised:
+        await convert(ctx, source, "yaml", target)
+
+    assert raised.value.error_class is ErrorClass.REJECTED
+    assert "aliases would add more than 16,777,216 bytes of text" in raised.value.message
+
+
+async def test_every_document_of_a_stream_spends_the_same_allowance_of_bytes(ctx: FakeContext) -> None:
+    one = scalar_ladder(3)
+    assert 9**3 * 10_000 < 16 * 1024 * 1024, "any one of them converts"
+    assert len((await convert(ctx, one, "yaml", "ndjson")).splitlines()) == 1
+
+    with pytest.raises(BlockFailure) as raised:
+        await convert(ctx, "---\n".join([one] * 4), "yaml", "ndjson")
+
+    assert "aliases would add more than 16,777,216 bytes of text" in raised.value.message
+
+
+async def test_every_document_of_a_stream_spends_the_same_allowance_of_values(ctx: FakeContext) -> None:
+    one = alias_bomb(4)
+    assert (9**4) * 9 < 100_000, "any one of them converts"
+    assert len((await convert(ctx, one, "yaml", "ndjson")).splitlines()) == 1
+
+    with pytest.raises(BlockFailure) as raised:
+        await convert(ctx, "---\n".join([one] * 3), "yaml", "ndjson")
+
+    assert "aliases would add more than 100,000 values" in raised.value.message
+
+
+async def test_a_long_scalar_spelled_out_and_aliased_a_few_times_still_converts(ctx: FakeContext) -> None:
+    text = "x" * 2_000_000
+    source = f"a: &a {text}\nb: *a\nc: *a\n"
+    assert json.loads(await convert(ctx, source, "yaml", "json")) == {"a": text, "b": text, "c": text}
+
+
+async def test_a_large_input_with_no_aliases_is_not_held_to_the_expansion_limits(ctx: FakeContext) -> None:
+    source = "".join(f"k{index}: {'v' * 1000}\n" for index in range(20_000))
+    assert len(source) > 16 * 1024 * 1024
+    assert len(json.loads(await convert(ctx, source, "yaml", "json"))) == 20_000
 
 
 async def test_a_few_aliases_still_convert_written_out_in_place(ctx: FakeContext) -> None:

@@ -446,3 +446,22 @@ async def test_a_prune_dry_run_names_what_it_would_delete_and_deletes_nothing(
 
     async with session_scope(sessions) as session:
         assert await find_trigger_document(session, "fleet-clocks") is not None
+
+
+async def test_a_dry_run_of_a_triggers_document_names_only_its_own_rows(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    await apply(sessions, services, PIPELINE)
+    await apply(sessions, services, TRIGGERS)
+
+    async with session_scope(sessions) as session:
+        planned = await apply_document(
+            session,
+            services,
+            load_text("format: dirigent/v1\nkind: triggers\ncode: fleet-clocks\npipeline: batch-fleet\n"),
+            dry_run=True,
+        )
+
+    assert planned.dry_run
+    assert planned.triggers.schedules_removed == ["ops-nightly"]
+    assert "ops-nightly" in await codes(sessions)

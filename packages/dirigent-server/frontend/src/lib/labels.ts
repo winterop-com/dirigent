@@ -987,6 +987,8 @@ const refused = {
         carried_schemas:
             'This document carries its own schemas ({named}), which an instance will not store. Create them on the instance and let the document name them under requires.schemas.',
         no_format: 'The document declares no format. Add format: {format}.',
+        step_reference_in_sql:
+            '{reference} is inside {field}, and a value reaches SQL only as a bound parameter. Write :name there and give the reference to params.',
         step_schema_interpolated:
             '{code} is resolved once the run has started, and a schema is named by its code. A run takes the shapes its document names when it starts, so write the code this step checks against.',
         unsatisfied: 'The document does not satisfy {format}.',
@@ -1008,6 +1010,10 @@ const refused = {
         unknown: 'No pipeline coded {code}.',
     },
     plugin: {
+        csv_too_many_columns:
+            'The records name more than {limit} distinct keys, and each is one csv column. Keep the keys you need with a transform first.',
+        csv_too_sparse:
+            '{rows} rows by {columns} columns leave {empty} cells empty, more than the {limit} a csv here may hold. Give the records shared keys with a transform first.',
         route_bad_parameter:
             'The path {template} has the segment {segment}. A parameter is a whole segment: a snake_case name in braces, or that name followed by :path to take the rest of the path.',
         route_bad_segment: 'The path {template} has the segment {segment}, which a path cannot carry.',
@@ -1019,6 +1025,7 @@ const refused = {
             'Source kind {kind} is {hosting}, and a contributed kind is the ReceivedSource, PolledSource or HeldSource its hosting names.',
     },
     reference: {
+        in_sql: '{reference} is inside {field}, and a value reaches SQL only as a bound parameter. Write :name there and give the reference to params.',
         not_failed:
             '{reference} cannot be resolved: step {step} did not fail, and its error is read only when it did.',
         shell_arithmetic:
@@ -1039,6 +1046,8 @@ const refused = {
         not_paused: 'This run is {status}, and only a paused run resumes.',
         not_pausable: 'This run is {status}, and only a queued or running run pauses.',
         not_retryable: 'Step {step} is {status}, and only a settled failure can be retried.',
+        lease_recoveries:
+            'Step {step} was taken back from a worker more than {limit} times without an outcome, so it is not run again.',
         reply_body_from: 'Reply {step} streams its body from {value}, and body_from names a storage URI.',
         reply_not_retryable:
             'Step {step} is a reply. The server settles it once, when the steps it answers from have settled.',
@@ -1107,6 +1116,7 @@ const refused = {
             'The playground will not set {header} on itself as asked. It sets no header that plants a cookie, asks for a password, navigates a browser off this instance, opens this origin to another site, or weakens what a browser enforces here, and no content type a browser runs.',
         playground_off_instance:
             '{to} is not a path on this instance. The playground redirects only to paths on this instance.',
+        playground_streams_full: 'The playground holds {limit} streams at once. Send again once one ends.',
         playground_unauthenticated:
             'This route wants a credential: the basic pair {username}/{username}, or the documented bearer token. Both are public constants.',
         prune_names_nothing:
@@ -1129,6 +1139,7 @@ const refused = {
         body_timed_out: 'The body did not arrive within {timeout}.',
         body_too_large: 'The body is larger than the {limit} bytes this endpoint reads.',
         body_without_type: 'The body arrived with no content type, and this endpoint takes {accepted}.',
+        charset_refused: 'This endpoint reads a text body in {accepted}, and {charset} is not one of them.',
         endpoint_accepts_refused:
             'An endpoint reads JSON, urlencoded forms and text, and {accepts} is none of them. A file is posted as a URI in a JSON body.',
         endpoint_method_not_declared: 'The method {method} is not one this endpoint answers ({methods}).',

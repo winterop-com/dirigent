@@ -336,6 +336,11 @@ program is one character of typing and the only place that knows the column.
 the third row carries is still a column, and the rows without it have an empty cell there. A
 header taken from the first row alone would silently drop data.
 
+**A table with no shape is refused, before a row is written.** Every row spells a cell for every
+column, so records that each carry a key of their own write rows times columns cells. `convert.std`
+and `convert.arrow` refuse more than 10,000 columns (`plugin.csv_too_many_columns`), and more than
+10 million empty cells (`plugin.csv_too_sparse`). A dense table of any size is not held to either.
+
 **A nested value has no csv spelling, so it is refused**, naming the row and the key. Writing
 `{"region": "east"}` into a cell as text is not the same content, and a codec that does it
 has stopped being a codec. Flatten before converting: a list of stations becomes one joined
@@ -360,10 +365,12 @@ deciding what text a date meant is the kind of guess a codec does not make. Quot
 source and it converts as the text it is.
 
 **An alias is written out in place, within a bound.** JSON has no anchors, so `*base` and a
-`<<: *base` merge become copies of what they name. A document whose aliases would add more than
-100,000 values once written out is refused before anything is built, because a few hundred
-bytes of aliases nested inside each other expand to billions. An alias inside the node it
-names is refused too: JSON cannot spell a value that contains itself.
+`<<: *base` merge become copies of what they name. An input whose aliases would add more than
+100,000 values or 16 MiB of scalar text once written out is refused before anything is built,
+because a few hundred bytes of aliases nested inside each other expand to billions. Both are
+counted across every document of a stream, and text the input spells out itself counts for
+neither. An alias inside the node it names is refused too: JSON cannot spell a value that
+contains itself.
 
 ### xml is one root element, and one mapping
 

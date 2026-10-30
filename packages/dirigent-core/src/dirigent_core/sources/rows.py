@@ -4,7 +4,6 @@ A row's declaration follows the pipeline's current version. Whether it is paused
 and what it has counted are the instance's, and survive an apply.
 """
 
-import hashlib
 from collections.abc import Mapping, Sequence
 from typing import Any, Final
 from uuid import UUID
@@ -149,6 +148,13 @@ async def claimed_route_issues(
                 )
             )
     return issues
+
+
+async def retiring_sources(session: AsyncSession, pipeline: Pipeline, definition: PipelineDefinition) -> SourceChanges:
+    """Say which source rows applying a document would retire, and touch none of them."""
+    return SourceChanges(
+        removed=sorted(row.code for row in await _rows_of(session, pipeline.id) if row.code not in definition.sources)
+    )
 
 
 async def reconcile_sources(
@@ -346,14 +352,14 @@ def _set_signing_secret(row: Source, secrets: SecretBox, secret: str) -> str:
         raise EmptySigningSecret
     row.signing_secret = secrets.seal({SIGNING_FIELD: secret})
     row.signing_key_id = secrets.key_id
-    row.secret_fingerprint = fingerprint_of(secret)
+    row.secret_fingerprint = fingerprint_of(secrets, secret)
     row.token_prefix = None
     return secret
 
 
-def fingerprint_of(secret: str) -> str:
-    """Name a signing secret by a short hash, which a holder can recompute and which reveals none of it."""
-    return hashlib.sha256(secret.encode()).hexdigest()[:FINGERPRINT_LENGTH]
+def fingerprint_of(secrets: SecretBox, secret: str) -> str:
+    """Name a signing secret by a short keyed hash, so a change shows and a guess cannot be tested."""
+    return secrets.keyed_digest(secret)[:FINGERPRINT_LENGTH]
 
 
 def open_signing_secret(secrets: SecretBox, row: Source) -> bytes | None:

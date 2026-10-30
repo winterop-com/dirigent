@@ -75,6 +75,7 @@ from dirigent_core.messages import (
     STEP_BLOCK_MISSING,
     STEP_CONFIG_INVALID,
     STEP_CONNECTION_MISSING,
+    STEP_REFERENCE_IN_SQL,
     STEP_SCHEMA_INTERPOLATED,
     STEP_SCHEMA_MISSING,
     STEP_UNSAFE_BLOCK,
@@ -86,7 +87,7 @@ from dirigent_core.messages import (
     WRONG_DOCUMENT_KIND,
     WRONG_FORMAT,
 )
-from dirigent_plugin import reference_fields
+from dirigent_plugin import reference_fields, sql_fields_of
 
 #: High enough that the canonical dump never folds a line, which would shift the digest.
 YAML_WIDTH: Final = 10_000
@@ -643,11 +644,23 @@ def _step_block_issues(
         issues.extend(malformed)
         issues.extend(_connection_issues(name, step.config, connections))
         issues.extend(_schema_issues(name, step.config, entry.config_schema, schemas))
+        issues.extend(_sql_reference_issues(name, step.config, entry.config_schema))
         issues.extend(_allowlist_issues(name, step.block, entry, allowed))
         issues.extend(_scheme_issues(name, step.config, entry.config_schema, schemes))
         if not malformed:
             issues.extend(_block_refusals(name, step.block, step.config, blocks))
     return issues
+
+
+def _sql_reference_issues(step: str, config: JsonMap, schema: JsonMap) -> list[ValidationIssue]:
+    """Refuse a reference in a field the block publishes as SQL, which only ``params`` may carry."""
+    return [
+        ValidationIssue.of(
+            STEP_REFERENCE_IN_SQL, location=f"steps.{step}.config.{field}", reference=reference, field=field
+        )
+        for field in sorted(sql_fields_of(schema))
+        for reference in references_in(config.get(field))
+    ]
 
 
 def _block_refusals(

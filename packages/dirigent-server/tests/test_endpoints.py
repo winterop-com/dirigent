@@ -280,6 +280,46 @@ def test_every_path_no_route_answers_shares_one_count(settings: Settings, admin_
     assert answered == [404, 404, 429]
 
 
+@pytest.mark.parametrize("charset", ["punycode", "idna", "undefined", "utf-7", "rot13", "base64", "no-such-codec"])
+def test_a_charset_outside_the_list_is_refused_without_decoding(client: TestClient, charset: str) -> None:
+    apply_document(client, echo("      auth: {kind: public}"))
+    called = client.post(
+        "/endpoints/echo/ann", content=b"abc-", headers={"Content-Type": f"text/plain; charset={charset}"}
+    )
+    assert called.status_code == 415, called.text
+    assert called.json()["code"] == "source.charset_refused"
+
+
+@pytest.mark.parametrize(
+    ("charset", "body", "text"),
+    [
+        ("utf-8", "blåbær".encode(), "blåbær"),
+        ("UTF-8", "blåbær".encode(), "blåbær"),
+        ('"utf-8"', "blåbær".encode(), "blåbær"),
+        ("us-ascii", b"plain", "plain"),
+        ("iso-8859-1", "blåbær".encode("latin-1"), "blåbær"),
+        ("windows-1252", "blåbær".encode("cp1252"), "blåbær"),
+        ("utf-16", "blåbær".encode("utf-16"), "blåbær"),
+        ("utf-16le", "blåbær".encode("utf-16-le"), "blåbær"),
+        ("utf-16be", "blåbær".encode("utf-16-be"), "blåbær"),
+    ],
+)
+def test_a_charset_on_the_list_decodes_the_body(client: TestClient, charset: str, body: bytes, text: str) -> None:
+    apply_document(client, echo("      auth: {kind: public}"))
+    called = client.post(
+        "/endpoints/echo/ann", content=body, headers={"Content-Type": f"text/plain; charset={charset}"}
+    )
+    assert called.status_code == 200, called.text
+    assert called.json() == text
+
+
+def test_a_body_its_charset_cannot_read_is_refused_400(client: TestClient) -> None:
+    apply_document(client, echo("      auth: {kind: public}"))
+    called = client.post("/endpoints/echo/ann", content=b"\xff", headers={"Content-Type": "text/plain; charset=utf-8"})
+    assert called.status_code == 400, called.text
+    assert called.json()["code"] == "source.body_not_text"
+
+
 def test_a_public_source_has_no_token_to_rotate(client: TestClient) -> None:
     apply_document(client, echo("      auth: {kind: public}"))
     refused = client.post(f"{PREFIX}/pipelines/echo/sources/ask/$rotate-token")
@@ -519,7 +559,8 @@ def test_a_signing_secret_is_listed_by_a_hash_and_none_of_it_in_clear(client: Te
     minted = apply_document(client, held("      auth: {kind: hmac}"))["sources"]["tokens"][0]
     secret = minted["token"]
     assert minted["prefix"] is None
-    assert minted["fingerprint"] == hashlib.sha256(secret.encode()).hexdigest()[:12]
+    assert len(minted["fingerprint"]) == 12
+    assert minted["fingerprint"] != hashlib.sha256(secret.encode()).hexdigest()[:12]
     listed = source(client, "held")
     assert listed.token_prefix is None
     assert listed.secret_fingerprint == minted["fingerprint"]
@@ -528,7 +569,9 @@ def test_a_signing_secret_is_listed_by_a_hash_and_none_of_it_in_clear(client: Te
     replaced = client.post(f"{PREFIX}/pipelines/held/sources/ask/$set-secret", json={"secret": issued})
     assert replaced.status_code == 200, replaced.text
     assert issued[:8] not in replaced.text
-    assert replaced.json()["secret_fingerprint"] == hashlib.sha256(issued.encode()).hexdigest()[:12]
+    fingerprint = replaced.json()["secret_fingerprint"]
+    assert fingerprint != minted["fingerprint"], "a change of secret stays visible"
+    assert fingerprint != hashlib.sha256(issued.encode()).hexdigest()[:12], "a guess cannot be tested offline"
 
 
 def test_moving_a_signed_source_to_a_token_drops_the_fingerprint(client: TestClient) -> None:

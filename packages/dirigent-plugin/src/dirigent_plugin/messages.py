@@ -15,6 +15,19 @@ FILTER_ANSWER = PLUGIN.define(
     "{block} answered {answer} for element {index}, and a filter's answer is true or false",
 )
 
+CSV_TOO_MANY_COLUMNS = PLUGIN.define(
+    "csv_too_many_columns",
+    "the records name more than {limit} distinct keys, and each is one csv column; "
+    "keep the keys you need with a transform first",
+)
+
+CSV_TOO_SPARSE = PLUGIN.define(
+    "csv_too_sparse",
+    "{rows} rows by {columns} columns leave {empty} cells empty, more than the {limit} a csv here may hold; "
+    "records that each carry keys of their own have no table worth writing, "
+    "so give them shared keys with a transform first",
+)
+
 UNSUPPORTED_PAIR = PLUGIN.define(
     "unsupported_pair",
     "{block} does not convert {source_format} to {target_format} ({supported})",

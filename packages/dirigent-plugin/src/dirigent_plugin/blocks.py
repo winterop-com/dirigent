@@ -1,5 +1,6 @@
 """The dirigent block contract: the only module a third-party plugin package needs to import."""
 
+import functools
 import re
 from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator, AsyncIterator, Callable, Mapping
@@ -18,8 +19,10 @@ from pydantic_core import CoreSchema
 
 from dirigent_common import (
     SHELL_MEDIA_TYPE,
+    SQL_MEDIA_TYPE,
     BlockModel,
     HealthReport,
+    HumaneJsonSchema,
     Issue,
     JsonMap,
     Message,
@@ -273,6 +276,39 @@ def shell_string_fields(model: type[BaseModel]) -> frozenset[str]:
         for name, field in model.model_fields.items()
         if any(isinstance(marker, ShellString) for marker in field.metadata)
     )
+
+
+def sql_fields_of(schema: JsonMap) -> frozenset[str]:
+    """Name the fields a config schema publishes as SQL: a string, an optional one, or a list of them.
+
+    A reference in one of these is refused, so a value only ever reaches SQL as a bound
+    parameter. Only the config's own top-level fields are read, the keys a step writes.
+    """
+    properties = schema.get("properties")
+    if not isinstance(properties, dict):
+        return frozenset()
+    return frozenset(
+        str(name)
+        for name, declared in cast("dict[str, Any]", properties).items()
+        if isinstance(declared, dict) and _holds_sql(cast("dict[str, Any]", declared))
+    )
+
+
+def _holds_sql(shape: dict[str, Any]) -> bool:
+    """Whether a field's schema, its union branches or its list items carry the SQL media type."""
+    if shape.get("contentMediaType") == SQL_MEDIA_TYPE:
+        return True
+    options = cast("list[dict[str, Any]]", shape.get("anyOf") or [])
+    items = shape.get("items")
+    return any(_holds_sql(option) for option in options) or (
+        isinstance(items, dict) and _holds_sql(cast("dict[str, Any]", items))
+    )
+
+
+@functools.cache
+def sql_string_fields(model: type[BaseModel]) -> frozenset[str]:
+    """List the config fields a model publishes as SQL, by the schema the catalog publishes."""
+    return sql_fields_of(model.model_json_schema(mode="serialization", schema_generator=HumaneJsonSchema))
 
 
 class RemoteHandle(BaseModel):

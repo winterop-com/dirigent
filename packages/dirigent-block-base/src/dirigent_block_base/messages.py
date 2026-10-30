@@ -106,7 +106,13 @@ YAML_UNSPELLABLE = BASE.define("yaml_unspellable", "the YAML value at {path} is 
 
 YAML_ALIASES_EXPAND_TOO_FAR = BASE.define(
     "yaml_aliases_expand_too_far",
-    "the YAML document's aliases would add more than {limit} values once each is written out, "
+    "the YAML input's aliases would add more than {limit} values once each is written out, "
+    "and JSON has no aliases; write the repeated parts out in the source, or repeat them less",
+)
+
+YAML_ALIASES_WRITE_TOO_MUCH = BASE.define(
+    "yaml_aliases_write_too_much",
+    "the YAML input's aliases would add more than {limit} bytes of text once each is written out, "
     "and JSON has no aliases; write the repeated parts out in the source, or repeat them less",
 )
 

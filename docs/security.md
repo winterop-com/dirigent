@@ -188,8 +188,9 @@ than by an exception list each endpoint remembers:
   instance data. It shares the UI's origin, so what a caller can make it answer is contained:
   every answer carries `nosniff` and a sandboxing CSP, it answers under no content type a browser
   runs, it sets no header that would make the origin act for the caller, it redirects only on
-  its own origin, and it reads at most 1 MiB of a body. `DIRIGENT_PLAYGROUND_ENABLED=false`
-  unmounts it.
+  its own origin, and it reads at most 1 MiB of a body. A stream ends 95 seconds after it arrives
+  whether or not its client reads it, and one process holds 32 of them.
+  `DIRIGENT_PLAYGROUND_ENABLED=false` unmounts it.
 
 Every other route under `/api/v1` requires a principal, as a property of the router mount.
 
@@ -407,8 +408,10 @@ The comparison is constant-time and operates on bytes rather than strings, becau
 attacker-controlled and `hmac.compare_digest` raises on a non-ASCII `str`. The signing secret
 is minted at apply from the CSPRNG and shown once, or set with `dg source set-secret` when the
 sender issues it, and is sealed with the instance key, the way a connection's secret is. None
-of it is stored in clear: a listing shows `secret_fingerprint`, the first 12 hex characters of
-its SHA-256, which a holder can recompute to tell which secret they have. A bearer token keeps
+of it is stored in clear: a listing shows `secret_fingerprint`, 12 hex characters of an HMAC of
+it under a key derived from the instance key. It says whether the secret changed. It cannot be
+recomputed from the secret alone, so a reader who can list sources cannot test a guess at a
+hand-set secret against it, and neither can a holder check which secret they have. A bearer token keeps
 its eight-character prefix, because a minted token has 256 bits of entropy and the 48 shown
 leave 208 to guess, while a signing secret can be one a provider issued, of any length, so a
 prefix could be most of it. A re-apply keeps it, and `dg source rotate-token` replaces it. A signature is checked as soon as
@@ -448,6 +451,9 @@ updated on every call turns a cheap refusal into a database write.
 `max_body` or the instance's `DIRIGENT_SOURCE_MAX_BODY`, whichever is smaller. For a source
 taking a token, the content type is checked against what the source `accepts` before a byte of
 the body is read; a signed source reads its capped body first, because the signature covers it.
+A text body is decoded only from UTF-8, UTF-16, ASCII, ISO-8859-1 or Windows-1252, under their usual
+spellings, so handling a capped body costs time in step with its size. Any other `charset` is
+refused 415 (`source.charset_refused`) without decoding.
 A read holds no database connection: the call's transaction ends before it, and the source and
 its pipeline are read again after it. A body that has not arrived whole within
 `DIRIGENT_SOURCE_BODY_TIMEOUT` (default 30 seconds) is answered 408 and the connection closed,
@@ -599,6 +605,12 @@ evaluates a variable's value as an expression, and a subscript in that expressio
 substitution: `a[$(id)]` runs `id`. So a reference inside `$(( ))`, `(( ))` or `$[ ]` must resolve
 to an integer, and anything else fails the step as `rejected` before the command starts. Declare
 the parameter as `type: integer` and a caller's bad value is refused at the door instead.
+
+Those spellings are looked for with no regard to quoting, so a quote in a comment, a here-document
+or `$'...'` cannot hide one. That reads a literal opener as one too: after `'$(( '`, in a comment
+or in a program another tool reads, a reference must be an integer until the opener closes. So
+must one inside a `$( )` within arithmetic, because the shell evaluates what that prints. A step
+that needs another value there uses `argv`, which involves no shell.
 
 The check reads those three spellings and nothing else. It does not cover a reference that bash
 evaluates some other way: the operands of `[[ -eq ]]`, `let`, `declare -i`, an indexed array's

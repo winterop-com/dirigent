@@ -25,6 +25,7 @@ from dirigent_server.health import build_registry
 from dirigent_server.health import router as health_router
 from dirigent_server.logging import get_logger
 from dirigent_server.routes import TAGS, build_endpoints_router, build_router
+from dirigent_server.routes.playground import install_stream_deadline
 from dirigent_server.security import install_cross_site_guard, install_security_headers
 from dirigent_server.ui import mount_ui_assets, mount_ui_shell
 
@@ -126,6 +127,7 @@ def create_app(
     instrument_fastapi(app)
     install_compression(app)
     install_security_headers(app)
+    install_stream_deadline(app, resolved)
     return app
 
 

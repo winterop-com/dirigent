@@ -8,9 +8,10 @@ Both blocks are **ordinary**. They run no command a document supplies and reach 
 database their connection names, which is a narrower grant than ``shell.run``. On sqlite that
 is held by the engine's authorizer, which refuses ``ATTACH`` and ``VACUUM INTO``.
 
-Nothing a document writes ever reaches the SQL text. A statement is a constant in the document
-and every value is a named bind parameter, so ``${...}`` resolves into ``params`` and a value
-that looks like SQL stays a value.
+Nothing a run carries ever reaches the SQL text. A statement is a constant in the document and
+every value is a named bind parameter, so ``${...}`` resolves into ``params`` and a value that
+looks like SQL stays a value. A reference in ``sql`` or ``statements`` is refused at apply and
+again when the step starts.
 
 The engine is whatever the connection's URL names: any dialect with an async driver is driven
 from here, and a backend needing more than a driver is an installed package contributing a
@@ -150,7 +151,7 @@ class SqlQueryConfig(BlockModel):
 
     This is where a ``${...}`` reference belongs. A parameter is sent to the database beside
     the statement and never spliced into it, so a value that reads as SQL is still a value.
-    Nothing in ``sql`` is substituted, which also means a table or column name cannot come
+    A reference in ``sql`` is refused, which also means a table or column name cannot come
     from a parameter: only a value can.
 
     An engine whose tables can be files is handed a storage URI as the file it opens, within
@@ -244,15 +245,19 @@ class SqlExecuteConfig(BlockModel):
     """The ``sql`` connection naming the database and holding its password. A connection
     marked ``read_only`` is refused: this block writes."""
 
-    statements: list[str] = Field(min_length=1)
+    statements: list[Annotated[str, Field(json_schema_extra={"contentMediaType": SQL_MEDIA_TYPE})]] = Field(
+        min_length=1
+    )
     """The statements, run in order inside one transaction. They all commit or none of them
-    does, so a migration, an insert and the index it needs are one step and not three."""
+    does, so a migration, an insert and the index it needs are one step and not three. A
+    reference here is refused: it belongs in ``params``."""
 
     params: JsonMap = Field(default_factory=dict[str, Any])
     """Values bound by name, written ``:name``, and shared by every statement.
 
-    A statement that names no parameter simply binds none of them. An engine whose tables can
-    be files is handed a storage URI as the file it opens, within the run's own directories."""
+    This is where a ``${...}`` reference belongs. A statement that names no parameter simply
+    binds none of them. An engine whose tables can be files is handed a storage URI as the file
+    it opens, within the run's own directories."""
 
     timeout: Duration = timedelta(minutes=5)
     """How long the whole transaction may run.

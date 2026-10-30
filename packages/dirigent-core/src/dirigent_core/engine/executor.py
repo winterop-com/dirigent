@@ -68,6 +68,7 @@ from dirigent_core.messages import (
     FAN_OUT_WITHOUT_ITEM,
     GONE_PROBES,
     ITEM_UNPAIRED,
+    LEASE_RECOVERIES,
     REMOTE_JOB_FAILED,
     REMOTE_JOB_GONE,
     REMOTE_JOB_SAID,
@@ -84,6 +85,7 @@ from dirigent_plugin import (
     ProbeStatus,
     RemoteHandle,
     shell_string_fields,
+    sql_string_fields,
 )
 
 DEFAULT_PROBE_INTERVAL = timedelta(seconds=30)
@@ -253,6 +255,18 @@ class Engine:
             await self._settle_deadline(session, run, definition, attempt, step, now)
             return None
 
+        limit = self.services.settings.lease_recovery_limit
+        if attempt.lease_recoveries > limit:
+            await self._settle_and_advance(
+                session,
+                run,
+                definition,
+                attempt,
+                Failure.rejected(LEASE_RECOVERIES, step=repr(attempt.step_name), limit=limit),
+                now,
+            )
+            return None
+
         refusal = self.services.local_execution_refusal(attempt.block_id)
         if refusal is not None:
             await self._settle_and_advance(session, run, definition, attempt, refusal, now)
@@ -294,7 +308,12 @@ class Engine:
         )
         try:
             block = self.services.block(attempt.block_id)
-            config = resolve_config(step.config, scope, shell_fields=shell_string_fields(block.config_model))
+            config = resolve_config(
+                step.config,
+                scope,
+                shell_fields=shell_string_fields(block.config_model),
+                sql_fields=sql_string_fields(block.config_model),
+            )
             block.config_model.model_validate(config)
             _logger.debug(
                 "references resolved",

@@ -294,6 +294,12 @@ STEP_BLOCK_MISSING = DOCUMENT.define(
     "no block {block} is installed; install the plugin package that contributes it",
 )
 
+STEP_REFERENCE_IN_SQL = DOCUMENT.define(
+    "step_reference_in_sql",
+    "${{{reference}}} is inside {field}, and a value reaches SQL only as a bound parameter; "
+    "write :name there and give the reference to params",
+)
+
 STEP_UNSAFE_BLOCK = DOCUMENT.define(
     "step_unsafe_block",
     "block {block} executes code on the worker and DIRIGENT_ENABLED_UNSAFE_BLOCKS "
@@ -561,6 +567,12 @@ SHELL_ARITHMETIC = _unresolved(
     "it is inside shell arithmetic, which evaluates a value as an expression, and it is not an integer",
 )
 
+SQL_REFERENCE = _unresolved(
+    "in_sql",
+    "it is inside {field}, and a value reaches SQL only as a bound parameter; "
+    "write :name there and give the reference to params",
+)
+
 RUN = Catalogue("run")
 
 RUN_UNKNOWN_CONNECTION = RUN.define("unknown_connection", "no connection coded {ref} ({available})")
@@ -612,6 +624,11 @@ GONE_PROBES = RUN.define("gone_probes", "{detail} (after {probes} consecutive GO
 DEADLINE_PASSED = RUN.define("deadline_passed", "the deadline {deadline} passed before the step finished")
 
 DEADLINE_SKIPPED = RUN.define("deadline_skipped", "the deadline {deadline} passed; the step is skipped")
+
+LEASE_RECOVERIES = RUN.define(
+    "lease_recoveries",
+    "step {step} was taken back from a worker more than {limit} times without an outcome, so it is not run again",
+)
 
 CALL_TIMED_OUT = RUN.define("call_timed_out", "the block call timed out")
 
@@ -868,6 +885,10 @@ BODY_WITHOUT_TYPE = SOURCE.define(
 ENDPOINT_BODY_NOT_JSON = SOURCE.define("body_not_json", "the body is not JSON: {detail}")
 
 ENDPOINT_BODY_NOT_TEXT = SOURCE.define("body_not_text", "the body is not {charset} text: {detail}")
+
+ENDPOINT_CHARSET_REFUSED = SOURCE.define(
+    "charset_refused", "this endpoint reads a text body in {accepted}, and {charset} is not one of them"
+)
 
 REFERENCE_MALFORMED_ERROR = SOURCE.define(
     "reference_malformed_error",

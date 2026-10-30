@@ -105,6 +105,20 @@ async def test_renaming_a_template_parameter_keeps_the_route_answered(
     assert await routes_of(sessions) == [("POST", "/echo/{name}")]
 
 
+async def test_a_dry_run_names_a_source_the_document_stopped_declaring_and_keeps_it(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    await apply(sessions, services, echo())
+    plain = load_pipeline_text(
+        "format: dirigent/v1\nkind: pipeline\ncode: echo\nsteps:\n  one:\n    block: test.echo\n"
+        "    config: {value: hi}\n"
+    )
+    async with session_scope(sessions) as session:
+        planned = await apply_document(session, services, plain, dry_run=True)
+    assert planned.sources.removed == ["ask"]
+    assert await routes_of(sessions) == [("POST", "/echo/{who}")]
+
+
 async def test_dropping_every_source_retires_its_rows_and_releases_its_routes(
     sessions: async_sessionmaker[AsyncSession], services: EngineServices
 ) -> None:

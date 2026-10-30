@@ -11,7 +11,7 @@ from collections.abc import Iterator, Mapping, Sequence
 from typing import Any, Final, cast
 
 import yaml
-from pydantic import JsonValue
+from pydantic import BaseModel, JsonValue
 
 from dirigent_block_base.messages import (
     CSV_HEADER_REPEATED,
@@ -37,12 +37,13 @@ from dirigent_block_base.messages import (
     XML_VALUE_IS_NOT_TEXT,
     YAML_ALIAS_CYCLE,
     YAML_ALIASES_EXPAND_TOO_FAR,
+    YAML_ALIASES_WRITE_TOO_MUCH,
     YAML_KEY_NOT_A_STRING,
     YAML_NOT_A_NUMBER,
     YAML_STREAM,
     YAML_UNSPELLABLE,
 )
-from dirigent_plugin import Converter, TransformError
+from dirigent_plugin import Converter, TransformError, csv_header
 
 #: The three spellings of a sequence of records, which convert between each other freely.
 SEQUENCE_FORMATS: Final = ("json", "ndjson", "csv")
@@ -60,8 +61,11 @@ UNIT: Final = {"json": "element", "ndjson": "line", "csv": "row", "yaml": "docum
 #: The key an element's attribute takes, prefixed so it can never collide with a child's tag.
 ATTRIBUTE_PREFIX: Final = "@"
 
-#: How many values a YAML document's aliases may add once each is written out in place.
+#: How many values a YAML stream's aliases may add once each is written out in place.
 ALIAS_EXPANSION_LIMIT: Final = 100_000
+
+#: How many bytes of scalar text a YAML stream's aliases may add once each is written out in place.
+ALIAS_EXPANSION_BYTES: Final = 16 * 1024 * 1024
 
 #: The key an element's text takes where the element also has attributes.
 TEXT_KEY: Final = "#text"
@@ -258,12 +262,11 @@ def _write(records: list[JsonValue], target_format: str) -> str:
 def _write_csv(records: list[JsonValue]) -> str:
     """Write a header of every key any row has, in first-seen order, and one row per record."""
     rows: list[dict[str, JsonValue]] = []
-    header: list[str] = []
     for number, record in enumerate(records, start=1):
         if not isinstance(record, dict):
             raise TransformError(CSV_ROW_NOT_AN_OBJECT.render(number=number, described=_named(record)))
         rows.append(record)
-        header.extend(key for key in record if key not in header)
+    header = csv_header(rows)
     out = io.StringIO(newline="")
     writer = csv.writer(out, lineterminator="\n")
     writer.writerow(header)
@@ -293,42 +296,73 @@ class _Tagged:
 class _JsonSafeLoader(yaml.SafeLoader):
     """The safe loader, with an unknown tag built into a marker rather than refused without a path.
 
-    A document is refused before it is built when its aliases would add more than
-    ``ALIAS_EXPANSION_LIMIT`` values once written out, since a few hundred bytes of nested
-    aliases expand to billions.
+    A document is refused before it is built when the aliases of the stream so far would add
+    more than ``ALIAS_EXPANSION_LIMIT`` values or ``ALIAS_EXPANSION_BYTES`` bytes of scalar
+    text once written out, since a few hundred bytes of nested aliases expand to billions. A
+    document's own text is not counted: it is already in the input.
     """
+
+    def __init__(self, stream: str) -> None:
+        """Start the stream with nothing added by its aliases."""
+        super().__init__(stream)
+        self.added = _Added()
 
     def construct_document(self, node: yaml.Node) -> Any:
         """Build the document once its written-out size is known to be bounded."""
-        _hold_expansion(node)
+        _hold_expansion(node, self.added)
         return super().construct_document(node)  # pyright: ignore[reportUnknownMemberType]
 
 
-def _hold_expansion(root: yaml.Node) -> None:
-    """Refuse a node graph whose aliases add more than the limit, or that contains itself."""
-    sizes: dict[int, int] = {}
-    open_nodes: set[int] = set()
+class _Added(BaseModel):
+    """What the aliases of a YAML stream add once written out, across its documents so far."""
 
-    def size(node: yaml.Node) -> int:
+    values: int = 0
+    scalar_bytes: int = 0
+
+
+def _scalar_bytes(node: yaml.Node) -> int:
+    """How many bytes of text one node itself holds, which is nothing unless it is a scalar."""
+    if not isinstance(node, yaml.ScalarNode):
+        return 0
+    return len(cast("str", node.value).encode(errors="replace"))
+
+
+def _hold_expansion(root: yaml.Node, added: _Added) -> None:
+    """Refuse a node graph whose aliases take the stream past a limit, or that contains itself."""
+    sizes: dict[int, tuple[int, int]] = {}
+    open_nodes: set[int] = set()
+    distinct_bytes = 0
+
+    def size(node: yaml.Node) -> tuple[int, int]:
+        nonlocal distinct_bytes
         key = id(node)
         if key in sizes:
             return sizes[key]
         if key in open_nodes:
             raise TransformError(YAML_ALIAS_CYCLE.render())
         open_nodes.add(key)
-        total = 1
+        children: list[yaml.Node] = []
         if isinstance(node, yaml.SequenceNode):
-            total += sum(size(item) for item in cast("list[yaml.Node]", node.value))
+            children = cast("list[yaml.Node]", node.value)
         elif isinstance(node, yaml.MappingNode):
             pairs = cast("list[tuple[yaml.Node, yaml.Node]]", node.value)
-            total += sum(size(key_node) + size(value_node) for key_node, value_node in pairs)
+            children = [child for pair in pairs for child in pair]
+        measured = [size(child) for child in children]
+        own = _scalar_bytes(node)
+        values = 1 + sum(child[0] for child in measured)
+        scalar_bytes = own + sum(child[1] for child in measured)
         open_nodes.discard(key)
-        sizes[key] = total
-        if total - len(sizes) > ALIAS_EXPANSION_LIMIT:
+        sizes[key] = (values, scalar_bytes)
+        distinct_bytes += own
+        if added.values + values - len(sizes) > ALIAS_EXPANSION_LIMIT:
             raise TransformError(YAML_ALIASES_EXPAND_TOO_FAR.render(limit=f"{ALIAS_EXPANSION_LIMIT:,}"))
-        return total
+        if added.scalar_bytes + scalar_bytes - distinct_bytes > ALIAS_EXPANSION_BYTES:
+            raise TransformError(YAML_ALIASES_WRITE_TOO_MUCH.render(limit=f"{ALIAS_EXPANSION_BYTES:,}"))
+        return sizes[key]
 
-    size(root)
+    values, scalar_bytes = size(root)
+    added.values += values - len(sizes)
+    added.scalar_bytes += scalar_bytes - distinct_bytes
 
 
 def _construct_tagged(loader: yaml.SafeLoader, suffix: str, node: yaml.Node) -> _Tagged:
