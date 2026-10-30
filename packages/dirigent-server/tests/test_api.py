@@ -1666,6 +1666,45 @@ def test_runs_can_be_filtered(client: TestClient) -> None:
     assert client.get(f"{PREFIX}/runs", params={"since": "yesterday"}).status_code == 422
 
 
+def test_run_stats_summarise_what_settled_in_the_window(client: TestClient) -> None:
+    apply_document(client, DOCUMENT)
+    run_id = UUID(client.post(f"{PREFIX}/pipelines/api-demo/$run", json={"params": {}}).json()["run_id"])
+    now = datetime.now(UTC)
+    rows_written(
+        client,
+        sa.update(Run)
+        .where(Run.id == run_id)
+        .values(status=RunStatus.FAILED, started_at=now - timedelta(seconds=2), finished_at=now),
+        sa.update(StepAttempt)
+        .where(StepAttempt.run_id == run_id, StepAttempt.step_name == "greet")
+        .values(status=AttemptStatus.FAILED, error_code="shell.exit", error="exit 1", finished_at=now),
+    )
+
+    answered = client.get(f"{PREFIX}/runs/$stats")
+    assert answered.status_code == 200, answered.text
+    stats = answered.json()
+    assert len(stats["trend"]) == 8, "seven days back from now touch eight UTC days"
+    assert stats["trend"][-1]["day"] == now.date().isoformat()
+    assert (stats["trend"][-1]["total"], stats["trend"][-1]["failed"]) == (1, 1)
+    assert [(row["pipeline"], row["runs"], row["max_ms"]) for row in stats["durations"]] == [("api-demo", 1, 2000)]
+    assert [(row["code"], row["count"], row["pipeline"]) for row in stats["top_errors"]] == [
+        ("shell.exit", 1, "api-demo")
+    ]
+    assert [(row["step"], row["failures"]) for row in stats["failing_steps"]] == [("greet", 1)]
+
+    assert client.get(f"{PREFIX}/runs/$stats", params={"pipeline": "other"}).json()["durations"] == []
+    assert client.get(f"{PREFIX}/runs/$stats", params={"tag": "nightly"}).json()["top_errors"] == []
+    assert len(client.get(f"{PREFIX}/runs/$stats", params={"since": "24h"}).json()["trend"]) == 2
+
+
+def test_run_stats_refuse_a_window_that_is_not_one_or_is_too_long(client: TestClient) -> None:
+    assert client.get(f"{PREFIX}/runs/$stats", params={"since": "yesterday"}).status_code == 422
+    refused = client.get(f"{PREFIX}/runs/$stats", params={"since": "400d"})
+    assert refused.status_code == 422
+    assert refused.json()["code"] == "server.stats_window_too_long"
+    assert refused.json()["params"] == {"maximum": "52w2d", "since": "400d"}
+
+
 def test_a_run_can_be_cancelled(client: TestClient) -> None:
     apply_document(client, DOCUMENT)
     run_id = client.post(f"{PREFIX}/pipelines/api-demo/$run", json={"params": {}}).json()["run_id"]

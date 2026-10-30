@@ -1088,6 +1088,7 @@ POST          /api/v1/pipelines/{code}/$activate      # + /$deactivate, DELETE
 POST          /api/v1/pipelines/{code}/$run           # parameters validated against the schema
 POST          /api/v1/pipelines/{code}/$backfill      # one run per window a cadence has gone past
 GET           /api/v1/runs                   # filters: pipeline, status, since
+GET           /api/v1/runs/$stats            # per day, durations, top errors, failing steps over a window
 GET           /api/v1/runs/{id}              # run + DAG view model + item and attempt counts
 GET           /api/v1/runs/{id}/items        # the fan-out grid, paged in creation order
 GET           /api/v1/runs/{id}/attempts     # paged in creation order; filters: step, status
@@ -1535,7 +1536,7 @@ dg schema list | create file|- | show | update CODE [file|-] | delete CODE   # n
 
 # execution
 dg run NAME|file|url [-p key=value ...] [-P FILE] [--watch] [--local] [--window START..END]
-dg runs list | show | cancel | report | profile | logs [--follow] | retry RUN --step NAME
+dg runs list | stats | show | cancel | report | profile | logs [--follow] | retry RUN --step NAME
 dg runs rerun RUN [--current] [--watch]   # a settled run again, a dead letter replayed
 dg backfill PIPELINE --schedule S --from WHEN --to WHEN [--dry-run]   # the windows a cadence went past
 dg format [FILE]                        # render a kept or piped NDJSON stream for reading

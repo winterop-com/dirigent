@@ -136,6 +136,18 @@ async def test_a_settled_run_is_rerun_and_one_in_flight_is_refused(server: MCPSe
     assert (again["triggered_by_kind"], again["triggered_by_id"]) == ("rerun", original)
 
 
+async def test_run_stats_are_read_only_and_answer_the_window(server: MCPServer) -> None:
+    tools = {tool.name: tool for tool in await server.list_tools()}
+    assert tools["run_stats"].annotations is not None and tools["run_stats"].annotations.read_only_hint
+
+    stats = await call(server, "run_stats", since="24h", pipeline="mcp-demo")
+    assert set(stats) >= {"window", "trend"}
+    assert sum(day["total"] for day in stats["trend"]) == 0, "nothing has settled yet"
+    assert len(stats["trend"]) == 2, "a day back from now touches two UTC days"
+    with pytest.raises(ToolError, match="at most"):
+        await server.call_tool("run_stats", {"since": "400d"})
+
+
 async def test_a_refusal_reaches_the_agent_as_a_tool_error(server: MCPServer) -> None:
     with pytest.raises(ToolError, match="nobody"):
         await server.call_tool("get_pipeline", {"code": "nobody"})

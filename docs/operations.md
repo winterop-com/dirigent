@@ -1052,9 +1052,9 @@ containers and not only the server. See [telemetry](telemetry.md).
 | Queue depth | Nothing exposes the count of claimable attempts. `dg runs list --status queued` is the nearest proxy -- runs that have started nothing yet -- and a growing number there with live workers means the pool is behind | `dirigent.queue.depth` |
 | Work parked, not running | `dg runs show RUN_ID`, per run: attempts in `waiting`. There is no instance-wide count | `dirigent.waiting` |
 | Stuck runs | An alert rule on the `run_stuck` event, raised when a running run has made no attempt progress for `DIRIGENT_STUCK_RUN` (default one hour). The same detection logs `run has not progressed` at WARNING with the run id, so a log-based alert works too. Both are done by the worker's sweeper, so neither happens with no worker running | none |
-| Failed runs | `dg runs list --status failed --since 1h`, or an alert rule on `run_failed` | `dirigent.runs`, by `dirigent.run.status` |
-| Step failures by block | `dg runs list` then `dg runs show`, per run | `dirigent.steps`, by `dirigent.step.status` and `dirigent.block` |
-| Step and block-call duration | `dg runs report RUN_ID`; `dg runs profile RUN_ID` for where one run's wall clock went | `dirigent.step.duration`, `dirigent.block.duration` |
+| Failed runs | `dg runs list --status failed --since 1h`, or an alert rule on `run_failed`; `dg runs stats` for the count per day | `dirigent.runs`, by `dirigent.run.status` |
+| Step failures by block | `dg runs stats`, whose failing steps and top errors are counted over the window | `dirigent.steps`, by `dirigent.step.status` and `dirigent.block` |
+| Step and block-call duration | `dg runs stats` for each pipeline's p50, p95 and max run duration; `dg runs report RUN_ID`; `dg runs profile RUN_ID` for where one run's wall clock went | `dirigent.step.duration`, `dirigent.block.duration` |
 | Readiness | `GET /health/ready`, unauthenticated. 503 means a check reported unhealthy | none |
 | Database connections | `SELECT count(*) FROM pg_stat_activity WHERE datname = 'dirigent'`, against the ceiling in [scaling workers](#scaling-workers). A pool checkout that waits past `DIRIGENT_DATABASE_POOL_TIMEOUT` raises in the process log | none |
 | Alert delivery itself | `dg alerts queue`, which shows what is pending, sent, or failed. A notifier that has quietly stopped delivering is otherwise invisible, because the thing that would tell you is the notifier | none |
@@ -1091,6 +1091,38 @@ other than by asking for it with `dg connection check` (`dg system info` repeats
 check said), and table growth
 under an absent retention policy. The last one is the one that eventually hurts; a retention
 policy is off until you set one, so see [retention](#retention).
+
+## How the runs have been going
+
+`dg runs stats` answers for a window rather than for one run. It reads the runs that settled in
+the window, seven days when `--since` names none; a run still queued, running or paused has not
+settled and is in none of it. It says four things about the ones that did:
+
+- **The trend**: one row per UTC day, every day of the window present, with how many runs
+  settled that day and how many of them succeeded, failed, completed with errors, or were
+  cancelled.
+- **The durations**: per pipeline, the p50, p95 and longest run, from start to finish. A run
+  cancelled before it started has no duration and is not counted here.
+- **The top errors**: the ten errors failed attempts said most often, grouped by the dotted code
+  they failed with, or by the message where an attempt carried no code, with the last time it
+  was said and the pipeline when only one pipeline said it.
+- **The failing steps**: the ten steps whose attempts failed most, per pipeline.
+
+```bash
+dg runs stats
+dg runs stats --since 24h --pipeline nightly-load
+dg runs stats --tag nightly | jq '.durations[] | select(.p95_ms > 600000)'
+```
+
+`--tag` narrows by what a pipeline wears now, as it does on `dg runs list`, and repeating it
+narrows further. A failed attempt that a retry then made good still counts as a failure of its
+step, so a step that keeps needing its retries shows up here before it starts failing runs. The
+same answer is `GET /api/v1/runs/$stats`, which any role may read, and `dg.runs.stats()` in the
+Python client.
+
+The window is at most 366 days. Every count is exact; the percentiles are measured over the
+window's most recent 10,000 settled runs, ordered in the server rather than by the database, so
+SQLite and PostgreSQL give the same answer.
 
 ## Why was that run slow
 

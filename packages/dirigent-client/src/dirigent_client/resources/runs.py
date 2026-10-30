@@ -25,6 +25,7 @@ from dirigent_client.schemas import (
     RunDetail,
     RunOut,
     RunReport,
+    RunStats,
 )
 
 #: What a run's own report document is stored as, which is how it is told from a step's output.
@@ -67,6 +68,22 @@ class Runs(Resource):
                 after=after,
                 limit=limit,
             ),
+        )
+
+    async def stats(
+        self,
+        *,
+        since: str | None = None,
+        pipeline: str | None = None,
+        tags: Sequence[str] = (),
+    ) -> RunStats:
+        """Summarise the runs that settled within a window, ``7d`` when none is named.
+
+        Per day by status, per pipeline how long they took, and the errors and steps that
+        failed most. Naming more than one tag narrows, as it does on the listing.
+        """
+        return await self._one(
+            RunStats, "GET", "/runs/$stats", params=query(since=since, pipeline=pipeline, tag=[*tags] or None)
         )
 
     async def get(self, run_id: UUID | str) -> RunDetail:

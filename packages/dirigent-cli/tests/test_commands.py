@@ -947,6 +947,42 @@ def test_rerunning_a_settled_run_records_the_new_run_and_its_original(tmp_path: 
     assert refusal(refused.stdout)["code"] == "run.rerun_in_flight"
 
 
+def test_run_stats_are_one_record_carrying_the_days_and_the_durations(tmp_path: Path, server: str) -> None:
+    import sqlalchemy as sa
+
+    from dirigent_client.enums import RunStatus
+    from dirigent_core.database import create_engine, create_session_factory, session_scope
+    from dirigent_core.models import Run
+
+    apply_document(tmp_path)
+    assert invoke("run", "cli-demo").exit_code == 0
+    now = datetime.now(UTC)
+
+    async def settle() -> None:
+        engine = create_engine(Settings(database_url=f"sqlite+aiosqlite:///{tmp_path / 'dirigent.db'}"))
+        try:
+            async with session_scope(create_session_factory(engine)) as session:
+                await session.execute(
+                    sa.update(Run).values(
+                        status=RunStatus.SUCCEEDED, started_at=now - timedelta(seconds=3), finished_at=now
+                    )
+                )
+        finally:
+            await engine.dispose()
+
+    asyncio.run(settle())
+
+    [stats] = of_kind(records(invoke("runs", "stats", "--json").stdout), "runs.stats")
+    assert (stats["settled"], stats["failed"]) == (1, 0)
+    assert len(stats["trend"]) == 8, "seven days back from now touch eight UTC days"
+    assert sum(day["succeeded"] for day in stats["trend"]) == 1
+    assert stats["durations"] == [{"pipeline": "cli-demo", "runs": 1, "p50_ms": 3000, "p95_ms": 3000, "max_ms": 3000}]
+    assert (stats["top_errors"], stats["failing_steps"]) == ([], [])
+
+    narrowed = only(invoke("runs", "stats", "--pipeline", "other", "--since", "24h", "--json").stdout, "runs.stats")
+    assert (narrowed["settled"], narrowed["pipeline"], narrowed["durations"]) == (0, "other", [])
+
+
 def test_profiling_a_run_records_the_critical_path_and_the_split_along_it(tmp_path: Path, server: str) -> None:
     apply_document(tmp_path)
     assert invoke("run", "cli-demo").exit_code == 0

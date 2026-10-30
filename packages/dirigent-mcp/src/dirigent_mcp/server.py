@@ -162,6 +162,15 @@ def build(open_client: Callable[[], Dirigent], *, read_only: bool = False) -> MC
         )
 
     @tool(READS)
+    async def run_stats(since: str = "7d", pipeline: str | None = None, tags: list[str] | None = None) -> Any:
+        """Summarise the runs that settled within `since` (such as `7d`), narrowed to a pipeline or to every tag given.
+
+        Answers the runs per day by status, each pipeline's p50, p95 and max duration, and the
+        errors and steps that failed most.
+        """
+        return await call(lambda dg: dg.runs.stats(since=since, pipeline=pipeline, tags=tags or ()))
+
+    @tool(READS)
     async def get_run(run_id: str) -> Any:
         """Read one run: its status, every step's state, and its error when it failed."""
         return await call(lambda dg: dg.runs.get(run_id))
