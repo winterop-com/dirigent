@@ -477,7 +477,7 @@ An alert channel is one of these too: a `slack` or an `email` connection is what
 delivers through, minted and sealed exactly like the credential a block uses.
 
 **A connection something uses cannot be deleted.** `DELETE /connections/{code}` and `dg connection
-delete` answer 409 `connection.in_use` while a pipeline's current version names the code -- in a
+delete` answer 409 `server.connection_in_use` while a pipeline's current version names the code -- in a
 step, in a source, or under `requires.connections` -- while an alert rule delivers through it, or
 while the instance's `storage_connections` configures a scheme from it. `GET /connections/{code}`
 and `dg connection show` say which, under `used_by`. A past version holds nothing back, and a code

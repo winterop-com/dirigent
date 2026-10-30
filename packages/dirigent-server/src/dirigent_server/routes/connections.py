@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirigent_client.schemas import ConnectionDetail, ConnectionIn, ConnectionOut, ConnectionUpdate, Page
 from dirigent_common import HealthReport, JsonMap, validation_issues
-from dirigent_core.connections import connection_users, remove_connection
+from dirigent_core.connections import ConnectionInUse, connection_users, remove_connection, said
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.models import Connection, utcnow
 from dirigent_core.secrets import REDACTED, redact, secret_fields
@@ -27,6 +27,7 @@ from dirigent_server.logging import get_logger
 from dirigent_server.messages import (
     CONNECTION_CONFIG_INVALID,
     CONNECTION_EXISTS,
+    CONNECTION_IN_USE,
     CONNECTION_REFERENCED,
     NO_CONNECTION,
     REDACTED_SECRET,
@@ -262,6 +263,14 @@ async def delete_connection(code: str, session: SessionDep, services: ServicesDe
     row = await find(session, code)
     try:
         await remove_connection(session, services.host.catalog(), services.settings.storage_connections, row)
+    except ConnectionInUse as error:
+        raise Refusal(
+            CONNECTION_IN_USE,
+            status=status.HTTP_409_CONFLICT,
+            code=repr(code),
+            users=said(error.users),
+            used_by=error.users.model_dump(mode="json"),
+        ) from error
     except IntegrityError as error:
         raise Refusal(CONNECTION_REFERENCED, status=status.HTTP_409_CONFLICT, code=repr(code)) from error
     return Response(status_code=status.HTTP_204_NO_CONTENT)

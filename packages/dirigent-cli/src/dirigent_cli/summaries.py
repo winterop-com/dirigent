@@ -583,8 +583,8 @@ def _stats(record: Record) -> RenderableType | None:
             ["day", "total", "succeeded", "with errors", "failed", "cancelled"],
             [
                 [
-                    str(day.get("day")),
-                    str(day.get("total", 0)),
+                    escape(str(day.get("day"))),
+                    escape(str(day.get("total", 0))),
                     _count(day.get("succeeded"), "succeeded"),
                     _count(day.get("completed_with_errors"), "completed_with_errors"),
                     _count(day.get("failed"), "failed"),
@@ -605,7 +605,7 @@ def _stats(record: Record) -> RenderableType | None:
                     [
                         [
                             escape(str(row.get("pipeline"))),
-                            str(row.get("runs")),
+                            escape(str(row.get("runs"))),
                             elapsed(row.get("p50_ms")),
                             elapsed(row.get("p95_ms")),
                             elapsed(row.get("max_ms")),
@@ -625,7 +625,7 @@ def _stats(record: Record) -> RenderableType | None:
                     ["count", "code", "message", "pipeline", "last"],
                     [
                         [
-                            str(row.get("count")),
+                            escape(str(row.get("count"))),
                             escape(str(row.get("code") or "-")),
                             escape(str(row.get("message") or "-")),
                             escape(str(row.get("pipeline") or "-")),
@@ -646,7 +646,7 @@ def _stats(record: Record) -> RenderableType | None:
                     ["failures", "pipeline", "step", "last"],
                     [
                         [
-                            str(row.get("failures")),
+                            escape(str(row.get("failures"))),
                             escape(str(row.get("pipeline"))),
                             escape(str(row.get("step"))),
                             moment(row.get("last_at")),
@@ -663,7 +663,7 @@ def _count(value: object, status: str) -> str:
     """Render one status's count, coloured as that status when there is any of it."""
     if not value:
         return muted("0")
-    return f"[{STATUS_STYLES[status]}]{value}[/]"
+    return f"[{STATUS_STYLES[status]}]{escape(str(value))}[/]"
 
 
 #: What each record kind renders beneath its line. A kind that is not here renders as its

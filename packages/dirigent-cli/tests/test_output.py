@@ -1,7 +1,10 @@
 """The end-of-run table's ladder, and the spelling the CLI writes in."""
 
+import ast
 import io
 import json
+from collections.abc import Callable, Iterator
+from pathlib import Path
 from typing import Any, Literal
 
 import pytest
@@ -10,24 +13,33 @@ from rich.console import Group, RenderableType
 from rich.style import Style
 from rich.table import Table
 from rich.text import Text
+from textual.content import Content
 from typer.testing import CliRunner
 
 from clisupport import asking_for_the_rendering
-from dirigent_cli import stream
+from dirigent_cli import commands, stream
 from dirigent_cli.context import CliState
 from dirigent_cli.formatters import registry, rendered
+from dirigent_cli.init_form import starter_label
 from dirigent_cli.main import app, hoist_globals
 from dirigent_cli.output import (
     Detail,
     TerminalConsole,
+    age,
+    alert_event,
     build_fields,
+    build_table,
     emit_json,
     emit_records,
+    moment,
     printable,
     prioritised,
     render_output,
+    status_cell,
+    throttle_note,
 )
 from dirigent_cli.summaries import beneath
+from dirigent_core.examples import ExampleEntry
 from dirigent_core.protocol import PROTOCOL_VERSION
 
 runner = CliRunner(env={"COLUMNS": "200", "TERMINAL_WIDTH": "200"})
@@ -289,3 +301,109 @@ def test_a_stored_line_that_is_not_a_record_is_shown_literally() -> None:
 def test_a_value_in_a_fields_table_is_shown_literally() -> None:
     drawn = rendered_on_a_terminal(build_fields("run", {"error": "[bold]held[/bold]"}))
     assert "[bold]held[/bold]" in drawn
+
+
+BAD_TAG = "[/nope] [link=https://attacker.example/]"
+
+
+def test_a_table_title_with_a_bad_tag_is_shown_as_it_was_written() -> None:
+    drawn = rendered_on_a_terminal(build_table(BAD_TAG, ["column"], [["cell"]]))
+    assert BAD_TAG in drawn
+    assert "cell" in drawn
+
+
+def test_a_field_table_title_with_a_bad_tag_is_shown_as_it_was_written() -> None:
+    drawn = rendered_on_a_terminal(build_fields(BAD_TAG, {"name": "value"}))
+    assert BAD_TAG in drawn
+    assert "value" in drawn
+
+
+def test_an_empty_table_with_a_bad_tag_in_its_title_is_shown_as_it_was_written() -> None:
+    assert BAD_TAG in rendered_on_a_terminal(build_table(BAD_TAG, ["column"], []))
+
+
+def test_a_titles_own_markup_still_draws() -> None:
+    assert "[bold]" not in rendered_on_a_terminal(build_table("a [bold]title[/]", ["column"], [["cell"]]))
+
+
+#: Markup that parses, so the console's fallback for what does not parse cannot hide a missing escape.
+WELL_FORMED = "[red]held[/red]"
+
+
+def test_a_field_name_is_shown_literally() -> None:
+    assert WELL_FORMED in rendered_on_a_terminal(build_fields("title", {WELL_FORMED: "value"}))
+
+
+@pytest.mark.parametrize("render", [moment, age, alert_event, throttle_note, status_cell])
+def test_a_value_a_helper_cannot_read_is_shown_literally(render: Callable[[object], str]) -> None:
+    assert WELL_FORMED in rendered_on_a_terminal(render(WELL_FORMED))
+
+
+def test_a_runs_stats_table_shows_its_counts_literally() -> None:
+    drawn = rendered_on_a_terminal(
+        beneath(
+            {
+                "kind": "runs.stats",
+                "trend": [{"day": "[red]a[/red]", "total": "[red]b[/red]", "failed": "[red]c[/red]"}],
+                "durations": [{"pipeline": "p", "runs": "[red]d[/red]"}],
+                "top_errors": [{"count": "[red]e[/red]"}],
+                "failing_steps": [{"failures": "[red]f[/red]"}],
+            }
+        )
+        or ""
+    )
+    for letter in "abcdef":
+        assert f"[red]{letter}[/red]" in drawn
+
+
+def test_a_published_schemas_fields_are_shown_literally(monkeypatch: pytest.MonkeyPatch) -> None:
+    console, written = terminal()
+    monkeypatch.setattr(commands, "console", console)
+    schema = {"properties": {"[red]a[/red]": {"type": "[red]b[/red]", "default": "[red]c[/red]"}}}
+    commands._print_schema(schema)  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
+    for letter in "abc":
+        assert f"[red]{letter}[/red]" in written.getvalue()
+
+
+def test_a_starters_name_and_description_are_shown_literally() -> None:
+    entry = ExampleEntry(
+        code="a-starter",
+        name="[/nope] a name",
+        description="[bold]a description[/bold]",
+        plugin="p",
+        shelf="",
+        path="",
+        source="",
+    )
+    label = Content.from_markup(starter_label(entry)).plain
+    assert "[/nope] a name" in label
+    assert "[bold]a description[/bold]" in label
+
+
+#: The modules that print tables directly. A cell ending in `.value` is an enum's own word.
+SOURCES = ("commands.py", "triggers.py")
+
+
+def _bare_values(tree: ast.Module) -> Iterator[ast.expr]:
+    """Find every interpolation in a table's title, and every attribute a row cell holds as it is."""
+    for call in (node for node in ast.walk(tree) if isinstance(node, ast.Call)):
+        if not (isinstance(call.func, ast.Name) and call.func.id in {"table", "fields"} and call.args):
+            continue
+        title = call.args[0]
+        if isinstance(title, ast.JoinedStr):
+            yield from (part.value for part in title.values if isinstance(part, ast.FormattedValue))
+        for row in call.args[2:]:
+            for inner in ast.walk(row):
+                if isinstance(inner, ast.List):
+                    yield from (cell for cell in inner.elts if isinstance(cell, ast.Attribute) and cell.attr != "value")
+
+
+@pytest.mark.parametrize("name", SOURCES)
+def test_no_table_takes_a_title_or_a_cell_from_a_value_without_escaping_it(name: str) -> None:
+    source = Path(commands.__file__).with_name(name).read_text()
+    bare = [
+        ast.get_source_segment(source, value)
+        for value in _bare_values(ast.parse(source))
+        if not (isinstance(value, ast.Call) and isinstance(value.func, ast.Name) and value.func.id == "escape")
+    ]
+    assert bare == []

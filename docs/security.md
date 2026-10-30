@@ -599,6 +599,15 @@ declare `requires.workers` on the pipelines that use them. An instance with no k
 still starts, so a worker whose steps open no connection can be started without one; a stack
 whose artifact root resolves through a sealed connection cannot, because every worker opens it.
 
+### A document whose aliases expand
+
+A document is YAML, and a few hundred bytes of aliases nested inside each other expand to billions
+of values wherever the document is written out: a digest, an export, a request. So a document is
+measured before it is built, at every door that reads one, and refused when its aliases would add
+more than 100,000 values or 16 MiB of text, contain themselves, or nest past what Python's stack
+holds. An alias used to repeat a block of config is nowhere near that. The same bound holds the
+YAML `convert.std` reads.
+
 ### A reference in a shell string
 
 `shell.run` and `docker.run` take a command as a shell string, and a `${...}` in one never
@@ -654,6 +663,10 @@ file holding it instead, such as a mounted secret under `/run/secrets`, read onc
 **Dirigent assumes no secret manager.** There is no KMS integration, no Vault client, no
 key-fetch hook. If your platform provides secrets, its job is to put this variable or that file
 in place before dirigent starts; dirigent does not reach out for it.
+
+A working directory's `.env` is read literally, so a `${VAR}` in it stays those characters and
+cannot copy a value out of the environment. It is read only when it is a regular file, not a
+symbolic link, that this user owns and neither group nor others may write.
 
 `dg init --template local` writes a generated key into the project's `.env`, which that
 project's `.gitignore` keeps out of the repository and whose mode is owner-only, so a local

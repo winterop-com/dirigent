@@ -143,6 +143,10 @@ INERT_CONTENT_TYPES: Final = frozenset(
     }
 )
 
+#: How ``response-headers`` reads a content type: one media type and at most a charset. Anything
+#: else is refused, because a browser splits a value on its commas and acts on the last type.
+CONTENT_TYPE: Final = re.compile(r"([^ ;,/]+/[^ ;,/]+)(?: *; *charset=[A-Za-z0-9._-]+)?")
+
 #: The largest body a call may send, read no further than one byte past it.
 MAX_BODY: Final = 1024 * 1024
 
@@ -803,7 +807,10 @@ def _may_set(name: str, value: str) -> bool:
         or HEADER_VALUE.fullmatch(value) is None
     ):
         return False
-    return lowered != "content-type" or value.split(";")[0].strip().lower() in INERT_CONTENT_TYPES
+    if lowered != "content-type":
+        return True
+    parsed = CONTENT_TYPE.fullmatch(value)
+    return parsed is not None and parsed[1].lower() in INERT_CONTENT_TYPES
 
 
 @router.get(

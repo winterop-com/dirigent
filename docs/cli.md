@@ -103,7 +103,7 @@ hold it to addressing:
   or a shared directory, a project file owned by another uid is not read at all, so name the
   server with `--url` or `DG_URL`.
 - **Its `.env` is taken literally.** A `${VAR}` in a project's `.env` stays those characters, so
-  the file cannot copy a value out of your shell.
+  the file cannot copy a value out of your shell. The settings layer reads it the same way.
 - **A token from your shell does not follow its URL off this host.** A `--token`, a `DG_TOKEN`,
   or a variable a `token_env` reads out of your shell is refused on its way to a server the
   project's file or `.env` named, unless that server is on loopback. Name the server yourself

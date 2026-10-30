@@ -15,20 +15,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dirigent_client.enums import NotificationStatus
 from dirigent_client.schemas import Catalog, ConnectionUsers, PipelineUse
 from dirigent_core.engine.definition import connections_named
-from dirigent_core.errors import DomainError
-from dirigent_core.messages import CONNECTION_IN_USE
 from dirigent_core.models import AlertRule, Connection, Notification, Pipeline, PipelineVersion
 
 
-class ConnectionInUse(DomainError):
+class ConnectionInUse(Exception):
     """A connection was asked to be removed while something still reads it."""
 
-    status = 409
-    message = CONNECTION_IN_USE
-
-    def __init__(self, code: str, users: ConnectionUsers) -> None:
-        """Say what uses it, as a sentence and as what the read answers under ``used_by``."""
-        super().__init__(code=repr(code), users=said(users), used_by=users.model_dump(mode="json"))
+    def __init__(self, users: ConnectionUsers) -> None:
+        """Hold what uses it, which the route answers with."""
+        super().__init__(said(users))
         self.users = users
 
 
@@ -95,7 +90,7 @@ async def remove_connection(
     await session.execute(sa.select(Connection.id).where(Connection.id == row.id).with_for_update())
     users = await connection_users(session, catalog, storage_connections, row.code)
     if not users.empty:
-        raise ConnectionInUse(row.code, users)
+        raise ConnectionInUse(users)
     await session.execute(
         sa.update(Notification)
         .where(
